@@ -61,7 +61,7 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       message,
       tx,
     });
-    return tx.wait(blocks?.confirmations || 1);
+    return tx.wait(blocks?.confirmations ?? 1);
   }
 
   async waitForMessageReceipt(

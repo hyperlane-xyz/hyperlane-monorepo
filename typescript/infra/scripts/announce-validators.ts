@@ -23,7 +23,7 @@ function getArgs() {
     .choices('chain', AllChains)
     .describe(
       'location',
-      'location, e.g. s3://hyperlane-testnet4-goerli-validator-0/us-east-1',
+      'location, e.g. s3://hyperlane-testnet4-sepolia-validator-0/us-east-1',
     )
     .string('location')
     .check(({ context, chain, location }) => {

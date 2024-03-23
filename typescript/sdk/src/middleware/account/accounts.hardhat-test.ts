@@ -78,11 +78,12 @@ describe.skip('InterchainAccounts', async () => {
       ethers.constants.AddressZero,
     );
 
-    await local['callRemote(uint32,address,uint256,bytes)'](
+    await local['callRemote(uint32,address,uint256,bytes,bytes)'](
       multiProvider.getDomainId(remoteChain),
       recipient.address,
       0,
       data,
+      '',
     );
     await coreApp.processMessages();
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);

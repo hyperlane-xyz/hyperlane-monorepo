@@ -48,7 +48,7 @@ export function userIdentifier(
   return identifier(false, environment, context, role, chainName, index);
 }
 
-// Doesn't perform any checks on whether the parsed values are valid,
+// Does not perform any checks on whether the parsed values are valid,
 // this is left to the caller.
 export function parseKeyIdentifier(identifier: string): {
   environment: string;

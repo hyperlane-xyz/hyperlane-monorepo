@@ -32,7 +32,7 @@ use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        metadata::{AppContextClassifier, BaseMetadataBuilder},
+        metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
@@ -73,6 +73,7 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+    metric_app_contexts: Vec<(MatchingList, String)>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -226,7 +227,7 @@ impl BaseAgent for Relayer {
                     core.metrics.clone(),
                     db,
                     5,
-                    AppContextClassifier::new(
+                    IsmAwareAppContextClassifier::new(
                         mailboxes[destination].clone(),
                         settings.metric_app_contexts.clone(),
                     ),
@@ -264,6 +265,7 @@ impl BaseAgent for Relayer {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
+            metric_app_contexts: settings.metric_app_contexts,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -402,6 +404,7 @@ impl Relayer {
             metrics,
             send_channels,
             destination_ctxs,
+            self.metric_app_contexts.clone(),
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());

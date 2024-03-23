@@ -243,7 +243,9 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO Solana support
     return { amount: 0n };
   }

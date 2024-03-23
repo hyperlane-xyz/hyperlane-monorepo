@@ -12,6 +12,11 @@ export function deepCopy(v: any) {
 
 export type ValueOf<T> = T[keyof T];
 
+// Useful for maintaining type safety when using Object.keys
+export function objKeys<T extends string | number>(obj: Record<T, any>): T[] {
+  return Object.keys(obj) as T[];
+}
+
 export function objMapEntries<
   M extends Record<K, I>,
   K extends keyof M,

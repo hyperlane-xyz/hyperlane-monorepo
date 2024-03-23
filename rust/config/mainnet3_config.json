@@ -482,7 +482,7 @@
       ],
       "grpcUrls": [
         {
-          "http": "https://grpc-kralum.neutron-1.neutron.org:80"
+          "http": "http://grpc-kralum.neutron-1.neutron.org:80"
         }
       ],
       "canonicalAsset": "untrn",
@@ -494,7 +494,7 @@
       "contractAddressBytes": 32,
       "index": {
         "from": 4000000,
-        "chunk": 1
+        "chunk": 50
       },
       "blocks": {
         "reorgPeriod": 1
@@ -533,7 +533,7 @@
       "contractAddressBytes": 20,
       "index": {
         "from": 58419500,
-        "chunk": 1
+        "chunk": 50
       },
       "blocks": {
         "reorgPeriod": 10

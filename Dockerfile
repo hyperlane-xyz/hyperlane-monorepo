@@ -15,6 +15,7 @@ COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/infra/package.json ./typescript/infra/
+COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY solidity/package.json ./solidity/
 
 RUN yarn install && yarn cache clean

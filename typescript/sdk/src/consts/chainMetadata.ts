@@ -78,24 +78,6 @@ export const arbitrum: ChainMetadata = {
   technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
-export const arbitrumgoerli: ChainMetadata = {
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 421613,
-  displayName: 'Arbitrum Goerli',
-  displayNameShort: 'Arb. Goerli',
-  domainId: 421613,
-  isTestnet: true,
-  name: Chains.arbitrumgoerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
-  technicalStack: ChainTechnicalStack.ArbitrumNitro,
-};
-
 export const avalanche: ChainMetadata = {
   blockExplorers: [
     {
@@ -339,33 +321,6 @@ export const fuji: ChainMetadata = {
   ],
 };
 
-export const goerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli.etherscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'Etherscan',
-      url: 'https://goerli.etherscan.io',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 13,
-    reorgPeriod: 2,
-  },
-  chainId: 5,
-  displayName: 'Goerli',
-  domainId: 5,
-  isTestnet: true,
-  name: Chains.goerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    { http: 'https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
-    { http: 'https://rpc.ankr.com/eth_goerli' },
-  ],
-};
-
 export const gnosis: ChainMetadata = {
   blockExplorers: [
     {
@@ -453,30 +408,6 @@ export const injective: ChainMetadata = {
   restUrls: [{ http: 'https://sentry.lcd.injective.network:443' }],
   rpcUrls: [{ http: 'https://sentry.tm.injective.network:443' }],
   slip44: 118,
-};
-
-export const lineagoerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://explorer.goerli.linea.build/api',
-      family: ExplorerFamily.Blockscout,
-      name: 'Linea Explorer',
-      url: 'https://explorer.goerli.linea.build',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 12,
-    reorgPeriod: 2,
-  },
-  chainId: 59140,
-  displayName: 'Linea Goerli',
-  domainId: 59140,
-  isTestnet: true,
-  name: Chains.lineagoerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.goerli.linea.build' }],
 };
 
 export const mantapacific: ChainMetadata = {
@@ -627,6 +558,9 @@ export const neutron: ChainMetadata = {
   restUrls: [{ http: 'https://rest-lb.neutron.org' }],
   rpcUrls: [{ http: 'https://rpc-kralum.neutron-1.neutron.org' }],
   slip44: 118,
+  transactionOverrides: {
+    gasPrice: '0.0075',
+  },
 };
 
 export const optimism: ChainMetadata = {
@@ -654,31 +588,6 @@ export const optimism: ChainMetadata = {
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://mainnet.optimism.io' }],
-};
-
-export const optimismgoerli: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-goerli-optimism.etherscan.io/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'Etherscan',
-      url: 'https://goerli-optimism.etherscan.io',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 420,
-  displayName: 'Optimism Goerli',
-  displayNameShort: 'Opt. Goerli',
-  domainId: 420,
-  isTestnet: true,
-  name: Chains.optimismgoerli,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://goerli.optimism.io' }],
 };
 
 export const plumetestnet: ChainMetadata = {
@@ -768,31 +677,6 @@ export const polygonzkevm: ChainMetadata = {
     { http: 'https://zkevm-rpc.com' },
     { http: 'https://rpc.ankr.com/polygon_zkevm' },
   ],
-};
-
-export const polygonzkevmtestnet: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-testnet-zkevm.polygonscan.com/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'PolygonScan',
-      url: 'https://testnet-zkevm.polygonscan.com',
-    },
-  ],
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 1,
-  },
-  chainId: 1442,
-  displayName: 'Polygon zkEVM Testnet',
-  displayNameShort: 'ZkEvm Testnet',
-  domainId: 1442,
-  isTestnet: true,
-  name: Chains.polygonzkevmtestnet,
-  nativeToken: etherToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'https://rpc.public.zkevm-test.net' }],
 };
 
 // Testnet for Nautilus
@@ -1084,7 +968,6 @@ export const viction: ChainMetadata = {
 export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
   arbitrum,
-  arbitrumgoerli,
   avalanche,
   base,
   bsc,
@@ -1095,21 +978,17 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   ethereum,
   fuji,
   gnosis,
-  goerli,
   inevm,
   injective,
-  lineagoerli,
   mantapacific,
   moonbeam,
   mumbai,
   nautilus,
   neutron,
   optimism,
-  optimismgoerli,
   plumetestnet,
   polygon,
   polygonzkevm,
-  polygonzkevmtestnet,
   proteustestnet,
   scroll,
   scrollsepolia,

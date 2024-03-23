@@ -174,7 +174,7 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe('Block settings for the chain/deployment.'),
   transactionOverrides: z
-    .object({})
+    .record(z.any())
     .optional()
     .describe('Properties to include when forming transaction requests.'),
   gasCurrencyCoinGeckoId: z

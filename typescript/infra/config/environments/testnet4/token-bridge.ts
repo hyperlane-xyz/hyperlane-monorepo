@@ -8,18 +8,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 const circleDomainMapping = [
-  {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
-    circleDomain: 0,
-  },
   { hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]), circleDomain: 1 },
 ];
 
 const wormholeDomainMapping = [
-  {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
-    wormholeDomain: 2,
-  },
   {
     hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]),
     wormholeDomain: 6,
@@ -39,20 +31,6 @@ const wormholeDomainMapping = [
 ];
 
 export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
-  [Chains.goerli]: {
-    portal: {
-      type: BridgeAdapterType.Portal,
-      portalBridgeAddress: '0xF890982f9310df57d00f659cf4fd87e65adEd8d7',
-      wormholeDomainMapping,
-    },
-    circle: {
-      type: BridgeAdapterType.Circle,
-      tokenMessengerAddress: '0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8',
-      messageTransmitterAddress: '0x26413e8157cd32011e726065a5462e97dd4d03d9',
-      usdcAddress: '0x07865c6e87b9f70255377e024ace6630c1eaa37f',
-      circleDomainMapping,
-    },
-  },
   [Chains.fuji]: {
     portal: {
       type: BridgeAdapterType.Portal,

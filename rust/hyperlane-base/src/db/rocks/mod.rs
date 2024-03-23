@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{io, path::Path, sync::Arc};
 
-use hyperlane_core::HyperlaneProtocolError;
+use hyperlane_core::{ChainCommunicationError, HyperlaneProtocolError};
 use rocksdb::{Options, DB as Rocks};
 use tracing::info;
 
@@ -56,6 +56,12 @@ pub enum DbError {
     /// Hyperlane Error
     #[error("{0}")]
     HyperlaneError(#[from] HyperlaneProtocolError),
+}
+
+impl From<DbError> for ChainCommunicationError {
+    fn from(value: DbError) -> Self {
+        ChainCommunicationError::from_other(value)
+    }
 }
 
 type Result<T> = std::result::Result<T, DbError>;

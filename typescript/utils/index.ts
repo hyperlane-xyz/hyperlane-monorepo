@@ -90,6 +90,7 @@ export {
   invertKeysAndValues,
   isObject,
   objFilter,
+  objKeys,
   objMap,
   objMapEntries,
   objMerge,

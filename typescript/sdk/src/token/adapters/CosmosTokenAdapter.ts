@@ -104,7 +104,9 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
-  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
     return { amount: 0n, addressOrDenom: this.properties.ibcDenom };
   }
@@ -159,7 +161,9 @@ export class CosmIbcToWarpTokenAdapter
     super(chainName, multiProvider, addresses, properties);
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
     return { amount: 0n, addressOrDenom: this.properties.intermediateIbcDenom };
   }

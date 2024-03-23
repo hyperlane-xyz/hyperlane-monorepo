@@ -32,8 +32,12 @@ export async function runPreflightChecks({
   log('Running pre-flight checks...');
 
   if (!origin || !remotes?.length) throw new Error('Invalid chain selection');
+  logGreen('Chain selections are valid ✅');
+
   if (remotes.includes(origin))
     throw new Error('Origin and remotes must be distinct');
+  logGreen('Origin and remote are distinct ✅');
+
   return runPreflightChecksForChains({
     chains: [origin, ...remotes],
     signer,
@@ -58,7 +62,7 @@ export async function runPreflightChecksForChains({
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];
 }) {
-  log('Running pre-flight checks...');
+  log('Running pre-flight checks for chains...');
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {

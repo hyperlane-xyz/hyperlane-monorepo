@@ -4,12 +4,15 @@ import {
   AgentConfig,
   ChainMap,
   GasPaymentEnforcement,
+  HyperlaneAddresses,
+  HyperlaneAddressesMap,
+  HyperlaneFactories,
   MatchingList,
   RelayerConfig as RelayerAgentConfig,
   chainMetadata,
   getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { AgentAwsUser } from '../../agents/aws';
 import { Role } from '../../roles';
@@ -152,11 +155,17 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 }
 
-// Create a matching list for the given router addresses
 export function routerMatchingList(
-  routers: ChainMap<{ router: string }>,
+  routers: ChainMap<{ router: Address }>,
 ): MatchingList {
-  const chains = Object.keys(routers);
+  return matchingList(routers);
+}
+
+// Create a matching list for the given contract addresses
+export function matchingList<F extends HyperlaneFactories>(
+  addressesMap: HyperlaneAddressesMap<F>,
+): MatchingList {
+  const chains = Object.keys(addressesMap);
 
   // matching list must have at least one element so bypass and check before returning
   const matchingList: MatchingList = [];
@@ -167,11 +176,16 @@ export function routerMatchingList(
         continue;
       }
 
+      const uniqueAddresses = (addresses: HyperlaneAddresses<F>) =>
+        Array.from(new Set(Object.values(addresses)).values()).map((s) =>
+          addressToBytes32(s),
+        );
+
       matchingList.push({
         originDomain: getDomainId(chainMetadata[source]),
-        senderAddress: addressToBytes32(routers[source].router),
+        senderAddress: uniqueAddresses(addressesMap[source]),
         destinationDomain: getDomainId(chainMetadata[destination]),
-        recipientAddress: addressToBytes32(routers[destination].router),
+        recipientAddress: uniqueAddresses(addressesMap[destination]),
       });
     }
   }

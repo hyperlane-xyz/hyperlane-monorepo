@@ -16,7 +16,7 @@ data:
     viction:
       protocolType: ethereum
       type: synthetic
-      hypAddress: '0xea820f9BCFD5E16a0dd42071EB61A29874Ad81A4'
+      hypAddress: '0x48083c69f5a42c6b69abbad48ae195bd36770ee2'
       name: USDT
       symbol: USDT
       decimals: 6

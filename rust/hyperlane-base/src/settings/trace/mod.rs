@@ -24,7 +24,7 @@ pub enum Level {
     /// Warn
     Warn = 2,
     /// Debug
-    Debug = 3,
+    Debug = 4,
     /// Trace
     Trace = 5,
     /// Trace + Additional logs from dependencies
@@ -32,7 +32,7 @@ pub enum Level {
     /// Info
     #[serde(other)]
     #[default]
-    Info = 4,
+    Info = 3,
 }
 
 impl From<Level> for LevelFilter {

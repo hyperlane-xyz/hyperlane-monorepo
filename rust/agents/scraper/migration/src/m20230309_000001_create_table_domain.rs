@@ -31,14 +31,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "arbitrumgoerli",
-        token: "ETH",
-        domain: 421613,
-        chain_id: 421613,
-        is_test_net: true,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "avalanche",
         token: "AVAX",
         domain: 43114,
@@ -103,14 +95,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "goerli",
-        token: "ETH",
-        domain: 5,
-        chain_id: 5,
-        is_test_net: true,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "mantapacific",
         token: "ETH",
         domain: 169,
@@ -151,14 +135,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "optimismgoerli",
-        token: "ETH",
-        domain: 420,
-        chain_id: 420,
-        is_test_net: true,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "polygon",
         token: "MATIC",
         domain: 137,
@@ -172,14 +148,6 @@ const DOMAINS: &[RawDomain] = &[
         domain: 1101,
         chain_id: 1101,
         is_test_net: false,
-        is_deprecated: false,
-    },
-    RawDomain {
-        name: "polygonzkevmtestnet",
-        token: "ETH",
-        domain: 1442,
-        chain_id: 1442,
-        is_test_net: true,
         is_deprecated: false,
     },
     RawDomain {

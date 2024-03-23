@@ -1,6 +1,6 @@
 import debug from 'debug';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp';
 import {
@@ -57,6 +57,13 @@ export class MultiProtocolCore extends MultiProtocolApp<
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
     if (protocol === ProtocolType.Cosmos) return CosmWasmCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
+  }
+
+  extractMessageIds(
+    origin: ChainName,
+    sourceTx: TypedTransactionReceipt,
+  ): Array<{ messageId: HexString; destination: ChainName }> {
+    return this.adapter(origin).extractMessageIds(sourceTx);
   }
 
   async waitForMessagesProcessed(

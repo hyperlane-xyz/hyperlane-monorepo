@@ -139,43 +139,6 @@
     },
     "isTestnet": true
   },
-  "goerli": {
-    "chainId": 5,
-    "domainId": 5,
-    "name": "goerli",
-    "protocol": "ethereum",
-    "displayName": "Goerli",
-    "nativeToken": {
-      "name": "Ether",
-      "symbol": "ETH",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-      },
-      {
-        "http": "https://rpc.ankr.com/eth_goerli"
-      },
-      {
-        "http": "https://eth-goerli.public.blastapi.io"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "Etherscan",
-        "url": "https://goerli.etherscan.io",
-        "apiUrl": "https://api-goerli.etherscan.io/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "reorgPeriod": 2,
-      "estimateBlockTime": 13
-    },
-    "isTestnet": true
-  },
   "moonbasealpha": {
     "chainId": 1287,
     "domainId": 1287,
@@ -205,70 +168,6 @@
       "confirmations": 1,
       "reorgPeriod": 1,
       "estimateBlockTime": 12
-    },
-    "isTestnet": true
-  },
-  "optimismgoerli": {
-    "chainId": 420,
-    "domainId": 420,
-    "name": "optimismgoerli",
-    "protocol": "ethereum",
-    "displayName": "Optimism Goerli",
-    "displayNameShort": "Opt. Goerli",
-    "nativeToken": {
-      "name": "Ether",
-      "symbol": "ETH",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://goerli.optimism.io"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "Etherscan",
-        "url": "https://goerli-optimism.etherscan.io",
-        "apiUrl": "https://api-goerli-optimism.etherscan.io/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "reorgPeriod": 1,
-      "estimateBlockTime": 3
-    },
-    "isTestnet": true
-  },
-  "arbitrumgoerli": {
-    "chainId": 421613,
-    "domainId": 421613,
-    "name": "arbitrumgoerli",
-    "protocol": "ethereum",
-    "displayName": "Arbitrum Goerli",
-    "displayNameShort": "Arb. Goerli",
-    "nativeToken": {
-      "name": "Ether",
-      "symbol": "ETH",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://goerli-rollup.arbitrum.io/rpc"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "Arbiscan",
-        "url": "https://goerli.arbiscan.io",
-        "apiUrl": "https://api-goerli.arbiscan.io/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "reorgPeriod": 1,
-      "estimateBlockTime": 3
     },
     "isTestnet": true
   },

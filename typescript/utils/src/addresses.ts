@@ -4,6 +4,7 @@ import { utils as ethersUtils } from 'ethers';
 
 import { isNullish } from './typeof';
 import { Address, HexString, ProtocolType } from './types';
+import { assert } from './validation';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
@@ -24,8 +25,9 @@ const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
 
-const ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
-const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]{38}$/;
+const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
+const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
+const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
 
 export function isAddressEvm(address: Address) {
   return EVM_ADDRESS_REGEX.test(address);
@@ -214,7 +216,8 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
 
 export function isZeroishAddress(address: Address) {
   return (
-    ZEROISH_ADDRESS_REGEX.test(address) ||
+    EVM_ZEROISH_ADDRESS_REGEX.test(address) ||
+    SEALEVEL_ZEROISH_ADDRESS_REGEX.test(address) ||
     COSMOS_ZEROISH_ADDRESS_REGEX.test(address)
   );
 }
@@ -264,7 +267,7 @@ export function addressToBytes(
   address: Address,
   protocol?: ProtocolType,
 ): Uint8Array {
-  return routeAddressUtil(
+  const bytes = routeAddressUtil(
     {
       [ProtocolType.Ethereum]: addressToBytesEvm,
       [ProtocolType.Sealevel]: addressToBytesSol,
@@ -274,6 +277,11 @@ export function addressToBytes(
     new Uint8Array(),
     protocol,
   );
+  assert(
+    bytes.length && !bytes.every((b) => b == 0),
+    'address bytes must not be empty',
+  );
+  return bytes;
 }
 
 export function addressToByteHexString(
@@ -329,6 +337,10 @@ export function bytesToProtocolAddress(
   toProtocol: ProtocolType,
   prefix?: string,
 ) {
+  assert(
+    bytes.length && !bytes.every((b) => b == 0),
+    'address bytes must not be empty',
+  );
   if (toProtocol === ProtocolType.Ethereum) {
     return bytesToAddressEvm(bytes);
   } else if (toProtocol === ProtocolType.Sealevel) {

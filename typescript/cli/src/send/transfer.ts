@@ -211,7 +211,7 @@ async function executeDelivery({
 
   const destinationDomain = multiProvider.getDomainId(destination);
   log('Fetching interchain gas quote');
-  const interchainGas = await adapter.quoteGasPayment(destinationDomain);
+  const interchainGas = await adapter.quoteTransferRemoteGas(destinationDomain);
   log('Interchain gas quote:', interchainGas);
   const transferTx = (await adapter.populateTransferRemoteTx({
     weiAmountOrId: wei,

@@ -418,7 +418,16 @@ async function persistAddressesLocally(
     }
   }
   if (!relayer) throw new Error('No Relayer found in awsCloudAgentKeys');
-  if (!kathy) throw new Error('No Kathy found in awsCloudAgentKeys');
+  if (agentConfig.context === Contexts.Hyperlane) {
+    if (!kathy) throw new Error('No Kathy found in awsCloudAgentKeys');
+    await persistRoleAddressesToLocalArtifacts(
+      Role.Kathy,
+      agentConfig.runEnv,
+      agentConfig.context,
+      kathy,
+      kathyAddresses,
+    );
+  }
   await persistRoleAddressesToLocalArtifacts(
     Role.Relayer,
     agentConfig.runEnv,
@@ -426,13 +435,7 @@ async function persistAddressesLocally(
     relayer,
     relayerAddresses,
   );
-  await persistRoleAddressesToLocalArtifacts(
-    Role.Kathy,
-    agentConfig.runEnv,
-    agentConfig.context,
-    kathy,
-    kathyAddresses,
-  );
+
   await persistValidatorAddressesToLocalArtifacts(multisigValidatorKeys);
 }
 

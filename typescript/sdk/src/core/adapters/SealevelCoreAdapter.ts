@@ -45,7 +45,6 @@ export class SealevelCoreAdapter
     if (!logs)
       throw new Error('Transaction logs required to check message delivery');
     const parsedLogs = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
-    if (!parsedLogs.length) throw new Error('Message dispatch log not found');
     return parsedLogs.map(({ destination, messageId }) => ({
       messageId: ensure0x(messageId),
       destination: this.multiProvider.getChainName(destination),

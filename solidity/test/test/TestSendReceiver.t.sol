@@ -98,9 +98,8 @@ contract TestSendReceiverTest is Test {
         vm.assume(blockNumber > 0);
         vm.roll(blockNumber);
 
-        // blockhash(n) = n for forge tests
-        // previousBlockHash() = blockhash(n-1) = n-1
-        if (blockNumber % 16 == 1) {
+        // previousBlockHash() = blockhash(n-1)
+        if (uint256(blockhash(blockNumber - 1)) % 16 == 0) {
             vm.expectRevert("block hash ends in 0"); // blockhash(n-1) ends in 0
         } else {
             vm.expectEmit(true, true, true, false, address(testSendReceiver)); // Process
