@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import debug from 'debug';
 import { providers } from 'ethers';
 
 import {
@@ -11,7 +10,7 @@ import {
   HypERC721Collateral,
   HypNative,
 } from '@hyperlane-xyz/core';
-import { objKeys, objMap } from '@hyperlane-xyz/utils';
+import { objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
@@ -59,7 +58,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, hypERC20factories, {
-      logger: debug('hyperlane:HypERC20Deployer'),
+      logger: rootLogger.child({ module: 'HypERC20Deployer' }),
       ismFactory,
       contractVerifier,
     }); // factories not used in deploy
@@ -190,7 +189,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       if (!e.message.includes('already initialized')) {
         throw e;
       }
-      this.logger(`${config.type} already initialized`);
+      this.logger.debug(`${config.type} already initialized`);
     }
     return router;
   }
@@ -288,7 +287,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, hypERC721factories, {
-      logger: debug('hyperlane:HypERC721Deployer'),
+      logger: rootLogger.child({ module: 'HypERC721Deployer' }),
       contractVerifier,
     });
   }

@@ -1,6 +1,6 @@
 import latestVersion from 'latest-version';
 
-import { log } from '../../logger.js';
+import { log } from '../logger.js';
 import { VERSION } from '../version.js';
 
 export async function checkVersion() {

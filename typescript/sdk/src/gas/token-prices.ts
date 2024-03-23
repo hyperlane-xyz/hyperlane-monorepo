@@ -1,6 +1,6 @@
 import CoinGecko from 'coingecko-api';
 
-import { sleep, warn } from '@hyperlane-xyz/utils';
+import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, Mainnets } from '../consts/chains';
@@ -131,7 +131,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       try {
         await this.queryTokenPrices(toQuery);
       } catch (e) {
-        warn('Failed to query token prices', e);
+        rootLogger.warn('Failed to query token prices', e);
       }
     }
     return chains.map((chain) => this.cache.fetch(chain));

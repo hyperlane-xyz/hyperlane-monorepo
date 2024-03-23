@@ -1,4 +1,3 @@
-import { Debugger, debug } from 'debug';
 import {
   BigNumber,
   ContractFactory,
@@ -8,8 +7,9 @@ import {
   Signer,
   providers,
 } from 'ethers';
+import { Logger } from 'pino';
 
-import { Address, pick } from '@hyperlane-xyz/utils';
+import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
@@ -37,7 +37,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   readonly providerBuilder: ProviderBuilderFn<Provider>;
   signers: ChainMap<Signer>;
   useSharedSigner = false; // A single signer to be used for all chains
-  readonly logger: Debugger;
+  readonly logger: Logger;
 
   /**
    * Create a new MultiProvider with the given chainMetadata,
@@ -48,7 +48,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     readonly options: MultiProviderOptions = {},
   ) {
     super(chainMetadata, options);
-    this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
+    this.logger = rootLogger.child({
+      module: options?.loggerName || 'MultiProvider',
+    });
     this.providers = options?.providers || {};
     this.providerBuilder = options?.providerBuilder || defaultProviderBuilder;
     this.signers = options?.signers || {};
@@ -323,7 +325,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
-    this.logger(
+    this.logger.info(
       `Pending ${
         txUrl || response.hash
       } (waiting ${confirmations} blocks for confirmation)`,
@@ -381,7 +383,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const txReq = await this.prepareTx(chainNameOrId, await tx);
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
-    this.logger(`Sent tx ${response.hash}`);
+    this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
   }
 

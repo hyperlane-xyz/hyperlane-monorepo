@@ -1,47 +1,38 @@
-import { safelyAccessEnvVar } from './env';
+import { LevelWithSilent, pino } from 'pino';
 
-/* eslint-disable no-console */
-type LOG_LEVEL = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+import { envVarToBoolean, safelyAccessEnvVar } from './env';
 
-const ENV_LOG_LEVEL = (
-  safelyAccessEnvVar('LOG_LEVEL') ?? 'debug'
-).toLowerCase() as LOG_LEVEL;
-const LOG_TRACE = ENV_LOG_LEVEL == 'trace';
-const LOG_DEBUG = LOG_TRACE || ENV_LOG_LEVEL == 'debug';
-const LOG_INFO = LOG_DEBUG || ENV_LOG_LEVEL == 'info';
-const LOG_WARN = LOG_INFO || ENV_LOG_LEVEL == 'warn';
-const LOG_ERROR = LOG_WARN || ENV_LOG_LEVEL == 'error';
+const DEFAULT_LOG_LEVEL = 'warn';
 
-export function trace(message: string, data?: any) {
-  if (LOG_TRACE) logWithFunction(console.trace, 'trace', message, data);
-}
+let ENV_LOG_LEVEL = (
+  safelyAccessEnvVar('LOG_LEVEL') ?? DEFAULT_LOG_LEVEL
+).toLowerCase() as LevelWithSilent | 'none' | 'off';
+// For backwards compat and also to match agent level options
+if (ENV_LOG_LEVEL === 'none' || ENV_LOG_LEVEL === 'off')
+  ENV_LOG_LEVEL = 'silent';
 
-export function debug(message: string, data?: any) {
-  if (LOG_DEBUG) logWithFunction(console.debug, 'debug', message, data);
-}
+const ENV_LOG_PRETTY = envVarToBoolean(safelyAccessEnvVar('LOG_PRETTY'));
 
-export function log(message: string, data?: any) {
-  if (LOG_INFO) logWithFunction(console.log, 'info', message, data);
-}
-
-export function warn(message: string, data?: any) {
-  if (LOG_WARN) logWithFunction(console.warn, 'warn', message, data);
-}
-
-export function error(message: string, data?: any) {
-  if (LOG_ERROR) logWithFunction(console.error, 'error', message, data);
-}
-
-function logWithFunction(
-  logFn: (...contents: any[]) => void,
-  level: LOG_LEVEL,
-  message: string,
-  data?: any,
-) {
-  const fullLog = {
-    ...data,
-    level,
-    message,
-  };
-  logFn(JSON.stringify(fullLog));
-}
+export const rootLogger = pino({
+  level: ENV_LOG_LEVEL,
+  name: 'hyperlane',
+  // @ts-ignore incomplete pino constructor type
+  sync: true,
+  formatters: {
+    bindings: () => {
+      return {};
+    },
+  },
+  // TODO avoid use of pino's pretty transport in production
+  // their docs recommend against it
+  transport: ENV_LOG_PRETTY
+    ? {
+        target: 'pino-pretty',
+        options: {
+          minimumLevel: ENV_LOG_LEVEL,
+          colorize: false,
+          sync: true,
+        },
+      }
+    : undefined,
+});

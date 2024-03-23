@@ -20,10 +20,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGreen } from '../../logger.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
+import { log, logBlue, logGreen } from '../logger.js';
 import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 

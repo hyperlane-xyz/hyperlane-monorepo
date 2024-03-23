@@ -1,7 +1,5 @@
-import debug from 'debug';
-
 import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
@@ -34,7 +32,7 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, testRecipientFactories, {
-      logger: debug('hyperlane:TestRecipientDeployer'),
+      logger: rootLogger.child({ module: 'TestRecipientDeployer' }),
       contractVerifier,
     });
   }
@@ -66,11 +64,11 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
       usePreviousDeployment,
     );
     try {
-      this.logger(`Checking ISM ${chain}`);
+      this.logger.debug(`Checking ISM ${chain}`);
       const ism = await testRecipient.interchainSecurityModule();
-      this.logger(`Found ISM for on ${chain}: ${ism}`);
+      this.logger.debug(`Found ISM for on ${chain}: ${ism}`);
       if (!eqAddress(ism, config.interchainSecurityModule)) {
-        this.logger(
+        this.logger.debug(
           `Current ISM does not match config. Updating to ${config.interchainSecurityModule}`,
         );
         const tx = testRecipient.setInterchainSecurityModule(
@@ -83,8 +81,8 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
         );
       }
     } catch (error) {
-      this.logger(`Failed to check/update ISM for ${chain}: ${error}`);
-      this.logger('Leaving ISM as is and continuing.');
+      this.logger.error(`Failed to check/update ISM for ${chain}: ${error}`);
+      this.logger.info('Leaving ISM as is and continuing.');
     }
     return {
       testRecipient,

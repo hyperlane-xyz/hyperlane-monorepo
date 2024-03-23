@@ -1,6 +1,6 @@
-import { Debugger, debug } from 'debug';
+import { Logger } from 'pino';
 
-import { ProtocolType, exclude, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, exclude, pick, rootLogger } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
 import { ChainMap, ChainName, ChainNameOrId } from '../types';
@@ -30,7 +30,7 @@ export interface ChainMetadataManagerOptions {
  */
 export class ChainMetadataManager<MetaExt = {}> {
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
-  public readonly logger: Debugger;
+  public readonly logger: Logger;
 
   /**
    * Create a new ChainMetadataManager with the given chainMetadata,
@@ -49,7 +49,9 @@ export class ChainMetadataManager<MetaExt = {}> {
         );
       this.addChain(cm);
     });
-    this.logger = debug(options?.loggerName || 'hyperlane:MetadataManager');
+    this.logger = rootLogger.child({
+      module: options?.loggerName || 'MetadataManager',
+    });
   }
 
   /**

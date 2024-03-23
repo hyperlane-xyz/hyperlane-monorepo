@@ -1,4 +1,4 @@
-import { Debugger, debug } from 'debug';
+import { Logger } from 'pino';
 
 import {
   Address,
@@ -6,6 +6,7 @@ import {
   objFilter,
   objMap,
   pick,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
@@ -59,7 +60,7 @@ export class MultiProtocolProvider<
   // Chain name -> provider type -> signer
   protected signers: ChainMap<ProviderMap<never>> = {}; // TODO signer support
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
-  public readonly logger: Debugger;
+  public readonly logger: Logger;
 
   constructor(
     chainMetadata: ChainMap<
@@ -68,9 +69,9 @@ export class MultiProtocolProvider<
     protected readonly options: MultiProtocolProviderOptions = {},
   ) {
     super(chainMetadata, options);
-    this.logger = debug(
-      options?.loggerName || 'hyperlane:MultiProtocolProvider',
-    );
+    this.logger = rootLogger.child({
+      module: options?.loggerName || 'MultiProtocolProvider',
+    });
     this.providers = options.providers || {};
     this.providerBuilders =
       options.providerBuilders || defaultProviderBuilderMap;
