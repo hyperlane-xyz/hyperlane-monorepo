@@ -16,23 +16,21 @@ const ENV_LOG_PRETTY = envVarToBoolean(safelyAccessEnvVar('LOG_PRETTY'));
 export const rootLogger = pino({
   level: ENV_LOG_LEVEL,
   name: 'hyperlane',
-  // @ts-ignore incomplete pino constructor type
-  sync: true,
   formatters: {
-    bindings: () => {
-      return {};
+    // Remove pino's default bindings of hostname and pid
+    bindings: () => ({}),
+  },
+  hooks: {
+    logMethod(inputArgs, method, level) {
+      // Pino has no simply way of setting custom log shapes and they
+      // recommend against using pino-pretty in production so when
+      // pretty is enabled we circumvent pino and log directly to console
+      if (ENV_LOG_PRETTY && level >= pino.levels.values[ENV_LOG_LEVEL]) {
+        // eslint-disable-next-line no-console
+        console.log(inputArgs[0]);
+        return null;
+      }
+      return method.apply(this, inputArgs);
     },
   },
-  // TODO avoid use of pino's pretty transport in production
-  // their docs recommend against it
-  transport: ENV_LOG_PRETTY
-    ? {
-        target: 'pino-pretty',
-        options: {
-          minimumLevel: ENV_LOG_LEVEL,
-          colorize: false,
-          sync: true,
-        },
-      }
-    : undefined,
 });

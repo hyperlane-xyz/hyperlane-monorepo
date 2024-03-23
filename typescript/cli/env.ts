@@ -3,7 +3,7 @@
 
 // Default rootLogger into pretty mode and info level
 process.env.LOG_LEVEL ??= 'info';
-process.env.LOG_PRETTY ??= 'false';
+process.env.LOG_PRETTY ??= 'true';
 
 // Workaround for bug in bigint-buffer which solana-web3.js depends on
 // https://github.com/no2chem/bigint-buffer/issues/31#issuecomment-1752134062
