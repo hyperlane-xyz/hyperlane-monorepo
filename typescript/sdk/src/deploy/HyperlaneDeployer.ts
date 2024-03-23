@@ -4,12 +4,9 @@ import { Contract, PopulatedTransaction, ethers } from 'ethers';
 import {
   IPostDispatchHook,
   IPostDispatchHook__factory,
-  ITransparentUpgradeableProxy,
-  MailboxClient,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
-  TimelockController,
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -31,11 +28,9 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { moduleMatchesConfig } from '../ism/utils';
 import { MultiProvider } from '../providers/MultiProvider';
-import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 import {
-  UpgradeConfig,
   isProxy,
   proxyAdmin,
   proxyConstructorArgs,
@@ -210,40 +205,32 @@ export abstract class HyperlaneDeployer<
     getIsm: (contract: C) => Promise<Address>,
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
-    const configuredIsm = await getIsm(contract);
-    let matches = false;
-    let targetIsm: Address;
-    if (typeof config === 'string') {
-      if (eqAddress(configuredIsm, config)) {
-        matches = true;
-      } else {
-        targetIsm = config;
-      }
-    } else {
-      const ismFactory =
-        this.options.ismFactory ??
-        (() => {
-          throw new Error('No ISM factory provided');
-        })();
-
-      matches = await moduleMatchesConfig(
-        chain,
-        configuredIsm,
-        config,
-        this.multiProvider,
-        ismFactory.getContracts(chain),
-      );
-      targetIsm = (await ismFactory.deploy({ destination: chain, config }))
-        .address;
+    if (!this.options.ismFactory) {
+      throw new Error('No ISM factory provided');
     }
+
+    const configuredIsm = await getIsm(contract);
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      configuredIsm,
+      config,
+      this.multiProvider,
+      this.options.ismFactory.getContracts(chain),
+    );
+
     if (!matches) {
+      const targetIsm = await this.options.ismFactory.deploy({
+        destination: chain,
+        config,
+      });
       await this.runIfOwner(chain, contract, async () => {
-        this.logger(`Set ISM on ${chain} with address ${targetIsm}`);
+        this.logger(`Set ISM on ${chain} with address ${targetIsm.address}`);
         await this.multiProvider.sendTransaction(
           chain,
-          setIsm(contract, targetIsm),
+          setIsm(contract, targetIsm.address),
         );
-        if (!eqAddress(targetIsm, await getIsm(contract))) {
+        if (!eqAddress(targetIsm.address, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
       });

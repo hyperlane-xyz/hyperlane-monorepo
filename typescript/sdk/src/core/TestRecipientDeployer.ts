@@ -1,4 +1,5 @@
 import debug from 'debug';
+import { ethers } from 'ethers';
 
 import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
@@ -49,15 +50,13 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     config: TestRecipientConfig,
   ): Promise<TestRecipientContracts> {
     const testRecipient = await this.deployContract(chain, 'testRecipient', []);
-    if (config.interchainSecurityModule) {
-      await this.configureIsm(
-        chain,
-        testRecipient,
-        config.interchainSecurityModule,
-        (tr) => tr.interchainSecurityModule(),
-        (tr, ism) => tr.populateTransaction.setInterchainSecurityModule(ism),
-      );
-    }
+    await this.configureIsm(
+      chain,
+      testRecipient,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      (tr) => tr.interchainSecurityModule(),
+      (tr, ism) => tr.populateTransaction.setInterchainSecurityModule(ism),
+    );
     return {
       testRecipient,
     };
