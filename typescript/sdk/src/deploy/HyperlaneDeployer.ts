@@ -4,9 +4,12 @@ import { Contract, PopulatedTransaction, ethers } from 'ethers';
 import {
   IPostDispatchHook,
   IPostDispatchHook__factory,
+  ITransparentUpgradeableProxy,
+  MailboxClient,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
+  TimelockController,
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
@@ -28,9 +31,11 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { moduleMatchesConfig } from '../ism/utils';
 import { MultiProvider } from '../providers/MultiProvider';
+import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 import {
+  UpgradeConfig,
   isProxy,
   proxyAdmin,
   proxyConstructorArgs,
