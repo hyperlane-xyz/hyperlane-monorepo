@@ -141,6 +141,14 @@ export function withBuildArtifactPath<T>(args: yargs.Argv<T>) {
     .alias('b', 'buildArtifactPath');
 }
 
+export function withConfigAndArtifactPath<T>(args: yargs.Argv<T>) {
+  return args
+    .describe('configPath', 'path to config file')
+    .string('configPath')
+    .describe('artifactPath', 'path to artifacts (addresses) file')
+    .string('artifactPath');
+}
+
 export function assertEnvironment(env: string): DeployEnvironment {
   if (EnvironmentNames.includes(env)) {
     return env as DeployEnvironment;

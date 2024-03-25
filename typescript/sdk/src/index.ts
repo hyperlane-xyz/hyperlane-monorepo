@@ -414,6 +414,8 @@ export {
   TokenFactories,
 } from './token/contracts';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';
+export { HypERC20Checker } from './token/checker';
+export { HypERC20App } from './token/app';
 export {
   ChainMap,
   ChainName,

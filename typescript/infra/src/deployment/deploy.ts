@@ -38,6 +38,7 @@ export async function deployWithArtifacts<Config extends object>(
   if (cache.read) {
     let addressesMap = {};
     try {
+      console.log('Reading cached addresses from', cache.addresses);
       addressesMap = readJSONAtPath(cache.addresses);
     } catch (e) {
       console.error('Failed to load cached addresses');
