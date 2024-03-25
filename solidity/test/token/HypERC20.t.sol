@@ -87,7 +87,7 @@ abstract contract HypTokenTest is Test {
                 TOTAL_SUPPLY,
                 NAME,
                 SYMBOL,
-                address(address(noopHook)),
+                address(noopHook),
                 address(igp),
                 address(this)
             )
@@ -220,10 +220,8 @@ contract HypERC20Test is HypTokenTest {
                 address(this)
             )
         );
-        // localToken = new HypERC20(DECIMALS, address(localMailbox));
+        localToken = HypERC20(address(proxy));
         erc20Token = HypERC20(address(proxy));
-
-        // erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
 
         erc20Token.enrollRemoteRouter(
             DESTINATION,
