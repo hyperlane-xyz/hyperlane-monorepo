@@ -151,7 +151,7 @@ async function runBuildConfigStep({
         base.interchainSecurityModule ||
         mergedContractAddrs[baseChainName]?.interchainSecurityModule ||
         mergedContractAddrs[baseChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // TODO fix when updating from routingIsm
+      // ismFactory: mergedContractAddrs[baseChainName].domainRoutingIsmFactory, // TODO fix when updating from routingIsm
       foreignDeployment: base.foreignDeployment,
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
@@ -172,7 +172,7 @@ async function runBuildConfigStep({
         synthetic.interchainSecurityModule ||
         mergedContractAddrs[sChainName]?.interchainSecurityModule ||
         mergedContractAddrs[sChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[sChainName].routingIsmFactory, // TODO fix
+      // ismFactory: mergedContractAddrs[sChainName].domainRoutingIsmFactory, // TODO fix
       foreignDeployment: synthetic.foreignDeployment,
     };
   }
