@@ -252,7 +252,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const testRecipient = await this.deployTestRecipient(
       chain,
-      config.defaultIsm,
+      this.cachedAddresses[chain].interchainSecurityModule, // in case the deployer is not the owner of mailbox & default ISM
     );
 
     const contracts = {
