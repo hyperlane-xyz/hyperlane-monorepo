@@ -238,6 +238,7 @@ async function main() {
       hyperlaneEnvironments[env],
       ismFactory,
     );
+    // Config is intended to be changed for ad-hoc use cases:
     config = {
       ethereum: {
         ...(coreConfig.ethereum.defaultHook as FallbackRoutingHookConfig)
