@@ -13,6 +13,7 @@ import {
   ProviderType,
   RpcConsensusType,
   TypedTransactionReceipt,
+  resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -246,9 +247,14 @@ async function main(): Promise<boolean> {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  chains.map((chain) =>
-    updateWalletBalanceMetricFor(app, chain, coreConfig.owners[chain].owner),
-  );
+  chains.map(async (chain) => {
+    const owner = await resolveAccountOwner(
+      multiProvider,
+      chain,
+      coreConfig.owners[chain].owner,
+    );
+    return updateWalletBalanceMetricFor(app, chain, owner);
+  });
 
   // Incremented each time an entire cycle has occurred
   let currentCycle = 0;
@@ -366,11 +372,12 @@ async function main(): Promise<boolean> {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    updateWalletBalanceMetricFor(
-      app,
+    const owner = await resolveAccountOwner(
+      multiProvider,
       origin,
       coreConfig.owners[origin].owner,
-    ).catch((e) => {
+    );
+    updateWalletBalanceMetricFor(app, origin, owner).catch((e) => {
       warn('Failed to update wallet balance for chain', {
         chain: origin,
         err: format(e),

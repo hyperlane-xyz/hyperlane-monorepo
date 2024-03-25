@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { prompts } from 'prompts';
 
 import {
@@ -7,6 +8,7 @@ import {
   HyperlaneAppChecker,
   OwnableConfig,
   OwnerViolation,
+  resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, objMap } from '@hyperlane-xyz/utils';
 
@@ -100,7 +102,11 @@ export abstract class HyperlaneAppGovernor<
         if (confirmed) {
           console.log(`Submitting calls on ${chain} via ${submissionType}`);
           await multiSend.sendTransactions(
-            calls.map((call) => ({ to: call.to, data: call.data })),
+            calls.map((call) => ({
+              to: call.to,
+              data: call.data,
+              value: call.value,
+            })),
           );
         } else {
           console.log(
@@ -114,13 +120,14 @@ export abstract class HyperlaneAppGovernor<
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
+    const owner = await resolveAccountOwner(
+      this.checker.multiProvider,
+      chain,
+      this.checker.configMap[chain].owner,
+    );
     await sendCallsForType(
       SubmissionType.SAFE,
-      new SafeMultiSend(
-        this.checker.multiProvider,
-        chain,
-        this.checker.configMap[chain].owner,
-      ),
+      new SafeMultiSend(this.checker.multiProvider, chain, owner),
     );
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
@@ -167,24 +174,28 @@ export abstract class HyperlaneAppGovernor<
     // 2a. Confirm that the signer is a Safe owner or delegate.
     // This should implicitly check whether or not the owner is a gnosis
     // safe.
-    if (!this.canPropose[chain].has(safeAddress)) {
-      this.canPropose[chain].set(
-        safeAddress,
-        await canProposeSafeTransactions(
-          signerAddress,
-          chain,
-          multiProvider,
+
+    // TODO: support for ICA governance coming soon
+    if (typeof safeAddress === 'string') {
+      if (!this.canPropose[chain].has(safeAddress)) {
+        this.canPropose[chain].set(
           safeAddress,
-        ),
-      );
-    }
-    // 2b. Check if calling from the owner/safeAddress will succeed.
-    if (
-      (this.canPropose[chain].get(safeAddress) &&
-        (await transactionSucceedsFromSender(safeAddress))) ||
-      chain === 'moonbeam'
-    ) {
-      return SubmissionType.SAFE;
+          await canProposeSafeTransactions(
+            signerAddress,
+            chain,
+            multiProvider,
+            safeAddress,
+          ),
+        );
+      }
+      // 2b. Check if calling from the owner/safeAddress will succeed.
+      if (
+        (this.canPropose[chain].get(safeAddress) &&
+          (await transactionSucceedsFromSender(safeAddress))) ||
+        chain === 'moonbeam'
+      ) {
+        return SubmissionType.SAFE;
+      }
     }
 
     return SubmissionType.MANUAL;
@@ -197,6 +208,7 @@ export abstract class HyperlaneAppGovernor<
         'transferOwnership',
         [violation.expected],
       ),
+      value: BigNumber.from(0),
       description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
     });
   }

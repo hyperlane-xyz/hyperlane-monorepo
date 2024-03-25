@@ -186,12 +186,11 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     ismOverride?: Address,
     hookMetadata?: string,
   ): Promise<void> {
-    const callsWithValue = calls.map((call) => ({
-      to: addressToBytes32(call.to),
+    const callsFormatted = calls.map((call) => ({
+      to: addressToBytes32(call.to), // ICA Router contract expects bytes32
       data: call.data,
       value: call.value,
     }));
-    console.log('hello1');
     if (routerOverride && ismOverride && hookMetadata) {
       await this.multiProvider.handleTx(
         chain,
@@ -201,7 +200,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           this.multiProvider.getDomainId(destination),
           addressToBytes32(routerOverride),
           addressToBytes32(ismOverride),
-          callsWithValue,
+          callsFormatted,
           hookMetadata,
           { value },
         ),
@@ -215,7 +214,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           this.multiProvider.getDomainId(destination),
           addressToBytes32(routerOverride),
           addressToBytes32(ismOverride),
-          callsWithValue,
+          callsFormatted,
           { value },
         ),
       );
@@ -226,7 +225,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)'
         ](
           this.multiProvider.getDomainId(destination),
-          callsWithValue,
+          callsFormatted,
           hookMetadata,
           { value },
         ),
@@ -236,7 +235,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         chain,
         this.router(this.contractsMap[chain])[
           'callRemote(uint32,(bytes32,uint256,bytes)[])'
-        ](this.multiProvider.getDomainId(destination), callsWithValue, {
+        ](this.multiProvider.getDomainId(destination), callsFormatted, {
           value,
         }),
       );
