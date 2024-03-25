@@ -62,9 +62,6 @@ export const ancient8: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 2,
-    // How to tell if it's on-demand?
-    // Seems like it's not on demand - blocks are every 2 secs, include at least 1 tx,
-    // which is always a `setL1Values` https://scan.ancient8.gg/tx/0x9658fa36fdcd82e76fcfcc47f2c0e5a90712606b85b0a985eb98c157e14802d9
     reorgPeriod: 0,
   },
   chainId: 888888888,

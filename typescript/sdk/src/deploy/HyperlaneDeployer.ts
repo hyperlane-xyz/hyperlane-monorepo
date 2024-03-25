@@ -225,6 +225,7 @@ export abstract class HyperlaneDeployer<
         (() => {
           throw new Error('No ISM factory provided');
         })();
+
       matches = await moduleMatchesConfig(
         chain,
         configuredIsm,
