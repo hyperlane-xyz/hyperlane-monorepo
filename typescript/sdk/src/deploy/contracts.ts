@@ -6,6 +6,8 @@ import {
   StaticMessageIdMultisigIsmFactory__factory,
 } from '@hyperlane-xyz/core';
 
+// Any name changes here should also be reflected in the example artifacts.
+// E.g. typescript/cli/examples/contract-artifacts.yaml
 export const proxyFactoryFactories = {
   staticMerkleRootMultisigIsmFactory:
     new StaticMerkleRootMultisigIsmFactory__factory(),
