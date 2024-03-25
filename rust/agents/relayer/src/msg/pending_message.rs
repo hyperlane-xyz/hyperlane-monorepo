@@ -50,6 +50,7 @@ pub struct MessageContext {
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
     ctx: Arc<MessageContext>,
+    app_context: Option<String>,
     #[new(default)]
     submitted: bool,
     #[new(default)]
@@ -102,6 +103,10 @@ impl Eq for PendingMessage {}
 impl PendingOperation for PendingMessage {
     fn domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
+    }
+
+    fn app_context(&self) -> Option<String> {
+        self.app_context.clone()
     }
 
     #[instrument]
@@ -193,7 +198,7 @@ impl PendingOperation for PendingMessage {
                 .await,
             "checking if message meets gas payment requirement"
         ) else {
-            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
+            warn!(?tx_cost_estimate, "Gas payment requirement not met yet");
             return self.on_reprepare();
         };
 
@@ -302,7 +307,7 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn _next_attempt_after(&self) -> Option<Instant> {
+    fn next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
     }
 
@@ -315,8 +320,12 @@ impl PendingOperation for PendingMessage {
 impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
     /// In case of failure, behaves like `Self::new(...)`.
-    pub fn from_persisted_retries(message: HyperlaneMessage, ctx: Arc<MessageContext>) -> Self {
-        let mut pm = Self::new(message, ctx);
+    pub fn from_persisted_retries(
+        message: HyperlaneMessage,
+        ctx: Arc<MessageContext>,
+        app_context: Option<String>,
+    ) -> Self {
+        let mut pm = Self::new(message, ctx, app_context);
         match pm
             .ctx
             .origin_db

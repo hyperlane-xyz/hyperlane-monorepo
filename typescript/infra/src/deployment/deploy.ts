@@ -16,7 +16,6 @@ import { DeployEnvironment } from '../config';
 import {
   readJSONAtPath,
   writeJsonAtPath,
-  writeMergedJSON,
   writeMergedJSONAtPath,
 } from '../utils/utils';
 

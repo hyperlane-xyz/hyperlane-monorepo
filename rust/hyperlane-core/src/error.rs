@@ -10,9 +10,8 @@ use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
-use crate::Error as PrimitiveTypeError;
 use crate::HyperlaneProviderError;
-use crate::H256;
+use crate::{Error as PrimitiveTypeError, HyperlaneSignerError, H256, U256};
 
 /// The result of interacting with a chain.
 pub type ChainResult<T> = Result<T, ChainCommunicationError>;
@@ -122,9 +121,14 @@ pub enum ChainCommunicationError {
         /// Error message
         msg: String,
     },
-    /// Failed to estimate transaction gas cost.
-    #[error("Failed to estimate transaction gas cost {0}")]
-    TxCostEstimateError(String),
+    /// Insufficient funds.
+    #[error("Insufficient funds. Required: {required:?}, available: {available:?}")]
+    InsufficientFunds {
+        /// The required amount of funds.
+        required: U256,
+        /// The available amount of funds.
+        available: U256,
+    },
     /// Primitive type error
     #[error(transparent)]
     PrimitiveTypeError(#[from] PrimitiveTypeError),
@@ -138,6 +142,15 @@ pub enum ChainCommunicationError {
     #[cfg(feature = "async")]
     #[error(transparent)]
     TokioJoinError(#[from] tokio::task::JoinError),
+    /// Custom error
+    #[error("{0}")]
+    CustomError(String),
+    /// Eyre error
+    #[error("{0}")]
+    EyreError(#[from] eyre::Report),
+    /// Hyperlane signer error
+    #[error("{0}")]
+    HyperlaneSignerError(#[from] HyperlaneSignerError),
 }
 
 impl ChainCommunicationError {
