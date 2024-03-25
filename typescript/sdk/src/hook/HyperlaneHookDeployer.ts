@@ -289,11 +289,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
-    console.log(
-      'HyperlaneHookDeployer Object.entries(config.domains)',
-      Object.entries(config.domains),
-      config,
-    );
     for (const [dest, hookConfig] of Object.entries(config.domains)) {
       const destDomain =
         chainMetadata[dest]?.domainId ?? this.multiProvider.getDomainId(dest);
@@ -314,8 +309,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         });
       }
     }
-
-    console.log('routingConfigs', routingConfigs);
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
     await this.runIfOwner(chain, routingHook, async () =>

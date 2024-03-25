@@ -69,7 +69,6 @@ export class HypERC20Deployer extends GasRouterDeployer<
     provider: providers.Provider,
     config: CollateralConfig,
   ): Promise<ERC20Metadata> {
-    console.log('HELLO');
     const erc20 = ERC20__factory.connect(config.token, provider);
 
     const [name, symbol, totalSupply, decimals] = await Promise.all([
@@ -126,8 +125,6 @@ export class HypERC20Deployer extends GasRouterDeployer<
     const definedConfigMetadata = Object.fromEntries(
       Object.entries(metadata).filter(([k, v]) => !!k && !!v),
     );
-    console.log('fetchedMetadata', fetchedMetadata);
-    console.log('definedConfigMetadata', definedConfigMetadata);
     return {
       ...fetchedMetadata,
       ...definedConfigMetadata,
@@ -155,7 +152,6 @@ export class HypERC20Deployer extends GasRouterDeployer<
       default:
         throw new Error(`Unknown collateral type ${config.type}`);
     }
-    console.log('deployCollateral config', config);
     return this.deployContract(chain, contractName, [
       config.token,
       config.mailbox,
@@ -186,7 +182,6 @@ export class HypERC20Deployer extends GasRouterDeployer<
       [config.decimals, config.mailbox],
     );
     try {
-      console.log('deploySynthetic config', config);
       await this.multiProvider.handleTx(
         chain,
         router.initialize(config.totalSupply, config.name, config.symbol),
@@ -220,9 +215,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC20 token router config');
     }
-    console.log('deployContracts before', chain, config);
     await this.configureClient(chain, router, config);
-    console.log('deployContracts after', chain, config);
     return { [config.type]: router } as any;
   }
 
@@ -412,7 +405,6 @@ export class HypERC721Deployer extends GasRouterDeployer<
   }
 
   async deploy(configMap: ChainMap<TokenConfig & RouterConfig>) {
-    console.log('configMap', configMap);
     const tokenMetadata = await this.buildTokenMetadata(configMap);
     const gasOverhead = this.buildGasOverhead(configMap);
     const mergedConfig = objMap(configMap, (chain, config) => {
@@ -422,9 +414,6 @@ export class HypERC721Deployer extends GasRouterDeployer<
         ...config,
       };
     }) as ChainMap<ERC721RouterConfig>;
-    console.log('tokenMetadata', tokenMetadata);
-    console.log('gasOverhead', gasOverhead);
-    console.log('mergedConfig', mergedConfig);
 
     return super.deploy(mergedConfig);
   }

@@ -150,7 +150,9 @@ async function main() {
       // USDC
       token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
       interchainSecurityModule: buildIsmConfig('ancient8'),
-      // Recovered
+      // This hook was recovered from running the deploy script
+      // for the hook module. The hook configuration is the Ethereum
+      // default hook for the Ancient8 remote (no routing).
       hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
       owner: DEPLOYER,
     };
@@ -158,7 +160,8 @@ async function main() {
     const ancient8 = {
       ...routerConfig.ancient8,
       type: TokenType.synthetic,
-      interchainSecurityModule: ethers.constants.AddressZero, // buildIsmConfig('ethereum'),
+      // Uses the default ISM
+      interchainSecurityModule: ethers.constants.AddressZero,
       owner: DEPLOYER,
     };
 
@@ -171,7 +174,6 @@ async function main() {
       ismFactory,
       contractVerifier,
     );
-    console.log('help', JSON.stringify(config, null, 2));
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);

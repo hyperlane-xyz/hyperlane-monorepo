@@ -179,9 +179,6 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   // check if new chains are needed
   const missingChains = checkIfValidatorsArePersisted(agentConfig);
 
-  console.log('missingChains', missingChains);
-  console.log('newValidatorCounts', newValidatorCounts);
-
   // if you include a chain in chainMetadata but not in the aw-multisig.json, you need to specify the new chain in new-chains
   for (const chain of missingChains) {
     if (!Object.keys(newValidatorCounts).includes(chain)) {
@@ -190,7 +187,6 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   for (const [chain, validatorCount] of Object.entries(newValidatorCounts)) {
-    console.log('chain', chain, 'validatorCount', validatorCount);
     const baseConfig = {
       [Contexts.Hyperlane]: [],
       [Contexts.ReleaseCandidate]: [],
@@ -224,8 +220,6 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
       agentConfig.contextChainNames.validator.push(chain);
     }
   }
-
-  console.log('agentConfig.validators.chains', agentConfig.validators!.chains);
 
   return {
     agentConfig,
