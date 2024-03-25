@@ -18,10 +18,10 @@ export abstract class ProxiedRouterDeployer<
   Factories extends ProxiedFactories,
   RouterKey extends keyof Factories,
 > extends HyperlaneRouterDeployer<Config, Factories> {
-  abstract routerContractName: RouterKey;
+  abstract routerContractNameConstant: RouterKey; // @dev this is for backwards compatibility, should refactor later
 
   router(contracts: HyperlaneContracts<Factories>): Router {
-    return contracts[this.routerContractName] as Router;
+    return contracts[this.routerContractNameConstant] as Router;
   }
 
   abstract constructorArgs(
@@ -37,6 +37,8 @@ export abstract class ProxiedRouterDeployer<
       Awaited<ReturnType<Factories[RouterKey]['deploy']>>['initialize']
     >
   >;
+
+  abstract routerContractName(config: Config): RouterKey;
 
   async deployContracts(
     chain: ChainName,
@@ -77,14 +79,14 @@ export abstract class ProxiedRouterDeployer<
 
     const proxiedRouter = await this.deployProxiedContract(
       chain,
-      this.routerContractName,
+      this.routerContractName(config),
       proxyAdmin.address,
       await this.constructorArgs(chain, config),
       await this.initializeArgs(chain, config),
     );
 
     return {
-      [this.routerContractName]: proxiedRouter,
+      [this.routerContractName(config)]: proxiedRouter,
       proxyAdmin,
       timelockController,
     } as HyperlaneContracts<Factories>;

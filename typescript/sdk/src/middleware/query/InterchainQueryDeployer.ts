@@ -17,7 +17,7 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
   InterchainQueryFactories,
   'interchainQueryRouter'
 > {
-  readonly routerContractName = 'interchainQueryRouter';
+  readonly routerContractNameConstant = 'interchainQueryRouter';
 
   constructor(
     multiProvider: MultiProvider,
@@ -26,6 +26,12 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     super(multiProvider, interchainQueryFactories, {
       contractVerifier,
     });
+  }
+
+  routerContractName<K extends keyof InterchainQueryFactories>(
+    _: RouterConfig,
+  ): K {
+    return 'interchainQueryRouter' as K;
   }
 
   async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {

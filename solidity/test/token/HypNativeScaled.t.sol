@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {HypNativeScaled} from "../../contracts/token/extensions/HypNativeScaled.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";

@@ -19,7 +19,7 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   InterchainAccountFactories,
   'interchainAccountRouter'
 > {
-  readonly routerContractName = 'interchainAccountRouter';
+  readonly routerContractNameConstant = 'interchainAccountRouter';
 
   constructor(
     multiProvider: MultiProvider,
@@ -28,6 +28,12 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     super(multiProvider, interchainAccountFactories, {
       contractVerifier,
     });
+  }
+
+  routerContractName<K extends keyof InterchainAccountFactories>(
+    _: RouterConfig,
+  ): K {
+    return 'interchainAccountRouter' as K;
   }
 
   async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {

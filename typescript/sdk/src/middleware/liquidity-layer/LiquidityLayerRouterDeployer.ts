@@ -56,7 +56,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   LiquidityLayerFactories,
   'liquidityLayerRouter'
 > {
-  readonly routerContractName = 'liquidityLayerRouter';
+  readonly routerContractNameConstant = 'liquidityLayerRouter';
 
   constructor(
     multiProvider: MultiProvider,
@@ -65,6 +65,12 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     super(multiProvider, liquidityLayerFactories, {
       contractVerifier,
     });
+  }
+
+  routerContractName<K extends keyof LiquidityLayerFactories>(
+    _: RouterConfig,
+  ): K {
+    return 'liquidityLayerRouter' as K;
   }
 
   async constructorArgs(

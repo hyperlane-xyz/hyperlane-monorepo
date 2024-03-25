@@ -27,7 +27,7 @@ contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
         address _hook,
         address _interchainSecurityModule,
         address _owner
-    ) public initializer {
+    ) public override initializer {
         wrappedToken.approve(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }

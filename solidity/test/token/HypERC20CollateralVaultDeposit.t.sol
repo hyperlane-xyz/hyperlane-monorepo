@@ -26,7 +26,6 @@ import "../../contracts/test/ERC4626/ERC4626Test.sol";
 contract HypERC20CollateralVaultDepositTest is HypTokenTest {
     using TypeCasts for address;
     uint256 constant DUST_AMOUNT = 1e11;
-    address internal constant PROXY_ADMIN = address(0x37);
     HypERC20CollateralVaultDeposit internal erc20CollateralVaultDeposit;
     ERC4626Test vault;
 

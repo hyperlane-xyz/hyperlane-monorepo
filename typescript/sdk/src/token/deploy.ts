@@ -1,27 +1,22 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import debug from 'debug';
-import { constants, ethers, providers } from 'ethers';
+import { ethers, providers } from 'ethers';
 
 import {
   ERC20__factory,
   ERC721EnumerableUpgradeable__factory,
-  HypERC20,
-  HypERC20Collateral,
+  GasRouter,
   HypERC721,
   HypERC721Collateral,
-  HypNative,
-  ProxyAdmin__factory,
-  TimelockController,
-  TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { eqAddress, objKeys, objMap } from '@hyperlane-xyz/utils';
+import { objKeys, objMap } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../providers/MultiProvider';
 import { GasRouterDeployer } from '../router/GasRouterDeployer';
-import { GasConfig, ProxiedRouterConfig, RouterConfig } from '../router/types';
+import { GasConfig, RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 import {
@@ -33,7 +28,6 @@ import {
   HypERC20Config,
   HypERC721CollateralConfig,
   HypERC721Config,
-  HypNativeConfig,
   TokenConfig,
   TokenMetadata,
   TokenType,
@@ -54,8 +48,11 @@ import {
 
 export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
-  HypERC20Factories
+  HypERC20Factories,
+  TokenType.native
 > {
+  readonly routerContractNameConstant = TokenType.native;
+
   constructor(
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
@@ -66,6 +63,57 @@ export class HypERC20Deployer extends GasRouterDeployer<
       ismFactory,
       contractVerifier,
     }); // factories not used in deploy
+  }
+
+  routerContractName<K extends keyof HypERC20Factories>(
+    config: ERC20RouterConfig,
+  ): K {
+    if (isCollateralConfig(config)) {
+      return (
+        isFastConfig(config) ? TokenType.fastCollateral : TokenType.collateral
+      ) as K;
+    } else if (isSyntheticConfig(config)) {
+      return (
+        isFastConfig(config) ? TokenType.fastSynthetic : TokenType.synthetic
+      ) as K;
+    } else {
+      return config.type as K;
+    }
+  }
+
+  async constructorArgs(
+    chain: ChainName,
+    config: ERC20RouterConfig,
+  ): Promise<any> {
+    if (isCollateralConfig(config)) {
+      return [config.token, config.mailbox];
+    } else if (isNativeConfig(config)) {
+      return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
+    } else if (isSyntheticConfig(config)) {
+      return [config.decimals, config.mailbox];
+    } else {
+      throw new Error('Unknown collateral type when constructing arguments');
+    }
+  }
+
+  async initializeArgs(
+    chain: ChainName,
+    config: ERC20RouterConfig,
+  ): Promise<any> {
+    const defaultArgs = [
+      config.hook ?? ethers.constants.AddressZero,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.owner,
+    ];
+    if (isCollateralConfig(config)) {
+      return defaultArgs;
+    } else if (isNativeConfig(config)) {
+      return defaultArgs;
+    } else if (isSyntheticConfig(config)) {
+      return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+    } else {
+      throw new Error('Unknown collateral type when initializing arguments');
+    }
   }
 
   static async fetchMetadata(
@@ -134,166 +182,20 @@ export class HypERC20Deployer extends GasRouterDeployer<
     } as ERC20Metadata;
   }
 
-  protected async deployCollateral(
-    chain: ChainName,
-    config: HypERC20CollateralConfig,
-  ): Promise<HypERC20Collateral> {
-    let contractName:
-      | TokenType.fastCollateral
-      | TokenType.collateral
-      | TokenType.collateralVault;
-    const constructorArgs = [config.token, config.mailbox];
-    const initializeArgs = [
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-      config.owner,
-    ];
-    switch (config.type) {
-      case TokenType.fastSynthetic || TokenType.fastCollateral:
-        contractName = TokenType.fastCollateral;
-        break;
-      case TokenType.collateral:
-        contractName = TokenType.collateral;
-        break;
-      case TokenType.collateralVault:
-        contractName = TokenType.collateralVault;
-        break;
-      default:
-        throw new Error(`Unknown collateral type ${config.type}`);
-    }
-
-    return this.deployAdminAndProxyContracts(
-      chain,
-      config,
-      contractName,
-      constructorArgs,
-      initializeArgs,
-    );
-  }
-
-  // @dev this is a copy of ProxiedRouterDeployer.deployContracts().
-  // Here because ProxiedRouterDeployer assumes a single contract, but here is deploying multiple contracts
-  // Please remove once ProxiedRouterDeployer is refactored!
-  async deployAdminAndProxyContracts<K extends keyof HypERC20Factories>(
-    chain: ChainName,
-    config: ERC20RouterConfig & ProxiedRouterConfig,
-    contractName: K,
-    constructorArgs: any,
-    initializeArgs?: any,
-  ): Promise<any> {
-    const proxyAdmin = await this.deployContractFromFactory(
-      chain,
-      new ProxyAdmin__factory(),
-      'proxyAdmin',
-      [],
-    );
-
-    let timelockController: TimelockController;
-    let adminOwner: string;
-    if (config.timelock) {
-      timelockController = await this.deployTimelock(chain, config.timelock);
-      adminOwner = timelockController.address;
-    } else {
-      timelockController = TimelockController__factory.connect(
-        constants.AddressZero,
-        this.multiProvider.getProvider(chain),
-      );
-      adminOwner = config.owner;
-    }
-
-    await super.runIfOwner(chain, proxyAdmin, async () => {
-      this.logger(`Checking ownership of proxy admin to ${adminOwner}`);
-
-      if (!eqAddress(await proxyAdmin.owner(), adminOwner)) {
-        this.logger(`Transferring ownership of proxy admin to ${adminOwner}`);
-        return this.multiProvider.handleTx(
-          chain,
-          proxyAdmin.transferOwnership(adminOwner),
-        );
-      }
-      return;
-    });
-    return this.deployProxiedContract<K>(
-      chain,
-      contractName,
-      proxyAdmin.address,
-      constructorArgs,
-      initializeArgs,
-    );
-  }
-
-  protected async deployNative(
-    chain: ChainName,
-    config: HypNativeConfig,
-  ): Promise<HypNative> {
-    const initializeArgs = [
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-      config.owner,
-    ];
-    if (config.scale) {
-      return this.deployAdminAndProxyContracts(
-        chain,
-        config,
-        TokenType.nativeScaled,
-        [config.scale, config.mailbox],
-        initializeArgs,
-      );
-    } else {
-      return this.deployAdminAndProxyContracts(
-        chain,
-        config,
-        TokenType.native,
-        [config.mailbox],
-        initializeArgs,
-      );
-    }
-  }
-
-  protected async deploySynthetic(
-    chain: ChainName,
-    config: HypERC20Config,
-  ): Promise<HypERC20> {
-    const router: HypERC20 = await this.deployContract(
-      chain,
-      isFastConfig(config) ? TokenType.fastSynthetic : TokenType.synthetic,
-      [config.decimals, config.mailbox],
-    );
-    try {
-      await this.multiProvider.handleTx(
-        chain,
-        router.initialize(config.totalSupply, config.name, config.symbol),
-      );
-    } catch (e: any) {
-      if (!e.message.includes('already initialized')) {
-        throw e;
-      }
-      this.logger(`${config.type} already initialized`);
-    }
-    return router;
-  }
-
   router(contracts: HyperlaneContracts<HypERC20Factories>) {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as GasRouter;
       }
     }
     throw new Error('No matching contract found');
   }
 
   async deployContracts(chain: ChainName, config: HypERC20Config) {
-    let router: HypERC20 | HypERC20Collateral | HypNative;
-    if (isCollateralConfig(config)) {
-      router = await this.deployCollateral(chain, config);
-    } else if (isNativeConfig(config)) {
-      router = await this.deployNative(chain, config);
-    } else if (isSyntheticConfig(config)) {
-      router = await this.deploySynthetic(chain, config);
-    } else {
-      throw new Error('Invalid ERC20 token router config');
-    }
-    await this.configureClient(chain, router, config);
+    const { [this.routerContractName(config)]: router } =
+      await super.deployContracts(chain, config);
+
+    await this.configureClient(chain, router as any, config);
     return { [config.type]: router } as any;
   }
 
@@ -359,8 +261,11 @@ export class HypERC20Deployer extends GasRouterDeployer<
 
 export class HypERC721Deployer extends GasRouterDeployer<
   ERC721RouterConfig,
-  HypERC721Factories
+  HypERC721Factories,
+  TokenType.collateral
 > {
+  readonly routerContractNameConstant = TokenType.collateral;
+
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -369,6 +274,33 @@ export class HypERC721Deployer extends GasRouterDeployer<
       logger: debug('hyperlane:HypERC721Deployer'),
       contractVerifier,
     });
+  }
+  routerContractName<K extends keyof HypERC20Factories>(
+    config: ERC721RouterConfig,
+  ): K {
+    return TokenType[config.type] as K;
+  }
+
+  async constructorArgs(
+    chain: ChainName,
+    config: HypERC20CollateralConfig,
+  ): Promise<any> {
+    switch (config.type) {
+      case TokenType.fastSynthetic || TokenType.fastCollateral:
+        return [config.token, config.mailbox];
+      case TokenType.collateral:
+        return [config.token, config.mailbox];
+      case TokenType.collateralVault:
+        return [config.token, config.mailbox];
+    }
+  }
+
+  //@ts-ignore ignore for now until the contracts get fixed
+  async initializeArgs(
+    chain: ChainName,
+    config: HypERC20CollateralConfig,
+  ): Promise<any> {
+    return config.token;
   }
 
   static async fetchMetadata(
@@ -431,7 +363,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
   router(contracts: HyperlaneContracts<HypERC721Factories>) {
     for (const key of objKeys(hypERC721factories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as GasRouter;
       }
     }
     throw new Error('No matching contract found');

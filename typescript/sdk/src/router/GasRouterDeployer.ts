@@ -1,20 +1,17 @@
 import { GasRouter } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import {
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
-} from '../contracts/types';
+import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
 import { ChainMap } from '../types';
 
-import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { GasRouterConfig } from './types';
+import { ProxiedRouterDeployer } from './ProxiedRouterDeployer';
+import { GasRouterConfig, ProxiedFactories } from './types';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,
-  Factories extends HyperlaneFactories,
-> extends HyperlaneRouterDeployer<Config, Factories> {
+  Factories extends ProxiedFactories,
+  RouterKey extends keyof Factories,
+> extends ProxiedRouterDeployer<Config, Factories, RouterKey> {
   abstract router(contracts: HyperlaneContracts<Factories>): GasRouter;
 
   async enrollRemoteRouters(
