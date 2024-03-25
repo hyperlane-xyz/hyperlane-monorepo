@@ -14,7 +14,12 @@ import {
   chainMetadata,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  objMap,
+  promiseObjAll,
+  symmetricDifference,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { agents } from '../config/environments/agents';
@@ -56,6 +61,7 @@ export const SDK_MODULES = [
   Modules.INTERCHAIN_ACCOUNTS,
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
+  Modules.HOOK,
 ];
 
 export function getArgs() {
@@ -127,11 +133,14 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
 }
 
 // missing chains are chains needed which are not as part of defaultMultisigConfigs in sdk/src/consts/ but are in chainMetadata
-export function withMissingChains<T>(args: yargs.Argv<T>) {
+export function withNewChainValidators<T>(args: yargs.Argv<T>) {
   return args
-    .describe('newChains', 'new chains to add')
-    .string('newChains')
-    .alias('n', 'newChains');
+    .describe(
+      'newChainValidators',
+      'new chains to add and how many validators, e.g. "mynewchain=3,myothernewchain=5"',
+    )
+    .string('newChainValidators')
+    .alias('n', 'newChainValidators');
 }
 
 export function withBuildArtifactPath<T>(args: yargs.Argv<T>) {
@@ -154,17 +163,17 @@ export function assertEnvironment(env: string): DeployEnvironment {
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;
   context: Contexts;
-  newChains: string;
+  newChainValidators: string;
 }) {
   const {
     environment,
     context = Contexts.Hyperlane,
-    newChains,
-  } = argv ? argv : await withMissingChains(withContext(getArgs())).argv;
+    newChainValidators,
+  } = argv ? argv : await withNewChainValidators(withContext(getArgs())).argv;
 
   const newValidatorCounts: ChainMap<number> = {};
-  if (newChains) {
-    const chains = newChains.split(',');
+  if (newChainValidators) {
+    const chains = newChainValidators.split(',');
     for (const chain of chains) {
       const [chainName, newValidatorCount] = chain.split('=');
       newValidatorCounts[chainName] = parseInt(newValidatorCount, 10);
@@ -172,14 +181,8 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   const agentConfig = getAgentConfig(context, environment);
-  // check if new chains are needed
-  const missingChains = checkIfValidatorsArePersisted(agentConfig);
 
-  // if you include a chain in chainMetadata but not in the aw-multisig.json, you need to specify the new chain in new-chains
-  for (const chain of missingChains) {
-    if (!Object.keys(newValidatorCounts).includes(chain)) {
-      throw new Error(`Missing chain ${chain} not specified in new-chains`);
-    }
+  for (const [chain, validatorCount] of Object.entries(newValidatorCounts)) {
     const baseConfig = {
       [Contexts.Hyperlane]: [],
       [Contexts.ReleaseCandidate]: [],
@@ -191,7 +194,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     const validators = validatorsConfig(
       {
         ...baseConfig,
-        [context]: Array(newValidatorCounts[chain]).fill('0x0'),
+        [context]: Array(validatorCount).fill('0x0'),
       },
       chain as Chains,
     );
@@ -206,7 +209,16 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
       reorgPeriod: chainMetadata[chain].blocks?.reorgPeriod ?? 0, // dummy value
       validators,
     };
+
+    // In addition to creating a new entry in agentConfig.validators, we update
+    // the contextChainNames.validator array to include the new chain.
+    if (!agentConfig.contextChainNames.validator.includes(chain)) {
+      agentConfig.contextChainNames.validator.push(chain);
+    }
   }
+
+  // Sanity check that the validator agent config is valid.
+  ensureValidatorConfigConsistency(agentConfig);
 
   return {
     agentConfig,
@@ -233,15 +245,23 @@ export function getAgentConfig(
   return agentsForEnvironment[context];
 }
 
-// check if validators are persisted in agentConfig
-export function checkIfValidatorsArePersisted(
-  agentConfig: RootAgentConfig,
-): Set<ChainName> {
-  const supportedChainNames = agentConfig.contextChainNames.validator;
-  const persistedChainNames = Object.keys(agentConfig.validators?.chains || {});
-  return new Set(
-    supportedChainNames.filter((x) => !persistedChainNames.includes(x)),
+// Ensures that the validator context chain names are in sync with the validator config.
+export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
+  const validatorContextChainNames = new Set(
+    agentConfig.contextChainNames.validator,
   );
+  const validatorConfigChains = new Set(
+    Object.keys(agentConfig.validators?.chains || {}),
+  );
+  const symDiff = symmetricDifference(
+    validatorContextChainNames,
+    validatorConfigChains,
+  );
+  if (symDiff.size > 0) {
+    throw new Error(
+      `Validator config invalid. Validator context chain names: ${validatorContextChainNames}, validator config chains: ${validatorConfigChains}, diff: ${symDiff}`,
+    );
+  }
 }
 
 export function getKeyForRole(

@@ -11,6 +11,20 @@ export const validatorChainConfig = (
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   return {
+    ancient8: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.ancient8),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xbb5842ae0e05215b53df4787a29144efb7e67551'],
+          [Contexts.ReleaseCandidate]: [
+            '0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'ancient8',
+      ),
+    },
     celo: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.celo),

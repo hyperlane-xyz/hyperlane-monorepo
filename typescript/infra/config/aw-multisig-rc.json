@@ -1,0 +1,179 @@
+{
+  "alfajores": {
+    "validators": [
+      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
+      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
+      "0x86485dcec5f7bb8478dd251676372d054dea6653"
+    ]
+  },
+  "ancient8": {
+    "validators": ["0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"]
+  },
+  "arbitrum": {
+    "validators": [
+      "0xb4c18167c163391facb345bb069d12d0430a6a89",
+      "0x2f6dc057ae079997f76205903b85c8302164a78c",
+      "0x229d4dc6a740212da746b0e35314419a24bc2a5b"
+    ]
+  },
+  "avalanche": {
+    "validators": [
+      "0x2c7cf6d1796e37676ba95f056ff21bf536c6c2d3",
+      "0xcd250d48d16e2ce4b939d44b5215f9e978975152",
+      "0x26691cd3e9c1b8a82588606b31d9d69b14cb2729"
+    ]
+  },
+  "base": {
+    "validators": [
+      "0xa8363570749080c7faa1de714e0782ff444af4cc",
+      "0x3b55d9febe02a9038ef8c867fa8bbfdd8d70f9b8",
+      "0xed7703e06572768bb09e03d88e6b788d8800b9fb"
+    ]
+  },
+  "bsc": {
+    "validators": [
+      "0x911dfcc19dd5b723e84be452f6af52adef020bc8",
+      "0xee2d4fd5fe2170e51c6279552297117feaeb19e1",
+      "0x50ff94984161976a13e9ec3b2a7647da5319448f"
+    ]
+  },
+  "bsctestnet": {
+    "validators": [
+      "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
+      "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
+      "0x1f030345963c54ff8229720dd3a711c15c554aeb"
+    ]
+  },
+  "celo": {
+    "validators": [
+      "0xb51768c1388e976486a43dbbbbf9ce04cf45e990",
+      "0x6325de37b33e20089c091950518a471e29c52883",
+      "0xd796c1d4fcfb3c63acfa6e4113aa6ae1399b337c"
+    ]
+  },
+  "eclipsetestnet": {
+    "validators": ["0xf344f34abca9a444545b5295066348a0ae22dda3"]
+  },
+  "ethereum": {
+    "validators": [
+      "0x0580884289890805802012b9872afa5ae41a5fa6",
+      "0xa5465cb5095a2e6093587e644d6121d6ed55c632",
+      "0x87cf8a85465118aff9ec728ca157798201b1e368"
+    ]
+  },
+  "fuji": {
+    "validators": [
+      "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
+      "0x895ae30bc83ff1493b9cf7781b0b813d23659857",
+      "0x43e915573d9f1383cbf482049e4a012290759e7f"
+    ]
+  },
+  "gnosis": {
+    "validators": [
+      "0xd5122daa0c3dfc94a825ae928f3ea138cdb6a2e1",
+      "0x2d1f367e942585f8a1c25c742397dc8be9a61dee",
+      "0x2111141b7f985d305f392c502ad52dd74ef9c569"
+    ]
+  },
+  "inevm": {
+    "validators": [
+      "0x52a0376903294c796c091c785a66c62943d99aa8",
+      "0xc2ea1799664f753bedb9872d617e3ebc60b2e0ab",
+      "0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee"
+    ]
+  },
+  "injective": {
+    "validators": [
+      "0xbfb8911b72cfb138c7ce517c57d9c691535dc517",
+      "0x6faa139c33a7e6f53cb101f6b2ae392298283ed2",
+      "0x0115e3a66820fb99da30d30e2ce52a453ba99d92"
+    ]
+  },
+  "mantapacific": {
+    "validators": [
+      "0x84fcb05e6e5961df2dfd9f36e8f2b3e87ede7d76",
+      "0x45f3e2655a08feda821ee7b495cf2595401e1569",
+      "0x4cfccfd66dbb702b643b56f6986a928ed1b50c7e"
+    ]
+  },
+  "moonbeam": {
+    "validators": [
+      "0x75e3cd4e909089ae6c9f3a42b1468b33eec84161",
+      "0xc28418d0858a82a46a11e07db75f8bf4eed43881",
+      "0xcaa9c6e6efa35e4a8b47565f3ce98845fa638bf3"
+    ]
+  },
+  "mumbai": {
+    "validators": [
+      "0xebc301013b6cd2548e347c28d2dc43ec20c068f2",
+      "0x315db9868fc8813b221b1694f8760ece39f45447",
+      "0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5"
+    ]
+  },
+  "neutron": {
+    "validators": [
+      "0x307a8fe091b8273c7ce3d277b161b4a2167279b1",
+      "0xb825c1bd020cb068f477b320f591b32e26814b5b",
+      "0x0a5b31090d4c3c207b9ea6708f938e328f895fce"
+    ]
+  },
+  "optimism": {
+    "validators": [
+      "0x7e4391786e0b5b0cbaada12d32c931e46e44f104",
+      "0x138ca73e805afa14e85d80f6e35c46e6f235429e",
+      "0x2d58cdb2bed9aac57b488b1bad06839ddc280a78"
+    ]
+  },
+  "plumetestnet": {
+    "validators": [
+      "0xe765a214849f3ecdf00793b97d00422f2d408ea6",
+      "0xb59998f71efc65190a85ac5e81b66bd72a192a3b",
+      "0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c"
+    ]
+  },
+  "polygon": {
+    "validators": [
+      "0xf0a990959f833ccde624c8bcd4c7669286a57a0f",
+      "0x456b636bdde99d69176261d7a4fba42c16f57f56",
+      "0xe78d3681d4f59e0768be8b1171f920ed4d52409f"
+    ]
+  },
+  "polygonzkevm": {
+    "validators": [
+      "0x75cffb90391d7ecf58a84e9e70c67e7b306211c0",
+      "0x82c10acb56f3d7ed6738b61668111a6b5250283e",
+      "0x1cd73544c000fd519784f56e59bc380a5fef53d6"
+    ]
+  },
+  "scroll": {
+    "validators": [
+      "0x11387d89856219cf685f22781bf4e85e00468d54",
+      "0x64b98b96ccae6e660ecf373b5dd61bcc34fd19ee",
+      "0x07c2f32a402543badc3141f6b98969d75ef2ac28"
+    ]
+  },
+  "scrollsepolia": {
+    "validators": [
+      "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
+      "0x9a11ed23ae962974018ab45bc133caabff7b3271",
+      "0x7867bea3c9761fe64e6d124b171f91fd5dd79644"
+    ]
+  },
+  "sepolia": {
+    "validators": [
+      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
+      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
+      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
+    ]
+  },
+  "solanatestnet": {
+    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
+  "viction": {
+    "validators": [
+      "0xe858971cd865b11d3e8fb6b6af72db0d85881baf",
+      "0xad94659e2383214e4a1c4e8d3c17caffb75bc31b",
+      "0x0f9e5775ac4d3b73dd28e5a3f8394443186cb70c"
+    ]
+  }
+}

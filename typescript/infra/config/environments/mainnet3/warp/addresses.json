@@ -1,9 +1,8 @@
 {
-  "injective": {
-    "router": "inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k"
+  "ancient8": {
+    "synthetic": "0xB3fCcD379ad66CED0c91028520C64226611A48c9"
   },
-  "inevm": {
-    "HypNative": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4",
-    "router": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4"
+  "ethereum": {
+    "collateral": "0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f"
   }
 }

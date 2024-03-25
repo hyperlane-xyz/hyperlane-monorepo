@@ -4,6 +4,7 @@
  */
 export enum Chains {
   alfajores = 'alfajores',
+  ancient8 = 'ancient8',
   arbitrum = 'arbitrum',
   avalanche = 'avalanche',
   base = 'base',
@@ -54,6 +55,7 @@ export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
 
 export const Mainnets: Array<CoreChainName> = [
   Chains.arbitrum,
+  Chains.ancient8,
   Chains.avalanche,
   Chains.bsc,
   Chains.celo,
