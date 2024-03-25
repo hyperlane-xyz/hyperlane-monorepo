@@ -24,9 +24,7 @@ import {
   ERC20Metadata,
   ERC20RouterConfig,
   ERC721RouterConfig,
-  HypERC20CollateralConfig,
   HypERC20Config,
-  HypERC721CollateralConfig,
   HypERC721Config,
   TokenConfig,
   TokenMetadata,
@@ -275,32 +273,47 @@ export class HypERC721Deployer extends GasRouterDeployer<
       contractVerifier,
     });
   }
-  routerContractName<K extends keyof HypERC20Factories>(
+  routerContractName<K extends keyof HypERC721Factories>(
     config: ERC721RouterConfig,
   ): K {
-    return TokenType[config.type] as K;
+    if (isCollateralConfig(config)) {
+      return (
+        isUriConfig(config) ? TokenType.collateralUri : TokenType.collateral
+      ) as K;
+    } else if (isSyntheticConfig(config)) {
+      return (
+        isUriConfig(config) ? TokenType.syntheticUri : TokenType.synthetic
+      ) as K;
+    } else {
+      return config.type as K;
+    }
   }
 
   async constructorArgs(
     chain: ChainName,
-    config: HypERC20CollateralConfig,
+    config: ERC721RouterConfig,
   ): Promise<any> {
-    switch (config.type) {
-      case TokenType.fastSynthetic || TokenType.fastCollateral:
-        return [config.token, config.mailbox];
-      case TokenType.collateral:
-        return [config.token, config.mailbox];
-      case TokenType.collateralVault:
-        return [config.token, config.mailbox];
+    if (isCollateralConfig(config)) {
+      return [config.token, config.mailbox];
+    } else if (isSyntheticConfig(config)) {
+      return [config.mailbox];
+    } else {
+      throw new Error('Unknown collateral type when constructing arguments');
     }
   }
 
   //@ts-ignore ignore for now until the contracts get fixed
   async initializeArgs(
     chain: ChainName,
-    config: HypERC20CollateralConfig,
+    config: ERC721RouterConfig,
   ): Promise<any> {
-    return config.token;
+    if (isCollateralConfig(config)) {
+      return [config.token, config.mailbox];
+    } else if (isSyntheticConfig(config)) {
+      return [config.totalSupply, config.name, config.symbol];
+    } else {
+      throw new Error('Unknown collateral type when initializing arguments');
+    }
   }
 
   static async fetchMetadata(
@@ -333,32 +346,32 @@ export class HypERC721Deployer extends GasRouterDeployer<
     }
   }
 
-  protected async deployCollateral(
-    chain: ChainName,
-    config: HypERC721CollateralConfig,
-  ): Promise<HypERC721Collateral> {
-    return this.deployContract(
-      chain,
-      isUriConfig(config) ? TokenType.collateralUri : TokenType.collateral,
-      [config.token, config.mailbox],
-    );
-  }
+  // protected async deployCollateral(
+  //   chain: ChainName,
+  //   config: HypERC721CollateralConfig,
+  // ): Promise<HypERC721Collateral> {
+  //   return this.deployContract(
+  //     chain,
+  //     isUriConfig(config) ? TokenType.collateralUri : TokenType.collateral,
+  //     [config.token, config.mailbox],
+  //   );
+  // }
 
-  protected async deploySynthetic(
-    chain: ChainName,
-    config: HypERC721Config,
-  ): Promise<HypERC721> {
-    const router = await this.deployContract(
-      chain,
-      isUriConfig(config) ? TokenType.syntheticUri : TokenType.synthetic,
-      [config.mailbox],
-    );
-    await this.multiProvider.handleTx(
-      chain,
-      router.initialize(config.totalSupply, config.name, config.symbol),
-    );
-    return router;
-  }
+  // protected async deploySynthetic(
+  //   chain: ChainName,
+  //   config: HypERC721Config,
+  // ): Promise<HypERC721> {
+  //   const router = await this.deployContract(
+  //     chain,
+  //     isUriConfig(config) ? TokenType.syntheticUri : TokenType.synthetic,
+  //     [config.mailbox],
+  //   );
+  //   await this.multiProvider.handleTx(
+  //     chain,
+  //     router.initialize(config.totalSupply, config.name, config.symbol),
+  //   );
+  //   return router;
+  // }
 
   router(contracts: HyperlaneContracts<HypERC721Factories>) {
     for (const key of objKeys(hypERC721factories)) {
@@ -370,14 +383,18 @@ export class HypERC721Deployer extends GasRouterDeployer<
   }
 
   async deployContracts(chain: ChainName, config: HypERC721Config) {
-    let router: HypERC721 | HypERC721Collateral;
-    if (isCollateralConfig(config)) {
-      router = await this.deployCollateral(chain, config);
-    } else if (isSyntheticConfig(config)) {
-      router = await this.deploySynthetic(chain, config);
-    } else {
-      throw new Error('Invalid ERC721 token router config');
-    }
+    // let router: HypERC721 | HypERC721Collateral;
+    // if (isCollateralConfig(config)) {
+    //   router = await this.deployCollateral(chain, config);
+    // } else if (isSyntheticConfig(config)) {
+    //   router = await this.deploySynthetic(chain, config);
+    // } else {
+    //   throw new Error('Invalid ERC721 token router config');
+    // }
+    const { [this.routerContractName(config)]: router } =
+      await super.deployContracts(chain, config);
+
+    await this.configureClient(chain, router as any, config);
     return { [config.type]: router } as any;
   }
 

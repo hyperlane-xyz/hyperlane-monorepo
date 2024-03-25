@@ -23,7 +23,10 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
     function initialize(
         uint256 _mintAmount,
         string memory _name,
-        string memory _symbol
+        string memory _symbol,
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
     ) external initializer {
         address owner = msg.sender;
         _transferOwnership(owner);
@@ -32,6 +35,7 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
         for (uint256 i = 0; i < _mintAmount; i++) {
             _safeMint(owner, i);
         }
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
     function balanceOf(
