@@ -10,6 +10,8 @@ import {
   agentConfigurationOption,
   chainsCommandOption,
   coreArtifactsOption,
+  hookConfigOption,
+  ismConfigOption,
   keyCommandOption,
   outDirCommandOption,
   skipConfirmationOption,
@@ -82,16 +84,8 @@ const coreCommand: CommandModule = {
       },
       chains: chainsCommandOption,
       artifacts: coreArtifactsOption,
-      ism: {
-        type: 'string',
-        description:
-          'A path to a JSON or YAML file with basic or advanced ISM configs (e.g. Multisig)',
-      },
-      hook: {
-        type: 'string',
-        description:
-          'A path to a JSON or YAML file with Hook configs (for every chain)',
-      },
+      ism: ismConfigOption,
+      hook: hookConfigOption,
       out: outDirCommandOption,
       key: keyCommandOption,
       yes: skipConfirmationOption,
@@ -137,6 +131,7 @@ const warpCommand: CommandModule = {
           'A path to a JSON or YAML file with a warp route deployment config.',
         default: './configs/warp-route-deployment.yaml',
       },
+      ism: ismConfigOption,
       core: coreArtifactsOption,
       chains: chainsCommandOption,
       out: outDirCommandOption,
@@ -147,6 +142,7 @@ const warpCommand: CommandModule = {
     const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const warpRouteDeploymentConfigPath: string | undefined = argv.config;
+    const ismConfigPath: string = argv.ism;
     const coreArtifactsPath: string | undefined = argv.core;
     const outPath: string = argv.out;
     const skipConfirmation: boolean = argv.yes;
@@ -154,6 +150,7 @@ const warpCommand: CommandModule = {
       key,
       chainConfigPath,
       warpRouteDeploymentConfigPath,
+      ismConfigPath,
       coreArtifactsPath,
       outPath,
       skipConfirmation,

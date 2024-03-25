@@ -93,6 +93,7 @@ export function parseIsmConfig(filePath: string) {
 export function readIsmConfig(filePath: string) {
   const result = parseIsmConfig(filePath);
   if (!result.success) {
+    console.log(result.error);
     const firstIssue = result.error.issues[0];
     throw new Error(
       `Invalid ISM config: ${firstIssue.path} => ${firstIssue.message}`,

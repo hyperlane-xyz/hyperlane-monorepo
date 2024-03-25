@@ -20,10 +20,12 @@ import {
   TokenType,
   WarpCoreConfig,
   getTokenConnectionId,
+  serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
+import { readIsmConfig } from '../config/ism.js';
 import {
   WarpRouteDeployConfig,
   readWarpRouteDeployConfig,
@@ -43,6 +45,7 @@ export async function runWarpRouteDeploy({
   key,
   chainConfigPath,
   warpRouteDeploymentConfigPath,
+  ismConfigPath,
   coreArtifactsPath,
   outPath,
   skipConfirmation,
@@ -50,6 +53,7 @@ export async function runWarpRouteDeploy({
   key: string;
   chainConfigPath: string;
   warpRouteDeploymentConfigPath?: string;
+  ismConfigPath?: string;
   coreArtifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
@@ -82,6 +86,15 @@ export async function runWarpRouteDeploy({
   const warpRouteConfig = readWarpRouteDeployConfig(
     warpRouteDeploymentConfigPath,
   );
+
+  if (ismConfigPath) {
+    const ismConfig = readIsmConfig(ismConfigPath);
+    warpRouteConfig.base.interchainSecurityModule ??=
+      ismConfig[warpRouteConfig.base.chainName];
+    for (const synthetic of warpRouteConfig.synthetics) {
+      synthetic.interchainSecurityModule ??= ismConfig[synthetic.chainName];
+    }
+  }
 
   const configs = await runBuildConfigStep({
     warpRouteConfig,
@@ -252,7 +265,7 @@ async function executeDeploy(params: DeployParams) {
   logGreen('Hyp token deployments complete');
 
   log('Writing deployment artifacts');
-  writeTokenDeploymentArtifacts(contractsFilePath, deployedContracts, params);
+  writeTokenDeploymentArtifacts(contractsFilePath, deployedContracts);
   writeWarpUiTokenConfig(tokenConfigPath, deployedContracts, params);
 
   logBlue('Deployment is complete!');
@@ -302,17 +315,8 @@ function getTokenName(token: TokenConfig) {
 function writeTokenDeploymentArtifacts(
   filePath: string,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  { configMap }: DeployParams,
 ) {
-  const artifacts: ChainMap<{
-    router: Address;
-    tokenType: TokenType;
-  }> = objMap(contracts, (chain, contract) => {
-    return {
-      router: contract[configMap[chain].type as keyof TokenFactories].address,
-      tokenType: configMap[chain].type,
-    };
-  });
+  const artifacts = serializeContractsMap(contracts);
   writeJson(filePath, artifacts);
 }
 

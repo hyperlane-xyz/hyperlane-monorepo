@@ -28,6 +28,18 @@ export const coreArtifactsOption: Options = {
   alias: 'a',
 };
 
+export const ismConfigOption: Options = {
+  type: 'string',
+  description:
+    'A path to a JSON or YAML file with basic or advanced ISM configs (e.g. Multisig)',
+};
+
+export const hookConfigOption: Options = {
+  type: 'string',
+  description:
+    'A path to a JSON or YAML file with Hook configs (for every chain)',
+};
+
 export const agentConfigurationOption: Options = {
   type: 'string',
   description: 'File path to agent configuration artifacts',

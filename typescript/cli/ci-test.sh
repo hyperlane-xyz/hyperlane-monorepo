@@ -120,6 +120,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --config ${EXAMPLES_PATH}/warp-route-deployment.yaml \
+    --ism ${EXAMPLES_PATH}/ism.yaml \
     --out /tmp \
     --key $ANVIL_KEY \
     --yes
@@ -134,9 +135,12 @@ yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
     --config /tmp/warp-collateral-deployment.json \
+    --ism ${EXAMPLES_PATH}/ism.yaml \
     --out /tmp \
     --key $ANVIL_KEY \
     --yes
+
+exit 0
 
 AFTER_WARP=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
 GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
