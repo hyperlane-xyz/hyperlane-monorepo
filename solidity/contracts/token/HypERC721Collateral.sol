@@ -21,6 +21,14 @@ contract HypERC721Collateral is TokenRouter {
         wrappedToken = IERC721(erc721);
     }
 
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public virtual initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
     function ownerOf(uint256 _tokenId) external view returns (address) {
         return IERC721(wrappedToken).ownerOf(_tokenId);
     }
