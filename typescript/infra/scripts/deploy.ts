@@ -167,15 +167,16 @@ async function main() {
     deployer = new LiquidityLayerDeployer(multiProvider, contractVerifier);
   } else if (module === Modules.TEST_RECIPIENT) {
     const addresses = getAddresses(environment, Modules.CORE);
-
-    for (const chain of Object.keys(addresses)) {
-      config[chain] = {
-        interchainSecurityModule:
-          addresses[chain].interchainSecurityModule ??
-          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
-      };
-    }
-    deployer = new TestRecipientDeployer(multiProvider, contractVerifier);
+    config = objMap(addresses, () => ({}));
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.PROXY_FACTORY),
+      multiProvider,
+    );
+    deployer = new TestRecipientDeployer(
+      multiProvider,
+      ismFactory,
+      contractVerifier,
+    );
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
