@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import {
   ConnectionClientViolation,
   ConnectionClientViolationType,
@@ -42,7 +40,6 @@ export class ProxiedRouterGovernor<
         'setInterchainSecurityModule',
         [violation.expected],
       ),
-      value: BigNumber.from(0),
       description: `Set ISM of ${violation.contract.address} to ${violation.expected}`,
     });
   }
@@ -57,7 +54,6 @@ export class ProxiedRouterGovernor<
         'enrollRemoteRouter',
         [remoteDomain, violation.expected],
       ),
-      value: BigNumber.from(0),
       description: `Enroll router for remote chain ${violation.remoteChain} (${remoteDomain}) ${violation.expected} in ${violation.contract.address}`,
     });
   }

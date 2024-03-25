@@ -46,7 +46,6 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
             'setBeneficiary',
             [beneficiaryViolation.expected],
           ),
-          value: BigNumber.from(0),
           description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
         });
         break;
@@ -75,7 +74,6 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
             'setDestinationGasConfigs',
             [configs],
           ),
-          value: BigNumber.from(0),
           description: `Setting ${Object.keys(gasOraclesViolation.expected)
             .map((remoteStr) => {
               const remote = remoteStr as ChainName;
@@ -106,7 +104,6 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
             'setDestinationGasConfigs',
             [configs],
           ),
-          value: BigNumber.from(0),
           description: `Setting ${Object.keys(violation.expected)
             .map((remoteStr) => {
               const remote = remoteStr as ChainName;

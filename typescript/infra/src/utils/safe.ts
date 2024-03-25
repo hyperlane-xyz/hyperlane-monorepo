@@ -43,12 +43,7 @@ export async function canProposeSafeTransactions(
   multiProvider: MultiProvider,
   safeAddress: string,
 ): Promise<boolean> {
-  let safeService;
-  try {
-    safeService = getSafeService(chain, multiProvider);
-  } catch (e) {
-    return false;
-  }
+  const safeService = getSafeService(chain, multiProvider);
   const safe = await getSafe(chain, multiProvider, safeAddress);
   const delegates = await getSafeDelegates(safeService, safeAddress);
   const owners = await safe.getOwners();

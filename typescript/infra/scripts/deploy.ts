@@ -24,6 +24,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
+import { safes } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -122,31 +123,19 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    console.log('routerConfig', routerConfig.sepolia.owner);
-    // const scrollsepolia = {
-    //   ...routerConfig.scrollsepolia,
-    //   type: TokenType.synthetic,
-    //   name: 'Wrapped Ether',
-    //   symbol: 'WETH',
-    //   decimals: 18,
-    //   totalSupply: '0',
-    // };
-    const sepolia = {
-      ...routerConfig.sepolia,
+    const inevm = {
+      ...routerConfig.inevm,
+      type: TokenType.native,
+      interchainSecurityModule: ethers.constants.AddressZero,
+      owner: safes.inevm,
+    };
+    const injective = {
+      ...routerConfig.injective,
       type: TokenType.native,
     };
-    const plumetestnet = {
-      ...routerConfig.plumetestnet,
-      type: TokenType.synthetic,
-      name: 'Wrapped Ether',
-      symbol: 'WETH',
-      decimals: 18,
-      totalSupply: '0',
-    };
     config = {
-      // scrollsepolia,
-      plumetestnet,
-      sepolia,
+      inevm,
+      injective,
     };
     // return;
     deployer = new HypERC20Deployer(
@@ -168,15 +157,8 @@ async function main() {
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
-    // filter config to only include sepolia and optimismgoerli for now
-    config = {
-      sepolia: config.sepolia,
-      // scrollsepolia: config.scrollsepolia,
-      plumetestnet: config.plumetestnet,
-    };
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
     const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
-    console.log('deploy: ICA addresses', JSON.stringify(addresses, null, 2));
     InterchainAccount.fromAddressesMap(addresses, multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
@@ -229,6 +211,11 @@ async function main() {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
+
+  // cache addresses for interchain account support
+  deployer.cacheAddressesMap(
+    getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS),
+  );
 
   const modulePath = getModuleDirectory(environment, module, context);
 

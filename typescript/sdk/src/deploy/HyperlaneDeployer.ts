@@ -697,10 +697,6 @@ export abstract class HyperlaneDeployer<
     if (typeof owner === 'string') {
       return owner;
     } else {
-      console.log(
-        'cached addresses:',
-        JSON.stringify(this.cachedAddresses[chain], null, 2),
-      );
       const routerAddress = this.cachedAddresses[chain].interchainAccountRouter;
       if (!routerAddress) {
         throw new Error('InterchainAccountRouter not deployed');

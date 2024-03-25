@@ -211,11 +211,7 @@ export {
   InterchainAccountConfig,
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer';
-export {
-  AccountConfig,
-  GovernanceConfig,
-  governanceToAccountConfig,
-} from './middleware/account/types';
+export { AccountConfig } from './middleware/account/types';
 export { liquidityLayerFactories } from './middleware/liquidity-layer/contracts';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {

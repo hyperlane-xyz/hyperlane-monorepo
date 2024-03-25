@@ -89,7 +89,6 @@
     "domainRoutingIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
     "storageGasOracle": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
     "testRecipient": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
-    "timelockController": "0x0000000000000000000000000000000000000000",
     "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9"
   },
   "scrollsepolia": {
@@ -109,7 +108,6 @@
     "storageGasOracle": "0x6b1bb4ce664Bb4164AEB4d3D2E7DE7450DD8084C",
     "testRecipient": "0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA",
     "testTokenRecipient": "0xc76E477437065093D353b7d56c81ff54D167B0Ab",
-    "timelockController": "0x0000000000000000000000000000000000000000",
     "validatorAnnounce": "0x527768930D889662Fe7ACF64294871e86e4C2381"
   },
   "sepolia": {
@@ -132,7 +130,6 @@
     "storageGasOracle": "0x71775B071F77F1ce52Ece810ce084451a3045FFe",
     "testRecipient": "0xeDc1A3EDf87187085A3ABb7A9a65E1e7aE370C07",
     "testTokenRecipient": "0x031AD9c560D37baC7d6Bd2d27A2443bAfd10101A",
-    "timelockController": "0x0000000000000000000000000000000000000000",
     "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9"
   }
 }
