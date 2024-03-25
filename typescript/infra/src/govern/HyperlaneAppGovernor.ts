@@ -56,6 +56,7 @@ export abstract class HyperlaneAppGovernor<
   }
 
   async govern(confirm = true, chain?: ChainName) {
+    console.log('governing...', this.checker.violations.length);
     if (this.checker.violations.length === 0) return;
 
     // 1. Produce calls from checker violations.

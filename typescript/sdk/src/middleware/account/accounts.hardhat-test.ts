@@ -12,7 +12,9 @@ import { Chains } from '../../consts/chains';
 import { HyperlaneContractsMap } from '../../contracts/types';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { HyperlaneAppChecker } from '../../deploy/HyperlaneAppChecker';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer';
+import { HyperlaneAppGovernor } from '../../govern/HyperlaneAppGovernor';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig } from '../../router/types';
@@ -88,5 +90,30 @@ describe('InterchainAccounts', async () => {
     await coreApp.processMessages();
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
+  });
+
+  it('govern', async () => {
+    const recipientF = new TestRecipient__factory(signer);
+    const recipient = await recipientF.deploy();
+    const governor = HyperlaneAppGovernor(
+      {} as HyperlaneAppChecker<any, any>,
+      app,
+    );
+    await recipient.transferOwnership(
+      app.getRemoteInterchainAccount(remoteChain, localChain, signer.address),
+    );
+    const call = {
+      to: app.getAddresses,
+      data: recipient.interface.encodeFunctionData('transferOwnership', [
+        signer.address,
+      ]),
+      value: BigNumber.from(0),
+    };
+    governor.pushCall(localChain, call);
+
+    // testGovernor
+    // deploy recipient with ica
+    // enqueue recipient transfer ownership to deployer
+    // check ownership
   });
 });
