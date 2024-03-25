@@ -193,7 +193,7 @@ export async function moduleMatchesConfig(
     case IsmType.MERKLE_ROOT_MULTISIG: {
       // A MerkleRootMultisigIsm matches if validators and threshold match the config
       const expectedAddress =
-        await contracts.merkleRootMultisigIsmFactory.getAddress(
+        await contracts.staticMerkleRootMultisigIsmFactory.getAddress(
           config.validators.sort(),
           config.threshold,
         );
@@ -203,7 +203,7 @@ export async function moduleMatchesConfig(
     case IsmType.MESSAGE_ID_MULTISIG: {
       // A MessageIdMultisigIsm matches if validators and threshold match the config
       const expectedAddress =
-        await contracts.messageIdMultisigIsmFactory.getAddress(
+        await contracts.staticMessageIdMultisigIsmFactory.getAddress(
           config.validators.sort(),
           config.threshold,
         );
