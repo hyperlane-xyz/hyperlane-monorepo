@@ -39,14 +39,6 @@ export abstract class RouterApp<
       this.multiProvider.getChainMetadata(chainName).protocol ===
       ProtocolType.Ethereum
     ) {
-      console.log(
-        'RouterApp routerAddress',
-        chainName,
-        objMap(
-          this.contractsMap,
-          (_, contracts) => this.router(contracts)?.address,
-        ),
-      );
       return this.router(this.contractsMap[chainName])?.address;
     }
     return this.foreignDeployments[chainName];

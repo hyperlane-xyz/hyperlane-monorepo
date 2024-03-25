@@ -12,7 +12,13 @@ import {
   OwnableConfig,
   OwnerViolation,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  bytes32ToAddress,
+  eqAddress,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { canProposeSafeTransactions } from '../utils/safe';
 
@@ -39,7 +45,7 @@ export abstract class HyperlaneAppGovernor<
   Config extends OwnableConfig,
 > {
   readonly checker: HyperlaneAppChecker<App, Config>;
-  private calls: ChainMap<AnnotatedCallData[]>;
+  protected calls: ChainMap<AnnotatedCallData[]>;
   private canPropose: ChainMap<Map<string, boolean>>;
   readonly interchainAccount?: InterchainAccount;
 
@@ -56,7 +62,6 @@ export abstract class HyperlaneAppGovernor<
   }
 
   async govern(confirm = true, chain?: ChainName) {
-    console.log('governing...', this.checker.violations.length);
     if (this.checker.violations.length === 0) return;
 
     // 1. Produce calls from checker violations.
@@ -144,6 +149,7 @@ export abstract class HyperlaneAppGovernor<
   }
 
   protected pushCall(chain: ChainName, call: AnnotatedCallData) {
+    this.calls[chain] = this.calls[chain] || [];
     this.calls[chain].push(call);
   }
 
@@ -157,16 +163,12 @@ export abstract class HyperlaneAppGovernor<
     for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
         let submissionType = await this.inferCallSubmissionType(chain, call);
-        console.log('native submissionType', submissionType, chain, call.to);
-
         if (!submissionType) {
-          console.log('ICA inference...');
           submissionType = await this.inferICAEncodedSubmissionType(
             chain,
             call,
           );
         }
-
         call.submissionType = submissionType;
       }
     }
@@ -183,28 +185,24 @@ export abstract class HyperlaneAppGovernor<
       const ownable = Ownable__factory.connect(ownableAddress, signer); // mailbox
       const account = Ownable__factory.connect(await ownable.owner(), signer);
       const localOwner = await account.owner();
-      console.log(
-        'ICA inference... inner',
-        account.address,
-        call.to,
-        localOwner,
-        this.interchainAccount.routerAddress(chain),
-      );
       if (eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
         const [originDomain, remoteOwner] =
           await this.interchainAccount.getAccountOwner(chain, account.address);
         const origin =
           this.interchainAccount.multiProvider.getChainName(originDomain);
-        console.log('issa owner by ICA account', origin, remoteOwner);
+        console.log(
+          `Inferred call for ICA remote owner ${bytes32ToAddress(
+            remoteOwner,
+          )} on ${origin}`,
+        );
         const callRemote = await this.interchainAccount.getCallRemote(
           origin,
           chain,
           [call],
         );
         const encodedCall = {
-          ...callRemote,
-          // encode the call data for ICA
-          description: 'call from interchain account',
+          ...callRemote, // encode the call data for ICA
+          description: `${call.description} - interchain account call from ${origin} to ${chain}`,
         };
         const subType = await this.inferCallSubmissionType(origin, encodedCall);
         if (subType) {
@@ -230,13 +228,11 @@ export abstract class HyperlaneAppGovernor<
       submitterAddress: Address,
     ): Promise<boolean> => {
       try {
-        console.log('transactionSucceedsFromSender value: ', call.value);
         await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
       } catch (e) {} // eslint-disable-line no-empty
       return false;
     };
-    console.log('inferCallSubmissionType...', chain, call, signerAddress);
 
     if (await transactionSucceedsFromSender(chain, signerAddress)) {
       return SubmissionType.SIGNER;
