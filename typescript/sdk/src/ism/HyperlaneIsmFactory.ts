@@ -210,8 +210,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     const signer = this.multiProvider.getSigner(destination);
     const multisigIsmFactory =
       config.type === IsmType.MERKLE_ROOT_MULTISIG
-        ? this.getContracts(destination).merkleRootMultisigIsmFactory
-        : this.getContracts(destination).messageIdMultisigIsmFactory;
+        ? this.getContracts(destination).staticMerkleRootMultisigIsmFactory
+        : this.getContracts(destination).staticMessageIdMultisigIsmFactory;
 
     const address = await this.deployStaticAddressSet(
       destination,
@@ -234,7 +234,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IRoutingIsm> {
     const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
-    const routingIsmFactory = this.getContracts(destination).routingIsmFactory;
+    const domainRoutingIsmFactory =
+      this.getContracts(destination).domainRoutingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
     config.domains = objFilter(
@@ -359,7 +360,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       } else {
         // deploying new domain routing ISM
-        const tx = await routingIsmFactory.deploy(
+        const tx = await domainRoutingIsmFactory.deploy(
           config.owner,
           safeConfigDomains,
           submoduleAddresses,
@@ -371,7 +372,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         const dispatchLogs = receipt.logs
           .map((log) => {
             try {
-              return routingIsmFactory.interface.parseLog(log);
+              return domainRoutingIsmFactory.interface.parseLog(log);
             } catch (e) {
               return undefined;
             }
@@ -402,8 +403,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IAggregationIsm> {
     const { destination, config, origin, mailbox } = params;
     const signer = this.multiProvider.getSigner(destination);
-    const aggregationIsmFactory =
-      this.getContracts(destination).aggregationIsmFactory;
+    const staticAggregationIsmFactory =
+      this.getContracts(destination).staticAggregationIsmFactory;
     const addresses: Address[] = [];
     for (const module of config.modules) {
       const submodule = await this.deploy({
@@ -416,7 +417,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
     const address = await this.deployStaticAddressSet(
       destination,
-      aggregationIsmFactory,
+      staticAggregationIsmFactory,
       addresses,
       params.logger,
       config.threshold,
