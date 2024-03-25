@@ -25,7 +25,7 @@ import {
 } from '../../contracts/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterApp } from '../../router/RouterApps';
-import { ChainMap, ChainName } from '../../types';
+import { ChainName } from '../../types';
 
 import {
   InterchainAccountFactories,
@@ -76,16 +76,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
 
-  async deployAccounts(
-    config: ChainMap<AccountConfig>,
-  ): Promise<ChainMap<Address>> {
-    const accounts: ChainMap<Address> = {};
-    for (const chain of Object.keys(config)) {
-      accounts[chain] = await this.deployAccount(chain, config[chain]);
-    }
-    return accounts;
-  }
-
   async deployAccount(
     chain: ChainName,
     config: AccountConfig,
@@ -116,29 +106,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       bytes32ToAddress(await localRouter.routers(originDomain)),
       bytes32ToAddress(await localRouter.isms(originDomain)),
     );
-    return account;
-  }
-
-  async getRemoteInterchainAccount(
-    chain: ChainName,
-    destination: ChainName,
-    owner: Address,
-    routerOverride?: Address,
-    ismOverride?: Address,
-  ): Promise<Address> {
-    const localRouter = this.router(this.contractsMap[chain]);
-    if (routerOverride && ismOverride) {
-      return localRouter['getRemoteInterchainAccount(address,address,address)'](
-        owner,
-        routerOverride,
-        ismOverride,
-      );
-    } else {
-      return localRouter['getRemoteInterchainAccount(uint32,address)'](
-        this.multiProvider.getDomainId(destination),
-        owner,
-      );
+    if (
+      (await this.multiProvider.getProvider(chain).getCode(account)) === '0x'
+    ) {
+      throw new Error('Interchain account deployment failed');
     }
+    return account;
   }
 
   // meant for ICA governance to return the populatedTx

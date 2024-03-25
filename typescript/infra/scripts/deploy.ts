@@ -63,7 +63,6 @@ async function main() {
   const env = deployEnvToSdkEnv[environment];
 
   let multiProvider = await envConfig.getMultiProvider();
-  console.log('multiProvider', Object.keys(multiProvider.metadata));
 
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
@@ -137,20 +136,11 @@ async function main() {
       inevm,
       injective,
     };
-    // return;
     deployer = new HypERC20Deployer(
       multiProvider,
       ismFactory,
       contractVerifier,
     );
-    deployer.cacheAddressesMap({
-      plumetestnet: {
-        interchainAccountRouter: '0xB6F8aA9B1b314A6E6DFB465DD3e0E95936347517',
-      },
-      sepolia: {
-        interchainAccountRouter: '0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d',
-      },
-    });
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
