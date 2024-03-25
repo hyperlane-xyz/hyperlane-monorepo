@@ -100,7 +100,7 @@ export const core: ChainMap<CoreConfig> = objMap(
       type: HookType.PROTOCOL_FEE,
       maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
       protocolFee: BigNumber.from(1).toString(), // 1 wei of native token
-      beneficiary: ownerConfig.owner as Address, // TODO: fix to handle account config
+      beneficiary: ownerConfig.owner as Address,
       ...ownerConfig,
     };
 

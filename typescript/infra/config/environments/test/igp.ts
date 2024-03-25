@@ -30,8 +30,8 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, ownerConfig) => {
     ]),
   );
   return {
-    oracleKey: ownerConfig.owner as Address,
-    beneficiary: ownerConfig.owner as Address,
+    oracleKey: ownerConfig.owner as Address, // owner can be AccountConfig
+    beneficiary: ownerConfig.owner as Address, // same as above
     gasOracleType: getGasOracles(chain),
     overhead,
     ...ownerConfig,
