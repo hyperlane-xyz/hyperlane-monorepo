@@ -37,7 +37,7 @@ import {
 } from './transactionFeeEstimators';
 
 export interface MultiProtocolProviderOptions {
-  loggerName?: string;
+  logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
 }
@@ -69,9 +69,11 @@ export class MultiProtocolProvider<
     protected readonly options: MultiProtocolProviderOptions = {},
   ) {
     super(chainMetadata, options);
-    this.logger = rootLogger.child({
-      module: options?.loggerName || 'MultiProtocolProvider',
-    });
+    this.logger =
+      options?.logger ||
+      rootLogger.child({
+        module: 'MultiProtocolProvider',
+      });
     this.providers = options.providers || {};
     this.providerBuilders =
       options.providerBuilders || defaultProviderBuilderMap;

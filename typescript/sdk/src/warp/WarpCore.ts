@@ -38,7 +38,7 @@ import {
 } from './types';
 
 export interface WarpCoreOptions {
-  loggerName?: string;
+  logger?: Logger;
   localFeeConstants?: FeeConstantConfig;
   interchainFeeConstants?: FeeConstantConfig;
   routeBlacklist?: RouteBlacklist;
@@ -62,9 +62,11 @@ export class WarpCore {
     this.localFeeConstants = options?.localFeeConstants || [];
     this.interchainFeeConstants = options?.interchainFeeConstants || [];
     this.routeBlacklist = options?.routeBlacklist || [];
-    this.logger = rootLogger.child({
-      module: options?.loggerName || 'WarpCore',
-    });
+    this.logger =
+      options?.logger ||
+      rootLogger.child({
+        module: 'WarpCore',
+      });
   }
 
   /**

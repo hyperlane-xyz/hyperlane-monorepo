@@ -20,7 +20,7 @@ import {
 } from './chainMetadataTypes';
 
 export interface ChainMetadataManagerOptions {
-  loggerName?: string;
+  logger?: Logger;
 }
 
 /**
@@ -49,9 +49,11 @@ export class ChainMetadataManager<MetaExt = {}> {
         );
       this.addChain(cm);
     });
-    this.logger = rootLogger.child({
-      module: options?.loggerName || 'MetadataManager',
-    });
+    this.logger =
+      options?.logger ||
+      rootLogger.child({
+        module: 'MetadataManager',
+      });
   }
 
   /**

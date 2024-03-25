@@ -22,7 +22,7 @@ import { ProviderBuilderFn, defaultProviderBuilder } from './providerBuilders';
 type Provider = providers.Provider;
 
 export interface MultiProviderOptions {
-  loggerName?: string;
+  logger?: Logger;
   providers?: ChainMap<Provider>;
   providerBuilder?: ProviderBuilderFn<Provider>;
   signers?: ChainMap<Signer>;
@@ -48,9 +48,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     readonly options: MultiProviderOptions = {},
   ) {
     super(chainMetadata, options);
-    this.logger = rootLogger.child({
-      module: options?.loggerName || 'MultiProvider',
-    });
+    this.logger =
+      options?.logger ||
+      rootLogger.child({
+        module: 'MultiProvider',
+      });
     this.providers = options?.providers || {};
     this.providerBuilder = options?.providerBuilder || defaultProviderBuilder;
     this.signers = options?.signers || {};
