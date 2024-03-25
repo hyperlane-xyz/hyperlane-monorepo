@@ -139,7 +139,7 @@ async function executeDelivery({
     const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
     if (tokensForRoute.length === 0) {
       logRed(`No Warp Routes found from ${origin} to ${destination}`);
-      return;
+      throw new Error('Error finding warp route');
     }
 
     routerAddress = (await select({
@@ -147,6 +147,7 @@ async function executeDelivery({
       choices: [
         ...tokensForRoute.map((t) => ({
           value: t.addressOrDenom,
+          description: `${t.name} ($${t.symbol})`,
         })),
       ],
       pageSize: 10,
@@ -158,19 +159,19 @@ async function executeDelivery({
     logRed(
       `No Warp Routes found from ${origin} to ${destination} with router address ${routerAddress}`,
     );
-    return;
+    throw new Error('Error finding warp route');
   }
 
   const senderAddress = await signer.getAddress();
   const errors = await warpCore.validateTransfer({
-    originTokenAmount: new TokenAmount(wei, token),
+    originTokenAmount: token.amount(wei),
     destination,
     recipient: recipient ?? senderAddress,
     sender: senderAddress,
   });
   if (errors) {
-    logRed('Unable to validate transfer');
-    return;
+    logRed('Unable to validate transfer', errors);
+    throw new Error('Error validating transfer');
   }
 
   const transferTxs = await warpCore.getTransferRemoteTxs({
@@ -194,9 +195,6 @@ async function executeDelivery({
   const message = core.getDispatchedMessages(transferTxReceipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);
-  logBlue(
-    `View on Hyperlane Explorer: https://explorer.hyperlane.xyz/message/${message.id}`,
-  );
 
   if (skipWaitForDelivery) return;
 
