@@ -1,6 +1,6 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -51,14 +51,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-
-    const ownableOverrides: Record<string, Address> =
-      config.ownerOverrides || {};
-    if (config.upgrade) {
-      const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
-      ownableOverrides.proxyAdmin = proxyOwner;
-    }
-    return this.checkOwnership(chain, config.owner, ownableOverrides);
+    return this.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
