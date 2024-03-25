@@ -14,7 +14,12 @@ import {
   chainMetadata,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  objMap,
+  promiseObjAll,
+  symmetricDifference,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { agents } from '../config/environments/agents';
@@ -176,15 +181,6 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   const agentConfig = getAgentConfig(context, environment);
-  // check if new chains are needed
-  const missingChains = checkIfValidatorsArePersisted(agentConfig);
-
-  // if you include a chain in chainMetadata but not in the aw-multisig.json, you need to specify the new chain in new-chains
-  for (const chain of missingChains) {
-    if (!Object.keys(newValidatorCounts).includes(chain)) {
-      throw new Error(`Missing chain ${chain} not specified in new-chains`);
-    }
-  }
 
   for (const [chain, validatorCount] of Object.entries(newValidatorCounts)) {
     const baseConfig = {
@@ -221,6 +217,9 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     }
   }
 
+  // Sanity check that the validator agent config is valid.
+  ensureValidatorConfigConsistency(agentConfig);
+
   return {
     agentConfig,
     context,
@@ -246,15 +245,23 @@ export function getAgentConfig(
   return agentsForEnvironment[context];
 }
 
-// check if validators are persisted in agentConfig
-export function checkIfValidatorsArePersisted(
-  agentConfig: RootAgentConfig,
-): Set<ChainName> {
-  const supportedChainNames = agentConfig.contextChainNames.validator;
-  const persistedChainNames = Object.keys(agentConfig.validators?.chains || {});
-  return new Set(
-    supportedChainNames.filter((x) => !persistedChainNames.includes(x)),
+// Ensures that the validator context chain names are in sync with the validator config.
+export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
+  const validatorContextChainNames = new Set(
+    agentConfig.contextChainNames.validator,
   );
+  const validatorConfigChains = new Set(
+    Object.keys(agentConfig.validators?.chains || {}),
+  );
+  const symDiff = symmetricDifference(
+    validatorContextChainNames,
+    validatorConfigChains,
+  );
+  if (symDiff.size > 0) {
+    throw new Error(
+      `Validator config invalid. Validator context chain names: ${validatorContextChainNames}, validator config chains: ${validatorConfigChains}, diff: ${symDiff}`,
+    );
+  }
 }
 
 export function getKeyForRole(
