@@ -1,15 +1,15 @@
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
 
-
 mod chain;
 mod cli;
 mod eth;
+mod matching_list;
 
-use chain::{ChainError};
 use clap::Parser;
 use cli::{Cli, Commands};
-use eth::{EthClient, EthClientError};
+use eth::RpcClient;
+use matching_list::MatchingList;
 
 #[tokio::main]
 async fn main() {
@@ -28,20 +28,24 @@ pub async fn run() -> Result<(), AppError> {
             recipient_address,
             message_body,
         } => {
-            let mut eth_client = EthClient::try_from(origin_chain)?;
+            pretty_print(format!(
+                "Sending message from {} to {}",
+                origin_chain, destination_chain
+            ));
+            let mut client = RpcClient::try_from(origin_chain)?;
             // Try and get the private key from the environment
             let private_key = match args.private_key {
                 Some(pk) => pk,
                 None => {
-                    println!("No private key provided");
+                    pretty_print("No private key provided! Please provide a private key using the --private-key flag");
                     return Ok(());
                 }
             };
 
-            eth_client.with_signer(private_key)?;
+            client.with_signer(private_key)?;
 
-            let receipt = eth_client
-                .dispatch(
+            let receipt = client
+                .send(
                     mailbox_address,
                     destination_chain.chain_id(),
                     recipient_address,
@@ -50,18 +54,28 @@ pub async fn run() -> Result<(), AppError> {
                 .await?;
 
             let tx_hash = receipt.transaction_hash;
-            println!("Transaction hash: {:?}", tx_hash);
-            // TODO: Listen for recieved message on target chain
+            pretty_print(format!("Message sent! Transaction hash: {}", tx_hash));
         }
-        _ => todo!(),
+        Commands::Listen {
+            origin_chain,
+            mailbox_address,
+            matching_list,
+        } => {
+            pretty_print(format!("Listening for messages on {}", origin_chain));
+            pretty_print(format!("Mailbox address: {}", mailbox_address));
+            let matching_list = serde_json::from_str::<MatchingList>(&matching_list)?;
+            pretty_print(format!("Matching list: {}", matching_list));
+            let client = RpcClient::try_from(origin_chain)?;
+            // NOTE: ideally we would stream out hyperlane messages as thet come in here.
+            // I had trouble satisfying the compiler, so I'm making due with this solution for now.
+            client
+                .listen(mailbox_address, matching_list, |message| {
+                    pretty_print(format!("Message received: {}", message));
+                })
+                .await?;
+        }
     }
     Ok(())
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum AppError {
-    Chain(#[from] ChainError),
-    EthClient(#[from] EthClientError),
 }
 
 fn capture_error<T>(result: Result<T, AppError>) {
@@ -73,7 +87,18 @@ fn capture_error<T>(result: Result<T, AppError>) {
     }
 }
 
-// TODO: Make pretty
+fn pretty_print<T: Display>(value: T) {
+    let bullet = "•";
+    println!("{} {}", bullet, value);
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum AppError {
+    Chain(#[from] chain::ChainError),
+    RpcClient(#[from] eth::RpcClientError),
+    InvalidMatchingList(#[from] serde_json::Error),
+}
+
 impl Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let error_message = format!("{:?}", self);
@@ -82,18 +107,21 @@ impl Display for AppError {
 
         // ASCII art for visual impact (optional)
         let skull = "
-        ☠️ ☠️ ☠️
+        ☠️ ☠️ ☠️☠️☠️☠️☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️
         ";
 
         write!(
             f,
-            "{}{}{}\n{}{}\n{}",
+            "{}{}{}\n{}{}\n{}{}{}\n{}",
             red,
             skull,
             reset, // Skull in red
             red,
             error_message, // Error message in red
-            reset          // Reset color
+            reset,         // Reset color
+            red,
+            skull,
+            reset
         )
     }
 }

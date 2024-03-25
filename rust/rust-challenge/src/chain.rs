@@ -1,27 +1,27 @@
-// Note: this is less than an ideal solution for the following reasons:
-// - If I were to to do this properly I'd like to do this with some type of json configuration file
-//    instead of hardcoding the values
-// - This makes the RPC url non-configurable from the command line
+/*
+* This is a placeholder solution in lieue of configurable chain selection.
+* If I had more time I'd probably implement a yaml config file that would allow
+* users to specify Rpc URL, Chain ID, and Chain Name / cli to ship configurable defaults.
+*/
+use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use url::Url;
 
-// TODO: Implement more chains
-/// Supported chains for Rust Challenge
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Chain {
     /// Sepolia chain
     Sepolia,
     /// Mumbai chain
     Mumbai,
+    // TODO: Add more chains
 }
 
-// TODO: this is just leaking my rpc urls, so that's got to be replaced with a configuration file
 impl Chain {
     /// Returns the RPC URL for the chain
     pub fn rpc_url(&self) -> Url {
         match self {
-            // Note: the unwrap is safe here because the URLs are hardcoded and are guaranteed to be valid
+            // Unwraps are safe :thumbsup:
             Chain::Sepolia => {
                 Url::parse("https://sepolia.infura.io/v3/1888a8bd8f90419aaaf008f44525c9b7").unwrap()
             }
@@ -49,6 +49,15 @@ impl FromStr for Chain {
             "sepolia" => Ok(Chain::Sepolia),
             "mumbai" => Ok(Chain::Mumbai),
             _ => Err(ChainError::UnsupportedChain(s.to_string())),
+        }
+    }
+}
+
+impl Display for Chain {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Chain::Sepolia => write!(f, "sepolia"),
+            Chain::Mumbai => write!(f, "mumbai"),
         }
     }
 }

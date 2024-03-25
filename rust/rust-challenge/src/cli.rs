@@ -7,8 +7,7 @@ use crate::chain::Chain;
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
     // TODO: Not needed for all commands
-    // TOOD: Should be prompted for if not provided
-    /// Global configuration: Private key for signing transactions
+    //  Should be prompted for if not provided
     #[clap(long, short, env = "HYPERLANE_PRIVATE_KEY")]
     pub private_key: Option<String>,
 
@@ -33,6 +32,13 @@ pub enum Commands {
         message_body: String,
     },
     /// Searches for messages sent from a specified chain
-    Search { chain: String },
-    // TODO: Chain configuration and list of supported chains
+    Listen {
+        #[clap(long, short, env = "HYPERLANE_ORIGIN_CHAIN")]
+        origin_chain: Chain,
+        #[clap(long, short, env = "HYPERLANE_MAILBOX_ADDRESS")]
+        mailbox_address: Address,
+        // TODO: work on the typing for this so we can parse this from the command line
+        #[clap(long, env = "HYPERLANE_MATCHING_LIST")]
+        matching_list: String,
+    },
 }

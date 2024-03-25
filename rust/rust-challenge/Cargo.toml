@@ -20,8 +20,9 @@ ethers-providers = "^2"
 ethers-signers = "^2"
 ethers-contract = "^2"
 ethers-middleware = "^2"
+hyperlane-core = { path = "../hyperlane-core" }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json.workspace = true
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "rt",
@@ -30,6 +31,8 @@ tokio = { workspace = true, features = [
   "rt-multi-thread",
 ] }
 url.workspace = true
+lazy_static = "1.4.0"
+futures.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "time"] }
