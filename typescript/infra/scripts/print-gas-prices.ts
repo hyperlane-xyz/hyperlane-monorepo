@@ -1,13 +1,26 @@
 import { ethers } from 'ethers';
 
-import { MultiProtocolProvider, ProviderType } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  MultiProtocolProvider,
+  ProviderType,
+} from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { mainnetConfigs } from '../config/environments/mainnet3/chains';
 
-async function main() {
-  const metadata = mainnetConfigs;
+const metadata = mainnetConfigs;
 
+const getCosmosGasPrice = async (chain: ChainName) => {
+  const resp = await fetch(
+    `https://raw.githubusercontent.com/cosmos/chain-registry/master/${chain}/chain.json`,
+  );
+  const data = await resp.json();
+  // first fee token is native
+  return data.fees.fee_tokens[0].high_gas_price;
+};
+
+async function main() {
   const mpp = new MultiProtocolProvider(metadata);
 
   const prices = await promiseObjAll(
@@ -15,11 +28,11 @@ async function main() {
       const provider = mpp.getProvider(chain);
       switch (provider.type) {
         case ProviderType.EthersV5:
-          const gasPrice = await provider.provider.getGasPrice();
-          return ethers.utils.formatUnits(gasPrice, 'gwei');
+          const ethGasPrice = await provider.provider.getGasPrice();
+          return ethGasPrice.toString();
         case ProviderType.CosmJsWasm:
-          // TODO: get default gas price
-          return '0.1';
+          const gasPrice = await getCosmosGasPrice(chain);
+          return gasPrice.toString();
         case ProviderType.SolanaWeb3:
           return '0.001';
         default:
