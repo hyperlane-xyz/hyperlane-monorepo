@@ -113,7 +113,8 @@ describe('core', async () => {
 
       // 3x1 for aggregation ISM deploy
       // 3x1 for setting ISM transaction for mailbox
-      const numTransactions = 2 * TestChains.length;
+      // 3x1 for setting ISM transaction for test recipient
+      const numTransactions = 3 * TestChains.length;
       const nonceAfter = await signer.getTransactionCount();
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
     });
