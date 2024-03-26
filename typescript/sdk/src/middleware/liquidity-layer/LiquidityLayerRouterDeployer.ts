@@ -4,8 +4,15 @@ import {
   CircleBridgeAdapter,
   LiquidityLayerRouter,
   PortalAdapter,
+  Router,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  objFilter,
+  objKeys,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
@@ -56,8 +63,6 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   LiquidityLayerFactories,
   'liquidityLayerRouter'
 > {
-  readonly routerContractNameConstant = 'liquidityLayerRouter';
-
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -71,6 +76,15 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     _: RouterConfig,
   ): K {
     return 'liquidityLayerRouter' as K;
+  }
+
+  router(contracts: HyperlaneContracts<LiquidityLayerFactories>): Router {
+    for (const key of objKeys(liquidityLayerFactories)) {
+      if (contracts[key]) {
+        return contracts[key] as Router;
+      }
+    }
+    throw new Error('No matching contract found');
   }
 
   async constructorArgs(

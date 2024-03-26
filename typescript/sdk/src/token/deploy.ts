@@ -48,8 +48,6 @@ export class HypERC20Deployer extends GasRouterDeployer<
   HypERC20Factories,
   TokenType.native
 > {
-  readonly routerContractNameConstant = TokenType.native;
-
   constructor(
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
@@ -255,8 +253,6 @@ export class HypERC721Deployer extends GasRouterDeployer<
   HypERC721Factories,
   TokenType.collateral
 > {
-  readonly routerContractNameConstant = TokenType.collateral;
-
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -296,10 +292,15 @@ export class HypERC721Deployer extends GasRouterDeployer<
 
   //@ts-ignore ignore for now until the contracts get fixed
   async initializeArgs(_: ChainName, config: ERC721RouterConfig): Promise<any> {
+    const defaultArgs = [
+      config.hook ?? ethers.constants.AddressZero,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.owner,
+    ];
     if (isCollateralConfig(config)) {
-      return [config.token, config.mailbox];
+      return defaultArgs;
     } else if (isSyntheticConfig(config)) {
-      return [config.totalSupply, config.name, config.symbol];
+      return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
     } else {
       throw new Error('Unknown collateral type when initializing arguments');
     }

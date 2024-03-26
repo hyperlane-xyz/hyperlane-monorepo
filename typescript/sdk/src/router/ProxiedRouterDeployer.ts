@@ -18,11 +18,7 @@ export abstract class ProxiedRouterDeployer<
   Factories extends ProxiedFactories,
   RouterKey extends keyof Factories,
 > extends HyperlaneRouterDeployer<Config, Factories> {
-  abstract routerContractNameConstant: RouterKey; // @dev this is for backwards compatibility, should refactor later
-
-  router(contracts: HyperlaneContracts<Factories>): Router {
-    return contracts[this.routerContractNameConstant] as Router;
-  }
+  abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
   /**
    * Returns the contract name

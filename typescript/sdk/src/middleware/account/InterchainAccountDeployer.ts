@@ -1,5 +1,8 @@
 import { ethers } from 'ethers';
 
+import { Router } from '@hyperlane-xyz/core';
+import { objKeys } from '@hyperlane-xyz/utils';
+
 import { HyperlaneContracts } from '../../contracts/types';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -19,8 +22,6 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   InterchainAccountFactories,
   'interchainAccountRouter'
 > {
-  readonly routerContractNameConstant = 'interchainAccountRouter';
-
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -34,6 +35,15 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     _: RouterConfig,
   ): K {
     return 'interchainAccountRouter' as K;
+  }
+
+  router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {
+    for (const key of objKeys(interchainAccountFactories)) {
+      if (contracts[key]) {
+        return contracts[key] as Router;
+      }
+    }
+    throw new Error('No matching contract found');
   }
 
   async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
