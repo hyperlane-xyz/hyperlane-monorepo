@@ -656,4 +656,15 @@ contract InterchainAccountRouter is Router {
     ) private view returns (address payable) {
         return payable(Create2.computeAddress(_salt, bytecodeHash));
     }
+
+    /**
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destination The domain of the destination router.
+     * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
+     */
+    function quoteGasPayment(
+        uint32 _destination
+    ) external view returns (uint256 _gasPayment) {
+        return _quoteDispatch(_destination, "");
+    }
 }

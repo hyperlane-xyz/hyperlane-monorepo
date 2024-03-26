@@ -55,6 +55,9 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     ),
   };
 
+  if (typeof owner.owner !== 'string') {
+    throw new Error('Beneficiary must be an address');
+  }
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token

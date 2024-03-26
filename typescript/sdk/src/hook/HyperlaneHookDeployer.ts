@@ -117,7 +117,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config.maxProtocolFee,
       config.protocolFee,
       config.beneficiary,
-      config.owner,
+      await this.resolveInterchainAccountAsOwner(chain, config.owner),
     ]);
   }
 
@@ -258,15 +258,13 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
 
-    const deployer = await this.multiProvider.getSigner(chain).getAddress();
-
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     switch (config.type) {
       case HookType.ROUTING: {
         this.logger('Deploying DomainRoutingHook for %s', chain);
         routingHook = await this.deployContract(chain, HookType.ROUTING, [
           mailbox,
-          deployer,
+          await this.resolveInterchainAccountAsOwner(chain, config.owner),
         ]);
         break;
       }
@@ -280,7 +278,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         routingHook = await this.deployContract(
           chain,
           HookType.FALLBACK_ROUTING,
-          [mailbox, deployer, fallbackHook[config.fallback.type].address],
+          [
+            mailbox,
+            await this.resolveInterchainAccountAsOwner(chain, config.owner),
+            fallbackHook[config.fallback.type].address,
+          ],
         );
         break;
       }

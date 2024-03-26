@@ -23,6 +23,7 @@ import {
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
 import { ProxyFactoryFactories } from '../deploy/contracts';
+import { resolveAccountOwner } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -221,7 +222,12 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      matches &&= eqAddress(owner, config.owner);
+      const expectedOwner = await resolveAccountOwner(
+        multiProvider,
+        chain,
+        config.owner,
+      );
+      matches &&= eqAddress(owner, expectedOwner);
       // check if the mailbox matches the config for fallback routing
       if (config.type === IsmType.FALLBACK_ROUTING) {
         const client = MailboxClient__factory.connect(moduleAddress, provider);
@@ -297,7 +303,12 @@ export async function moduleMatchesConfig(
     case IsmType.PAUSABLE: {
       const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
       const owner = await pausableIsm.owner();
-      matches &&= eqAddress(owner, config.owner);
+      const expectedOwner = await resolveAccountOwner(
+        multiProvider,
+        chain,
+        config.owner,
+      );
+      matches &&= eqAddress(owner, expectedOwner);
 
       if (config.paused) {
         const isPaused = await pausableIsm.paused();
@@ -341,8 +352,13 @@ export async function routingModuleDelta(
   };
 
   // if owners don't match, we need to transfer ownership
-  if (!eqAddress(owner, normalizeAddress(config.owner)))
-    delta.owner = config.owner;
+  const expectedOwner = await resolveAccountOwner(
+    multiProvider,
+    destination,
+    config.owner,
+  );
+  if (!eqAddress(owner, normalizeAddress(expectedOwner)))
+    delta.owner = expectedOwner;
   if (config.type === IsmType.FALLBACK_ROUTING) {
     const client = MailboxClient__factory.connect(moduleAddress, provider);
     const mailboxAddress = await client.mailbox();

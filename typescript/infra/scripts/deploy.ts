@@ -14,6 +14,7 @@ import {
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  InterchainAccount,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
@@ -23,7 +24,6 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { safes } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
@@ -62,6 +62,7 @@ async function main() {
   const env = deployEnvToSdkEnv[environment];
 
   let multiProvider = await envConfig.getMultiProvider();
+  console.log('multiProvider', Object.keys(multiProvider.metadata));
 
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
@@ -121,32 +122,62 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    const inevm = {
-      ...routerConfig.inevm,
+    console.log('routerConfig', routerConfig.sepolia.owner);
+    // const scrollsepolia = {
+    //   ...routerConfig.scrollsepolia,
+    //   type: TokenType.synthetic,
+    //   name: 'Wrapped Ether',
+    //   symbol: 'WETH',
+    //   decimals: 18,
+    //   totalSupply: '0',
+    // };
+    const sepolia = {
+      ...routerConfig.sepolia,
       type: TokenType.native,
-      interchainSecurityModule: ethers.constants.AddressZero,
-      owner: safes.inevm,
     };
-    const injective = {
-      ...routerConfig.injective,
-      type: TokenType.native,
+    const plumetestnet = {
+      ...routerConfig.plumetestnet,
+      type: TokenType.synthetic,
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
+      totalSupply: '0',
     };
     config = {
-      inevm,
-      injective,
+      // scrollsepolia,
+      plumetestnet,
+      sepolia,
     };
+    // return;
     deployer = new HypERC20Deployer(
       multiProvider,
       ismFactory,
       contractVerifier,
     );
+    deployer.cacheAddressesMap({
+      plumetestnet: {
+        interchainAccountRouter: '0xB6F8aA9B1b314A6E6DFB465DD3e0E95936347517',
+      },
+      sepolia: {
+        interchainAccountRouter: '0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d',
+      },
+    });
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
+    // filter config to only include sepolia and optimismgoerli for now
+    config = {
+      sepolia: config.sepolia,
+      // scrollsepolia: config.scrollsepolia,
+      plumetestnet: config.plumetestnet,
+    };
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
+    const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
+    console.log('deploy: ICA addresses', JSON.stringify(addresses, null, 2));
+    InterchainAccount.fromAddressesMap(addresses, multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
