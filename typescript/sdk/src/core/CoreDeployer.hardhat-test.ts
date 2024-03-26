@@ -146,7 +146,7 @@ describe('core', async () => {
       sinon.restore(); // restore normal deployer behavior and test3 will be deployed
       const result = await deployer.deploy(coreConfig);
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
-      // Each test network key has entries about the other test networks, whre ISM details are stored.
+      // Each test network key has entries about the other test networks, where ISM details are stored.
       // With this exception, the keys should be the same, so we check the intersections for equality.
       const testnetKeysIntersection = Object.keys(result.test1).filter(
         (key) =>

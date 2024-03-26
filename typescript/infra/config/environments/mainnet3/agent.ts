@@ -13,6 +13,7 @@ import {
 } from '../../../src/config';
 import {
   GasPaymentEnforcementConfig,
+  matchingList,
   routerMatchingList,
 } from '../../../src/config/agent/relayer';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles';
@@ -136,7 +137,7 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: 'a72c3cf-20240314-173418',
+      tag: '39df4ca-20240321-100543',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
@@ -160,11 +161,11 @@ const hyperlane: RootAgentConfig = {
       },
       {
         name: 'inevm_ethereum_usdc',
-        matchingList: routerMatchingList(inevmEthereumUsdcAddresses),
+        matchingList: matchingList(inevmEthereumUsdcAddresses),
       },
       {
         name: 'inevm_ethereum_usdt',
-        matchingList: routerMatchingList(inevmEthereumUsdtAddresses),
+        matchingList: matchingList(inevmEthereumUsdtAddresses),
       },
       {
         name: 'viction_ethereum_eth',

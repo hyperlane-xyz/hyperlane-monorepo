@@ -20,7 +20,7 @@ struct IgpInstantiateMsg {
     pub owner: String,
     pub gas_token: String,
     pub beneficiary: String,
-    pub default_gas_usage: String, // u128 doesnt work with cw_serde
+    pub default_gas_usage: String, // u128 does not work with cw_serde
 }
 
 #[cw_serde]
