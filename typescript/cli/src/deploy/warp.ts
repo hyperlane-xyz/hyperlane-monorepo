@@ -19,11 +19,9 @@ import {
   TokenType,
   WarpCoreConfig,
   getTokenConnectionId,
-} from '@hyperlane-xyz/sdk';
-import {
   hypERC20contracts,
   hypERC721contracts,
-} from '@hyperlane-xyz/sdk/dist/token/contracts.js';
+} from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
