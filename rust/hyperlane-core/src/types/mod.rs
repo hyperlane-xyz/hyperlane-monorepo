@@ -8,6 +8,7 @@ pub use self::primitive_types::*;
 pub use ::primitive_types as ethers_core_types;
 pub use announcement::*;
 pub use chain_data::*;
+#[cfg(feature = "async")]
 pub use channel::*;
 pub use checkpoint::*;
 pub use log_metadata::*;
@@ -18,6 +19,7 @@ use crate::{Decode, Encode, HyperlaneProtocolError};
 
 mod announcement;
 mod chain_data;
+#[cfg(feature = "async")]
 mod channel;
 mod checkpoint;
 mod log_metadata;
