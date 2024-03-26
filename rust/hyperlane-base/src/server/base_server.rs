@@ -22,7 +22,7 @@ impl Server {
     /// routes:
     ///  - metrics - serving OpenMetrics format reports on `/metrics`
     ///     (this is compatible with Prometheus, which ought to be configured to scrape this endpoint)
-    ///  - additional_routes - additional routes to be served by the server as per the specific agent
+    ///  - custom_routes - additional routes to be served by the server as per the specific agent
     pub fn run_with_custom_routes(
         self: Arc<Self>,
         custom_routes: Vec<(&str, Router)>,

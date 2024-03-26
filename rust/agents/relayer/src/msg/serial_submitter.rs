@@ -15,7 +15,7 @@ use hyperlane_core::{HyperlaneDomain, MpmcReceiver};
 
 use crate::server::MessageRetryRequest;
 
-use super::op_queue::OpQueue;
+use super::op_queue::{OpQueue, QueueOperation};
 use super::pending_operation::*;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
@@ -70,7 +70,7 @@ pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<Box<dyn PendingOperation>>,
+    rx: mpsc::UnboundedReceiver<QueueOperation>,
     /// Receiver for retry requests.
     retry_rx: MpmcReceiver<MessageRetryRequest>,
     /// Metrics for serial submitter.
@@ -147,7 +147,7 @@ impl SerialSubmitter {
 #[instrument(skip_all, fields(%domain))]
 async fn receive_task(
     domain: HyperlaneDomain,
-    mut rx: mpsc::UnboundedReceiver<Box<dyn PendingOperation>>,
+    mut rx: mpsc::UnboundedReceiver<QueueOperation>,
     prepare_queue: OpQueue,
 ) {
     // Pull any messages sent to this submitter
@@ -164,7 +164,7 @@ async fn receive_task(
 async fn prepare_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
-    tx_submit: mpsc::Sender<Box<dyn PendingOperation>>,
+    tx_submit: mpsc::Sender<QueueOperation>,
     metrics: SerialSubmitterMetrics,
 ) {
     loop {
@@ -208,7 +208,7 @@ async fn prepare_task(
 #[instrument(skip_all, fields(%domain))]
 async fn submit_task(
     domain: HyperlaneDomain,
-    mut rx_submit: mpsc::Receiver<Box<dyn PendingOperation>>,
+    mut rx_submit: mpsc::Receiver<QueueOperation>,
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,

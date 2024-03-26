@@ -1,7 +1,6 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use ethers::utils::hex::ToHex;
 use hyperlane_core::MpmcReceiver;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::Mutex;
@@ -58,16 +57,15 @@ impl OpQueue {
             return;
         }
         let mut queue = self.queue.lock().await;
-        let mut repriotized_queue: BinaryHeap<_> = queue
+        let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
             .map(|Reverse(mut e)| {
                 // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
                 // but can't use `contains` because the types are different
                 if message_retry_requests.iter().any(|r| r == e) {
-                    let hex_id = e.id().encode_hex::<String>();
                     let destination_domain = e.destination_domain().to_string();
                     info!(
-                        id = hex_id,
+                        id = ?e.id(),
                         destination_domain, "Retrying OpQueue operation"
                     );
                     e.reset_attempts()
@@ -75,7 +73,7 @@ impl OpQueue {
                 Reverse(e)
             })
             .collect();
-        queue.append(&mut repriotized_queue);
+        queue.append(&mut reprioritized_queue);
     }
 
     /// Get the metric associated with this operation
@@ -131,7 +129,7 @@ mod test {
             Default::default()
         }
 
-        fn origin_domain(&self) -> u32 {
+        fn origin_domain_id(&self) -> u32 {
             todo!()
         }
 

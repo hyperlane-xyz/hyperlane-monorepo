@@ -33,8 +33,8 @@ use crate::{
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+        op_queue::QueueOperation,
         pending_message::{MessageContext, MessageSubmissionMetrics},
-        pending_operation::PendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
@@ -295,8 +295,7 @@ impl BaseAgent for Relayer {
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         for (dest_domain, dest_conf) in &self.destination_chains {
-            let (send_channel, receive_channel) =
-                mpsc::unbounded_channel::<Box<dyn PendingOperation>>();
+            let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
 
             tasks.push(self.run_destination_submitter(
@@ -385,7 +384,7 @@ impl Relayer {
     fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
-        send_channels: HashMap<u32, UnboundedSender<Box<dyn PendingOperation>>>,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     ) -> Instrumented<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -442,7 +441,7 @@ impl Relayer {
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: UnboundedReceiver<Box<dyn PendingOperation>>,
+        receiver: UnboundedReceiver<QueueOperation>,
         retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(

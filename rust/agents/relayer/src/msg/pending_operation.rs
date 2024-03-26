@@ -37,7 +37,7 @@ pub trait PendingOperation: Send + Sync + Debug {
     fn priority(&self) -> u32;
 
     /// The domain this originates from.
-    fn origin_domain(&self) -> u32;
+    fn origin_domain_id(&self) -> u32;
 
     /// The domain this operation will take place on.
     fn destination_domain(&self) -> &HyperlaneDomain;
@@ -104,7 +104,7 @@ impl Ord for QueueOperation {
             (None, Some(_)) => Less,
             (Some(_), None) => Greater,
             (None, None) => {
-                if self.origin_domain() == other.origin_domain() {
+                if self.origin_domain_id() == other.origin_domain_id() {
                     // Should execute in order of nonce for the same origin
                     self.priority().cmp(&other.priority())
                 } else {

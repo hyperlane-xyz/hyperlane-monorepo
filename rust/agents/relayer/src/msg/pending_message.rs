@@ -109,7 +109,7 @@ impl PendingOperation for PendingMessage {
         self.message.nonce
     }
 
-    fn origin_domain(&self) -> u32 {
+    fn origin_domain_id(&self) -> u32 {
         self.message.origin
     }
 

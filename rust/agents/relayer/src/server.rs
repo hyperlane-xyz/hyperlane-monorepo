@@ -3,18 +3,17 @@ use axum::{
     routing, Router,
 };
 use derive_new::new;
-use hyperlane_core::H256;
-use reqwest::StatusCode;
+use hyperlane_core::{ChainCommunicationError, H256};
 use serde::Deserialize;
 use std::str::FromStr;
 use tokio::sync::broadcast::Sender;
 
-use crate::msg::pending_operation::PendingOperation;
+use crate::msg::op_queue::QueueOperation;
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 1_000;
 
-/// Returns a vector of validator-specific endpoint routes to be served.
+/// Returns a vector of agent-specific endpoint routes to be served.
 /// Can be extended with additional routes and feature flags to enable/disable individually.
 pub fn routes(tx: Sender<MessageRetryRequest>) -> Vec<(&'static str, Router)> {
     let message_retry_api = MessageRetryApi::new(tx);
@@ -28,8 +27,8 @@ pub enum MessageRetryRequest {
     DestinationDomain(u32),
 }
 
-impl PartialEq<Box<dyn PendingOperation>> for &MessageRetryRequest {
-    fn eq(&self, other: &Box<dyn PendingOperation>) -> bool {
+impl PartialEq<QueueOperation> for &MessageRetryRequest {
+    fn eq(&self, other: &QueueOperation) -> bool {
         match self {
             MessageRetryRequest::MessageId(message_id) => message_id == &other.id(),
             MessageRetryRequest::DestinationDomain(destination_domain) => {
@@ -50,37 +49,47 @@ struct RawMessageRetryRequest {
     destination_domain: Option<u32>,
 }
 
-impl From<RawMessageRetryRequest> for Vec<MessageRetryRequest> {
-    fn from(request: RawMessageRetryRequest) -> Self {
+impl TryFrom<RawMessageRetryRequest> for Vec<MessageRetryRequest> {
+    type Error = ChainCommunicationError;
+
+    fn try_from(request: RawMessageRetryRequest) -> Result<Self, Self::Error> {
         let mut retry_requests = Vec::new();
         if let Some(message_id) = request.message_id {
-            if let Ok(message_id) = H256::from_str(&message_id) {
-                retry_requests.push(MessageRetryRequest::MessageId(message_id));
-            }
+            retry_requests.push(MessageRetryRequest::MessageId(H256::from_str(&message_id)?));
         }
         if let Some(destination_domain) = request.destination_domain {
             retry_requests.push(MessageRetryRequest::DestinationDomain(destination_domain));
         }
-        retry_requests
+        Ok(retry_requests)
     }
 }
 
 async fn retry_message(
     State(tx): State<Sender<MessageRetryRequest>>,
     Query(request): Query<RawMessageRetryRequest>,
-) -> Result<String, StatusCode> {
-    let retry_requests: Vec<MessageRetryRequest> = request.into();
+) -> String {
+    let retry_requests: Vec<MessageRetryRequest> = match request.try_into() {
+        Ok(retry_requests) => retry_requests,
+        // Technically it's bad practice to print the error message to the user, but
+        // this endpoint is for debugging purposes only.
+        Err(err) => {
+            return format!("Failed to parse retry request: {}", err);
+        }
+    };
+
     if retry_requests.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
+        return "No retry requests found. Please provide either a message_id or destination_domain.".to_string();
     }
 
-    retry_requests
+    if let Err(err) = retry_requests
         .into_iter()
         .map(|req| tx.send(req))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    {
+        return format!("Failed to send retry request to the queue: {}", err);
+    }
 
-    Ok("Moved message(s) to the front of the queue".to_string())
+    "Moved message(s) to the front of the queue".to_string()
 }
 
 impl MessageRetryApi {
