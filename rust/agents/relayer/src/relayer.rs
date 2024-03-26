@@ -13,7 +13,7 @@ use hyperlane_base::{
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    SequencedDataContractSync, WatermarkContractSync,
+    IntoContractSyncCursor, SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
@@ -60,7 +60,7 @@ pub struct Relayer {
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
-        HashMap<HyperlaneDomain, Arc<WatermarkContractSync<InterchainGasPayment>>>,
+        HashMap<HyperlaneDomain, Arc<dyn IntoContractSyncCursor<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
