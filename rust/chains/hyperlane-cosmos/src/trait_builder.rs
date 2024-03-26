@@ -15,7 +15,7 @@ pub struct ConnectionConf {
     chain_id: String,
     /// The human readable address prefix for the chains using bech32.
     bech32_prefix: String,
-    /// Canoncial Assets Denom
+    /// Canonical Assets Denom
     canonical_asset: String,
     /// The gas price set by the cosmos-sdk validator. Note that this represents the
     /// minimum price set by the validator.
