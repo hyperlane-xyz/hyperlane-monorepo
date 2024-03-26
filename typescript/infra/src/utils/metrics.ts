@@ -19,17 +19,17 @@ function getPushGateway(register: Registry): Pushgateway | null {
 export async function submitMetrics(
   register: Registry,
   jobName: string,
-  options?: { appendMode?: boolean },
+  options?: { overwriteAllMetrics?: boolean },
 ) {
   const gateway = getPushGateway(register);
   if (!gateway) return;
 
   let resp;
   try {
-    if (options?.appendMode) {
-      resp = (await gateway.pushAdd({ jobName })).resp;
-    } else {
+    if (options?.overwriteAllMetrics) {
       resp = (await gateway.push({ jobName })).resp;
+    } else {
+      resp = (await gateway.pushAdd({ jobName })).resp;
     }
   } catch (e) {
     error('Error when pushing metrics', { error: format(e) });
