@@ -217,7 +217,7 @@ export abstract class HyperlaneDeployer<
     let matches = false;
     let targetIsm: Address;
     if (typeof config === 'string') {
-      if (configuredIsm === config) {
+      if (eqAddress(configuredIsm, config)) {
         matches = true;
       } else {
         targetIsm = config;
@@ -664,18 +664,19 @@ export abstract class HyperlaneDeployer<
       const current = await ownable.owner();
       const owner = config.ownerOverrides?.[contractName as K] ?? config.owner;
       if (!eqAddress(current, owner)) {
-        this.logger.debug(
-          `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
-        );
-        const receipt = await this.runIfOwner(chain, ownable, () =>
-          this.multiProvider.handleTx(
+        this.logger.debug('Current owner and config owner to not match');
+        const receipt = await this.runIfOwner(chain, ownable, () => {
+          this.logger.debug(
+            `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
+          );
+          return this.multiProvider.handleTx(
             chain,
             ownable.transferOwnership(
               owner,
               this.multiProvider.getTransactionOverrides(chain),
             ),
-          ),
-        );
+          );
+        });
         if (receipt) receipts.push(receipt);
       }
     }
