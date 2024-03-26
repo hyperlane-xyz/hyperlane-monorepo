@@ -289,7 +289,7 @@ export class CwHypSyntheticAdapter
     //   amount: BigInt(resp.gas_amount?.amount || 0),
     //   addressOrDenom: resp.gas_amount?.denom,
     // };
-    throw new Error('CW adpater quoteTransferRemoteGas method not implemented');
+    throw new Error('CW adapter quoteTransferRemoteGas method not implemented');
   }
 
   async populateTransferRemoteTx({
