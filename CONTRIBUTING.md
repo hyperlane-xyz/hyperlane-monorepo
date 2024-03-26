@@ -1,6 +1,6 @@
 # Contributing to Hyperlane
 
-We'd love for you to contribue to Hyperlane! Here are the guidelines to follow when contributing:
+We'd love for you to contribute to Hyperlane! Here are the guidelines to follow when contributing:
 
 - [Code of Conduct](#coc)
 - [Questions and Problems](#question)

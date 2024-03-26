@@ -640,7 +640,7 @@ mod test {
             let expected_range = 900..=1000;
             assert_eq!(range, expected_range);
 
-            // Update the cursor with some paritally bogus logs:
+            // Update the cursor with some partially bogus logs:
             // - Three logs of sequence 99, i.e. duplicated
             // - A log at sequence 100, which was already indexed and should be ignored
             cursor

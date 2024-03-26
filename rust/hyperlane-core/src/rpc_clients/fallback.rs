@@ -234,7 +234,7 @@ impl<T, B> FallbackProviderBuilder<T, B> {
     }
 
     /// Only used for testing purposes.
-    /// TODO: Move tests into this crate to control the visiblity with conditional compilation.
+    /// TODO: Move tests into this crate to control the visibility with conditional compilation.
     pub fn with_max_block_time(mut self, max_block_time: Duration) -> Self {
         self.max_block_time = max_block_time;
         self

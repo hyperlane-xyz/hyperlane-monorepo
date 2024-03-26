@@ -163,12 +163,12 @@ describe('Token', () => {
       const token = new Token(tokenArgs);
       expect(token.standard).to.eql(tokenArgs.standard);
       const adapter = token.getAdapter(multiProvider);
-      const adddress =
+      const address =
         STANDARD_TO_ADDRESS[token.standard] ??
         PROTOCOL_TO_ADDRESS[token.protocol];
-      if (!adddress)
+      if (!address)
         throw new Error(`No address for standard ${tokenArgs.standard}`);
-      const balance = await adapter.getBalance(adddress);
+      const balance = await adapter.getBalance(address);
       expect(typeof balance).to.eql('bigint');
     }
   })

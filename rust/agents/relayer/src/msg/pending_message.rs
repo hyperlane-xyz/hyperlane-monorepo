@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, H256, U256};
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
 
@@ -101,7 +101,19 @@ impl Eq for PendingMessage {}
 
 #[async_trait]
 impl PendingOperation for PendingMessage {
-    fn domain(&self) -> &HyperlaneDomain {
+    fn id(&self) -> H256 {
+        self.message.id()
+    }
+
+    fn priority(&self) -> u32 {
+        self.message.nonce
+    }
+
+    fn origin_domain_id(&self) -> u32 {
+        self.message.origin
+    }
+
+    fn destination_domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
     }
 
@@ -309,6 +321,10 @@ impl PendingOperation for PendingMessage {
 
     fn next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
+    }
+
+    fn reset_attempts(&mut self) {
+        self.reset_attempts();
     }
 
     #[cfg(test)]

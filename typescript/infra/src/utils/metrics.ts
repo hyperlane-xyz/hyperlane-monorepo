@@ -19,17 +19,17 @@ function getPushGateway(register: Registry): Pushgateway | null {
 export async function submitMetrics(
   register: Registry,
   jobName: string,
-  options?: { appendMode?: boolean },
+  options?: { overwriteAllMetrics?: boolean },
 ) {
   const gateway = getPushGateway(register);
   if (!gateway) return;
 
   let resp;
   try {
-    if (options?.appendMode) {
-      resp = (await gateway.pushAdd({ jobName })).resp;
-    } else {
+    if (options?.overwriteAllMetrics) {
       resp = (await gateway.push({ jobName })).resp;
+    } else {
+      resp = (await gateway.pushAdd({ jobName })).resp;
     }
   } catch (e) {
     error('Error when pushing metrics', { error: format(e) });
@@ -47,7 +47,7 @@ export async function submitMetrics(
  * Start a simple HTTP server to host metrics. This just takes the registry and dumps the text
  * string to people who request `GET /metrics`.
  *
- * PROMETHEUS_PORT env var is used to determine what port ot host on, defaults to 9090.
+ * PROMETHEUS_PORT env var is used to determine what port to host on, defaults to 9090.
  */
 export function startMetricsServer(register: Registry): http.Server {
   return http

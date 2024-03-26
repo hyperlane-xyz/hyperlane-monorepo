@@ -28,6 +28,12 @@ export const coreArtifactsOption: Options = {
   alias: 'a',
 };
 
+export const warpConfigOption: Options = {
+  type: 'string',
+  description: 'File path to Warp config',
+  alias: 'w',
+};
+
 export const agentConfigurationOption: Options = {
   type: 'string',
   description: 'File path to agent configuration artifacts',

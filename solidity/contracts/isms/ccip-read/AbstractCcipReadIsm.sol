@@ -12,7 +12,7 @@ import {AbstractMultisigIsm} from "../multisig/AbstractMultisigIsm.sol";
  * @title AbstractCcipReadIsm
  * @notice An ISM that allows arbitrary payloads to be submitted and verified on chain
  * @dev https://eips.ethereum.org/EIPS/eip-3668
- * @dev The AbstractCcipReadIsm provided by Hyperlane is left intentially minimalist as
+ * @dev The AbstractCcipReadIsm provided by Hyperlane is left intentionally minimalist as
  * the range of applications that could be supported by a CcipReadIsm are so broad. However
  * there are few things to note when building a custom CcipReadIsm.
  *

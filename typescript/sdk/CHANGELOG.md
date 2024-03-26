@@ -1,5 +1,16 @@
 # @hyperlane-xyz/sdk
 
+## 3.9.0
+
+### Minor Changes
+
+- 11f257ebc: Add Yield Routes to CLI
+
+### Patch Changes
+
+- @hyperlane-xyz/core@3.9.0
+- @hyperlane-xyz/utils@3.9.0
+
 ## 3.8.2
 
 ### Patch Changes

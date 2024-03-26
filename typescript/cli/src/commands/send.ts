@@ -10,6 +10,7 @@ import {
   chainsCommandOption,
   coreArtifactsOption,
   keyCommandOption,
+  warpConfigOption,
 } from './options.js';
 
 /**
@@ -98,6 +99,7 @@ const transferCommand: CommandModule = {
   builder: (yargs) =>
     yargs.options({
       ...messageOptions,
+      warp: warpConfigOption,
       router: {
         type: 'string',
         description: 'The address of the token router contract',
@@ -116,6 +118,7 @@ const transferCommand: CommandModule = {
     const key: string = argv.key || ENV.HYP_KEY;
     const chainConfigPath: string = argv.chains;
     const coreArtifactsPath: string | undefined = argv.core;
+    const warpConfigPath: string = argv.warp;
     const origin: string | undefined = argv.origin;
     const destination: string | undefined = argv.destination;
     const timeoutSec: number = argv.timeout;
@@ -127,6 +130,7 @@ const transferCommand: CommandModule = {
       key,
       chainConfigPath,
       coreArtifactsPath,
+      warpConfigPath,
       origin,
       destination,
       routerAddress,

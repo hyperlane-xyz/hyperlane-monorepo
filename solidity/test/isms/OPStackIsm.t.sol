@@ -272,7 +272,7 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        // needs to be called by the cannonical messenger on Optimism
+        // needs to be called by the canonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
         opISM.verifyMessageId(messageId);
 

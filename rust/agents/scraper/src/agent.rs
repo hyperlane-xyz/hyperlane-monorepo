@@ -100,7 +100,7 @@ impl BaseAgent for Scraper {
             .settings
             .server(self.core_metrics.clone())
             .expect("Failed to create server");
-        let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
+        let server_task = server.run().instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
         for (domain, scraper) in self.scrapers.iter() {

@@ -1,6 +1,6 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
@@ -51,14 +51,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-
-    const ownableOverrides: Record<string, Address> =
-      config.ownerOverrides || {};
-    if (config.upgrade) {
-      const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
-      ownableOverrides.proxyAdmin = proxyOwner;
-    }
-    return this.checkOwnership(chain, config.owner, ownableOverrides);
+    return this.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
@@ -120,8 +113,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         ],
         (bytecode) =>
           // This is obviously super janky but basically we are searching
-          //  for the ocurrences of localDomain in the bytecode and remove
-          //  that to compare, but some coincidental ocurrences of
+          //  for the occurrences of localDomain in the bytecode and remove
+          //  that to compare, but some coincidental occurrences of
           // localDomain in the bytecode should be not be removed which
           // are just done via an offset guard
           bytecode

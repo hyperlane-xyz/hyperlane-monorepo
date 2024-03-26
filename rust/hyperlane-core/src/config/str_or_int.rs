@@ -107,7 +107,7 @@ pub enum StrOrIntParseError {
     /// The provided integer does not match the type requirements.
     #[error("Provided number is an invalid integer: {0}")]
     InvalidInt(#[from] TryFromIntError),
-    /// Some other error occured.
+    /// Some other error occurred.
     #[error("Could not parse integer: {0}")]
     Other(String),
 }

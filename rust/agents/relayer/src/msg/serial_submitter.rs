@@ -1,62 +1,22 @@
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
 use futures_util::future::try_join_all;
-use prometheus::{IntCounter, IntGauge, IntGaugeVec};
+use prometheus::{IntCounter, IntGaugeVec};
 use tokio::spawn;
-use tokio::sync::{
-    mpsc::{self},
-    Mutex,
-};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, MpmcReceiver};
 
+use crate::server::MessageRetryRequest;
+
+use super::op_queue::{OpQueue, QueueOperation};
 use super::pending_operation::*;
-
-/// Queue of generic operations that can be submitted to a destination chain.
-/// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
-#[derive(Debug, Clone, new)]
-struct OpQueue {
-    metrics: IntGaugeVec,
-    queue_metrics_label: String,
-    #[new(default)]
-    queue: Arc<Mutex<BinaryHeap<Reverse<Box<DynPendingOperation>>>>>,
-}
-
-impl OpQueue {
-    /// Push an element onto the queue and update metrics
-    async fn push(&self, op: Box<DynPendingOperation>) {
-        // increment the metric before pushing onto the queue, because we lose ownership afterwards
-        self.get_operation_metric(&op).inc();
-
-        self.queue.lock().await.push(Reverse(op));
-    }
-
-    /// Pop an element from the queue and update metrics
-    async fn pop(&self) -> Option<Reverse<Box<DynPendingOperation>>> {
-        let op = self.queue.lock().await.pop();
-        op.map(|op| {
-            // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
-            // in those cases, the queue length will decrease to zero until the operation is re-added.
-            self.get_operation_metric(&op.0).dec();
-            op
-        })
-    }
-
-    /// Get the metric associated with this operation
-    fn get_operation_metric(&self, operation: &DynPendingOperation) -> IntGauge {
-        let (destination, app_context) = operation.get_operation_labels();
-        self.metrics
-            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
-    }
-}
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -110,7 +70,9 @@ pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
+    rx: mpsc::UnboundedReceiver<QueueOperation>,
+    /// Receiver for retry requests.
+    retry_rx: MpmcReceiver<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
@@ -126,14 +88,17 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
+            retry_rx,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
+            retry_rx.clone(),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
+            retry_rx,
         );
 
         // This is a channel because we want to only have a small number of messages
@@ -182,7 +147,7 @@ impl SerialSubmitter {
 #[instrument(skip_all, fields(%domain))]
 async fn receive_task(
     domain: HyperlaneDomain,
-    mut rx: mpsc::UnboundedReceiver<Box<DynPendingOperation>>,
+    mut rx: mpsc::UnboundedReceiver<QueueOperation>,
     prepare_queue: OpQueue,
 ) {
     // Pull any messages sent to this submitter
@@ -190,7 +155,7 @@ async fn receive_task(
         trace!(?op, "Received new operation");
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
         prepare_queue.push(op).await;
     }
 }
@@ -198,8 +163,8 @@ async fn receive_task(
 #[instrument(skip_all, fields(%domain))]
 async fn prepare_task(
     domain: HyperlaneDomain,
-    prepare_queue: OpQueue,
-    tx_submit: mpsc::Sender<Box<DynPendingOperation>>,
+    mut prepare_queue: OpQueue,
+    tx_submit: mpsc::Sender<QueueOperation>,
     metrics: SerialSubmitterMetrics,
 ) {
     loop {
@@ -213,7 +178,7 @@ async fn prepare_task(
         };
 
         trace!(?op, "Preparing operation");
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
 
         match op.prepare().await {
             PendingOperationResult::Success => {
@@ -243,14 +208,14 @@ async fn prepare_task(
 #[instrument(skip_all, fields(%domain))]
 async fn submit_task(
     domain: HyperlaneDomain,
-    mut rx_submit: mpsc::Receiver<Box<DynPendingOperation>>,
+    mut rx_submit: mpsc::Receiver<QueueOperation>,
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
 ) {
     while let Some(mut op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
 
         match op.submit().await {
             PendingOperationResult::Success => {
@@ -276,7 +241,7 @@ async fn submit_task(
 async fn confirm_task(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
-    confirm_queue: OpQueue,
+    mut confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
 ) {
     loop {
@@ -287,7 +252,7 @@ async fn confirm_task(
         };
 
         trace!(?op, "Confirming operation");
-        debug_assert_eq!(*op.domain(), domain);
+        debug_assert_eq!(*op.destination_domain(), domain);
 
         match op.confirm().await {
             PendingOperationResult::Success => {

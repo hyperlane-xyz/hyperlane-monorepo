@@ -1,7 +1,7 @@
 {
   "celo": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x4C96a1abc44dc846775CE702C9E9BE821D3b487c",
       "constructorArguments": "",
       "isProxy": false
@@ -13,7 +13,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0xaB402f227e892Ef37C105bf06619c0fa106a1fB2",
       "constructorArguments": "",
       "isProxy": false
@@ -25,7 +25,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x1722dd970a1F56040712129f5Eeb76B003fd7500",
       "constructorArguments": "",
       "isProxy": false
@@ -37,7 +37,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0xc3745652EFB8555A8b064A0EA78d295133d326D2",
       "constructorArguments": "",
       "isProxy": false
@@ -49,7 +49,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xec748b5623f0B50E4c5eB1CFa7Bd46C3213608b6",
       "constructorArguments": "",
       "isProxy": false
@@ -145,7 +145,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x2A2c22B0a8615ad24839fA6Af302E896Af32d1a3",
       "constructorArguments": "",
       "isProxy": false
@@ -189,7 +189,7 @@
   ],
   "ethereum": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x47e8aF9e30C32Ab91060ED587894288786761B45",
       "constructorArguments": "",
       "isProxy": false
@@ -201,7 +201,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0xfA21D9628ADce86531854C2B7ef00F07394B0B69",
       "constructorArguments": "",
       "isProxy": false
@@ -213,7 +213,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x46FA191Ad972D9674Ed752B69f9659A0d7b22846",
       "constructorArguments": "",
       "isProxy": false
@@ -225,7 +225,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0x6D2555A8ba483CcF4409C39013F5e9a3285D3C9E",
       "constructorArguments": "",
       "isProxy": false
@@ -237,7 +237,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xCb74c6aE411236CEE6803619916694BE86cF5987",
       "constructorArguments": "",
       "isProxy": false
@@ -333,7 +333,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x28fA9552F19039b450498B0d8e5DEAe0d0aAc559",
       "constructorArguments": "",
       "isProxy": false
@@ -377,7 +377,7 @@
   ],
   "avalanche": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x896cF1D1B66cD211633eDd589fF158E8Cfaf9B54",
       "constructorArguments": "",
       "isProxy": false
@@ -389,7 +389,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x8819D653DF5b1FC0DdB32189a2704E471AF8483c",
       "constructorArguments": "",
       "isProxy": false
@@ -401,7 +401,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0xa5E13796eB7d2EDCc88012c8cfF90D69B51FcF9f",
       "constructorArguments": "",
       "isProxy": false
@@ -413,7 +413,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0x3bF6Ac986C7Af9A9Ac356C0e99C0041EFd8D96e7",
       "constructorArguments": "",
       "isProxy": false
@@ -425,7 +425,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xA9Ddc70f50009aF8bDB312aA757B4304b0F7BbB3",
       "constructorArguments": "",
       "isProxy": false
@@ -521,7 +521,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x28F7907911C7E321c596686AE6D1F20516450037",
       "constructorArguments": "",
       "isProxy": false
@@ -565,7 +565,7 @@
   ],
   "polygon": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0xa9E0E18E78b098c2DE36c42E4DDEA13ce214c592",
       "constructorArguments": "",
       "isProxy": false
@@ -577,7 +577,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0xEa5Be2AD66BB1BA321B7aCf0A079fBE304B09Ca0",
       "constructorArguments": "",
       "isProxy": false
@@ -589,7 +589,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x81AdDD9Ca89105063DaDEBd5B4408551Ce850E22",
       "constructorArguments": "",
       "isProxy": false
@@ -601,7 +601,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0xFeeB86e70e4a640cDd29636CCE19BD6fe8628135",
       "constructorArguments": "",
       "isProxy": false
@@ -613,7 +613,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xF0752A65ffB2153EaE53F6a70c858a87022d5c56",
       "constructorArguments": "",
       "isProxy": false
@@ -709,7 +709,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x0d0E816eE4557689d34fAd5885C53b9393C1D9fA",
       "constructorArguments": "",
       "isProxy": false
@@ -753,7 +753,7 @@
   ],
   "bsc": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0xfADBc81Ca8A957F1Bf7c78bCc575b28DBDE042b6",
       "constructorArguments": "",
       "isProxy": false
@@ -765,7 +765,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x4B1d8352E35e3BDE36dF5ED2e73C24E35c4a96b7",
       "constructorArguments": "",
       "isProxy": false
@@ -777,7 +777,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x38B3878c4fb44d201DA924c4a04bae3EE728c065",
       "constructorArguments": "",
       "isProxy": false
@@ -807,7 +807,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0xe70E86a7D1e001D419D71F960Cb6CaD59b6A3dB6",
       "constructorArguments": "",
       "isProxy": false
@@ -819,7 +819,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xc40481D13419BC8090e6AD07074Ef39E538c09CE",
       "constructorArguments": "",
       "isProxy": false
@@ -855,7 +855,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xe6Af5720d34213C805C08e2470aea979e3F72F75",
       "constructorArguments": "",
       "isProxy": false
@@ -899,7 +899,7 @@
   ],
   "optimism": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0xCA6Cb9Bc3cfF9E11003A06617cF934B684Bc78BC",
       "constructorArguments": "",
       "isProxy": false
@@ -911,7 +911,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0xAa4Be20E9957fE21602c74d7C3cF5CB1112EA9Ef",
       "constructorArguments": "",
       "isProxy": false
@@ -923,7 +923,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x7491843F3A5Ba24E0f17a22645bDa04A1Ae2c584",
       "constructorArguments": "",
       "isProxy": false
@@ -935,7 +935,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0x15DEeAB8dECDe553bb0B1F9C00984cbcae1af3D7",
       "constructorArguments": "",
       "isProxy": false
@@ -947,7 +947,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x89E3530137aD51743536443a3EC838b502E72eb7",
       "constructorArguments": "",
       "isProxy": false
@@ -1013,7 +1013,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xD2e905108c5e44dADA680274740f896Ea96Cf2Fb",
       "constructorArguments": "",
       "isProxy": false
@@ -1057,7 +1057,7 @@
   ],
   "arbitrum": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x3C330D4A2e2b8443AFaB8E326E64ab4251B7Eae0",
       "constructorArguments": "",
       "isProxy": false
@@ -1069,7 +1069,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x12Df53079d399a47e9E730df095b712B0FDFA791",
       "constructorArguments": "",
       "isProxy": false
@@ -1081,7 +1081,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0xD4883084389fC1Eeb4dAfB2ADcFc36B711c310EB",
       "constructorArguments": "",
       "isProxy": false
@@ -1093,7 +1093,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0x9B5f440bBb64Fee337F37e03362b628711Ea09C7",
       "constructorArguments": "",
       "isProxy": false
@@ -1105,7 +1105,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xC020F8A7b00178dFA0fcC75C159e14b79F8e5c63",
       "constructorArguments": "",
       "isProxy": false
@@ -1171,7 +1171,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xa2931C37957f3079d3B21b877d56E1db930e02a5",
       "constructorArguments": "",
       "isProxy": false
@@ -1215,7 +1215,7 @@
   ],
   "scroll": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "constructorArguments": "",
       "isProxy": false
@@ -1227,7 +1227,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "constructorArguments": "",
       "isProxy": false
@@ -1239,7 +1239,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "constructorArguments": "",
       "isProxy": false
@@ -1251,7 +1251,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "constructorArguments": "",
       "isProxy": false
@@ -1263,7 +1263,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "constructorArguments": "",
       "isProxy": false
@@ -1359,7 +1359,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xe03dad16074BC5EEA9A9311257BF02Eb0B6AAA2b",
       "constructorArguments": "",
       "isProxy": false
@@ -1403,7 +1403,7 @@
   ],
   "base": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "constructorArguments": "",
       "isProxy": false
@@ -1415,7 +1415,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "constructorArguments": "",
       "isProxy": false
@@ -1427,7 +1427,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "constructorArguments": "",
       "isProxy": false
@@ -1439,7 +1439,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "constructorArguments": "",
       "isProxy": false
@@ -1451,7 +1451,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "constructorArguments": "",
       "isProxy": false
@@ -1547,7 +1547,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503",
       "constructorArguments": "",
       "isProxy": false
@@ -1591,7 +1591,7 @@
   ],
   "polygonzkevm": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "constructorArguments": "",
       "isProxy": false
@@ -1603,7 +1603,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "constructorArguments": "",
       "isProxy": false
@@ -1615,7 +1615,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "constructorArguments": "",
       "isProxy": false
@@ -1627,7 +1627,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "constructorArguments": "",
       "isProxy": false
@@ -1639,7 +1639,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "constructorArguments": "",
       "isProxy": false
@@ -1735,7 +1735,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d",
       "constructorArguments": "",
       "isProxy": false
@@ -1779,7 +1779,7 @@
   ],
   "gnosis": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x8E273260EAd8B72A085B19346A676d355740e875",
       "constructorArguments": "",
       "isProxy": false
@@ -1791,7 +1791,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x603f46cc520d2fc22957b81e206408590808F02F",
       "constructorArguments": "",
       "isProxy": false
@@ -1803,7 +1803,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x11EF91d17c5ad3330DbCa709a8841743d3Af6819",
       "constructorArguments": "",
       "isProxy": false
@@ -1815,7 +1815,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0xbC8AA096dabDf4A0200BB9f8D4Cbb644C3D86d7B",
       "constructorArguments": "",
       "isProxy": false
@@ -1827,7 +1827,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xe522A5DcA58e3ab7fEd2bf25DA3E8d90c14083a8",
       "constructorArguments": "",
       "isProxy": false
@@ -1893,7 +1893,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xd9Cc2e652A162bb93173d1c44d46cd2c0bbDA59D",
       "constructorArguments": "",
       "isProxy": false
@@ -1923,13 +1923,13 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xd9Cc2e652A162bb93173d1c44d46cd2c0bbDA59D",
       "constructorArguments": "",
       "isProxy": false
     },
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x28846fCb579747E8ddad9E93b55BE51b0A1Bf1f3",
       "constructorArguments": "",
       "isProxy": false
@@ -1941,13 +1941,13 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x8528bAa7d1d386E7967603e480fa2B558a23644c",
       "constructorArguments": "",
       "isProxy": false
     },
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x28846fCb579747E8ddad9E93b55BE51b0A1Bf1f3",
       "constructorArguments": "",
       "isProxy": false
@@ -1959,7 +1959,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x8528bAa7d1d386E7967603e480fa2B558a23644c",
       "constructorArguments": "",
       "isProxy": false
@@ -2019,7 +2019,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0xbB5Df000113e767dE11343A16f83De733e5bCC0F",
       "constructorArguments": "",
       "isProxy": false
@@ -2063,7 +2063,7 @@
   ],
   "moonbeam": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0xE2f485bc031Feb5a4C41C1967bf028653d75f0C3",
       "constructorArguments": "",
       "isProxy": false
@@ -2075,7 +2075,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x84Df48F8f241f11d0fA302d09d73030429Bd9C73",
       "constructorArguments": "",
       "isProxy": false
@@ -2087,7 +2087,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x40c6Abcb6A2CdC8882d4bEcaC47927005c7Bb8c2",
       "constructorArguments": "",
       "isProxy": false
@@ -2099,7 +2099,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0x59cC3E7A49DdC4893eB8754c7908f96072A7DbE8",
       "constructorArguments": "",
       "isProxy": false
@@ -2111,7 +2111,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x98Aa6239FfCcEc73A662a5e5e26Bc3fD7c7291B7",
       "constructorArguments": "",
       "isProxy": false
@@ -2185,7 +2185,7 @@
   ],
   "viction": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "constructorArguments": "",
       "isProxy": false
@@ -2197,7 +2197,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "constructorArguments": "",
       "isProxy": false
@@ -2209,7 +2209,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "constructorArguments": "",
       "isProxy": false
@@ -2221,7 +2221,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "constructorArguments": "",
       "isProxy": false
@@ -2233,7 +2233,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "constructorArguments": "",
       "isProxy": false
@@ -2247,7 +2247,7 @@
   ],
   "inevm": [
     {
-      "name": "MerkleRootMultisigIsmFactory",
+      "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "constructorArguments": "",
       "isProxy": false
@@ -2259,7 +2259,7 @@
       "isProxy": true
     },
     {
-      "name": "MessageIdMultisigIsmFactory",
+      "name": "StaticMessageIdMultisigIsmFactory",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "constructorArguments": "",
       "isProxy": false
@@ -2271,7 +2271,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationIsmFactory",
+      "name": "StaticAggregationIsmFactory",
       "address": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "constructorArguments": "",
       "isProxy": false
@@ -2283,7 +2283,7 @@
       "isProxy": true
     },
     {
-      "name": "AggregationHookFactory",
+      "name": "StaticAggregationHookFactory",
       "address": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "constructorArguments": "",
       "isProxy": false
@@ -2295,7 +2295,7 @@
       "isProxy": true
     },
     {
-      "name": "RoutingIsmFactory",
+      "name": "DomainRoutingIsmFactory",
       "address": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "constructorArguments": "",
       "isProxy": false

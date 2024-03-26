@@ -2,7 +2,7 @@ use hyperlane_core::H256;
 
 /// Conversion from a fuel type to H256 primitive.
 pub trait FuelIntoH256 {
-    /// Covert to an H256 primitive.
+    /// Convert to an H256 primitive.
     fn into_h256(self) -> H256;
 }
 

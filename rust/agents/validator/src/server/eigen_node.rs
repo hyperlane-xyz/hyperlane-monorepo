@@ -24,6 +24,8 @@ use hyperlane_core::HyperlaneDomain;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+const EIGEN_NODE_API_BASE: &str = "/eigen";
+
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 enum ServiceStatus {
     Up,
@@ -47,12 +49,16 @@ struct Service {
 }
 
 #[derive(new)]
-pub struct EigenNodeAPI {
+pub struct EigenNodeApi {
     origin_chain: HyperlaneDomain,
     core_metrics: Arc<CoreMetrics>,
 }
 
-impl EigenNodeAPI {
+impl EigenNodeApi {
+    pub fn get_route(&self) -> (&'static str, Router) {
+        (EIGEN_NODE_API_BASE, self.router())
+    }
+
     pub fn router(&self) -> Router {
         let core_metrics_clone = self.core_metrics.clone();
         let origin_chain = self.origin_chain.clone();
@@ -154,7 +160,7 @@ mod tests {
             .with_label_values(&["validator_observed", "ethereum"])
             .set(HEALTHY_OBSERVED_CHECKPOINT);
 
-        let node_api = EigenNodeAPI::new(
+        let node_api = EigenNodeApi::new(
             HyperlaneDomain::new_test_domain("ethereum"),
             Arc::clone(&core_metrics),
         );

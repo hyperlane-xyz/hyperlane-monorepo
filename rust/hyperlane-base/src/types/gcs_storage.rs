@@ -97,7 +97,7 @@ impl GcsStorageClientBuilder {
 }
 
 impl GcsStorageClient {
-    // convinience formatter
+    // convenience formatter
     fn get_checkpoint_key(index: u32) -> String {
         format!("checkpoint_{index}_with_id.json")
     }

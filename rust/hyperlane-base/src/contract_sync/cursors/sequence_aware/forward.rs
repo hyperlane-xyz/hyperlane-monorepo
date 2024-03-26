@@ -926,7 +926,7 @@ pub(crate) mod test {
             let expected_range = 90..=100;
             assert_eq!(range, expected_range);
 
-            // Update the cursor with some paritally bogus logs:
+            // Update the cursor with some partially bogus logs:
             // - A log at sequence 4, which was already indexed and should be ignored
             // - Three logs of sequence 5, i.e. duplicated
             // - A log at sequence 6, which is unexpected, but tolerated nonetheless
