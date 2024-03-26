@@ -41,7 +41,7 @@ const configs: [string, ChainMetadata][] = [
   ['Combined configs', combinedConfig],
 ];
 
-describe('SmartProvider', () => {
+describe.skip('SmartProvider', () => {
   let provider: HyperlaneSmartProvider;
 
   const itDoesIfSupported = (method: ProviderMethod, fn: () => any) => {

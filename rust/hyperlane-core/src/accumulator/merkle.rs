@@ -14,7 +14,7 @@ use crate::{
 //    - remove ring dependency
 // In accordance with its license terms, the apache2 license is reproduced below
 
-// Can't initialize this using `lazy_static` because of a constaint in Solana: static variables cannot be writable.
+// Can't initialize this using `lazy_static` because of a constraint in Solana: static variables cannot be writable.
 // See the following links for more info:
 // https://stackoverflow.com/questions/70630344/failed-to-deploy-my-solana-smart-contract
 // https://docs.solana.com/developing/on-chain-programs/limitations#static-writable-data
@@ -474,7 +474,7 @@ mod tests {
 
         let leaf_b11 = H256::from([0xDD; 32]);
         tree.push_leaf(leaf_b11, depth)
-            .expect("Pushing in outtermost leaf failed");
+            .expect("Pushing in outermost leaf failed");
         let expected_tree = MerkleTree::create(&[leaf_b00, leaf_b01, leaf_b10, leaf_b11], depth);
         assert_eq!(tree.hash(), expected_tree.hash());
 

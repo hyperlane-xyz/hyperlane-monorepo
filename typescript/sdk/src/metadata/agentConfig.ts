@@ -296,7 +296,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .optional()
     .describe('The path to the relayer database.'),
   relayChains: CommaSeperatedChainList.describe(
-    'Comma seperated list of chains to relay messages between.',
+    'Comma separated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
     .union([z.array(GasPaymentEnforcementSchema), z.string().min(1)])

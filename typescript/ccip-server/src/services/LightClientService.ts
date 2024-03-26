@@ -34,7 +34,7 @@ class LightClientService {
   }
 
   /**
-   * Calculates the slot given a timestamp, and the LightClient's configured Genesis Time and Secods Per Slot
+   * Calculates the slot given a timestamp, and the LightClient's configured Genesis Time and Seconds Per Slot
    * @param timestamp timestamp to calculate slot with
    */
   async calculateSlot(timestamp: bigint): Promise<bigint> {
