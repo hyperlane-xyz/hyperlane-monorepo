@@ -73,7 +73,11 @@ export class ContractVerifier {
     verificationLogger: Debugger,
     options?: FormOptions<typeof action>,
   ): Promise<any> {
-    const { apiUrl, family } = this.multiProvider.getExplorerApi(chain);
+    const {
+      apiUrl,
+      apiKey = this.apiKeys[chain],
+      family,
+    } = this.multiProvider.getExplorerApi(chain);
     const params = new URLSearchParams();
     params.set('module', 'contract');
     params.set('action', action);
@@ -83,9 +87,9 @@ export class ContractVerifier {
       params.set(key, value);
     }
 
-    // only include apikey if provided & not blockscout
-    if (family !== ExplorerFamily.Blockscout && this.apiKeys[chain]) {
-      params.set('apikey', this.apiKeys[chain]);
+    if (family !== ExplorerFamily.Blockscout && apiKey) {
+      // only include apikey if provided & not blockscout
+      params.set('apikey', apiKey);
     }
 
     const url = new URL(apiUrl);
