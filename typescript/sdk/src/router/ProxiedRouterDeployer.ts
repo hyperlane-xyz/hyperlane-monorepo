@@ -16,7 +16,6 @@ import { ProxiedFactories, ProxiedRouterConfig } from './types';
 export abstract class ProxiedRouterDeployer<
   Config extends ProxiedRouterConfig,
   Factories extends ProxiedFactories,
-  RouterKey extends keyof Factories,
 > extends HyperlaneRouterDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
@@ -24,14 +23,16 @@ export abstract class ProxiedRouterDeployer<
    * Returns the contract name
    * @param config Router config
    */
-  abstract routerContractName(config: Config): RouterKey;
+  abstract routerContractName<RouterKey extends keyof Factories>(
+    config: Config,
+  ): RouterKey;
 
   /**
    * Returns the constructor arguments for the proxy
    * @param chain Name of chain
    * @param config Router config
    */
-  abstract constructorArgs(
+  abstract constructorArgs<RouterKey extends keyof Factories>(
     chain: ChainName,
     config: Config,
   ): Promise<Parameters<Factories[RouterKey]['deploy']>>;
@@ -41,7 +42,7 @@ export abstract class ProxiedRouterDeployer<
    * @param chain Name of chain
    * @param config Router config
    */
-  abstract initializeArgs(
+  abstract initializeArgs<RouterKey extends keyof Factories>(
     chain: ChainName,
     config: Config,
   ): Promise<

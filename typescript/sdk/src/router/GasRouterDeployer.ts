@@ -10,8 +10,7 @@ import { GasRouterConfig, ProxiedFactories } from './types';
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,
   Factories extends ProxiedFactories,
-  RouterKey extends keyof Factories,
-> extends ProxiedRouterDeployer<Config, Factories, RouterKey> {
+> extends ProxiedRouterDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): GasRouter;
 
   async enrollRemoteRouters(

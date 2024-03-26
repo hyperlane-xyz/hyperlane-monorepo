@@ -45,8 +45,7 @@ import {
 
 export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,
-  HypERC20Factories,
-  TokenType.native
+  HypERC20Factories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -250,8 +249,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
 
 export class HypERC721Deployer extends GasRouterDeployer<
   ERC721RouterConfig,
-  HypERC721Factories,
-  TokenType.collateral
+  HypERC721Factories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -290,7 +288,6 @@ export class HypERC721Deployer extends GasRouterDeployer<
     }
   }
 
-  //@ts-ignore ignore for now until the contracts get fixed
   async initializeArgs(_: ChainName, config: ERC721RouterConfig): Promise<any> {
     const defaultArgs = [
       config.hook ?? ethers.constants.AddressZero,

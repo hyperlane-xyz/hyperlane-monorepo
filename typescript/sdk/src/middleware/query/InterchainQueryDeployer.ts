@@ -18,8 +18,7 @@ export type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer extends ProxiedRouterDeployer<
   InterchainQueryConfig,
-  InterchainQueryFactories,
-  'interchainQueryRouter'
+  InterchainQueryFactories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -45,14 +44,11 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     throw new Error('No matching contract found');
   }
 
-  async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
+  async constructorArgs(_: string, config: RouterConfig): Promise<any> {
     return [config.mailbox];
   }
 
-  async initializeArgs(
-    chain: string,
-    config: RouterConfig,
-  ): Promise<[string, string, string]> {
+  async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('ISM as object unimplemented');

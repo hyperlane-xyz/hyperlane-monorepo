@@ -60,8 +60,7 @@ export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
 export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   LiquidityLayerConfig,
-  LiquidityLayerFactories,
-  'liquidityLayerRouter'
+  LiquidityLayerFactories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -87,17 +86,14 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     throw new Error('No matching contract found');
   }
 
-  async constructorArgs(
-    _: string,
-    config: LiquidityLayerConfig,
-  ): Promise<[string]> {
+  async constructorArgs(_: string, config: LiquidityLayerConfig): Promise<any> {
     return [config.mailbox];
   }
 
   async initializeArgs(
     chain: string,
     config: LiquidityLayerConfig,
-  ): Promise<[string, string, string]> {
+  ): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('ISM as object unimplemented');

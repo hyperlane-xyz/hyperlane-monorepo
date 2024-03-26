@@ -19,8 +19,7 @@ export type InterchainAccountConfig = ProxiedRouterConfig;
 
 export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   InterchainAccountConfig,
-  InterchainAccountFactories,
-  'interchainAccountRouter'
+  InterchainAccountFactories
 > {
   constructor(
     multiProvider: MultiProvider,
@@ -46,14 +45,11 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     throw new Error('No matching contract found');
   }
 
-  async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
+  async constructorArgs(_: string, config: RouterConfig): Promise<any> {
     return [config.mailbox];
   }
 
-  async initializeArgs(
-    chain: string,
-    config: RouterConfig,
-  ): Promise<[string, string, string]> {
+  async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     return [
       config.hook ?? ethers.constants.AddressZero,
