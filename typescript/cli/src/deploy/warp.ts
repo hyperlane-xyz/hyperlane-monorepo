@@ -255,7 +255,7 @@ async function executeDeploy(params: DeployParams) {
 
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(outPath, [
     { filename: 'warp-route-deployment', description: 'Contract addresses' },
-    { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
+    { filename: 'warp-config', description: 'Warp config' },
   ]);
 
   const deployer = isNft
@@ -271,7 +271,7 @@ async function executeDeploy(params: DeployParams) {
 
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
-  logBlue(`Warp UI token config is in ${tokenConfigPath}`);
+  logBlue(`Warp config is in ${tokenConfigPath}`);
 }
 
 async function fetchBaseTokenMetadata(
