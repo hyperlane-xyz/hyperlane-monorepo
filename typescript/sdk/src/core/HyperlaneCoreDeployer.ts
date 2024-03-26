@@ -212,7 +212,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     interchainSecurityModule?: IsmConfig,
   ): Promise<TestRecipient> {
-    this.testRecipient.cacheAddressesMap(this.cachedAddresses);
     const testRecipient = await this.testRecipient.deployContracts(chain, {
       interchainSecurityModule,
     });
@@ -249,7 +248,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       };
     }
 
-    const testRecipient = await this.deployTestRecipient(chain);
+    const testRecipient = await this.deployTestRecipient(
+      chain,
+      this.cachedAddresses[chain].interchainSecurityModule,
+    );
 
     const contracts = {
       mailbox,

@@ -26,7 +26,6 @@ export const testRecipientFactories = {
   testRecipient: new TestRecipient__factory(),
 };
 
-// TODO move this and related configs to the SDK
 export class TestRecipientDeployer extends HyperlaneDeployer<
   TestRecipientConfig,
   typeof testRecipientFactories
@@ -45,14 +44,20 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: TestRecipientConfig,
   ): Promise<TestRecipientContracts> {
+    this.logger(`Deploying TestRecipient on ${chain}`, config);
     const testRecipient = await this.deployContract(chain, 'testRecipient', []);
     if (config.interchainSecurityModule) {
+      this.logger(`Checking TestRecipient ISM on ${chain}`);
       await this.configureIsm(
         chain,
         testRecipient,
         config.interchainSecurityModule,
         (tr) => tr.interchainSecurityModule(),
         (tr, ism) => tr.populateTransaction.setInterchainSecurityModule(ism),
+      );
+    } else {
+      this.logger(
+        `WARNING: No ISM config provided for TestRecipient on ${chain}`,
       );
     }
     return {
