@@ -12,7 +12,7 @@ else if (envLogLevel === 'none' || envLogLevel === 'off') {
   logLevel = 'silent';
 }
 
-const logPretty = envVarToBoolean(safelyAccessEnvVar('LOG_PRETTY'));
+export const isLogPretty = envVarToBoolean(safelyAccessEnvVar('LOG_PRETTY'));
 
 export const rootLogger = pino({
   level: logLevel,
@@ -26,10 +26,9 @@ export const rootLogger = pino({
       // Pino has no simple way of setting custom log shapes and they
       // recommend against using pino-pretty in production so when
       // pretty is enabled we circumvent pino and log directly to console
-      if (logPretty && level >= pino.levels.values[logLevel]) {
-        // Log the first argument, which is the message
+      if (isLogPretty && level >= pino.levels.values[logLevel]) {
         // eslint-disable-next-line no-console
-        console.log(inputArgs[0]);
+        console.log(...inputArgs);
         // Then return null to prevent pino from logging
         return null;
       }

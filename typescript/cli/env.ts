@@ -1,8 +1,7 @@
 // This file isn't in the src dir so it it's imported before others
 // See https://github.com/trivago/prettier-plugin-sort-imports/issues/112
 
-// Default rootLogger into pretty mode and info level
-process.env.LOG_LEVEL ??= 'info';
+// Default rootLogger into pretty mode
 process.env.LOG_PRETTY ??= 'true';
 
 // Workaround for bug in bigint-buffer which solana-web3.js depends on
