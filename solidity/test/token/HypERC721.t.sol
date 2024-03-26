@@ -198,7 +198,7 @@ contract HypERC721Test is HypTokenTest {
         );
     }
 
-    function test_Initialize_revert_ifAlreadyInitialized() public {
+    function testInitialize_revert_ifAlreadyInitialized() public {
         vm.expectRevert("Initializable: contract is already initialized");
         hyp721.initialize(
             INITIAL_SUPPLY,
@@ -210,32 +210,32 @@ contract HypERC721Test is HypTokenTest {
         );
     }
 
-    function test_TotalSupply() public {
+    function testTotalSupply() public {
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY);
     }
 
-    function test_OwnerOf() public {
+    function testOwnerOf() public {
         assertEq(hyp721.ownerOf(0), address(this));
     }
 
-    function test_LocalTransfer() public {
+    function testLocalTransfer() public {
         hyp721.transferFrom(address(this), ALICE, 0);
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY - 1);
         assertEq(hyp721.balanceOf(ALICE), 1);
     }
 
-    function test_LocalYTransfer_revert_invalidTokenId() public {
+    function testLocalYTransfer_revert_invalidTokenId() public {
         vm.expectRevert("ERC721: invalid token ID");
         hyp721.transferFrom(address(this), ALICE, INITIAL_SUPPLY);
     }
 
-    function test_RemoteTransfer(bool isCollateral) public {
+    function testRemoteTransfer(bool isCollateral) public {
         _deployRemoteToken(isCollateral);
         _performRemoteTransfer(25000, 0);
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY - 1);
     }
 
-    function test_RemoteTransfer_revert_unowned() public {
+    function testRemoteTransfer_revert_unowned() public {
         hyp721.transferFrom(address(this), BOB, 1);
 
         _deployRemoteToken(false);
@@ -244,7 +244,7 @@ contract HypERC721Test is HypTokenTest {
         assertEq(hyp721.balanceOf(address(this)), INITIAL_SUPPLY - 1);
     }
 
-    function test_RemoteTransfer_revert_invalidTokenId() public {
+    function testRemoteTransfer_revert_invalidTokenId() public {
         _deployRemoteToken(false);
         vm.expectRevert("ERC721: invalid token ID");
         _performRemoteTransfer(25000, INITIAL_SUPPLY);

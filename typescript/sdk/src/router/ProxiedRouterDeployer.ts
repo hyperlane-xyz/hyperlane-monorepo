@@ -24,11 +24,27 @@ export abstract class ProxiedRouterDeployer<
     return contracts[this.routerContractNameConstant] as Router;
   }
 
+  /**
+   * Returns the contract name
+   * @param config Router config
+   */
+  abstract routerContractName(config: Config): RouterKey;
+
+  /**
+   * Returns the constructor arguments for the proxy
+   * @param chain Name of chain
+   * @param config Router config
+   */
   abstract constructorArgs(
     chain: ChainName,
     config: Config,
   ): Promise<Parameters<Factories[RouterKey]['deploy']>>;
 
+  /**
+   * Returns the initialize arguments for the proxy
+   * @param chain Name of chain
+   * @param config Router config
+   */
   abstract initializeArgs(
     chain: ChainName,
     config: Config,
@@ -37,8 +53,6 @@ export abstract class ProxiedRouterDeployer<
       Awaited<ReturnType<Factories[RouterKey]['deploy']>>['initialize']
     >
   >;
-
-  abstract routerContractName(config: Config): RouterKey;
 
   async deployContracts(
     chain: ChainName,
