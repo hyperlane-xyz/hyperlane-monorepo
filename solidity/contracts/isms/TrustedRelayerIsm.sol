@@ -9,7 +9,7 @@ import {Message} from "../libs/Message.sol";
 contract TrustedRelayerIsm is IInterchainSecurityModule, MailboxClient {
     using Message for bytes;
 
-    uint8 public immutable moduleType = uint8(Types.NULL);
+    uint8 public constant moduleType = uint8(Types.NULL);
 
     address public immutable trustedRelayer;
 
