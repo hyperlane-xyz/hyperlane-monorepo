@@ -409,8 +409,8 @@ export {
   isUriConfig,
 } from './token/config';
 export {
-  HypERC20Factories,
-  HypERC721Factories,
+  hypERC20factories,
+  hypERC721factories,
   TokenFactories,
 } from './token/contracts';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';

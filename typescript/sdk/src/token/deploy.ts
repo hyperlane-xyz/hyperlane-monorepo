@@ -45,7 +45,9 @@ import {
 import {
   HypERC20Factories,
   HypERC721Factories,
+  hypERC20contracts,
   hypERC20factories,
+  hypERC721contracts,
   hypERC721factories,
 } from './contracts';
 
@@ -135,24 +137,24 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    let contractName:
+    let tokenType:
       | TokenType.fastCollateral
       | TokenType.collateral
       | TokenType.collateralVault;
     switch (config.type) {
       case TokenType.fastSynthetic || TokenType.fastCollateral:
-        contractName = TokenType.fastCollateral;
+        tokenType = TokenType.fastCollateral;
         break;
       case TokenType.collateral:
-        contractName = TokenType.collateral;
+        tokenType = TokenType.collateral;
         break;
       case TokenType.collateralVault:
-        contractName = TokenType.collateralVault;
+        tokenType = TokenType.collateralVault;
         break;
       default:
         throw new Error(`Unknown collateral type ${config.type}`);
     }
-    return this.deployContract(chain, contractName, [
+    return this.deployContract(chain, hypERC20contracts[tokenType], [
       config.token,
       config.mailbox,
     ]);
@@ -163,12 +165,15 @@ export class HypERC20Deployer extends GasRouterDeployer<
     config: HypNativeConfig,
   ): Promise<HypNative> {
     if (config.scale) {
-      return this.deployContract(chain, TokenType.nativeScaled, [
-        config.scale,
+      return this.deployContract(
+        chain,
+        hypERC20contracts[TokenType.nativeScaled],
+        [config.scale, config.mailbox],
+      );
+    } else {
+      return this.deployContract(chain, hypERC20contracts[TokenType.native], [
         config.mailbox,
       ]);
-    } else {
-      return this.deployContract(chain, TokenType.native, [config.mailbox]);
     }
   }
 
@@ -178,7 +183,9 @@ export class HypERC20Deployer extends GasRouterDeployer<
   ): Promise<HypERC20> {
     const router: HypERC20 = await this.deployContract(
       chain,
-      isFastConfig(config) ? TokenType.fastSynthetic : TokenType.synthetic,
+      isFastConfig(config)
+        ? hypERC20contracts[TokenType.fastSynthetic]
+        : hypERC20contracts[TokenType.synthetic],
       [config.decimals, config.mailbox],
     );
     try {
@@ -216,7 +223,10 @@ export class HypERC20Deployer extends GasRouterDeployer<
       throw new Error('Invalid ERC20 token router config');
     }
     await this.configureClient(chain, router, config);
-    return { [config.type]: router } as any;
+    return {
+      [hypERC20contracts[config.type as keyof typeof hypERC20contracts]]:
+        router,
+    } as any;
   }
 
   async buildTokenMetadata(
@@ -329,7 +339,9 @@ export class HypERC721Deployer extends GasRouterDeployer<
   ): Promise<HypERC721Collateral> {
     return this.deployContract(
       chain,
-      isUriConfig(config) ? TokenType.collateralUri : TokenType.collateral,
+      isUriConfig(config)
+        ? hypERC721contracts[TokenType.collateralUri]
+        : hypERC721contracts[TokenType.collateral],
       [config.token, config.mailbox],
     );
   }
@@ -340,7 +352,9 @@ export class HypERC721Deployer extends GasRouterDeployer<
   ): Promise<HypERC721> {
     const router = await this.deployContract(
       chain,
-      isUriConfig(config) ? TokenType.syntheticUri : TokenType.synthetic,
+      isUriConfig(config)
+        ? hypERC721contracts[TokenType.syntheticUri]
+        : hypERC721contracts[TokenType.synthetic],
       [config.mailbox],
     );
     await this.multiProvider.handleTx(
@@ -368,7 +382,10 @@ export class HypERC721Deployer extends GasRouterDeployer<
     } else {
       throw new Error('Invalid ERC721 token router config');
     }
-    return { [config.type]: router } as any;
+    return {
+      [hypERC721contracts[config.type as keyof typeof hypERC721contracts]]:
+        router,
+    } as any;
   }
 
   async buildTokenMetadata(

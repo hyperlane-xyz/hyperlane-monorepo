@@ -14,24 +14,40 @@ import {
 
 import { TokenType } from './config';
 
+export const hypERC20contracts = {
+  [TokenType.fastCollateral]: 'FastHypERC20Collateral',
+  [TokenType.fastSynthetic]: 'FastHypERC20',
+  [TokenType.synthetic]: 'HypERC20',
+  [TokenType.collateral]: 'HypERC20Collateral',
+  [TokenType.collateralVault]: 'HypERC20CollateralVaultDeposit',
+  [TokenType.native]: 'HypNative',
+  [TokenType.nativeScaled]: 'HypNativeScaled',
+} as const;
+
 export const hypERC20factories = {
-  [TokenType.fastCollateral]: new FastHypERC20Collateral__factory(),
-  [TokenType.fastSynthetic]: new FastHypERC20__factory(),
-  [TokenType.synthetic]: new HypERC20__factory(),
-  [TokenType.collateral]: new HypERC20Collateral__factory(),
-  [TokenType.collateralVault]: new HypERC20CollateralVaultDeposit__factory(),
-  [TokenType.native]: new HypNative__factory(),
-  [TokenType.nativeScaled]: new HypNativeScaled__factory(),
+  FastHypERC20Collateral: new FastHypERC20Collateral__factory(),
+  FastHypERC20: new FastHypERC20__factory(),
+  HypERC20: new HypERC20__factory(),
+  HypERC20Collateral: new HypERC20Collateral__factory(),
+  HypERC20CollateralVaultDeposit: new HypERC20CollateralVaultDeposit__factory(),
+  HypNative: new HypNative__factory(),
+  HypNativeScaled: new HypNativeScaled__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 
-export const hypERC721factories = {
-  [TokenType.collateralUri]: new HypERC721URICollateral__factory(),
-  [TokenType.collateral]: new HypERC721Collateral__factory(),
-  [TokenType.syntheticUri]: new HypERC721URIStorage__factory(),
-  [TokenType.synthetic]: new HypERC721__factory(),
-};
+export const hypERC721contracts = {
+  [TokenType.collateralUri]: 'HypERC721URICollateral',
+  [TokenType.collateral]: 'HypERC721Collateral',
+  [TokenType.syntheticUri]: 'HypERC721URIStorage',
+  [TokenType.synthetic]: 'HypERC721',
+} as const;
 
+export const hypERC721factories = {
+  HypERC721URICollateral: new HypERC721URICollateral__factory(),
+  HypERC721Collateral: new HypERC721Collateral__factory(),
+  HypERC721URIStorage: new HypERC721URIStorage__factory(),
+  HypERC721: new HypERC721__factory(),
+};
 export type HypERC721Factories = typeof hypERC721factories;
 
 export type TokenFactories = HypERC20Factories | HypERC721Factories;

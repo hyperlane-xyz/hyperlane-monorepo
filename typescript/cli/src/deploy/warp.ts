@@ -20,6 +20,10 @@ import {
   WarpCoreConfig,
   getTokenConnectionId,
 } from '@hyperlane-xyz/sdk';
+import {
+  hypERC20contracts,
+  hypERC721contracts,
+} from '@hyperlane-xyz/sdk/dist/token/contracts.js';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { log, logBlue, logGray, logGreen } from '../../logger.js';
@@ -255,7 +259,7 @@ async function executeDeploy(params: DeployParams) {
 
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(outPath, [
     { filename: 'warp-route-deployment', description: 'Contract addresses' },
-    { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
+    { filename: 'warp-config', description: 'Warp config' },
   ]);
 
   const deployer = isNft
@@ -271,7 +275,7 @@ async function executeDeploy(params: DeployParams) {
 
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
-  logBlue(`Warp UI token config is in ${tokenConfigPath}`);
+  logBlue(`Warp config is in ${tokenConfigPath}`);
 }
 
 async function fetchBaseTokenMetadata(
@@ -316,15 +320,19 @@ function getTokenName(token: TokenConfig) {
 function writeTokenDeploymentArtifacts(
   filePath: string,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  { configMap }: DeployParams,
+  { configMap, isNft }: DeployParams,
 ) {
   const artifacts: ChainMap<{
     router: Address;
     tokenType: TokenType;
   }> = objMap(contracts, (chain, contract) => {
+    const tokenType = configMap[chain].type;
+    const contractName = isNft
+      ? hypERC721contracts[tokenType as keyof typeof hypERC721contracts]
+      : hypERC20contracts[tokenType as keyof typeof hypERC20contracts];
     return {
-      router: contract[configMap[chain].type as keyof TokenFactories].address,
-      tokenType: configMap[chain].type,
+      router: contract[contractName as keyof TokenFactories]['address'],
+      tokenType,
     };
   });
   writeJson(filePath, artifacts);
@@ -333,23 +341,26 @@ function writeTokenDeploymentArtifacts(
 function writeWarpUiTokenConfig(
   filePath: string,
   contracts: HyperlaneContractsMap<TokenFactories>,
-  { configMap, metadata }: DeployParams,
+  { configMap, metadata, isNft }: DeployParams,
 ) {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = configMap[chainName];
+    const tokenType = config.type;
     const collateralAddressOrDenom =
-      config.type === TokenType.collateral ? config.token : undefined;
+      tokenType === TokenType.collateral ? config.token : undefined;
+    const contractName = isNft
+      ? hypERC721contracts[tokenType as keyof typeof hypERC721contracts]
+      : hypERC20contracts[tokenType as keyof typeof hypERC20contracts];
     warpCoreConfig.tokens.push({
       chainName,
-      standard: TOKEN_TYPE_TO_STANDARD[config.type],
+      standard: TOKEN_TYPE_TO_STANDARD[tokenType],
       name: metadata.name,
       symbol: metadata.symbol,
       decimals: metadata.decimals,
-      addressOrDenom:
-        contract[configMap[chainName].type as keyof TokenFactories].address,
+      addressOrDenom: contract[contractName as keyof TokenFactories]['address'],
       collateralAddressOrDenom,
     });
   }
