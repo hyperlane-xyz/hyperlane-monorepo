@@ -6,13 +6,7 @@ import {
   PortalAdapter,
   Router,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  eqAddress,
-  objFilter,
-  objKeys,
-  objMap,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
@@ -78,12 +72,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   }
 
   router(contracts: HyperlaneContracts<LiquidityLayerFactories>): Router {
-    for (const key of objKeys(liquidityLayerFactories)) {
-      if (contracts[key]) {
-        return contracts[key] as Router;
-      }
-    }
-    throw new Error('No matching contract found');
+    return contracts.liquidityLayerRouter;
   }
 
   async constructorArgs(_: string, config: LiquidityLayerConfig): Promise<any> {

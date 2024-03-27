@@ -37,12 +37,7 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   }
 
   router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {
-    for (const key of objKeys(interchainAccountFactories)) {
-      if (contracts[key]) {
-        return contracts[key] as Router;
-      }
-    }
-    throw new Error('No matching contract found');
+    return contracts.interchainAccountRouter;
   }
 
   async constructorArgs(_: string, config: RouterConfig): Promise<any> {

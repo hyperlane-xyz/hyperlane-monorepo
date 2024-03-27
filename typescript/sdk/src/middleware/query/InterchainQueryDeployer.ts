@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 
 import { Router } from '@hyperlane-xyz/core';
-import { objKeys } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../../contracts/types';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
@@ -36,12 +35,7 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
   }
 
   router(contracts: HyperlaneContracts<InterchainQueryFactories>): Router {
-    for (const key of objKeys(interchainQueryFactories)) {
-      if (contracts[key]) {
-        return contracts[key] as Router;
-      }
-    }
-    throw new Error('No matching contract found');
+    return contracts.interchainQueryRouter;
   }
 
   async constructorArgs(_: string, config: RouterConfig): Promise<any> {
