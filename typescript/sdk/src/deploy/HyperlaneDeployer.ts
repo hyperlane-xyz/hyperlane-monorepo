@@ -18,6 +18,7 @@ import {
   Address,
   ProtocolType,
   eqAddress,
+  objMerge,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
 
@@ -89,16 +90,7 @@ export abstract class HyperlaneDeployer<
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
-    Object.keys(addressesMap).forEach((key) => {
-      if (this.cachedAddresses[key]) {
-        this.cachedAddresses[key] = {
-          ...this.cachedAddresses[key],
-          ...addressesMap[key],
-        };
-      } else {
-        this.cachedAddresses[key] = addressesMap[key];
-      }
-    });
+    objMerge(this.cachedAddresses, addressesMap);
   }
 
   abstract deployContracts(
@@ -667,9 +659,10 @@ export abstract class HyperlaneDeployer<
         continue;
       }
       const current = await ownable.owner();
-      const owner =
-        config.ownerOverrides?.[contractName as K] ??
-        (await this.resolveInterchainAccountAsOwner(chain, config.owner));
+      const owner = await this.resolveInterchainAccountAsOwner(
+        chain,
+        config.ownerOverrides?.[contractName as K] ?? config.owner,
+      );
       if (!eqAddress(current, owner)) {
         this.logger(
           `Transferring ownership of ${contractName} to ${owner} on ${chain}`,

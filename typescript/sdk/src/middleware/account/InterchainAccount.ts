@@ -87,25 +87,19 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
     const localRouter = this.router(this.contractsMap[chain]);
+    const routerOverride = bytes32ToAddress(
+      await localRouter.routers(originDomain),
+    );
+    const ismOverride = bytes32ToAddress(await localRouter.isms(originDomain));
     await this.multiProvider.handleTx(
       chain,
       localRouter[
         'getDeployedInterchainAccount(uint32,address,address,address)'
-      ](
-        originDomain,
-        config.owner,
-        bytes32ToAddress(await localRouter.routers(originDomain)),
-        bytes32ToAddress(await localRouter.isms(originDomain)),
-      ),
+      ](originDomain, config.owner, routerOverride, ismOverride),
     );
     const account = await localRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
-    ](
-      originDomain,
-      config.owner,
-      bytes32ToAddress(await localRouter.routers(originDomain)),
-      bytes32ToAddress(await localRouter.isms(originDomain)),
-    );
+    ](originDomain, config.owner, routerOverride, ismOverride);
     if (
       (await this.multiProvider.getProvider(chain).getCode(account)) === '0x'
     ) {

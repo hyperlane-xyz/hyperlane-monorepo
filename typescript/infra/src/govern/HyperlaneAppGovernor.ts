@@ -190,9 +190,8 @@ export abstract class HyperlaneAppGovernor<
       }
       // 2b. Check if calling from the owner/safeAddress will succeed.
       if (
-        (this.canPropose[chain].get(safeAddress) &&
-          (await transactionSucceedsFromSender(safeAddress))) ||
-        chain === 'moonbeam'
+        this.canPropose[chain].get(safeAddress) &&
+        (await transactionSucceedsFromSender(safeAddress))
       ) {
         return SubmissionType.SAFE;
       }
