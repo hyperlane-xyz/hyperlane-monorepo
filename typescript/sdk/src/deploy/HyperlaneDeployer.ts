@@ -384,9 +384,23 @@ export abstract class HyperlaneDeployer<
     return contract;
   }
 
-  async deployContract<K extends keyof Factories>(
+  /**
+   * Deploys a contract with a specified name.
+   *
+   * This is a generic function capable of deploying any contract type, defined within the `Factories` type, to a specified chain.
+   *
+   * @param {ChainName} chain - The name of the chain on which the contract is to be deployed.
+   * @param {K} contractKey - The key identifying the factory to use for deployment.
+   * @param {string} contractName - The name of the contract to deploy. This must match the contract source code.
+   * @param {Parameters<Factories[K]['deploy']>} constructorArgs - Arguments for the contract's constructor.
+   * @param {Parameters<Awaited<ReturnType<Factories[K]['deploy']>>['initialize']>?} initializeArgs - Optional arguments for the contract's initialization function.
+   * @param {boolean} shouldRecover - Flag indicating whether to attempt recovery if deployment fails.
+   * @returns {Promise<HyperlaneContracts<Factories>[K]>} A promise that resolves to the deployed contract instance.
+   */
+  async deployContractWithName<K extends keyof Factories>(
     chain: ChainName,
-    contractName: K,
+    contractKey: K,
+    contractName: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<
       Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
@@ -395,14 +409,33 @@ export abstract class HyperlaneDeployer<
   ): Promise<HyperlaneContracts<Factories>[K]> {
     const contract = await this.deployContractFromFactory(
       chain,
-      this.factories[contractName],
-      contractName.toString(),
+      this.factories[contractKey],
+      contractName,
       constructorArgs,
       initializeArgs,
       shouldRecover,
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;
+  }
+
+  async deployContract<K extends keyof Factories>(
+    chain: ChainName,
+    contractKey: K,
+    constructorArgs: Parameters<Factories[K]['deploy']>,
+    initializeArgs?: Parameters<
+      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    >,
+    shouldRecover = true,
+  ): Promise<HyperlaneContracts<Factories>[K]> {
+    return this.deployContractWithName(
+      chain,
+      contractKey,
+      contractKey.toString(),
+      constructorArgs,
+      initializeArgs,
+      shouldRecover,
+    );
   }
 
   protected async changeAdmin(
