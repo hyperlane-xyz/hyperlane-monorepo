@@ -80,13 +80,11 @@ impl SyncState {
                 let from = self.next_block;
                 let mut to = from + self.chunk_size;
                 to = u32::min(to, tip);
-                self.next_block = to + 1;
                 (from, to)
             }
             SyncDirection::Backward => {
                 let to = self.next_block;
                 let from = to.saturating_sub(self.chunk_size);
-                self.next_block = from.saturating_sub(1);
                 (from, to)
             }
         };
@@ -110,17 +108,36 @@ impl SyncState {
                     return Ok(None);
                 }
                 sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
-                self.next_sequence = sequence_end + 1;
                 (sequence_start, sequence_end)
             }
             SyncDirection::Backward => {
                 let sequence_end = self.next_sequence;
                 let sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
-                self.next_sequence = sequence_start.saturating_sub(1);
                 (sequence_start, sequence_end)
             }
         };
         Ok(Some(from..=to))
+    }
+
+    fn update_range(&mut self, range: RangeInclusive<u32>) {
+        match self.direction {
+            SyncDirection::Forward => match self.mode {
+                IndexMode::Block => {
+                    self.next_block = *range.end() + 1;
+                }
+                IndexMode::Sequence => {
+                    self.next_sequence = *range.end() + 1;
+                }
+            },
+            SyncDirection::Backward => match self.mode {
+                IndexMode::Block => {
+                    self.next_block = range.start().saturating_sub(1);
+                }
+                IndexMode::Sequence => {
+                    self.next_sequence = range.start().saturating_sub(1);
+                }
+            },
+        }
     }
 }
 
@@ -226,14 +243,8 @@ impl<T> RateLimitedContractSyncCursor<T> {
             IndexMode::Sequence => MAX_SEQUENCE_RANGE,
         }
     }
-}
 
-#[async_trait]
-impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
-where
-    T: Send + Debug + 'static,
-{
-    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+    async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         let sync_end = self.sync_end()?;
         let to = u32::min(sync_end, self.sync_position() + self.sync_step());
         let from = self.sync_position();
@@ -243,26 +254,41 @@ where
             Duration::from_secs(0)
         };
 
+        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
+        self.tip = tip;
+        self.max_sequence = max_sequence;
+
+        self.sync_state.get_next_range(max_sequence, tip).await
+    }
+}
+
+#[async_trait]
+impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
+where
+    T: Send + Debug + 'static,
+{
+    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+        // TODO: Fix ETA calculation
+        let eta = Duration::from_secs(0);
+
         let rate_limit = self.get_rate_limit().await?;
         if let Some(rate_limit) = rate_limit {
             return Ok((CursorAction::Sleep(rate_limit), eta));
         }
-        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
-        self.tip = tip;
-        self.max_sequence = max_sequence;
-        if let Some(range) = self.sync_state.get_next_range(max_sequence, tip).await? {
-            return Ok((CursorAction::Query(range), eta));
-        }
 
-        // TODO: Define the sleep time from interval flag
-        Ok((CursorAction::Sleep(Duration::from_secs(5)), eta))
+        if let Some(range) = self.get_next_range().await? {
+            return Ok((CursorAction::Query(range), eta));
+        } else {
+            // TODO: Define the sleep time from interval flag
+            return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+        }
     }
 
     fn latest_queried_block(&self) -> u32 {
         self.sync_state.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, _: Vec<(T, LogMeta)>, _range: RangeInclusive<u32>) -> Result<()> {
+    async fn update(&mut self, _: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
         // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
         // safely shared across multiple cursors, so long as they are running sufficiently in sync
         self.db
@@ -273,6 +299,76 @@ where
                     .saturating_sub(self.sync_state.chunk_size),
             ))
             .await?;
+        self.sync_state.update_range(range);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test {
+    use super::*;
+    use hyperlane_core::{ChainResult, HyperlaneLogStore};
+    use mockall;
+
+    mockall::mock! {
+        pub Indexer {}
+
+        impl Debug for Indexer {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        #[async_trait]
+        impl Indexer<()> for Indexer {
+            async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<((), LogMeta)>>;
+            async fn get_finalized_block_number(&self) -> ChainResult<u32>;
+        }
+
+        #[async_trait]
+        impl SequenceAwareIndexer<()> for Indexer {
+            async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+        }
+    }
+
+    mockall::mock! {
+        pub Db {}
+
+        impl Debug for Db {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        #[async_trait]
+        impl HyperlaneLogStore<()> for Db {
+            async fn store_logs(&self, logs: &[((), LogMeta)]) -> Result<u32>;
+        }
+
+        #[async_trait]
+        impl HyperlaneWatermarkedLogStore<()> for Db {
+            async fn retrieve_high_watermark(&self) -> Result<Option<u32>>;
+            async fn store_high_watermark(&self, block_number: u32) -> Result<()>;
+        }
+    }
+
+    async fn mock_rate_limited_cursor() -> RateLimitedContractSyncCursor<()> {
+        let mut indexer = MockIndexer::new();
+        indexer
+            .expect_latest_sequence_count_and_tip()
+            .returning(|| Ok((None, 100)));
+        let db = Arc::new(MockDb::new());
+        let chunk_size = 10;
+        let initial_height = 0;
+        let mode = IndexMode::Block;
+        RateLimitedContractSyncCursor::new(Arc::new(indexer), db, chunk_size, initial_height, mode)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_rate_limited_cursor() {
+        let mut cursor = mock_rate_limited_cursor().await;
+        let (action, _) = cursor.next_action().await.unwrap();
+        println!("{:?}", action);
+        let (action, _) = cursor.next_action().await.unwrap();
+        println!("{:?}", action);
+        // assert!(matches!(action, CursorAction::Query(_)));
     }
 }
