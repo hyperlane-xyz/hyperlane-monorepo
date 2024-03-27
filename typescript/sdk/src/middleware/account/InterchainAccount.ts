@@ -1,9 +1,8 @@
-import { BigNumber } from 'ethers';
+import { BytesLike, PopulatedTransaction } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
   Address,
-  AddressBytes32,
   CallData,
   ProtocolType,
   addressToBytes32,
@@ -79,6 +78,8 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   async deployAccount(
     chain: ChainName,
     config: AccountConfig,
+    routerOverride?: Address,
+    ismOverride?: Address,
   ): Promise<Address> {
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
     if (!originDomain) {
@@ -87,19 +88,20 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
     const localRouter = this.router(this.contractsMap[chain]);
-    const routerOverride = bytes32ToAddress(
-      await localRouter.routers(originDomain),
-    );
-    const ismOverride = bytes32ToAddress(await localRouter.isms(originDomain));
+    const routerAddress =
+      routerOverride ??
+      bytes32ToAddress(await localRouter.routers(originDomain));
+    const ismAddress =
+      ismOverride ?? bytes32ToAddress(await localRouter.isms(originDomain));
     await this.multiProvider.handleTx(
       chain,
       localRouter[
         'getDeployedInterchainAccount(uint32,address,address,address)'
-      ](originDomain, config.owner, routerOverride, ismOverride),
+      ](originDomain, config.owner, routerAddress, ismAddress),
     );
     const account = await localRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, routerOverride, ismOverride);
+    ](originDomain, config.owner, routerAddress, ismAddress);
     if (
       (await this.multiProvider.getProvider(chain).getCode(account)) === '0x'
     ) {
@@ -113,34 +115,49 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     chain: ChainName,
     destination: ChainName,
     innerCalls: CallData[],
-  ): Promise<CallData> {
+    routerOverride?: Address,
+    ismOverride?: Address,
+    hookMetadata?: BytesLike,
+  ): Promise<PopulatedTransaction> {
     const localRouter = this.router(this.contractsMap[chain]);
-    const quote = await localRouter.quoteGasPayment(
-      this.multiProvider.getDomainId(destination),
+    const remoteDomain = this.multiProvider.getDomainId(destination);
+    const quote = await localRouter.quoteGasPayment(remoteDomain);
+    const remoteRouter = addressToBytes32(
+      routerOverride ?? this.router(this.contractsMap[destination]).address,
     );
-    const icaCall: CallData = {
-      to: localRouter.address,
-      data: localRouter.interface.encodeFunctionData(
-        'callRemote(uint32,(bytes32,uint256,bytes)[])',
-        [
-          this.multiProvider.getDomainId(destination),
-          innerCalls.map((call) => ({
-            to: addressToBytes32(call.to),
-            value: call.value,
-            data: call.data,
-          })),
-        ],
-      ),
-      value: quote,
-    };
-    return icaCall;
+    const remoteIsm = addressToBytes32(
+      ismOverride ??
+        (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
+    );
+    return localRouter.populateTransaction[
+      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
+    ](
+      remoteDomain,
+      remoteRouter,
+      remoteIsm,
+      innerCalls.map((call) => ({
+        to: addressToBytes32(call.to),
+        value: call.value,
+        data: call.data,
+      })),
+      hookMetadata ?? '0x',
+      { value: quote },
+    );
   }
 
-  async getAccountOwner(
+  async getAccountConfig(
     chain: ChainName,
     account: Address,
-  ): Promise<[number, AddressBytes32]> {
-    return this.router(this.contractsMap[chain]).accountOwners(account);
+  ): Promise<AccountConfig> {
+    const accountOwner = await this.router(
+      this.contractsMap[chain],
+    ).accountOwners(account);
+    const originChain = this.multiProvider.getChainName(accountOwner.origin);
+    return {
+      origin: originChain,
+      owner: accountOwner.owner,
+      localRouter: this.router(this.contractsMap[chain]).address,
+    };
   }
 
   // general helper for different overloaded callRemote functions
@@ -148,65 +165,37 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     chain: ChainName,
     destination: ChainName,
     calls: Array<CallData>,
-    value: BigNumber,
     routerOverride?: Address,
     ismOverride?: Address,
     hookMetadata?: string,
   ): Promise<void> {
-    const callsFormatted = calls.map((call) => ({
-      to: addressToBytes32(call.to), // ICA Router contract expects bytes32
-      data: call.data,
-      value: call.value,
-    }));
-    if (routerOverride && ismOverride && hookMetadata) {
-      await this.multiProvider.handleTx(
-        chain,
-        this.router(this.contractsMap[chain])[
-          'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
-        ](
-          this.multiProvider.getDomainId(destination),
-          addressToBytes32(routerOverride),
-          addressToBytes32(ismOverride),
-          callsFormatted,
-          hookMetadata,
-          { value },
-        ),
-      );
-    } else if (routerOverride && ismOverride) {
-      await this.multiProvider.handleTx(
-        chain,
-        this.router(this.contractsMap[chain])[
-          'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
-        ](
-          this.multiProvider.getDomainId(destination),
-          addressToBytes32(routerOverride),
-          addressToBytes32(ismOverride),
-          callsFormatted,
-          { value },
-        ),
-      );
-    } else if (hookMetadata) {
-      await this.multiProvider.handleTx(
-        destination,
-        this.router(this.contractsMap[chain])[
-          'callRemote(uint32,(bytes32,uint256,bytes)[],bytes)'
-        ](
-          this.multiProvider.getDomainId(destination),
-          callsFormatted,
-          hookMetadata,
-          { value },
-        ),
-      );
-    } else {
-      await this.multiProvider.handleTx(
-        chain,
-        this.router(this.contractsMap[chain])[
-          'callRemote(uint32,(bytes32,uint256,bytes)[])'
-        ](this.multiProvider.getDomainId(destination), callsFormatted, {
-          value,
-        }),
-      );
-    }
+    const localRouter = this.router(this.contractsMap[chain]);
+    const remoteDomain = this.multiProvider.getDomainId(destination);
+    const quote = await localRouter.quoteGasPayment(remoteDomain);
+    const remoteRouter = addressToBytes32(
+      routerOverride ?? this.router(this.contractsMap[destination]).address,
+    );
+    const remoteIsm = addressToBytes32(
+      ismOverride ??
+        (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
+    );
+    await this.multiProvider.handleTx(
+      chain,
+      localRouter[
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
+      ](
+        this.multiProvider.getDomainId(destination),
+        remoteRouter,
+        remoteIsm,
+        calls.map((call) => ({
+          to: addressToBytes32(call.to),
+          value: call.value,
+          data: call.data,
+        })),
+        hookMetadata ?? '0x',
+        { value: quote },
+      ),
+    );
   }
 }
 
