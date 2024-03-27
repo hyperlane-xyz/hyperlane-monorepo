@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { CommandModule, Options } from 'yargs';
 
-import { log } from '../../logger.js';
+import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { ENV } from '../utils/env.js';

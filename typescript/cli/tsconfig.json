@@ -6,5 +6,5 @@
     "outDir": "./dist/",
     "rootDir": "."
   },
-  "include": ["./cli.ts", "./logger.ts", "./src/**/*.ts", "./src/*.d.ts", "./examples/**/*.ts"],
+  "include": ["./cli.ts", "src/logger.ts", "env.ts", "./src/**/*.ts", "./src/*.d.ts", "./examples/**/*.ts",],
 }

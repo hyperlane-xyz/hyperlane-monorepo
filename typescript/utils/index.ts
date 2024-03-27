@@ -73,9 +73,9 @@ export {
   isS3CheckpointWithId,
 } from './src/checkpoints';
 export { domainHash } from './src/domains';
-export { safelyAccessEnvVar } from './src/env';
+export { envVarToBoolean, safelyAccessEnvVar } from './src/env';
 export { canonizeId, evmId } from './src/ids';
-export { debug, error, log, trace, warn } from './src/logging';
+export { isLogPretty, rootLogger } from './src/logging';
 export { mean, median, stdDev, sum } from './src/math';
 export { formatMessage, messageId, parseMessage } from './src/messages';
 export {

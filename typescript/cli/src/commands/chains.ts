@@ -9,7 +9,7 @@ import {
   hyperlaneContractAddresses,
 } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue, logGray, logTable } from '../../logger.js';
+import { log, logBlue, logGray, logTable } from '../logger.js';
 
 /**
  * Parent command
