@@ -125,16 +125,12 @@ pub type WatermarkContractSync<T> =
     SequenceAwareContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>>;
 
 #[async_trait]
-pub trait IntoContractSyncCursor<T, U> {
-    async fn into_cursor(
-        &self,
-        index_settings: IndexSettings,
-        custom_settings: U,
-    ) -> Box<dyn ContractSyncCursor<T>>;
+pub trait IntoContractSyncCursor<T> {
+    async fn into_cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>>;
 }
 
 #[async_trait]
-impl<T> IntoContractSyncCursor<T, ()> for WatermarkContractSync<T>
+impl<T> IntoContractSyncCursor<T> for WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
 {
@@ -177,10 +173,14 @@ pub enum SequencedDataContractSyncType {
     ForwardBackward,
 }
 
+pub enum ContractSyncType {
+    Watermark,
+    Forward(ForwardSyncCursorCustomSettings),
+    ForwardBackward,
+}
+
 #[async_trait]
-impl<T: Sequenced + Debug> IntoContractSyncCursor<T, SequencedDataContractSyncType>
-    for SequencedDataContractSync<T>
-{
+impl<T: Sequenced + Debug> IntoContractSyncCursor<T> for SequencedDataContractSync<T> {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     async fn into_cursor(
         &self,

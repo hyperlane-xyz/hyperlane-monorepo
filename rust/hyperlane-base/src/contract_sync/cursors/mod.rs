@@ -80,13 +80,11 @@ impl SyncState {
                 let from = self.next_block;
                 let mut to = from + self.chunk_size;
                 to = u32::min(to, tip);
-                self.next_block = to + 1;
                 (from, to)
             }
             SyncDirection::Backward => {
                 let to = self.next_block;
                 let from = to.saturating_sub(self.chunk_size);
-                self.next_block = from.saturating_sub(1);
                 (from, to)
             }
         };
@@ -110,17 +108,36 @@ impl SyncState {
                     return Ok(None);
                 }
                 sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
-                self.next_sequence = sequence_end + 1;
                 (sequence_start, sequence_end)
             }
             SyncDirection::Backward => {
                 let sequence_end = self.next_sequence;
                 let sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
-                self.next_sequence = sequence_start.saturating_sub(1);
                 (sequence_start, sequence_end)
             }
         };
         Ok(Some(from..=to))
+    }
+
+    fn update_range(&mut self, range: RangeInclusive<u32>) {
+        match self.direction {
+            SyncDirection::Forward => match self.mode {
+                IndexMode::Block => {
+                    self.next_block = *range.end() + 1;
+                }
+                IndexMode::Sequence => {
+                    self.next_sequence = *range.end() + 1;
+                }
+            },
+            SyncDirection::Backward => match self.mode {
+                IndexMode::Block => {
+                    self.next_block = *range.start() - 1;
+                }
+                IndexMode::Sequence => {
+                    self.next_sequence = *range.start() - 1;
+                }
+            },
+        }
     }
 }
 
@@ -226,14 +243,8 @@ impl<T> RateLimitedContractSyncCursor<T> {
             IndexMode::Sequence => MAX_SEQUENCE_RANGE,
         }
     }
-}
 
-#[async_trait]
-impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
-where
-    T: Send + Debug + 'static,
-{
-    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+    async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         let sync_end = self.sync_end()?;
         let to = u32::min(sync_end, self.sync_position() + self.sync_step());
         let from = self.sync_position();
@@ -243,19 +254,34 @@ where
             Duration::from_secs(0)
         };
 
+        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
+        self.tip = tip;
+        self.max_sequence = max_sequence;
+
+        self.sync_state.get_next_range(max_sequence, tip).await
+    }
+}
+
+#[async_trait]
+impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
+where
+    T: Send + Debug + 'static,
+{
+    async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+        // TODO: Fix ETA calculation
+        let eta = Duration::from_secs(0);
+
         let rate_limit = self.get_rate_limit().await?;
         if let Some(rate_limit) = rate_limit {
             return Ok((CursorAction::Sleep(rate_limit), eta));
         }
-        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
-        self.tip = tip;
-        self.max_sequence = max_sequence;
-        if let Some(range) = self.sync_state.get_next_range(max_sequence, tip).await? {
-            return Ok((CursorAction::Query(range), eta));
-        }
 
-        // TODO: Define the sleep time from interval flag
-        Ok((CursorAction::Sleep(Duration::from_secs(5)), eta))
+        if let Some(range) = self.get_next_range().await? {
+            return Ok((CursorAction::Query(range), eta));
+        } else {
+            // TODO: Define the sleep time from interval flag
+            return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
+        }
     }
 
     fn latest_queried_block(&self) -> u32 {
@@ -273,6 +299,7 @@ where
                     .saturating_sub(self.sync_state.chunk_size),
             ))
             .await?;
+        self.sync_state.update_range(_range);
         Ok(())
     }
 }
