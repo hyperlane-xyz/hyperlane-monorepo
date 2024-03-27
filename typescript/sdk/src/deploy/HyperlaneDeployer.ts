@@ -18,6 +18,7 @@ import {
   Address,
   ProtocolType,
   eqAddress,
+  objMerge,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
 
@@ -30,6 +31,7 @@ import {
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { moduleMatchesConfig } from '../ism/utils';
+import { InterchainAccount } from '../middleware/account/InterchainAccount';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -41,7 +43,7 @@ import {
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy';
-import { OwnableConfig } from './types';
+import { OwnableConfig, Owner } from './types';
 import { ContractVerifier } from './verify/ContractVerifier';
 import { ContractVerificationInput, ExplorerLicenseType } from './verify/types';
 import {
@@ -88,7 +90,7 @@ export abstract class HyperlaneDeployer<
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
-    this.cachedAddresses = addressesMap;
+    objMerge(this.cachedAddresses, addressesMap);
   }
 
   abstract deployContracts(
@@ -657,7 +659,10 @@ export abstract class HyperlaneDeployer<
         continue;
       }
       const current = await ownable.owner();
-      const owner = config.ownerOverrides?.[contractName as K] ?? config.owner;
+      const owner = await this.resolveInterchainAccountAsOwner(
+        chain,
+        config.ownerOverrides?.[contractName as K] ?? config.owner,
+      );
       if (!eqAddress(current, owner)) {
         this.logger('Current owner and config owner to not match');
         const receipt = await this.runIfOwner(chain, ownable, () => {
@@ -677,5 +682,24 @@ export abstract class HyperlaneDeployer<
     }
 
     return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
+  }
+
+  protected async resolveInterchainAccountAsOwner(
+    chain: ChainName,
+    owner: Owner,
+  ): Promise<Address> {
+    if (typeof owner === 'string') {
+      return owner;
+    } else {
+      const routerAddress = this.cachedAddresses[chain].interchainAccountRouter;
+      if (!routerAddress) {
+        throw new Error('InterchainAccountRouter not deployed');
+      }
+      const router = InterchainAccount.fromAddressesMap(
+        this.cachedAddresses,
+        this.multiProvider,
+      );
+      return router.deployAccount(chain, owner);
+    }
   }
 }
