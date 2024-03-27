@@ -22,13 +22,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import {
   WarpRouteDeployConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
 import {
   isFile,
   prepNewArtifactsFiles,
@@ -267,7 +267,7 @@ async function executeDeploy(params: DeployParams) {
 
   log('Writing deployment artifacts');
   writeTokenDeploymentArtifacts(contractsFilePath, deployedContracts, params);
-  writeWarpUiTokenConfig(tokenConfigPath, deployedContracts, params);
+  writeWarpConfig(tokenConfigPath, deployedContracts, params);
 
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
@@ -330,7 +330,7 @@ function writeTokenDeploymentArtifacts(
   writeJson(filePath, artifacts);
 }
 
-function writeWarpUiTokenConfig(
+function writeWarpConfig(
   filePath: string,
   contracts: HyperlaneContractsMap<TokenFactories>,
   { configMap, metadata }: DeployParams,

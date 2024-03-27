@@ -1,12 +1,10 @@
-import debug from 'debug';
-
 import {
   IPostDispatchHook,
   Mailbox,
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -36,7 +34,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, coreFactories, {
-      logger: debug('hyperlane:CoreDeployer'),
+      logger: rootLogger.child({ module: 'CoreDeployer' }),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
       ismFactory,
       contractVerifier,
@@ -80,7 +78,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.ismFactory.getContracts(chain),
     );
     if (!matches) {
-      this.logger('Deploying default ISM');
+      this.logger.debug('Deploying default ISM');
       defaultIsm = await this.deployIsm(
         chain,
         config.defaultIsm,
@@ -91,14 +89,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
-    this.logger('Deploying default hook');
+    this.logger.debug('Deploying default hook');
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
       hookAddresses,
     );
 
-    this.logger('Deploying required hook');
+    this.logger.debug('Deploying required hook');
     const requiredHook = await this.deployHook(
       chain,
       config.requiredHook,
@@ -107,7 +105,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // configure mailbox
     try {
-      this.logger('Initializing mailbox');
+      this.logger.debug('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
         mailbox.initialize(
@@ -130,7 +128,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         throw e;
       }
 
-      this.logger('Mailbox already initialized');
+      this.logger.debug('Mailbox already initialized');
 
       const overrides = this.multiProvider.getTransactionOverrides(chain);
       await this.configureHook(

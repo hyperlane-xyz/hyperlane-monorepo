@@ -1,47 +1,38 @@
-import { safelyAccessEnvVar } from './env';
+import { LevelWithSilent, pino } from 'pino';
 
-/* eslint-disable no-console */
-type LOG_LEVEL = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+import { envVarToBoolean, safelyAccessEnvVar } from './env';
 
-const ENV_LOG_LEVEL = (
-  safelyAccessEnvVar('LOG_LEVEL') ?? 'debug'
-).toLowerCase() as LOG_LEVEL;
-const LOG_TRACE = ENV_LOG_LEVEL == 'trace';
-const LOG_DEBUG = LOG_TRACE || ENV_LOG_LEVEL == 'debug';
-const LOG_INFO = LOG_DEBUG || ENV_LOG_LEVEL == 'info';
-const LOG_WARN = LOG_INFO || ENV_LOG_LEVEL == 'warn';
-const LOG_ERROR = LOG_WARN || ENV_LOG_LEVEL == 'error';
-
-export function trace(message: string, data?: any) {
-  if (LOG_TRACE) logWithFunction(console.trace, 'trace', message, data);
+let logLevel: LevelWithSilent = 'info';
+const envLogLevel = safelyAccessEnvVar('LOG_LEVEL')?.toLowerCase();
+if (envLogLevel && pino.levels.values[envLogLevel]) {
+  logLevel = envLogLevel as LevelWithSilent;
+}
+// For backwards compat and also to match agent level options
+else if (envLogLevel === 'none' || envLogLevel === 'off') {
+  logLevel = 'silent';
 }
 
-export function debug(message: string, data?: any) {
-  if (LOG_DEBUG) logWithFunction(console.debug, 'debug', message, data);
-}
+export const isLogPretty = envVarToBoolean(safelyAccessEnvVar('LOG_PRETTY'));
 
-export function log(message: string, data?: any) {
-  if (LOG_INFO) logWithFunction(console.log, 'info', message, data);
-}
-
-export function warn(message: string, data?: any) {
-  if (LOG_WARN) logWithFunction(console.warn, 'warn', message, data);
-}
-
-export function error(message: string, data?: any) {
-  if (LOG_ERROR) logWithFunction(console.error, 'error', message, data);
-}
-
-function logWithFunction(
-  logFn: (...contents: any[]) => void,
-  level: LOG_LEVEL,
-  message: string,
-  data?: any,
-) {
-  const fullLog = {
-    ...data,
-    level,
-    message,
-  };
-  logFn(JSON.stringify(fullLog));
-}
+export const rootLogger = pino({
+  level: logLevel,
+  name: 'hyperlane',
+  formatters: {
+    // Remove pino's default bindings of hostname but keep pid
+    bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
+  },
+  hooks: {
+    logMethod(inputArgs, method, level) {
+      // Pino has no simple way of setting custom log shapes and they
+      // recommend against using pino-pretty in production so when
+      // pretty is enabled we circumvent pino and log directly to console
+      if (isLogPretty && level >= pino.levels.values[logLevel]) {
+        // eslint-disable-next-line no-console
+        console.log(...inputArgs);
+        // Then return null to prevent pino from logging
+        return null;
+      }
+      return method.apply(this, inputArgs);
+    },
+  },
+});

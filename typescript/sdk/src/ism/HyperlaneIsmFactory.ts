@@ -1,5 +1,5 @@
-import debug, { Debugger } from 'debug';
 import { ethers } from 'ethers';
+import { Logger } from 'pino';
 
 import {
   DefaultFallbackRoutingIsm,
@@ -23,7 +23,7 @@ import {
   Domain,
   eqAddress,
   objFilter,
-  warn,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp';
@@ -89,7 +89,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     return new HyperlaneIsmFactory(
       helper.contractsMap,
       multiProvider,
-      debug('hyperlane:IsmFactoryApp'),
+      rootLogger.child({ module: 'ismFactoryApp' }),
     );
   }
 
@@ -110,9 +110,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
 
     const ismType = config.type;
-    const logger = this.logger.extend(`${destination}:${ismType}`);
+    const logger = this.logger.child({ destination, ismType });
 
-    logger(
+    logger.debug(
       `Deploying ${ismType} to ${destination} ${
         origin ? `(for verifying ${origin})` : ''
       }`,
@@ -205,7 +205,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   protected async deployMultisigIsm(
     destination: ChainName,
     config: MultisigIsmConfig,
-    logger: Debugger,
+    logger: Logger,
   ): Promise<IMultisigIsm> {
     const signer = this.multiProvider.getSigner(destination);
     const multisigIsmFactory =
@@ -230,9 +230,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     origin?: ChainName;
     mailbox?: Address;
     existingIsmAddress?: Address;
-    logger: Debugger;
+    logger: Logger;
   }): Promise<IRoutingIsm> {
-    const { destination, config, mailbox, existingIsmAddress } = params;
+    const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
     const domainRoutingIsmFactory =
       this.getContracts(destination).domainRoutingIsmFactory;
@@ -245,7 +245,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           chainMetadata[domain]?.domainId ??
           this.multiProvider.tryGetDomainId(domain);
         if (domainId === null) {
-          warn(
+          logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
           );
         }
@@ -291,7 +291,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       // deploying all the ISMs which have to be updated
       for (const originDomain of delta.domainsToEnroll) {
         const origin = this.multiProvider.getChainName(originDomain); // already filtered to only include domains in the multiprovider
-        params.logger(
+        logger.debug(
           `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
         );
         const ism = await this.deploy({
@@ -310,7 +310,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // unenrolling domains if needed
       for (const originDomain of delta.domainsToUnenroll) {
-        params.logger(
+        logger.debug(
           `Unenrolling originDomain ${originDomain} from preexisting routing ISM at ${existingIsmAddress}...`,
         );
         const tx = await routingIsm.remove(originDomain, overrides);
@@ -318,7 +318,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // transfer ownership if needed
       if (delta.owner) {
-        params.logger(`Transferring ownership of routing ISM...`);
+        logger.debug(`Transferring ownership of routing ISM...`);
         const tx = await routingIsm.transferOwnership(delta.owner, overrides);
         await this.multiProvider.handleTx(destination, tx);
       }
@@ -342,13 +342,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             'Mailbox address is required for deploying fallback routing ISM',
           );
         }
-        params.logger('Deploying fallback routing ISM ...');
+        logger.debug('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
         );
-        params.logger('Initialising fallback routing ISM ...');
+        logger.debug('Initialising fallback routing ISM ...');
         receipt = await this.multiProvider.handleTx(
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
@@ -399,7 +399,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config: AggregationIsmConfig;
     origin?: ChainName;
     mailbox?: Address;
-    logger: Debugger;
+    logger: Logger;
   }): Promise<IAggregationIsm> {
     const { destination, config, origin, mailbox } = params;
     const signer = this.multiProvider.getSigner(destination);
@@ -429,7 +429,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     chain: ChainName,
     factory: StaticThresholdAddressSetFactory | StaticAddressSetFactory,
     values: Address[],
-    logger: Debugger,
+    logger: Logger,
     threshold = values.length,
   ): Promise<Address> {
     const sorted = [...values].sort();
@@ -440,7 +440,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     );
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
-      logger(
+      logger.debug(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = this.multiProvider.getTransactionOverrides(chain);
@@ -452,7 +452,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
     } else {
-      logger(
+      logger.debug(
         `Recovered ${threshold} of ${values.length} address set on ${chain}`,
       );
     }

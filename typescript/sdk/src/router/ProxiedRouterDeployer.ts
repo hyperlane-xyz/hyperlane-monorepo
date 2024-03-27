@@ -76,10 +76,12 @@ export abstract class ProxiedRouterDeployer<
     }
 
     await super.runIfOwner(chain, proxyAdmin, async () => {
-      this.logger(`Checking ownership of proxy admin to ${adminOwner}`);
+      this.logger.debug(`Checking ownership of proxy admin to ${adminOwner}`);
 
       if (!eqAddress(await proxyAdmin.owner(), adminOwner)) {
-        this.logger(`Transferring ownership of proxy admin to ${adminOwner}`);
+        this.logger.debug(
+          `Transferring ownership of proxy admin to ${adminOwner}`,
+        );
         return this.multiProvider.handleTx(
           chain,
           proxyAdmin.transferOwnership(adminOwner),

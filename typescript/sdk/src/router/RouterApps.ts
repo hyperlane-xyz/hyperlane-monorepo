@@ -1,5 +1,5 @@
-import debug from 'debug';
 import type { BigNumber } from 'ethers';
+import { Logger } from 'pino';
 
 import { GasRouter, Router } from '@hyperlane-xyz/core';
 import {
@@ -26,7 +26,7 @@ export abstract class RouterApp<
   constructor(
     contractsMap: HyperlaneContractsMap<Factories>,
     multiProvider: MultiProvider,
-    logger?: debug.Debugger,
+    logger?: Logger,
     readonly foreignDeployments: ChainMap<Address> = {},
   ) {
     super(contractsMap, multiProvider, logger);

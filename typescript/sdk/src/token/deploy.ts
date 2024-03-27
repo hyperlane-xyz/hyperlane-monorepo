@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import debug from 'debug';
-import { ethers, providers } from 'ethers';
+import { providers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -8,7 +7,7 @@ import {
   GasRouter,
   MailboxClient,
 } from '@hyperlane-xyz/core';
-import { objKeys, objMap } from '@hyperlane-xyz/utils';
+import { objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
@@ -39,7 +38,9 @@ import {
 import {
   HypERC20Factories,
   HypERC721Factories,
+  hypERC20contracts,
   hypERC20factories,
+  hypERC721contracts,
   hypERC721factories,
 } from './contracts';
 
@@ -53,7 +54,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, hypERC20factories, {
-      logger: debug('hyperlane:HypERC20Deployer'),
+      logger: rootLogger.child({ module: 'HypERC20Deployer' }),
       ismFactory,
       contractVerifier,
     }); // factories not used in deploy
@@ -169,7 +170,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       ...definedConfigMetadata,
     } as ERC20Metadata;
   }
-
+  
   router(contracts: HyperlaneContracts<HypERC20Factories>) {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
@@ -256,7 +257,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, hypERC721factories, {
-      logger: debug('hyperlane:HypERC721Deployer'),
+      logger: rootLogger.child({ module: 'HypERC721Deployer' }),
       contractVerifier,
     });
   }
@@ -332,7 +333,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
         return 80_000;
     }
   }
-
+  
   router(contracts: HyperlaneContracts<HypERC721Factories>) {
     for (const key of objKeys(hypERC721factories)) {
       if (contracts[key]) {

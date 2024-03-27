@@ -20,7 +20,7 @@ export abstract class GasRouterDeployer<
   ): Promise<void> {
     await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
 
-    this.logger(`Setting enrolled router destination gas...`);
+    this.logger.debug(`Setting enrolled router destination gas...`);
     for (const [chain, contracts] of Object.entries(contractsMap)) {
       const remoteDomains = await this.router(contracts).domains();
       const remoteChains = remoteDomains.map((domain) =>
@@ -41,7 +41,7 @@ export abstract class GasRouterDeployer<
         continue;
       }
 
-      this.logger(`Set destination gas on ${chain} for ${remoteChains}`);
+      this.logger.debug(`Set destination gas on ${chain} for ${remoteChains}`);
       await this.multiProvider.handleTx(
         chain,
         this.router(contracts)['setDestinationGas((uint32,uint256)[])'](
