@@ -17,13 +17,15 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
-  debug,
   objMap,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { startMetricsServer } from '../../src/utils/metrics';
 import { readYaml } from '../../src/utils/utils';
+
+const logger = rootLogger.child({ module: 'warp-balance-monitor' });
 
 const metricsRegister = new Registry();
 const warpRouteTokenBalance = new Gauge({
@@ -72,16 +74,16 @@ async function main(): Promise<boolean> {
 
   startMetricsServer(metricsRegister);
 
-  console.log('Starting Warp Route balance monitor');
+  logger.info('Starting Warp Route balance monitor');
   const multiProtocolProvider = new MultiProtocolProvider();
 
   setInterval(async () => {
     try {
-      debug('Checking balances');
+      logger.debug('Checking balances');
       const balances = await checkBalance(tokenConfig, multiProtocolProvider);
       updateTokenBalanceMetrics(tokenConfig, balances);
     } catch (e) {
-      console.error('Error checking balances', e);
+      logger.error('Error checking balances', e);
     }
   }, checkFrequency);
   return true;
@@ -229,7 +231,7 @@ export function updateTokenBalanceMetrics(
         token_type: token.type,
       })
       .set(balances[chain]);
-    debug('Wallet balance updated for chain', {
+    logger.debug('Wallet balance updated for chain', {
       chain,
       token: token.name,
       balance: balances[chain],
@@ -237,4 +239,4 @@ export function updateTokenBalanceMetrics(
   });
 }
 
-main().then(console.log).catch(console.error);
+main().then(logger.info).catch(logger.error);

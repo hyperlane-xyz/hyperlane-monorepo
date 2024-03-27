@@ -7,3 +7,10 @@ export function safelyAccessEnvVar(name: string) {
     return undefined;
   }
 }
+
+export function envVarToBoolean(value: any) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  if (typeof value === 'number') return value !== 0;
+  return !!value;
+}

@@ -6,7 +6,8 @@
     "@cosmjs/encoding": "^0.31.3",
     "@solana/web3.js": "^1.78.0",
     "bignumber.js": "^9.1.1",
-    "ethers": "^5.7.2"
+    "ethers": "^5.7.2",
+    "pino": "^8.19.0"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.1",

@@ -22,13 +22,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import {
   WarpRouteDeployConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
 import {
   isFile,
   prepNewArtifactsFiles,

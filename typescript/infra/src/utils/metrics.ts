@@ -2,14 +2,16 @@ import http from 'http';
 import { Pushgateway, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { error, log } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
+
+const logger = rootLogger.child({ module: 'metrics' });
 
 function getPushGateway(register: Registry): Pushgateway | null {
   const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
   if (gatewayAddr) {
     return new Pushgateway(gatewayAddr, [], register);
   } else {
-    console.warn(
+    logger.warn(
       'Prometheus push gateway address was not defined; not publishing metrics.',
     );
     return null;
@@ -32,7 +34,7 @@ export async function submitMetrics(
       resp = (await gateway.pushAdd({ jobName })).resp;
     }
   } catch (e) {
-    error('Error when pushing metrics', { error: format(e) });
+    logger.error('Error when pushing metrics', { error: format(e) });
     return;
   }
 
@@ -40,7 +42,7 @@ export async function submitMetrics(
     typeof resp == 'object' && resp != null && 'statusCode' in resp
       ? (resp as any).statusCode
       : 'unknown';
-  log('Prometheus metrics pushed to PushGateway', { statusCode });
+  logger.info('Prometheus metrics pushed to PushGateway', { statusCode });
 }
 
 /**
@@ -60,7 +62,7 @@ export function startMetricsServer(register: Registry): http.Server {
         .then((metricsStr) => {
           res.writeHead(200, { ContentType: 'text/plain' }).end(metricsStr);
         })
-        .catch((err) => console.error(err));
+        .catch((err) => logger.error(err));
     })
     .listen(parseInt(process.env['PROMETHEUS_PORT'] || '9090'));
 }

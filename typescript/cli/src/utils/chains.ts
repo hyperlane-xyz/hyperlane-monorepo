@@ -9,7 +9,7 @@ import {
   testnetChainsMetadata,
 } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue, logRed, logTip } from '../../logger.js';
+import { log, logBlue, logRed, logTip } from '../logger.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list
