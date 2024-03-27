@@ -1,0 +1,38 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "rust-challenge"
+documentation = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license-file = { workspace = true }
+publish = { workspace = true }
+version = { workspace = true }
+
+[dependencies]
+anyhow.workspace = true
+bytes = { workspace = true, features = ["serde"] }
+# Note: had trouble with the workspace shared dependency, so I'm using a new one here
+clap = { version = "^4", features = ["derive", "env"] }
+dotenvy = "^0.15"
+ethers-core = "^2"
+ethers-providers = "^2"
+ethers-signers = "^2"
+ethers-contract = "^2"
+ethers-middleware = "^2"
+hyperlane-core = { path = "../hyperlane-core" }
+serde = { workspace = true }
+serde_json.workspace = true
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+  "rt",
+  "time",
+  "macros",
+  "rt-multi-thread",
+] }
+url.workspace = true
+lazy_static = "1.4.0"
+futures.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "time"] }
