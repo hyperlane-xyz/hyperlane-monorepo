@@ -6941,11 +6941,11 @@ name = "relayer"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axum",
  "config",
  "convert_case 0.6.0",
  "derive-new",
  "derive_more",
- "enum_dispatch",
  "ethers",
  "ethers-contract",
  "eyre",

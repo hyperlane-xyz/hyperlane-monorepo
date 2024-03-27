@@ -10,7 +10,7 @@ import {
   logBoldUnderlinedRed,
   logGreen,
   logRed,
-} from '../../logger.js';
+} from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 

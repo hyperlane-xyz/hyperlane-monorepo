@@ -29,14 +29,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import {
-  log,
-  logBlue,
-  logBoldUnderlinedRed,
-  logGray,
-  logGreen,
-  logRed,
-} from '../../logger.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -47,6 +39,14 @@ import {
   getMergedContractAddresses,
   sdkContractAddressesMap,
 } from '../context.js';
+import {
+  log,
+  logBlue,
+  logBoldUnderlinedRed,
+  logGray,
+  logGreen,
+  logRed,
+} from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
   prepNewArtifactsFiles,
