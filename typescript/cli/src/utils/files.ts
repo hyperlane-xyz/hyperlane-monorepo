@@ -6,7 +6,7 @@ import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue } from '../../logger.js';
+import { log, logBlue } from '../logger.js';
 
 import { getTimestampForFilename } from './time.js';
 

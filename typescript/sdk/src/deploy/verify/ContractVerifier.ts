@@ -1,8 +1,8 @@
 import fetch from 'cross-fetch';
-import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
+import { Logger } from 'pino';
 
-import { sleep, strip0x } from '@hyperlane-xyz/utils';
+import { rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -19,9 +19,9 @@ import {
 } from './types';
 
 export class ContractVerifier {
-  private logger = debug(`hyperlane:ContractVerifier`);
+  protected logger = rootLogger.child({ module: 'ContractVerifier' });
 
-  private contractSourceMap: { [contractName: string]: string } = {};
+  protected contractSourceMap: { [contractName: string]: string } = {};
 
   protected readonly standardInputJson: string;
   protected readonly compilerOptions: CompilerOptions;
@@ -70,7 +70,7 @@ export class ContractVerifier {
   private async submitForm(
     chain: ChainName,
     action: ExplorerApiActions,
-    verificationLogger: Debugger,
+    verificationLogger: Logger,
     options?: FormOptions<typeof action>,
   ): Promise<any> {
     const {
@@ -143,7 +143,7 @@ export class ContractVerifier {
       }
 
       if (errorMessage) {
-        verificationLogger(errorMessage);
+        verificationLogger.debug(errorMessage);
         throw new Error(`[${chain}] ${errorMessage}`);
       }
     }
@@ -157,7 +157,7 @@ export class ContractVerifier {
       const errorMessage = `Verification failed. ${
         result.result ?? response.statusText
       }`;
-      verificationLogger(errorMessage);
+      verificationLogger.debug(errorMessage);
       throw new Error(`[${chain}] ${errorMessage}`);
     }
 
@@ -167,7 +167,7 @@ export class ContractVerifier {
   private async isAlreadyVerified(
     chain: ChainName,
     input: ContractVerificationInput,
-    verificationLogger: Debugger,
+    verificationLogger: Logger,
   ): Promise<boolean> {
     try {
       const result = await this.submitForm(
@@ -180,7 +180,7 @@ export class ContractVerifier {
       );
       return !!result[0]?.SourceCode;
     } catch (error) {
-      verificationLogger(
+      verificationLogger.debug(
         `Error checking if contract is already verified: ${error}`,
       );
       return false;
@@ -190,7 +190,7 @@ export class ContractVerifier {
   private async verifyProxy(
     chain: ChainName,
     input: ContractVerificationInput,
-    verificationLogger: Debugger,
+    verificationLogger: Logger,
   ): Promise<void> {
     if (!input.isProxy) return;
 
@@ -215,11 +215,11 @@ export class ContractVerifier {
         chain,
         input.address,
       );
-      verificationLogger(
+      verificationLogger.debug(
         `Successfully verified proxy ${addressUrl}#readProxyContract`,
       );
     } catch (error) {
-      verificationLogger(
+      verificationLogger.debug(
         `Verification of proxy at ${input.address} failed: ${error}`,
       );
       throw error;
@@ -229,14 +229,14 @@ export class ContractVerifier {
   private async verifyImplementation(
     chain: ChainName,
     input: ContractVerificationInput,
-    verificationLogger: Debugger,
+    verificationLogger: Logger,
   ): Promise<void> {
-    verificationLogger(`Verifying implementation at ${input.address}`);
+    verificationLogger.debug(`Verifying implementation at ${input.address}`);
 
     const sourceName = this.contractSourceMap[input.name];
     if (!sourceName) {
       const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
-      verificationLogger(errorMessage);
+      verificationLogger.error(errorMessage);
       throw new Error(`[${chain}] ${errorMessage}`);
     }
 
@@ -267,7 +267,7 @@ export class ContractVerifier {
       chain,
       input.address,
     );
-    verificationLogger(`Successfully verified ${addressUrl}#code`);
+    verificationLogger.debug(`Successfully verified ${addressUrl}#code`);
   }
 
   async verifyContract(
@@ -275,34 +275,36 @@ export class ContractVerifier {
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    const verificationLogger = logger.extend(`${chain}:${input.name}`);
+    const verificationLogger = logger.child({ chain, name: input.name });
 
     const metadata = this.multiProvider.tryGetChainMetadata(chain);
     const rpcUrl = metadata?.rpcUrls[0].http ?? '';
     if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
-      verificationLogger('Skipping verification for local endpoints');
+      verificationLogger.debug('Skipping verification for local endpoints');
       return;
     }
 
     const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
     if (!explorerApi) {
-      verificationLogger('No explorer API set, skipping');
+      verificationLogger.debug('No explorer API set, skipping');
       return;
     }
 
     if (!explorerApi.family) {
-      verificationLogger(`No explorer family set, skipping`);
+      verificationLogger.debug(`No explorer family set, skipping`);
       return;
     }
 
     if (explorerApi.family === ExplorerFamily.Other) {
-      verificationLogger(`Unsupported explorer family, skipping`);
+      verificationLogger.debug(`Unsupported explorer family, skipping`);
       return;
     }
 
     if (input.address === ethers.constants.AddressZero) return;
     if (Array.isArray(input.constructorArguments)) {
-      verificationLogger('Constructor arguments in legacy format, skipping');
+      verificationLogger.debug(
+        'Constructor arguments in legacy format, skipping',
+      );
       return;
     }
 
@@ -311,7 +313,9 @@ export class ContractVerifier {
         chain,
         input.address,
       );
-      verificationLogger(`Contract already verified at ${addressUrl}#code`);
+      verificationLogger.debug(
+        `Contract already verified at ${addressUrl}#code`,
+      );
       await sleep(200); // There is a rate limit of 5 requests per second
       return;
     }

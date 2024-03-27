@@ -18,7 +18,7 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
-import { errorRed, log, logBlue, logGreen, logRed } from '../../logger.js';
+import { errorRed, log, logBlue, logGreen, logRed } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
