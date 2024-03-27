@@ -245,6 +245,14 @@ impl<T> RateLimitedContractSyncCursor<T> {
     }
 
     async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
+        self.tip = tip;
+        self.max_sequence = max_sequence;
+
+        self.sync_state.get_next_range(max_sequence, tip).await
+    }
+
+    fn sync_eta(&mut self) -> Result<Duration> {
         let sync_end = self.sync_end()?;
         let to = u32::min(sync_end, self.sync_position() + self.sync_step());
         let from = self.sync_position();
@@ -253,12 +261,7 @@ impl<T> RateLimitedContractSyncCursor<T> {
         } else {
             Duration::from_secs(0)
         };
-
-        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
-        self.tip = tip;
-        self.max_sequence = max_sequence;
-
-        self.sync_state.get_next_range(max_sequence, tip).await
+        Ok(eta)
     }
 }
 
@@ -268,8 +271,7 @@ where
     T: Send + Debug + 'static,
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
-        // TODO: Fix ETA calculation
-        let eta = Duration::from_secs(0);
+        let eta = self.sync_eta()?;
 
         let rate_limit = self.get_rate_limit().await?;
         if let Some(rate_limit) = rate_limit {
@@ -308,7 +310,10 @@ where
 pub(crate) mod test {
     use super::*;
     use hyperlane_core::{ChainResult, HyperlaneLogStore};
-    use mockall;
+    use mockall::{self, Sequence};
+
+    const CHUNK_SIZE: u32 = 10;
+    const INITIAL_HEIGHT: u32 = 0;
 
     mockall::mock! {
         pub Indexer {}
@@ -348,27 +353,75 @@ pub(crate) mod test {
         }
     }
 
-    async fn mock_rate_limited_cursor() -> RateLimitedContractSyncCursor<()> {
+    async fn mock_rate_limited_cursor(
+        custom_chain_tips: Option<Vec<u32>>,
+    ) -> RateLimitedContractSyncCursor<()> {
+        let mut seq = Sequence::new();
         let mut indexer = MockIndexer::new();
-        indexer
-            .expect_latest_sequence_count_and_tip()
-            .returning(|| Ok((None, 100)));
-        let db = Arc::new(MockDb::new());
-        let chunk_size = 10;
-        let initial_height = 0;
+        match custom_chain_tips {
+            Some(chain_tips) => {
+                for tip in chain_tips {
+                    indexer
+                        .expect_latest_sequence_count_and_tip()
+                        .times(1)
+                        .in_sequence(&mut seq)
+                        .returning(move || Ok((None, tip)));
+                }
+            }
+            None => {
+                indexer
+                    .expect_latest_sequence_count_and_tip()
+                    .returning(move || Ok((None, 100)));
+            }
+        }
+
+        let mut db = MockDb::new();
+        db.expect_store_high_watermark().returning(|_| Ok(()));
+        let chunk_size = CHUNK_SIZE;
+        let initial_height = INITIAL_HEIGHT;
         let mode = IndexMode::Block;
-        RateLimitedContractSyncCursor::new(Arc::new(indexer), db, chunk_size, initial_height, mode)
-            .await
-            .unwrap()
+        RateLimitedContractSyncCursor::new(
+            Arc::new(indexer),
+            Arc::new(db),
+            chunk_size,
+            initial_height,
+            mode,
+        )
+        .await
+        .unwrap()
     }
 
     #[tokio::test]
-    async fn test_rate_limited_cursor() {
-        let mut cursor = mock_rate_limited_cursor().await;
+    async fn test_next_action_retries_if_update_isnt_called() {
+        let mut cursor = mock_rate_limited_cursor(None).await;
+        let (action_1, _) = cursor.next_action().await.unwrap();
+        let (action_2, _) = cursor.next_action().await.unwrap();
+
+        // Calling next_action without updating the cursor should return the same action
+        assert!(matches!(action_1, action_2));
+    }
+
+    #[tokio::test]
+    async fn test_next_action_changes_if_update_is_called() {
+        let mut cursor = mock_rate_limited_cursor(None).await;
+        let (action_1, _) = cursor.next_action().await.unwrap();
+
+        let range = match action_1 {
+            CursorAction::Query(range) => range,
+            _ => panic!("Expected Query action"),
+        };
+        cursor.update(vec![], range.clone()).await.unwrap();
+
+        let (action_3, _) = cursor.next_action().await.unwrap();
+        let expected_range = range.end() + 1..=(range.end() + CHUNK_SIZE);
+        assert!(matches!(action_3, CursorAction::Query(expected_range)));
+    }
+
+    #[tokio::test]
+    async fn test_next_action_sleeps_if_tip_is_not_updated() {
+        let chain_tips = vec![10];
+        let mut cursor = mock_rate_limited_cursor(Some(chain_tips)).await;
         let (action, _) = cursor.next_action().await.unwrap();
-        println!("{:?}", action);
-        let (action, _) = cursor.next_action().await.unwrap();
-        println!("{:?}", action);
-        // assert!(matches!(action, CursorAction::Query(_)));
+        assert!(matches!(action, CursorAction::Sleep(_)));
     }
 }
