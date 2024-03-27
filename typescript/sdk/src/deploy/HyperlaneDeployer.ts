@@ -379,9 +379,10 @@ export abstract class HyperlaneDeployer<
     return contract;
   }
 
-  async deployContract<K extends keyof Factories>(
+  async deployContractWithName<K extends keyof Factories>(
     chain: ChainName,
-    contractName: K,
+    contractKey: K,
+    contractName: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<
       Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
@@ -390,14 +391,33 @@ export abstract class HyperlaneDeployer<
   ): Promise<HyperlaneContracts<Factories>[K]> {
     const contract = await this.deployContractFromFactory(
       chain,
-      this.factories[contractName],
-      contractName.toString(),
+      this.factories[contractKey],
+      contractName,
       constructorArgs,
       initializeArgs,
       shouldRecover,
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;
+  }
+
+  async deployContract<K extends keyof Factories>(
+    chain: ChainName,
+    contractKey: K,
+    constructorArgs: Parameters<Factories[K]['deploy']>,
+    initializeArgs?: Parameters<
+      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    >,
+    shouldRecover = true,
+  ): Promise<HyperlaneContracts<Factories>[K]> {
+    return this.deployContractWithName(
+      chain,
+      contractKey,
+      contractKey.toString(),
+      constructorArgs,
+      initializeArgs,
+      shouldRecover,
+    );
   }
 
   protected async changeAdmin(
