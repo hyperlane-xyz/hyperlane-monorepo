@@ -163,11 +163,14 @@ export abstract class HyperlaneAppGovernor<
     for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
         let submissionType = await this.inferCallSubmissionType(chain, call);
+
+        console.log('nativeSubmissionType: ', submissionType);
         if (!submissionType) {
           submissionType = await this.inferICAEncodedSubmissionType(
             chain,
             call,
           );
+          console.log('icaSubmissionType: ', submissionType);
         }
         call.submissionType = submissionType;
       }
@@ -185,6 +188,11 @@ export abstract class HyperlaneAppGovernor<
       const ownable = Ownable__factory.connect(ownableAddress, signer); // mailbox
       const account = Ownable__factory.connect(await ownable.owner(), signer);
       const localOwner = await account.owner();
+      console.log(
+        'inferICAEncodedSubmissionType: ',
+        localOwner,
+        this.interchainAccount.routerAddress(chain),
+      );
       if (eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
         const accountConfig = await this.interchainAccount.getAccountConfig(
           chain,
