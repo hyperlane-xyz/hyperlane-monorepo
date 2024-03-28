@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { providers } from 'ethers';
+import { constants, providers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -38,6 +38,7 @@ import {
 import {
   HypERC20Factories,
   HypERC721Factories,
+  HypERC721contracts,
   hypERC20contracts,
   hypERC20factories,
   hypERC721contracts,
@@ -60,17 +61,21 @@ export class HypERC20Deployer extends GasRouterDeployer<
     }); // factories not used in deploy
   }
 
-  routerContractName<K extends keyof HypERC20Factories>(
-    config: ERC20RouterConfig,
-  ): K {
+  routerContractName(config: ERC20RouterConfig): string {
+    return hypERC20contracts[this.routerContractKey(config)];
+  }
+
+  routerContractKey(config: ERC20RouterConfig) {
     if (isCollateralConfig(config)) {
-      return (
-        isFastConfig(config) ? TokenType.fastCollateral : TokenType.collateral
-      ) as K;
+      return isFastConfig(config)
+        ? TokenType.fastCollateral
+        : TokenType.collateral;
+    } else if (isNativeConfig(config)) {
+      return config.scale ? TokenType.nativeScaled : TokenType.native;
     } else if (isSyntheticConfig(config)) {
-      return (
-        isFastConfig(config) ? TokenType.fastSynthetic : TokenType.synthetic
-      ) as K;
+      return isFastConfig(config)
+        ? TokenType.fastSynthetic
+        : TokenType.synthetic;
     } else {
       throw new Error('Unknown collateral type when constructing router name');
     }
@@ -90,8 +95,8 @@ export class HypERC20Deployer extends GasRouterDeployer<
 
   async initializeArgs(_: ChainName, config: ERC20RouterConfig): Promise<any> {
     const defaultArgs = [
-      config.hook ?? ethers.constants.AddressZero,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.hook ?? constants.AddressZero,
+      config.interchainSecurityModule ?? constants.AddressZero,
       config.owner,
     ];
     if (isCollateralConfig(config)) {
@@ -170,7 +175,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       ...definedConfigMetadata,
     } as ERC20Metadata;
   }
-  
+
   router(contracts: HyperlaneContracts<HypERC20Factories>) {
     for (const key of objKeys(hypERC20factories)) {
       if (contracts[key]) {
@@ -181,7 +186,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   async deployContracts(chain: ChainName, config: HypERC20Config) {
-    const { [this.routerContractName(config)]: router } =
+    const { [this.routerContractKey(config)]: router } =
       await super.deployContracts(chain, config);
 
     await this.configureClient(chain, router as MailboxClient, config);
@@ -261,7 +266,11 @@ export class HypERC721Deployer extends GasRouterDeployer<
       contractVerifier,
     });
   }
-  routerContractName<K extends keyof HypERC721Factories>(
+  routerContractName(config: ERC721RouterConfig): string {
+    return hypERC721contracts[this.routerContractKey(config)];
+  }
+
+  routerContractKey<K extends keyof HypERC721contracts>(
     config: ERC721RouterConfig,
   ): K {
     if (isCollateralConfig(config)) {
@@ -291,8 +300,8 @@ export class HypERC721Deployer extends GasRouterDeployer<
 
   async initializeArgs(_: ChainName, config: ERC721RouterConfig): Promise<any> {
     const defaultArgs = [
-      config.hook ?? ethers.constants.AddressZero,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.hook ?? constants.AddressZero,
+      config.interchainSecurityModule ?? constants.AddressZero,
       config.owner,
     ];
     if (isCollateralConfig(config)) {
@@ -333,7 +342,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
         return 80_000;
     }
   }
-  
+
   router(contracts: HyperlaneContracts<HypERC721Factories>) {
     for (const key of objKeys(hypERC721factories)) {
       if (contracts[key]) {
@@ -344,7 +353,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
   }
 
   async deployContracts(chain: ChainName, config: HypERC721Config) {
-    const { [this.routerContractName(config)]: router } =
+    const { [this.routerContractKey(config)]: router } =
       await super.deployContracts(chain, config);
 
     await this.configureClient(chain, router as MailboxClient, config);

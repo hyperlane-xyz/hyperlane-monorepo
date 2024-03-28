@@ -25,6 +25,8 @@ export const hypERC20contracts = {
   [TokenType.native]: 'HypNative',
   [TokenType.nativeScaled]: 'HypNativeScaled',
 };
+export type HypERC20contracts = typeof hypERC20contracts;
+
 export const hypERC20factories = {
   [TokenType.fastCollateral]: new FastHypERC20Collateral__factory(),
   [TokenType.fastSynthetic]: new FastHypERC20__factory(),
@@ -43,6 +45,9 @@ export const hypERC721contracts = {
   [TokenType.syntheticUri]: 'HypERC721URIStorage',
   [TokenType.synthetic]: 'HypERC721',
 };
+
+export type HypERC721contracts = typeof hypERC721contracts;
+
 export const hypERC721factories = {
   [TokenType.collateralUri]: new HypERC721URICollateral__factory(),
   [TokenType.collateral]: new HypERC721Collateral__factory(),

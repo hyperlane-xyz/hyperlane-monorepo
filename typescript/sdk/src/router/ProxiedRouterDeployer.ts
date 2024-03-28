@@ -23,9 +23,13 @@ export abstract class ProxiedRouterDeployer<
    * Returns the contract name
    * @param config Router config
    */
-  abstract routerContractName<RouterKey extends keyof Factories>(
-    config: Config,
-  ): RouterKey;
+  abstract routerContractName(config: Config): string;
+
+  /**
+   * Returns the contract key
+   * @param config Router config
+   */
+  abstract routerContractKey(config: Config): keyof Factories;
 
   /**
    * Returns the constructor arguments for the proxy
@@ -92,6 +96,7 @@ export abstract class ProxiedRouterDeployer<
 
     const proxiedRouter = await this.deployProxiedContract(
       chain,
+      this.routerContractKey(config),
       this.routerContractName(config),
       proxyAdmin.address,
       await this.constructorArgs(chain, config),
@@ -99,7 +104,7 @@ export abstract class ProxiedRouterDeployer<
     );
 
     return {
-      [this.routerContractName(config)]: proxiedRouter,
+      [this.routerContractKey(config)]: proxiedRouter,
       proxyAdmin,
       timelockController,
     } as HyperlaneContracts<Factories>;

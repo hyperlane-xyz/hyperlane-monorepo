@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 
 import { Router } from '@hyperlane-xyz/core';
-import { objKeys } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../../contracts/types';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
@@ -29,10 +28,11 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
       contractVerifier,
     });
   }
+  routerContractName(): string {
+    return 'InterchainAccountRouter';
+  }
 
-  routerContractName<K extends keyof InterchainAccountFactories>(
-    _: RouterConfig,
-  ): K {
+  routerContractKey<K extends keyof InterchainAccountFactories>(): K {
     return 'interchainAccountRouter' as K;
   }
 

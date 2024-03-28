@@ -64,8 +64,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       contractVerifier,
     });
   }
+  routerContractName(): string {
+    return 'LiquidityLayerRouter';
+  }
 
-  routerContractName<K extends keyof LiquidityLayerFactories>(
+  routerContractKey<K extends keyof LiquidityLayerFactories>(
     _: RouterConfig,
   ): K {
     return 'liquidityLayerRouter' as K;
