@@ -40,8 +40,11 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     return contracts.interchainAccountRouter;
   }
 
-  async constructorArgs(_: string, config: RouterConfig): Promise<any> {
-    return [config.mailbox];
+  async constructorArgs<K extends keyof InterchainAccountFactories>(
+    _: string,
+    config: RouterConfig,
+  ): Promise<Parameters<InterchainAccountFactories[K]['deploy']>> {
+    return [config.mailbox] as any;
   }
 
   async initializeArgs(chain: string, config: RouterConfig): Promise<any> {

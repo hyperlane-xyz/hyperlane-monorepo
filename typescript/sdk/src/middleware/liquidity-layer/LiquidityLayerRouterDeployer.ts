@@ -78,8 +78,11 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     return contracts.liquidityLayerRouter;
   }
 
-  async constructorArgs(_: string, config: LiquidityLayerConfig): Promise<any> {
-    return [config.mailbox];
+  async constructorArgs<K extends keyof LiquidityLayerFactories>(
+    _: string,
+    config: LiquidityLayerConfig,
+  ): Promise<Parameters<LiquidityLayerFactories[K]['deploy']>> {
+    return [config.mailbox] as any;
   }
 
   async initializeArgs(

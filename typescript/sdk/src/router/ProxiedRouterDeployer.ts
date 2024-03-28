@@ -46,13 +46,14 @@ export abstract class ProxiedRouterDeployer<
    * @param chain Name of chain
    * @param config Router config
    */
-  abstract initializeArgs<RouterKey extends keyof Factories>(
+  abstract initializeArgs<
+    Omitted extends Omit<Factories, 'proxiedAdmin' | 'timelockController'>,
+    RouterKey extends keyof Omitted,
+  >(
     chain: ChainName,
     config: Config,
   ): Promise<
-    Parameters<
-      Awaited<ReturnType<Factories[RouterKey]['deploy']>>['initialize']
-    >
+    Parameters<Awaited<ReturnType<Omitted[RouterKey]['deploy']>>['initialize']>
   >;
 
   async deployContracts(

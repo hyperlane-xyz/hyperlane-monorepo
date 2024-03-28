@@ -113,11 +113,16 @@ export class HypERC20Deployer extends GasRouterDeployer<
       config.owner,
     ];
     if (isCollateralConfig(config)) {
-      return defaultArgs;
+      return defaultArgs as any;
     } else if (isNativeConfig(config)) {
-      return defaultArgs;
+      return defaultArgs as any;
     } else if (isSyntheticConfig(config)) {
-      return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+      return [
+        config.totalSupply,
+        config.name,
+        config.symbol,
+        ...defaultArgs,
+      ] as any;
     } else {
       throw new Error('Unknown collateral type when initializing arguments');
     }
