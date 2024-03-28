@@ -1,6 +1,20 @@
 // A set of common options
 import { Options } from 'yargs';
 
+import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
+
+export const logFormatCommandOption: Options = {
+  type: 'string',
+  description: 'Log output format',
+  choices: Object.values(LogFormat),
+};
+
+export const logLevelCommandOption: Options = {
+  type: 'string',
+  description: 'Log verbosity level',
+  choices: Object.values(LogLevel),
+};
+
 export const keyCommandOption: Options = {
   type: 'string',
   description:

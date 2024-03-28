@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 env:
-  DEBUG: 'hyperlane:*'
+  LOG_LEVEL: DEBUG
+  LOG_FORMAT: PRETTY
 
 jobs:
   # copied from test.yml
@@ -91,7 +92,7 @@ jobs:
             key: ${{ github.sha }}
 
         - name: Metadata Health Check
-          run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
+          run: yarn workspace @hyperlane-xyz/sdk run test:metadata
 
         - name: Post to discord webhook if metadata check fails
           if: failure()

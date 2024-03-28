@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export LOG_LEVEL=DEBUG
+
 # set script location as repo root
 cd "$(dirname "$0")/../.."
 
@@ -86,8 +88,6 @@ fi
 set -e
 
 echo "{}" > /tmp/empty-artifacts.json
-
-export LOG_LEVEL=DEBUG
 
 DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]')
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})

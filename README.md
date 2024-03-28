@@ -64,6 +64,16 @@ This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). I
 
 If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
 
+### Logging
+
+The typescript tooling uses [Pino](https://github.com/pinojs/pino) based logging, which outputs structured JSON logs by default.
+The verbosity level and style can be configured with environment variables:
+
+```sh
+LOG_LEVEL=DEBUG|INFO|WARN|ERROR|OFF
+LOG_FORMAT=PRETTY|JSON
+```
+
 ### Rust
 
 See [`rust/README.md`](rust/README.md)

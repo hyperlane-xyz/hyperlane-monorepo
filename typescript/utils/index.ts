@@ -73,9 +73,19 @@ export {
   isS3CheckpointWithId,
 } from './src/checkpoints';
 export { domainHash } from './src/domains';
-export { envVarToBoolean, safelyAccessEnvVar } from './src/env';
+export { safelyAccessEnvVar } from './src/env';
 export { canonizeId, evmId } from './src/ids';
-export { isLogPretty, rootLogger } from './src/logging';
+export {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  createHyperlanePinoLogger,
+  getLogFormat,
+  getLogLevel,
+  getRootLogger,
+  rootLogger,
+  setRootLogger,
+} from './src/logging';
 export { mean, median, stdDev, sum } from './src/math';
 export { formatMessage, messageId, parseMessage } from './src/messages';
 export {
