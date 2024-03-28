@@ -28,9 +28,11 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     });
   }
 
-  routerContractName<K extends keyof InterchainQueryFactories>(
-    _: RouterConfig,
-  ): K {
+  routerContractName(): string {
+    return 'InterchainQueryRouter';
+  }
+
+  routerContractKey<K extends keyof InterchainQueryFactories>(): K {
     return 'interchainQueryRouter' as K;
   }
 
