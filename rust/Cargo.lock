@@ -2285,7 +2285,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -2299,7 +2299,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -2310,7 +2310,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -2328,7 +2328,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -2352,7 +2352,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -2366,7 +2366,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -2396,7 +2396,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.10",
@@ -2412,7 +2412,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -2458,7 +2458,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "async-trait",
  "auto_impl 1.1.0",
@@ -2494,7 +2494,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-06-01#6c26645cc1707a3d9c987a603a513fb38a5edb3f"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-11-29-02#c9ced035628da59376c369be035facda1648577a"
 dependencies = [
  "async-trait",
  "coins-bip32",
@@ -3756,6 +3756,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.4",
+ "bincode",
  "borsh 0.9.3",
  "derive-new",
  "hyperlane-core",
@@ -3768,13 +3769,16 @@ dependencies = [
  "jsonrpc-core",
  "multisig-ism",
  "num-traits",
+ "reqwest",
  "serde",
+ "serde_json",
  "serializable-account-meta",
  "solana-account-decoder",
  "solana-client",
  "solana-sdk",
  "solana-transaction-status",
  "thiserror",
+ "tokio",
  "tracing",
  "tracing-futures",
  "url",

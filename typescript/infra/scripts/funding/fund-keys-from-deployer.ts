@@ -1,22 +1,29 @@
 import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
   AgentConnectionType,
-  AllChains,
   ChainMap,
   ChainName,
   Chains,
   HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { error, log, warn } from '@hyperlane-xyz/utils';
+import {
+  error,
+  log,
+  objFilter,
+  objMap,
+  promiseObjAll,
+  warn,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
-import { parseKeyIdentifier } from '../../src/agents/agent';
-import { getAllCloudAgentKeys } from '../../src/agents/key-utils';
+import { getSecretRpcEndpoint } from '../../src/agents';
+import { KeyAsAddress, getRoleKeysPerChain } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
   ReadOnlyCloudAgentKey,
@@ -24,11 +31,12 @@ import {
 import { DeployEnvironment } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
-import { AgentRole, Role } from '../../src/roles';
+import { Role } from '../../src/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
   assertRole,
+  isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils';
 import { getAgentConfig, getArgs, getEnvironmentConfig } from '../utils';
@@ -217,9 +225,9 @@ async function main() {
       ContextFunder.fromSerializedAddressFile(
         environment,
         multiProvider,
-        path,
         argv.contextsAndRoles,
         argv.skipIgpClaim,
+        path,
       ),
     );
   } else {
@@ -254,78 +262,115 @@ async function main() {
 class ContextFunder {
   igp: HyperlaneIgp;
 
+  keysToFundPerChain: ChainMap<BaseCloudAgentKey[]>;
+
   constructor(
     public readonly environment: DeployEnvironment,
     public readonly multiProvider: MultiProvider,
-    public readonly keys: BaseCloudAgentKey[],
+    roleKeysPerChain: ChainMap<Record<Role, BaseCloudAgentKey[]>>,
     public readonly context: Contexts,
     public readonly rolesToFund: Role[],
     public readonly skipIgpClaim: boolean,
   ) {
+    // At the moment, only blessed EVM chains are supported
+    roleKeysPerChain = objFilter(
+      roleKeysPerChain,
+      (chain, _roleKeys): _roleKeys is Record<Role, BaseCloudAgentKey[]> => {
+        const valid =
+          isEthereumProtocolChain(chain) &&
+          multiProvider.tryGetChainName(chain) !== null;
+        if (!valid) {
+          warn('Skipping funding for non-blessed or non-Ethereum chain', {
+            chain,
+          });
+        }
+        return valid;
+      },
+    );
     this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
     );
+    this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
+      return Object.keys(roleKeys).reduce((agg, roleStr) => {
+        const role = roleStr as Role;
+        if (this.rolesToFund.includes(role)) {
+          return [...agg, ...roleKeys[role]];
+        }
+        return agg;
+      }, [] as BaseCloudAgentKey[]);
+    });
   }
 
   static fromSerializedAddressFile(
     environment: DeployEnvironment,
     multiProvider: MultiProvider,
-    path: string,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
+    filePath: string,
   ) {
     log('Reading identifiers and addresses from file', {
-      path,
+      filePath,
     });
-    const idsAndAddresses = readJSONAtPath(path);
-    const keys: BaseCloudAgentKey[] = idsAndAddresses
-      .filter((idAndAddress: any) => {
-        const parsed = parseKeyIdentifier(idAndAddress.identifier);
-        // Filter out any invalid chain names. This can happen if we're running an old
-        // version of this script but the list of identifiers (expected to be stored in GCP secrets)
-        // references newer chains.
-        return (
-          parsed.chainName === undefined ||
-          (AllChains as string[]).includes(parsed.chainName)
-        );
-      })
-      .map((idAndAddress: any) =>
-        ReadOnlyCloudAgentKey.fromSerializedAddress(
-          idAndAddress.identifier,
-          idAndAddress.address,
-        ),
-      );
-
-    const context = keys[0].context;
-    // Ensure all keys have the same context, just to be safe
-    for (const key of keys) {
-      if (key.context !== context) {
-        throw Error(
-          `Expected all keys at path ${path} to have context ${context}, found ${key.context}`,
-        );
-      }
+    // A big array of KeyAsAddress, including keys that we may not care about.
+    const allIdsAndAddresses: KeyAsAddress[] = readJSONAtPath(filePath);
+    if (!allIdsAndAddresses.length) {
+      throw Error(`Expected at least one key in file ${filePath}`);
     }
 
-    const rolesToFund = contextsAndRolesToFund[context];
-    if (!rolesToFund) {
-      throw Error(
-        `Expected context ${context} to be defined in contextsAndRolesToFund`,
-      );
-    }
+    // Arbitrarily pick the first key to get the context
+    const firstKey = allIdsAndAddresses[0];
+    const context = ReadOnlyCloudAgentKey.fromSerializedAddress(
+      firstKey.identifier,
+      firstKey.address,
+    ).context;
 
-    log('Read keys for context from file', {
-      path,
-      keyCount: keys.length,
+    // Indexed by the identifier for quicker lookup
+    const idsAndAddresses: Record<string, KeyAsAddress> =
+      allIdsAndAddresses.reduce((agg, idAndAddress) => {
+        agg[idAndAddress.identifier] = idAndAddress;
+        return agg;
+      }, {} as Record<string, KeyAsAddress>);
+
+    const agentConfig = getAgentConfig(context, environment);
+    // Unfetched keys per chain and role, so we know which keys
+    // we need. We'll use this to create a corresponding object
+    // of ReadOnlyCloudAgentKeys using addresses found in the
+    // serialized address file.
+    const roleKeysPerChain = getRoleKeysPerChain(agentConfig);
+
+    const readOnlyKeysPerChain = objMap(
+      roleKeysPerChain,
+      (_chain, roleKeys) => {
+        return objMap(roleKeys, (_role, keys) => {
+          return keys.map((key) => {
+            const idAndAddress = idsAndAddresses[key.identifier];
+            if (!idAndAddress) {
+              throw Error(
+                `Expected key identifier ${key.identifier} to be in file ${filePath}`,
+              );
+            }
+            return ReadOnlyCloudAgentKey.fromSerializedAddress(
+              idAndAddress.identifier,
+              idAndAddress.address,
+            );
+          });
+        });
+      },
+    );
+
+    log('Successfully read keys for context from file', {
+      filePath,
+      readOnlyKeysPerChain,
       context,
     });
 
     return new ContextFunder(
       environment,
       multiProvider,
-      keys,
+      readOnlyKeysPerChain,
       context,
-      rolesToFund,
+      contextsAndRolesToFund[context]!,
       skipIgpClaim,
     );
   }
@@ -341,12 +386,22 @@ class ContextFunder {
     skipIgpClaim: boolean,
   ) {
     const agentConfig = getAgentConfig(context, environment);
-    const keys = getAllCloudAgentKeys(agentConfig);
-    await Promise.all(keys.map((key) => key.fetch()));
+    const roleKeysPerChain = getRoleKeysPerChain(agentConfig);
+    // Fetch all the keys
+    await promiseObjAll(
+      objMap(roleKeysPerChain, (_chain, roleKeys) => {
+        return promiseObjAll(
+          objMap(roleKeys, (_role, keys) => {
+            return Promise.all(keys.map((key) => key.fetch()));
+          }),
+        );
+      }),
+    );
+
     return new ContextFunder(
       environment,
       multiProvider,
-      keys,
+      roleKeysPerChain,
       context,
       rolesToFund,
       skipIgpClaim,
@@ -356,10 +411,9 @@ class ContextFunder {
   // Funds all the roles in this.rolesToFund
   // Returns whether a failure occurred.
   async fund(): Promise<boolean> {
-    let failureOccurred = false;
-
-    const chainKeys = this.getChainKeys();
-    const promises = Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const chainKeyEntries = Object.entries(this.keysToFundPerChain);
+    const promises = chainKeyEntries.map(async ([chain, keys]) => {
+      let failureOccurred = false;
       if (keys.length > 0) {
         if (!this.skipIgpClaim) {
           failureOccurred ||= await gracefullyHandleError(
@@ -379,36 +433,35 @@ class ContextFunder {
         const failure = await this.attemptToFundKey(key, chain);
         failureOccurred ||= failure;
       }
+
+      if (
+        this.environment === 'mainnet2' &&
+        this.context === Contexts.Hyperlane
+      ) {
+        this.updateSolanaWalletBalanceGauge();
+      }
+
+      return failureOccurred;
     });
 
-    try {
-      await Promise.all(promises);
-    } catch (e) {
-      error('Unhandled error when funding key', { error: format(e) });
-      failureOccurred = true;
-    }
+    // A failure occurred if any of the promises rejected or
+    // if any of them resolved with true, indicating a failure
+    // somewhere along the way
+    const failureOccurred = (await Promise.allSettled(promises)).reduce(
+      (failureAgg, result, i) => {
+        if (result.status === 'rejected') {
+          error('Funding promise for chain rejected', {
+            chain: chainKeyEntries[i][0],
+            error: format(result.reason),
+          });
+          return true;
+        }
+        return result.value || failureAgg;
+      },
+      false,
+    );
 
     return failureOccurred;
-  }
-
-  private getChainKeys() {
-    const chainKeys: ChainMap<BaseCloudAgentKey[]> = Object.fromEntries(
-      // init with empty arrays
-      AllChains.map((c) => [c, []]),
-    );
-    for (const role of this.rolesToFund) {
-      const keys = this.getKeysWithRole(role);
-      for (const key of keys) {
-        const chains = getAgentConfig(
-          key.context,
-          key.environment,
-        ).contextChainNames;
-        for (const chain of chains[role as AgentRole]) {
-          chainKeys[chain].push(key);
-        }
-      }
-    }
-    return chainKeys;
   }
 
   private async attemptToFundKey(
@@ -667,8 +720,52 @@ class ContextFunder {
       );
   }
 
-  private getKeysWithRole(role: Role) {
-    return this.keys.filter((k) => k.role === role);
+  private async updateSolanaWalletBalanceGauge() {
+    const chain = 'solana';
+
+    const solanaRpcUrls = await getSecretRpcEndpoint(
+      this.environment,
+      chain,
+      false,
+    );
+    const solanaProvider = new Connection(solanaRpcUrls[0], 'confirmed');
+    const accounts = [
+      {
+        // The Solana relayer
+        pubkey: new PublicKey('CLT7m1JBCqJx6FM3obi9ohTnML1zmdzFcX2SgWj1D8qV'),
+        walletName: 'relayer',
+      },
+      {
+        // The account used to pay for state rent used by new ZBC balances
+        pubkey: new PublicKey('DRoxXLkV2sAsZb7bPbCJQnucTxvQCcfzfmThC3ZVNorv'),
+        walletName: 'nautilus-zbc-rent',
+      },
+    ];
+
+    for (const { pubkey, walletName } of accounts) {
+      log('Fetching Solana wallet balance', {
+        chain,
+        pubkey: pubkey.toString(),
+        walletName,
+      });
+      const balance = await solanaProvider.getBalance(pubkey);
+      log('Got Solana wallet balance', {
+        balance,
+        chain,
+        pubkey: pubkey.toString(),
+        walletName,
+      });
+      walletBalanceGauge
+        .labels({
+          chain,
+          wallet_address: pubkey.toString(),
+          wallet_name: walletName,
+          token_symbol: 'Native',
+          token_name: 'Native',
+          ...constMetricLabels,
+        })
+        .set(balance / 1e9);
+    }
   }
 }
 

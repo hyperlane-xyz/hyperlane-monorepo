@@ -1,7 +1,7 @@
 name: Build and Push Agent Image to GCR
 on:
   push:
-    branches: [main]
+    branches: [v2]
     tags:
       - '**'
   pull_request:

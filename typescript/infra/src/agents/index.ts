@@ -26,7 +26,7 @@ import {
   buildHelmChartDependencies,
   helmifyValues,
 } from '../utils/helm';
-import { execCmd } from '../utils/utils';
+import { execCmd, isEthereumProtocolChain } from '../utils/utils';
 
 import { AgentGCPKey } from './gcp';
 
@@ -127,7 +127,8 @@ export abstract class AgentHelmManager {
   }
 
   connectionType(chain: ChainName): AgentConnectionType {
-    if (chainMetadata[chain].protocol == ProtocolType.Sealevel) {
+    // Non-Ethereum chains only support Http
+    if (!isEthereumProtocolChain(chain)) {
       return AgentConnectionType.Http;
     }
 
@@ -191,11 +192,19 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
+    // Only use the liveness probe for the mainnet2 Hyperlane context
+    // and if solana is a relayer chain.
+    let livenessProbe =
+      this.context === Contexts.Hyperlane &&
+      this.environment === 'mainnet2' &&
+      this.config.contextChainNames.relayer.includes('solana');
+
     const values = await super.helmValues();
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
       config: await this.config.buildConfig(),
+      livenessProbe,
     };
 
     const signers = await this.config.signers();

@@ -1,5 +1,6 @@
 import {
   AccountMeta,
+  ComputeBudgetProgram,
   Keypair,
   PublicKey,
   SystemProgram,
@@ -25,6 +26,14 @@ import {
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { IHelloWorldAdapter } from './types';
+
+// The compute limit to set for the send hello world instruction.
+// This is typically around ~160k, but can be higher depending on
+// the index in the merkle tree, which can result in more moderately
+// more expensive merkle tree insertion.
+// Because a higher compute limit doesn't increase the fee for a transaction,
+// we generously request 1M units.
+const SEND_HELLO_WORLD_COMPUTE_LIMIT = 1_000_000;
 
 export class SealevelHelloWorldAdapter
   extends SealevelRouterAdapter
@@ -80,6 +89,12 @@ export class SealevelHelloWorldAdapter
       data: Buffer.from(serializedData),
     });
 
+    const setComputeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit(
+      {
+        units: SEND_HELLO_WORLD_COMPUTE_LIMIT,
+      },
+    );
+
     const connection = this.getProvider();
     const recentBlockhash = (await connection.getLatestBlockhash('finalized'))
       .blockhash;
@@ -88,7 +103,9 @@ export class SealevelHelloWorldAdapter
       feePayer: senderPubKey,
       blockhash: recentBlockhash,
       recentBlockhash,
-    }).add(txInstruction);
+    })
+      .add(setComputeLimitInstruction)
+      .add(txInstruction);
     transaction.partialSign(randomWallet);
 
     return { type: ProviderType.SolanaWeb3, transaction };

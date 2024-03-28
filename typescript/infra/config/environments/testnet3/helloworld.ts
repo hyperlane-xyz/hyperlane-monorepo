@@ -13,7 +13,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '01dcf5d-20231010-145824',
+      tag: '4591df7-20231207-132521',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -33,7 +33,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '01dcf5d-20231010-145824',
+      tag: '4591df7-20231207-132521',
     },
     chainsToSkip: [],
     runEnv: environment,

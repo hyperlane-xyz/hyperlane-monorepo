@@ -77,7 +77,7 @@ function getHelloworldKathyHelmValues(
       // the list of chains that kathy will send to. Because Kathy
       // will fetch secrets for all chains, regardless of skipping them or
       // not, we pass in all chains
-      chains: agentConfig.contextChainNames,
+      chains: agentConfig.environmentChainNames,
       aws: agentConfig.aws !== undefined,
 
       chainsToSkip: kathyConfig.chainsToSkip,
