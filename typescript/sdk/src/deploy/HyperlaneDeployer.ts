@@ -55,6 +55,7 @@ export interface DeployerOptions {
   logger?: Debugger;
   chainTimeoutMs?: number;
   ismFactory?: HyperlaneIsmFactory;
+  icaApp?: InterchainAccount;
   contractVerifier?: ContractVerifier;
 }
 
@@ -75,10 +76,17 @@ export abstract class HyperlaneDeployer<
     protected readonly factories: Factories,
     protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
+    protected readonly icaAddresses = {},
   ) {
     this.logger = options?.logger ?? debug('hyperlane:deployer');
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
     this.options.ismFactory?.setDeployer(this);
+    if (Object.keys(icaAddresses).length > 0) {
+      this.options.icaApp = InterchainAccount.fromAddressesMap(
+        icaAddresses,
+        multiProvider,
+      );
+    }
 
     // if none provided, instantiate a default verifier with SDK's included build artifact
     this.options.contractVerifier ??= new ContractVerifier(
@@ -690,7 +698,7 @@ export abstract class HyperlaneDeployer<
     if (typeof owner === 'string') {
       return owner;
     } else {
-      const routerAddress = this.cachedAddresses[chain].interchainAccountRouter;
+      const routerAddress = this.options.icaApp?.routerAddress(chain);
       if (!routerAddress) {
         throw new Error('InterchainAccountRouter not deployed');
       }

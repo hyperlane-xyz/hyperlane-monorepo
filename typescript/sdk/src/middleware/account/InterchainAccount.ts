@@ -93,19 +93,18 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       bytes32ToAddress(await localRouter.routers(originDomain));
     const ismAddress =
       ismOverride ?? bytes32ToAddress(await localRouter.isms(originDomain));
-    await this.multiProvider.handleTx(
-      chain,
-      localRouter[
-        'getDeployedInterchainAccount(uint32,address,address,address)'
-      ](originDomain, config.owner, routerAddress, ismAddress),
-    );
     const account = await localRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
     ](originDomain, config.owner, routerAddress, ismAddress);
     if (
       (await this.multiProvider.getProvider(chain).getCode(account)) === '0x'
     ) {
-      throw new Error('Interchain account deployment failed');
+      await this.multiProvider.handleTx(
+        chain,
+        localRouter[
+          'getDeployedInterchainAccount(uint32,address,address,address)'
+        ](originDomain, config.owner, routerAddress, ismAddress),
+      );
     }
     return account;
   }
