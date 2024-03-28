@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sdk
 
+## 3.10.0
+
+### Minor Changes
+
+- 4e7a43be6: Replace Debug logger with Pino
+
+### Patch Changes
+
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/utils@3.10.0
+  - @hyperlane-xyz/core@3.10.0
+
 ## 3.9.0
 
 ### Minor Changes
