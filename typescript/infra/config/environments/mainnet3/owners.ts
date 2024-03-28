@@ -4,7 +4,7 @@ import {
   OwnableConfig,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { ethereumChainNames } from './chains';
 
@@ -15,10 +15,14 @@ export const timelocks: ChainMap<Address | undefined> = {
 export function localAccountRouters(): ChainMap<Address> {
   const coreAddresses: ChainMap<AddressesMap> =
     hyperlaneEnvironments['mainnet'];
-  return Object.fromEntries(
-    Object.keys(coreAddresses)
-      .filter((local) => coreAddresses[local].interchainAccountRouter)
-      .map((local) => [local, coreAddresses[local].interchainAccountRouter]),
+  const filteredAddresses = objFilter(
+    coreAddresses,
+    (local, addressMap): addressMap is AddressesMap =>
+      addressMap.interchainAccountRouter !== undefined,
+  );
+  return objMap(
+    filteredAddresses,
+    (local, addressMap) => addressMap.interchainAccountRouter,
   );
 }
 

@@ -84,8 +84,11 @@ describe('InterchainAccounts', async () => {
     const quote = await local.quoteGasPayment(
       multiProvider.getDomainId(remoteChain),
     );
-    await app.callRemote(localChain, remoteChain, [call], quote);
+    const balanceBefore = await signer.getBalance();
+    await app.callRemote(localChain, remoteChain, [call]);
+    const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
+    expect(balanceAfter).to.lte(balanceBefore.sub(quote));
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
   });
