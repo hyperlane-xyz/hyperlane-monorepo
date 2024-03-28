@@ -3,10 +3,9 @@ import { CommandModule } from 'yargs';
 import {
   Chains,
   CoreChainName,
-  Mainnets,
-  Testnets,
   chainMetadata,
   hyperlaneContractAddresses,
+  hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 
 import { log, logBlue, logGray, logTable } from '../logger.js';
@@ -58,12 +57,12 @@ const listCommand: CommandModule = {
     const logMainnet = () => {
       logBlue('\nHyperlane core mainnet chains:');
       logGray('------------------------------');
-      logTable(serializer(Mainnets));
+      logTable(serializer(Object.keys(hyperlaneEnvironments.mainnet)));
     };
     const logTestnet = () => {
       logBlue('\nHyperlane core testnet chains:');
       logGray('------------------------------');
-      logTable(serializer(Testnets));
+      logTable(serializer(Object.keys(hyperlaneEnvironments.testnet)));
     };
 
     if (mainnet) return logMainnet();
