@@ -28,6 +28,7 @@ import {
   TokenMetadata,
   TokenType,
   isCollateralConfig,
+  isCollateralVaultConfig,
   isErc20Metadata,
   isFastConfig,
   isNativeConfig,
@@ -67,9 +68,13 @@ export class HypERC20Deployer extends GasRouterDeployer<
 
   routerContractKey(config: ERC20RouterConfig) {
     if (isCollateralConfig(config)) {
-      return isFastConfig(config)
-        ? TokenType.fastCollateral
-        : TokenType.collateral;
+      if (isFastConfig(config)) {
+        return TokenType.fastCollateral;
+      } else if (isCollateralVaultConfig(config)) {
+        return TokenType.collateralVault;
+      } else {
+        return TokenType.collateral;
+      }
     } else if (isNativeConfig(config)) {
       return config.scale ? TokenType.nativeScaled : TokenType.native;
     } else if (isSyntheticConfig(config)) {
@@ -81,19 +86,27 @@ export class HypERC20Deployer extends GasRouterDeployer<
     }
   }
 
-  async constructorArgs(_: ChainName, config: ERC20RouterConfig): Promise<any> {
+  async constructorArgs<K extends keyof HypERC20Factories>(
+    _: ChainName,
+    config: ERC20RouterConfig,
+  ): Promise<Parameters<HypERC20Factories[K]['deploy']>> {
     if (isCollateralConfig(config)) {
-      return [config.token, config.mailbox];
+      return [config.token, config.mailbox] as any;
     } else if (isNativeConfig(config)) {
-      return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
+      return config.scale
+        ? [config.scale, config.mailbox]
+        : ([config.mailbox] as any);
     } else if (isSyntheticConfig(config)) {
-      return [config.decimals, config.mailbox];
+      return [config.decimals, config.mailbox] as any;
     } else {
       throw new Error('Unknown collateral type when constructing arguments');
     }
   }
 
-  async initializeArgs(_: ChainName, config: ERC20RouterConfig): Promise<any> {
+  async initializeArgs(_: ChainName, config: HypERC20Config): Promise<any> {
+    if (typeof config.interchainSecurityModule !== 'string') {
+      throw new Error('Token deployer does not support ISM objects currently');
+    }
     const defaultArgs = [
       config.hook ?? constants.AddressZero,
       config.interchainSecurityModule ?? constants.AddressZero,
