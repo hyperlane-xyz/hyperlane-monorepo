@@ -1,4 +1,4 @@
-import { BytesLike, PopulatedTransaction } from 'ethers';
+import { BytesLike } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
@@ -117,7 +117,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     routerOverride?: Address,
     ismOverride?: Address,
     hookMetadata?: BytesLike,
-  ): Promise<PopulatedTransaction> {
+  ): Promise<CallData> {
     const localRouter = this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter.quoteGasPayment(remoteDomain);
