@@ -90,8 +90,9 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {
     const entries: Array<[ChainName, ChainMap<StatCounts>]> = await Promise.all(
       this.chains().map(async (source) => {
+        const remoteChains = await this.remoteChains(source);
         const destinationEntries = await Promise.all(
-          this.remoteChains(source).map(async (destination) => [
+          remoteChains.map(async (destination) => [
             destination,
             await this.channelStats(source, destination),
           ]),

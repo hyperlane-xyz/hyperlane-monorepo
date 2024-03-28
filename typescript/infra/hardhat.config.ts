@@ -119,7 +119,7 @@ task('kathy', 'Dispatches random hyperlane messages')
         // Round robin origin chain
         const local = core.chains()[messages % core.chains().length];
         // Random remote chain
-        const remote: ChainName = randomElement(core.remoteChains(local));
+        const remote: ChainName = randomElement(await core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const contracts = core.getContracts(local);
         const mailbox = contracts.mailbox;

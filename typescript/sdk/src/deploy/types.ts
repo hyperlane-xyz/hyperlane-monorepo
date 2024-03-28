@@ -53,6 +53,7 @@ export enum ViolationType {
   ProxyAdmin = 'ProxyAdmin',
   TimelockController = 'TimelockController',
   AccessControl = 'AccessControl',
+  TokenMismatch = 'TokenMismatch',
 }
 
 export interface OwnerViolation extends CheckerViolation {
@@ -91,4 +92,8 @@ export interface NotDeployedViolation extends CheckerViolation {
 export interface BytecodeMismatchViolation extends CheckerViolation {
   type: ViolationType.BytecodeMismatch;
   name: string;
+}
+
+export interface TokenMismatchViolation extends CheckerViolation {
+  tokenAddress: Address;
 }

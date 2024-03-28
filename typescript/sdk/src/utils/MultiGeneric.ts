@@ -54,7 +54,7 @@ export class MultiGeneric<Value> {
     return Object.fromEntries(entries);
   }
 
-  remoteChains(name: ChainName): ChainName[] {
+  async remoteChains(name: ChainName): Promise<ChainName[]> {
     return this.chains().filter((key) => key !== name);
   }
 
