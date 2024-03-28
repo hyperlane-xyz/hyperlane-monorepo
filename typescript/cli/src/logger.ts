@@ -1,9 +1,24 @@
 import chalk, { ChalkInstance } from 'chalk';
 import { pino } from 'pino';
 
-import { isLogPretty, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  getLogFormat,
+  rootLogger,
+  safelyAccessEnvVar,
+} from '@hyperlane-xyz/utils';
 
-export const logger = rootLogger.child({ module: 'cli' });
+let logger = rootLogger.child({ module: 'cli' });
+
+export function configureLogger(logFormat: LogFormat, logLevel: LogLevel) {
+  logFormat =
+    logFormat || safelyAccessEnvVar('LOG_FORMAT', true) || LogFormat.Pretty;
+  logLevel = logLevel || safelyAccessEnvVar('LOG_LEVEL', true) || LogLevel.Info;
+  logger = configureRootLogger(logFormat, logLevel).child({ module: 'cli' });
+}
+
 export const log = (msg: string, ...args: any) => logger.info(msg, ...args);
 
 export function logColor(
@@ -12,7 +27,7 @@ export function logColor(
   ...args: any
 ) {
   // Only use color when pretty is enabled
-  if (isLogPretty) {
+  if (getLogFormat() === LogFormat.Pretty) {
     logger[level](chalkInstance(...args));
   } else {
     // @ts-ignore pino type more restrictive than pino's actual arg handling

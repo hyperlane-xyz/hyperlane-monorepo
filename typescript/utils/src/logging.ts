@@ -1,38 +1,98 @@
-import { LevelWithSilent, pino } from 'pino';
+import { LevelWithSilent, Logger, pino } from 'pino';
 
-import { envVarToBoolean, safelyAccessEnvVar } from './env';
+import { safelyAccessEnvVar } from './env';
 
-let logLevel: LevelWithSilent = 'info';
-const envLogLevel = safelyAccessEnvVar('LOG_LEVEL')?.toLowerCase();
-if (envLogLevel && pino.levels.values[envLogLevel]) {
-  logLevel = envLogLevel as LevelWithSilent;
+// Level and format here should correspond with the agent options as much as possible
+// https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
+
+// A custom enum definition because pino does not export an enum
+// and because we use 'off' instead of 'silent' to match the agent options
+export enum LogLevel {
+  Debug = 'debug',
+  Info = 'info',
+  Warn = 'warn',
+  Error = 'error',
+  Off = 'off',
 }
-// For backwards compat and also to match agent level options
-else if (envLogLevel === 'none' || envLogLevel === 'off') {
-  logLevel = 'silent';
+
+let logLevel: LevelWithSilent =
+  toPinoLevel(safelyAccessEnvVar('LOG_LEVEL', true)) || 'info';
+
+function toPinoLevel(level?: string): LevelWithSilent | undefined {
+  if (level && pino.levels.values[level]) return level as LevelWithSilent;
+  // For backwards compat and also to match agent level options
+  else if (level === 'none' || level === 'off') return 'silent';
+  else return undefined;
 }
 
-export const isLogPretty = envVarToBoolean(safelyAccessEnvVar('LOG_PRETTY'));
+export function getLogLevel() {
+  return logLevel;
+}
 
-export const rootLogger = pino({
-  level: logLevel,
-  name: 'hyperlane',
-  formatters: {
-    // Remove pino's default bindings of hostname but keep pid
-    bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
-  },
-  hooks: {
-    logMethod(inputArgs, method, level) {
-      // Pino has no simple way of setting custom log shapes and they
-      // recommend against using pino-pretty in production so when
-      // pretty is enabled we circumvent pino and log directly to console
-      if (isLogPretty && level >= pino.levels.values[logLevel]) {
-        // eslint-disable-next-line no-console
-        console.log(...inputArgs);
-        // Then return null to prevent pino from logging
-        return null;
-      }
-      return method.apply(this, inputArgs);
+export enum LogFormat {
+  Pretty = 'pretty',
+  JSON = 'json',
+}
+let logFormat: LogFormat = LogFormat.JSON;
+const envLogFormat = safelyAccessEnvVar('LOG_FORMAT', true) as
+  | LogFormat
+  | undefined;
+if (envLogFormat && Object.values(LogFormat).includes(envLogFormat))
+  logFormat = envLogFormat;
+
+export function getLogFormat() {
+  return logFormat;
+}
+
+// Note, for brevity and convenience, the rootLogger is exported directly
+export let rootLogger = createHyperlanePinoLogger(logLevel, logFormat);
+
+export function getRootLogger() {
+  return rootLogger;
+}
+
+export function configureRootLogger(
+  newLogFormat: LogFormat,
+  newLogLevel: LogLevel,
+) {
+  logFormat = newLogFormat;
+  logLevel = toPinoLevel(newLogLevel) || logLevel;
+  rootLogger = createHyperlanePinoLogger(logLevel, logFormat);
+  return rootLogger;
+}
+
+export function setRootLogger(logger: Logger) {
+  rootLogger = logger;
+  return rootLogger;
+}
+
+export function createHyperlanePinoLogger(
+  logLevel: LevelWithSilent,
+  logFormat: LogFormat,
+) {
+  return pino({
+    level: logLevel,
+    name: 'hyperlane',
+    formatters: {
+      // Remove pino's default bindings of hostname but keep pid
+      bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
     },
-  },
-});
+    hooks: {
+      logMethod(inputArgs, method, level) {
+        // Pino has no simple way of setting custom log shapes and they
+        // recommend against using pino-pretty in production so when
+        // pretty is enabled we circumvent pino and log directly to console
+        if (
+          logFormat === LogFormat.Pretty &&
+          level >= pino.levels.values[logLevel]
+        ) {
+          // eslint-disable-next-line no-console
+          console.log(...inputArgs);
+          // Then return null to prevent pino from logging
+          return null;
+        }
+        return method.apply(this, inputArgs);
+      },
+    },
+  });
+}
