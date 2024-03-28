@@ -137,7 +137,7 @@ const hyperlane: RootAgentConfig = {
     docker: {
       repo,
       // Includes Cosmos block-by-block indexing.
-      tag: '39df4ca-20240321-100543',
+      tag: 'ff6b060-20240328-112429',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
