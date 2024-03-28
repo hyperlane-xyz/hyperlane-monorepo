@@ -29,7 +29,7 @@ import {
   resolveAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { InterchainAccountFactories } from '@hyperlane-xyz/sdk/dist/middleware/account/contracts';
-import { Address, CallData } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
 import {
   AnnotatedCallData,
@@ -78,7 +78,6 @@ export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
     calls: CallData[],
   ): Promise<void> {
     for (const call of calls) {
-      console.log('Sending call', call);
       await this.checker.multiProvider.sendTransaction(chain, {
         to: call.to,
         data: call.data,
@@ -160,7 +159,6 @@ describe('ICA governance', async () => {
       remoteChain,
       accountConfig,
     );
-    console.log('accountOwner', accountOwner);
     await recipient.transferOwnership(accountOwner);
   });
 
@@ -168,7 +166,6 @@ describe('ICA governance', async () => {
     // precheck
     const actualOwner = await recipient.owner();
     expect(actualOwner).to.equal(accountOwner);
-    console.log('actualOwner', actualOwner);
 
     // arrange
     const newIsm = randomAddress();
@@ -186,11 +183,11 @@ describe('ICA governance', async () => {
 
     // act
     await governor.govern();
-    // await coreApp.processMessages();
+    await coreApp.processMessages();
 
-    // // assert
-    // const actualIsm = await recipient.interchainSecurityModule();
-    // expect(eqAddress(actualIsm, newIsm)).to.be.true;
+    // assert
+    const actualIsm = await recipient.interchainSecurityModule();
+    expect(eqAddress(actualIsm, newIsm)).to.be.true;
   });
 
   it('transfer ownership back to the deployer', async () => {
