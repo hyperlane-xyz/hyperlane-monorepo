@@ -1,5 +1,22 @@
 # @hyperlane-xyz/cli
 
+## 3.10.0
+
+### Minor Changes
+
+- 3ec81081c: Breaking: Update the `hyperlane chains list` command to accept an `env` (either 'mainnet' or 'testnet') to list chains for.
+
+  Update `hyperlane chains list` command to pull the set of core chains from the contract addresses constant in the SDK.
+
+- 4e7a43be6: Replace Debug logger with Pino
+
+### Patch Changes
+
+- Updated dependencies [ed0d4188c]
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/sdk@3.10.0
+  - @hyperlane-xyz/utils@3.10.0
+
 ## 3.9.0
 
 ### Minor Changes

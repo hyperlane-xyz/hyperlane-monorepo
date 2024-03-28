@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 3.10.0
+
+### Minor Changes
+
+- 4e7a43be6: Replace Debug logger with Pino
+
 ## 3.9.0
 
 ## 3.8.2

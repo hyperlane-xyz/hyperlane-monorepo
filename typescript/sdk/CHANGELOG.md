@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 3.10.0
+
+### Minor Changes
+
+- ed0d4188c: Fixed an issue where warp route verification would fail at deploy time due to a mismatch between the SDK's intermediary contract representation and actual contract name.
+  Enabled the ContractVerifier to pick up explorer API keys from the configured chain metadata. This allows users to provide their own explorer API keys in custom `chains.yaml` files.
+- 4e7a43be6: Replace Debug logger with Pino
+
+### Patch Changes
+
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/utils@3.10.0
+  - @hyperlane-xyz/core@3.10.0
+
 ## 3.9.0
 
 ### Minor Changes
