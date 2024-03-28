@@ -4134,6 +4134,7 @@ dependencies = [
  "hyperlane-test",
  "itertools 0.12.0",
  "maplit",
+ "mockall",
  "paste",
  "prometheus",
  "reqwest",

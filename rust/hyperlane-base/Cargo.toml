@@ -26,6 +26,7 @@ futures.worksapce = true
 futures-util.workspace = true
 itertools.workspace = true
 maplit.workspace = true
+mockall.worksapce = true
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true

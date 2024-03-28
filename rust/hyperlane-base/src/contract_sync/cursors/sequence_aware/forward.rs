@@ -218,7 +218,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     }
 
     /// Updates the cursor with the logs that were found in the range.
-    /// Only used in sequence mode.
+    /// Only used in block mode.
     /// Logs are expected to be sorted by sequence in ascending order and deduplicated.
     ///
     /// Behavior:
