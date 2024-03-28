@@ -70,7 +70,8 @@
     "announce": "hardhat announce --network localhost",
     "node": "hardhat node",
     "prettier": "prettier --write *.ts ./src ./config ./scripts ./test",
-    "test": "mocha --config ../sdk/.mocharc.json test/**/*.test.ts",
+    "test": "mocha --config ../sdk/.mocharc.json test/**/*.test.ts && yarn test:hardhat",
+    "test:hardhat": "hardhat test test/govern.hardhat-test.ts",
     "test:ci": "yarn test"
   },
   "peerDependencies": {
