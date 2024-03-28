@@ -128,23 +128,25 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       ismOverride ??
         (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
     );
-    const callEncoded = await localRouter.populateTransaction[
-      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
-    ](
-      remoteDomain,
-      remoteRouter,
-      remoteIsm,
-      innerCalls.map((call) => ({
-        to: addressToBytes32(call.to),
-        value: call.value,
-        data: call.data,
-      })),
-      hookMetadata ?? '0x',
-    );
-    if (!callEncoded.data) {
-      throw new Error('CallRemote encoding failed');
-    }
-    return { to: localRouter.address, data: callEncoded.data, value: quote };
+    const icaCall: CallData = {
+      to: localRouter.address,
+      data: localRouter.interface.encodeFunctionData(
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)',
+        [
+          remoteDomain,
+          remoteRouter,
+          remoteIsm,
+          innerCalls.map((call) => ({
+            to: addressToBytes32(call.to),
+            value: call.value,
+            data: call.data,
+          })),
+          hookMetadata ?? '0x',
+        ],
+      ),
+      value: quote,
+    };
+    return icaCall;
   }
 
   async getAccountConfig(
