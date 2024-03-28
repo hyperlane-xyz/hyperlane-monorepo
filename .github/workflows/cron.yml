@@ -91,7 +91,7 @@ jobs:
             key: ${{ github.sha }}
 
         - name: Metadata Health Check
-          run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
+          run: LOG_PRETTY=true yarn workspace @hyperlane-xyz/sdk run test:metadata
 
         - name: Post to discord webhook if metadata check fails
           if: failure()
