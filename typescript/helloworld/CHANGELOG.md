@@ -1,5 +1,12 @@
 # @hyperlane-xyz/helloworld
 
+## 3.11.0
+
+### Patch Changes
+
+- @hyperlane-xyz/core@3.11.0
+- @hyperlane-xyz/sdk@3.11.0
+
 ## 3.10.0
 
 ### Minor Changes
