@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import debug from 'debug';
 import { providers } from 'ethers';
 
 import {
@@ -11,7 +10,7 @@ import {
   HypERC721Collateral,
   HypNative,
 } from '@hyperlane-xyz/core';
-import { objKeys, objMap } from '@hyperlane-xyz/utils';
+import { objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier';
@@ -45,7 +44,9 @@ import {
 import {
   HypERC20Factories,
   HypERC721Factories,
+  hypERC20contracts,
   hypERC20factories,
+  hypERC721contracts,
   hypERC721factories,
 } from './contracts';
 
@@ -59,7 +60,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, hypERC20factories, {
-      logger: debug('hyperlane:HypERC20Deployer'),
+      logger: rootLogger.child({ module: 'HypERC20Deployer' }),
       ismFactory,
       contractVerifier,
     }); // factories not used in deploy
@@ -135,27 +136,29 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20CollateralConfig,
   ): Promise<HypERC20Collateral> {
-    let contractName:
+    let tokenType:
       | TokenType.fastCollateral
       | TokenType.collateral
       | TokenType.collateralVault;
     switch (config.type) {
       case TokenType.fastSynthetic || TokenType.fastCollateral:
-        contractName = TokenType.fastCollateral;
+        tokenType = TokenType.fastCollateral;
         break;
       case TokenType.collateral:
-        contractName = TokenType.collateral;
+        tokenType = TokenType.collateral;
         break;
       case TokenType.collateralVault:
-        contractName = TokenType.collateralVault;
+        tokenType = TokenType.collateralVault;
         break;
       default:
         throw new Error(`Unknown collateral type ${config.type}`);
     }
-    return this.deployContract(chain, contractName, [
-      config.token,
-      config.mailbox,
-    ]);
+    return this.deployContractWithName(
+      chain,
+      tokenType,
+      hypERC20contracts[tokenType],
+      [config.token, config.mailbox],
+    );
   }
 
   protected async deployNative(
@@ -163,12 +166,19 @@ export class HypERC20Deployer extends GasRouterDeployer<
     config: HypNativeConfig,
   ): Promise<HypNative> {
     if (config.scale) {
-      return this.deployContract(chain, TokenType.nativeScaled, [
-        config.scale,
-        config.mailbox,
-      ]);
+      return this.deployContractWithName(
+        chain,
+        TokenType.nativeScaled,
+        hypERC20contracts[TokenType.nativeScaled],
+        [config.scale, config.mailbox],
+      );
     } else {
-      return this.deployContract(chain, TokenType.native, [config.mailbox]);
+      return this.deployContractWithName(
+        chain,
+        TokenType.native,
+        hypERC20contracts[TokenType.native],
+        [config.mailbox],
+      );
     }
   }
 
@@ -176,9 +186,13 @@ export class HypERC20Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC20Config,
   ): Promise<HypERC20> {
-    const router: HypERC20 = await this.deployContract(
+    const tokenType = isFastConfig(config)
+      ? TokenType.fastSynthetic
+      : TokenType.synthetic;
+    const router: HypERC20 = await this.deployContractWithName(
       chain,
-      isFastConfig(config) ? TokenType.fastSynthetic : TokenType.synthetic,
+      tokenType,
+      hypERC20contracts[tokenType],
       [config.decimals, config.mailbox],
     );
     try {
@@ -190,7 +204,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       if (!e.message.includes('already initialized')) {
         throw e;
       }
-      this.logger(`${config.type} already initialized`);
+      this.logger.debug(`${config.type} already initialized`);
     }
     return router;
   }
@@ -288,7 +302,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, hypERC721factories, {
-      logger: debug('hyperlane:HypERC721Deployer'),
+      logger: rootLogger.child({ module: 'HypERC721Deployer' }),
       contractVerifier,
     });
   }
@@ -327,9 +341,13 @@ export class HypERC721Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC721CollateralConfig,
   ): Promise<HypERC721Collateral> {
-    return this.deployContract(
+    const tokenType = isUriConfig(config)
+      ? TokenType.collateralUri
+      : TokenType.collateral;
+    return this.deployContractWithName(
       chain,
-      isUriConfig(config) ? TokenType.collateralUri : TokenType.collateral,
+      tokenType,
+      hypERC721contracts[tokenType],
       [config.token, config.mailbox],
     );
   }
@@ -338,9 +356,13 @@ export class HypERC721Deployer extends GasRouterDeployer<
     chain: ChainName,
     config: HypERC721Config,
   ): Promise<HypERC721> {
-    const router = await this.deployContract(
+    const tokenType = isUriConfig(config)
+      ? TokenType.syntheticUri
+      : TokenType.synthetic;
+    const router = await this.deployContractWithName(
       chain,
-      isUriConfig(config) ? TokenType.syntheticUri : TokenType.synthetic,
+      tokenType,
+      hypERC721contracts[tokenType],
       [config.mailbox],
     );
     await this.multiProvider.handleTx(
