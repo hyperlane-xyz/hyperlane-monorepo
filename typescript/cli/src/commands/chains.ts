@@ -3,6 +3,7 @@ import { CommandModule } from 'yargs';
 import {
   Chains,
   CoreChainName,
+  HyperlaneEnvironment,
   chainMetadata,
   hyperlaneContractAddresses,
   hyperlaneEnvironments,
@@ -32,44 +33,36 @@ const listCommand: CommandModule = {
   command: 'list',
   describe: 'List all core chains included in the Hyperlane SDK',
   builder: (yargs) =>
-    yargs
-      .option('mainnet', {
-        alias: 'm',
-        describe: 'Only list mainnet chains',
-      })
-      .option('testnet', {
-        alias: 't',
-        describe: 'Only list testnet chains',
-      })
-      .conflicts('mainnet', 'testnet'),
+    yargs.option('environment', {
+      alias: 'e',
+      describe: 'Specify the environment to list chains for',
+      choices: ['mainnet', 'testnet'],
+    }),
   handler: (args) => {
-    const mainnet = args.mainnet as string | undefined;
-    const testnet = args.testnet as string | undefined;
+    const environment = args.environment as HyperlaneEnvironment | undefined;
 
-    const serializer = (chains: string[]) =>
-      chains.reduce<any>((result, chain) => {
+    const serializer = (env: HyperlaneEnvironment) =>
+      Object.keys(hyperlaneEnvironments[env]).reduce<any>((result, chain) => {
+        const { chainId, displayName } = chainMetadata[chain];
         result[chain] = {
-          'Display Name': chainMetadata[chain].displayName,
-          'Chain Id': chainMetadata[chain].chainId,
+          'Display Name': displayName,
+          'Chain Id': chainId,
         };
         return result;
       }, {});
-    const logMainnet = () => {
-      logBlue('\nHyperlane core mainnet chains:');
+
+    const logChainsForEnv = (env: HyperlaneEnvironment) => {
+      logBlue(`\nHyperlane core ${env} chains:`);
       logGray('------------------------------');
-      logTable(serializer(Object.keys(hyperlaneEnvironments.mainnet)));
-    };
-    const logTestnet = () => {
-      logBlue('\nHyperlane core testnet chains:');
-      logGray('------------------------------');
-      logTable(serializer(Object.keys(hyperlaneEnvironments.testnet)));
+      logTable(serializer(env));
     };
 
-    if (mainnet) return logMainnet();
-    else if (testnet) return logTestnet();
-
-    logMainnet();
-    logTestnet();
+    if (environment) {
+      logChainsForEnv(environment);
+    } else {
+      logChainsForEnv('mainnet');
+      logChainsForEnv('testnet');
+    }
   },
 };
 
