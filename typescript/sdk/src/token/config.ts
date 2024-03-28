@@ -60,6 +60,10 @@ export const isCollateralConfig = (
   config.type === TokenType.fastCollateral ||
   config.type == TokenType.collateralVault;
 
+export const isCollateralVaultConfig = (
+  config: TokenConfig,
+): config is CollateralConfig => config.type === TokenType.collateralVault;
+
 export const isSyntheticConfig = (
   config: TokenConfig,
 ): config is SyntheticConfig =>

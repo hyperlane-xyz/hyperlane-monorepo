@@ -14,6 +14,7 @@ pragma solidity ^0.8.13;
 @@@@@@@@@       @@@@@@@@*/
 
 import "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -40,6 +41,7 @@ abstract contract HypTokenTest is Test {
     string internal constant SYMBOL = "HYP";
     address internal constant ALICE = address(0x1);
     address internal constant BOB = address(0x2);
+    address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
     TokenRouter internal localToken;
@@ -73,8 +75,24 @@ abstract contract HypTokenTest is Test {
 
         REQUIRED_VALUE = noopHook.quoteDispatch("", "");
 
-        remoteToken = new HypERC20(DECIMALS, address(remoteMailbox));
-        remoteToken.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
+        HypERC20 implementation = new HypERC20(
+            DECIMALS,
+            address(remoteMailbox)
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20.initialize.selector,
+                TOTAL_SUPPLY,
+                NAME,
+                SYMBOL,
+                address(noopHook),
+                address(igp),
+                address(this)
+            )
+        );
+        remoteToken = HypERC20(address(proxy));
         remoteToken.enrollRemoteRouter(
             ORIGIN,
             address(localToken).addressToBytes32()
@@ -188,10 +206,22 @@ contract HypERC20Test is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypERC20(DECIMALS, address(localMailbox));
-        erc20Token = HypERC20(address(localToken));
-
-        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
+        HypERC20 implementation = new HypERC20(DECIMALS, address(localMailbox));
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20.initialize.selector,
+                TOTAL_SUPPLY,
+                NAME,
+                SYMBOL,
+                address(address(noopHook)),
+                address(igp),
+                address(this)
+            )
+        );
+        localToken = HypERC20(address(proxy));
+        erc20Token = HypERC20(address(proxy));
 
         erc20Token.enrollRemoteRouter(
             DESTINATION,
@@ -204,7 +234,14 @@ contract HypERC20Test is HypTokenTest {
 
     function testInitialize_revert_ifAlreadyInitialized() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
+        erc20Token.initialize(
+            TOTAL_SUPPLY,
+            NAME,
+            SYMBOL,
+            address(address(noopHook)),
+            address(igp),
+            BOB
+        );
     }
 
     function testTotalSupply() public {

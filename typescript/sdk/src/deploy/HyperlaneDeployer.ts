@@ -642,14 +642,16 @@ export abstract class HyperlaneDeployer<
    */
   async deployProxiedContract<K extends keyof Factories>(
     chain: ChainName,
-    contractName: K,
+    contractKey: K,
+    contractName: string,
     proxyAdmin: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
     // Try to initialize the implementation even though it may not be necessary
-    const implementation = await this.deployContract(
+    const implementation = await this.deployContractWithName(
       chain,
+      contractKey,
       contractName,
       constructorArgs,
       initializeArgs,

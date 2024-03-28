@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
 
+import { Router } from '@hyperlane-xyz/core';
+
 import { HyperlaneContracts } from '../../contracts/types';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -16,11 +18,8 @@ export type InterchainAccountConfig = ProxiedRouterConfig;
 
 export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   InterchainAccountConfig,
-  InterchainAccountFactories,
-  'interchainAccountRouter'
+  InterchainAccountFactories
 > {
-  readonly routerContractName = 'interchainAccountRouter';
-
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -29,15 +28,23 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
       contractVerifier,
     });
   }
+  routerContractName(): string {
+    return 'InterchainAccountRouter';
+  }
 
-  async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
+  routerContractKey<K extends keyof InterchainAccountFactories>(): K {
+    return 'interchainAccountRouter' as K;
+  }
+
+  router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {
+    return contracts.interchainAccountRouter;
+  }
+
+  async constructorArgs(_: string, config: RouterConfig): Promise<any> {
     return [config.mailbox];
   }
 
-  async initializeArgs(
-    chain: string,
-    config: RouterConfig,
-  ): Promise<[string, string, string]> {
+  async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     return [
       config.hook ?? ethers.constants.AddressZero,
