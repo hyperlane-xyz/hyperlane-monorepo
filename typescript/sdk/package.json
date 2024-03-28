@@ -30,14 +30,14 @@
     "@types/ws": "^8.5.5",
     "chai": "^4.3.6",
     "dotenv": "^10.0.0",
-    "eslint": "^8.43.0",
+    "eslint": "^8.57.0",
     "ethereum-waffle": "^4.0.10",
     "hardhat": "^2.19.0",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
     "sinon": "^13.0.2",
     "ts-node": "^10.8.0",
-    "typescript": "5.1.6",
+    "typescript": "5.3.3",
     "yaml": "^2.3.1"
   },
   "files": [

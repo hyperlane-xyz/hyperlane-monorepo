@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-interface */
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
