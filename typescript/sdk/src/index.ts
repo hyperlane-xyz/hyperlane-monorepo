@@ -368,6 +368,8 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization';
+export { HypERC20App } from './token/app';
+export { HypERC20Checker } from './token/checker';
 export {
   CollateralConfig,
   ERC20Metadata,

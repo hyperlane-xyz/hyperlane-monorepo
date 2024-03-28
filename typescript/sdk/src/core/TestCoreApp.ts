@@ -28,7 +28,8 @@ export class TestCoreApp extends HyperlaneCore {
     for (const origin of this.chains()) {
       const outbound = await this.processOutboundMessages(origin);
       const originResponses = new Map();
-      this.remoteChains(origin).forEach((destination) =>
+      const remoteChains = await this.remoteChains(origin);
+      remoteChains.forEach((destination) =>
         originResponses.set(destination, outbound.get(destination)),
       );
       responses.set(origin, originResponses);
