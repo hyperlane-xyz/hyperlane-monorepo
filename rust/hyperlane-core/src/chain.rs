@@ -218,7 +218,7 @@ impl KnownHyperlaneDomain {
                 Moonbeam, Gnosis, MantaPacific, Neutron, Injective, InEvm
             ],
             Testnet: [
-                Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet
+                Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet, Fuji, BinanceSmartChainTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
