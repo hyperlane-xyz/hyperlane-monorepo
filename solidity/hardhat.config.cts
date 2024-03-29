@@ -47,8 +47,10 @@ module.exports = {
     outDir: './types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
+    node16Modules: true,
   },
   mocha: {
     bail: true,
+    import: 'tsx',
   },
 };

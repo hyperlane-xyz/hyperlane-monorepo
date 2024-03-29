@@ -1,12 +1,11 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist/",
     "rootDir": "./",
     "noUnusedLocals": false,
-    "resolveJsonModule": true
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
-  "extends": "../tsconfig.json",
   "include": [
     "./*.ts",
     "./config/**/*.ts",

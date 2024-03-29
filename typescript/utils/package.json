@@ -33,13 +33,13 @@
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
     "test:ci": "yarn test"
   },
-  "sideEffects": false,
   "type": "module",
-  "export": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "exports": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "/dist"
   ],
+  "sideEffects": false,
   "engines": {
     "node": ">=16"
   }
