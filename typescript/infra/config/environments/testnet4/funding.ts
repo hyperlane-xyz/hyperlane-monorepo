@@ -29,7 +29,6 @@ export const keyFunderConfig: KeyFunderConfig = {
     alfajores: '5',
     bsctestnet: '5',
     fuji: '5',
-    mumbai: '5',
     plumetestnet: '0.2',
     sepolia: '5',
     // Funder boosts itself upto 5x balance on L2 before dispersing funds

@@ -119,14 +119,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "mumbai",
-        token: "MATIC",
-        domain: 80001,
-        chain_id: 80001,
-        is_test_net: true,
-        is_deprecated: false,
-    },
-    RawDomain {
         name: "optimism",
         token: "ETH",
         domain: 10,
