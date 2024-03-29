@@ -10,7 +10,7 @@ import {
   safelyAccessEnvVar,
 } from '@hyperlane-xyz/utils';
 
-let logger = rootLogger.child({ module: 'cli' });
+let logger = rootLogger;
 
 export function configureLogger(logFormat: LogFormat, logLevel: LogLevel) {
   logFormat =
