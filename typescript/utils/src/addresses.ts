@@ -2,9 +2,9 @@ import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { utils as ethersUtils } from 'ethers';
 
-import { isNullish } from './typeof';
-import { Address, HexString, ProtocolType } from './types';
-import { assert } from './validation';
+import { isNullish } from './typeof.js';
+import { Address, HexString, ProtocolType } from './types.js';
+import { assert } from './validation.js';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;

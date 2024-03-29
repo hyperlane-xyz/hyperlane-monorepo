@@ -17,15 +17,14 @@
     "typescript": "5.3.3"
   },
   "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "keywords": [
     "Hyperlane",
     "Utilities",
     "Typescript"
   ],
   "license": "Apache-2.0",
-  "main": "dist/index.js",
   "prepublish": "yarn build",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf ./dist",
@@ -35,8 +34,13 @@
     "test:ci": "yarn test"
   },
   "sideEffects": false,
+  "type": "module",
+  "export": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ]
+  ],
+  "engines": {
+    "node": ">=16"
+  }
 }

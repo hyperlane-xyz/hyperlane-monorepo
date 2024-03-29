@@ -1,6 +1,6 @@
 import { LevelWithSilent, pino } from 'pino';
 
-import { envVarToBoolean, safelyAccessEnvVar } from './env';
+import { envVarToBoolean, safelyAccessEnvVar } from './env.js';
 
 let logLevel: LevelWithSilent = 'info';
 const envLogLevel = safelyAccessEnvVar('LOG_LEVEL')?.toLowerCase();

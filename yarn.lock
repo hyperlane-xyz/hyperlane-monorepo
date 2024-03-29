@@ -5088,6 +5088,7 @@ __metadata:
     husky: "npm:^8.0.0"
     lint-staged: "npm:^12.4.3"
     prettier: "npm:^2.8.8"
+    tsx: "npm:^4.7.1"
   languageName: unknown
   linkType: soft
 
