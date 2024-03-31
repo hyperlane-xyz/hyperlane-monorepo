@@ -51,6 +51,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
         break;
       }
       case IgpViolationType.GasOracles: {
+        break;
         const gasOraclesViolation = violation as IgpGasOraclesViolation;
 
         const configs: InterchainGasPaymaster.GasParamStruct[] = [];

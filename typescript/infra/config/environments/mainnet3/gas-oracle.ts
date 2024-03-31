@@ -12,7 +12,7 @@ import {
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle';
 
-import { supportedChainNames } from './chains';
+import { ethereumChainNames, supportedChainNames } from './chains';
 import rawGasPrices from './gasPrices.json';
 import rawTokenPrices from './tokenPrices.json';
 
@@ -36,7 +36,7 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
-    supportedChainNames,
+    ethereumChainNames,
     gasPrices,
     getTokenExchangeRate,
   );

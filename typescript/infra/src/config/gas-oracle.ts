@@ -22,8 +22,8 @@ export const TOKEN_EXCHANGE_RATE_SCALE = ethers.utils.parseUnits(
   TOKEN_EXCHANGE_RATE_DECIMALS,
 );
 
-// Overcharge by 20% to account for market making risk (when assets are unequal)
-const EXCHANGE_RATE_MARGIN_PCT = 20;
+// Overcharge by 50% to account for market making risk (when assets are unequal)
+const EXCHANGE_RATE_MARGIN_PCT = 50;
 
 // Gets the StorageGasOracleConfig for a particular local chain
 function getLocalStorageGasOracleConfig(

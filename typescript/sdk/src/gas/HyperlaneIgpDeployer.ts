@@ -44,6 +44,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [],
       [await this.multiProvider.getSignerAddress(chain), beneficiary],
     );
+    return igp;
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
@@ -95,7 +96,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       return gasOracle;
     }
 
-    this.logger.debug(`Configuring gas oracle from ${chain}...`);
+    console.log(`Configuring gas oracle from ${chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
     // For each remote, check if the gas oracle has the correct data
@@ -111,9 +112,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
-        this.logger.debug(
-          `-> ${remote} ${serializeDifference(actual, desired)}`,
-        );
+        console.log(`-> ${remote} ${serializeDifference(actual, desired)}`);
         configsToSet.push({
           remoteDomain,
           ...desired,
