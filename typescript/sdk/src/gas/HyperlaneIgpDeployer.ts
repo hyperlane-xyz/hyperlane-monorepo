@@ -40,6 +40,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
+      'interchainGasPaymaster',
       proxyAdmin.address,
       [],
       [await this.multiProvider.getSignerAddress(chain), beneficiary],

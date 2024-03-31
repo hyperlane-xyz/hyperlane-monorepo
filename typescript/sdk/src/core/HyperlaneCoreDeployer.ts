@@ -65,6 +65,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
+      'mailbox',
       proxyAdmin,
       [domain],
     );
