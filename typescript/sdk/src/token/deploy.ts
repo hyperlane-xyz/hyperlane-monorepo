@@ -104,7 +104,8 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   async initializeArgs(_: ChainName, config: HypERC20Config): Promise<any> {
-    if (typeof config.interchainSecurityModule !== 'string') {
+    // ISM config can be an object, but is not supported right now
+    if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('Token deployer does not support ISM objects currently');
     }
     const defaultArgs = [
