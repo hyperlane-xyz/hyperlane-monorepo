@@ -69,7 +69,7 @@ export type S3Checkpoint = {
 export type CallData = {
   to: Address;
   data: string;
-  value: BigNumber;
+  value?: BigNumber;
 };
 
 export enum MessageStatus {

@@ -73,6 +73,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       [domain],
     );
+    // resolve the owner account so that the subsequent calls terminate early
+    config.owner = await this.resolveInterchainAccountAsOwner(
+      chain,
+      config.owner,
+    );
 
     let defaultIsm = await mailbox.defaultIsm();
     const matches = await moduleMatchesConfig(
