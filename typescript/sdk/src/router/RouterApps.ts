@@ -47,9 +47,13 @@ export abstract class RouterApp<
   // check onchain for remote enrollments
   override async remoteChains(chainName: string): Promise<ChainName[]> {
     const router = this.router(this.contractsMap[chainName]);
-    const domains = (await router.domains())
-      .map((domain) => this.multiProvider.tryGetChainName(domain))
-      .filter((domain): domain is string => domain !== null);
+    const domains = (await router.domains()).map((domain) => {
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      if (chainName === null) {
+        throw new Error(`Chain name not found for domain: ${domain}`);
+      }
+      return chainName;
+    });
     return domains;
   }
 

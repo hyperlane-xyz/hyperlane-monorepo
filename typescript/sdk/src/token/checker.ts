@@ -30,7 +30,7 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
   async checkToken(chain: ChainName): Promise<void> {
     const checkERC20 = async (
       token: ERC20,
-      config: HypERC20Config | boolean,
+      config: HypERC20Config | boolean, // either check for validity if config is present, or check for existence if config is boolean
     ): Promise<void> => {
       const checks: {
         method: keyof TokenMetadata | 'decimals';
