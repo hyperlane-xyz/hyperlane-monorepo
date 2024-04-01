@@ -164,6 +164,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 
   // general helper for different overloaded callRemote functions
+  // can override the gasLimit by StandardHookMetadata.overrideGasLimit for optional hookMetadata here
   async callRemote(
     chain: ChainName,
     destination: ChainName,

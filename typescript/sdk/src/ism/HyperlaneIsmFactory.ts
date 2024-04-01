@@ -39,7 +39,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts';
-import { resolveAccountOwner } from '../deploy/types';
+import { resolveOrDeployAccountOwner } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -165,7 +165,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
           [
-            await resolveAccountOwner(
+            await resolveOrDeployAccountOwner(
               this.multiProvider,
               destination,
               config.owner,
@@ -331,7 +331,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
     } else {
       const isms: ChainMap<Address> = {};
-      const owner = await resolveAccountOwner(
+      const owner = await resolveOrDeployAccountOwner(
         this.multiProvider,
         destination,
         config.owner,
@@ -372,7 +372,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       } else {
         // deploying new domain routing ISM
-        const owner = await resolveAccountOwner(
+        const owner = await resolveOrDeployAccountOwner(
           this.multiProvider,
           destination,
           config.owner,

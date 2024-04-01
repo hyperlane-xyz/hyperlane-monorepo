@@ -19,7 +19,7 @@ export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = {
   ownerOverrides?: Partial<Record<Keys, Address>>;
 };
 
-export async function resolveAccountOwner(
+export async function resolveOrDeployAccountOwner(
   multiProvider: MultiProvider,
   chain: ChainName,
   owner: Owner,
@@ -30,6 +30,7 @@ export async function resolveAccountOwner(
     if (!owner.localRouter) {
       throw new Error('localRouter is required for AccountConfig');
     }
+    // submits a transaction to deploy an interchain account if the owner is an AccountConfig and the ICA isn't not deployed yet
     return await deployInterchainAccount(multiProvider, chain, owner);
   }
 }

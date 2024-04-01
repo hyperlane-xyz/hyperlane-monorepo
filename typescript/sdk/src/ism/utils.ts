@@ -23,7 +23,7 @@ import {
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
 import { ProxyFactoryFactories } from '../deploy/contracts';
-import { resolveAccountOwner } from '../deploy/types';
+import { resolveOrDeployAccountOwner } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -222,7 +222,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      const expectedOwner = await resolveAccountOwner(
+      const expectedOwner = await resolveOrDeployAccountOwner(
         multiProvider,
         chain,
         config.owner,
@@ -303,7 +303,7 @@ export async function moduleMatchesConfig(
     case IsmType.PAUSABLE: {
       const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
       const owner = await pausableIsm.owner();
-      const expectedOwner = await resolveAccountOwner(
+      const expectedOwner = await resolveOrDeployAccountOwner(
         multiProvider,
         chain,
         config.owner,
@@ -352,7 +352,7 @@ export async function routingModuleDelta(
   };
 
   // if owners don't match, we need to transfer ownership
-  const expectedOwner = await resolveAccountOwner(
+  const expectedOwner = await resolveOrDeployAccountOwner(
     multiProvider,
     destination,
     config.owner,

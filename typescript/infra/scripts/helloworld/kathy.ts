@@ -13,7 +13,7 @@ import {
   ProviderType,
   RpcConsensusType,
   TypedTransactionReceipt,
-  resolveAccountOwner,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -247,7 +247,7 @@ async function main(): Promise<boolean> {
   }
 
   chains.map(async (chain) => {
-    const owner = await resolveAccountOwner(
+    const owner = await resolveOrDeployAccountOwner(
       multiProvider,
       chain,
       coreConfig.owners[chain].owner,
@@ -371,7 +371,7 @@ async function main(): Promise<boolean> {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    const owner = await resolveAccountOwner(
+    const owner = await resolveOrDeployAccountOwner(
       multiProvider,
       origin,
       coreConfig.owners[origin].owner,
