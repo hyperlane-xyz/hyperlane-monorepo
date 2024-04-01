@@ -51,7 +51,7 @@ where
 
     info!(?to, %data, ?tx_hash, "Dispatched tx");
 
-    match tokio::time::timeout(Duration::from_secs(300), dispatched).await {
+    match tokio::time::timeout(Duration::from_secs(150), dispatched).await {
         // all good
         Ok(Ok(Some(receipt))) => {
             info!(?tx_hash, "confirmed transaction");

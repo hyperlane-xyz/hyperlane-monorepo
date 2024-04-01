@@ -3,7 +3,7 @@ import { ZodTypeAny, z } from 'zod';
 
 import { ChainName, HyperlaneContractsMap } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue } from '../../logger.js';
+import { log, logBlue } from '../logger.js';
 import { readYamlOrJson, runFileSelectionStep } from '../utils/files.js';
 
 const RecursiveObjectSchema: ZodTypeAny = z.lazy(() =>

@@ -11,14 +11,7 @@ import {
   MultiProvider,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  error,
-  log,
-  objFilter,
-  objMap,
-  warn,
-} from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -53,7 +46,8 @@ import { getEnvironmentConfig } from '../core-utils';
 import * as L1ETHGateway from './utils/L1ETHGateway.json';
 import * as L1MessageQueue from './utils/L1MessageQueue.json';
 import * as L1ScrollMessenger from './utils/L1ScrollMessenger.json';
-import * as PolygonZkEVMBridge from './utils/PolygonZkEVMBridge.json';
+
+const logger = rootLogger.child({ module: 'fund-keys' });
 
 const nativeBridges = {
   scrollsepolia: {
@@ -247,7 +241,7 @@ async function main() {
   await submitMetrics(metricsRegister, 'key-funder');
 
   if (failureOccurred) {
-    error('At least one failure occurred when funding');
+    logger.error('At least one failure occurred when funding');
     process.exit(1);
   }
 }
@@ -276,9 +270,12 @@ class ContextFunder {
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
         if (!valid) {
-          warn('Skipping funding for non-blessed or non-Ethereum chain', {
-            chain,
-          });
+          logger.warn(
+            'Skipping funding for non-blessed or non-Ethereum chain',
+            {
+              chain,
+            },
+          );
         }
         return valid;
       },
@@ -308,7 +305,7 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
     filePath: string,
   ) {
-    log('Reading identifiers and addresses from file', {
+    logger.info('Reading identifiers and addresses from file', {
       filePath,
     });
     // A big array of KeyAsAddress, including keys that we may not care about.
@@ -358,7 +355,7 @@ class ContextFunder {
       },
     );
 
-    log('Successfully read keys for context from file', {
+    logger.info('Successfully read keys for context from file', {
       filePath,
       readOnlyKeysPerChain,
       context,
@@ -467,7 +464,7 @@ class ContextFunder {
     const failureOccurred = (await Promise.allSettled(promises)).reduce(
       (failureAgg, result, i) => {
         if (result.status === 'rejected') {
-          error('Funding promise for chain rejected', {
+          logger.error('Funding promise for chain rejected', {
             chain: chainKeyEntries[i][0],
             error: format(result.reason),
           });
@@ -487,7 +484,7 @@ class ContextFunder {
   ): Promise<boolean> {
     const provider = this.multiProvider.tryGetProvider(chain);
     if (!provider) {
-      error('Cannot get chain connection', {
+      logger.error('Cannot get chain connection', {
         chain,
       });
       // Consider this an error, but don't throw and prevent all future funding attempts
@@ -500,7 +497,7 @@ class ContextFunder {
     try {
       await this.fundKeyIfRequired(chain, key, desiredBalance);
     } catch (err) {
-      error('Error funding key', {
+      logger.error('Error funding key', {
         key: await getKeyInfo(
           key,
           chain,
@@ -540,7 +537,7 @@ class ContextFunder {
   private async attemptToClaimFromIgp(chain: ChainName) {
     const igpClaimThresholdEther = igpClaimThresholdPerChain[chain];
     if (!igpClaimThresholdEther) {
-      warn(`No IGP claim threshold for chain ${chain}`);
+      logger.warn(`No IGP claim threshold for chain ${chain}`);
       return;
     }
     const igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
@@ -549,14 +546,14 @@ class ContextFunder {
     const igp = this.igp.getContracts(chain).interchainGasPaymaster;
     const igpBalance = await provider.getBalance(igp.address);
 
-    log('Checking IGP balance', {
+    logger.info('Checking IGP balance', {
       chain,
       igpBalance: ethers.utils.formatEther(igpBalance),
       igpClaimThreshold: ethers.utils.formatEther(igpClaimThreshold),
     });
 
     if (igpBalance.gt(igpClaimThreshold)) {
-      log('IGP balance exceeds claim threshold, claiming', {
+      logger.info('IGP balance exceeds claim threshold, claiming', {
         chain,
       });
       await this.multiProvider.sendTransaction(
@@ -564,7 +561,7 @@ class ContextFunder {
         await igp.populateTransaction.claim(),
       );
     } else {
-      log('IGP balance does not exceed claim threshold, skipping', {
+      logger.info('IGP balance does not exceed claim threshold, skipping', {
         chain,
       });
     }
@@ -619,14 +616,14 @@ class ContextFunder {
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
 
     if (fundingAmount.eq(0)) {
-      log('Skipping funding for key', {
+      logger.info('Skipping funding for key', {
         key: keyInfo,
         context: this.context,
         chain,
       });
       return;
     } else {
-      log('Funding key', {
+      logger.info('Funding key', {
         chain,
         amount: ethers.utils.formatEther(fundingAmount),
         key: keyInfo,
@@ -644,7 +641,7 @@ class ContextFunder {
       to: key.address,
       value: fundingAmount,
     });
-    log('Sent transaction', {
+    logger.info('Sent transaction', {
       key: keyInfo,
       txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
         hash: tx.transactionHash,
@@ -652,7 +649,7 @@ class ContextFunder {
       context: this.context,
       chain,
     });
-    log('Got transaction receipt', {
+    logger.info('Got transaction receipt', {
       key: keyInfo,
       tx,
       context: this.context,
@@ -662,7 +659,7 @@ class ContextFunder {
 
   private async bridgeToL2(l2Chain: L2Chain, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    log('Bridging ETH to L2', {
+    logger.info('Bridging ETH to L2', {
       amount: ethers.utils.formatEther(amount),
       l1Funder: await getAddressInfo(
         await this.multiProvider.getSignerAddress(l1Chain),
@@ -867,7 +864,7 @@ async function gracefullyHandleError(
     await fn();
     return false;
   } catch (err) {
-    error(errorMessage, {
+    logger.error(errorMessage, {
       chain,
       error: format(err),
     });
@@ -876,7 +873,7 @@ async function gracefullyHandleError(
 }
 
 main().catch((err) => {
-  error('Error occurred in main', {
+  logger.error('Error occurred in main', {
     // JSON.stringifying an Error returns '{}'.
     // This is a workaround from https://stackoverflow.com/a/60370781
     error: format(err),

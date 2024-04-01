@@ -1,8 +1,9 @@
+/* eslint-disable no-console */
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import { DomainRoutingIsm } from '@hyperlane-xyz/core';
-import { Address, error } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { TestChains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
@@ -130,8 +131,8 @@ describe('HyperlaneIsmFactory', async () => {
         const ism = await ismFactory.deploy({ destination: chain, config });
         ismAddress = ism.address;
       } catch (e) {
-        error('Failed to deploy random ism config', e);
-        error(JSON.stringify(config, null, 2));
+        console.error('Failed to deploy random ism config', e);
+        console.error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
 
@@ -145,8 +146,8 @@ describe('HyperlaneIsmFactory', async () => {
         );
         expect(matches).to.be.true;
       } catch (e) {
-        error('Failed to match random ism config', e);
-        error(JSON.stringify(config, null, 2));
+        console.error('Failed to match random ism config', e);
+        console.error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
     });

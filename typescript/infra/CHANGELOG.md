@@ -1,5 +1,14 @@
 # @hyperlane-xyz/infra
 
+## 3.9.0
+
+### Patch Changes
+
+- Updated dependencies [11f257ebc]
+  - @hyperlane-xyz/sdk@3.9.0
+  - @hyperlane-xyz/helloworld@3.9.0
+  - @hyperlane-xyz/utils@3.9.0
+
 ## 3.8.2
 
 ### Patch Changes

@@ -44,7 +44,7 @@ export class SealevelHelloWorldAdapter
     value: string,
     sender: Address,
   ): Promise<SolanaWeb3Transaction> {
-    this.logger(
+    this.logger.info(
       'Creating sendHelloWorld tx for sealevel',
       this.chainName,
       destination,

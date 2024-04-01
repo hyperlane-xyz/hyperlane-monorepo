@@ -1,6 +1,4 @@
-import debug from 'debug';
-
-import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import { HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp';
 import {
@@ -24,7 +22,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
   constructor(
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: ChainMap<CoreAddresses>,
-    public readonly logger = debug('hyperlane:MultiProtocolCore'),
+    public readonly logger = rootLogger.child({ module: 'MultiProtocolCore' }),
   ) {
     super(multiProvider, addresses, logger);
   }

@@ -7,6 +7,7 @@ import {
   ChainName,
   HyperlaneContractsMap,
   MultiProvider,
+  WarpCoreConfig,
   chainMetadata,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
@@ -14,6 +15,7 @@ import { objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { runDeploymentArtifactStep } from './config/artifacts.js';
 import { readChainConfigsIfExists } from './config/chain.js';
+import { readYamlOrJson } from './utils/files.js';
 import { keyToSigner } from './utils/keys.js';
 
 export const sdkContractAddressesMap: HyperlaneContractsMap<any> = {
@@ -56,6 +58,10 @@ interface ContextSettings {
     promptMessage?: string;
   };
   skipConfirmation?: boolean;
+  warpConfig?: {
+    warpConfigPath?: string;
+    promptMessage?: string;
+  };
 }
 
 interface CommandContextBase {
@@ -70,13 +76,17 @@ type CommandContext<P extends ContextSettings> = CommandContextBase &
     : { signer: undefined }) &
   (P extends { coreConfig: object }
     ? { coreArtifacts: HyperlaneContractsMap<any> }
-    : { coreArtifacts: undefined });
+    : { coreArtifacts: undefined }) &
+  (P extends { warpConfig: object }
+    ? { warpCoreConfig: WarpCoreConfig }
+    : { warpCoreConfig: undefined });
 
 export async function getContext<P extends ContextSettings>({
   chainConfigPath,
   coreConfig,
   keyConfig,
   skipConfirmation,
+  warpConfig,
 }: P): Promise<CommandContext<P>> {
   const customChains = readChainConfigsIfExists(chainConfigPath);
 
@@ -89,7 +99,7 @@ export async function getContext<P extends ContextSettings>({
       key = await input({
         message:
           keyConfig.promptMessage ||
-          'Please enter a private key or use the HYP_KEY environment variable',
+          'Please enter a private key or use the HYP_KEY environment variable.',
       });
     signer = keyToSigner(key);
   }
@@ -106,6 +116,21 @@ export async function getContext<P extends ContextSettings>({
       })) || {};
   }
 
+  let warpCoreConfig = undefined;
+  if (warpConfig) {
+    let warpConfigPath = warpConfig.warpConfigPath;
+    if (!warpConfigPath) {
+      // prompt for path to token config
+      warpConfigPath = await input({
+        message:
+          warpConfig.promptMessage ||
+          'Please provide a path to the Warp config',
+      });
+    }
+
+    warpCoreConfig = readYamlOrJson<WarpCoreConfig>(warpConfigPath);
+  }
+
   const multiProvider = getMultiProvider(customChains, signer);
 
   return {
@@ -113,6 +138,7 @@ export async function getContext<P extends ContextSettings>({
     signer,
     multiProvider,
     coreArtifacts,
+    warpCoreConfig,
   } as CommandContext<P>;
 }
 

@@ -27,6 +27,7 @@
 
 pub(crate) mod gas_payment;
 pub(crate) mod metadata;
+pub(crate) mod op_queue;
 pub(crate) mod pending_message;
 pub(crate) mod pending_operation;
 pub(crate) mod processor;

@@ -1,4 +1,3 @@
-import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
@@ -18,6 +17,7 @@ import {
   formatMessage,
   normalizeAddress,
   objMap,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -36,7 +36,7 @@ import {
   ismTypeToModuleType,
 } from './types';
 
-const logger = debug('hyperlane:IsmUtils');
+const logger = rootLogger.child({ module: 'IsmUtils' });
 
 // Note that this function may return false negatives, but should
 // not return false positives.
@@ -118,8 +118,8 @@ export async function moduleCanCertainlyVerify(
       } else {
         throw new Error(`Unsupported module type: ${moduleType}`);
       }
-    } catch (e) {
-      logger(`Error checking module ${destModule}: ${e}`);
+    } catch (err) {
+      logger.error(`Error checking module ${destModule}`, err);
       return false;
     }
   } else {
@@ -397,7 +397,9 @@ export function collectValidators(
 ): Set<string> {
   // TODO: support address configurations in collectValidators
   if (typeof config === 'string') {
-    logger.extend(origin)('Address config unimplemented in collectValidators');
+    logger
+      .child({ origin })
+      .debug('Address config unimplemented in collectValidators');
     return new Set([]);
   }
 
