@@ -105,9 +105,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           'getDeployedInterchainAccount(uint32,address,address,address)'
         ](originDomain, config.owner, routerAddress, ismAddress),
       );
-      this.logger(`Interchain account deployed at ${account}`);
+      this.logger.debug(`Interchain account deployed at ${account}`);
     } else {
-      this.logger(`Interchain account recovered at ${account}`);
+      this.logger.debug(`Interchain account recovered at ${account}`);
     }
     return account;
   }

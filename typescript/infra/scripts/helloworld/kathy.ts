@@ -377,7 +377,7 @@ async function main(): Promise<boolean> {
       coreConfig.owners[origin].owner,
     );
     updateWalletBalanceMetricFor(app, origin, owner).catch((e) => {
-      warn('Failed to update wallet balance for chain', {
+      logger.warn('Failed to update wallet balance for chain', {
         chain: origin,
         err: format(e),
       });

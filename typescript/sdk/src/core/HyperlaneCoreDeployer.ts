@@ -115,7 +115,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         chain,
         config.owner,
       );
-      this.logger('Initializing mailbox');
+      this.logger.debug('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
         mailbox.initialize(
