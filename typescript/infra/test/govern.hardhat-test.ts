@@ -182,7 +182,7 @@ describe('ICA governance', async () => {
     governor.mockPushCall(remoteChain, call);
 
     // act
-    await governor.govern();
+    await governor.govern(); // this is where the ICA inference happens
     await coreApp.processMessages();
 
     // assert
