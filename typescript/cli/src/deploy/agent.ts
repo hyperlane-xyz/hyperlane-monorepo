@@ -2,8 +2,8 @@ import terminalLink from 'terminal-link';
 
 import { toBase64 } from '@hyperlane-xyz/utils';
 
-import { logBlue, logGreen } from '../../logger.js';
 import { getContext } from '../context.js';
+import { logBlue, logGreen } from '../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,

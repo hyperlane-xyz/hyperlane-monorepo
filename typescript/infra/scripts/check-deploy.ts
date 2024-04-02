@@ -9,7 +9,7 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
-  resolveAccountOwner,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
@@ -51,7 +51,7 @@ async function check() {
         [fork]: { blocks: { confirmations: 0 } },
       });
 
-      const owner = await resolveAccountOwner(
+      const owner = await resolveOrDeployAccountOwner(
         multiProvider,
         fork,
         config.core[fork].owner,

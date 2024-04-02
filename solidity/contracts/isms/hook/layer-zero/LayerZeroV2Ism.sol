@@ -57,7 +57,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     /**
      * @notice Entry point for receiving msg/packet from the LayerZero endpoint.
      * @param _lzMessage The payload of the received message.
-     * @dev Authorization verifcation is done within verifyMessageId() -> _isAuthorized()
+     * @dev Authorization verification is done within verifyMessageId() -> _isAuthorized()
      */
     function lzReceive(
         Origin calldata,
@@ -83,7 +83,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     }
 
     /**
-     * @notice Validates criterias to verify a message
+     * @notice Validates criteria to verify a message
      * @dev this is called by AbstractMessageIdAuthorizedIsm.verifyMessageId
      * @dev parses msg.value to get parameters from lzReceive()
      */

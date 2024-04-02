@@ -202,12 +202,15 @@ export abstract class HyperlaneAppGovernor<
           origin,
           chain,
           [call],
+          accountConfig,
         );
         if (!callRemote.to || !callRemote.data) {
           return SubmissionType.MANUAL;
         }
         const encodedCall: AnnotatedCallData = {
-          ...callRemote, // encodedCall via ICA router
+          to: callRemote.to,
+          data: callRemote.data,
+          value: call.value,
           description: `${call.description} - interchain account call from ${origin} to ${chain}`,
         };
         const subType = await this.inferCallSubmissionType(origin, encodedCall);

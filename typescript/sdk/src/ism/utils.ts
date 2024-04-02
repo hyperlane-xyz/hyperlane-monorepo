@@ -1,4 +1,3 @@
-import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
@@ -18,12 +17,13 @@ import {
   formatMessage,
   normalizeAddress,
   objMap,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
 import { ProxyFactoryFactories } from '../deploy/contracts';
-import { resolveAccountOwner } from '../deploy/types';
+import { resolveOrDeployAccountOwner } from '../deploy/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 
@@ -36,7 +36,7 @@ import {
   ismTypeToModuleType,
 } from './types';
 
-const logger = debug('hyperlane:IsmUtils');
+const logger = rootLogger.child({ module: 'IsmUtils' });
 
 // Note that this function may return false negatives, but should
 // not return false positives.
@@ -118,8 +118,8 @@ export async function moduleCanCertainlyVerify(
       } else {
         throw new Error(`Unsupported module type: ${moduleType}`);
       }
-    } catch (e) {
-      logger(`Error checking module ${destModule}: ${e}`);
+    } catch (err) {
+      logger.error(`Error checking module ${destModule}`, err);
       return false;
     }
   } else {
@@ -222,7 +222,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      const expectedOwner = await resolveAccountOwner(
+      const expectedOwner = await resolveOrDeployAccountOwner(
         multiProvider,
         chain,
         config.owner,
@@ -303,7 +303,7 @@ export async function moduleMatchesConfig(
     case IsmType.PAUSABLE: {
       const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
       const owner = await pausableIsm.owner();
-      const expectedOwner = await resolveAccountOwner(
+      const expectedOwner = await resolveOrDeployAccountOwner(
         multiProvider,
         chain,
         config.owner,
@@ -352,7 +352,7 @@ export async function routingModuleDelta(
   };
 
   // if owners don't match, we need to transfer ownership
-  const expectedOwner = await resolveAccountOwner(
+  const expectedOwner = await resolveOrDeployAccountOwner(
     multiProvider,
     destination,
     config.owner,
@@ -397,7 +397,9 @@ export function collectValidators(
 ): Set<string> {
   // TODO: support address configurations in collectValidators
   if (typeof config === 'string') {
-    logger.extend(origin)('Address config unimplemented in collectValidators');
+    logger
+      .child({ origin })
+      .debug('Address config unimplemented in collectValidators');
     return new Set([]);
   }
 

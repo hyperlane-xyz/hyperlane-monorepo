@@ -1,12 +1,10 @@
-import debug from 'debug';
-
 import {
   IPostDispatchHook,
   Mailbox,
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
@@ -19,10 +17,7 @@ import { moduleMatchesConfig } from '../ism/utils';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
-import {
-  TestRecipientConfig,
-  TestRecipientDeployer,
-} from './TestRecipientDeployer';
+import { TestRecipientDeployer } from './TestRecipientDeployer';
 import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
 import { CoreConfig } from './types';
 
@@ -39,7 +34,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, coreFactories, {
-      logger: debug('hyperlane:CoreDeployer'),
+      logger: rootLogger.child({ module: 'CoreDeployer' }),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
       ismFactory,
       contractVerifier,
@@ -70,8 +65,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
+      'mailbox',
       proxyAdmin,
       [domain],
+    );
+    // resolve the owner account so that the subsequent calls terminate early
+    config.owner = await this.resolveInterchainAccountAsOwner(
+      chain,
+      config.owner,
     );
 
     let defaultIsm = await mailbox.defaultIsm();
@@ -83,7 +84,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.ismFactory.getContracts(chain),
     );
     if (!matches) {
-      this.logger('Deploying default ISM');
+      this.logger.debug('Deploying default ISM');
       defaultIsm = await this.deployIsm(
         chain,
         config.defaultIsm,
@@ -94,14 +95,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
-    this.logger('Deploying default hook');
+    this.logger.debug('Deploying default hook');
     const defaultHook = await this.deployHook(
       chain,
       config.defaultHook,
       hookAddresses,
     );
 
-    this.logger('Deploying required hook');
+    this.logger.debug('Deploying required hook');
     const requiredHook = await this.deployHook(
       chain,
       config.requiredHook,
@@ -114,7 +115,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         chain,
         config.owner,
       );
-      this.logger('Initializing mailbox');
+      this.logger.debug('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
         mailbox.initialize(
@@ -137,7 +138,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         throw e;
       }
 
-      this.logger('Mailbox already initialized');
+      this.logger.debug('Mailbox already initialized');
 
       const overrides = this.multiProvider.getTransactionOverrides(chain);
       await this.configureHook(
@@ -217,15 +218,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployTestRecipient(
     chain: ChainName,
-    interchainSecurityModule: Address,
+    interchainSecurityModule?: IsmConfig,
   ): Promise<TestRecipient> {
-    const config: TestRecipientConfig = {
-      interchainSecurityModule: interchainSecurityModule,
-    };
-    const testRecipient = await this.testRecipient.deployContracts(
-      chain,
-      config,
-    );
+    const testRecipient = await this.testRecipient.deployContracts(chain, {
+      interchainSecurityModule,
+    });
     this.addDeployedContracts(chain, testRecipient);
     return testRecipient.testRecipient;
   }
@@ -248,11 +245,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox.address,
     );
 
-    const testRecipient = await this.deployTestRecipient(
-      chain,
-      this.cachedAddresses[chain].interchainSecurityModule,
-    );
-
     if (config.upgrade) {
       const timelockController = await this.deployTimelock(
         chain,
@@ -263,6 +255,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         proxyAdmin: timelockController.address,
       };
     }
+
+    const testRecipient = await this.deployTestRecipient(
+      chain,
+      this.cachedAddresses[chain].interchainSecurityModule,
+    );
 
     const contracts = {
       mailbox,

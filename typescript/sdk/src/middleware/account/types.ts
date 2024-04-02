@@ -6,4 +6,6 @@ export type AccountConfig = {
   origin: ChainName;
   owner: Address;
   localRouter?: Address;
+  routerOverride?: Address;
+  ismOverride?: Address;
 };

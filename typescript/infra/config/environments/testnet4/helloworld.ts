@@ -15,7 +15,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: '7d1f975-20240312-113049',
     },
-    chainsToSkip: [],
+    chainsToSkip: ['mumbai'],
     runEnv: environment,
     namespace: environment,
     runConfig: {
@@ -35,7 +35,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: '7d1f975-20240312-113049',
     },
-    chainsToSkip: [],
+    chainsToSkip: ['mumbai'],
     runEnv: environment,
     namespace: environment,
     runConfig: {

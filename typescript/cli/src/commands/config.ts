@@ -1,6 +1,5 @@
 import { CommandModule } from 'yargs';
 
-import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { createHooksConfigMap } from '../config/hooks.js';
 import { createIsmConfigMap, readIsmConfig } from '../config/ism.js';
@@ -12,6 +11,7 @@ import {
   createWarpRouteDeployConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
+import { log, logGreen } from '../logger.js';
 import { FileFormat } from '../utils/files.js';
 
 import {
