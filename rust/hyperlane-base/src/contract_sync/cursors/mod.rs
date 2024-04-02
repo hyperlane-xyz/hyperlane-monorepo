@@ -74,7 +74,7 @@ impl SyncState {
         Ok(Some(range))
     }
 
-    fn block_range(&mut self, tip: u32) -> RangeInclusive<u32> {
+    fn block_range(&self, tip: u32) -> RangeInclusive<u32> {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let from = self.next_block;
@@ -99,7 +99,7 @@ impl SyncState {
     /// * `max_sequence` - The maximum sequence that should be indexed.
     /// `max_sequence` is the exclusive upper bound of the range to be indexed.
     /// (e.g. `0..max_sequence`)
-    fn sequence_range(&mut self, max_sequence: u32) -> Result<Option<RangeInclusive<u32>>> {
+    fn sequence_range(&self, max_sequence: u32) -> Result<Option<RangeInclusive<u32>>> {
         let (from, to) = match self.direction {
             SyncDirection::Forward => {
                 let sequence_start = self.next_sequence;
