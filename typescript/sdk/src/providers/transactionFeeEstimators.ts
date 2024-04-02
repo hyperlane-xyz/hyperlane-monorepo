@@ -4,9 +4,7 @@ import { toUtf8 } from '@cosmjs/encoding';
 import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
-// https://github.com/confio/cosmjs-types/issues/93
-// @ts-ignore The cosmjs-types package.json lacks an `exports` field
-import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx';
+import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
