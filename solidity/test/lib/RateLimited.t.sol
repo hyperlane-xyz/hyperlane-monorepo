@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {RateLimited} from "../../contracts/libs/RateLimited.sol";
-import "forge-std/console.sol";
 
 contract RateLimitLibTest is Test {
     RateLimited rateLimited;
@@ -40,14 +39,27 @@ contract RateLimitLibTest is Test {
         );
     }
 
-    // function testRateLimited_onlyOwnerCanSet() {
+    function testRateLimited_onlyOwnerCanSetTargetLimit() external {
+        vm.prank(address(0));
+        vm.expectRevert();
+        rateLimited.setTargetLimit(HOOK, 1 ether);
+    }
 
-    // }
-
-    function testRateLimited_neverReturnsGtMaxLimit(uint40 newTime) external {
+    function testRateLimited_neverReturnsGtMaxLimit(uint40 _newTime) external {
         (, , , uint256 max) = rateLimited.limits(HOOK);
 
-        vm.warp(newTime);
+        vm.warp(_newTime);
         assertLe(rateLimited.getTargetLimit(HOOK), max);
+    }
+
+    function testRateLimited_shouldReturnNewLimit_ifBelowMaxLimit(
+        uint256 _newAmount
+    ) external {
+        vm.assume(_newAmount <= rateLimited.getTargetLimit(HOOK));
+        uint256 newLimit = rateLimited.getLimit(HOOK) + _newAmount;
+        assertEq(
+            rateLimited.validateAndIncrementLimit(HOOK, _newAmount),
+            newLimit
+        );
     }
 }

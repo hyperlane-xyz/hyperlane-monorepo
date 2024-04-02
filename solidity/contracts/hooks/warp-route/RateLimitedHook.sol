@@ -7,8 +7,6 @@ import {Message} from "contracts/libs/Message.sol";
 import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 import {RateLimited} from "contracts/libs/RateLimited.sol";
 
-import "forge-std/console.sol";
-
 contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
     using Message for bytes;
     using TokenMessage for bytes;
@@ -29,7 +27,10 @@ contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
         return false;
     }
 
-    /// @inheritdoc IPostDispatchHook
+    /**
+     * Verify a message, rate limit, and increment the sender's limit.
+     * @dev ensures that this gets called by the Mailbox
+     */
     function postDispatch(
         bytes calldata,
         bytes calldata _message

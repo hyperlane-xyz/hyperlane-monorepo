@@ -2,8 +2,6 @@
 pragma solidity >=0.8.0;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title RateLimited
  * @notice A contract used to keep track of an address sender's token amount limits
@@ -44,9 +42,9 @@ contract RateLimited is OwnableUpgradeable {
      * If half of a day (43200s) has passed, then there should be a limit of 0.5e18
      *
      * Token Limit
-     * 1e18						0.5e18						 0
-     * |--------------------------|--------------------------|
-     * 0						43200					   86400
+     * 1e18           0.5e18             0
+     * |----------------|----------------|
+     * 0              43200            86400
      * Duration
      *
      * To calculate:
@@ -63,14 +61,14 @@ contract RateLimited is OwnableUpgradeable {
         uint256 elapsed = (block.timestamp - limit.lastUpdate);
         uint256 currentLimitAmount = (elapsed * limit.tokenPerSecond);
 
-        /// @dev Modulo is used because the currentLimitAmount can be greater than the max because elapsed time can exceed the DURATION
+        /// @dev Modulo currentLimitAmount because we should drop any excess elapsed time
         return limit.max - (currentLimitAmount % limit.max);
     }
 
     /**
-     * Sets the max limit for a sender address
+     * Sets the max limit for a specific address
      * @param _sender sender address to set
-     * @param _newLimit amount to set
+     * @param _newLimit new maxiumum limit to set
      */
     function setTargetLimit(
         address _sender,
@@ -94,7 +92,7 @@ contract RateLimited is OwnableUpgradeable {
     function validateAndIncrementLimit(
         address _sender,
         uint256 _newAmount
-    ) public returns (uint256) {
+    ) public view returns (uint256) {
         RateLimited.Limit memory limit = limits[_sender];
         uint256 targetLimit = getTargetLimit(_sender);
         if (limit.current + _newAmount > targetLimit)

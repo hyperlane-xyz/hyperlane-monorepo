@@ -13,7 +13,7 @@ contract RateLimitedIsm is RateLimited, IInterchainSecurityModule {
     using Message for bytes;
     using TokenMessage for bytes;
 
-    IMailbox mailbox;
+    IMailbox public immutable mailbox;
 
     constructor(address _mailbox) {
         mailbox = IMailbox(_mailbox);
@@ -22,12 +22,13 @@ contract RateLimitedIsm is RateLimited, IInterchainSecurityModule {
     error InvalidDeliveredMessage();
 
     /// @inheritdoc IInterchainSecurityModule
-    function moduleType() external view returns (uint8) {
+    function moduleType() external pure returns (uint8) {
         return uint8(IInterchainSecurityModule.Types.UNUSED);
     }
 
     /**
      * Verify a message, rate limit, and increment the sender's limit.
+     * @dev ensures that this gets called by the Mailbox
      */
     function verify(
         bytes calldata,
