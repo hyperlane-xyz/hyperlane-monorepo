@@ -746,6 +746,7 @@ export abstract class HyperlaneDeployer<
         this.cachedAddresses,
         this.multiProvider,
       );
+      // submits network transaction to deploy the account iff it doesn't exist
       return router.deployAccount(chain, owner);
     }
   }

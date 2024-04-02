@@ -260,6 +260,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
 
+    // we don't config owner as config.owner because there're post-deploy steps like
+    // enrolling routing hooks which need ownership, and therefore we transferOwnership at the end
     const deployer = await this.multiProvider.getSigner(chain).getAddress();
 
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;

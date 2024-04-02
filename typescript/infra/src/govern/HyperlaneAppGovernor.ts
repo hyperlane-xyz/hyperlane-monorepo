@@ -8,7 +8,7 @@ import {
   HyperlaneAppChecker,
   OwnableConfig,
   OwnerViolation,
-  resolveAccountOwner,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, objMap } from '@hyperlane-xyz/utils';
 
@@ -120,7 +120,7 @@ export abstract class HyperlaneAppGovernor<
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
-    const owner = await resolveAccountOwner(
+    const owner = await resolveOrDeployAccountOwner(
       this.checker.multiProvider,
       chain,
       this.checker.configMap[chain].owner,
