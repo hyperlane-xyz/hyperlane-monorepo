@@ -12,7 +12,7 @@ import {
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 
-import { TokenType } from './config';
+import { TokenType } from './config.js';
 
 export const hypERC20contracts = {
   [TokenType.fastCollateral]: 'FastHypERC20Collateral',

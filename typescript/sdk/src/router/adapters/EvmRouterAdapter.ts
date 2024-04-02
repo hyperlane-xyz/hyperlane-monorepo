@@ -6,11 +6,11 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, Domain, bytes32ToAddress } from '@hyperlane-xyz/utils';
 
-import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
+import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
 
-import { IGasRouterAdapter, IRouterAdapter } from './types';
+import { IGasRouterAdapter, IRouterAdapter } from './types.js';
 
 export class EvmRouterAdapter extends BaseEvmAdapter implements IRouterAdapter {
   constructor(

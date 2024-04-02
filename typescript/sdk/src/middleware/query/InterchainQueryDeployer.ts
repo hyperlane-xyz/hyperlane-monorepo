@@ -1,14 +1,14 @@
 import { ethers } from 'ethers';
 
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
-import { RouterConfig } from '../../router/types';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
+import { RouterConfig } from '../../router/types.js';
 
 import {
   InterchainQueryFactories,
   interchainQueryFactories,
-} from './contracts';
+} from './contracts.js';
 
 export type InterchainQueryConfig = RouterConfig;
 

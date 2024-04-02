@@ -5,11 +5,11 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { ChainMap } from '../types';
+} from '../contracts/types.js';
+import { ChainMap } from '../types.js';
 
-import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { GasRouterConfig } from './types';
+import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer.js';
+import { GasRouterConfig } from './types.js';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,

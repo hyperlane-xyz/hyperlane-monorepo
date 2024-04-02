@@ -4,11 +4,11 @@ import { ethers } from 'ethers';
 
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
-import { ChainMetadata } from '../../metadata/chainMetadataTypes';
+import { chainMetadata } from '../../consts/chainMetadata.js';
+import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 
-import { ProviderMethod } from './ProviderMethods';
-import { HyperlaneSmartProvider } from './SmartProvider';
+import { ProviderMethod } from './ProviderMethods.js';
+import { HyperlaneSmartProvider } from './SmartProvider.js';
 
 const DEFAULT_ACCOUNT = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
 const WETH_CONTRACT = '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9';

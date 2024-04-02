@@ -13,7 +13,7 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json';
+import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json' assert { type: 'json' };
 import {
   Address,
   ProtocolType,
@@ -27,13 +27,13 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { IsmConfig } from '../ism/types';
-import { moduleMatchesConfig } from '../ism/utils';
-import { MultiProvider } from '../providers/MultiProvider';
-import { MailboxClientConfig } from '../router/types';
-import { ChainMap, ChainName } from '../types';
+} from '../contracts/types.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { IsmConfig } from '../ism/types.js';
+import { moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { MailboxClientConfig } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import {
   UpgradeConfig,
@@ -41,14 +41,17 @@ import {
   proxyAdmin,
   proxyConstructorArgs,
   proxyImplementation,
-} from './proxy';
-import { OwnableConfig } from './types';
-import { ContractVerifier } from './verify/ContractVerifier';
-import { ContractVerificationInput, ExplorerLicenseType } from './verify/types';
+} from './proxy.js';
+import { OwnableConfig } from './types.js';
+import { ContractVerifier } from './verify/ContractVerifier.js';
+import {
+  ContractVerificationInput,
+  ExplorerLicenseType,
+} from './verify/types.js';
 import {
   buildVerificationInput,
   getContractVerificationInput,
-} from './verify/utils';
+} from './verify/utils.js';
 
 export interface DeployerOptions {
   logger?: Logger;

@@ -21,7 +21,7 @@
     "zod": "^3.21.2"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.2.1",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@types/mocha": "^10.0.1",
     "@types/node": "^16.9.1",
@@ -32,27 +32,37 @@
     "dotenv": "^10.0.0",
     "eslint": "^8.57.0",
     "ethereum-waffle": "^4.0.10",
-    "hardhat": "^2.19.0",
+    "hardhat": "^2.22.2",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
     "sinon": "^13.0.2",
     "ts-node": "^10.8.0",
+    "tsx": "^4.7.1",
     "typescript": "5.3.3",
     "yaml": "^2.3.1"
   },
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./logos": "./logos"
+  },
+  "types": "./dist/index.d.ts",
   "files": [
     "/dist",
     "/logos"
   ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=16"
+  },
   "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "keywords": [
     "Hyperlane",
     "SDK",
     "Typescript"
   ],
   "license": "Apache-2.0",
-  "main": "dist/index.js",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -64,11 +74,10 @@
     "test": "yarn test:unit && yarn test:hardhat && yarn test:foundry",
     "test:ci": "yarn test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "hardhat test $(find ./src -name \"*.hardhat-test.ts\")",
-    "test:metadata": "ts-node ./src/test/metadata-check.ts",
+    "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:metadata": "tsx ./src/test/metadata-check.ts",
     "test:foundry": "./scripts/foundry-test.sh"
   },
-  "types": "dist/index.d.ts",
   "peerDependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*"

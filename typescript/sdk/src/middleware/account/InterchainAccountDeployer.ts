@@ -1,16 +1,16 @@
 import { ethers } from 'ethers';
 
-import { HyperlaneContracts } from '../../contracts/types';
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
-import { ProxiedRouterConfig, RouterConfig } from '../../router/types';
-import { ChainName } from '../../types';
+import { HyperlaneContracts } from '../../contracts/types.js';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
+import { ProxiedRouterConfig, RouterConfig } from '../../router/types.js';
+import { ChainName } from '../../types.js';
 
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
-} from './contracts';
+} from './contracts.js';
 
 export type InterchainAccountConfig = ProxiedRouterConfig;
 

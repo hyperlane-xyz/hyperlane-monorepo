@@ -7,11 +7,11 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
-import { ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { ProxiedFactories, ProxiedRouterConfig } from './types';
+import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer.js';
+import { ProxiedFactories, ProxiedRouterConfig } from './types.js';
 
 export abstract class ProxiedRouterDeployer<
   Config extends ProxiedRouterConfig,

@@ -1,6 +1,8 @@
-import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-waffle';
-import '@typechain/hardhat';
+require('@nomiclabs/hardhat-ethers');
+require('@nomiclabs/hardhat-waffle');
+require('@typechain/hardhat');
+require('hardhat-gas-reporter');
+require('solidity-coverage');
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
@@ -20,5 +22,6 @@ module.exports = {
   },
   mocha: {
     bail: true,
+    import: 'tsx',
   },
 };

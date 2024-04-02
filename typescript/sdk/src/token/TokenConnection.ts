@@ -2,10 +2,10 @@ import { z } from 'zod';
 
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { ZChainName } from '../metadata/customZodTypes';
-import { ChainName } from '../types';
+import { ZChainName } from '../metadata/customZodTypes.js';
+import { ChainName } from '../types.js';
 
-import type { IToken } from './IToken';
+import type { IToken } from './IToken.js';
 
 export enum TokenConnectionType {
   Hyperlane = 'hyperlane',

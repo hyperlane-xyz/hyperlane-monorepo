@@ -1,7 +1,4 @@
-import type {
-  DispatchEvent,
-  ProcessEvent,
-} from '@hyperlane-xyz/core/dist/contracts/Mailbox';
+import type { DispatchEvent, ProcessEvent } from '@hyperlane-xyz/core/mailbox';
 
 export { DispatchEvent, ProcessEvent };
 

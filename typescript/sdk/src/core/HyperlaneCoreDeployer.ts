@@ -6,20 +6,20 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
-import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer';
-import { HookConfig } from '../hook/types';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { IsmConfig } from '../ism/types';
-import { moduleMatchesConfig } from '../ism/utils';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer.js';
+import { HookConfig } from '../hook/types.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { IsmConfig } from '../ism/types.js';
+import { moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { TestRecipientDeployer } from './TestRecipientDeployer';
-import { CoreAddresses, CoreFactories, coreFactories } from './contracts';
-import { CoreConfig } from './types';
+import { TestRecipientDeployer } from './TestRecipientDeployer.js';
+import { CoreAddresses, CoreFactories, coreFactories } from './contracts.js';
+import { CoreConfig } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,

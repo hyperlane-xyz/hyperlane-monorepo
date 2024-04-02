@@ -1,5 +1,5 @@
-import { AllDeprecatedChains } from '../consts/chains';
-import { ChainMap, ChainName } from '../types';
+import { AllDeprecatedChains } from '../consts/chains.js';
+import { ChainMap, ChainName } from '../types.js';
 
 // Generalized map container for chain name to some value
 export class MultiGeneric<Value> {

@@ -1,6 +1,6 @@
 import { Numberish, fromWei } from '@hyperlane-xyz/utils';
 
-import type { IToken } from './IToken';
+import type { IToken } from './IToken.js';
 
 export class TokenAmount {
   public readonly amount: bigint;

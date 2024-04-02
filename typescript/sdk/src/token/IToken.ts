@@ -2,17 +2,20 @@ import { z } from 'zod';
 
 import { Address, Numberish, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ZChainName, ZUint } from '../metadata/customZodTypes';
-import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import type { ChainName } from '../types';
+import { ZChainName, ZUint } from '../metadata/customZodTypes.js';
+import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { ChainName } from '../types.js';
 
-import type { TokenAmount } from './TokenAmount';
+import type { TokenAmount } from './TokenAmount.js';
 import {
   type TokenConnection,
   TokenConnectionConfigSchema,
-} from './TokenConnection';
-import { TokenStandard } from './TokenStandard';
-import type { IHypTokenAdapter, ITokenAdapter } from './adapters/ITokenAdapter';
+} from './TokenConnection.js';
+import { TokenStandard } from './TokenStandard.js';
+import type {
+  IHypTokenAdapter,
+  ITokenAdapter,
+} from './adapters/ITokenAdapter.js';
 
 export const TokenConfigSchema = z.object({
   chainName: ZChainName.describe(

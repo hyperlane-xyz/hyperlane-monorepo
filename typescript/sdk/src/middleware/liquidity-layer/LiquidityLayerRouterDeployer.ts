@@ -10,14 +10,17 @@ import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
-} from '../../contracts/types';
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
-import { RouterConfig } from '../../router/types';
-import { ChainMap, ChainName } from '../../types';
+} from '../../contracts/types.js';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
+import { RouterConfig } from '../../router/types.js';
+import { ChainMap, ChainName } from '../../types.js';
 
-import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
+import {
+  LiquidityLayerFactories,
+  liquidityLayerFactories,
+} from './contracts.js';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',

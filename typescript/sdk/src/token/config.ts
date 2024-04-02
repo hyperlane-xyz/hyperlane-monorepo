@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { GasRouterConfig } from '../router/types';
+import { GasRouterConfig } from '../router/types.js';
 
 export enum TokenType {
   synthetic = 'synthetic',

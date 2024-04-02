@@ -12,13 +12,13 @@ import {
 } from '@hyperlane-xyz/core';
 import { objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../providers/MultiProvider';
-import { GasRouterDeployer } from '../router/GasRouterDeployer';
-import { GasConfig, RouterConfig } from '../router/types';
-import { ChainMap, ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
+import { GasConfig, RouterConfig } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import {
   CollateralConfig,
@@ -40,7 +40,7 @@ import {
   isSyntheticConfig,
   isTokenMetadata,
   isUriConfig,
-} from './config';
+} from './config.js';
 import {
   HypERC20Factories,
   HypERC721Factories,
@@ -48,7 +48,7 @@ import {
   hypERC20factories,
   hypERC721contracts,
   hypERC721factories,
-} from './contracts';
+} from './contracts.js';
 
 export class HypERC20Deployer extends GasRouterDeployer<
   ERC20RouterConfig,

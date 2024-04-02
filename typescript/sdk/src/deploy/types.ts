@@ -7,7 +7,7 @@ import type {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import type { ChainName } from '../types';
+import type { ChainName } from '../types.js';
 
 export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = {
   owner: Address;
