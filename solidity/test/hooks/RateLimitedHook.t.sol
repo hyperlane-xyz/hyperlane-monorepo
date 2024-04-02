@@ -42,7 +42,7 @@ contract RateLimitedHookTest is Test {
 
         token = new ERC20Test("Test", "Test", 100 ether, 18);
         noopHook = new TestPostDispatchHook();
-        rateLimitedHook = new RateLimitedHook();
+        rateLimitedHook = new RateLimitedHook(address(localMailbox));
 
         localMailbox.setDefaultHook(address(noopHook));
         localMailbox.setRequiredHook(address(noopHook));
@@ -70,43 +70,80 @@ contract RateLimitedHookTest is Test {
             address(warpRouteLocal).addressToBytes32()
         );
 
-        rateLimitedHook.setLimit(address(warpRouteLocal), ROUTE_LIMIT_AMOUNT);
+        rateLimitedHook.setTargetLimit(
+            address(warpRouteLocal),
+            ROUTE_LIMIT_AMOUNT
+        );
+    }
+
+    function testRateLimitedHook_revertsIfCalledByNonMailbox(
+        bytes calldata _message
+    ) external {
+        vm.expectRevert(RateLimitedHook.InvalidDispatchedMessage.selector);
+        rateLimitedHook.postDispatch(bytes(""), _message);
     }
 
     function testRateLimitedHook_revertsIfRateLimitExceeded(
-        uint128 amount,
-        uint128 time
+        uint128 _amount,
+        uint128 _time
     ) external {
         // Warp to a random time, get it's limit, and try to transfer more than the target max
-        vm.warp(time);
-        vm.assume(
-            amount > rateLimitedHook.getTargetLimit(address(warpRouteLocal))
+        vm.warp(_time);
+        uint256 targetLimit = rateLimitedHook.getTargetLimit(
+            address(warpRouteLocal)
         );
-        _mintAndApprove(amount);
+        vm.assume(_amount > targetLimit);
+        _mintAndApprove(_amount);
 
-        vm.expectRevert(RateLimitedHook.RateLimitExceeded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RateLimited.RateLimitExceeded.selector,
+                _amount,
+                targetLimit
+            )
+        );
         warpRouteLocal.transferRemote{value: 1}(
             DESTINATION,
             BOB.addressToBytes32(),
-            amount
+            _amount
         );
     }
 
     function testRateLimitedHook_allowsTransferUnderLimit(
-        uint128 amount,
-        uint128 time
+        uint128 _amount,
+        uint128 _time
     ) external {
         // Warp to a random time, get it's limit, and try to transfer more than the target max
-        vm.warp(time);
+        vm.warp(_time);
         vm.assume(
-            amount <= rateLimitedHook.getTargetLimit(address(warpRouteLocal))
+            _amount <= rateLimitedHook.getTargetLimit(address(warpRouteLocal))
         );
-        _mintAndApprove(amount);
+        _mintAndApprove(_amount);
 
         warpRouteLocal.transferRemote{value: 1}(
             DESTINATION,
             BOB.addressToBytes32(),
-            amount
+            _amount
         );
+    }
+
+    function testRateLimitedHook_tracksSenderCurrentLimit(
+        uint128 _amount,
+        uint128 _time
+    ) external {
+        // Warp to a random time, get it's limit, and try to transfer more than the target max
+        vm.warp(_time);
+        vm.assume(
+            _amount <= rateLimitedHook.getTargetLimit(address(warpRouteLocal))
+        );
+        _mintAndApprove(_amount);
+
+        warpRouteLocal.transferRemote{value: 1}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            _amount
+        );
+
+        assertEq(rateLimitedHook.getLimit(address(warpRouteLocal)), _amount);
     }
 }

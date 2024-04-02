@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {MailboxClient} from "contracts/client/MailboxClient.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {Message} from "contracts/libs/Message.sol";
@@ -9,15 +9,13 @@ import {RateLimited} from "contracts/libs/RateLimited.sol";
 
 import "forge-std/console.sol";
 
-contract RateLimitedHook is RateLimited, IPostDispatchHook, OwnableUpgradeable {
+contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
     using Message for bytes;
     using TokenMessage for bytes;
 
-    error RateLimitExceeded(uint256 newLimit, uint256 targetLimit);
+    constructor(address _mailbox) MailboxClient(_mailbox) {}
 
-    constructor() {
-        _transferOwnership(msg.sender);
-    }
+    error InvalidDispatchedMessage();
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
@@ -34,14 +32,14 @@ contract RateLimitedHook is RateLimited, IPostDispatchHook, OwnableUpgradeable {
     /// @inheritdoc IPostDispatchHook
     function postDispatch(
         bytes calldata,
-        bytes calldata message
+        bytes calldata _message
     ) external payable {
-        address sender = TypeCasts.bytes32ToAddress(message.sender());
-        RateLimited.Limit memory limit = limits[sender];
-        uint256 newLimit = limit.current + message.body().amount(); // message.body is a TokenMessage
-        uint256 targetLimit = getTargetLimit(sender);
-        if (newLimit > targetLimit)
-            revert RateLimitExceeded(newLimit, targetLimit);
+        if (!_isLatestDispatched(_message.id()))
+            revert InvalidDispatchedMessage();
+
+        address sender = TypeCasts.bytes32ToAddress(_message.sender());
+        uint256 newAmount = _message.body().amount();
+        limits[sender].current = validateAndIncrementLimit(sender, newAmount);
     }
 
     /// @inheritdoc IPostDispatchHook

@@ -11,17 +11,20 @@ contract RateLimitLibTest is Test {
 
     function setUp() public {
         rateLimited = new RateLimited();
-        rateLimited.setLimit(HOOK, 1 ether);
+        rateLimited.setTargetLimit(HOOK, 1 ether);
     }
 
     function testRateLimited_setsNewLimit() external {
-        RateLimited.Limit memory limit = rateLimited.setLimit(HOOK, 2 ether);
+        RateLimited.Limit memory limit = rateLimited.setTargetLimit(
+            HOOK,
+            2 ether
+        );
         assertEq(limit.max, 2 ether);
         assertEq(limit.tokenPerSecond, 23148148148148); // 2 ether / 1 day
     }
 
     function testRateLimited_revertsIfMaxNotSet() external {
-        rateLimited.setLimit(HOOK, 0);
+        rateLimited.setTargetLimit(HOOK, 0);
         vm.expectRevert();
         rateLimited.getTargetLimit(HOOK);
     }
