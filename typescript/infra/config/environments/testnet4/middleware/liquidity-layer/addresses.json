@@ -5,11 +5,6 @@
     "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
     "liquidityLayerRouter": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
   },
-  "mumbai": {
-    "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
-    "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
-    "liquidityLayerRouter": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
-  },
   "bsctestnet": {
     "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
     "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",

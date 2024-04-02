@@ -244,7 +244,7 @@ fn build_polygon_gas_oracle(chain: ethers_core::types::Chain) -> ChainResult<Box
 }
 
 /// Wrap the provider with a gas oracle middleware.
-/// Polygon and Mumbai require using the Polygon gas oracle, see discussion here
+/// Polygon requires using the Polygon gas oracle, see discussion here
 /// https://github.com/foundry-rs/foundry/issues/1703.
 /// Defaults to using the provider's gas oracle.
 fn wrap_with_gas_oracle<M>(
@@ -259,9 +259,6 @@ where
         match domain {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
                 build_polygon_gas_oracle(ethers_core::types::Chain::Polygon)?
-            }
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
-                build_polygon_gas_oracle(ethers_core::types::Chain::PolygonMumbai)?
             }
             _ => Box::new(ProviderOracle::new(provider.clone())),
         }
