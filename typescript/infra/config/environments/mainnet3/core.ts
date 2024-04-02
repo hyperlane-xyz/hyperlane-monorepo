@@ -18,7 +18,7 @@ import {
   RoutingIsmConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { supportedChainNames } from './chains';
 import { igp } from './igp';
@@ -99,7 +99,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
     protocolFee: BigNumber.from(0).toString(), // 0 wei
-    beneficiary: owner.owner,
+    beneficiary: owner.owner as Address, // Owner can be AccountConfig
     ...owner,
   };
 
