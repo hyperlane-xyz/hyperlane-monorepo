@@ -18,7 +18,6 @@ import {
   Address,
   ProtocolType,
   eqAddress,
-  objMerge,
   rootLogger,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
@@ -99,7 +98,7 @@ export abstract class HyperlaneDeployer<
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
-    this.cachedAddresses = objMerge(this.cachedAddresses, addressesMap);
+    this.cachedAddresses = addressesMap;
   }
 
   abstract deployContracts(
