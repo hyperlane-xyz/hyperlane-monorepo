@@ -26,7 +26,7 @@ import {
   TestCoreApp,
   TestCoreDeployer,
   randomAddress,
-  resolveAccountOwner,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { InterchainAccountFactories } from '@hyperlane-xyz/sdk/dist/middleware/account/contracts';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
@@ -154,7 +154,7 @@ describe('ICA governance', async () => {
     const checker = new TestChecker(multiProvider, app, configMap);
     governor = new HyperlaneTestGovernor(checker, icaApp);
 
-    accountOwner = await resolveAccountOwner(
+    accountOwner = await resolveOrDeployAccountOwner(
       multiProvider,
       remoteChain,
       accountConfig,

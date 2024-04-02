@@ -210,7 +210,7 @@ export abstract class HyperlaneAppGovernor<
         const encodedCall: AnnotatedCallData = {
           to: callRemote.to,
           data: callRemote.data,
-          value: call.value,
+          value: callRemote.value,
           description: `${call.description} - interchain account call from ${origin} to ${chain}`,
         };
         const subType = await this.inferCallSubmissionType(origin, encodedCall);
