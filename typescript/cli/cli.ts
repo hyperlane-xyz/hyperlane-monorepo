@@ -2,13 +2,19 @@
 import chalk from 'chalk';
 import yargs from 'yargs';
 
+import type { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
+
 import './env.js';
 import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
+import {
+  logFormatCommandOption,
+  logLevelCommandOption,
+} from './src/commands/options.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
-import { errorRed } from './src/logger.js';
+import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
 
@@ -22,6 +28,12 @@ await checkVersion();
 try {
   await yargs(process.argv.slice(2))
     .scriptName('hyperlane')
+    .option('log', logFormatCommandOption)
+    .option('verbosity', logLevelCommandOption)
+    .global(['log', 'verbosity'])
+    .middleware((argv) => {
+      configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
+    })
     .command(chainsCommand)
     .command(configCommand)
     .command(deployCommand)

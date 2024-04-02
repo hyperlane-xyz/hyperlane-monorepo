@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -22,8 +22,9 @@ import { InterchainAccount } from './InterchainAccount.js';
 import { InterchainAccountChecker } from './InterchainAccountChecker.js';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from './contracts.js';
+import { AccountConfig } from './types.js';
 
-describe.skip('InterchainAccounts', async () => {
+describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
@@ -33,6 +34,7 @@ describe.skip('InterchainAccounts', async () => {
   let remote: InterchainAccountRouter;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
+  let app: InterchainAccount;
   let config: ChainMap<RouterConfig>;
 
   before(async () => {
@@ -53,10 +55,10 @@ describe.skip('InterchainAccounts', async () => {
     );
     local = contracts[localChain].interchainAccountRouter;
     remote = contracts[remoteChain].interchainAccountRouter;
+    app = new InterchainAccount(contracts, multiProvider);
   });
 
   it('checks', async () => {
-    const app = new InterchainAccount(contracts, multiProvider);
     const checker = new InterchainAccountChecker(multiProvider, app, config);
     await checker.check();
     expect(checker.violations.length).to.eql(0);
@@ -79,14 +81,24 @@ describe.skip('InterchainAccounts', async () => {
       constants.AddressZero,
     );
 
-    await local['callRemote(uint32,address,uint256,bytes,bytes)'](
-      multiProvider.getDomainId(remoteChain),
-      recipient.address,
-      0,
+    const call = {
+      to: recipient.address,
       data,
-      '',
+      value: BigNumber.from('0'),
+    };
+    const quote = await local['quoteGasPayment(uint32)'](
+      multiProvider.getDomainId(remoteChain),
     );
+    const balanceBefore = await signer.getBalance();
+    const config: AccountConfig = {
+      origin: localChain,
+      owner: signer.address,
+      localRouter: local.address,
+    };
+    await app.callRemote(localChain, remoteChain, [call], config);
+    const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
+    expect(balanceAfter).to.lte(balanceBefore.sub(quote));
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
   });

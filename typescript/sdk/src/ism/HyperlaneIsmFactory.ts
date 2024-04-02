@@ -39,6 +39,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { resolveOrDeployAccountOwner } from '../deploy/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -163,7 +164,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
-          [config.owner],
+          [
+            await resolveOrDeployAccountOwner(
+              this.multiProvider,
+              destination,
+              config.owner,
+            ),
+          ],
         );
         await this.deployer?.transferOwnershipOfContracts(destination, config, {
           [IsmType.PAUSABLE]: contract,
@@ -324,6 +331,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
     } else {
       const isms: ChainMap<Address> = {};
+      const owner = await resolveOrDeployAccountOwner(
+        this.multiProvider,
+        destination,
+        config.owner,
+      );
       for (const origin of Object.keys(config.domains)) {
         const ism = await this.deploy({
           destination,
@@ -352,7 +364,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         receipt = await this.multiProvider.handleTx(
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
-            config.owner,
+            owner,
             safeConfigDomains,
             submoduleAddresses,
             overrides,
@@ -360,8 +372,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       } else {
         // deploying new domain routing ISM
-        const tx = await domainRoutingIsmFactory.deploy(
+        const owner = await resolveOrDeployAccountOwner(
+          this.multiProvider,
+          destination,
           config.owner,
+        );
+        const tx = await domainRoutingIsmFactory.deploy(
+          owner,
           safeConfigDomains,
           submoduleAddresses,
           overrides,

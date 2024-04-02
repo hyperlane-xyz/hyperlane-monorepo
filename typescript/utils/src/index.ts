@@ -73,9 +73,19 @@ export {
   isS3CheckpointWithId,
 } from './checkpoints.js';
 export { domainHash } from './domains.js';
-export { envVarToBoolean, safelyAccessEnvVar } from './env.js';
+export { safelyAccessEnvVar } from './env.js';
 export { canonizeId, evmId } from './ids.js';
-export { isLogPretty, rootLogger } from './logging.js';
+export {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  createHyperlanePinoLogger,
+  getLogFormat,
+  getLogLevel,
+  getRootLogger,
+  rootLogger,
+  setRootLogger,
+} from './logging.js';
 export { mean, median, stdDev, sum } from './math.js';
 export { formatMessage, messageId, parseMessage } from './messages.js';
 export {

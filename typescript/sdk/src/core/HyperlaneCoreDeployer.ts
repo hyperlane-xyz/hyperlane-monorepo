@@ -65,8 +65,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
+      'mailbox',
       proxyAdmin,
       [domain],
+    );
+    // resolve the owner account so that the subsequent calls terminate early
+    config.owner = await this.resolveInterchainAccountAsOwner(
+      chain,
+      config.owner,
     );
 
     let defaultIsm = await mailbox.defaultIsm();
@@ -105,11 +111,15 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // configure mailbox
     try {
+      const owner = await this.resolveInterchainAccountAsOwner(
+        chain,
+        config.owner,
+      );
       this.logger.debug('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
         mailbox.initialize(
-          config.owner,
+          owner,
           defaultIsm,
           defaultHook.address,
           requiredHook.address,

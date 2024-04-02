@@ -4,6 +4,7 @@ import {
   CircleBridgeAdapter,
   LiquidityLayerRouter,
   PortalAdapter,
+  Router,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
 
@@ -56,11 +57,8 @@ export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
 export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   LiquidityLayerConfig,
-  LiquidityLayerFactories,
-  'liquidityLayerRouter'
+  LiquidityLayerFactories
 > {
-  readonly routerContractName = 'liquidityLayerRouter';
-
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -69,18 +67,31 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       contractVerifier,
     });
   }
+  routerContractName(): string {
+    return 'LiquidityLayerRouter';
+  }
 
-  async constructorArgs(
+  routerContractKey<K extends keyof LiquidityLayerFactories>(
+    _: RouterConfig,
+  ): K {
+    return 'liquidityLayerRouter' as K;
+  }
+
+  router(contracts: HyperlaneContracts<LiquidityLayerFactories>): Router {
+    return contracts.liquidityLayerRouter;
+  }
+
+  async constructorArgs<K extends keyof LiquidityLayerFactories>(
     _: string,
     config: LiquidityLayerConfig,
-  ): Promise<[string]> {
-    return [config.mailbox];
+  ): Promise<Parameters<LiquidityLayerFactories[K]['deploy']>> {
+    return [config.mailbox] as any;
   }
 
   async initializeArgs(
     chain: string,
     config: LiquidityLayerConfig,
-  ): Promise<[string, string, string]> {
+  ): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('ISM as object unimplemented');
