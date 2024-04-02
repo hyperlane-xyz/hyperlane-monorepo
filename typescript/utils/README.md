@@ -1,6 +1,7 @@
-# Hyperlane Core
+# Hyperlane Utils
 
-Hyperlane Core contains the contracts and typechain artifacts for the Hyperlane implementation for EVM.
+A collection of various utilities and types for building applications with Hyperlane.
+Typically not used directly but through the [Hyperlane SDK](https://www.npmjs.com/package/@hyperlane-xyz/sdk) instead.
 
 ## Install
 
