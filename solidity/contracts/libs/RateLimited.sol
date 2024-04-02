@@ -21,14 +21,14 @@ contract RateLimited is OwnableUpgradeable {
     struct Limit {
         uint40 lastUpdate; /// @notice Timestamp of the last time an action has been taken
         uint256 tokenPerSecond; /// @notice Allowed tokens per second
-        uint256 current; /// @notice Limit amount remaining
+        uint256 current; /// @notice Limit amount used
         uint256 max; /// @notice Maximum token amount
     }
 
     error RateLimitExceeded(uint256 newLimit, uint256 targetLimit);
 
     /**
-     * Gets the sender's limit remaining
+     * Gets the sender's limit used
      * @param _sender address to check
      */
     function getLimit(address _sender) public view returns (uint256) {
@@ -38,7 +38,7 @@ contract RateLimited is OwnableUpgradeable {
     /**
      * Calculates the current limit amount of sender based on the time passed since the last update and the configured rate limit.
      *
-     * Consider an example where there is a 1e18 token limit per day (86400s).
+     * Consider an example where there is a 1e18 max token limit per day (86400s).
      * If half of a day (43200s) has passed, then there should be a limit of 0.5e18
      *
      * Token Limit
@@ -48,7 +48,7 @@ contract RateLimited is OwnableUpgradeable {
      * Duration
      *
      * To calculate:
-     *   Limit Amount left = (Limit / DURATION) * Elapsed
+     *   Limit Amount left = (Max Token Limit / DURATION) * Elapsed
      *   Elapsed = timestamp - Limit.lastUpdate
      *
      *   If half of the day (43200) has passed, then
