@@ -12,6 +12,7 @@ import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 contract RateLimitedIsm is RateLimited, IInterchainSecurityModule {
     using Message for bytes;
     using TokenMessage for bytes;
+    using TypeCasts for bytes32;
 
     IMailbox public immutable mailbox;
 
@@ -37,7 +38,7 @@ contract RateLimitedIsm is RateLimited, IInterchainSecurityModule {
         if (!_isLatestDelivered(_message.id()))
             revert InvalidDeliveredMessage();
 
-        address sender = TypeCasts.bytes32ToAddress(_message.sender());
+        address sender = (_message.sender().bytes32ToAddress());
         uint256 newAmount = _message.body().amount();
         limits[sender].current = validateAndIncrementLimit(sender, newAmount);
 

@@ -10,6 +10,7 @@ import {RateLimited} from "contracts/libs/RateLimited.sol";
 contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
     using Message for bytes;
     using TokenMessage for bytes;
+    using TypeCasts for bytes32;
 
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
@@ -36,7 +37,7 @@ contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
         if (!_isLatestDispatched(_message.id()))
             revert InvalidDispatchedMessage();
 
-        address sender = TypeCasts.bytes32ToAddress(_message.sender());
+        address sender = _message.sender().bytes32ToAddress();
         uint256 newAmount = _message.body().amount();
         limits[sender].current = validateAndIncrementLimit(sender, newAmount);
     }
