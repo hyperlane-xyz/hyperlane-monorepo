@@ -25,6 +25,14 @@ contract HypERC20Collateral is TokenRouter {
         wrappedToken = IERC20(erc20);
     }
 
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public virtual initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
     function balanceOf(
         address _account
     ) external view override returns (uint256) {
