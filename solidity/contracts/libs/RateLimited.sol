@@ -61,7 +61,7 @@ contract RateLimited is OwnableUpgradeable {
         uint256 elapsed = (block.timestamp - limit.lastUpdate);
         uint256 currentLimitAmount = (elapsed * limit.tokenPerSecond);
 
-        /// @dev Modulo currentLimitAmount because we should drop any excess elapsed time
+        /// @dev Modulo currentLimitAmount because we should drop any excess limit amount
         return limit.max - (currentLimitAmount % limit.max);
     }
 
