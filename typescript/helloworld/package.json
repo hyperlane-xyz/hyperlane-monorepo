@@ -58,8 +58,7 @@
     "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./src",
     "test": "yarn hardhat-esm test ./src/test/**/*.test.ts",
-    "test:ci": "yarn test",
-    "sync": "ts-node scripts/sync-with-template-repo.ts"
+    "test:ci": "yarn test"
   },
   "peerDependencies": {
     "@ethersproject/abi": "*",
