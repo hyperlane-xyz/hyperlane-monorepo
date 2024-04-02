@@ -1,9 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import { ERC20__factory } from '@hyperlane-xyz/core';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 export async function assertNativeBalances(
   multiProvider: MultiProvider,
@@ -46,21 +44,4 @@ export async function assertGasBalances(
       await assertNativeBalances(multiProvider, signer, [chain], minBalanceWei);
     }),
   );
-}
-
-export async function assertTokenBalance(
-  multiProvider: MultiProvider,
-  signer: ethers.Signer,
-  chain: ChainName,
-  token: Address,
-  minBalanceWei: string,
-) {
-  const address = await signer.getAddress();
-  const provider = multiProvider.getProvider(chain);
-  const tokenContract = ERC20__factory.connect(token, provider);
-  const balanceWei = await tokenContract.balanceOf(address);
-  if (balanceWei.lt(minBalanceWei))
-    throw new Error(
-      `${address} has insufficient balance on ${chain} for token ${token}. At least ${minBalanceWei} wei required but found ${balanceWei.toString()} wei`,
-    );
 }

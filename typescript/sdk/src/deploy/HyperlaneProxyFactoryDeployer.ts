@@ -1,4 +1,4 @@
-import debug from 'debug';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -21,7 +21,7 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, proxyFactoryFactories, {
-      logger: debug('hyperlane:IsmFactoryDeployer'),
+      logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
       contractVerifier,
     });
   }

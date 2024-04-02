@@ -24,7 +24,6 @@ const PROTOCOL_TO_TX_HASH: Record<ProtocolType, Address> = {
   [ProtocolType.Fuel]: '',
 };
 
-// Note: run with DEBUG=hyperlane for more detailed logs
 async function main() {
   const results: ChainMap<{
     goodRpcs: number;

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export LOG_LEVEL=DEBUG
+
 # set script location as repo root
 cd "$(dirname "$0")/../.."
 
@@ -87,8 +89,6 @@ set -e
 
 echo "{}" > /tmp/empty-artifacts.json
 
-export DEBUG=hyperlane:*
-
 DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]')
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
 
@@ -162,9 +162,9 @@ echo "Gas used: $MSG_MIN_GAS"
 MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
 echo "Message 1 ID: $MESSAGE1_ID"
 
-WARP_ARTIFACTS_FILE=`find /tmp/warp-route-deployment* -type f -exec ls -t1 {} + | head -1`
+WARP_CONFIG_FILE=`find /tmp/warp-config* -type f -exec ls -t1 {} + | head -1`
 CHAIN1_ROUTER="${CHAIN1_CAPS}_ROUTER"
-declare $CHAIN1_ROUTER=$(cat $WARP_ARTIFACTS_FILE | jq -r ".${CHAIN1}.router")
+declare $CHAIN1_ROUTER=$(jq -r --arg CHAIN1 "$CHAIN1" '.tokens[] | select(.chainName==$CHAIN1) | .addressOrDenom' $WARP_CONFIG_FILE)
 
 echo "Sending test warp transfer"
 yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
@@ -172,6 +172,7 @@ yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
     --destination ${CHAIN2} \
     --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
     --core $CORE_ARTIFACTS_PATH \
+    --warp ${WARP_CONFIG_FILE} \
     --router ${!CHAIN1_ROUTER} \
     --quick \
     --key $ANVIL_KEY \

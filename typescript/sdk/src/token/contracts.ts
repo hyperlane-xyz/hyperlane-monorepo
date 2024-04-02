@@ -12,7 +12,20 @@ import {
   HypNative__factory,
 } from '@hyperlane-xyz/core';
 
+import { proxiedFactories } from '../router/types';
+
 import { TokenType } from './config';
+
+export const hypERC20contracts = {
+  [TokenType.fastCollateral]: 'FastHypERC20Collateral',
+  [TokenType.fastSynthetic]: 'FastHypERC20',
+  [TokenType.synthetic]: 'HypERC20',
+  [TokenType.collateral]: 'HypERC20Collateral',
+  [TokenType.collateralVault]: 'HypERC20CollateralVaultDeposit',
+  [TokenType.native]: 'HypNative',
+  [TokenType.nativeScaled]: 'HypNativeScaled',
+};
+export type HypERC20contracts = typeof hypERC20contracts;
 
 export const hypERC20factories = {
   [TokenType.fastCollateral]: new FastHypERC20Collateral__factory(),
@@ -22,16 +35,26 @@ export const hypERC20factories = {
   [TokenType.collateralVault]: new HypERC20CollateralVaultDeposit__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNativeScaled__factory(),
+  ...proxiedFactories,
 };
 export type HypERC20Factories = typeof hypERC20factories;
+
+export const hypERC721contracts = {
+  [TokenType.collateralUri]: 'HypERC721URICollateral',
+  [TokenType.collateral]: 'HypERC721Collateral',
+  [TokenType.syntheticUri]: 'HypERC721URIStorage',
+  [TokenType.synthetic]: 'HypERC721',
+};
+
+export type HypERC721contracts = typeof hypERC721contracts;
 
 export const hypERC721factories = {
   [TokenType.collateralUri]: new HypERC721URICollateral__factory(),
   [TokenType.collateral]: new HypERC721Collateral__factory(),
   [TokenType.syntheticUri]: new HypERC721URIStorage__factory(),
   [TokenType.synthetic]: new HypERC721__factory(),
+  ...proxiedFactories,
 };
-
 export type HypERC721Factories = typeof hypERC721factories;
 
 export type TokenFactories = HypERC20Factories | HypERC721Factories;

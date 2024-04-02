@@ -9,8 +9,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { log, logGreen } from '../../logger.js';
 import { parseIsmConfig } from '../config/ism.js';
+import { log, logGreen } from '../logger.js';
 import { assertGasBalances } from '../utils/balances.js';
 import { assertSigner } from '../utils/keys.js';
 
