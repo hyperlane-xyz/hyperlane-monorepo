@@ -14,7 +14,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 env:
-  DEBUG: 'hyperlane:*'
+  LOG_LEVEL: DEBUG
+  LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 
