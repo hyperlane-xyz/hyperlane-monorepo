@@ -3,10 +3,13 @@ pragma solidity >=0.8.0;
 
 import "forge-std/console.sol";
 
-library RateLimited {
+contract RateLimited {
     uint256 public constant DURATION = 1 days; // 86400
 
-    // mapping(address => Limit) limits
+    mapping(address sender => RateLimited.Limit) public limits;
+
+    event RateLimitSet(address route, uint256 amount);
+
     /**
      * @param lastUpdate Timestamp of the last time an action has been taken
      * @param tokenPerSecond Token per second limit
@@ -36,20 +39,31 @@ library RateLimited {
      * (1e18 / 86400) * (86400 - 43200) = 0.5e18
      */
     function getCurrentLimitAmount(
-        Limit storage limit
-    ) internal view returns (uint256) {
-        uint256 elapsed = block.timestamp - limit.lastUpdate;
+        address _sender
+    ) public view returns (uint256) {
+        Limit memory limit = limits[_sender];
+        uint256 elapsed = (block.timestamp - limit.lastUpdate);
         uint256 currentLimitAmount = (elapsed * limit.tokenPerSecond);
-        return limit.max - (currentLimitAmount % limit.max); // Modulo because the amount should never be greater than the max
+
+        /// @dev Modulo is used because the currentLimitAmount can be greater than the max because elapsed time can exceed the DURATION
+        return limit.max - (currentLimitAmount % limit.max);
     }
 
     /**
-     * Sets the new limit amount and rate
+     * Sets the max limit for a route address
+     * @param _sender sender address to set
+     * @param _newLimit amount to set
      */
-    function setLimitAmount(Limit storage limit, uint256 _newLimit) internal {
+    function setLimitAmount(
+        address _sender,
+        uint256 _newLimit
+    ) public returns (Limit memory) {
+        Limit storage limit = limits[_sender];
         limit.max = _newLimit;
         limit.tokenPerSecond = _newLimit / DURATION;
 
         // TODO do we need to adjust the limit.current?
+        emit RateLimitSet(_sender, _newLimit);
+        return limit;
     }
 }

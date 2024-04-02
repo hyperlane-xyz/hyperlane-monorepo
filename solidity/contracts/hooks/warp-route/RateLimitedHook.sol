@@ -9,13 +9,10 @@ import {RateLimited} from "contracts/libs/RateLimited.sol";
 
 import "forge-std/console.sol";
 
-contract RateLimitedHook is IPostDispatchHook, OwnableUpgradeable {
+contract RateLimitedHook is RateLimited, IPostDispatchHook, OwnableUpgradeable {
     using Message for bytes;
     using TokenMessage for bytes;
-    using RateLimited for RateLimited.Limit;
-    mapping(address hook => RateLimited.Limit) public limits;
 
-    event RateLimitSet(address route, uint256 amount);
     error RateLimitExceeded();
 
     constructor() {
@@ -24,27 +21,25 @@ contract RateLimitedHook is IPostDispatchHook, OwnableUpgradeable {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
-        // TODO write test
+        // TODO write test?
         return uint8(IPostDispatchHook.Types.UNUSED);
     }
 
     /// @inheritdoc IPostDispatchHook
     function supportsMetadata(bytes calldata) external pure returns (bool) {
-        // TODO write test
+        // TODO write test?
         return false;
     }
 
     /// @inheritdoc IPostDispatchHook
     function postDispatch(
-        bytes calldata metadata,
+        bytes calldata,
         bytes calldata message
     ) external payable {
-        RateLimited.Limit storage limit = limits[
-            TypeCasts.bytes32ToAddress(message.sender())
-        ];
+        address sender = TypeCasts.bytes32ToAddress(message.sender());
+        RateLimited.Limit memory limit = limits[sender];
         uint256 amount = message.amount();
-        console.log(limit.getCurrentLimitAmount());
-        if (limit.current + amount > limit.getCurrentLimitAmount())
+        if (limit.current + amount > getCurrentLimitAmount(sender))
             revert RateLimitExceeded();
     }
 
@@ -54,16 +49,5 @@ contract RateLimitedHook is IPostDispatchHook, OwnableUpgradeable {
         bytes calldata
     ) external pure returns (uint256) {
         return 0;
-    }
-
-    /**
-     * Sets the max limit for a route address
-     * @param route address to set
-     * @param limit amount to set
-     */
-    function setLimitAmount(address route, uint256 limit) external onlyOwner {
-        limits[route].setLimitAmount(limit);
-
-        emit RateLimitSet(route, limit);
     }
 }

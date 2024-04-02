@@ -5,45 +5,49 @@ import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 import "forge-std/console.sol";
 
 contract RateLimitLibTest is Test {
-    using RateLimited for RateLimited.Limit;
+    RateLimited rateLimited;
     uint256 constant ONE_PERCENT = 1e16;
-    mapping(address => RateLimited.Limit) internal limits;
+    address HOOK = makeAddr("HOOK");
 
     function setUp() public {
-        RateLimited.Limit storage limit = limits[address(this)];
-        limit.setLimitAmount(1 ether);
+        rateLimited = new RateLimited();
+        rateLimited.setLimitAmount(HOOK, 1 ether);
     }
 
     function testRateLimited_setsNewLimit() external {
-        RateLimited.Limit storage limit = limits[address(this)];
-        limit.setLimitAmount(2 ether);
+        RateLimited.Limit memory limit = rateLimited.setLimitAmount(
+            HOOK,
+            2 ether
+        );
         assertEq(limit.max, 2 ether);
         assertEq(limit.tokenPerSecond, 23148148148148); // 2 ether / 1 day
     }
 
     function testRateLimited_revertsIfMaxNotSet() external {
-        RateLimited.Limit storage limit = limits[address(this)];
-        limit.setLimitAmount(0);
+        rateLimited.setLimitAmount(HOOK, 0);
         vm.expectRevert();
-        limit.getCurrentLimitAmount();
+        rateLimited.getCurrentLimitAmount(HOOK);
     }
 
     function testRateLimited_returnsCurrentLimit_forHalfDay() external {
-        RateLimited.Limit storage limit = limits[address(this)];
         vm.warp(0.5 days);
 
         // Using approx because division won't be exact
         assertApproxEqRel(
-            limit.getCurrentLimitAmount(),
+            rateLimited.getCurrentLimitAmount(HOOK),
             0.5 ether,
             ONE_PERCENT
         );
     }
 
-    function testRateLimited_neverReturnsGtMaxLimit(uint40 newTime) external {
-        RateLimited.Limit storage limit = limits[address(this)];
-        vm.warp(newTime);
+    // function testRateLimited_onlyOwnerCanSet() {
 
-        assertLe(limit.getCurrentLimitAmount(), limit.max);
+    // }
+
+    function testRateLimited_neverReturnsGtMaxLimit(uint40 newTime) external {
+        (, , , uint256 max) = rateLimited.limits(HOOK);
+
+        vm.warp(newTime);
+        assertLe(rateLimited.getCurrentLimitAmount(HOOK), max);
     }
 }
