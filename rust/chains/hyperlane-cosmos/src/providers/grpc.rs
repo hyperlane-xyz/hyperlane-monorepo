@@ -31,10 +31,12 @@ use hyperlane_core::{
 };
 use protobuf::Message as _;
 use serde::Serialize;
+use std::fmt::Debug;
 use tonic::{
     transport::{Channel, Endpoint},
     GrpcMethod, IntoRequest,
 };
+use tracing::{debug, instrument};
 use url::Url;
 
 use crate::{address::CosmosAddress, CosmosAmount};
@@ -89,14 +91,14 @@ pub trait WasmProvider: Send + Sync {
     async fn latest_block_height(&self) -> ChainResult<u64>;
 
     /// Perform a wasm query against the stored contract address.
-    async fn wasm_query<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_query<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         payload: T,
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
     /// Perform a wasm query against a specified contract address.
-    async fn wasm_query_to<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_query_to<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         to: String,
         payload: T,
@@ -104,14 +106,14 @@ pub trait WasmProvider: Send + Sync {
     ) -> ChainResult<Vec<u8>>;
 
     /// Send a wasm tx.
-    async fn wasm_send<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_send<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         payload: T,
         gas_limit: Option<U256>,
     ) -> ChainResult<TxResponse>;
 
     /// Estimate gas for a wasm tx.
-    async fn wasm_estimate_gas<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_estimate_gas<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         payload: T,
     ) -> ChainResult<u64>;
@@ -482,7 +484,7 @@ impl WasmProvider for WasmGrpcProvider {
 
     async fn wasm_query<T>(&self, payload: T, block_height: Option<u64>) -> ChainResult<Vec<u8>>
     where
-        T: Serialize + Send + Sync + Clone,
+        T: Serialize + Send + Sync + Clone + Debug,
     {
         let contract_address = self.contract_address.as_ref().ok_or_else(|| {
             ChainCommunicationError::from_other_str("No contract address available")
@@ -532,9 +534,10 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(response.data)
     }
 
+    #[instrument(skip(self))]
     async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
     where
-        T: Serialize + Send + Sync + Clone,
+        T: Serialize + Send + Sync + Clone + Debug,
     {
         let signer = self.get_signer()?;
         let contract_address = self.contract_address.as_ref().ok_or_else(|| {
@@ -596,6 +599,7 @@ impl WasmProvider for WasmGrpcProvider {
                 Box::pin(future)
             })
             .await?;
+        debug!(tx_result=?tx_res, domain=?self.domain, ?payload, "Wasm transaction sent");
         Ok(tx_res)
     }
 
