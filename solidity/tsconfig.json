@@ -4,10 +4,5 @@
     "outDir": "./dist",
     "rootDir": "./types"
   },
-  "exclude": ["./test", "hardhat.config.cts", "./dist"],
-  "ts-node": {
-    "experimentalSpecifierResolution": "node",
-    "experimentalResolver": true,
-    "files": true
-  }
+  "exclude": ["./test", "hardhat.config.cts", "./dist"]
 }
