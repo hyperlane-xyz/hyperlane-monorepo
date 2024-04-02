@@ -9,6 +9,7 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
@@ -50,7 +51,11 @@ async function check() {
         [fork]: { blocks: { confirmations: 0 } },
       });
 
-      const owner = config.core[fork].owner;
+      const owner = await resolveOrDeployAccountOwner(
+        multiProvider,
+        fork,
+        config.core[fork].owner,
+      );
       const signer = await impersonateAccount(owner, 1e18);
 
       multiProvider.setSigner(fork, signer);
@@ -61,6 +66,7 @@ async function check() {
   const core = HyperlaneCore.fromEnvironment(env, multiProvider);
   const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
   const routerConfig = core.getRouterConfig(config.owners);
+  const ica = InterchainAccount.fromEnvironment(env, multiProvider);
 
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
@@ -76,7 +82,6 @@ async function check() {
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(
       multiProvider,
       ica,

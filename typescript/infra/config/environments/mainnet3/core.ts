@@ -92,6 +92,9 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     fallback: merkleHook,
   };
 
+  if (typeof owner.owner !== 'string') {
+    throw new Error('beneficiary must be a string');
+  }
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
