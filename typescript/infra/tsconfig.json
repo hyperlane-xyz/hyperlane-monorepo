@@ -4,6 +4,8 @@
     "outDir": "./dist/",
     "rootDir": "./",
     "noUnusedLocals": false,
+    "module": "es6",
+    "moduleResolution": "node",
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
   "include": [
