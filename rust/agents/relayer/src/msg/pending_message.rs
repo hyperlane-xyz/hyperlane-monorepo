@@ -275,7 +275,7 @@ impl PendingOperation for PendingMessage {
             self.next_attempt_after = Some(Instant::now() + CONFIRM_DELAY);
             PendingOperationResult::Success
         } else {
-            info!(
+            warn!(
                 txid=?tx_outcome.transaction_id,
                 "Transaction attempting to process message reverted"
             );

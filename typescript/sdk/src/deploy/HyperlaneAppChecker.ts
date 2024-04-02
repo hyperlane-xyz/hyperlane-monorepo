@@ -21,10 +21,12 @@ import {
   AccessControlViolation,
   BytecodeMismatchViolation,
   CheckerViolation,
+  Owner,
   OwnerViolation,
   ProxyAdminViolation,
   TimelockControllerViolation,
   ViolationType,
+  resolveOrDeployAccountOwner,
 } from './types';
 
 export abstract class HyperlaneAppChecker<
@@ -206,12 +208,19 @@ export abstract class HyperlaneAppChecker<
 
   protected async checkOwnership(
     chain: ChainName,
-    owner: Address,
+    owner: Owner,
     ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
-      const expectedOwner = ownableOverrides?.[name] ?? owner;
+      let expectedOwner = ownableOverrides?.[name] ?? owner;
+      if (typeof expectedOwner !== 'string') {
+        expectedOwner = await resolveOrDeployAccountOwner(
+          this.multiProvider,
+          chain,
+          expectedOwner,
+        );
+      }
       const actual = await contract.owner();
       if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {

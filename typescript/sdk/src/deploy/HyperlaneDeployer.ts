@@ -31,6 +31,7 @@ import {
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
 import { IsmConfig } from '../ism/types';
 import { moduleMatchesConfig } from '../ism/utils';
+import { InterchainAccount } from '../middleware/account/InterchainAccount';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MailboxClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
@@ -42,7 +43,7 @@ import {
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy';
-import { OwnableConfig } from './types';
+import { OwnableConfig, Owner } from './types';
 import { ContractVerifier } from './verify/ContractVerifier';
 import { ContractVerificationInput, ExplorerLicenseType } from './verify/types';
 import {
@@ -54,6 +55,7 @@ export interface DeployerOptions {
   logger?: Logger;
   chainTimeoutMs?: number;
   ismFactory?: HyperlaneIsmFactory;
+  icaApp?: InterchainAccount;
   contractVerifier?: ContractVerifier;
 }
 
@@ -74,10 +76,17 @@ export abstract class HyperlaneDeployer<
     protected readonly factories: Factories,
     protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
+    protected readonly icaAddresses = {},
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
     this.options.ismFactory?.setDeployer(this);
+    if (Object.keys(icaAddresses).length > 0) {
+      this.options.icaApp = InterchainAccount.fromAddressesMap(
+        icaAddresses,
+        multiProvider,
+      );
+    }
 
     // if none provided, instantiate a default verifier with SDK's included build artifact
     this.options.contractVerifier ??= new ContractVerifier(
@@ -697,7 +706,10 @@ export abstract class HyperlaneDeployer<
         continue;
       }
       const current = await ownable.owner();
-      const owner = config.ownerOverrides?.[contractName as K] ?? config.owner;
+      const owner = await this.resolveInterchainAccountAsOwner(
+        chain,
+        config.ownerOverrides?.[contractName as K] ?? config.owner,
+      );
       if (!eqAddress(current, owner)) {
         this.logger.debug('Current owner and config owner to not match');
         const receipt = await this.runIfOwner(chain, ownable, () => {
@@ -717,5 +729,25 @@ export abstract class HyperlaneDeployer<
     }
 
     return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
+  }
+
+  protected async resolveInterchainAccountAsOwner(
+    chain: ChainName,
+    owner: Owner,
+  ): Promise<Address> {
+    if (typeof owner === 'string') {
+      return owner;
+    } else {
+      const routerAddress = this.options.icaApp?.routerAddress(chain);
+      if (!routerAddress) {
+        throw new Error('InterchainAccountRouter not deployed');
+      }
+      const router = InterchainAccount.fromAddressesMap(
+        this.cachedAddresses,
+        this.multiProvider,
+      );
+      // submits network transaction to deploy the account iff it doesn't exist
+      return router.deployAccount(chain, owner);
+    }
   }
 }

@@ -14,6 +14,7 @@ import {
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  InterchainAccount,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
@@ -147,6 +148,8 @@ async function main() {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
+    const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
+    InterchainAccount.fromAddressesMap(addresses, multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
@@ -198,6 +201,11 @@ async function main() {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
   }
+
+  // cache addresses for interchain account support
+  deployer.cacheAddressesMap(
+    getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS),
+  );
 
   const modulePath = getModuleDirectory(environment, module, context);
 

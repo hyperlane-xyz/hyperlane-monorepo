@@ -36,14 +36,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
-    const beneficiary = config.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       'interchainGasPaymaster',
       proxyAdmin.address,
       [],
-      [await this.multiProvider.getSignerAddress(chain), beneficiary],
+      [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
