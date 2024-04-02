@@ -4,10 +4,6 @@
     "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
     "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
   },
-  "mumbai": {
-    "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
-    "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
-  },
   "bsctestnet": {
     "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
     "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
