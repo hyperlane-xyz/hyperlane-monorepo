@@ -18,5 +18,6 @@ module.exports = {
     outDir: './src/types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
+    node16Modules: true,
   },
 };
