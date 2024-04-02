@@ -8,9 +8,6 @@
   "fuji": {
     "router": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4"
   },
-  "mumbai": {
-    "router": "0x04980C17e2CE26578C82f81207e706e4505FaE3B"
-  },
   "sepolia": {
     "router": "0x37590302D4E60fbCAdF708E8Fc1DCd903a5880F8"
   },

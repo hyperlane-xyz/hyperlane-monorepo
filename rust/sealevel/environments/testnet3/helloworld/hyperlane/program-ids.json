@@ -11,10 +11,6 @@
     "hex": "0xab3a92a6d18b9e5297723aeb051981f4dbc0ef2335e5bf73f33baed25e1aa165",
     "base58": "CXQX54kdkU5GqdRJjCmHpwHfEMgFb5SeBmMWntP2Ds7J"
   },
-  "mumbai": {
-    "hex": "0x0000000000000000000000001a4d8a5ed6c93af828655e15c44eee2c2851f0d6",
-    "base58": "111111111111NFiXSaSzEqfGUNtwSd5dSDgCymP"
-  },
   "alfajores": {
     "hex": "0x000000000000000000000000477d860f8f41bc69ddd32821f2bf2c2af0243f16",
     "base58": "111111111111zmUjMVNXAe5bcqPR8cvaPz5SrQu"

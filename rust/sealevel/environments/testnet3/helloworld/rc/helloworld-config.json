@@ -8,9 +8,6 @@
   "fuji": {
     "foreignDeployment": "0xAc003FcDD0EE223664F2A000B5A59D082745700b"
   },
-  "mumbai": {
-    "foreignDeployment": "0xaB0892029C3E7dD4c0235590dc296E618A7b4d03"
-  },
   "bsctestnet": {
     "foreignDeployment": "0xd259b0e793535325786675542aB296c451535c27"
   },

@@ -12,7 +12,6 @@ export const supportedChainNames = [
   Chains.bsctestnet,
   Chains.eclipsetestnet,
   Chains.fuji,
-  Chains.mumbai,
   Chains.plumetestnet,
   Chains.scrollsepolia,
   Chains.sepolia,
@@ -25,13 +24,6 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...Object.fromEntries(
     supportedChainNames.map((chain) => [chain, chainMetadata[chain]]),
   ),
-  mumbai: {
-    ...chainMetadata.mumbai,
-    transactionOverrides: {
-      maxFeePerGas: 150 * 10 ** 9, // 70 gwei
-      maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
-    },
-  },
   bsctestnet: {
     ...chainMetadata.bsctestnet,
     transactionOverrides: {

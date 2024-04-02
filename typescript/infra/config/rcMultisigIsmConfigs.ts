@@ -69,10 +69,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: ['0x7572ffd8af1abc02cc1d234ac750d387fd6768a0'],
   },
-  mumbai: {
-    threshold: 1,
-    validators: ['0x7fc2981964427f09e317eda559f506bfd37f1ccb'],
-  },
   bsctestnet: {
     threshold: 1,
     validators: ['0x6353c7402626054c824bd0eca721f82b725e2b4d'],
