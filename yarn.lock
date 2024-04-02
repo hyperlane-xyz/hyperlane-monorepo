@@ -4980,7 +4980,7 @@ __metadata:
     solhint-plugin-prettier: "npm:^0.0.5"
     solidity-coverage: "npm:^0.8.3"
     ts-generator: "npm:^0.1.1"
-    typechain: "npm:^8.3.2"
+    typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
     typescript: "npm:5.3.3"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -5016,7 +5016,7 @@ __metadata:
     solhint-plugin-prettier: "npm:^0.0.5"
     solidity-coverage: "npm:^0.8.3"
     ts-node: "npm:^10.8.0"
-    typechain: "npm:^8.3.2"
+    typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
     typescript: "npm:5.3.3"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -22722,7 +22722,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typechain@npm:^8.0.0, typechain@npm:^8.3.2":
+"typechain@npm:8.3.2":
   version: 8.3.2
   resolution: "typechain@npm:8.3.2"
   dependencies:
@@ -22741,6 +22741,28 @@ __metadata:
   bin:
     typechain: dist/cli/cli.js
   checksum: d6dad2f70bb3914c56bac6758ba2a761a1592a8258aa9f84360fda410c27bfade0b2f49faa366df94ac3c2f567d40b3db17f4a32903ef52bc7f9a020545eeb7f
+  languageName: node
+  linkType: hard
+
+"typechain@patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch":
+  version: 8.3.2
+  resolution: "typechain@patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch::version=8.3.2&hash=12f0f5"
+  dependencies:
+    "@types/prettier": "npm:^2.1.1"
+    debug: "npm:^4.3.1"
+    fs-extra: "npm:^7.0.0"
+    glob: "npm:7.1.7"
+    js-sha3: "npm:^0.8.0"
+    lodash: "npm:^4.17.15"
+    mkdirp: "npm:^1.0.4"
+    prettier: "npm:^2.3.1"
+    ts-command-line-args: "npm:^2.2.0"
+    ts-essentials: "npm:^7.0.1"
+  peerDependencies:
+    typescript: ">=4.3.0"
+  bin:
+    typechain: dist/cli/cli.js
+  checksum: 1ce15777d041b5df98976d6cb6163e130db9cc8203bffcfe1afe62d2336dfd6315b5bd75f8ecebe81b234a0f072c41c043e56d6c184c6fbaf329a9eb3ae55421
   languageName: node
   linkType: hard
 

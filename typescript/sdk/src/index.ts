@@ -308,7 +308,7 @@ export {
   MultiProtocolGasRouterApp,
   MultiProtocolRouterApp,
 } from './router/MultiProtocolRouterApps.js';
-export { GasRouterApp, Router, RouterApp } from './router/RouterApps.js';
+export { GasRouterApp, RouterApp } from './router/RouterApps.js';
 export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
