@@ -8,8 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import testCases from '../../vectors/message.json' assert { type: 'json' };
-// @ts-ignore CJS is confusing TS, required for hardhat
-import Types from '../types';
+import { Mailbox__factory, TestMessage, TestMessage__factory } from '../types';
 
 import { getSigner, getSigners } from './signer';
 
@@ -18,17 +17,17 @@ const localDomain = 2000;
 const nonce = 11;
 
 describe('Message', async () => {
-  let messageLib: Types.TestMessage;
+  let messageLib: TestMessage;
   let version: number;
 
   before(async () => {
     const signer = await getSigner();
 
-    const Message = new Types.TestMessage__factory(signer);
+    const Message = new TestMessage__factory(signer);
     messageLib = await Message.deploy();
 
     // For consistency with the Mailbox version
-    const Mailbox = new Types.Mailbox__factory(signer);
+    const Mailbox = new Mailbox__factory(signer);
     const mailbox = await Mailbox.deploy(localDomain);
     version = await mailbox.VERSION();
   });

@@ -2,8 +2,7 @@ import { expect } from 'chai';
 import { utils } from 'ethers';
 
 import merkleTestCases from '../../vectors/merkle.json' assert { type: 'json' };
-// @ts-ignore CJS is confusing TS, required for hardhat
-import Types from '../types';
+import { TestMerkle, TestMerkle__factory } from '../types';
 
 import { getSigner } from './signer';
 
@@ -12,12 +11,12 @@ describe('Merkle', async () => {
     const { testName, leaves, expectedRoot, proofs } = testCase;
 
     describe(testName, async () => {
-      let merkle: Types.TestMerkle;
+      let merkle: TestMerkle;
 
       before(async () => {
         const signer = await getSigner();
 
-        const merkleFactory = new Types.TestMerkle__factory(signer);
+        const merkleFactory = new TestMerkle__factory(signer);
         merkle = await merkleFactory.deploy();
 
         //insert the leaves

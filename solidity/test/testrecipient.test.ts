@@ -3,20 +3,19 @@ import { utils } from 'ethers';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-// @ts-ignore CJS is confusing TS, required for hardhat
-import Types from '../types';
+import { TestRecipient, TestRecipient__factory } from '../types';
 
 import { getSigner } from './signer';
 
 const testData = utils.hexlify(utils.toUtf8Bytes('test'));
 describe('TestRecipient', () => {
-  let recipient: Types.TestRecipient;
+  let recipient: TestRecipient;
   let signerAddress: string;
 
   before(async () => {
     const signer = await getSigner();
     signerAddress = await signer.getAddress();
-    const recipientFactory = new Types.TestRecipient__factory(signer);
+    const recipientFactory = new TestRecipient__factory(signer);
     recipient = await recipientFactory.deploy();
   });
 
