@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
+import {RateLimited} from "contracts/libs/RateLimited.sol";
+
 import {RateLimitedHook} from "contracts/hooks/warp-route/RateLimitedHook.sol";
 import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 import {HypERC20} from "contracts/token/HypERC20.sol";
@@ -28,6 +30,11 @@ contract RateLimitedHookTest is Test {
     RateLimitedHook rateLimitedHook;
     HypERC20Collateral warpRouteLocal;
     HypERC20 warpRouteRemote;
+
+    function _mintAndApprove(uint256 amount) internal {
+        token.mint(amount);
+        token.approve(address(warpRouteLocal), amount);
+    }
 
     function setUp() external {
         localMailbox = new TestMailbox(ORIGIN);
@@ -63,20 +70,39 @@ contract RateLimitedHookTest is Test {
             address(warpRouteLocal).addressToBytes32()
         );
 
-        rateLimitedHook.setLimitAmount(
-            address(warpRouteLocal),
-            ROUTE_LIMIT_AMOUNT
-        );
+        rateLimitedHook.setLimit(address(warpRouteLocal), ROUTE_LIMIT_AMOUNT);
     }
 
     function testRateLimitedHook_revertsIfRateLimitExceeded(
-        uint128 amount
+        uint128 amount,
+        uint128 time
     ) external {
-        vm.assume(amount > ROUTE_LIMIT_AMOUNT);
-        token.mint(amount);
-        token.approve(address(warpRouteLocal), amount);
+        // Warp to a random time, get it's limit, and try to transfer more than the target max
+        vm.warp(time);
+        vm.assume(
+            amount > rateLimitedHook.getTargetLimit(address(warpRouteLocal))
+        );
+        _mintAndApprove(amount);
 
         vm.expectRevert(RateLimitedHook.RateLimitExceeded.selector);
+        warpRouteLocal.transferRemote{value: 1}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount
+        );
+    }
+
+    function testRateLimitedHook_allowsTransferUnderLimit(
+        uint128 amount,
+        uint128 time
+    ) external {
+        // Warp to a random time, get it's limit, and try to transfer more than the target max
+        vm.warp(time);
+        vm.assume(
+            amount <= rateLimitedHook.getTargetLimit(address(warpRouteLocal))
+        );
+        _mintAndApprove(amount);
+
         warpRouteLocal.transferRemote{value: 1}(
             DESTINATION,
             BOB.addressToBytes32(),

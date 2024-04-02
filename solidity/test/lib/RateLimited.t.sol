@@ -11,22 +11,19 @@ contract RateLimitLibTest is Test {
 
     function setUp() public {
         rateLimited = new RateLimited();
-        rateLimited.setLimitAmount(HOOK, 1 ether);
+        rateLimited.setLimit(HOOK, 1 ether);
     }
 
     function testRateLimited_setsNewLimit() external {
-        RateLimited.Limit memory limit = rateLimited.setLimitAmount(
-            HOOK,
-            2 ether
-        );
+        RateLimited.Limit memory limit = rateLimited.setLimit(HOOK, 2 ether);
         assertEq(limit.max, 2 ether);
         assertEq(limit.tokenPerSecond, 23148148148148); // 2 ether / 1 day
     }
 
     function testRateLimited_revertsIfMaxNotSet() external {
-        rateLimited.setLimitAmount(HOOK, 0);
+        rateLimited.setLimit(HOOK, 0);
         vm.expectRevert();
-        rateLimited.getCurrentLimitAmount(HOOK);
+        rateLimited.getTargetLimit(HOOK);
     }
 
     function testRateLimited_returnsCurrentLimit_forHalfDay() external {
@@ -34,7 +31,7 @@ contract RateLimitLibTest is Test {
 
         // Using approx because division won't be exact
         assertApproxEqRel(
-            rateLimited.getCurrentLimitAmount(HOOK),
+            rateLimited.getTargetLimit(HOOK),
             0.5 ether,
             ONE_PERCENT
         );
@@ -48,6 +45,6 @@ contract RateLimitLibTest is Test {
         (, , , uint256 max) = rateLimited.limits(HOOK);
 
         vm.warp(newTime);
-        assertLe(rateLimited.getCurrentLimitAmount(HOOK), max);
+        assertLe(rateLimited.getTargetLimit(HOOK), max);
     }
 }

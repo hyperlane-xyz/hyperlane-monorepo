@@ -13,7 +13,7 @@ contract RateLimitedHook is RateLimited, IPostDispatchHook, OwnableUpgradeable {
     using Message for bytes;
     using TokenMessage for bytes;
 
-    error RateLimitExceeded();
+    error RateLimitExceeded(uint256 newLimit, uint256 targetLimit);
 
     constructor() {
         _transferOwnership(msg.sender);
@@ -38,9 +38,10 @@ contract RateLimitedHook is RateLimited, IPostDispatchHook, OwnableUpgradeable {
     ) external payable {
         address sender = TypeCasts.bytes32ToAddress(message.sender());
         RateLimited.Limit memory limit = limits[sender];
-        uint256 amount = message.amount();
-        if (limit.current + amount > getCurrentLimitAmount(sender))
-            revert RateLimitExceeded();
+        uint256 newLimit = limit.current + message.body().amount(); // message.body is a TokenMessage
+        uint256 targetLimit = getTargetLimit(sender);
+        if (newLimit > targetLimit)
+            revert RateLimitExceeded(newLimit, targetLimit);
     }
 
     /// @inheritdoc IPostDispatchHook
