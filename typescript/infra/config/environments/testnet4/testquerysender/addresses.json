@@ -5,9 +5,6 @@
   "fuji": {
     "TestQuerySender": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683"
   },
-  "mumbai": {
-    "TestQuerySender": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683"
-  },
   "bsctestnet": {
     "TestQuerySender": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683"
   }

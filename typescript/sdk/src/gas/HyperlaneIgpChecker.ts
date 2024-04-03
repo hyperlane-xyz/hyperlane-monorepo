@@ -84,7 +84,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     for (const remote of remotes) {
       let expectedOverhead = this.configMap[local].overhead[remote];
       if (!expectedOverhead) {
-        this.app.logger(
+        this.app.logger.debug(
           `No overhead configured for ${local} -> ${remote}, defaulting to 0`,
         );
         expectedOverhead = 0;

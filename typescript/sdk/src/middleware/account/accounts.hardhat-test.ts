@@ -22,6 +22,7 @@ import { InterchainAccount } from './InterchainAccount';
 import { InterchainAccountChecker } from './InterchainAccountChecker';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer';
 import { InterchainAccountFactories } from './contracts';
+import { AccountConfig } from './types';
 
 describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
@@ -80,12 +81,21 @@ describe('InterchainAccounts', async () => {
       ethers.constants.AddressZero,
     );
 
-    const call = { to: recipient.address, data, value: BigNumber.from(0) };
-    const quote = await local.quoteGasPayment(
+    const call = {
+      to: recipient.address,
+      data,
+      value: BigNumber.from('0'),
+    };
+    const quote = await local['quoteGasPayment(uint32)'](
       multiProvider.getDomainId(remoteChain),
     );
     const balanceBefore = await signer.getBalance();
-    await app.callRemote(localChain, remoteChain, [call]);
+    const config: AccountConfig = {
+      origin: localChain,
+      owner: signer.address,
+      localRouter: local.address,
+    };
+    await app.callRemote(localChain, remoteChain, [call], config);
     const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
     expect(balanceAfter).to.lte(balanceBefore.sub(quote));

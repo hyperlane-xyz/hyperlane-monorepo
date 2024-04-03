@@ -1,4 +1,4 @@
-import { BytesLike } from 'ethers';
+import { BigNumber, BytesLike, PopulatedTransaction } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
@@ -105,6 +105,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           'getDeployedInterchainAccount(uint32,address,address,address)'
         ](originDomain, config.owner, routerAddress, ismAddress),
       );
+      this.logger.debug(`Interchain account deployed at ${account}`);
+    } else {
+      this.logger.debug(`Interchain account recovered at ${account}`);
     }
     return account;
   }
@@ -114,39 +117,34 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     chain: ChainName,
     destination: ChainName,
     innerCalls: CallData[],
-    routerOverride?: Address,
-    ismOverride?: Address,
+    config: AccountConfig,
     hookMetadata?: BytesLike,
-  ): Promise<CallData> {
+  ): Promise<PopulatedTransaction> {
     const localRouter = this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
-    const quote = await localRouter.quoteGasPayment(remoteDomain);
+    const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
     const remoteRouter = addressToBytes32(
-      routerOverride ?? this.router(this.contractsMap[destination]).address,
+      config.routerOverride ?? this.routerAddress(destination),
     );
     const remoteIsm = addressToBytes32(
-      ismOverride ??
+      config.ismOverride ??
         (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
     );
-    const icaCall: CallData = {
-      to: localRouter.address,
-      data: localRouter.interface.encodeFunctionData(
-        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)',
-        [
-          remoteDomain,
-          remoteRouter,
-          remoteIsm,
-          innerCalls.map((call) => ({
-            to: addressToBytes32(call.to),
-            value: call.value,
-            data: call.data,
-          })),
-          hookMetadata ?? '0x',
-        ],
-      ),
-      value: quote,
-    };
-    return icaCall;
+    const callEncoded = await localRouter.populateTransaction[
+      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
+    ](
+      remoteDomain,
+      remoteRouter,
+      remoteIsm,
+      innerCalls.map((call) => ({
+        to: addressToBytes32(call.to),
+        value: call.value ?? BigNumber.from('0'),
+        data: call.data,
+      })),
+      hookMetadata ?? '0x',
+      { value: quote },
+    );
+    return callEncoded;
   }
 
   async getAccountConfig(
@@ -165,40 +163,17 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 
   // general helper for different overloaded callRemote functions
+  // can override the gasLimit by StandardHookMetadata.overrideGasLimit for optional hookMetadata here
   async callRemote(
     chain: ChainName,
     destination: ChainName,
     calls: Array<CallData>,
-    routerOverride?: Address,
-    ismOverride?: Address,
+    config: AccountConfig,
     hookMetadata?: string,
   ): Promise<void> {
-    const localRouter = this.router(this.contractsMap[chain]);
-    const remoteDomain = this.multiProvider.getDomainId(destination);
-    const quote = await localRouter.quoteGasPayment(remoteDomain);
-    const remoteRouter = addressToBytes32(
-      routerOverride ?? this.router(this.contractsMap[destination]).address,
-    );
-    const remoteIsm = addressToBytes32(
-      ismOverride ??
-        (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
-    );
-    await this.multiProvider.handleTx(
+    await this.multiProvider.sendTransaction(
       chain,
-      localRouter[
-        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
-      ](
-        this.multiProvider.getDomainId(destination),
-        remoteRouter,
-        remoteIsm,
-        calls.map((call) => ({
-          to: addressToBytes32(call.to),
-          value: call.value,
-          data: call.data,
-        })),
-        hookMetadata ?? '0x',
-        { value: quote },
-      ),
+      this.getCallRemote(chain, destination, calls, config, hookMetadata),
     );
   }
 }

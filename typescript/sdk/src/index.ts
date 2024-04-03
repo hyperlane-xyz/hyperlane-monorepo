@@ -86,7 +86,7 @@ export {
   OwnableConfig,
   OwnerViolation,
   ViolationType,
-  resolveAccountOwner,
+  resolveOrDeployAccountOwner,
 } from './deploy/types';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';

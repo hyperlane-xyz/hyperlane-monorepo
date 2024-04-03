@@ -163,7 +163,7 @@ export abstract class HyperlaneAppGovernor<
     for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
         let submissionType = await this.inferCallSubmissionType(chain, call);
-        if (!submissionType) {
+        if (submissionType === SubmissionType.MANUAL) {
           submissionType = await this.inferICAEncodedSubmissionType(
             chain,
             call,
@@ -182,7 +182,7 @@ export abstract class HyperlaneAppGovernor<
     const signer = multiProvider.getSigner(chain);
     if (this.interchainAccount) {
       const ownableAddress = call.to;
-      const ownable = Ownable__factory.connect(ownableAddress, signer); // mailbox
+      const ownable = Ownable__factory.connect(ownableAddress, signer);
       const account = Ownable__factory.connect(await ownable.owner(), signer);
       const localOwner = await account.owner();
       if (eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
@@ -202,20 +202,25 @@ export abstract class HyperlaneAppGovernor<
           origin,
           chain,
           [call],
+          accountConfig,
         );
         if (!callRemote.to || !callRemote.data) {
           return SubmissionType.MANUAL;
         }
         const encodedCall: AnnotatedCallData = {
-          ...callRemote, // encodedCall via ICA router
+          to: callRemote.to,
+          data: callRemote.data,
+          value: callRemote.value,
           description: `${call.description} - interchain account call from ${origin} to ${chain}`,
         };
         const subType = await this.inferCallSubmissionType(origin, encodedCall);
-        if (subType) {
+        if (subType !== SubmissionType.MANUAL) {
           this.popCall(chain);
           this.pushCall(origin, encodedCall);
           return subType;
         }
+      } else {
+        console.log(`Account's owner ${localOwner} is not ICA router`);
       }
     }
     return SubmissionType.MANUAL;
@@ -248,7 +253,6 @@ export abstract class HyperlaneAppGovernor<
     const safeAddress = this.checker.configMap[chain].owner;
 
     if (typeof safeAddress === 'string') {
-      if (!safeAddress) throw new Error(`Owner address not found for ${chain}`);
       // 2a. Confirm that the signer is a Safe owner or delegate.
       // This should implicitly check whether or not the owner is a gnosis
       // safe.
@@ -265,9 +269,8 @@ export abstract class HyperlaneAppGovernor<
       }
       // 2b. Check if calling from the owner/safeAddress will succeed.
       if (
-        (this.canPropose[chain].get(safeAddress) &&
-          (await transactionSucceedsFromSender(chain, safeAddress))) ||
-        chain === 'moonbeam'
+        this.canPropose[chain].get(safeAddress) &&
+        (await transactionSucceedsFromSender(chain, safeAddress))
       ) {
         return SubmissionType.SAFE;
       }

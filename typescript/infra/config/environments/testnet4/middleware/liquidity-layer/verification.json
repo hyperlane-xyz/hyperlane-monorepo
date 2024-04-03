@@ -19,20 +19,6 @@
       "constructorArguments": "0x"
     }
   ],
-  "mumbai": [
-    {
-      "name": "LiquidityLayerRouter",
-      "address": "0x2abe0860D81FB4242C748132bD69D125D88eaE26",
-      "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "PortalAdapter",
-      "address": "0x68D753982e89CC083917863F6dc9738448B91ef9",
-      "isProxy": false,
-      "constructorArguments": "0x"
-    }
-  ],
   "bsctestnet": [
     {
       "name": "LiquidityLayerRouter",

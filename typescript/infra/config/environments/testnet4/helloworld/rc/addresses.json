@@ -13,8 +13,5 @@
   },
   "bsctestnet": {
     "router": "0x643C7A37FB191A8a63BAB40264B251714F527AED"
-  },
-  "mumbai": {
-    "router": "0x4d8323Bb5cD72148e826fCAb9B4A9dd09f77C905"
   }
 }

@@ -1821,6 +1821,24 @@
       "constructorArguments": "0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b0000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000009ff6ac3daf63103620bbf76136ea1aff43c2f612",
       "isProxy": false,
       "name": "FallbackRoutingHook"
+    },
+    {
+      "address": "0x1d0C0b9f311D73ab1130662F2cE6a3dfF45293F6",
+      "constructorArguments": "000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x495e9E119b2aa848b418EF6A4d30b42803de43A9",
+      "constructorArguments": "",
+      "isProxy": false,
+      "name": "PausableHook"
+    },
+    {
+      "address": "0x495e9E119b2aa848b418EF6A4d30b42803de43A9",
+      "constructorArguments": "",
+      "isProxy": false,
+      "name": "PausableHook"
     }
   ],
   "moonbasealpha": [
@@ -1923,110 +1941,6 @@
     {
       "address": "0x6c9EB73793F9Cd535DB1bF86dC307f6d899b2fE3",
       "constructorArguments": "00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000155b1cd2f7cbc58d403b9be341fab6cd77425175",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    }
-  ],
-  "mumbai": [
-    {
-      "address": "0xa99aD6B1c10E92DB8d3510f1865A6d2Ab43EAd58",
-      "constructorArguments": "0x",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0x2d1889fe5B092CD988972261434F7E5f26041115",
-      "constructorArguments": "0x000000000000000000000000de1973894d1418ae463013cb6415cb24fce15575000000000000000000000000a99ad6b1c10e92db8d3510f1865a6d2ab43ead5800000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0xde1973894d1418ae463013CB6415Cb24fcE15575",
-      "constructorArguments": "0x0000000000000000000000000000000000000000000000000000000000013881",
-      "isProxy": false,
-      "name": "Mailbox"
-    },
-    {
-      "address": "0x9AF85731EDd41E2E50F81Ef8a0A69D2fB836EDf9",
-      "constructorArguments": "0x0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0xa99aD6B1c10E92DB8d3510f1865A6d2Ab43EAd58",
-      "constructorArguments": "0x",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0xBEd8Fd6d5c6cBd878479C25f4725C7c842a43821",
-      "constructorArguments": "0x",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0x8aB67CAF605c6ee83cbFeFb0D8d67FDd3BF7B591",
-      "constructorArguments": "0x00000000000000000000000098f44ea5b9ca6aa02a5b75f31e0621083d9096a2000000000000000000000000a99ad6b1c10e92db8d3510f1865a6d2ab43ead5800000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x98F44EA5b9cA6aa02a5B75f31E0621083d9096a2",
-      "constructorArguments": "0x",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0x9AF85731EDd41E2E50F81Ef8a0A69D2fB836EDf9",
-      "constructorArguments": "0x0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115",
-      "isProxy": false,
-      "name": "MerkleTreeHook"
-    },
-    {
-      "address": "0xa99aD6B1c10E92DB8d3510f1865A6d2Ab43EAd58",
-      "constructorArguments": "0x",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
-      "address": "0xBEd8Fd6d5c6cBd878479C25f4725C7c842a43821",
-      "constructorArguments": "0x",
-      "isProxy": false,
-      "name": "StorageGasOracle"
-    },
-    {
-      "address": "0x8aB67CAF605c6ee83cbFeFb0D8d67FDd3BF7B591",
-      "constructorArguments": "0x00000000000000000000000098f44ea5b9ca6aa02a5b75f31e0621083d9096a2000000000000000000000000a99ad6b1c10e92db8d3510f1865a6d2ab43ead5800000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044485cc955000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true,
-      "name": "TransparentUpgradeableProxy"
-    },
-    {
-      "address": "0x98F44EA5b9cA6aa02a5B75f31E0621083d9096a2",
-      "constructorArguments": "0x",
-      "isProxy": false,
-      "name": "InterchainGasPaymaster"
-    },
-    {
-      "address": "0x244d1F7e30Be144A87602905baBF86630e8f39DC",
-      "constructorArguments": "0x000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c",
-      "isProxy": false,
-      "name": "ProtocolFee"
-    },
-    {
-      "address": "0x99303EFF09332cDd93E8BC8b2F07b2416e4501e5",
-      "constructorArguments": "0x0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115",
-      "isProxy": false,
-      "name": "ValidatorAnnounce"
-    },
-    {
-      "address": "0xFA005A892EbDACFcc3f1EF0111A7406c779c3647",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000009af85731edd41e2e50f81ef8a0a69d2fb836edf9",
-      "isProxy": false,
-      "name": "FallbackRoutingHook"
-    },
-    {
-      "address": "0xFA005A892EbDACFcc3f1EF0111A7406c779c3647",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f26041115000000000000000000000000fad1c94469700833717fa8a3017278bc1ca8031c0000000000000000000000009af85731edd41e2e50f81ef8a0a69d2fb836edf9",
       "isProxy": false,
       "name": "FallbackRoutingHook"
     }

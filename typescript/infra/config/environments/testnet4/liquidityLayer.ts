@@ -17,10 +17,6 @@ const wormholeDomainMapping = [
     wormholeDomain: 6,
   },
   {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.mumbai]),
-    wormholeDomain: 5,
-  },
-  {
     hyperlaneDomain: getDomainId(chainMetadata[Chains.bsctestnet]),
     wormholeDomain: 4,
   },
@@ -43,13 +39,6 @@ export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
       messageTransmitterAddress: '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79',
       usdcAddress: '0x5425890298aed601595a70ab815c96711a31bc65',
       circleDomainMapping,
-    },
-  },
-  [Chains.mumbai]: {
-    portal: {
-      type: BridgeAdapterType.Portal,
-      portalBridgeAddress: '0x377D55a7928c046E18eEbb61977e714d2a76472a',
-      wormholeDomainMapping,
     },
   },
   [Chains.bsctestnet]: {

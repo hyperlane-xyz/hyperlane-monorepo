@@ -4904,8 +4904,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
-    "@hyperlane-xyz/sdk": "npm:3.8.2"
-    "@hyperlane-xyz/utils": "npm:3.8.2"
+    "@hyperlane-xyz/sdk": "npm:3.10.0"
+    "@hyperlane-xyz/utils": "npm:3.10.0"
     "@inquirer/prompts": "npm:^3.0.0"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -4932,28 +4932,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:3.7.0":
-  version: 3.7.0
-  resolution: "@hyperlane-xyz/core@npm:3.7.0"
-  dependencies:
-    "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:3.7.0"
-    "@openzeppelin/contracts": "npm:^4.9.3"
-    "@openzeppelin/contracts-upgradeable": "npm:^v4.9.3"
-  peerDependencies:
-    "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
-    "@types/sinon-chai": "*"
-  checksum: efa01d943dd5b67830bb7244291c8ba9849472e804dff589463de76d3c03e56bc8d62454b575a6621aa1b8b53cc0d1d3b752a83d34f4b328ecd85e1ff23230d5
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/core@npm:3.8.2, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:3.10.0, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:3.8.2"
+    "@hyperlane-xyz/utils": "npm:3.10.0"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
@@ -4982,12 +4966,28 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:3.8.2, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/core@npm:3.7.0":
+  version: 3.7.0
+  resolution: "@hyperlane-xyz/core@npm:3.7.0"
+  dependencies:
+    "@eth-optimism/contracts": "npm:^0.6.0"
+    "@hyperlane-xyz/utils": "npm:3.7.0"
+    "@openzeppelin/contracts": "npm:^4.9.3"
+    "@openzeppelin/contracts-upgradeable": "npm:^v4.9.3"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+    "@types/sinon-chai": "*"
+  checksum: efa01d943dd5b67830bb7244291c8ba9849472e804dff589463de76d3c03e56bc8d62454b575a6621aa1b8b53cc0d1d3b752a83d34f4b328ecd85e1ff23230d5
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/helloworld@npm:3.10.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/core": "npm:3.8.2"
-    "@hyperlane-xyz/sdk": "npm:3.8.2"
+    "@hyperlane-xyz/core": "npm:3.10.0"
+    "@hyperlane-xyz/sdk": "npm:3.10.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -5032,9 +5032,9 @@ __metadata:
     "@ethersproject/experimental": "npm:^5.7.0"
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:^5.7.2"
-    "@hyperlane-xyz/helloworld": "npm:3.8.2"
-    "@hyperlane-xyz/sdk": "npm:3.8.2"
-    "@hyperlane-xyz/utils": "npm:3.8.2"
+    "@hyperlane-xyz/helloworld": "npm:3.10.0"
+    "@hyperlane-xyz/sdk": "npm:3.10.0"
+    "@hyperlane-xyz/utils": "npm:3.10.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -5084,6 +5084,50 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/sdk@npm:3.10.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
+  dependencies:
+    "@cosmjs/cosmwasm-stargate": "npm:^0.31.3"
+    "@cosmjs/stargate": "npm:^0.31.3"
+    "@hyperlane-xyz/core": "npm:3.10.0"
+    "@hyperlane-xyz/utils": "npm:3.10.0"
+    "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
+    "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
+    "@solana/spl-token": "npm:^0.3.8"
+    "@solana/web3.js": "npm:^1.78.0"
+    "@types/coingecko-api": "npm:^1.0.10"
+    "@types/mocha": "npm:^10.0.1"
+    "@types/node": "npm:^16.9.1"
+    "@types/sinon": "npm:^17.0.1"
+    "@types/sinon-chai": "npm:^3.2.12"
+    "@types/ws": "npm:^8.5.5"
+    "@wagmi/chains": "npm:^1.8.0"
+    bignumber.js: "npm:^9.1.1"
+    chai: "npm:^4.3.6"
+    coingecko-api: "npm:^1.0.10"
+    cosmjs-types: "npm:^0.9.0"
+    cross-fetch: "npm:^3.1.5"
+    dotenv: "npm:^10.0.0"
+    eslint: "npm:^8.43.0"
+    ethereum-waffle: "npm:^4.0.10"
+    ethers: "npm:^5.7.2"
+    hardhat: "npm:^2.19.0"
+    mocha: "npm:^10.2.0"
+    pino: "npm:^8.19.0"
+    prettier: "npm:^2.8.8"
+    sinon: "npm:^13.0.2"
+    ts-node: "npm:^10.8.0"
+    typescript: "npm:5.1.6"
+    viem: "npm:^1.20.0"
+    yaml: "npm:^2.3.1"
+    zod: "npm:^3.21.2"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/sdk@npm:3.7.0":
   version: 3.7.0
   resolution: "@hyperlane-xyz/sdk@npm:3.7.0"
@@ -5112,48 +5156,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:3.8.2, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/utils@npm:3.10.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
-  resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
+  resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
-    "@cosmjs/cosmwasm-stargate": "npm:^0.31.3"
-    "@cosmjs/stargate": "npm:^0.31.3"
-    "@hyperlane-xyz/core": "npm:3.8.2"
-    "@hyperlane-xyz/utils": "npm:3.8.2"
-    "@nomiclabs/hardhat-ethers": "npm:^2.2.1"
-    "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
-    "@solana/spl-token": "npm:^0.3.8"
+    "@cosmjs/encoding": "npm:^0.31.3"
     "@solana/web3.js": "npm:^1.78.0"
-    "@types/coingecko-api": "npm:^1.0.10"
-    "@types/debug": "npm:^4.1.7"
     "@types/mocha": "npm:^10.0.1"
-    "@types/node": "npm:^16.9.1"
-    "@types/sinon": "npm:^17.0.1"
-    "@types/sinon-chai": "npm:^3.2.12"
-    "@types/ws": "npm:^8.5.5"
-    "@wagmi/chains": "npm:^1.8.0"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.3.6"
-    coingecko-api: "npm:^1.0.10"
-    cosmjs-types: "npm:^0.9.0"
-    cross-fetch: "npm:^3.1.5"
-    debug: "npm:^4.3.4"
-    dotenv: "npm:^10.0.0"
-    eslint: "npm:^8.43.0"
-    ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
-    hardhat: "npm:^2.19.0"
     mocha: "npm:^10.2.0"
+    pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
-    sinon: "npm:^13.0.2"
-    ts-node: "npm:^10.8.0"
     typescript: "npm:5.1.6"
-    viem: "npm:^1.20.0"
-    yaml: "npm:^2.3.1"
-    zod: "npm:^3.21.2"
-  peerDependencies:
-    "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
   languageName: unknown
   linkType: soft
 
@@ -5168,22 +5184,6 @@ __metadata:
   checksum: c76f36913c572702b9dfe22fd868db6fed01c0da9485319e33e8d00a6b8a1bfdcecb5f61c8a3fd8ccbef0b36809e8055db62d75d0c6759d5e079ee330586bcd1
   languageName: node
   linkType: hard
-
-"@hyperlane-xyz/utils@npm:3.8.2, @hyperlane-xyz/utils@workspace:typescript/utils":
-  version: 0.0.0-use.local
-  resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
-  dependencies:
-    "@cosmjs/encoding": "npm:^0.31.3"
-    "@solana/web3.js": "npm:^1.78.0"
-    "@types/mocha": "npm:^10.0.1"
-    bignumber.js: "npm:^9.1.1"
-    chai: "npm:^4.3.6"
-    ethers: "npm:^5.7.2"
-    mocha: "npm:^10.2.0"
-    prettier: "npm:^2.8.8"
-    typescript: "npm:5.1.6"
-  languageName: unknown
-  linkType: soft
 
 "@hyperlane-xyz/widgets@npm:3.7.0":
   version: 3.7.0
@@ -9161,6 +9161,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"abort-controller@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "abort-controller@npm:3.0.0"
+  dependencies:
+    event-target-shim: "npm:^5.0.0"
+  checksum: ed84af329f1828327798229578b4fe03a4dd2596ba304083ebd2252666bdc1d7647d66d0b18704477e1f8aa315f055944aa6e859afebd341f12d0a53c37b4b40
+  languageName: node
+  linkType: hard
+
 "abortcontroller-polyfill@npm:^1.7.3":
   version: 1.7.3
   resolution: "abortcontroller-polyfill@npm:1.7.3"
@@ -13018,6 +13027,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"event-target-shim@npm:^5.0.0":
+  version: 5.0.1
+  resolution: "event-target-shim@npm:5.0.1"
+  checksum: 49ff46c3a7facbad3decb31f597063e761785d7fdb3920d4989d7b08c97a61c2f51183e2f3a03130c9088df88d4b489b1b79ab632219901f184f85158508f4c8
+  languageName: node
+  linkType: hard
+
 "eventemitter3@npm:4.0.4":
   version: 4.0.4
   resolution: "eventemitter3@npm:4.0.4"
@@ -13310,6 +13326,13 @@ __metadata:
   version: 3.3.0
   resolution: "fast-redact@npm:3.3.0"
   checksum: a69c5cb52396eafc4f466f46864406cbd4a6ead6782caf74750ce817794829048baaa933ad98543e744dd54ffb4cddff71f3e75e465a86e3d887894e281ec154
+  languageName: node
+  linkType: hard
+
+"fast-redact@npm:^3.1.1":
+  version: 3.5.0
+  resolution: "fast-redact@npm:3.5.0"
+  checksum: 24b27e2023bd5a62f908d97a753b1adb8d89206b260f97727728e00b693197dea2fc2aa3711147a385d0ec6e713569fd533df37a4ef947e08cb65af3019c7ad5
   languageName: node
   linkType: hard
 
@@ -18739,6 +18762,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"on-exit-leak-free@npm:^2.1.0":
+  version: 2.1.2
+  resolution: "on-exit-leak-free@npm:2.1.2"
+  checksum: f7b4b7200026a08f6e4a17ba6d72e6c5cbb41789ed9cf7deaf9d9e322872c7dc5a7898549a894651ee0ee9ae635d34a678115bf8acdfba8ebd2ba2af688b563c
+  languageName: node
+  linkType: hard
+
 "on-finished@npm:2.4.1":
   version: 2.4.1
   resolution: "on-finished@npm:2.4.1"
@@ -19189,10 +19219,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pino-abstract-transport@npm:v1.1.0":
+  version: 1.1.0
+  resolution: "pino-abstract-transport@npm:1.1.0"
+  dependencies:
+    readable-stream: "npm:^4.0.0"
+    split2: "npm:^4.0.0"
+  checksum: 39b4496c9e4289e8d44a1d01adfa8dfeebb374e14b7a6451a4f3713561aeb9e181c64ff0272921667abcb95aceb312ab2761b82e253db23a456ab3dd35a42675
+  languageName: node
+  linkType: hard
+
 "pino-std-serializers@npm:^4.0.0":
   version: 4.0.0
   resolution: "pino-std-serializers@npm:4.0.0"
   checksum: cec586f9634ef0e6582f62bc8fc5ca5b6e5e11ab88fe3950c66fb0fd5d6690f66bc39cd3f27216b925d2963ad5c3bba415718819ac20ebe0390c7d056cbfea1b
+  languageName: node
+  linkType: hard
+
+"pino-std-serializers@npm:^6.0.0":
+  version: 6.2.2
+  resolution: "pino-std-serializers@npm:6.2.2"
+  checksum: a00cdff4e1fbc206da9bed047e6dc400b065f43e8b4cef1635b0192feab0e8f932cdeb0faaa38a5d93d2e777ba4cda939c2ed4c1a70f6839ff25f9aef97c27ff
   languageName: node
   linkType: hard
 
@@ -19214,6 +19261,27 @@ __metadata:
   bin:
     pino: bin.js
   checksum: 1c7b4b52fea76e0bc5d8b1190a0fee24279cb16d76fdb5833b32b64256fd8a94d641574b850faba5be72514f04045206b6d902a9a3f5ceae2a4296687088e073
+  languageName: node
+  linkType: hard
+
+"pino@npm:^8.19.0":
+  version: 8.19.0
+  resolution: "pino@npm:8.19.0"
+  dependencies:
+    atomic-sleep: "npm:^1.0.0"
+    fast-redact: "npm:^3.1.1"
+    on-exit-leak-free: "npm:^2.1.0"
+    pino-abstract-transport: "npm:v1.1.0"
+    pino-std-serializers: "npm:^6.0.0"
+    process-warning: "npm:^3.0.0"
+    quick-format-unescaped: "npm:^4.0.3"
+    real-require: "npm:^0.2.0"
+    safe-stable-stringify: "npm:^2.3.1"
+    sonic-boom: "npm:^3.7.0"
+    thread-stream: "npm:^2.0.0"
+  bin:
+    pino: bin.js
+  checksum: c98e8bedb7c9eca5c0e75c2dd910a58b0e470da282c5a4787873a591666cc7cce33561d9ba6d6a20cf6bc4bc8d15b7db84cf6156f262081a5c6b8de134285789
   languageName: node
   linkType: hard
 
@@ -19426,6 +19494,13 @@ __metadata:
   version: 1.0.0
   resolution: "process-warning@npm:1.0.0"
   checksum: 8736d11d8d71c349d176e210305e84d74b13af06efb3c779377b056bfd608257d1e4e32b8fbbf90637c900f0313e40f7c9f583140884f667a21fc10a869b840c
+  languageName: node
+  linkType: hard
+
+"process-warning@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "process-warning@npm:3.0.0"
+  checksum: 2d82fa641e50a5789eaf0f2b33453760996e373d4591aac576a22d696186ab7e240a0592db86c264d4f28a46c2abbe9b94689752017db7dadc90f169f12b0924
   languageName: node
   linkType: hard
 
@@ -19997,6 +20072,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"readable-stream@npm:^4.0.0":
+  version: 4.5.2
+  resolution: "readable-stream@npm:4.5.2"
+  dependencies:
+    abort-controller: "npm:^3.0.0"
+    buffer: "npm:^6.0.3"
+    events: "npm:^3.3.0"
+    process: "npm:^0.11.10"
+    string_decoder: "npm:^1.3.0"
+  checksum: 01b128a559c5fd76a898495f858cf0a8839f135e6a69e3409f986e88460134791657eb46a2ff16826f331682a3c4d0c5a75cef5e52ef259711021ba52b1c2e82
+  languageName: node
+  linkType: hard
+
 "readdirp@npm:~3.2.0":
   version: 3.2.0
   resolution: "readdirp@npm:3.2.0"
@@ -20026,6 +20114,13 @@ __metadata:
   version: 0.1.0
   resolution: "real-require@npm:0.1.0"
   checksum: 0ba1c440dc9b7777d35a97f755312bf236be0847249f76cc9789c5c08d141f5d80b8564888e6a94ed0253fabf597b6892f8502c4e5658fb98f88642633a39723
+  languageName: node
+  linkType: hard
+
+"real-require@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "real-require@npm:0.2.0"
+  checksum: ddf44ee76301c774e9c9f2826da8a3c5c9f8fc87310f4a364e803ef003aa1a43c378b4323051ced212097fff1af459070f4499338b36a7469df1d4f7e8c0ba4c
   languageName: node
   linkType: hard
 
@@ -20576,7 +20671,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"safe-stable-stringify@npm:^2.1.0":
+"safe-stable-stringify@npm:^2.1.0, safe-stable-stringify@npm:^2.3.1":
   version: 2.4.3
   resolution: "safe-stable-stringify@npm:2.4.3"
   checksum: a6c192bbefe47770a11072b51b500ed29be7b1c15095371c1ee1dc13e45ce48ee3c80330214c56764d006c485b88bd0b24940d868948170dddc16eed312582d8
@@ -21209,6 +21304,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"sonic-boom@npm:^3.7.0":
+  version: 3.8.0
+  resolution: "sonic-boom@npm:3.8.0"
+  dependencies:
+    atomic-sleep: "npm:^1.0.0"
+  checksum: 470a82cb1af3ab99fcd3003bbecb2ce79a6b243d0f6012c59e5f567f71cbe039c8cd810752748b5820ee20d72c8da81aa298e510eec9e41a4ca05c7f419825ff
+  languageName: node
+  linkType: hard
+
 "source-map-js@npm:^1.0.2":
   version: 1.0.2
   resolution: "source-map-js@npm:1.0.2"
@@ -21570,7 +21674,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"string_decoder@npm:^1.1.1":
+"string_decoder@npm:^1.1.1, string_decoder@npm:^1.3.0":
   version: 1.3.0
   resolution: "string_decoder@npm:1.3.0"
   dependencies:
@@ -22013,6 +22117,15 @@ __metadata:
   dependencies:
     real-require: "npm:^0.1.0"
   checksum: ca0a4f5bf45db88b48b41af0299455eaa8f01dd3ef8279e7ba6909c295b3ab79ddf576b595cbbceb4dbdf4012b17c6449805092926163fcbf30ac1604cb595b1
+  languageName: node
+  linkType: hard
+
+"thread-stream@npm:^2.0.0":
+  version: 2.4.1
+  resolution: "thread-stream@npm:2.4.1"
+  dependencies:
+    real-require: "npm:^0.2.0"
+  checksum: baac5bf555912f216a2494bf3f66377733a843306cddd233b1c5ad63084307266f61af35d6122e3936c657836d5db4a14da34300cd25930e013943b807a29c9b
   languageName: node
   linkType: hard
 

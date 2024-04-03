@@ -26,7 +26,7 @@ import {
   ProxyAdminViolation,
   TimelockControllerViolation,
   ViolationType,
-  resolveAccountOwner,
+  resolveOrDeployAccountOwner,
 } from './types';
 
 export abstract class HyperlaneAppChecker<
@@ -215,11 +215,7 @@ export abstract class HyperlaneAppChecker<
     for (const [name, contract] of Object.entries(ownableContracts)) {
       let expectedOwner = ownableOverrides?.[name] ?? owner;
       if (typeof expectedOwner !== 'string') {
-        console.log(
-          'Resolving account owner',
-          this.multiProvider.getKnownChainNames(),
-        );
-        expectedOwner = await resolveAccountOwner(
+        expectedOwner = await resolveOrDeployAccountOwner(
           this.multiProvider,
           chain,
           expectedOwner,

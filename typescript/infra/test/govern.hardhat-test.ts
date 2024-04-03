@@ -26,7 +26,7 @@ import {
   TestCoreApp,
   TestCoreDeployer,
   randomAddress,
-  resolveAccountOwner,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { InterchainAccountFactories } from '@hyperlane-xyz/sdk/dist/middleware/account/contracts';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
@@ -154,7 +154,7 @@ describe('ICA governance', async () => {
     const checker = new TestChecker(multiProvider, app, configMap);
     governor = new HyperlaneTestGovernor(checker, icaApp);
 
-    accountOwner = await resolveAccountOwner(
+    accountOwner = await resolveOrDeployAccountOwner(
       multiProvider,
       remoteChain,
       accountConfig,
@@ -182,7 +182,7 @@ describe('ICA governance', async () => {
     governor.mockPushCall(remoteChain, call);
 
     // act
-    await governor.govern();
+    await governor.govern(); // this is where the ICA inference happens
     await coreApp.processMessages();
 
     // assert
