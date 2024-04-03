@@ -12,8 +12,8 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
-    BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    IntoContractSyncCursor, SequencedDataContractSync, WatermarkContractSync,
+    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
+    SequencedDataContractSync,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
@@ -62,7 +62,7 @@ pub struct Relayer {
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
-        HashMap<HyperlaneDomain, Arc<dyn IntoContractSyncCursor<InterchainGasPayment>>>,
+        HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
@@ -142,7 +142,10 @@ impl BaseAgent for Relayer {
                     .collect(),
             )
             .await?;
-        let interchain_gas_payment_syncs = settings
+        let interchain_gas_payment_syncs: HashMap<
+            HyperlaneDomain,
+            Arc<dyn ContractSyncer<InterchainGasPayment>>,
+        > = settings
             .build_interchain_gas_payment_indexers(
                 settings.origin_chains.iter(),
                 &core_metrics,
@@ -151,7 +154,10 @@ impl BaseAgent for Relayer {
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
             )
-            .await?;
+            .await?
+            .into_iter()
+            .map(|(k, v)| (k, v as _))
+            .collect();
         let merkle_tree_hook_syncs = settings
             .build_merkle_tree_hook_indexers(
                 settings.origin_chains.iter(),
@@ -341,7 +347,7 @@ impl Relayer {
     async fn run_message_sync(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.into_cursor(index_settings).await;
+        let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move {
             contract_sync
                 .clone()
@@ -361,7 +367,7 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync.into_cursor(index_settings).await;
+        let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
             .instrument(info_span!("ContractSync"))
     }
@@ -372,7 +378,7 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.into_cursor(index_settings).await;
+        let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
             .instrument(info_span!("ContractSync"))
     }

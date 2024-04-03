@@ -19,9 +19,7 @@ use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 
 pub(crate) mod sequence_aware;
 
-pub(crate) use sequence_aware::{
-    ForwardBackwardSequenceAwareSyncCursor, ForwardSequenceAwareSyncCursor,
-};
+pub(crate) use sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
 
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;

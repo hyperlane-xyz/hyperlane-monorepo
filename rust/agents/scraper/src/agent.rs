@@ -5,7 +5,7 @@ use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_base::{
     metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
-    CoreMetrics, HyperlaneAgentCore, IntoContractSyncCursor, MetricsUpdater,
+    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
@@ -173,41 +173,6 @@ impl Scraper {
     }
 }
 
-/// Create a function to spawn task that syncs contract events
-macro_rules! spawn_sync_task {
-    ($name:ident, $cursor: ident, $label:literal) => {
-        async fn $name(
-            &self,
-            domain: HyperlaneDomain,
-            metrics: Arc<CoreMetrics>,
-            contract_sync_metrics: Arc<ContractSyncMetrics>,
-            db: HyperlaneSqlDb,
-            index_settings: IndexSettings,
-        ) -> Instrumented<JoinHandle<()>> {
-            let sync = self
-                .as_ref()
-                .settings
-                .$name(
-                    &domain,
-                    &metrics.clone(),
-                    &contract_sync_metrics.clone(),
-                    Arc::new(db.clone()),
-                )
-                .await
-                .unwrap();
-            let cursor = sync
-                .$cursor(index_settings.clone())
-                .await;
-                tokio::spawn(async move {
-                    sync
-                        .sync($label, cursor)
-                        .await
-                })
-                .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=$label))
-        }
-    }
-}
-
 impl Scraper {
     async fn build_message_indexer(
         &self,
@@ -228,33 +193,74 @@ impl Scraper {
             )
             .await
             .unwrap();
-        let latest_nonce = self
-            .scrapers
-            .get(&domain.id())
-            .unwrap()
-            .db
-            .last_message_nonce()
-            .await
-            .unwrap_or(None)
-            .unwrap_or(0);
+        // let latest_nonce = self
+        //     .scrapers
+        //     .get(&domain.id())
+        //     .unwrap()
+        //     .db
+        //     .last_message_nonce()
+        //     .await
+        //     .unwrap_or(None)
+        //     .unwrap_or(0);
         let cursor = sync
             // todo: this used to be a forward cursor, and was changed to a forward-backward cursor for simplicity,
             // to match the cursors in other agents
-            .into_cursor(index_settings.clone())
+            .cursor(index_settings.clone())
             .await;
         tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
             info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
         )
     }
 
-    spawn_sync_task!(
-        build_delivery_indexer,
-        rate_limited_cursor,
-        "message_delivery"
-    );
-    spawn_sync_task!(
-        build_interchain_gas_payment_indexer,
-        rate_limited_cursor,
-        "gas_payment"
-    );
+    async fn build_delivery_indexer(
+        &self,
+        domain: HyperlaneDomain,
+        metrics: Arc<CoreMetrics>,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        db: HyperlaneSqlDb,
+        index_settings: IndexSettings,
+    ) -> Instrumented<JoinHandle<()>> {
+        let sync = self
+            .as_ref()
+            .settings
+            .build_delivery_indexer(
+                &domain,
+                &metrics.clone(),
+                &contract_sync_metrics.clone(),
+                Arc::new(db.clone()),
+            )
+            .await
+            .unwrap();
+
+        let label = "message_delivery";
+        let cursor = sync.cursor(index_settings.clone()).await;
+        tokio::spawn(async move { sync.sync(label, cursor).await })
+            .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
+    }
+
+    async fn build_interchain_gas_payment_indexer(
+        &self,
+        domain: HyperlaneDomain,
+        metrics: Arc<CoreMetrics>,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
+        db: HyperlaneSqlDb,
+        index_settings: IndexSettings,
+    ) -> Instrumented<JoinHandle<()>> {
+        let sync = self
+            .as_ref()
+            .settings
+            .build_interchain_gas_payment_indexer(
+                &domain,
+                &metrics.clone(),
+                &contract_sync_metrics.clone(),
+                Arc::new(db.clone()),
+            )
+            .await
+            .unwrap();
+
+        let label = "gas_payment";
+        let cursor = sync.cursor(index_settings.clone()).await;
+        tokio::spawn(async move { sync.sync(label, cursor).await })
+            .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
+    }
 }
