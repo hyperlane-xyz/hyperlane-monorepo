@@ -2,6 +2,7 @@ use std::{
     collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
 };
 
+use axum::async_trait;
 use cursors::*;
 use derive_new::new;
 use hyperlane_core::{
@@ -19,7 +20,7 @@ mod cursors;
 mod eta_calculator;
 mod metrics;
 
-use cursors::{ForwardBackwardSequenceAwareSyncCursor, ForwardSequenceAwareSyncCursor};
+use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
@@ -117,18 +118,24 @@ where
     }
 }
 
+pub type SequenceAwareContractSync<T, U> = ContractSync<T, U, Arc<dyn SequenceAwareIndexer<T>>>;
+
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
-    ContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>, Arc<dyn SequenceAwareIndexer<T>>>;
-impl<T> WatermarkContractSync<T>
+    SequenceAwareContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>>;
+
+#[async_trait]
+pub trait IntoContractSyncCursor<T>: Send + Sync {
+    async fn into_cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>>;
+}
+
+#[async_trait]
+impl<T> IntoContractSyncCursor<T> for WatermarkContractSync<T>
 where
     T: Debug + Send + Sync + Clone + 'static,
 {
     /// Returns a new cursor to be used for syncing events from the indexer based on time
-    pub async fn rate_limited_cursor(
-        &self,
-        index_settings: IndexSettings,
-    ) -> Box<dyn ContractSyncCursor<T>> {
+    async fn into_cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
@@ -150,33 +157,22 @@ where
 }
 
 /// A ContractSync for syncing messages using a SequenceSyncCursor
-pub type SequencedDataContractSync<T> = ContractSync<
-    T,
-    Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>,
-    Arc<dyn SequenceAwareIndexer<T>>,
->;
-impl<T: Sequenced + Debug> SequencedDataContractSync<T> {
-    /// Returns a new cursor to be used for syncing dispatched messages from the indexer
-    pub async fn forward_message_sync_cursor(
-        &self,
-        index_settings: IndexSettings,
-        next_nonce: u32,
-    ) -> Box<dyn ContractSyncCursor<T>> {
-        Box::new(ForwardSequenceAwareSyncCursor::new(
-            index_settings.chunk_size,
-            self.indexer.clone(),
-            Arc::new(self.db.clone()),
-            next_nonce,
-            index_settings.from,
-            index_settings.mode,
-        ))
-    }
+pub type SequencedDataContractSync<T> =
+    SequenceAwareContractSync<T, Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>>;
 
+// pub struct ForwardSyncCursorCustomSettings {
+//     pub next_nonce: u32,
+// }
+
+// pub enum SequencedDataContractSyncType {
+//     Forward(ForwardSyncCursorCustomSettings),
+//     ForwardBackward,
+// }
+
+#[async_trait]
+impl<T: Sequenced + Debug> IntoContractSyncCursor<T> for SequencedDataContractSync<T> {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
-    pub async fn forward_backward_message_sync_cursor(
-        &self,
-        index_settings: IndexSettings,
-    ) -> Box<dyn ContractSyncCursor<T>> {
+    async fn into_cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
         Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
                 self.indexer.clone(),

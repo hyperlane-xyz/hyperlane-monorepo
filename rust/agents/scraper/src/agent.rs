@@ -5,7 +5,7 @@ use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_base::{
     metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
-    CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
+    CoreMetrics, HyperlaneAgentCore, IntoContractSyncCursor, MetricsUpdater,
 };
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
@@ -238,7 +238,9 @@ impl Scraper {
             .unwrap_or(None)
             .unwrap_or(0);
         let cursor = sync
-            .forward_message_sync_cursor(index_settings.clone(), latest_nonce.saturating_sub(1))
+            // todo: this used to be a forward cursor, and was changed to a forward-backward cursor for simplicity,
+            // to match the cursors in other agents
+            .into_cursor(index_settings.clone())
             .await;
         tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
             info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),

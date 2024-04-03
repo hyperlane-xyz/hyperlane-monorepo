@@ -13,7 +13,7 @@ use hyperlane_base::{
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    SequencedDataContractSync, WatermarkContractSync,
+    IntoContractSyncCursor, SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
@@ -62,7 +62,7 @@ pub struct Relayer {
     core: HyperlaneAgentCore,
     message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
-        HashMap<HyperlaneDomain, Arc<WatermarkContractSync<InterchainGasPayment>>>,
+        HashMap<HyperlaneDomain, Arc<dyn IntoContractSyncCursor<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
@@ -341,9 +341,7 @@ impl Relayer {
     async fn run_message_sync(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
+        let cursor = contract_sync.into_cursor(index_settings).await;
         tokio::spawn(async move {
             contract_sync
                 .clone()
@@ -363,7 +361,7 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
+        let cursor = contract_sync.into_cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
             .instrument(info_span!("ContractSync"))
     }
@@ -374,9 +372,7 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
+        let cursor = contract_sync.into_cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
             .instrument(info_span!("ContractSync"))
     }
