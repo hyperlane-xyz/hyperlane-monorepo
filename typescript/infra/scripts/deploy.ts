@@ -202,11 +202,6 @@ async function main() {
     return;
   }
 
-  // cache addresses for interchain account support
-  deployer.cacheAddressesMap(
-    getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS),
-  );
-
   const modulePath = getModuleDirectory(environment, module, context);
 
   console.log(`Deploying to ${modulePath}`);
