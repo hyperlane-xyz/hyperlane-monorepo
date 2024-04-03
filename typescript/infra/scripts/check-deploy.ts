@@ -144,12 +144,7 @@ async function check() {
       }, {} as typeof addresses);
     const app = HypERC20App.fromAddressesMap(filteredAddresses, multiProvider);
 
-    const checker = new HypERC20Checker(
-      multiProvider,
-      app,
-      config as any,
-      ismFactory,
-    );
+    const checker = new HypERC20Checker(multiProvider, app, config, ismFactory);
     governor = new ProxiedRouterGovernor(checker, ica);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);

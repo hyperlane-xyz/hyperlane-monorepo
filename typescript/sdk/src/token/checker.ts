@@ -1,6 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import { ERC20, ERC20__factory } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TokenMismatchViolation } from '../deploy/types';
 import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker';
@@ -30,7 +31,7 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
   async checkToken(chain: ChainName): Promise<void> {
     const checkERC20 = async (
       token: ERC20,
-      config: HypERC20Config | boolean, // either check for validity if config is present, or check for existence if config is boolean
+      config: HypERC20Config,
     ): Promise<void> => {
       const checks: {
         method: keyof TokenMetadata | 'decimals';
@@ -43,7 +44,6 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
 
       for (const check of checks) {
         const actual = await token[check.method]();
-        if (typeof config == 'boolean') continue;
         const expected = config[check.method];
         if (actual !== expected) {
           const violation: TokenMismatchViolation = {
@@ -84,7 +84,17 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
         expectedConfig.token,
         this.multiProvider.getProvider(chain),
       );
-      await checkERC20(collateralToken, true);
+      const actualToken = await hypToken.collateralToken();
+      if (!eqAddress(collateralToken.address, actualToken)) {
+        const violation: TokenMismatchViolation = {
+          type: 'CollateralTokenMismatch',
+          chain,
+          expected: collateralToken.address,
+          actual: actualToken,
+          tokenAddress: hypToken.address,
+        };
+        this.addViolation(violation);
+      }
     }
   }
 }

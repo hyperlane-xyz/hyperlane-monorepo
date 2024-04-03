@@ -29,7 +29,7 @@ export class HypERC20App extends GasRouterApp<HypERC20Factories, TokenRouter> {
   }
 
   static fromAddressesMap(
-    addressesMap: HyperlaneAddressesMap<any>,
+    addressesMap: HyperlaneAddressesMap<HypERC20Factories>,
     multiProvider: MultiProvider,
   ): HypERC20App {
     const helper = appFromAddressesMapHelper(
