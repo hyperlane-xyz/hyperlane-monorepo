@@ -214,7 +214,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the ids for all chains known to this MultiProvider
    */
   getKnownDomainIds(): number[] {
-    return this.getKnownChainNames().map(this.getDomainId);
+    return this.getKnownChainNames().map(this.getDomainId.bind(this));
   }
 
   /**

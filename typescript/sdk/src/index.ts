@@ -131,6 +131,7 @@ export {
   IgpViolationType,
 } from './gas/types.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
+export { EvmHookReader } from './hook/read.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,

@@ -72,3 +72,42 @@ export type HooksConfig = {
   required: HookConfig;
   default: HookConfig;
 };
+
+// As found in IPostDispatchHook.sol
+export enum OnchainHookType {
+  UNUSED,
+  ROUTING,
+  AGGREGATION,
+  MERKLE_TREE,
+  INTERCHAIN_GAS_PAYMASTER,
+  FALLBACK_ROUTING,
+  ID_AUTH_ISM,
+  PAUSABLE,
+  PROTOCOL_FEE,
+  LAYER_ZERO_V1,
+}
+
+export function mapOnchainHookToHookType(
+  contractHook: OnchainHookType,
+): HookType {
+  switch (contractHook) {
+    case OnchainHookType.ROUTING:
+      return HookType.ROUTING;
+    case OnchainHookType.AGGREGATION:
+      return HookType.AGGREGATION;
+    case OnchainHookType.MERKLE_TREE:
+      return HookType.MERKLE_TREE;
+    case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
+      return HookType.INTERCHAIN_GAS_PAYMASTER;
+    case OnchainHookType.FALLBACK_ROUTING:
+      return HookType.FALLBACK_ROUTING;
+    case OnchainHookType.PAUSABLE:
+      return HookType.PAUSABLE;
+    case OnchainHookType.PROTOCOL_FEE:
+      return HookType.PROTOCOL_FEE;
+    default:
+      throw new Error(
+        `Unsupported ContractHookType: ${OnchainHookType[contractHook]}`,
+      );
+  }
+}
