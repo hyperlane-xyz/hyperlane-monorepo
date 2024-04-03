@@ -44,44 +44,33 @@ contract RateLimited is OwnableUpgradeable {
     }
 
     /**
-     * Calculates the current limit amount of sender based on the time passed since the last update and the configured rate limit.
+     * Calculates the limit of sender as a function of time elapsed since last update
      *
-     * Consider an example where there is a 1e18 max token limit per day (86400s).
+     * Consider an example where there is a 1e18 max token limit per day (86400s)
      * If half of a day (43200s) has passed, then there should be a limit of 0.5e18
      *
-     * Token Limit
-     * 1e18           0.5e18             0
-     * |----------------|----------------|
-     * 0              43200            86400
-     * Duration
-     *
      * To calculate:
-     *   Limit Amount left = (Max Token Limit / DURATION) * Elapsed
+     *   Limit = (Max Token Limit / DURATION) * Elapsed
      *   Elapsed = timestamp - Limit.lastUpdate
      *
      *   If half of the day (43200) has passed, then
      *   (1e18 / 86400) * (86400 - 43200) = 0.5e18
+     *
+     * The resulting Limit will get added to the existing limit
      */
-    function getTargetLimit(
-        address _sender
-    ) public view returns (uint256 newTargetLimit_) {
+    function getTargetLimit(address _sender) public view returns (uint256) {
         Limit memory limit = limits[_sender];
         if (limit.max == 0) revert RateLimitNotSet(_sender);
 
-        newTargetLimit_ = limit.current;
-        if (limit.lastUpdate + DURATION <= block.timestamp) {
-            // If last update is in the previous cycle, reset the limit to max
-            newTargetLimit_ = limit.max;
-        } else if (limit.lastUpdate + DURATION > block.timestamp) {
+        if (limit.lastUpdate + DURATION > block.timestamp) {
             // If within the cycle, calculate the new target limit
             uint256 elapsed = block.timestamp - limit.lastUpdate;
-            uint256 newTargetLimitAmount = limit.current +
+            uint256 calculatedLimit = limit.current +
                 (elapsed * limit.tokenPerSecond);
-
-            // If the newTargetLimitAmount exceeds the max, return max, else return newTargetLimitAmount
-            newTargetLimit_ = newTargetLimitAmount > limit.max
-                ? limit.max
-                : newTargetLimitAmount;
+            return calculatedLimit > limit.max ? limit.max : calculatedLimit;
+        } else {
+            // If last update is in the previous cycle, return the max limit
+            return limit.max;
         }
     }
 
