@@ -14,8 +14,6 @@ contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
 
     constructor(address _mailbox) MailboxClient(_mailbox) {}
 
-    error InvalidDispatchedMessage();
-
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
         return uint8(IPostDispatchHook.Types.UNUSED);
@@ -34,12 +32,11 @@ contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
         bytes calldata,
         bytes calldata _message
     ) external payable {
-        if (!_isLatestDispatched(_message.id()))
-            revert InvalidDispatchedMessage();
+        require(_isLatestDispatched(_message.id()), "InvalidDispatchedMessage");
 
         address sender = _message.sender().bytes32ToAddress();
         uint256 newAmount = _message.body().amount();
-        limits[sender].current = validateAndIncrementLimit(sender, newAmount);
+        validateAndIncrementLimit(sender, newAmount);
     }
 
     /// @inheritdoc IPostDispatchHook

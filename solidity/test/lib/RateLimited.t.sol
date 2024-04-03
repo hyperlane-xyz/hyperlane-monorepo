@@ -5,12 +5,13 @@ import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 
 contract RateLimitLibTest is Test {
     RateLimited rateLimited;
-    uint256 constant ONE_PERCENT = 1e16;
+    uint256 constant MAX_LIMIT = 1 ether;
+    uint256 constant ONE_PERCENT = 0.01 ether;
     address HOOK = makeAddr("HOOK");
 
     function setUp() public {
         rateLimited = new RateLimited();
-        rateLimited.setTargetLimit(HOOK, 1 ether);
+        rateLimited.setTargetLimit(HOOK, MAX_LIMIT);
     }
 
     function testRateLimited_setsNewLimit() external {
@@ -56,10 +57,43 @@ contract RateLimitLibTest is Test {
         uint256 _newAmount
     ) external {
         vm.assume(_newAmount <= rateLimited.getTargetLimit(HOOK));
-        uint256 newLimit = rateLimited.getLimit(HOOK) + _newAmount;
-        assertEq(
-            rateLimited.validateAndIncrementLimit(HOOK, _newAmount),
-            newLimit
+        assertLt(
+            rateLimited.validateAndIncrementLimit(HOOK, _newAmount), // Returns newLimit
+            rateLimited.getMaxLimit(HOOK)
         );
+    }
+
+    function testRateLimited_decreasesLimitWithinSameDay() external {
+        vm.warp(1 days);
+        uint256 currentTargetLimit = rateLimited.getTargetLimit(HOOK);
+        uint256 amount = 0.5 ether;
+        uint256 newLimit = rateLimited.validateAndIncrementLimit(HOOK, amount);
+        assertEq(newLimit, currentTargetLimit - amount);
+
+        // Increment the same amount
+        currentTargetLimit = rateLimited.getTargetLimit(HOOK);
+        newLimit = rateLimited.validateAndIncrementLimit(HOOK, amount);
+        assertEq(newLimit, currentTargetLimit - amount);
+
+        // One more to exceed limit
+        vm.expectRevert();
+        rateLimited.validateAndIncrementLimit(HOOK, amount);
+    }
+
+    function testRateLimited_shouldResetLimit_ifDurationExceeds(
+        uint256 _amount
+    ) external {
+        // Transfer less than the limit
+        vm.warp(0.5 days);
+        uint256 currentTargetLimit = rateLimited.getTargetLimit(HOOK);
+        vm.assume(_amount < currentTargetLimit);
+
+        uint256 newLimit = rateLimited.validateAndIncrementLimit(HOOK, _amount);
+        assertApproxEqRel(newLimit, currentTargetLimit - _amount, ONE_PERCENT);
+
+        // Warp to a new cycle
+        vm.warp(10 days);
+        currentTargetLimit = rateLimited.getTargetLimit(HOOK);
+        assertApproxEqRel(currentTargetLimit, MAX_LIMIT, ONE_PERCENT);
     }
 }

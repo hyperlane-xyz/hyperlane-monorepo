@@ -9,18 +9,16 @@ import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurit
 import {Message} from "contracts/libs/Message.sol";
 import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 
-contract RateLimitedIsm is RateLimited, IInterchainSecurityModule {
+contract RateLimitedIsm is
+    RateLimited,
+    MailboxClient,
+    IInterchainSecurityModule
+{
     using Message for bytes;
     using TokenMessage for bytes;
     using TypeCasts for bytes32;
 
-    IMailbox public immutable mailbox;
-
-    constructor(address _mailbox) {
-        mailbox = IMailbox(_mailbox);
-    }
-
-    error InvalidDeliveredMessage();
+    constructor(address _mailbox) MailboxClient(_mailbox) {}
 
     /// @inheritdoc IInterchainSecurityModule
     function moduleType() external pure returns (uint8) {
@@ -34,18 +32,13 @@ contract RateLimitedIsm is RateLimited, IInterchainSecurityModule {
     function verify(
         bytes calldata,
         bytes calldata _message
-    ) external returns (bool) {
-        if (!_isLatestDelivered(_message.id()))
-            revert InvalidDeliveredMessage();
+    ) external onlyMailbox returns (bool) {
+        require(_isLatestDelivered(_message.id()), "InvalidDeliveredMessage");
 
         address sender = (_message.sender().bytes32ToAddress());
         uint256 newAmount = _message.body().amount();
-        limits[sender].current = validateAndIncrementLimit(sender, newAmount);
+        validateAndIncrementLimit(sender, newAmount);
 
         return true;
-    }
-
-    function _isLatestDelivered(bytes32 id) internal view returns (bool) {
-        return mailbox.delivered(id);
     }
 }

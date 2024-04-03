@@ -35,7 +35,15 @@ contract RateLimitedIsmTest is Test {
     function testRateLimitedIsm_revertsIfCalledByNonMailbox(
         bytes calldata _message
     ) external {
-        vm.expectRevert(RateLimitedIsm.InvalidDeliveredMessage.selector);
+        vm.expectRevert("MailboxClient: sender not mailbox");
+        rateLimitedIsm.verify(bytes(""), _message);
+    }
+
+    function testRateLimitedIsm_revertsIDeliveredFalse(
+        bytes calldata _message
+    ) external {
+        vm.prank(address(localMailbox));
+        vm.expectRevert("InvalidDeliveredMessage");
         rateLimitedIsm.verify(bytes(""), _message);
     }
 

@@ -19,7 +19,7 @@ contract RateLimited is OwnableUpgradeable {
     }
 
     struct Limit {
-        uint40 lastUpdate; /// @notice Timestamp of the last time an action has been taken
+        uint256 lastUpdate; /// @notice Timestamp of the last time an action has been taken
         uint256 tokenPerSecond; /// @notice Allowed tokens per second
         uint256 current; /// @notice Limit amount used
         uint256 max; /// @notice Maximum token amount
@@ -31,8 +31,16 @@ contract RateLimited is OwnableUpgradeable {
      * Gets the sender's limit used
      * @param _sender address to check
      */
-    function getLimit(address _sender) public view returns (uint256) {
+    function getCurrentLimit(address _sender) public view returns (uint256) {
         return limits[_sender].current;
+    }
+
+    /**
+     * Gets the sender's max limit
+     * @param _sender address to check
+     */
+    function getMaxLimit(address _sender) public view returns (uint256) {
+        return limits[_sender].max;
     }
 
     /**
@@ -54,15 +62,27 @@ contract RateLimited is OwnableUpgradeable {
      *   If half of the day (43200) has passed, then
      *   (1e18 / 86400) * (86400 - 43200) = 0.5e18
      */
-    function getTargetLimit(address _sender) public view returns (uint256) {
+    function getTargetLimit(
+        address _sender
+    ) public view returns (uint256 newTargetLimit_) {
         Limit memory limit = limits[_sender];
         if (limit.max == 0) revert RateLimitNotSet(_sender);
 
-        uint256 elapsed = (block.timestamp - limit.lastUpdate);
-        uint256 currentLimitAmount = (elapsed * limit.tokenPerSecond);
+        newTargetLimit_ = limit.current;
+        if (limit.lastUpdate + DURATION <= block.timestamp) {
+            // If last update is in the previous cycle, reset the limit to max
+            newTargetLimit_ = limit.max;
+        } else if (limit.lastUpdate + DURATION > block.timestamp) {
+            // If within the cycle, calculate the new target limit
+            uint256 elapsed = block.timestamp - limit.lastUpdate;
+            uint256 newTargetLimitAmount = limit.current +
+                (elapsed * limit.tokenPerSecond);
 
-        /// @dev Modulo currentLimitAmount because we should drop any excess limit amount
-        return limit.max - (currentLimitAmount % limit.max);
+            // If the newTargetLimitAmount exceeds the max, return max, else return newTargetLimitAmount
+            newTargetLimit_ = newTargetLimitAmount > limit.max
+                ? limit.max
+                : newTargetLimitAmount;
+        }
     }
 
     /**
@@ -84,7 +104,7 @@ contract RateLimited is OwnableUpgradeable {
     }
 
     /**
-     * Adds an amount to the current limit if it does not exceed the target limit
+     * Decreases the sender's current limit if it does not exceed the target limit
      * @param _sender The address to add the limit for
      * @param _newAmount The amount to add to the current limit
      * @return The new limit amount after adding
@@ -92,12 +112,17 @@ contract RateLimited is OwnableUpgradeable {
     function validateAndIncrementLimit(
         address _sender,
         uint256 _newAmount
-    ) public view returns (uint256) {
+    ) public returns (uint256) {
         RateLimited.Limit memory limit = limits[_sender];
         uint256 targetLimit = getTargetLimit(_sender);
-        if (limit.current + _newAmount > targetLimit)
+        if (_newAmount > targetLimit)
             revert RateLimitExceeded(_newAmount, targetLimit);
 
-        return limit.current + _newAmount;
+        // Update the current limit and lastUpdate
+        limit.current = targetLimit - _newAmount;
+        limit.lastUpdate = block.timestamp;
+        limits[_sender] = limit;
+
+        return limit.current;
     }
 }
