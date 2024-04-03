@@ -29,7 +29,7 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     });
   }
   routerContractName(): string {
-    return 'InterchainAccountRouter';
+    return 'interchainAccountRouter';
   }
 
   routerContractKey<K extends keyof InterchainAccountFactories>(): K {

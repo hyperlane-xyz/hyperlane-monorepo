@@ -1,5 +1,12 @@
 # @hyperlane-xyz/utils
 
+## 3.10.0
+
+### Minor Changes
+
+- 96485144a: SDK support for ICA deployment and operation.
+- 4e7a43be6: Replace Debug logger with Pino
+
 ## 3.9.0
 
 ## 3.8.2

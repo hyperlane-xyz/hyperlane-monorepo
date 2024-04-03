@@ -17,7 +17,6 @@ import { supportedChainNames } from './chains';
 const gasPrices: ChainMap<BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
-  mumbai: ethers.utils.parseUnits('45', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
@@ -46,7 +45,6 @@ const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
 const chainTokenRarity: ChainMap<Rarity> = {
   alfajores: Rarity.Common,
   fuji: Rarity.Rare,
-  mumbai: Rarity.Rare,
   bsctestnet: Rarity.Rare,
   sepolia: Rarity.Mythic,
   scrollsepolia: Rarity.Rare,

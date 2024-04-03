@@ -1,5 +1,21 @@
 # @hyperlane-xyz/helloworld
 
+## 3.10.0
+
+### Minor Changes
+
+- 96485144a: SDK support for ICA deployment and operation.
+- 4e7a43be6: Replace Debug logger with Pino
+
+### Patch Changes
+
+- Updated dependencies [96485144a]
+- Updated dependencies [38358ecec]
+- Updated dependencies [ed0d4188c]
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/sdk@3.10.0
+  - @hyperlane-xyz/core@3.10.0
+
 ## 3.9.0
 
 ### Patch Changes

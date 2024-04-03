@@ -469,39 +469,6 @@ export const moonbeam: ChainMetadata = {
   rpcUrls: [{ http: 'https://rpc.api.moonbeam.network' }],
 };
 
-export const mumbai: ChainMetadata = {
-  blockExplorers: [
-    {
-      apiUrl: 'https://api-testnet.polygonscan.com/api',
-      family: ExplorerFamily.Etherscan,
-      name: 'PolygonScan',
-      url: 'https://mumbai.polygonscan.com',
-    },
-  ],
-  blocks: {
-    confirmations: 3,
-    estimateBlockTime: 5,
-    reorgPeriod: 32,
-  },
-  chainId: 80001,
-  displayName: 'Mumbai',
-  domainId: 80001,
-  isTestnet: true,
-  name: Chains.mumbai,
-  nativeToken: maticToken,
-  protocol: ProtocolType.Ethereum,
-  rpcUrls: [
-    {
-      http: 'https://rpc.ankr.com/polygon_mumbai',
-      pagination: {
-        // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
-        maxBlockRange: 10000,
-        minBlockNumber: 22900000,
-      },
-    },
-  ],
-};
-
 export const nautilus: ChainMetadata = {
   blocks: {
     confirmations: 1,
@@ -982,7 +949,6 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   injective,
   mantapacific,
   moonbeam,
-  mumbai,
   nautilus,
   neutron,
   optimism,

@@ -53,7 +53,6 @@ pub enum KnownHyperlaneDomain {
     Sepolia = 11155111,
 
     Polygon = 137,
-    Mumbai = 80001,
 
     Avalanche = 43114,
     Fuji = 43113,
@@ -219,8 +218,7 @@ impl KnownHyperlaneDomain {
                 Moonbeam, Gnosis, MantaPacific, Neutron, Injective, InEvm
             ],
             Testnet: [
-                Mumbai, Fuji, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet
+                Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet, Fuji, BinanceSmartChainTestnet
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
@@ -231,7 +229,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ethereum, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum,
+                Ethereum, Sepolia, Polygon, Avalanche, Fuji, Arbitrum,
                 Optimism, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, InEvm, MoonbaseAlpha, ScrollSepolia,
                 Chiado, MantaPacific, PlumeTestnet, Test1, Test2, Test3
@@ -248,7 +246,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             HyperlaneDomainTechnicalStack::ArbitrumNitro: [Arbitrum, PlumeTestnet],
             HyperlaneDomainTechnicalStack::Other: [
-                Ethereum, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Optimism,
+                Ethereum, Sepolia, Polygon, Avalanche, Fuji, Optimism,
                 BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
                 ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm,
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991

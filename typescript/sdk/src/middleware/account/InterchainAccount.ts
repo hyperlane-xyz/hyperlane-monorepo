@@ -124,8 +124,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
     const remoteRouter = addressToBytes32(
-      config.routerOverride ??
-        this.router(this.contractsMap[destination]).address,
+      config.routerOverride ?? this.routerAddress(destination),
     );
     const remoteIsm = addressToBytes32(
       config.ismOverride ??
