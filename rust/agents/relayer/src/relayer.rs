@@ -11,7 +11,7 @@ use futures_util::future::try_join_all;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
-    settings::ChainConf,
+    settings::{ChainConf, IgpIndexer, MerkleTreeHookIndexer, MessageIndexer},
     BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
     SequencedDataContractSync,
 };
@@ -133,7 +133,7 @@ impl BaseAgent for Relayer {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
         let message_syncs = settings
-            .build_message_indexers(
+            .build_indexers::<HyperlaneMessage, _, MessageIndexer>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
@@ -142,11 +142,9 @@ impl BaseAgent for Relayer {
                     .collect(),
             )
             .await?;
-        let interchain_gas_payment_syncs: HashMap<
-            HyperlaneDomain,
-            Arc<dyn ContractSyncer<InterchainGasPayment>>,
-        > = settings
-            .build_interchain_gas_payment_indexers(
+
+        let interchain_gas_payment_syncs = settings
+            .build_indexers::<InterchainGasPayment, _, IgpIndexer>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
@@ -154,12 +152,10 @@ impl BaseAgent for Relayer {
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
             )
-            .await?
-            .into_iter()
-            .map(|(k, v)| (k, v as _))
-            .collect();
+            .await?;
+
         let merkle_tree_hook_syncs = settings
-            .build_merkle_tree_hook_indexers(
+            .build_indexers::<MerkleTreeInsertion, _, MerkleTreeHookIndexer>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,

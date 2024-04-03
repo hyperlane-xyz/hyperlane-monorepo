@@ -40,7 +40,7 @@ impl<T, D, I> ContractSync<T, D, I>
 where
     T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
     D: HyperlaneLogStore<T> + 'static,
-    I: Indexer<T> + Clone + 'static,
+    I: Indexer<T> + 'static,
 {
     /// The domain that this ContractSync is running on
     pub fn domain(&self) -> &HyperlaneDomain {

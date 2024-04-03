@@ -1,3 +1,4 @@
+use axum::async_trait;
 use ethers::prelude::Selector;
 use h_cosmos::CosmosProvider;
 use std::collections::HashMap;
@@ -7,7 +8,7 @@ use eyre::{eyre, Context, Result};
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
+    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode, Indexer,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
     ValidatorAnnounce, H256,
@@ -27,6 +28,11 @@ use crate::{
 };
 
 use super::ChainSigner;
+
+#[async_trait]
+pub trait TryFromWithMetrics<T>: Sized {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self>;
+}
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
@@ -48,6 +54,39 @@ pub struct ChainConf {
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
     pub index: IndexSettings,
+}
+
+pub type MessageIndexer = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
+pub type DeliveryIndexer = Box<dyn SequenceAwareIndexer<H256>>;
+pub type IgpIndexer = Box<dyn SequenceAwareIndexer<InterchainGasPayment>>;
+pub type MerkleTreeHookIndexer = Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>;
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for MessageIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_message_indexer(metrics).await
+    }
+}
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for DeliveryIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_delivery_indexer(metrics).await
+    }
+}
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for IgpIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_interchain_gas_payment_indexer(metrics).await
+    }
+}
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_merkle_tree_hook_indexer(metrics).await
+    }
 }
 
 /// A connection to _some_ blockchain.
