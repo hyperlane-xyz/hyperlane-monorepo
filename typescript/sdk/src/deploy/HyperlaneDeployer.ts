@@ -743,7 +743,7 @@ export abstract class HyperlaneDeployer<
         throw new Error('InterchainAccountRouter not deployed');
       }
       const router = InterchainAccount.fromAddressesMap(
-        this.cachedAddresses,
+        { chain: { router: routerAddress } },
         this.multiProvider,
       );
       // submits network transaction to deploy the account iff it doesn't exist
