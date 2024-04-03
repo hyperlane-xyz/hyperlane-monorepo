@@ -10,7 +10,11 @@ import {
 import { MultiProvider } from '../providers/MultiProvider';
 import { GasRouterApp } from '../router/RouterApps';
 
-import { HypERC20Factories, hypERC20factories } from './contracts';
+import {
+  HypERC20Factories,
+  hypERC20Tokenfactories,
+  hypERC20factories,
+} from './contracts';
 
 export class HypERC20App extends GasRouterApp<HypERC20Factories, TokenRouter> {
   constructor(
@@ -20,12 +24,13 @@ export class HypERC20App extends GasRouterApp<HypERC20Factories, TokenRouter> {
     super(contractsMap, multiProvider);
   }
 
-  router(contracts: HyperlaneContracts<HypERC20Factories>): any {
-    for (const key of objKeys(hypERC20factories)) {
+  router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
+    for (const key of objKeys(hypERC20Tokenfactories)) {
       if (contracts[key]) {
-        return contracts[key];
+        return contracts[key] as unknown as TokenRouter;
       }
     }
+    throw new Error('No router found in contracts');
   }
 
   static fromAddressesMap(
