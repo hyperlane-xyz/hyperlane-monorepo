@@ -25,10 +25,10 @@ import {
   RouterConfig,
   TestCoreApp,
   TestCoreDeployer,
-  randomAddress,
   resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { InterchainAccountFactories } from '@hyperlane-xyz/sdk/dist/middleware/account/contracts';
+import { randomAddress } from '@hyperlane-xyz/sdk/dist/test/testUtils';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
 import {
