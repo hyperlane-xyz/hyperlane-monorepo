@@ -98,7 +98,7 @@ export abstract class HyperlaneDeployer<
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
-    objMerge(this.cachedAddresses, addressesMap);
+    this.cachedAddresses = addressesMap;
   }
 
   abstract deployContracts(
