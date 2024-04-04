@@ -118,9 +118,42 @@ contract RateLimitedHookTest is Test {
             BOB.addressToBytes32(),
             _amount
         );
-        uint256 limitAfter = rateLimitedHook.getCurrentLimit(
-            address(warpRouteLocal)
+        uint256 limitAfter = rateLimitedHook.calculateFilledLevel();
+        assertApproxEqRel(limitAfter, filledLevelBefore - _amount, ONE_PERCENT);
+    }
+
+    function testRateLimitedHook_preventsDuplicateMessageFromValidating(
+        uint128 _amount
+    ) public {
+        // Warp to a random time, get it's filled level, and try to transfer less than the target max
+        vm.warp(1 days);
+        uint256 filledLevelBefore = rateLimitedHook.calculateFilledLevel();
+        vm.assume(_amount <= filledLevelBefore);
+
+        _mintAndApprove(_amount);
+
+        // Generate an outbound message that will be the same as the one created in transferRemote
+        bytes memory tokenMessage = TokenMessage.format(
+            BOB.addressToBytes32(),
+            _amount,
+            bytes("")
         );
-        assertApproxEqRel(limitAfter, targetLimitBefore - _amount, ONE_PERCENT);
+        vm.prank(address(warpRouteLocal));
+        bytes memory message = localMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(warpRouteRemote).addressToBytes32(),
+            tokenMessage
+        );
+
+        bytes32 messageId = warpRouteLocal.transferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            _amount
+        );
+
+        assertEq(message.id(), messageId);
+
+        vm.expectRevert("MessageAlreadyValidated");
+        rateLimitedHook.postDispatch(bytes(""), message);
     }
 }

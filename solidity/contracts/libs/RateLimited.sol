@@ -6,7 +6,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * @title RateLimited
  * @notice A contract used to keep track of an address sender's token amount limits.
  * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills
- *
+ * See: https://dev.to/satrobit/rate-limiting-using-the-token-bucket-algorithm-3cjh
  **/
 contract RateLimited is OwnableUpgradeable {
     uint256 public constant DURATION = 1 days; // 86400

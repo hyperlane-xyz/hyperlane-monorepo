@@ -56,6 +56,19 @@ contract RateLimitedIsmTest is Test {
         localMailbox.process(bytes(""), _encodeTestMessage(_amount));
     }
 
+    function testRateLimitedIsm_preventsDuplicateMessageFromValidating(
+        uint128 _amount
+    ) public {
+        vm.assume(_amount <= rateLimitedIsm.calculateFilledLevel());
+
+        bytes memory encodedMessage = _encodeTestMessage(_amount);
+        vm.prank(address(localMailbox));
+        localMailbox.process(bytes(""), encodedMessage);
+
+        vm.expectRevert("MessageAlreadyValidated");
+        rateLimitedIsm.verify(bytes(""), encodedMessage);
+    }
+
     function _encodeTestMessage(
         uint256 _amount
     ) internal view returns (bytes memory) {

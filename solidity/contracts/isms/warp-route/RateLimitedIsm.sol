@@ -16,6 +16,15 @@ contract RateLimitedIsm is
     using Message for bytes;
     using TokenMessage for bytes;
 
+    mapping(bytes32 messageId => bool validated) public messageValidated;
+
+    modifier validateMessageOnce(bytes calldata _message) {
+        bytes32 messageId = _message.id();
+        require(!messageValidated[messageId], "MessageAlreadyValidated");
+        _;
+        messageValidated[messageId] = true;
+    }
+
     constructor(
         address _mailbox,
         uint256 _maxCapacity
@@ -33,7 +42,7 @@ contract RateLimitedIsm is
     function verify(
         bytes calldata,
         bytes calldata _message
-    ) external onlyMailbox returns (bool) {
+    ) external validateMessageOnce(_message) returns (bool) {
         require(_isLatestDelivered(_message.id()), "InvalidDeliveredMessage");
 
         uint256 newAmount = _message.body().amount();
