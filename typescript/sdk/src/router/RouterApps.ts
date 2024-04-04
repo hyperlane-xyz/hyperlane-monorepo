@@ -42,11 +42,17 @@ export abstract class RouterApp<
     return this.foreignDeployments[chainName];
   }
 
-  override remoteChains(chainName: string): string[] {
-    return [
-      ...super.remoteChains(chainName),
-      ...Object.keys(this.foreignDeployments),
-    ].filter((chain) => chain !== chainName);
+  // check onchain for remote enrollments
+  override async remoteChains(chainName: string): Promise<ChainName[]> {
+    const router = this.router(this.contractsMap[chainName]);
+    const domainIds = (await router.domains()).map((domain) => {
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      if (chainName === null) {
+        throw new Error(`Chain name not found for domain: ${domain}`);
+      }
+      return chainName;
+    });
+    return domainIds;
   }
 
   getSecurityModules(): Promise<ChainMap<Address>> {

@@ -30,9 +30,9 @@ import {
 } from './multisend';
 
 export enum SubmissionType {
-  MANUAL = 'MANUAL',
-  SIGNER = 'SIGNER',
-  SAFE = 'SAFE',
+  MANUAL = 0,
+  SAFE = 1,
+  SIGNER = 2,
 }
 
 export type AnnotatedCallData = CallData & {
