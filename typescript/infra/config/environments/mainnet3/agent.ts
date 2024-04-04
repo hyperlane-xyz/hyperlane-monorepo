@@ -140,8 +140,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      // Includes Cosmos block-by-block indexing.
-      tag: 'ff6b060-20240328-112429',
+      tag: '2150e58-20240404-105923',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
@@ -251,7 +250,6 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      // Includes Cosmos block-by-block indexing.
       tag: 'a72c3cf-20240314-173418',
     },
     gasPaymentEnforcement: [
