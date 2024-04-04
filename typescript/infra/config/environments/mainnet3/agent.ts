@@ -22,6 +22,7 @@ import { Contexts } from '../../contexts';
 import { environment, supportedChainNames } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
+import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
@@ -181,6 +182,10 @@ const hyperlane: RootAgentConfig = {
       {
         name: 'viction_ethereum_usdt',
         matchingList: routerMatchingList(victionEthereumUsdtAddresses),
+      },
+      {
+        name: 'ancient8_ethereum_usdc',
+        matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
       },
     ],
   },
