@@ -91,7 +91,7 @@ contract RateLimitedHookTest is Test {
     ) external {
         // Warp to a random time, get it's filled level, and try to transfer more than the target max
         vm.warp(_time);
-        uint256 filledLevelBefore = rateLimitedHook.calculateFilledLevel();
+        uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
         vm.assume(_amount > filledLevelBefore);
         _mintAndApprove(_amount);
 
@@ -109,7 +109,7 @@ contract RateLimitedHookTest is Test {
     ) external {
         // Warp to a random time, get it's filled level, and try to transfer less than the target max
         vm.warp(_time);
-        uint256 filledLevelBefore = rateLimitedHook.calculateFilledLevel();
+        uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
         vm.assume(_amount <= filledLevelBefore);
 
         _mintAndApprove(_amount);
@@ -118,7 +118,7 @@ contract RateLimitedHookTest is Test {
             BOB.addressToBytes32(),
             _amount
         );
-        uint256 limitAfter = rateLimitedHook.calculateFilledLevel();
+        uint256 limitAfter = rateLimitedHook.calculateCurrentLevel();
         assertApproxEqRel(limitAfter, filledLevelBefore - _amount, ONE_PERCENT);
     }
 
@@ -127,7 +127,7 @@ contract RateLimitedHookTest is Test {
     ) public {
         // Warp to a random time, get it's filled level, and try to transfer less than the target max
         vm.warp(1 days);
-        uint256 filledLevelBefore = rateLimitedHook.calculateFilledLevel();
+        uint256 filledLevelBefore = rateLimitedHook.calculateCurrentLevel();
         vm.assume(_amount <= filledLevelBefore);
 
         _mintAndApprove(_amount);

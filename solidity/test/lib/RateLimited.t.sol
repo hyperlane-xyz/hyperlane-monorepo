@@ -22,7 +22,7 @@ contract RateLimitLibTest is Test {
     function testRateLimited_revertsIfMaxNotSet() external {
         rateLimited.setRefillRate(0);
         vm.expectRevert();
-        rateLimited.calculateFilledLevel();
+        rateLimited.calculateCurrentLevel();
     }
 
     function testRateLimited_returnsCurrentFilledLevel_anyDay(
@@ -33,7 +33,7 @@ contract RateLimitLibTest is Test {
 
         // Using approx because division won't be exact
         assertApproxEqRel(
-            rateLimited.calculateFilledLevel(),
+            rateLimited.calculateCurrentLevel(),
             MAX_CAPACITY,
             ONE_PERCENT
         );
@@ -50,20 +50,23 @@ contract RateLimitLibTest is Test {
         uint40 _newTime
     ) external {
         vm.warp(_newTime);
-        vm.assume(_newAmount <= rateLimited.calculateFilledLevel());
+        vm.assume(_newAmount <= rateLimited.calculateCurrentLevel());
         rateLimited.validateAndConsumeFilledLevel(_newAmount);
-        assertLe(rateLimited.calculateFilledLevel(), rateLimited.maxCapacity());
+        assertLe(
+            rateLimited.calculateCurrentLevel(),
+            rateLimited.maxCapacity()
+        );
     }
 
     function testRateLimited_decreasesLimitWithinSameDay() external {
         vm.warp(1 days);
-        uint256 currentTargetLimit = rateLimited.calculateFilledLevel();
+        uint256 currentTargetLimit = rateLimited.calculateCurrentLevel();
         uint256 amount = 0.4 ether;
         uint256 newLimit = rateLimited.validateAndConsumeFilledLevel(amount);
         assertEq(newLimit, currentTargetLimit - amount);
 
         // Consume the same amount
-        currentTargetLimit = rateLimited.calculateFilledLevel();
+        currentTargetLimit = rateLimited.calculateCurrentLevel();
         newLimit = rateLimited.validateAndConsumeFilledLevel(amount);
         assertEq(newLimit, currentTargetLimit - amount);
 
@@ -76,7 +79,7 @@ contract RateLimitLibTest is Test {
         vm.warp(1 days);
         uint256 amount = 0.95 ether;
         uint256 newLimit = rateLimited.validateAndConsumeFilledLevel(amount);
-        uint256 currentTargetLimit = rateLimited.calculateFilledLevel();
+        uint256 currentTargetLimit = rateLimited.calculateCurrentLevel();
         assertApproxEqRel(currentTargetLimit, 0.05 ether, ONE_PERCENT);
 
         // Warp to near end-of-day
@@ -90,7 +93,7 @@ contract RateLimitLibTest is Test {
     ) external {
         // Transfer less than the limit
         vm.warp(0.5 days);
-        uint256 currentTargetLimit = rateLimited.calculateFilledLevel();
+        uint256 currentTargetLimit = rateLimited.calculateCurrentLevel();
         vm.assume(_amount < currentTargetLimit);
 
         uint256 newLimit = rateLimited.validateAndConsumeFilledLevel(_amount);
@@ -98,7 +101,7 @@ contract RateLimitLibTest is Test {
 
         // Warp to a new cycle
         vm.warp(10 days);
-        currentTargetLimit = rateLimited.calculateFilledLevel();
+        currentTargetLimit = rateLimited.calculateCurrentLevel();
         assertApproxEqRel(currentTargetLimit, MAX_CAPACITY, ONE_PERCENT);
     }
 }

@@ -43,7 +43,7 @@ contract RateLimitedIsmTest is Test {
     }
 
     function testRateLimitedIsm_verify(uint128 _amount) external {
-        vm.assume(_amount <= rateLimitedIsm.calculateFilledLevel());
+        vm.assume(_amount <= rateLimitedIsm.calculateCurrentLevel());
 
         vm.prank(address(localMailbox));
         localMailbox.process(bytes(""), _encodeTestMessage(_amount));
@@ -52,7 +52,7 @@ contract RateLimitedIsmTest is Test {
     function testRateLimitedIsm_preventsDuplicateMessageFromValidating(
         uint128 _amount
     ) public {
-        vm.assume(_amount <= rateLimitedIsm.calculateFilledLevel());
+        vm.assume(_amount <= rateLimitedIsm.calculateCurrentLevel());
 
         bytes memory encodedMessage = _encodeTestMessage(_amount);
         vm.prank(address(localMailbox));

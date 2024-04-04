@@ -54,23 +54,19 @@ contract RateLimited is OwnableUpgradeable {
     /**
      * Calculates the adjusted fill level based on time
      */
-    function calculateFilledLevel() public view returns (uint256) {
+    function calculateCurrentLevel() public view returns (uint256) {
         uint256 _capacity = maxCapacity();
         require(_capacity > 0, "RateLimitNotSet");
 
-        if (lastUpdated + DURATION > block.timestamp) {
-            // If within the window, refill the capacity
-            uint256 newCurrentCapcacity = filledLevel +
-                calculateRefilledAmount();
-
-            // Only return _capacity, in the case where newCurrentCapcacity overflows
-            return
-                newCurrentCapcacity > _capacity
-                    ? _capacity
-                    : newCurrentCapcacity;
-        } else {
+        if (block.timestamp > lastUpdated + DURATION) {
             // If last update is in the previous window, return the max capacity
             return _capacity;
+        } else {
+            // If within the window, refill the capacity
+            uint256 replenishedLevel = filledLevel + calculateRefilledAmount();
+
+            // Only return _capacity, in the case where newCurrentCapcacity overflows
+            return replenishedLevel > _capacity ? _capacity : replenishedLevel;
         }
     }
 
@@ -98,7 +94,7 @@ contract RateLimited is OwnableUpgradeable {
     function validateAndConsumeFilledLevel(
         uint256 _newAmount
     ) public returns (uint256) {
-        uint256 adjustedFilledLevel = calculateFilledLevel();
+        uint256 adjustedFilledLevel = calculateCurrentLevel();
         require(_newAmount <= adjustedFilledLevel, "RateLimitExceeded");
 
         // Reduce the filledLevel and update lastUpdated

@@ -21,8 +21,8 @@ contract RateLimitedIsm is
     modifier validateMessageOnce(bytes calldata _message) {
         bytes32 messageId = _message.id();
         require(!messageValidated[messageId], "MessageAlreadyValidated");
-        _;
         messageValidated[messageId] = true;
+        _;
     }
 
     constructor(
