@@ -1,5 +1,6 @@
-import debug from 'debug';
 import fs from 'fs';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { rm, writeFile } from 'fs/promises';
 
@@ -10,7 +11,7 @@ interface IamCondition {
   expression: string;
 }
 
-const debugLog = debug('infra:utils:gcloud');
+const debugLog = rootLogger.child({ module: 'infra:utils:gcloud' }).debug;
 
 // Allows secrets to be overridden via environment variables to avoid
 // gcloud calls. This is particularly useful for running commands in k8s,

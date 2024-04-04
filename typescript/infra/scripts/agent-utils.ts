@@ -1,4 +1,3 @@
-import debug from 'debug';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -14,7 +13,12 @@ import {
   chainMetadata,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  objMap,
+  promiseObjAll,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
 import { agents } from '../config/environments/agents';
@@ -32,7 +36,7 @@ import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
 import { assertContext, assertRole, readJSON } from '../src/utils/utils';
 
-const debugLog = debug('infra:scripts:utils');
+const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
 
 export enum Modules {
   // TODO: change

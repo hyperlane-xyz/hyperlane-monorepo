@@ -1,9 +1,7 @@
-import debug from 'debug';
-import fs from 'fs';
 import path from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import localAWMultisigAddresses from '../../config/aw-multisig.json';
 // AW - Abacus Works
@@ -41,7 +39,7 @@ export const kathyAddresses: LocalRoleAddresses =
 export const awMultisigAddresses: ChainMap<{ validators: Address[] }> =
   localAWMultisigAddresses as ChainMap<{ validators: Address[] }>;
 
-const debugLog = debug('infra:agents:key:utils');
+const debugLog = rootLogger.child({ module: 'infra:agents:key:utils' }).debug;
 
 export interface KeyAsAddress {
   identifier: string;

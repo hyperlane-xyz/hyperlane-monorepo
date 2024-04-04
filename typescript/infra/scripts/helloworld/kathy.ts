@@ -22,6 +22,7 @@ import {
   objMap,
   retryAsync,
   rootLogger,
+  sleep,
   strip0x,
   timeout,
 } from '@hyperlane-xyz/utils';
@@ -37,7 +38,7 @@ import { CloudAgentKey } from '../../src/agents/keys';
 import { DeployEnvironment } from '../../src/config/environment';
 import { Role } from '../../src/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
-import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
+import { assertChain, diagonalize } from '../../src/utils/utils';
 import { getArgs, withContext } from '../agent-utils';
 import { getEnvironmentConfig } from '../core-utils';
 

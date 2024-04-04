@@ -217,7 +217,10 @@ export {
   InterchainAccountConfig,
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer.js';
-export { interchainAccountFactories } from './middleware/account/contracts.js';
+export {
+  InterchainAccountFactories,
+  interchainAccountFactories,
+} from './middleware/account/contracts.js';
 export { AccountConfig } from './middleware/account/types.js';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp.js';
 export {

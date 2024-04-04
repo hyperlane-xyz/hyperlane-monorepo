@@ -18,10 +18,6 @@ import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts';
 import { FundableRole, Role } from '../roles';
 
-export function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /**
  * Map an async function over a list xs with a given concurrency level
  *

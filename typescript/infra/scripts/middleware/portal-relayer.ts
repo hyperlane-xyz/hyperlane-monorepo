@@ -5,10 +5,10 @@ import {
   attachContractsMap,
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet4/token-bridge';
-import { readJSON, sleep } from '../../src/utils/utils';
+import { readJSON } from '../../src/utils/utils';
 import { getArgs, getEnvironmentDirectory } from '../agent-utils';
 import { getEnvironmentConfig } from '../core-utils';
 

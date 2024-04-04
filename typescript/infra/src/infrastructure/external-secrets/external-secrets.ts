@@ -1,3 +1,5 @@
+import { sleep } from '@hyperlane-xyz/utils';
+
 import { InfrastructureConfig } from '../../config/infrastructure';
 import {
   createServiceAccountIfNotExists,
@@ -12,7 +14,7 @@ import {
   getDeployableHelmChartName,
   helmifyValues,
 } from '../../utils/helm';
-import { execCmd, execCmdAndParseJson, sleep } from '../../utils/utils';
+import { execCmd, execCmdAndParseJson } from '../../utils/utils';
 
 const SECRET_ACCESSOR_ROLE = 'roles/secretmanager.secretAccessor';
 
