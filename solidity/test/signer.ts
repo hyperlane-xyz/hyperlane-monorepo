@@ -7,6 +7,6 @@ export async function getSigners(): Promise<Wallet[]> {
 }
 
 export async function getSigner(): Promise<Wallet> {
-  const signers = await getSigners();
-  return signers[0];
+  const [signers] = await getSigners();
+  return signers;
 }
