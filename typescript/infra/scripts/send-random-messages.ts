@@ -1,15 +1,19 @@
+import { Wallet } from 'ethers';
 import fs from 'fs';
-import hre from 'hardhat';
 import yargs from 'yargs';
 
 import { Mailbox, TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
+  Chains,
   HookType,
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
+
+const ANVIL_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 enum MailboxHookType {
   REQUIRED = 'requiredHook',
@@ -93,12 +97,12 @@ function getArgs() {
 
 async function main() {
   const args = await getArgs();
-  const { timeout, mineforever, defaultHook, requiredHook } = args;
+  const { timeout, defaultHook, requiredHook } = args;
   let messages = args.messages;
 
-  // @ts-ignore hardhat global types not applied to this script file
-  const [signer] = await hre.ethers.getSigners();
+  const signer = new Wallet(ANVIL_KEY);
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
+
   const addresses = JSON.parse(
     fs.readFileSync('./config/environments/test/core/addresses.json', 'utf8'),
   );
@@ -108,13 +112,11 @@ async function main() {
     list[Math.floor(Math.random() * list.length)];
 
   // Deploy a recipient
-  const recipientF = new TestSendReceiver__factory(signer);
+  const recipientF = new TestSendReceiver__factory(
+    signer.connect(multiProvider.getProvider(Chains.test1)),
+  );
   const recipient = await recipientF.deploy();
   await recipient.deployTransaction.wait();
-
-  const isAutomine: boolean = await hre.network.provider.send(
-    'hardhat_getAutomine',
-  );
 
   //  Generate artificial traffic
   const run_forever = messages === 0;
@@ -161,11 +163,6 @@ async function main() {
     console.log(await chainSummary(core, local));
     console.log(await chainSummary(core, remote));
 
-    await sleep(timeout);
-  }
-
-  while (mineforever && isAutomine) {
-    await hre.network.provider.send('hardhat_mine', ['0x01']);
     await sleep(timeout);
   }
 }

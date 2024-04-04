@@ -67,7 +67,7 @@
     "deploy-helloworld": "tsx scripts/deploy.ts -e test -m helloworld",
     "deploy-hook": "tsx scripts/deploy.ts -e test -m hook",
     "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
-    "kathy": "yarn hardhat-esm run ./scripts/send-random-messages.ts",
+    "kathy": "yarn tsx ./scripts/send-random-messages.ts",
     "prettier": "prettier --write ./src ./config ./scripts ./test",
     "test": "yarn test:unit && yarn test:hardhat",
     "test:unit": "mocha --config ../sdk/.mocharc.json test/**/*.test.ts",
