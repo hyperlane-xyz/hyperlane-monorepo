@@ -70,44 +70,6 @@
     },
     "isTestnet": true
   },
-  "mumbai": {
-    "chainId": 80001,
-    "domainId": 80001,
-    "name": "mumbai",
-    "protocol": "ethereum",
-    "displayName": "Mumbai",
-    "nativeToken": {
-      "name": "MATIC",
-      "symbol": "MATIC",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://rpc.ankr.com/polygon_mumbai",
-        "pagination": {
-          "maxBlockRange": 10000,
-          "minBlockNumber": 22900000
-        }
-      },
-      {
-        "http": "https://matic-mumbai.chainstacklabs.com"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "PolygonScan",
-        "url": "https://mumbai.polygonscan.com",
-        "apiUrl": "https://api-testnet.polygonscan.com/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 3,
-      "reorgPeriod": 32,
-      "estimateBlockTime": 5
-    },
-    "isTestnet": true
-  },
   "bsctestnet": {
     "chainId": 97,
     "domainId": 97,

@@ -8,8 +8,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { errorRed, log, logBlue, logGreen } from '../../logger.js';
 import { getMultiProvider } from '../context.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   FileFormat,
   isFile,

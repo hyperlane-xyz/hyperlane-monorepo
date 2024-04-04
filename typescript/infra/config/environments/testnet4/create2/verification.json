@@ -23,14 +23,6 @@
       "isProxy": false
     }
   ],
-  "mumbai": [
-    {
-      "name": "Create2Factory",
-      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-      "constructorArguments": "",
-      "isProxy": false
-    }
-  ],
   "bsctestnet": [
     {
       "name": "Create2Factory",

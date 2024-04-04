@@ -9,12 +9,12 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'c037206-20240220-152500',
+    tag: 'd94cc52-20240328-104504',
   },
-  // We're currently using the same deployer key as mainnet.
+  // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
-  // schedule by 30 minutes.
-  cronSchedule: '15 * * * *', // Every hour at the 15-minute mark
+  // to run 30 mins after the mainnet2 cron.
+  cronSchedule: '45 * * * *', // Every hour at the 45-minute mark
   namespace: environment,
   prometheusPushGateway:
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',

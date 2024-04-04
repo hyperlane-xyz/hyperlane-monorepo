@@ -113,11 +113,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   ): Promise<true> {
     await pollAsync(
       async () => {
-        this.logger(`Checking if message ${messageId} was processed`);
+        this.logger.debug(`Checking if message ${messageId} was processed`);
         const mailbox = this.contractsMap[destination].mailbox;
         const delivered = await mailbox.delivered(messageId);
         if (delivered) {
-          this.logger(`Message ${messageId} was processed`);
+          this.logger.info(`Message ${messageId} was processed`);
           return true;
         } else {
           throw new Error(`Message ${messageId} not yet processed`);
@@ -153,7 +153,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         ),
       ),
     );
-    this.logger(`All messages processed for tx ${sourceTx.transactionHash}`);
+    this.logger.info(
+      `All messages processed for tx ${sourceTx.transactionHash}`,
+    );
   }
 
   // Redundant with static method but keeping for backwards compatibility

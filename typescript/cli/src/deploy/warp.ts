@@ -22,13 +22,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGray, logGreen } from '../../logger.js';
 import {
   WarpRouteDeployConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
 import {
   isFile,
   prepNewArtifactsFiles,
@@ -151,7 +151,7 @@ async function runBuildConfigStep({
         base.interchainSecurityModule ||
         mergedContractAddrs[baseChainName]?.interchainSecurityModule ||
         mergedContractAddrs[baseChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[baseChainName].routingIsmFactory, // TODO fix when updating from routingIsm
+      // ismFactory: mergedContractAddrs[baseChainName].domainRoutingIsmFactory, // TODO fix when updating from routingIsm
       foreignDeployment: base.foreignDeployment,
       name: baseMetadata.name,
       symbol: baseMetadata.symbol,
@@ -172,7 +172,7 @@ async function runBuildConfigStep({
         synthetic.interchainSecurityModule ||
         mergedContractAddrs[sChainName]?.interchainSecurityModule ||
         mergedContractAddrs[sChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[sChainName].routingIsmFactory, // TODO fix
+      // ismFactory: mergedContractAddrs[sChainName].domainRoutingIsmFactory, // TODO fix
       foreignDeployment: synthetic.foreignDeployment,
     };
   }
@@ -255,7 +255,7 @@ async function executeDeploy(params: DeployParams) {
 
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(outPath, [
     { filename: 'warp-route-deployment', description: 'Contract addresses' },
-    { filename: 'warp-ui-token-config', description: 'Warp UI token config' },
+    { filename: 'warp-config', description: 'Warp config' },
   ]);
 
   const deployer = isNft
@@ -267,11 +267,11 @@ async function executeDeploy(params: DeployParams) {
 
   log('Writing deployment artifacts');
   writeTokenDeploymentArtifacts(contractsFilePath, deployedContracts, params);
-  writeWarpUiTokenConfig(tokenConfigPath, deployedContracts, params);
+  writeWarpConfig(tokenConfigPath, deployedContracts, params);
 
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
-  logBlue(`Warp UI token config is in ${tokenConfigPath}`);
+  logBlue(`Warp config is in ${tokenConfigPath}`);
 }
 
 async function fetchBaseTokenMetadata(
@@ -296,7 +296,7 @@ async function fetchBaseTokenMetadata(
     (base.type === TokenType.collateral && address)
   ) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
-    log(`Fetching token metadata for ${address} on ${chainName}}`);
+    log(`Fetching token metadata for ${address} on ${chainName}`);
     const adapter = new EvmTokenAdapter(
       chainName,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
@@ -330,7 +330,7 @@ function writeTokenDeploymentArtifacts(
   writeJson(filePath, artifacts);
 }
 
-function writeWarpUiTokenConfig(
+function writeWarpConfig(
   filePath: string,
   contracts: HyperlaneContractsMap<TokenFactories>,
   { configMap, metadata }: DeployParams,

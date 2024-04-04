@@ -1,4 +1,3 @@
-import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
@@ -10,7 +9,7 @@ import {
   ProtocolFee,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
-import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, rootLogger } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneContracts } from '../contracts/types';
@@ -51,7 +50,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     ),
   ) {
     super(multiProvider, hookFactories, {
-      logger: debug('hyperlane:HookDeployer'),
+      logger: rootLogger.child({ module: 'HookDeployer' }),
       contractVerifier,
     });
   }
@@ -112,12 +111,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: ProtocolFeeHookConfig,
   ): Promise<ProtocolFee> {
-    this.logger('Deploying ProtocolFeeHook for %s', chain);
+    this.logger.debug('Deploying ProtocolFeeHook for %s', chain);
     return this.deployContract(chain, HookType.PROTOCOL_FEE, [
       config.maxProtocolFee,
       config.protocolFee,
       config.beneficiary,
-      config.owner,
+      await this.resolveInterchainAccountAsOwner(chain, config.owner),
     ]);
   }
 
@@ -126,7 +125,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: IgpHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<IgpFactories>> {
-    this.logger('Deploying IGP as hook for %s', chain);
+    this.logger.debug('Deploying IGP as hook for %s', chain);
     if (coreAddresses.proxyAdmin) {
       this.igpDeployer.writeCache(
         chain,
@@ -149,7 +148,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: AggregationHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    this.logger('Deploying AggregationHook for %s', chain);
+    this.logger.debug('Deploying AggregationHook for %s', chain);
     const aggregatedHooks: string[] = [];
     let hooks: any = {};
     for (const hookConfig of config.hooks) {
@@ -161,12 +160,12 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
     }
-    this.logger(
+    this.logger.debug(
       `Deploying aggregation hook of ${config.hooks.map((h) => h.type)}`,
     );
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
-      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      this.ismFactory.getContracts(chain).staticAggregationHookFactory,
       aggregatedHooks,
       this.logger,
     );
@@ -183,7 +182,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: OpStackHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<OPStackHook> {
-    this.logger(
+    this.logger.debug(
       'Deploying OPStackHook for %s to %s',
       chain,
       config.destinationChain,
@@ -220,12 +219,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     // set authorized hook on opstack ism
     const authorizedHook = await opstackIsm.authorizedHook();
     if (authorizedHook === addressToBytes32(hook.address)) {
-      this.logger('Authorized hook already set on ism %s', opstackIsm.address);
+      this.logger.debug(
+        'Authorized hook already set on ism %s',
+        opstackIsm.address,
+      );
       return hook;
     } else if (
       authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
     ) {
-      this.logger(
+      this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,
         addressToBytes32(hook.address),
@@ -234,7 +236,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error('Authorized hook mismatch');
     }
     // check if mismatch and redeploy hook
-    this.logger(
+    this.logger.debug(
       'Setting authorized hook %s on ism % on destination %s',
       hook.address,
       opstackIsm.address,
@@ -258,12 +260,14 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
 
+    // we don't config owner as config.owner because there're post-deploy steps like
+    // enrolling routing hooks which need ownership, and therefore we transferOwnership at the end
     const deployer = await this.multiProvider.getSigner(chain).getAddress();
 
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     switch (config.type) {
       case HookType.ROUTING: {
-        this.logger('Deploying DomainRoutingHook for %s', chain);
+        this.logger.debug('Deploying DomainRoutingHook for %s', chain);
         routingHook = await this.deployContract(chain, HookType.ROUTING, [
           mailbox,
           deployer,
@@ -271,7 +275,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         break;
       }
       case HookType.FALLBACK_ROUTING: {
-        this.logger('Deploying FallbackDomainRoutingHook for %s', chain);
+        this.logger.debug('Deploying FallbackDomainRoutingHook for %s', chain);
         const fallbackHook = await this.deployContracts(
           chain,
           config.fallback,

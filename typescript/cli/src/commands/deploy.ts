@@ -1,9 +1,9 @@
 import { CommandModule } from 'yargs';
 
-import { log, logGray } from '../../logger.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
+import { log, logGray } from '../logger.js';
 import { ENV } from '../utils/env.js';
 
 import {

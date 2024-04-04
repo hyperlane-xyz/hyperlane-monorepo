@@ -36,7 +36,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.bsctestnet]: true,
     [Chains.eclipsetestnet]: true,
     [Chains.fuji]: true,
-    [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
@@ -47,7 +46,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.bsctestnet]: true,
     [Chains.eclipsetestnet]: true,
     [Chains.fuji]: true,
-    [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
@@ -59,7 +57,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // Cannot scrape non-EVM chains
     [Chains.eclipsetestnet]: false,
     [Chains.fuji]: true,
-    [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
@@ -98,7 +95,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -127,7 +124,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -135,7 +132,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
   },
 };
@@ -149,7 +146,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -159,7 +156,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

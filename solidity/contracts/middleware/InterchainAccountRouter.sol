@@ -656,4 +656,36 @@ contract InterchainAccountRouter is Router {
     ) private view returns (address payable) {
         return payable(Create2.computeAddress(_salt, bytecodeHash));
     }
+
+    /**
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destination The domain of the destination router.
+     * @return _gasPayment Payment computed by the registered hooks via MailboxClient.
+     */
+    function quoteGasPayment(
+        uint32 _destination
+    ) external view returns (uint256 _gasPayment) {
+        return _quoteDispatch(_destination, "");
+    }
+
+    /**
+     * @notice Returns the gas payment required to dispatch a given messageBody to the given domain's router with gas limit override.
+     * @param _destination The domain of the destination router.
+     * @param _messageBody The message body to be dispatched.
+     * @param gasLimit The gas limit to override with.
+     */
+    function quoteGasPayment(
+        uint32 _destination,
+        bytes calldata _messageBody,
+        uint256 gasLimit
+    ) external view returns (uint256 _gasPayment) {
+        bytes32 _router = _mustHaveRemoteRouter(_destination);
+        return
+            mailbox.quoteDispatch(
+                _destination,
+                _router,
+                _messageBody,
+                StandardHookMetadata.overrideGasLimit(gasLimit)
+            );
+    }
 }

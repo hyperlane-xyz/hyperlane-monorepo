@@ -14,6 +14,8 @@ pragma solidity ^0.8.13;
 @@@@@@@@@       @@@@@@@@*/
 
 import "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
@@ -31,10 +33,21 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         super.setUp();
         vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
 
-        localToken = new HypERC20CollateralVaultDeposit(
-            vault,
-            address(localMailbox)
+        HypERC20CollateralVaultDeposit implementation = new HypERC20CollateralVaultDeposit(
+                vault,
+                address(localMailbox)
+            );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20CollateralVaultDeposit.initialize.selector,
+                address(address(noopHook)),
+                address(igp),
+                address(this)
+            )
         );
+        localToken = HypERC20CollateralVaultDeposit(address(proxy));
         erc20CollateralVaultDeposit = HypERC20CollateralVaultDeposit(
             address(localToken)
         );
