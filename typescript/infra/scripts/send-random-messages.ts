@@ -100,7 +100,7 @@ async function main() {
   const [signer] = await hre.ethers.getSigners();
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
   const addresses = JSON.parse(
-    fs.readFileSync('../config/environments/test/core/addresses.json', 'utf8'),
+    fs.readFileSync('./config/environments/test/core/addresses.json', 'utf8'),
   );
   const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
