@@ -111,7 +111,6 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   fuji: '1',
   ethereum: '0.4',
   polygon: '20',
-  mumbai: '1',
   optimism: '0.15',
   arbitrum: '0.1',
   bsc: '0.3',
@@ -238,7 +237,7 @@ async function main() {
     failureOccurred ||= await funder.fund();
   }
 
-  await submitMetrics(metricsRegister, 'key-funder');
+  await submitMetrics(metricsRegister, `key-funder-${environment}`);
 
   if (failureOccurred) {
     logger.error('At least one failure occurred when funding');

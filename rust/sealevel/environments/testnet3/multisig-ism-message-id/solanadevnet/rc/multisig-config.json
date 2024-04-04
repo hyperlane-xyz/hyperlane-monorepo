@@ -9,11 +9,6 @@
     "threshold": 1,
     "validators": ["0xd81ba169170a9b582812cf0e152d2c168572e21f"]
   },
-  "mumbai": {
-    "type": 3,
-    "threshold": 1,
-    "validators": ["0xb537c4ce34e1cad718be52aa30b095e416eae46a"]
-  },
   "bsctestnet": {
     "type": 3,
     "threshold": 1,

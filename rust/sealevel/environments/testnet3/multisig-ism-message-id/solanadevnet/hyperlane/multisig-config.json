@@ -17,15 +17,6 @@
       "0x2379e43740e4aa4fde48cf4f00a3106df1d8420d"
     ]
   },
-  "mumbai": {
-    "type": 3,
-    "threshold": 2,
-    "validators": [
-      "0x0a664ea799447da6b15645cf8b9e82072a68343f",
-      "0x6ae6f12929a960aba24ba74ea310e3d37d0ac045",
-      "0x51f70c047cd73bc7873273707501568857a619c4"
-    ]
-  },
   "bsctestnet": {
     "type": 3,
     "threshold": 2,

@@ -667,4 +667,25 @@ contract InterchainAccountRouter is Router {
     ) external view returns (uint256 _gasPayment) {
         return _quoteDispatch(_destination, "");
     }
+
+    /**
+     * @notice Returns the gas payment required to dispatch a given messageBody to the given domain's router with gas limit override.
+     * @param _destination The domain of the destination router.
+     * @param _messageBody The message body to be dispatched.
+     * @param gasLimit The gas limit to override with.
+     */
+    function quoteGasPayment(
+        uint32 _destination,
+        bytes calldata _messageBody,
+        uint256 gasLimit
+    ) external view returns (uint256 _gasPayment) {
+        bytes32 _router = _mustHaveRemoteRouter(_destination);
+        return
+            mailbox.quoteDispatch(
+                _destination,
+                _router,
+                _messageBody,
+                StandardHookMetadata.overrideGasLimit(gasLimit)
+            );
+    }
 }

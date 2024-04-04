@@ -60,6 +60,7 @@ contract InterchainAccountRouterTest is Test {
     bytes32 internal ismOverride;
     bytes32 internal routerOverride;
     uint256 gasPaymentQuote;
+    uint256 internal constant GAS_LIMIT_OVERRIDE = 60000;
 
     OwnableMulticall internal ica;
 
@@ -349,6 +350,21 @@ contract InterchainAccountRouterTest is Test {
 
         // assert
         assertEq(originRouter.quoteGasPayment(destination), gasPaymentQuote);
+    }
+
+    function test_quoteGasPayment_gasLimitOverride() public {
+        // arrange
+        originRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        assertEq(
+            originRouter.quoteGasPayment(destination, "", GAS_LIMIT_OVERRIDE),
+            igp.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE)
+        );
     }
 
     function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {

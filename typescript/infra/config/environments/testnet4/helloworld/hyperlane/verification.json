@@ -75,38 +75,6 @@
       "isProxy": false
     }
   ],
-  "mumbai": [
-    {
-      "name": "HelloWorld",
-      "address": "0x854fd51C04408ad84DA3838A4fF7282522F7866E",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x1A4d8a5eD6C93Af828655e15C44eeE2c2851F0D6",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x79B6151129780f5A80DFEF7c1E967b21A9674A7D",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000008ab67caf605c6ee83cbfefb0d8d67fdd3bf7b591",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xBEadC848cAB77875d066466b9F3509f069a0a4F5",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000008ab67caf605c6ee83cbfefb0d8d67fdd3bf7b591",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x04980C17e2CE26578C82f81207e706e4505FaE3B",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
   "bsctestnet": [
     {
       "name": "HelloWorld",

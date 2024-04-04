@@ -53,6 +53,12 @@ export {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from './contracts/types';
+export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter';
+export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
+export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
+export { ICoreAdapter } from './core/adapters/types';
+export { CoreAddresses, CoreFactories, coreFactories } from './core/contracts';
+export { HyperlaneLifecyleEvent } from './core/events';
 export { HyperlaneCore } from './core/HyperlaneCore';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
@@ -63,12 +69,6 @@ export {
   TestRecipientConfig,
   TestRecipientDeployer,
 } from './core/TestRecipientDeployer';
-export { CosmWasmCoreAdapter } from './core/adapters/CosmWasmCoreAdapter';
-export { EvmCoreAdapter } from './core/adapters/EvmCoreAdapter';
-export { SealevelCoreAdapter } from './core/adapters/SealevelCoreAdapter';
-export { ICoreAdapter } from './core/adapters/types';
-export { CoreAddresses, CoreFactories, coreFactories } from './core/contracts';
-export { HyperlaneLifecyleEvent } from './core/events';
 export {
   CoreConfig,
   CoreViolationType,
@@ -86,6 +86,7 @@ export {
   OwnableConfig,
   OwnerViolation,
   ViolationType,
+  resolveOrDeployAccountOwner,
 } from './deploy/types';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier';
@@ -97,9 +98,6 @@ export {
   VerificationInput,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
-export { HyperlaneIgp } from './gas/HyperlaneIgp';
-export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
-export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
 export { SealevelOverheadIgpAdapter } from './gas/adapters/SealevelIgpAdapter';
 export {
   SealevelInterchainGasPaymasterConfig,
@@ -109,6 +107,9 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization';
 export { IgpFactories, igpFactories } from './gas/contracts';
+export { HyperlaneIgp } from './gas/HyperlaneIgp';
+export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
+export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
 export {
   GasOracleContractType,
   StorageGasOracleConfig,
@@ -155,10 +156,6 @@ export {
 } from './ism/types';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils';
 export {
-  ChainMetadataManager,
-  ChainMetadataManagerOptions,
-} from './metadata/ChainMetadataManager';
-export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
   AgentConfig,
@@ -178,6 +175,10 @@ export {
   ValidatorConfig,
   buildAgentConfig,
 } from './metadata/agentConfig';
+export {
+  ChainMetadataManager,
+  ChainMetadataManagerOptions,
+} from './metadata/ChainMetadataManager';
 export {
   BlockExplorer,
   ChainMetadata,
@@ -203,13 +204,15 @@ export {
   WarpRouteConfig,
   WarpRouteConfigSchema,
 } from './metadata/warpRouteConfig';
+export { interchainAccountFactories } from './middleware/account/contracts';
 export { InterchainAccount } from './middleware/account/InterchainAccount';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker';
 export {
   InterchainAccountConfig,
   InterchainAccountDeployer,
 } from './middleware/account/InterchainAccountDeployer';
-export { interchainAccountFactories } from './middleware/account/contracts';
+export { AccountConfig } from './middleware/account/types';
+export { liquidityLayerFactories } from './middleware/liquidity-layer/contracts';
 export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
 export {
   BridgeAdapterConfig,
@@ -219,19 +222,30 @@ export {
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from './middleware/liquidity-layer/LiquidityLayerRouterDeployer';
-export { liquidityLayerFactories } from './middleware/liquidity-layer/contracts';
+export { interchainQueryFactories } from './middleware/query/contracts';
 export { InterchainQuery } from './middleware/query/InterchainQuery';
 export { InterchainQueryChecker } from './middleware/query/InterchainQueryChecker';
 export {
   InterchainQueryConfig,
   InterchainQueryDeployer,
 } from './middleware/query/InterchainQueryDeployer';
-export { interchainQueryFactories } from './middleware/query/contracts';
 export {
   MultiProtocolProvider,
   MultiProtocolProviderOptions,
 } from './providers/MultiProtocolProvider';
 export { MultiProvider, MultiProviderOptions } from './providers/MultiProvider';
+export {
+  ProviderBuilderFn,
+  ProviderBuilderMap,
+  TypedProviderBuilderFn,
+  defaultEthersV5ProviderBuilder,
+  defaultFuelProviderBuilder,
+  defaultProviderBuilder,
+  defaultProviderBuilderMap,
+  defaultSolProviderBuilder,
+  defaultViemProviderBuilder,
+  protocolToDefaultProviderBuilder,
+} from './providers/providerBuilders';
 export {
   CosmJsContract,
   CosmJsProvider,
@@ -280,26 +294,6 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types';
 export {
-  ProviderBuilderFn,
-  ProviderBuilderMap,
-  TypedProviderBuilderFn,
-  defaultEthersV5ProviderBuilder,
-  defaultFuelProviderBuilder,
-  defaultProviderBuilder,
-  defaultProviderBuilderMap,
-  defaultSolProviderBuilder,
-  defaultViemProviderBuilder,
-  protocolToDefaultProviderBuilder,
-} from './providers/providerBuilders';
-export { GasRouterDeployer } from './router/GasRouterDeployer';
-export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
-export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
-export {
-  MultiProtocolGasRouterApp,
-  MultiProtocolRouterApp,
-} from './router/MultiProtocolRouterApps';
-export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
-export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
 } from './router/adapters/EvmRouterAdapter';
@@ -308,6 +302,14 @@ export {
   SealevelRouterAdapter,
 } from './router/adapters/SealevelRouterAdapter';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types';
+export { GasRouterDeployer } from './router/GasRouterDeployer';
+export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
+export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
+export {
+  MultiProtocolGasRouterApp,
+  MultiProtocolRouterApp,
+} from './router/MultiProtocolRouterApps';
+export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
 export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
@@ -324,30 +326,12 @@ export {
   RouterViolationType,
   proxiedFactories,
 } from './router/types';
-export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken';
-export { Token } from './token/Token';
-export { TokenAmount } from './token/TokenAmount';
+export { randomAddress } from './test/testUtils';
 export {
-  HyperlaneTokenConnection,
-  IbcToHyperlaneTokenConnection,
-  IbcTokenConnection,
-  TokenConnection,
-  TokenConnectionConfigSchema,
-  TokenConnectionType,
-  getTokenConnectionId,
-  parseTokenConnectionId,
-} from './token/TokenConnection';
-export {
-  PROTOCOL_TO_NATIVE_STANDARD,
-  TOKEN_COLLATERALIZED_STANDARDS,
-  TOKEN_COSMWASM_STANDARDS,
-  TOKEN_HYP_STANDARDS,
-  TOKEN_MULTI_CHAIN_STANDARDS,
-  TOKEN_NFT_STANDARDS,
-  TOKEN_STANDARD_TO_PROTOCOL,
-  TOKEN_TYPE_TO_STANDARD,
-  TokenStandard,
-} from './token/TokenStandard';
+  CosmIbcToWarpTokenAdapter,
+  CosmIbcTokenAdapter,
+  CosmNativeTokenAdapter,
+} from './token/adapters/CosmosTokenAdapter';
 export {
   CW20Metadata,
   CwHypCollateralAdapter,
@@ -356,11 +340,6 @@ export {
   CwNativeTokenAdapter,
   CwTokenAdapter,
 } from './token/adapters/CosmWasmTokenAdapter';
-export {
-  CosmIbcToWarpTokenAdapter,
-  CosmIbcTokenAdapter,
-  CosmNativeTokenAdapter,
-} from './token/adapters/CosmosTokenAdapter';
 export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
@@ -389,6 +368,8 @@ export {
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization';
+export { HypERC20App } from './token/app';
+export { HypERC20Checker } from './token/checker';
 export {
   CollateralConfig,
   ERC20Metadata,
@@ -414,6 +395,30 @@ export {
   TokenFactories,
 } from './token/contracts';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy';
+export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken';
+export { Token } from './token/Token';
+export { TokenAmount } from './token/TokenAmount';
+export {
+  HyperlaneTokenConnection,
+  IbcToHyperlaneTokenConnection,
+  IbcTokenConnection,
+  TokenConnection,
+  TokenConnectionConfigSchema,
+  TokenConnectionType,
+  getTokenConnectionId,
+  parseTokenConnectionId,
+} from './token/TokenConnection';
+export {
+  PROTOCOL_TO_NATIVE_STANDARD,
+  TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_COSMWASM_STANDARDS,
+  TOKEN_HYP_STANDARDS,
+  TOKEN_MULTI_CHAIN_STANDARDS,
+  TOKEN_NFT_STANDARDS,
+  TOKEN_STANDARD_TO_PROTOCOL,
+  TOKEN_TYPE_TO_STANDARD,
+  TokenStandard,
+} from './token/TokenStandard';
 export {
   ChainMap,
   ChainName,
@@ -421,16 +426,15 @@ export {
   Connection,
   TestChainNames,
 } from './types';
-export { MultiGeneric } from './utils/MultiGeneric';
 export { filterByChains } from './utils/filter';
 export { multisigIsmVerificationCost } from './utils/ism';
+export { MultiGeneric } from './utils/MultiGeneric';
 export {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization';
 export { chainMetadataToWagmiChain, wagmiChainMetadata } from './utils/wagmi';
-export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -439,3 +443,4 @@ export {
   WarpTxCategory,
   WarpTypedTransaction,
 } from './warp/types';
+export { WarpCore, WarpCoreOptions } from './warp/WarpCore';
