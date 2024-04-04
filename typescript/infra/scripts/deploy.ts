@@ -24,6 +24,7 @@ import {
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
+  buildAggregationIsmConfigs,
   defaultMultisigConfigs,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
@@ -33,6 +34,7 @@ import { Contexts } from '../config/contexts';
 import { core as coreConfig } from '../config/environments/mainnet3/core';
 import { DEPLOYER } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
+import { tokens } from '../src/config/warp';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import {
@@ -130,27 +132,15 @@ async function main() {
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
 
-    const buildIsmConfig = (remote: string): IsmConfig => ({
-      type: IsmType.AGGREGATION,
-      threshold: 1,
-      modules: [
-        {
-          type: IsmType.MERKLE_ROOT_MULTISIG,
-          ...defaultMultisigConfigs[remote],
-        },
-        {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          ...defaultMultisigConfigs[remote],
-        },
-      ],
-    });
-
     const ethereum = {
       ...routerConfig.ethereum,
       type: TokenType.collateral,
-      // USDC
-      token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-      interchainSecurityModule: buildIsmConfig('ancient8'),
+      token: tokens.ethereum.USDC,
+      interchainSecurityModule: buildAggregationIsmConfigs(
+        'ethereum',
+        ['ancient8'],
+        defaultMultisigConfigs,
+      ).ancient8,
       // This hook was recovered from running the deploy script
       // for the hook module. The hook configuration is the Ethereum
       // default hook for the Ancient8 remote (no routing).

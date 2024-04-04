@@ -29,7 +29,7 @@ async function main() {
     }
     const price = idData[CURRENCY];
     if (!price) {
-      throw new Error(`No price for ${id}`);
+      throw new Error(`No ${CURRENCY} price for ${id}`);
     }
     return price.toString();
   });
