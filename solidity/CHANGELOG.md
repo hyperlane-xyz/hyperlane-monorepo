@@ -1,5 +1,18 @@
 # @hyperlane-xyz/core
 
+## 3.10.0
+
+### Minor Changes
+
+- 96485144a: SDK support for ICA deployment and operation.
+- 38358ecec: Deprecate Polygon Mumbai testnet (soon to be replaced by Polygon Amoy testnet)
+
+### Patch Changes
+
+- Updated dependencies [96485144a]
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/utils@3.10.0
+
 ## 3.9.0
 
 ### Patch Changes
