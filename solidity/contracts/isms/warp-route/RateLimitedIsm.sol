@@ -3,22 +3,23 @@ pragma solidity >=0.8.0;
 
 import {IMailbox} from "contracts/interfaces/IMailbox.sol";
 import {MailboxClient} from "contracts/client/MailboxClient.sol";
-import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {RateLimited} from "contracts/libs/RateLimited.sol";
 import {IInterchainSecurityModule} from "contracts/interfaces/IInterchainSecurityModule.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 
 contract RateLimitedIsm is
-    RateLimited,
     MailboxClient,
+    RateLimited,
     IInterchainSecurityModule
 {
     using Message for bytes;
     using TokenMessage for bytes;
-    using TypeCasts for bytes32;
 
-    constructor(address _mailbox) MailboxClient(_mailbox) {}
+    constructor(
+        address _mailbox,
+        uint256 _maxCapacity
+    ) MailboxClient(_mailbox) RateLimited(_maxCapacity) {}
 
     /// @inheritdoc IInterchainSecurityModule
     function moduleType() external pure returns (uint8) {
@@ -35,9 +36,8 @@ contract RateLimitedIsm is
     ) external onlyMailbox returns (bool) {
         require(_isLatestDelivered(_message.id()), "InvalidDeliveredMessage");
 
-        address sender = (_message.sender().bytes32ToAddress());
         uint256 newAmount = _message.body().amount();
-        validateAndIncrementLimit(sender, newAmount);
+        validateAndConsumeFilledLevel(newAmount);
 
         return true;
     }

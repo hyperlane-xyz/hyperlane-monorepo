@@ -4,112 +4,102 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 
 /**
  * @title RateLimited
- * @notice A contract used to keep track of an address sender's token amount limits
+ * @notice A contract used to keep track of an address sender's token amount limits.
+ * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills
+ *
  **/
 contract RateLimited is OwnableUpgradeable {
     uint256 public constant DURATION = 1 days; // 86400
+    uint256 public filledLevel; /// @notice Current filled level
+    uint256 public maxCapacity; /// @notice Max capacity where the bucket will no longer refill
+    uint256 public refillRate; /// @notice Tokens per second refill rate
+    uint256 public lastUpdated; /// @notice Timestamp of the last time an action has been taken TODO prob can be uint40
 
-    mapping(address sender => Limit limit) public limits;
+    event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
 
-    event RateLimitSet(address sender, uint256 amount);
-
-    constructor() {
+    constructor(uint256 _maxCapacity) {
         _transferOwnership(msg.sender);
-    }
-
-    struct Limit {
-        uint256 lastUpdate; /// @notice Timestamp of the last time an action has been taken
-        uint256 tokenPerSecond; /// @notice Allowed tokens per second
-        uint256 current; /// @notice Limit amount used
-        uint256 max; /// @notice Maximum token amount
+        setMaxCapacity(_maxCapacity);
+        filledLevel = _maxCapacity;
     }
 
     error RateLimitExceeded(uint256 newLimit, uint256 targetLimit);
 
     /**
-     * Gets the sender's limit used
-     * @param _sender address to check
-     */
-    function getCurrentLimit(address _sender) public view returns (uint256) {
-        return limits[_sender].current;
-    }
-
-    /**
-     * Gets the sender's max limit
-     * @param _sender address to check
-     */
-    function getMaxLimit(address _sender) public view returns (uint256) {
-        return limits[_sender].max;
-    }
-
-    /**
-     * Calculates the limit of sender as a function of time elapsed since last update
+     * Calculates the refilled amount based on time and refill rate
      *
      * Consider an example where there is a 1e18 max token limit per day (86400s)
-     * If half of a day (43200s) has passed, then there should be a limit of 0.5e18
+     * If half of the tokens has been used, and half a day (43200s) has passed,
+     * then there should be a refill of 0.5e18
      *
      * To calculate:
-     *   Limit = (Max Token Limit / DURATION) * Elapsed
-     *   Elapsed = timestamp - Limit.lastUpdate
+     *   Refilled = Elapsed * RefilledRate
+     *   Elapsed = timestamp - Limit.lastUpdated
+     *   RefilledRate = Capacity / DURATION
      *
      *   If half of the day (43200) has passed, then
-     *   (1e18 / 86400) * (86400 - 43200) = 0.5e18
-     *
-     * The resulting Limit will get added to the existing limit
+     *   (86400 - 43200) * (1e18 / 86400)  = 0.5e18
      */
-    function getTargetLimit(address _sender) public view returns (uint256) {
-        Limit memory limit = limits[_sender];
-        require(limit.max > 0, "RateLimitNotSet");
+    function calculateRefilledAmount() public view returns (uint256) {
+        uint256 elapsed = block.timestamp - lastUpdated;
+        return elapsed * refillRate;
+    }
 
-        if (limit.lastUpdate + DURATION > block.timestamp) {
-            // If within the cycle, calculate the new target limit
-            uint256 elapsed = block.timestamp - limit.lastUpdate;
-            uint256 calculatedLimit = limit.current +
-                (elapsed * limit.tokenPerSecond);
-            return calculatedLimit > limit.max ? limit.max : calculatedLimit;
+    /**
+     * Calculates the adjusted fill level based on time
+     */
+    function calculateFilledLevel() public view returns (uint256) {
+        uint256 _maxCapacity = maxCapacity;
+        require(_maxCapacity > 0, "RateLimitNotSet");
+
+        if (lastUpdated + DURATION > block.timestamp) {
+            // If within the cycle, refill the capacity
+            uint256 newCurrentCapcacity = filledLevel +
+                calculateRefilledAmount();
+
+            // Only return _maxCapacity, in the case where newCurrentCapcacity overflows
+            return
+                newCurrentCapcacity > _maxCapacity
+                    ? _maxCapacity
+                    : newCurrentCapcacity;
         } else {
-            // If last update is in the previous cycle, return the max limit
-            return limit.max;
+            // If last update is in the previous cycle, return the max capacity
+            return _maxCapacity;
         }
     }
 
     /**
      * Sets the max limit for a specific address
-     * @param _sender sender address to set
-     * @param _newLimit new maxiumum limit to set
+     * @param _maxCapacity new maxiumum limit to set
      */
-    function setTargetLimit(
-        address _sender,
-        uint256 _newLimit
-    ) public onlyOwner returns (Limit memory) {
-        Limit storage limit = limits[_sender];
-        limit.max = _newLimit;
-        limit.tokenPerSecond = _newLimit / DURATION;
+    function setMaxCapacity(
+        uint256 _maxCapacity
+    ) public onlyOwner returns (uint256) {
+        uint256 _oldCapacity = maxCapacity;
+        maxCapacity = _maxCapacity;
+        refillRate = _maxCapacity / DURATION;
 
-        emit RateLimitSet(_sender, _newLimit);
+        emit RateLimitSet(_oldCapacity, _maxCapacity);
 
-        return limit;
+        return _maxCapacity;
     }
 
     /**
-     * Decreases the sender's current limit if it does not exceed the target limit
-     * @param _sender The address to add the limit for
-     * @param _newAmount The amount to add to the current limit
-     * @return The new limit amount after adding
+     * Validate an amount and decreases the currentCapacity
+     * @param _newAmount The amount to consume the fill level
+     * @return The new filled level
      */
-    function validateAndIncrementLimit(
-        address _sender,
+    function validateAndConsumeFilledLevel(
         uint256 _newAmount
     ) public returns (uint256) {
-        RateLimited.Limit memory limit = limits[_sender];
-        uint256 targetLimit = getTargetLimit(_sender);
-        require(_newAmount <= targetLimit, "RateLimitExceeded");
+        uint256 adjustedFilledLevel = calculateFilledLevel();
+        require(_newAmount <= adjustedFilledLevel, "RateLimitExceeded");
 
-        // Update the current limit and lastUpdate
-        limit.current = targetLimit - _newAmount;
-        limit.lastUpdate = block.timestamp;
-        limits[_sender] = limit;
+        // Reduce the filledLevel and update lastUpdated
+        uint256 _filledLevel = adjustedFilledLevel - _newAmount;
+        filledLevel = _filledLevel;
+        lastUpdated = block.timestamp;
 
-        return limit.current;
+        return _filledLevel;
     }
 }

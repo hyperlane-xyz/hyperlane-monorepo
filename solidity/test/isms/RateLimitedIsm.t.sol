@@ -14,7 +14,7 @@ import {TestRecipient} from "contracts/test/TestRecipient.sol";
 contract RateLimitedIsmTest is Test {
     using TypeCasts for address;
 
-    uint256 ROUTE_LIMIT_AMOUNT = 1 ether;
+    uint256 MAX_CAPACITY = 1 ether;
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
     address WARP_ROUTE_ADDR = makeAddr("warpRoute");
@@ -25,8 +25,10 @@ contract RateLimitedIsmTest is Test {
     function setUp() external {
         localMailbox = new TestMailbox(ORIGIN);
 
-        rateLimitedIsm = new RateLimitedIsm(address(localMailbox));
-        rateLimitedIsm.setTargetLimit(WARP_ROUTE_ADDR, ROUTE_LIMIT_AMOUNT);
+        rateLimitedIsm = new RateLimitedIsm(
+            address(localMailbox),
+            MAX_CAPACITY
+        );
         testRecipient = new TestRecipient();
 
         testRecipient.setInterchainSecurityModule(address(rateLimitedIsm));
@@ -48,7 +50,7 @@ contract RateLimitedIsmTest is Test {
     }
 
     function testRateLimitedIsm_verify(uint128 _amount) external {
-        vm.assume(_amount <= rateLimitedIsm.getTargetLimit(WARP_ROUTE_ADDR));
+        vm.assume(_amount <= rateLimitedIsm.calculateFilledLevel());
 
         vm.prank(address(localMailbox));
         localMailbox.process(bytes(""), _encodeTestMessage(_amount));

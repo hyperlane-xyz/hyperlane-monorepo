@@ -5,79 +5,80 @@ import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 
 contract RateLimitLibTest is Test {
     RateLimited rateLimited;
-    uint256 constant MAX_LIMIT = 1 ether;
+    uint256 constant MAX_CAPACITY = 1 ether;
     uint256 constant ONE_PERCENT = 0.01 ether;
     address HOOK = makeAddr("HOOK");
 
     function setUp() public {
-        rateLimited = new RateLimited();
-        rateLimited.setTargetLimit(HOOK, MAX_LIMIT);
+        rateLimited = new RateLimited(MAX_CAPACITY);
     }
 
     function testRateLimited_setsNewLimit() external {
-        RateLimited.Limit memory limit = rateLimited.setTargetLimit(
-            HOOK,
-            2 ether
-        );
-        assertEq(limit.max, 2 ether);
-        assertEq(limit.tokenPerSecond, 23148148148148); // 2 ether / 1 day
+        rateLimited.setMaxCapacity(2 ether);
+        assertEq(rateLimited.maxCapacity(), 2 ether);
+        assertEq(rateLimited.refillRate(), 23148148148148); // 2 ether / 1 day
     }
 
     function testRateLimited_revertsIfMaxNotSet() external {
-        rateLimited.setTargetLimit(HOOK, 0);
+        rateLimited.setMaxCapacity(0);
         vm.expectRevert();
-        rateLimited.getTargetLimit(HOOK);
+        rateLimited.calculateFilledLevel();
     }
 
-    function testRateLimited_returnsCurrentLimit_forHalfDay() external {
-        vm.warp(0.5 days);
+    function testRateLimited_returnsCurrentFilledLevel_anyDay(
+        uint40 time
+    ) external {
+        bound(time, 1 days, 2 days);
+        vm.warp(time);
 
         // Using approx because division won't be exact
-        assertApproxEqRel(
-            rateLimited.getTargetLimit(HOOK),
-            0.5 ether,
-            ONE_PERCENT
-        );
+        assertEq(rateLimited.calculateFilledLevel(), MAX_CAPACITY);
     }
 
     function testRateLimited_onlyOwnerCanSetTargetLimit() external {
         vm.prank(address(0));
         vm.expectRevert();
-        rateLimited.setTargetLimit(HOOK, 1 ether);
+        rateLimited.setMaxCapacity(1 ether);
     }
 
-    function testRateLimited_neverReturnsGtMaxLimit(uint40 _newTime) external {
-        (, , , uint256 max) = rateLimited.limits(HOOK);
-
-        vm.warp(_newTime);
-        assertLe(rateLimited.getTargetLimit(HOOK), max);
-    }
-
-    function testRateLimited_shouldReturnNewLimit_ifBelowMaxLimit(
-        uint256 _newAmount
+    function testRateLimited_neverReturnsGtMaxLimit(
+        uint256 _newAmount,
+        uint40 _newTime
     ) external {
-        vm.assume(_newAmount <= rateLimited.getTargetLimit(HOOK));
-        assertLt(
-            rateLimited.validateAndIncrementLimit(HOOK, _newAmount), // Returns newLimit
-            rateLimited.getMaxLimit(HOOK)
-        );
+        vm.warp(_newTime);
+        vm.assume(_newAmount <= rateLimited.calculateFilledLevel());
+        rateLimited.validateAndConsumeFilledLevel(_newAmount);
+        assertLe(rateLimited.calculateFilledLevel(), rateLimited.maxCapacity());
     }
 
     function testRateLimited_decreasesLimitWithinSameDay() external {
         vm.warp(1 days);
-        uint256 currentTargetLimit = rateLimited.getTargetLimit(HOOK);
+        uint256 currentTargetLimit = rateLimited.calculateFilledLevel();
         uint256 amount = 0.5 ether;
-        uint256 newLimit = rateLimited.validateAndIncrementLimit(HOOK, amount);
+        uint256 newLimit = rateLimited.validateAndConsumeFilledLevel(amount);
         assertEq(newLimit, currentTargetLimit - amount);
 
         // Increment the same amount
-        currentTargetLimit = rateLimited.getTargetLimit(HOOK);
-        newLimit = rateLimited.validateAndIncrementLimit(HOOK, amount);
+        currentTargetLimit = rateLimited.calculateFilledLevel();
+        newLimit = rateLimited.validateAndConsumeFilledLevel(amount);
         assertEq(newLimit, currentTargetLimit - amount);
 
         // One more to exceed limit
         vm.expectRevert();
-        rateLimited.validateAndIncrementLimit(HOOK, amount);
+        rateLimited.validateAndConsumeFilledLevel(amount);
+    }
+
+    function testRateLimited_replinishesWithinSameDay() external {
+        vm.warp(1 days);
+        uint256 amount = 0.99 ether;
+        uint256 newLimit = rateLimited.validateAndConsumeFilledLevel(amount);
+        uint256 currentTargetLimit = rateLimited.calculateFilledLevel();
+        assertEq(currentTargetLimit, 0.01 ether);
+
+        // Warp to near end-of-day
+        vm.warp(block.timestamp + 0.99 days);
+        newLimit = rateLimited.validateAndConsumeFilledLevel(amount);
+        assertApproxEqRel(newLimit, 0.01 ether, ONE_PERCENT);
     }
 
     function testRateLimited_shouldResetLimit_ifDurationExceeds(
@@ -85,15 +86,15 @@ contract RateLimitLibTest is Test {
     ) external {
         // Transfer less than the limit
         vm.warp(0.5 days);
-        uint256 currentTargetLimit = rateLimited.getTargetLimit(HOOK);
+        uint256 currentTargetLimit = rateLimited.calculateFilledLevel();
         vm.assume(_amount < currentTargetLimit);
 
-        uint256 newLimit = rateLimited.validateAndIncrementLimit(HOOK, _amount);
+        uint256 newLimit = rateLimited.validateAndConsumeFilledLevel(_amount);
         assertApproxEqRel(newLimit, currentTargetLimit - _amount, ONE_PERCENT);
 
         // Warp to a new cycle
         vm.warp(10 days);
-        currentTargetLimit = rateLimited.getTargetLimit(HOOK);
-        assertApproxEqRel(currentTargetLimit, MAX_LIMIT, ONE_PERCENT);
+        currentTargetLimit = rateLimited.calculateFilledLevel();
+        assertApproxEqRel(currentTargetLimit, MAX_CAPACITY, ONE_PERCENT);
     }
 }

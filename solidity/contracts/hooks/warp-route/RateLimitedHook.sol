@@ -2,17 +2,20 @@
 pragma solidity >=0.8.0;
 import {MailboxClient} from "contracts/client/MailboxClient.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
-import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {Message} from "contracts/libs/Message.sol";
 import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 import {RateLimited} from "contracts/libs/RateLimited.sol";
 
-contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
+contract RateLimitedHook is IPostDispatchHook, MailboxClient, RateLimited {
     using Message for bytes;
     using TokenMessage for bytes;
-    using TypeCasts for bytes32;
 
-    constructor(address _mailbox) MailboxClient(_mailbox) {}
+    mapping(bytes32 messageId => bool validated) messageValidated;
+
+    constructor(
+        address _mailbox,
+        uint256 _maxCapacity
+    ) MailboxClient(_mailbox) RateLimited(_maxCapacity) {}
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
@@ -34,9 +37,8 @@ contract RateLimitedHook is IPostDispatchHook, RateLimited, MailboxClient {
     ) external payable {
         require(_isLatestDispatched(_message.id()), "InvalidDispatchedMessage");
 
-        address sender = _message.sender().bytes32ToAddress();
         uint256 newAmount = _message.body().amount();
-        validateAndIncrementLimit(sender, newAmount);
+        validateAndConsumeFilledLevel(newAmount);
     }
 
     /// @inheritdoc IPostDispatchHook

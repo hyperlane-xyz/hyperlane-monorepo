@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 
+import {Message} from "contracts/libs/Message.sol";
+import {TokenMessage} from "contracts/token/libs/TokenMessage.sol";
 import {TypeCasts} from "contracts/libs/TypeCasts.sol";
 import {RateLimited} from "contracts/libs/RateLimited.sol";
 
@@ -14,11 +16,12 @@ import {ERC20Test} from "contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 
 contract RateLimitedHookTest is Test {
+    using Message for bytes;
     using TypeCasts for address;
 
     uint32 constant ORIGIN = 11;
     uint32 constant DESTINATION = 12;
-    uint256 constant ROUTE_LIMIT_AMOUNT = 1 ether;
+    uint256 constant MAX_CAPACITY = 1 ether;
     uint256 constant ONE_PERCENT = 0.01 ether;
     uint8 internal constant DECIMALS = 18;
     address constant BOB = address(0x2);
@@ -43,7 +46,10 @@ contract RateLimitedHookTest is Test {
 
         token = new ERC20Test("Test", "Test", 100 ether, 18);
         noopHook = new TestPostDispatchHook();
-        rateLimitedHook = new RateLimitedHook(address(localMailbox));
+        rateLimitedHook = new RateLimitedHook(
+            address(localMailbox),
+            MAX_CAPACITY
+        );
 
         localMailbox.setDefaultHook(address(noopHook));
         localMailbox.setRequiredHook(address(noopHook));
@@ -70,11 +76,6 @@ contract RateLimitedHookTest is Test {
             ORIGIN,
             address(warpRouteLocal).addressToBytes32()
         );
-
-        rateLimitedHook.setTargetLimit(
-            address(warpRouteLocal),
-            ROUTE_LIMIT_AMOUNT
-        );
     }
 
     function testRateLimitedHook_revertsIfCalledByNonMailbox(
@@ -84,16 +85,14 @@ contract RateLimitedHookTest is Test {
         rateLimitedHook.postDispatch(bytes(""), _message);
     }
 
-    function testRateLimitedHook_revertsIfRateLimitExceeded(
+    function testRateLimitedHook_revertsTransfer_ifExceedsFilledLevel(
         uint128 _amount,
         uint128 _time
     ) external {
-        // Warp to a random time, get it's limit, and try to transfer more than the target max
+        // Warp to a random time, get it's filled level, and try to transfer more than the target max
         vm.warp(_time);
-        uint256 targetLimitBefore = rateLimitedHook.getTargetLimit(
-            address(warpRouteLocal)
-        );
-        vm.assume(_amount > targetLimitBefore);
+        uint256 filledLevelBefore = rateLimitedHook.calculateFilledLevel();
+        vm.assume(_amount > filledLevelBefore);
         _mintAndApprove(_amount);
 
         vm.expectRevert("RateLimitExceeded");
@@ -104,16 +103,14 @@ contract RateLimitedHookTest is Test {
         );
     }
 
-    function testRateLimitedHook_allowsTransferUnderLimit(
+    function testRateLimitedHook_allowsTransfer_ifUnderLimit(
         uint128 _amount,
         uint128 _time
     ) external {
-        // Warp to a random time, get it's limit, and try to transfer less than the target max
+        // Warp to a random time, get it's filled level, and try to transfer less than the target max
         vm.warp(_time);
-        uint256 targetLimitBefore = rateLimitedHook.getTargetLimit(
-            address(warpRouteLocal)
-        );
-        vm.assume(_amount <= targetLimitBefore);
+        uint256 filledLevelBefore = rateLimitedHook.calculateFilledLevel();
+        vm.assume(_amount <= filledLevelBefore);
 
         _mintAndApprove(_amount);
         warpRouteLocal.transferRemote(
