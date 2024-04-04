@@ -80,7 +80,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       expected: {},
     };
 
-    const remotes = this.app.remoteChains(local);
+    const remotes = await this.app.remoteChains(local);
     for (const remote of remotes) {
       let expectedOverhead = this.configMap[local].overhead[remote];
       if (!expectedOverhead) {
