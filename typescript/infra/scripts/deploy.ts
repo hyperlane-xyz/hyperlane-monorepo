@@ -136,11 +136,18 @@ async function main() {
       ...routerConfig.ethereum,
       type: TokenType.collateral,
       token: tokens.ethereum.USDC,
-      interchainSecurityModule: buildAggregationIsmConfigs(
-        'ethereum',
-        ['ancient8'],
-        defaultMultisigConfigs,
-      ).ancient8,
+      // Really, this should be an object config from something like:
+      //   buildAggregationIsmConfigs(
+      //     'ethereum',
+      //     ['ancient8'],
+      //     defaultMultisigConfigs,
+      //   ).ancient8
+      // However ISM objects are no longer able to be passed directly to the warp route
+      // deployer. As a temporary workaround, I'm using an ISM address from a previous
+      // ethereum <> ancient8 warp route deployment:
+      //   $ cast call 0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f 'interchainSecurityModule()(address)' --rpc-url https://rpc.ankr.com/eth
+      //   0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3
+      interchainSecurityModule: '0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3',
       // This hook was recovered from running the deploy script
       // for the hook module. The hook configuration is the Ethereum
       // default hook for the Ancient8 remote (no routing).
