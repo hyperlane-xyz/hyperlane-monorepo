@@ -1,20 +1,20 @@
 import { TokenRouter } from '@hyperlane-xyz/core';
 import { objKeys } from '@hyperlane-xyz/utils';
 
-import { appFromAddressesMapHelper } from '../contracts/contracts';
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
   HyperlaneContractsMap,
-} from '../contracts/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { GasRouterApp } from '../router/RouterApps';
+} from '../contracts/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { GasRouterApp } from '../router/RouterApps.js';
 
 import {
   HypERC20Factories,
   hypERC20Tokenfactories,
   hypERC20factories,
-} from './contracts';
+} from './contracts.js';
 
 export class HypERC20App extends GasRouterApp<HypERC20Factories, TokenRouter> {
   constructor(
