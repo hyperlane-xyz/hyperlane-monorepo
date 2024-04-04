@@ -711,7 +711,10 @@ export abstract class HyperlaneDeployer<
         config.ownerOverrides?.[contractName as K] ?? config.owner,
       );
       if (!eqAddress(current, owner)) {
-        this.logger.debug('Current owner and config owner to not match');
+        this.logger.debug(
+          { contractName },
+          'Current owner and config owner do not match',
+        );
         const receipt = await this.runIfOwner(chain, ownable, () => {
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
