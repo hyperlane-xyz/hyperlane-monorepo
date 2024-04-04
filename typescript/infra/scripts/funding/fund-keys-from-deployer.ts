@@ -13,39 +13,41 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
+import { Contexts } from '../../config/contexts.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
   getRoleKeysPerChain,
-} from '../../src/agents/key-utils';
+} from '../../src/agents/key-utils.js';
 import {
   BaseAgentKey,
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
-} from '../../src/agents/keys';
-import { DeployEnvironment } from '../../src/config';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
+} from '../../src/agents/keys.js';
+import {
+  DeployEnvironment,
+  deployEnvToSdkEnv,
+} from '../../src/config/environment.js';
 import {
   ContextAndRoles,
   ContextAndRolesMap,
   KeyFunderConfig,
-} from '../../src/config/funding';
-import { FundableRole, Role } from '../../src/roles';
-import { submitMetrics } from '../../src/utils/metrics';
+} from '../../src/config/funding.js';
+import { FundableRole, Role } from '../../src/roles.js';
+import { submitMetrics } from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
   assertRole,
   isEthereumProtocolChain,
   readJSONAtPath,
-} from '../../src/utils/utils';
-import { getAgentConfig, getArgs } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+} from '../../src/utils/utils.js';
+import { getAgentConfig, getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
-import * as L1ETHGateway from './utils/L1ETHGateway.json';
-import * as L1MessageQueue from './utils/L1MessageQueue.json';
-import * as L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import L1ETHGateway from './utils/L1ETHGateway.json';
+import L1MessageQueue from './utils/L1MessageQueue.json';
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
 
 const logger = rootLogger.child({ module: 'fund-keys' });
 

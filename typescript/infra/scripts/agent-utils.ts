@@ -1,5 +1,5 @@
 import path from 'path';
-import yargs from 'yargs';
+import yargs, { Argv } from 'yargs';
 
 import {
   AllChains,
@@ -20,21 +20,22 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../config/contexts';
-import { agents } from '../config/environments/agents';
-import { validatorBaseConfigsFn } from '../config/environments/utils';
-import { getCurrentKubernetesContext } from '../src/agents';
-import { getCloudAgentKey } from '../src/agents/key-utils';
-import { CloudAgentKey } from '../src/agents/keys';
+import { Contexts } from '../config/contexts.js';
+import { agents } from '../config/environments/agents.js';
+import { validatorBaseConfigsFn } from '../config/environments/utils.js';
+import { getCurrentKubernetesContext } from '../src/agents/index.js';
+import { getCloudAgentKey } from '../src/agents/key-utils.js';
+import { CloudAgentKey } from '../src/agents/keys.js';
+import { RootAgentConfig } from '../src/config/agent/agent.js';
+import { fetchProvider } from '../src/config/chain.js';
 import {
   DeployEnvironment,
   EnvironmentConfig,
-  RootAgentConfig,
-} from '../src/config';
-import { fetchProvider } from '../src/config/chain';
-import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
-import { Role } from '../src/roles';
-import { assertContext, assertRole, readJSON } from '../src/utils/utils';
+  EnvironmentNames,
+  deployEnvToSdkEnv,
+} from '../src/config/environment.js';
+import { Role } from '../src/roles.js';
+import { assertContext, assertRole, readJSON } from '../src/utils/utils.js';
 
 const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
 
@@ -70,7 +71,7 @@ export function getArgs() {
     .alias('e', 'environment');
 }
 
-export function withModuleAndFork<T>(args: yargs.Argv<T>) {
+export function withModuleAndFork<T>(args: Argv<T>) {
   return args
     .choices('module', Object.values(Modules))
     .demandOption('module', 'hyperlane module to deploy')
@@ -80,14 +81,14 @@ export function withModuleAndFork<T>(args: yargs.Argv<T>) {
     .alias('f', 'fork');
 }
 
-export function withNetwork<T>(args: yargs.Argv<T>) {
+export function withNetwork<T>(args: Argv<T>) {
   return args
     .describe('network', 'network to target')
     .choices('network', Object.values(Chains))
     .alias('n', 'network');
 }
 
-export function withContext<T>(args: yargs.Argv<T>) {
+export function withContext<T>(args: Argv<T>) {
   return args
     .describe('context', 'deploy context')
     .default('context', Contexts.Hyperlane)
@@ -96,7 +97,7 @@ export function withContext<T>(args: yargs.Argv<T>) {
     .demandOption('context');
 }
 
-export function withProtocol<T>(args: yargs.Argv<T>) {
+export function withProtocol<T>(args: Argv<T>) {
   return args
     .describe('protocol', 'protocol type')
     .default('protocol', ProtocolType.Ethereum)
@@ -104,7 +105,7 @@ export function withProtocol<T>(args: yargs.Argv<T>) {
     .demandOption('protocol');
 }
 
-export function withAgentRole<T>(args: yargs.Argv<T>) {
+export function withAgentRole<T>(args: Argv<T>) {
   return args
     .describe('role', 'agent roles')
     .array('role')
@@ -113,7 +114,7 @@ export function withAgentRole<T>(args: yargs.Argv<T>) {
     .alias('r', 'role');
 }
 
-export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
+export function withKeyRoleAndChain<T>(args: Argv<T>) {
   return args
     .describe('role', 'key role')
     .choices('role', Object.values(Role))
@@ -131,14 +132,14 @@ export function withKeyRoleAndChain<T>(args: yargs.Argv<T>) {
 }
 
 // missing chains are chains needed which are not as part of defaultMultisigConfigs in sdk/src/consts/ but are in chainMetadata
-export function withMissingChains<T>(args: yargs.Argv<T>) {
+export function withMissingChains<T>(args: Argv<T>) {
   return args
     .describe('newChains', 'new chains to add')
     .string('newChains')
     .alias('n', 'newChains');
 }
 
-export function withBuildArtifactPath<T>(args: yargs.Argv<T>) {
+export function withBuildArtifactPath<T>(args: Argv<T>) {
   return args
     .describe('buildArtifactPath', 'path to hardhat build artifact')
     .string('buildArtifactPath')

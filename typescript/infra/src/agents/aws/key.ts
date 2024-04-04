@@ -22,11 +22,11 @@ import { Logger } from 'pino';
 import { AgentSignerKeyType, ChainName } from '@hyperlane-xyz/sdk';
 import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { AgentContextConfig, AwsKeyConfig } from '../../config/agent';
-import { Role } from '../../roles';
-import { getEthereumAddress } from '../../utils/utils';
-import { keyIdentifier } from '../agent';
-import { CloudAgentKey } from '../keys';
+import { AgentContextConfig, AwsKeyConfig } from '../../config/agent/agent.js';
+import { Role } from '../../roles.js';
+import { getEthereumAddress } from '../../utils/utils.js';
+import { keyIdentifier } from '../agent.js';
+import { CloudAgentKey } from '../keys.js';
 
 interface UnfetchedKey {
   fetched: false;

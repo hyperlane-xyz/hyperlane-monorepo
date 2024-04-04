@@ -3,17 +3,18 @@ import {
   RelayerHelmManager,
   ScraperHelmManager,
   ValidatorHelmManager,
-} from '../../src/agents';
-import { EnvironmentConfig, RootAgentConfig } from '../../src/config';
-import { Role } from '../../src/roles';
-import { HelmCommand } from '../../src/utils/helm';
+} from '../../src/agents/index.js';
+import { RootAgentConfig } from '../../src/config/agent/agent.js';
+import { EnvironmentConfig } from '../../src/config/environment.js';
+import { Role } from '../../src/roles.js';
+import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
   getArgs,
   withAgentRole,
   withContext,
-} from '../agent-utils';
-import { getConfigsBasedOnArgs } from '../core-utils';
+} from '../agent-utils.js';
+import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 export class AgentCli {
   roles!: Role[];

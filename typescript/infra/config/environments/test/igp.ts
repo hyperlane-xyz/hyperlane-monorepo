@@ -6,9 +6,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { TestChains, chainNames } from './chains';
-import { multisigIsm } from './multisigIsm';
-import { owners } from './owners';
+import { TestChains, chainNames } from './chains.js';
+import { multisigIsm } from './multisigIsm.js';
+import { owners } from './owners.js';
 
 function getGasOracles(local: TestChains) {
   return Object.fromEntries(

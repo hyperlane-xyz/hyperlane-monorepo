@@ -1,5 +1,6 @@
 import {
   Chains,
+  GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
@@ -10,18 +11,17 @@ import {
   AgentChainConfig,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
-} from '../../../src/config';
+} from '../../../src/config/agent/agent.js';
 import {
-  GasPaymentEnforcementConfig,
   matchingList,
   routerMatchingList,
-} from '../../../src/config/agent/relayer';
-import { ALL_KEY_ROLES, Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+} from '../../../src/config/agent/relayer.js';
+import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { environment, supportedChainNames } from './chains';
-import { helloWorld } from './helloworld';
-import { validatorChainConfig } from './validators';
+import { environment, supportedChainNames } from './chains.js';
+import { helloWorld } from './helloworld.js';
+import { validatorChainConfig } from './validators.js';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
@@ -121,7 +121,7 @@ const contextBase = {
   },
 } as const;
 
-const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
+const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
   },

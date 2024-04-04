@@ -1,6 +1,6 @@
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { mainnetConfigs } from '../config/environments/mainnet3/chains';
+import { mainnetConfigs } from '../config/environments/mainnet3/chains.js';
 
 const CURRENCY = 'usd';
 

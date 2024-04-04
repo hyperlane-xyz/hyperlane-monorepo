@@ -1,10 +1,10 @@
 import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
-import { KeyFunderConfig } from '../../../src/config/funding';
-import { Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+import { KeyFunderConfig } from '../../../src/config/funding.js';
+import { Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {

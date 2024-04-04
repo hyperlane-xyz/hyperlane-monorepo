@@ -6,14 +6,14 @@ import { Logger } from 'pino';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { DeployEnvironment } from '../config';
-import { Role } from '../roles';
-import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
-import { execCmd, include } from '../utils/utils';
+import { Contexts } from '../../config/contexts.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { Role } from '../roles.js';
+import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud.js';
+import { execCmd, include } from '../utils/utils.js';
 
-import { isValidatorKey, keyIdentifier } from './agent';
-import { CloudAgentKey } from './keys';
+import { isValidatorKey, keyIdentifier } from './agent.js';
+import { CloudAgentKey } from './keys.js';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {

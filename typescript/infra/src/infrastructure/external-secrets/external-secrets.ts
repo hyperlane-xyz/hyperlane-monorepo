@@ -1,20 +1,20 @@
 import { sleep } from '@hyperlane-xyz/utils';
 
-import { InfrastructureConfig } from '../../config/infrastructure';
+import { InfrastructureConfig } from '../../config/infrastructure.js';
 import {
   createServiceAccountIfNotExists,
   createServiceAccountKey,
   getCurrentProject,
   getCurrentProjectNumber,
   grantServiceAccountRoleIfNotExists,
-} from '../../utils/gcloud';
+} from '../../utils/gcloud.js';
 import {
   HelmCommand,
   addHelmRepoIfRequired,
   getDeployableHelmChartName,
   helmifyValues,
-} from '../../utils/helm';
-import { execCmd, execCmdAndParseJson } from '../../utils/utils';
+} from '../../utils/helm.js';
+import { execCmd, execCmdAndParseJson } from '../../utils/utils.js';
 
 const SECRET_ACCESSOR_ROLE = 'roles/secretmanager.secretAccessor';
 

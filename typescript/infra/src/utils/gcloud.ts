@@ -4,7 +4,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { rm, writeFile } from 'fs/promises';
 
-import { execCmd, execCmdAndParseJson } from './utils';
+import { execCmd, execCmdAndParseJson } from './utils.js';
 
 interface IamCondition {
   title: string;

@@ -9,18 +9,21 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../../config/contexts';
-import { AgentChainNames, AgentRole, Role } from '../../roles';
-import { DeployEnvironment } from '../environment';
-import { HelmImageValues } from '../infrastructure';
+import { Contexts } from '../../../config/contexts.js';
+import { AgentChainNames, AgentRole, Role } from '../../roles.js';
+import { DeployEnvironment } from '../environment.js';
+import { HelmImageValues } from '../infrastructure.js';
 
 import {
   BaseRelayerConfig,
   HelmRelayerChainValues,
   HelmRelayerValues,
-} from './relayer';
-import { BaseScraperConfig, HelmScraperValues } from './scraper';
-import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
+} from './relayer.js';
+import { BaseScraperConfig, HelmScraperValues } from './scraper.js';
+import {
+  HelmValidatorValues,
+  ValidatorBaseChainConfigMap,
+} from './validator.js';
 
 export type DeepPartial<T> = T extends object
   ? {

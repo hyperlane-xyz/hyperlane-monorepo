@@ -54,7 +54,7 @@
     "Infrastructure"
   ],
   "license": "Apache-2.0",
-  "main": "dist/index.js",
+  "type": "module",
   "prepublish": "yarn build",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
@@ -66,13 +66,12 @@
     "deploy-ism": "tsx scripts/deploy.ts -e test -m ism",
     "deploy-helloworld": "tsx scripts/deploy.ts -e test -m helloworld",
     "deploy-hook": "tsx scripts/deploy.ts -e test -m hook",
-    "pre-hardhat": "mv package.json package.json.bk && mv package.hardhat.json package.json",
-    "post-hardhat": "mv package.json package.hardhat.json && mv package.json.bk package.json",
     "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
-    "kathy": "yarn pre-hardhat ; yarn hardhat-esm run ./scripts/send-random-messages.ts ; yarn post-hardhat",
+    "kathy": "yarn hardhat-esm run ./scripts/send-random-messages.ts",
     "prettier": "prettier --write ./src ./config ./scripts ./test",
-    "test": "mocha --config ../sdk/.mocharc.json test/**/*.test.ts",
-    "test:hardhat": "yarn pre-hardhat ; yarn hardhat-esm test test/govern.hardhat-test.ts ; yarn post-hardhat",
+    "test": "yarn test:unit && yarn test:hardhat",
+    "test:unit": "mocha --config ../sdk/.mocharc.json test/**/*.test.ts",
+    "test:hardhat": "yarn hardhat-esm test test/govern.hardhat-test.ts",
     "test:ci": "yarn test"
   },
   "peerDependencies": {

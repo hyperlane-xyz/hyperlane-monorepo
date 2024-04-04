@@ -1,5 +1,5 @@
 // @ts-ignore
-import * as asn1 from 'asn1.js';
+import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
@@ -15,8 +15,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { FundableRole, Role } from '../roles';
+import { Contexts } from '../../config/contexts.js';
+import { FundableRole, Role } from '../roles.js';
 
 /**
  * Map an async function over a list xs with a given concurrency level

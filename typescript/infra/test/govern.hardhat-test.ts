@@ -1,4 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { BigNumber, utils } from 'ethers';
 import hre from 'hardhat';
@@ -33,7 +33,7 @@ import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 import {
   AnnotatedCallData,
   HyperlaneAppGovernor,
-} from '../src/govern/HyperlaneAppGovernor';
+} from '../src/govern/HyperlaneAppGovernor.js';
 
 // TODO de-dupe with test-utils after migrating this file to the SDK
 const randomAddress = () => utils.hexlify(utils.randomBytes(20));

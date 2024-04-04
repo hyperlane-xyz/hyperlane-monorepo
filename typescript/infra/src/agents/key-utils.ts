@@ -1,32 +1,30 @@
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { Address, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import localAWMultisigAddresses from '../../config/aw-multisig.json';
 // AW - Abacus Works
-import { Contexts } from '../../config/contexts';
-import { helloworld } from '../../config/environments/helloworld';
+import { Contexts } from '../../config/contexts.js';
+import { helloworld } from '../../config/environments/helloworld.js';
 import localKathyAddresses from '../../config/kathy.json';
 import localRelayerAddresses from '../../config/relayer.json';
-import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils';
-import {
-  AgentContextConfig,
-  DeployEnvironment,
-  RootAgentConfig,
-} from '../config';
-import { Role } from '../roles';
+import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
+import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent';
+import { DeployEnvironment } from '../config/environment';
+import { Role } from '../roles.js';
 import {
   execCmd,
   isEthereumProtocolChain,
   readJSON,
   writeJSON,
   writeJsonAtPath,
-} from '../utils/utils';
+} from '../utils/utils.js';
 
-import { AgentAwsKey } from './aws/key';
-import { AgentGCPKey } from './gcp';
-import { CloudAgentKey } from './keys';
+import { AgentAwsKey } from './aws/key.js';
+import { AgentGCPKey } from './gcp.js';
+import { CloudAgentKey } from './keys.js';
 
 export type LocalRoleAddresses = Record<
   DeployEnvironment,
@@ -46,7 +44,10 @@ export interface KeyAsAddress {
   address: string;
 }
 
-const CONFIG_DIRECTORY_PATH = path.join(__dirname, '../../config');
+const CONFIG_DIRECTORY_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../config',
+);
 
 // ==================
 // Functions for getting keys
@@ -448,7 +449,10 @@ export async function persistRoleAddressesToLocalArtifacts(
   addresses[environment][context] = updated;
 
   // Resolve the relative path
-  const filePath = path.resolve(__dirname, `../../config/${role}.json`);
+  const filePath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    `../../config/${role}.json`,
+  );
 
   writeJsonAtPath(filePath, addresses);
 }
