@@ -13,7 +13,7 @@ use hyperlane_base::{
     metrics::{AgentMetrics, MetricsUpdater},
     settings::{ChainConf, IgpIndexer, MerkleTreeHookIndexer, MessageIndexer},
     BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    SequencedDataContractSync,
+    SequenceAwareLogStore, WatermarkLogStore,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
@@ -60,15 +60,14 @@ pub struct Relayer {
     destination_chains: HashMap<HyperlaneDomain, ChainConf>,
     #[as_ref]
     core: HyperlaneAgentCore,
-    message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
+    message_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
         HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
-    merkle_tree_hook_syncs:
-        HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
+    merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -133,7 +132,7 @@ impl BaseAgent for Relayer {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
         let message_syncs = settings
-            .build_indexers::<HyperlaneMessage, _, MessageIndexer>(
+            .build_contract_syncs::<HyperlaneMessage, SequenceAwareLogStore<_>, MessageIndexer>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
@@ -141,10 +140,13 @@ impl BaseAgent for Relayer {
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
             )
-            .await?;
+            .await?
+            .into_iter()
+            .map(|(k, v)| (k, v as _))
+            .collect();
 
         let interchain_gas_payment_syncs = settings
-            .build_indexers::<InterchainGasPayment, _, IgpIndexer>(
+            .build_contract_syncs::<InterchainGasPayment, WatermarkLogStore<_>, IgpIndexer>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
@@ -152,10 +154,13 @@ impl BaseAgent for Relayer {
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
             )
-            .await?;
+            .await?
+            .into_iter()
+            .map(|(k, v)| (k, v as _))
+            .collect();
 
         let merkle_tree_hook_syncs = settings
-            .build_indexers::<MerkleTreeInsertion, _, MerkleTreeHookIndexer>(
+            .build_contract_syncs::<MerkleTreeInsertion, SequenceAwareLogStore<_>, MerkleTreeHookIndexer>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
@@ -163,7 +168,10 @@ impl BaseAgent for Relayer {
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
             )
-            .await?;
+            .await?
+            .into_iter()
+            .map(|(k, v)| (k, v as _))
+            .collect();
 
         let whitelist = Arc::new(settings.whitelist);
         let blacklist = Arc::new(settings.blacklist);

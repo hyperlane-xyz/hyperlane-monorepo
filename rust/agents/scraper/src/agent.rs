@@ -4,10 +4,12 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_base::{
-    metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
-    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
+    metrics::AgentMetrics,
+    settings::{DeliveryIndexer, IgpIndexer, IndexSettings, MessageIndexer},
+    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
+    MetricsUpdater, SequenceAwareLogStore, WatermarkLogStore,
 };
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment};
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
@@ -185,7 +187,7 @@ impl Scraper {
         let sync = self
             .as_ref()
             .settings
-            .build_message_indexer(
+            .build_contract_sync::<HyperlaneMessage, SequenceAwareLogStore<_>, MessageIndexer>(
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
@@ -223,11 +225,11 @@ impl Scraper {
         let sync = self
             .as_ref()
             .settings
-            .build_delivery_indexer(
+            .build_contract_sync::<Delivery, WatermarkLogStore<_>, DeliveryIndexer>(
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
-                Arc::new(db.clone()),
+                Arc::new(db.clone()) as _,
             )
             .await
             .unwrap();
@@ -249,7 +251,7 @@ impl Scraper {
         let sync = self
             .as_ref()
             .settings
-            .build_interchain_gas_payment_indexer(
+            .build_contract_sync::<InterchainGasPayment, WatermarkLogStore<_>, IgpIndexer>(
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),

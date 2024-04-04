@@ -12,9 +12,9 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    settings::ChainConf,
+    settings::{ChainConf, MerkleTreeHookIndexer},
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer, CoreMetrics,
-    HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
+    HyperlaneAgentCore, MetricsUpdater, SequenceAwareLogStore, SequencedDataContractSync,
 };
 
 use hyperlane_core::{
@@ -97,14 +97,13 @@ impl BaseAgent for Validator {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let merkle_tree_hook_sync = settings
-            .build_merkle_tree_hook_indexer(
+            .build_contract_sync::<MerkleTreeInsertion, SequenceAwareLogStore<_>, MerkleTreeHookIndexer>(
                 &settings.origin_chain,
                 &metrics,
                 &contract_sync_metrics,
                 Arc::new(msg_db.clone()),
             )
-            .await?
-            .into();
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,

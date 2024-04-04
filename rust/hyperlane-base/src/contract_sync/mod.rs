@@ -39,7 +39,7 @@ pub struct ContractSync<T, D: HyperlaneLogStore<T>, I: Indexer<T>> {
 impl<T, D, I> ContractSync<T, D, I>
 where
     T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
-    D: HyperlaneLogStore<T> + 'static,
+    D: HyperlaneLogStore<T>,
     I: Indexer<T> + 'static,
 {
     /// The domain that this ContractSync is running on
@@ -121,6 +121,9 @@ where
 /// A ContractSync for syncing events using a SequenceAwareIndexer
 pub type SequenceAwareContractSync<T, U> = ContractSync<T, U, Arc<dyn SequenceAwareIndexer<T>>>;
 
+/// Log store for the watermark cursor
+pub type WatermarkLogStore<T> = Arc<dyn HyperlaneWatermarkedLogStore<T>>;
+
 /// A ContractSync for syncing events using a RateLimitedContractSyncCursor
 pub type WatermarkContractSync<T> =
     SequenceAwareContractSync<T, Arc<dyn HyperlaneWatermarkedLogStore<T>>>;
@@ -165,6 +168,9 @@ where
         self.sync(label, cursor).await;
     }
 }
+
+/// Log store for sequence aware cursors
+pub type SequenceAwareLogStore<T> = Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>;
 
 /// A ContractSync for syncing messages using a SequenceSyncCursor
 pub type SequencedDataContractSync<T> =

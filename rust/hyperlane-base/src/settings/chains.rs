@@ -1,14 +1,14 @@
 use axum::async_trait;
 use ethers::prelude::Selector;
 use h_cosmos::CosmosProvider;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context, Result};
 
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode, Indexer,
+    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
     ValidatorAnnounce, H256,
@@ -29,8 +29,10 @@ use crate::{
 
 use super::ChainSigner;
 
+/// A trait for converting to a type from a chain configuration with metrics
 #[async_trait]
 pub trait TryFromWithMetrics<T>: Sized {
+    /// Try to convert the chain configuration into the type
     async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self>;
 }
 
@@ -56,36 +58,47 @@ pub struct ChainConf {
     pub index: IndexSettings,
 }
 
-pub type MessageIndexer = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
-pub type DeliveryIndexer = Box<dyn SequenceAwareIndexer<H256>>;
-pub type IgpIndexer = Box<dyn SequenceAwareIndexer<InterchainGasPayment>>;
-pub type MerkleTreeHookIndexer = Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>;
+/// A sequence-aware indexer for messages
+pub type MessageIndexer = Arc<dyn SequenceAwareIndexer<HyperlaneMessage>>;
+
+/// A sequence-aware indexer for deliveries
+pub type DeliveryIndexer = Arc<dyn SequenceAwareIndexer<H256>>;
+
+/// A sequence-aware indexer for interchain gas payments
+pub type IgpIndexer = Arc<dyn SequenceAwareIndexer<InterchainGasPayment>>;
+
+/// A sequence-aware indexer for merkle tree hooks
+pub type MerkleTreeHookIndexer = Arc<dyn SequenceAwareIndexer<MerkleTreeInsertion>>;
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MessageIndexer {
     async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_message_indexer(metrics).await
+        conf.build_message_indexer(metrics).await.map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for DeliveryIndexer {
     async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_delivery_indexer(metrics).await
+        conf.build_delivery_indexer(metrics).await.map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for IgpIndexer {
     async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_interchain_gas_payment_indexer(metrics).await
+        conf.build_interchain_gas_payment_indexer(metrics)
+            .await
+            .map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
     async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_merkle_tree_hook_indexer(metrics).await
+        conf.build_merkle_tree_hook_indexer(metrics)
+            .await
+            .map(Into::into)
     }
 }
 
