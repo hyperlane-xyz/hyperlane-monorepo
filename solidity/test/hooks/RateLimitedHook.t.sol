@@ -96,13 +96,7 @@ contract RateLimitedHookTest is Test {
         vm.assume(_amount > targetLimitBefore);
         _mintAndApprove(_amount);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                RateLimited.RateLimitExceeded.selector,
-                _amount,
-                targetLimitBefore
-            )
-        );
+        vm.expectRevert("RateLimitExceeded");
         warpRouteLocal.transferRemote{value: 1}(
             DESTINATION,
             BOB.addressToBytes32(),

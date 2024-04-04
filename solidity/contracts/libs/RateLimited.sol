@@ -12,7 +12,6 @@ contract RateLimited is OwnableUpgradeable {
     mapping(address sender => Limit limit) public limits;
 
     event RateLimitSet(address sender, uint256 amount);
-    error RateLimitNotSet(address sender);
 
     constructor() {
         _transferOwnership(msg.sender);
@@ -60,7 +59,7 @@ contract RateLimited is OwnableUpgradeable {
      */
     function getTargetLimit(address _sender) public view returns (uint256) {
         Limit memory limit = limits[_sender];
-        if (limit.max == 0) revert RateLimitNotSet(_sender);
+        require(limit.max > 0, "RateLimitNotSet");
 
         if (limit.lastUpdate + DURATION > block.timestamp) {
             // If within the cycle, calculate the new target limit
@@ -104,8 +103,7 @@ contract RateLimited is OwnableUpgradeable {
     ) public returns (uint256) {
         RateLimited.Limit memory limit = limits[_sender];
         uint256 targetLimit = getTargetLimit(_sender);
-        if (_newAmount > targetLimit)
-            revert RateLimitExceeded(_newAmount, targetLimit);
+        require(_newAmount <= targetLimit, "RateLimitExceeded");
 
         // Update the current limit and lastUpdate
         limit.current = targetLimit - _newAmount;
