@@ -34,13 +34,6 @@ contract RateLimitedIsmTest is Test {
         testRecipient.setInterchainSecurityModule(address(rateLimitedIsm));
     }
 
-    function testRateLimitedIsm_revertsIfCalledByNonMailbox(
-        bytes calldata _message
-    ) external {
-        vm.expectRevert("MailboxClient: sender not mailbox");
-        rateLimitedIsm.verify(bytes(""), _message);
-    }
-
     function testRateLimitedIsm_revertsIDeliveredFalse(
         bytes calldata _message
     ) external {

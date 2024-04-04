@@ -43,7 +43,7 @@ contract RateLimitedIsm is
         bytes calldata,
         bytes calldata _message
     ) external validateMessageOnce(_message) returns (bool) {
-        require(_isLatestDelivered(_message.id()), "InvalidDeliveredMessage");
+        require(_isDelivered(_message.id()), "InvalidDeliveredMessage");
 
         uint256 newAmount = _message.body().amount();
         validateAndConsumeFilledLevel(newAmount);

@@ -26,7 +26,7 @@ contract RateLimitedHook is IPostDispatchHook, MailboxClient, RateLimited {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
-        return uint8(IPostDispatchHook.Types.UNUSED);
+        return uint8(IPostDispatchHook.Types.Rate_Limited_Hook);
     }
 
     /// @inheritdoc IPostDispatchHook

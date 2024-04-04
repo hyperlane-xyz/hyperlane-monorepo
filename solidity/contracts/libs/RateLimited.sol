@@ -11,19 +11,25 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 contract RateLimited is OwnableUpgradeable {
     uint256 public constant DURATION = 1 days; // 86400
     uint256 public filledLevel; /// @notice Current filled level
-    uint256 public maxCapacity; /// @notice Max capacity where the bucket will no longer refill
     uint256 public refillRate; /// @notice Tokens per second refill rate
     uint256 public lastUpdated; /// @notice Timestamp of the last time an action has been taken TODO prob can be uint40
 
     event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
 
-    constructor(uint256 _maxCapacity) {
+    constructor(uint256 _capacity) {
         _transferOwnership(msg.sender);
-        setMaxCapacity(_maxCapacity);
-        filledLevel = _maxCapacity;
+        setRefillRate(_capacity);
+        filledLevel = _capacity;
     }
 
     error RateLimitExceeded(uint256 newLimit, uint256 targetLimit);
+
+    /**
+     * @return The max capacity where the bucket will no longer refill
+     */
+    function maxCapacity() public view returns (uint256) {
+        return refillRate * DURATION;
+    }
 
     /**
      * Calculates the refilled amount based on time and refill rate
@@ -40,7 +46,7 @@ contract RateLimited is OwnableUpgradeable {
      *   If half of the day (43200) has passed, then
      *   (86400 - 43200) * (1e18 / 86400)  = 0.5e18
      */
-    function calculateRefilledAmount() public view returns (uint256) {
+    function calculateRefilledAmount() internal view returns (uint256) {
         uint256 elapsed = block.timestamp - lastUpdated;
         return elapsed * refillRate;
     }
@@ -49,39 +55,39 @@ contract RateLimited is OwnableUpgradeable {
      * Calculates the adjusted fill level based on time
      */
     function calculateFilledLevel() public view returns (uint256) {
-        uint256 _maxCapacity = maxCapacity;
-        require(_maxCapacity > 0, "RateLimitNotSet");
+        uint256 _capacity = maxCapacity();
+        require(_capacity > 0, "RateLimitNotSet");
 
         if (lastUpdated + DURATION > block.timestamp) {
-            // If within the cycle, refill the capacity
+            // If within the window, refill the capacity
             uint256 newCurrentCapcacity = filledLevel +
                 calculateRefilledAmount();
 
-            // Only return _maxCapacity, in the case where newCurrentCapcacity overflows
+            // Only return _capacity, in the case where newCurrentCapcacity overflows
             return
-                newCurrentCapcacity > _maxCapacity
-                    ? _maxCapacity
+                newCurrentCapcacity > _capacity
+                    ? _capacity
                     : newCurrentCapcacity;
         } else {
-            // If last update is in the previous cycle, return the max capacity
-            return _maxCapacity;
+            // If last update is in the previous window, return the max capacity
+            return _capacity;
         }
     }
 
     /**
-     * Sets the max limit for a specific address
-     * @param _maxCapacity new maxiumum limit to set
+     * Sets the refill rate by giving a capacity
+     * @param _capacity new maxiumum capacity to set
      */
-    function setMaxCapacity(
-        uint256 _maxCapacity
+    function setRefillRate(
+        uint256 _capacity
     ) public onlyOwner returns (uint256) {
-        uint256 _oldCapacity = maxCapacity;
-        maxCapacity = _maxCapacity;
-        refillRate = _maxCapacity / DURATION;
+        uint256 _oldRefillRate = refillRate;
+        uint256 _newRefillRate = _capacity / DURATION;
+        refillRate = _newRefillRate;
 
-        emit RateLimitSet(_oldCapacity, _maxCapacity);
+        emit RateLimitSet(_oldRefillRate, _newRefillRate);
 
-        return _maxCapacity;
+        return _newRefillRate;
     }
 
     /**

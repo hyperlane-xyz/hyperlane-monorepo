@@ -92,7 +92,7 @@ abstract contract MailboxClient is OwnableUpgradeable {
         return mailbox.latestDispatchedId() == id;
     }
 
-    function _isLatestDelivered(bytes32 id) internal view returns (bool) {
+    function _isDelivered(bytes32 id) internal view returns (bool) {
         return mailbox.delivered(id);
     }
 
