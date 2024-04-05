@@ -72,7 +72,7 @@ contract RateLimited is OwnableUpgradeable {
 
     /**
      * Sets the refill rate by giving a capacity
-     * @param _capacity new maxiumum capacity to set
+     * @param _capacity new maximum capacity to set
      */
     function setRefillRate(
         uint256 _capacity
