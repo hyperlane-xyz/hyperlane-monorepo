@@ -96,12 +96,6 @@ where
             .into()
     };
 
-    let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
-    else {
-        // Is not EIP 1559 chain
-        return Ok(tx.gas(gas_limit));
-    };
-
     if matches!(
         target_domain,
         HyperlaneDomain::Known(KnownHyperlaneDomain::Scroll)
@@ -121,6 +115,12 @@ where
             return Ok(tx.gas(gas_limit).gas_price(moonbeam_gas_price));
         }
     }
+
+    let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
+    else {
+        // Is not EIP 1559 chain
+        return Ok(tx.gas(gas_limit));
+    };
 
     // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
     // This is useful for BSC, where the base fee is zero, there's a minimum gas price

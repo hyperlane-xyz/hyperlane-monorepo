@@ -49,7 +49,9 @@
     ]
   },
   "eclipsetestnet": {
-    "validators": ["0xf344f34abca9a444545b5295066348a0ae22dda3"]
+    "validators": [
+      "0xf344f34abca9a444545b5295066348a0ae22dda3"
+    ]
   },
   "ethereum": {
     "validators": [
@@ -80,7 +82,9 @@
     ]
   },
   "injective": {
-    "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
+    "validators": [
+      "0xbfb8911b72cfb138c7ce517c57d9c691535dc517"
+    ]
   },
   "mantapacific": {
     "validators": [
@@ -153,9 +157,13 @@
     ]
   },
   "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
+    ]
   },
   "viction": {
-    "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
+    "validators": [
+      "0x1f87c368f8e05a85ef9126d984a980a20930cb9c"
+    ]
   }
 }
