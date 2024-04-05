@@ -20,7 +20,19 @@ async function main() {
 
   const idPrices = await resp.json();
 
-  const prices = objMap(ids, (_, id) => idPrices[id][CURRENCY].toString());
+  const prices = objMap(ids, (_, id) => {
+    const idData = idPrices[id];
+    if (!idData) {
+      throw new Error(
+        `No data for ${id}, did you set gasCurrencyCoinGeckoId in the metadata?`,
+      );
+    }
+    const price = idData[CURRENCY];
+    if (!price) {
+      throw new Error(`No ${CURRENCY} price for ${id}`);
+    }
+    return price.toString();
+  });
 
   console.log(JSON.stringify(prices, null, 2));
 }

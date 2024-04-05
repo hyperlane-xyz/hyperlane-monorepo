@@ -470,7 +470,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       // TODO: add proxy verification artifact?
     } else {
       logger.debug(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}`,
+        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
       );
     }
     return address;

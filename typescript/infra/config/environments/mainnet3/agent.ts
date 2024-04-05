@@ -22,6 +22,7 @@ import { Contexts } from '../../contexts';
 import { environment, supportedChainNames } from './chains';
 import { helloWorld } from './helloworld';
 import { validatorChainConfig } from './validators';
+import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
@@ -46,6 +47,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     [Chains.arbitrum]: true,
+    [Chains.ancient8]: true,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -65,6 +67,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Relayer]: {
     [Chains.arbitrum]: true,
+    [Chains.ancient8]: true,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -85,6 +88,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Scraper]: {
     [Chains.arbitrum]: true,
+    [Chains.ancient8]: false,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -179,12 +183,16 @@ const hyperlane: RootAgentConfig = {
         name: 'viction_ethereum_usdt',
         matchingList: routerMatchingList(victionEthereumUsdtAddresses),
       },
+      {
+        name: 'ancient8_ethereum_usdc',
+        matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
+      },
     ],
   },
   validators: {
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: 'c1da894-20240321-175000',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -243,7 +251,6 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      // Includes Cosmos block-by-block indexing.
       tag: 'a72c3cf-20240314-173418',
     },
     gasPaymentEnforcement: [
