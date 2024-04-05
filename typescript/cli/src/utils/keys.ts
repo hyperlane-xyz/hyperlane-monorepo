@@ -95,15 +95,12 @@ async function retrieveKey(
   keyConfig: KeyConfig,
   skipConfirmation: boolean | undefined,
 ): Promise<string> {
-  let key: string;
-  if (keyConfig.key) key = keyConfig.key;
+  if (keyConfig.key) return keyConfig.key;
   else if (skipConfirmation) throw new Error(`No ${keyType} provided`);
   else
-    key = await input({
+    return await input({
       message:
         keyConfig.promptMessage ||
         `Please enter ${keyType} or use the HYP_KEY environment variable.`,
     });
-
-  return key;
 }

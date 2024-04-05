@@ -1,7 +1,7 @@
 import { providers } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, isValidAddressEvm } from '@hyperlane-xyz/utils';
 
 import { logGray, logGreen } from '../logger.js';
 import { warnYellow } from '../logger.js';
@@ -10,7 +10,6 @@ import { ENV } from './env.js';
 
 const ENDPOINT_PREFIX = 'http';
 const DEFAULT_ANVIL_ENDPOINT = 'http://127.0.0.1:8545';
-const TRIMMED_ETHEREUM_ADDRESS_LENGTH = 40;
 
 export enum ANVIL_RPC_METHODS {
   RESET = 'anvil_reset',
@@ -89,15 +88,14 @@ export const impersonateAccount = async (
 export const stopImpersonatingAccount = async (address: Address) => {
   logGray(`Stopping account impersonation for address (${address})...`);
 
-  const trimmedAddress = address.substring(2);
-  if (trimmedAddress.length != TRIMMED_ETHEREUM_ADDRESS_LENGTH)
+  if (isValidAddressEvm(address))
     throw new Error(
       `Cannot stop account impersonation: invalid address format: ${address}`,
     );
 
   const provider = getLocalProvider();
   await provider.send(ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT, [
-    trimmedAddress,
+    address.substring(2),
   ]);
 
   logGreen(

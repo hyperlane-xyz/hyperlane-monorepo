@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 
-# NOTE: This script is intended to be run from the root of the repo
-
 echo -e "\nYou must have 'anvil' from Foundry installed to proceed."
-echo -e '\nTo install, run the following command:'
-echo -e '\tcurl -L https://foundry.paradigm.xyz | bash && foundryup && anvil\n'
+echo -e '\nTo install, please consult the docs at https://book.getfoundry.sh/anvil/'
 
 read -p 'Press enter to continue running anvil...'
 

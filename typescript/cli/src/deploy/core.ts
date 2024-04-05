@@ -253,7 +253,7 @@ async function runHookStep(
 }
 
 interface DeployParams {
-  chains: string[];
+  chains: ChainName[];
   signer: ethers.Signer;
   multiProvider: MultiProvider;
   artifacts?: HyperlaneAddressesMap<any>;

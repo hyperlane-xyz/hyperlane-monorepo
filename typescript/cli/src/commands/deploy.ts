@@ -125,7 +125,7 @@ const coreCommand: CommandModule = {
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
 
-      throw new Error(error);
+      throw error;
     }
     process.exit(0);
   },

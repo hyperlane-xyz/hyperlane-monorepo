@@ -70,7 +70,7 @@ export interface ContextSettings {
 }
 
 interface CommandContextBase {
-  chains: string[];
+  chains: ChainName[];
   customChains: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
 }
