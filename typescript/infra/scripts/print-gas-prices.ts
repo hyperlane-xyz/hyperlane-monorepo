@@ -16,10 +16,16 @@ async function main() {
       switch (provider.type) {
         case ProviderType.EthersV5:
           const gasPrice = await provider.provider.getGasPrice();
-          return ethers.utils.formatUnits(gasPrice, 'gwei');
+          return {
+            amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
+            decimals: 9,
+          };
         case ProviderType.CosmJsWasm:
           // TODO: get default gas price
-          return '0.1';
+          return {
+            amount: '0.1',
+            decimals: 9,
+          };
         case ProviderType.SolanaWeb3:
           return '0.001';
         default:
