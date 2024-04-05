@@ -18,7 +18,7 @@ use crate::contracts::i_interchain_gas_paymaster::{
     IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider};
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -41,6 +41,7 @@ impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumInterchainGasPaymasterIndexer::new(
@@ -152,6 +153,7 @@ impl BuildableWithProvider for InterchainGasPaymasterBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumInterchainGasPaymaster::new(

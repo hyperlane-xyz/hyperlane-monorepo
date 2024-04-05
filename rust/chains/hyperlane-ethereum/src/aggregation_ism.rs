@@ -17,7 +17,7 @@ use crate::contracts::i_aggregation_ism::{
     IAggregationIsm as EthereumAggregationIsmInternal, IAGGREGATIONISM_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider};
 
 pub struct AggregationIsmBuilder {}
 
@@ -28,6 +28,7 @@ impl BuildableWithProvider for AggregationIsmBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumAggregationIsm::new(Arc::new(provider), locator))

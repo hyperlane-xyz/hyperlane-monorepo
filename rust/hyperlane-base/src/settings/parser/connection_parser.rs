@@ -1,6 +1,7 @@
 use eyre::eyre;
+use h_eth::TransactionOverrides;
 use hyperlane_core::config::ConfigErrResultExt;
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, U256};
 use url::Url;
 
 use crate::settings::envs::*;
@@ -35,13 +36,27 @@ pub fn build_ethereum_connection_conf(
             .take_err(err, || &chain.cwp + "rpc_consensus_type"),
     };
 
+    let gas_price = chain
+        .chain(err)
+        .get_opt_key("transactionOverrides")
+        .get_opt_key("gasPrice")
+        .parse_u256()
+        .end();
+    let gas_limit = chain
+        .chain(err)
+        .get_opt_key("transactionOverrides")
+        .get_opt_key("gasLimit")
+        .parse_u256()
+        .end();
+
+    let transaction_overrides = TransactionOverrides {
+        gas_price,
+        gas_limit,
+    };
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
-        connection: rpc_connection_conf?,
-        transaction_overrides: chain
-            .chain(err)
-            .get_opt_key("transactionOverrides")
-            .parse_object()
-            .end(),
+        rpc_connection: rpc_connection_conf?,
+        transaction_overrides,
     }))
 }
 

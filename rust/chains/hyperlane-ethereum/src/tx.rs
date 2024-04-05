@@ -19,7 +19,7 @@ use ethers_core::{
 use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
 use tracing::{error, info};
 
-use crate::Middleware;
+use crate::{Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 const GAS_ESTIMATE_BUFFER: u32 = 50000;
@@ -78,6 +78,7 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
     tx_gas_limit: Option<U256>,
     provider: Arc<M>,
+    transaction_overrides: &TransactionOverrides,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,

@@ -30,13 +30,13 @@ pub enum RpcConnectionConf {
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Connection configuration
-    pub connection: RpcConnectionConf,
+    pub rpc_connection: RpcConnectionConf,
     /// Chain ID
-    pub transaction_overrides: Option<TransactionOverrides>,
+    pub transaction_overrides: TransactionOverrides,
 }
 
 #[derive(Debug, Clone)]
 pub struct TransactionOverrides {
-    gas_price: Option<U256>,
-    gas_limit: Option<U256>,
+    pub gas_price: Option<U256>,
+    pub gas_limit: Option<U256>,
 }
