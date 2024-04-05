@@ -266,7 +266,7 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await
+        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), &self.domain).await
     }
 }
 

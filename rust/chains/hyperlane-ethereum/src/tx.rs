@@ -16,7 +16,10 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
+use hyperlane_core::{
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, HyperlaneDomain,
+    KnownHyperlaneDomain, H256, U256,
+};
 use tracing::{error, info};
 
 use crate::Middleware;
@@ -78,6 +81,7 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
     tx_gas_limit: Option<U256>,
     provider: Arc<M>,
+    target_domain: &HyperlaneDomain,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
@@ -97,6 +101,26 @@ where
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
     };
+
+    if matches!(
+        target_domain,
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Scroll)
+    ) {
+        if let Ok(scroll_gas_price) = std::env::var("SCROLL_GAS_PRICE") {
+            let scroll_gas_price = U256::from_dec_str(&scroll_gas_price).unwrap();
+            return Ok(tx.gas(gas_limit).gas_price(scroll_gas_price));
+        }
+    }
+
+    if matches!(
+        target_domain,
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Moonbeam)
+    ) {
+        if let Ok(moonbeam_gas_price) = std::env::var("MOONBEAM_GAS_PRICE") {
+            let moonbeam_gas_price = U256::from_dec_str(&moonbeam_gas_price).unwrap();
+            return Ok(tx.gas(gas_limit).gas_price(moonbeam_gas_price));
+        }
+    }
 
     // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
     // This is useful for BSC, where the base fee is zero, there's a minimum gas price
