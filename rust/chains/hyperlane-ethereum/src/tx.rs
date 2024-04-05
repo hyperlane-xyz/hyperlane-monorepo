@@ -116,6 +116,16 @@ where
         }
     }
 
+    if matches!(
+        target_domain,
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon)
+    ) {
+        if let Ok(polygon_gas_price) = std::env::var("POLYGON_GAS_PRICE") {
+            let polygon_gas_price = U256::from_dec_str(&polygon_gas_price).unwrap();
+            return Ok(tx.gas(gas_limit).gas_price(polygon_gas_price));
+        }
+    }
+
     let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
     else {
         // Is not EIP 1559 chain
