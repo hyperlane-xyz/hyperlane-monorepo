@@ -276,7 +276,7 @@ where
             gas_limit: self.conn.transaction_overrides.gas_limit.or(tx_gas_limit),
             ..self.conn.transaction_overrides.clone()
         };
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone(), &tx_overrides).await
+        fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
     }
 }
 

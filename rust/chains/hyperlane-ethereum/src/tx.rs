@@ -76,7 +76,6 @@ where
 /// Populates the gas limit and price for a transaction
 pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
-    tx_gas_limit: Option<U256>,
     provider: Arc<M>,
     transaction_overrides: &TransactionOverrides,
 ) -> ChainResult<ContractCall<M, D>>
@@ -84,7 +83,7 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let gas_limit = if let Some(gas_limit) = tx_gas_limit {
+    let gas_limit = if let Some(gas_limit) = transaction_overrides.gas_limit {
         gas_limit
     } else {
         tx.estimate_gas()
@@ -92,6 +91,11 @@ where
             .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
             .into()
     };
+
+    if let Some(gas_price) = transaction_overrides.gas_price {
+        // If the gas price is set, we treat as a non-EIP-1559 chain.
+        return Ok(tx.gas_price(gas_price).gas(gas_limit));
+    }
 
     let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
     else {

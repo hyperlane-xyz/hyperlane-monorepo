@@ -85,7 +85,6 @@ where
     async fn announce_contract_call(
         &self,
         announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
     ) -> ChainResult<ContractCall<M, bool>> {
         let serialized_signature: [u8; 65] = announcement.signature.into();
         let tx = self.contract.announce(
@@ -93,13 +92,7 @@ where
             announcement.value.storage_location,
             serialized_signature.into(),
         );
-        fill_tx_gas_params(
-            tx,
-            tx_gas_limit,
-            self.provider.clone(),
-            &self.conn.transaction_overrides,
-        )
-        .await
+        fill_tx_gas_params(tx, self.provider.clone(), &self.conn.transaction_overrides).await
     }
 }
 
@@ -152,7 +145,7 @@ where
         let validator = announcement.value.validator;
         let eth_h160: ethers::types::H160 = validator.into();
 
-        let Ok(contract_call) = self.announce_contract_call(announcement, None).await else {
+        let Ok(contract_call) = self.announce_contract_call(announcement).await else {
             trace!("Unable to get announce contract call");
             return None;
         };
@@ -170,14 +163,8 @@ where
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn announce(
-        &self,
-        announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
-    ) -> ChainResult<TxOutcome> {
-        let contract_call = self
-            .announce_contract_call(announcement, tx_gas_limit)
-            .await?;
+    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
+        let contract_call = self.announce_contract_call(announcement).await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
     }
