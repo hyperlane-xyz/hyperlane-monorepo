@@ -1,8 +1,9 @@
+use hyperlane_core::U256;
 use url::Url;
 
-/// Ethereum connection configuration
+/// Ethereum RPC connection configuration
 #[derive(Debug, Clone)]
-pub enum ConnectionConf {
+pub enum RpcConnectionConf {
     /// An HTTP-only quorum.
     HttpQuorum {
         /// List of urls to connect to
@@ -23,4 +24,19 @@ pub enum ConnectionConf {
         /// Url to connect to
         url: Url,
     },
+}
+
+/// Ethereum connection configuration
+#[derive(Debug, Clone)]
+pub struct ConnectionConf {
+    /// Connection configuration
+    pub connection: RpcConnectionConf,
+    /// Chain ID
+    pub transaction_overrides: Option<TransactionOverrides>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransactionOverrides {
+    gas_price: Option<U256>,
+    gas_limit: Option<U256>,
 }

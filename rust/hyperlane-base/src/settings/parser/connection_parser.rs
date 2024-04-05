@@ -23,18 +23,26 @@ pub fn build_ethereum_connection_conf(
         .parse_string()
         .unwrap_or(default_rpc_consensus_type);
 
-    match rpc_consensus_type {
-        "single" => Some(h_eth::ConnectionConf::Http { url: first_url }),
-        "fallback" => Some(h_eth::ConnectionConf::HttpFallback {
+    let rpc_connection_conf = match rpc_consensus_type {
+        "single" => Some(h_eth::RpcConnectionConf::Http { url: first_url }),
+        "fallback" => Some(h_eth::RpcConnectionConf::HttpFallback {
             urls: rpcs.to_owned().clone(),
         }),
-        "quorum" => Some(h_eth::ConnectionConf::HttpQuorum {
+        "quorum" => Some(h_eth::RpcConnectionConf::HttpQuorum {
             urls: rpcs.to_owned().clone(),
         }),
         ty => Err(eyre!("unknown rpc consensus type `{ty}`"))
             .take_err(err, || &chain.cwp + "rpc_consensus_type"),
-    }
-    .map(ChainConnectionConf::Ethereum)
+    };
+
+    Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
+        connection: rpc_connection_conf?,
+        transaction_overrides: chain
+            .chain(err)
+            .get_opt_key("transactionOverrides")
+            .parse_object()
+            .end(),
+    }))
 }
 
 pub fn build_cosmos_connection_conf(
