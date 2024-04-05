@@ -1,17 +1,26 @@
-import { BigNumber, ethers, providers } from 'ethers';
+import { assert } from 'console';
+import { ethers, providers } from 'ethers';
 
 import {
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook__factory,
   IPostDispatchHook__factory,
   InterchainGasPaymaster__factory,
+  MerkleTreeHook__factory,
   OPStackHook__factory,
   PausableHook__factory,
   ProtocolFee__factory,
   StaticAggregationHook__factory,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  WithAddress,
+  eqAddress,
+  ethersBigNumberReducer,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts/chains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -32,47 +41,44 @@ import {
 } from './types.js';
 
 interface HookReader<_ extends ProtocolType> {
-  deriveHookConfig(address: Address): Promise<HookConfig>;
-  deriveMerkleTreeConfig(address: Address): Promise<MerkleTreeHookConfig>;
-  deriveAggregationConfig(address: Address): Promise<AggregationHookConfig>;
-  deriveIgpConfig(address: Address): Promise<IgpHookConfig>;
-  deriveProtocolFeeConfig(address: Address): Promise<ProtocolFeeHookConfig>;
-  deriveOpStackConfig(address: Address): Promise<OpStackHookConfig>;
-  deriveDomainRoutingConfig(address: Address): Promise<DomainRoutingHookConfig>;
+  deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
+  deriveMerkleTreeConfig(
+    address: Address,
+  ): Promise<WithAddress<MerkleTreeHookConfig>>;
+  deriveAggregationConfig(
+    address: Address,
+  ): Promise<WithAddress<AggregationHookConfig>>;
+  deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>>;
+  deriveProtocolFeeConfig(
+    address: Address,
+  ): Promise<WithAddress<ProtocolFeeHookConfig>>;
+  deriveOpStackConfig(
+    address: Address,
+  ): Promise<WithAddress<OpStackHookConfig>>;
+  deriveDomainRoutingConfig(
+    address: Address,
+  ): Promise<WithAddress<DomainRoutingHookConfig>>;
   deriveFallbackRoutingConfig(
     address: Address,
-  ): Promise<FallbackRoutingHookConfig>;
-  derivePausableConfig(address: Address): Promise<PausableHookConfig>;
+  ): Promise<WithAddress<FallbackRoutingHookConfig>>;
+  derivePausableConfig(
+    address: Address,
+  ): Promise<WithAddress<PausableHookConfig>>;
 }
 
 export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
   protected readonly provider: providers.Provider;
+  protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
 
   constructor(protected readonly multiProvider: MultiProvider, chain: Chains) {
     this.provider = this.multiProvider.getProvider(chain);
   }
 
   public static stringifyConfig(config: HookConfig, space?: number): string {
-    return JSON.stringify(
-      config,
-      (_, value) => {
-        // Check if the value looks like a serialized BigNumber
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          value.type === 'BigNumber' &&
-          value.hex
-        ) {
-          return BigNumber.from(value.hex).toString();
-        }
-        // Handle bigint values
-        return typeof value === 'bigint' ? value.toString() : value;
-      },
-      space,
-    );
+    return JSON.stringify(config, ethersBigNumberReducer, space);
   }
 
-  async deriveHookConfig(address: Address): Promise<HookConfig> {
+  async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {
     const hook = IPostDispatchHook__factory.connect(address, this.provider);
     const onchainHookType: OnchainHookType = await hook.hookType();
     const hookType = mapOnchainHookToHookType(onchainHookType);
@@ -99,31 +105,45 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
     }
   }
 
-  async deriveMerkleTreeConfig(_: Address): Promise<MerkleTreeHookConfig> {
+  async deriveMerkleTreeConfig(
+    address: Address,
+  ): Promise<WithAddress<MerkleTreeHookConfig>> {
+    const hook = MerkleTreeHook__factory.connect(address, this.provider);
+    const owner = await hook.owner();
+    assert((await hook.hookType()) === OnchainHookType.MERKLE_TREE);
+
     return {
+      owner,
+      address,
       type: HookType.MERKLE_TREE,
     };
   }
 
   async deriveAggregationConfig(
     address: Address,
-  ): Promise<AggregationHookConfig> {
+  ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
+    assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
+
     const hooks = await hook.hooks(ethers.constants.AddressZero);
     const hookConfigs = await Promise.all(
-      hooks.map(this.deriveHookConfig.bind(this)),
+      hooks.map((hookAddress) => this.deriveHookConfig(hookAddress)),
     );
 
     return {
+      address,
       type: HookType.AGGREGATION,
       hooks: hookConfigs,
     };
   }
 
-  async deriveIgpConfig(address: Address): Promise<IgpHookConfig> {
+  async deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>> {
     const hook = InterchainGasPaymaster__factory.connect(
       address,
       this.provider,
+    );
+    assert(
+      (await hook.hookType()) === OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
     );
 
     const owner = await hook.owner();
@@ -149,23 +169,31 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
         overhead[chainName] = domainGasOverhead.toNumber();
         oracleConfig[chainName] = { tokenExchangeRate, gasPrice };
 
-        // we're going to assume that the owner of the first oracle we encounter
-        // is the owner of all the oracles referenced in this IgpHook
+        const { gasOracle } = await hook.destinationGasConfigs(domainId);
+        const oracle = StorageGasOracle__factory.connect(
+          gasOracle,
+          this.provider,
+        );
         if (!oracleKey) {
-          const { gasOracle } = await hook.destinationGasConfigs(domainId);
-          const oracle = StorageGasOracle__factory.connect(
-            gasOracle,
-            this.provider,
-          );
           oracleKey = await oracle.owner();
+        } else {
+          // asserting that the owner of the first oracle we encounter
+          // is the owner of all the oracles referenced in this IgpHook
+          assert(eqAddress(oracleKey, await oracle.owner()));
         }
       } catch (error) {
         // do nothing and continue iterating through known domain IDs
+        this.logger.debug(
+          'Domain not configured on IGP Hook',
+          domainId,
+          chainName,
+        );
       }
     }
 
     return {
       owner,
+      address,
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
       beneficiary,
       oracleKey: oracleKey ?? owner,
@@ -176,8 +204,9 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
 
   async deriveProtocolFeeConfig(
     address: Address,
-  ): Promise<ProtocolFeeHookConfig> {
+  ): Promise<WithAddress<ProtocolFeeHookConfig>> {
     const hook = ProtocolFee__factory.connect(address, this.provider);
+    assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
 
     const owner = await hook.owner();
     const maxProtocolFee = await hook.MAX_PROTOCOL_FEE();
@@ -186,6 +215,7 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
 
     return {
       owner,
+      address,
       type: HookType.PROTOCOL_FEE,
       maxProtocolFee: maxProtocolFee.toString(),
       protocolFee: protocolFee.toString(),
@@ -193,8 +223,12 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
     };
   }
 
-  async deriveOpStackConfig(address: Address): Promise<OpStackHookConfig> {
+  async deriveOpStackConfig(
+    address: Address,
+  ): Promise<WithAddress<OpStackHookConfig>> {
     const hook = OPStackHook__factory.connect(address, this.provider);
+    const owner = await hook.owner();
+    assert((await hook.hookType()) === OnchainHookType.ID_AUTH_ISM);
 
     const messengerContract = await hook.l1Messenger();
     const destinationDomain = await hook.destinationDomain();
@@ -202,6 +236,8 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
       this.multiProvider.getChainName(destinationDomain);
 
     return {
+      owner,
+      address,
       type: HookType.OP_STACK,
       nativeBridge: messengerContract,
       destinationChain: destinationChainName,
@@ -210,10 +246,11 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
 
   async deriveDomainRoutingConfig(
     address: Address,
-  ): Promise<DomainRoutingHookConfig> {
+  ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
-    const owner = await hook.owner();
+    assert((await hook.hookType()) === OnchainHookType.ROUTING);
 
+    const owner = await hook.owner();
     const domainHooks: DomainRoutingHookConfig['domains'] = {};
 
     for (const domainId of this.multiProvider.getKnownDomainIds()) {
@@ -227,11 +264,17 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
       } catch (error) {
         // if it throws, no entry for that domainId
         // do nothing and continue iterating through known domain IDs
+        this.logger.debug(
+          'Domain not configured on Domain Routing Hook',
+          domainId,
+          chainName,
+        );
       }
     }
 
     return {
       owner,
+      address,
       type: HookType.ROUTING,
       domains: domainHooks,
     };
@@ -239,13 +282,14 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
 
   async deriveFallbackRoutingConfig(
     address: Address,
-  ): Promise<FallbackRoutingHookConfig> {
+  ): Promise<WithAddress<FallbackRoutingHookConfig>> {
     const hook = FallbackDomainRoutingHook__factory.connect(
       address,
       this.provider,
     );
-    const owner = await hook.owner();
+    assert((await hook.hookType()) === OnchainHookType.FALLBACK_ROUTING);
 
+    const owner = await hook.owner();
     const domainHooks: DomainRoutingHookConfig['domains'] = {};
 
     for (const domainId of this.multiProvider.getKnownDomainIds()) {
@@ -259,6 +303,11 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
       } catch (error) {
         // if it throws, no entry for that domainId
         // do nothing and continue iterating through known domain IDs
+        this.logger.debug(
+          'Domain not configured on Fallback Domain Routing Hook',
+          domainId,
+          chainName,
+        );
       }
     }
 
@@ -267,17 +316,23 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
 
     return {
       owner,
+      address,
       type: HookType.FALLBACK_ROUTING,
       domains: domainHooks,
       fallback: fallbackHookConfig,
     };
   }
 
-  async derivePausableConfig(address: Address): Promise<PausableHookConfig> {
+  async derivePausableConfig(
+    address: Address,
+  ): Promise<WithAddress<PausableHookConfig>> {
     const hook = PausableHook__factory.connect(address, this.provider);
+    assert((await hook.hookType()) === OnchainHookType.PAUSABLE);
+
     const owner = await hook.owner();
     return {
       owner,
+      address,
       type: HookType.PAUSABLE,
     };
   }

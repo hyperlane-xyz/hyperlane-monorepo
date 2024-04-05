@@ -15,7 +15,7 @@ export enum HookType {
   PAUSABLE = 'pausableHook',
 }
 
-export type MerkleTreeHookConfig = {
+export type MerkleTreeHookConfig = OwnableConfig & {
   type: HookType.MERKLE_TREE;
 };
 
@@ -39,7 +39,7 @@ export type PausableHookConfig = OwnableConfig & {
   type: HookType.PAUSABLE;
 };
 
-export type OpStackHookConfig = {
+export type OpStackHookConfig = OwnableConfig & {
   type: HookType.OP_STACK;
   nativeBridge: Address;
   destinationChain: ChainName;
@@ -105,6 +105,10 @@ export function mapOnchainHookToHookType(
       return HookType.PAUSABLE;
     case OnchainHookType.PROTOCOL_FEE:
       return HookType.PROTOCOL_FEE;
+    // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
+    // For now assume it's OP_STACK
+    case OnchainHookType.ID_AUTH_ISM:
+      return HookType.OP_STACK;
     default:
       throw new Error(
         `Unsupported ContractHookType: ${OnchainHookType[contractHook]}`,

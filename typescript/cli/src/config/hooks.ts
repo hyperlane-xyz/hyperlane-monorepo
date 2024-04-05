@@ -33,6 +33,7 @@ const ProtocolFeeSchema = z.object({
 });
 
 const MerkleTreeSchema = z.object({
+  owner: z.string(),
   type: z.literal(HookType.MERKLE_TREE),
 });
 
@@ -90,6 +91,7 @@ export function presetHookConfigs(owner: Address): HooksConfig {
       owner: owner,
     },
     default: {
+      owner,
       type: HookType.MERKLE_TREE,
     },
   };
