@@ -433,7 +433,7 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::EthereumMailbox;
+    use crate::{ConnectionConf, EthereumMailbox, RpcConnectionConf};
 
     /// An amount of gas to add to the estimated gas
     const GAS_ESTIMATE_BUFFER: u32 = 50000;
@@ -442,9 +442,16 @@ mod test {
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
         let mock_provider = Arc::new(MockProvider::new());
         let provider = Arc::new(Provider::new(mock_provider.clone()));
+        let connection_conf = ConnectionConf {
+            rpc_connection: RpcConnectionConf::Http {
+                url: "http://127.0.0.1:8545".parse().unwrap(),
+            },
+            transaction_overrides: Default::default(),
+        };
 
         let mailbox = EthereumMailbox::new(
             provider.clone(),
+            &connection_conf,
             &ContractLocator {
                 // An Arbitrum Nitro chain
                 domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet),

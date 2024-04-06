@@ -1,7 +1,7 @@
 use eyre::eyre;
 use h_eth::TransactionOverrides;
 use hyperlane_core::config::ConfigErrResultExt;
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, U256};
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
 use url::Url;
 
 use crate::settings::envs::*;

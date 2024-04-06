@@ -35,8 +35,13 @@ pub struct ConnectionConf {
     pub transaction_overrides: TransactionOverrides,
 }
 
-#[derive(Debug, Clone)]
+/// Ethereum transaction overrides.
+#[derive(Debug, Clone, Default)]
 pub struct TransactionOverrides {
+    /// Gas price to use for transactions, in wei.
+    /// If specified, non-1559 transactions will be used with this gas price.
     pub gas_price: Option<U256>,
+    /// Gas limit to use for transactions.
+    /// If specified, all transactions will use this gas limit.
     pub gas_limit: Option<U256>,
 }
