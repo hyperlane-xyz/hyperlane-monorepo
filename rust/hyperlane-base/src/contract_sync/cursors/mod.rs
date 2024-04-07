@@ -16,8 +16,8 @@ impl From<HyperlaneDomainProtocol> for CursorType {
         match value {
             HyperlaneDomainProtocol::Ethereum => Self::RateLimited,
             HyperlaneDomainProtocol::Fuel => todo!(),
-            HyperlaneDomainProtocol::Sealevel => Self::SequenceAware,
-            HyperlaneDomainProtocol::Cosmos => Self::SequenceAware,
+            HyperlaneDomainProtocol::Sealevel => Self::RateLimited,
+            HyperlaneDomainProtocol::Cosmos => Self::RateLimited,
         }
     }
 }
