@@ -36,23 +36,23 @@ pub fn build_ethereum_connection_conf(
             .take_err(err, || &chain.cwp + "rpc_consensus_type"),
     };
 
-    let gas_price = chain
-        .chain(err)
+    let transaction_overrides = chain
         .get_opt_key("transactionOverrides")
-        .get_opt_key("gasPrice")
-        .parse_u256()
-        .end();
-    let gas_limit = chain
-        .chain(err)
-        .get_opt_key("transactionOverrides")
-        .get_opt_key("gasLimit")
-        .parse_u256()
-        .end();
-
-    let transaction_overrides = TransactionOverrides {
-        gas_price,
-        gas_limit,
-    };
+        .take_err(err, || &chain.cwp + "transaction_overrides")
+        .flatten()
+        .map(|value_parser| TransactionOverrides {
+            gas_price: value_parser
+                .chain(err)
+                .get_opt_key("gasPrice")
+                .parse_u256()
+                .end(),
+            gas_limit: value_parser
+                .chain(err)
+                .get_opt_key("gasLimit")
+                .parse_u256()
+                .end(),
+        })
+        .unwrap_or_default();
 
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
