@@ -194,7 +194,10 @@ impl<'v> ValueParser<'v> {
     /// Parse a u256 value allowing for it to be represented as string or number.
     pub fn parse_u256(&self) -> ConfigResult<U256> {
         match self.val {
-            Value::String(s) => s.parse().context("Expected a valid U256 string"),
+            Value::String(s) => {
+                // U256's `parse` assumes the string is hexadecimal - instead, use `from_dec_str`.
+                U256::from_dec_str(s).context("Expected a valid U256 string")
+            }
             Value::Number(n) => {
                 if let Some(n) = n.as_u64() {
                     Ok(n.into())
@@ -388,4 +391,25 @@ impl<'e, T: Default> ParseChain<'e, T> {
     }
 }
 
-// pub struct ParseChainIter<'e, T, I: Iterator<Item=T>>(Option<I>, &'e mut ConfigParsingError);
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_u256_value_parsing() {
+        let num_u64 = 12345u64;
+        let num_u256 = U256::from(num_u64);
+        let num_str = num_u256.to_string();
+        assert_eq!(&num_str, "12345");
+
+        // From String
+        let str_value = Value::String(num_str);
+        let value_parser = ValueParser::new(Default::default(), &str_value);
+        assert_eq!(num_u256, value_parser.parse_u256().unwrap());
+
+        // From Number
+        let numeric_value = Value::Number(num_u64.into());
+        let value_parser = ValueParser::new(Default::default(), &numeric_value);
+        assert_eq!(num_u256, value_parser.parse_u256().unwrap());
+    }
+}
