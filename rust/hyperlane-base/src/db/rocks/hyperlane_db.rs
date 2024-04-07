@@ -311,6 +311,19 @@ impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for Hyperlane
     }
 }
 
+#[async_trait]
+impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for HyperlaneRocksDB {
+    /// Gets data by its sequence.
+    async fn retrieve_by_sequence(&self, _sequence: u32) -> Result<Option<InterchainGasPayment>> {
+        Ok(None)
+    }
+
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number_by_sequence(&self, _sequence: u32) -> Result<Option<u64>> {
+        Ok(None)
+    }
+}
+
 /// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
 /// The high watermark cursor is relatively conservative in writing block numbers, so this shouldn't result in any events being missed.
 #[async_trait]

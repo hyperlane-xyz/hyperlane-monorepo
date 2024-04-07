@@ -11,9 +11,8 @@ use futures_util::future::try_join_all;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
-    settings::{ChainConf, IgpIndexer, MerkleTreeHookIndexer, MessageIndexer},
+    settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    SequenceAwareLogStore, WatermarkLogStore,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
@@ -132,13 +131,11 @@ impl BaseAgent for Relayer {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
         let message_syncs = settings
-            .build_contract_syncs::<HyperlaneMessage, SequenceAwareLogStore<_>, MessageIndexer>(
+            .contract_syncs::<HyperlaneMessage>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
-                    .collect(),
+                dbs.iter().map(|(d, db)| (d.clone(), db.clone())).collect(),
             )
             .await?
             .into_iter()
@@ -146,13 +143,11 @@ impl BaseAgent for Relayer {
             .collect();
 
         let interchain_gas_payment_syncs = settings
-            .build_contract_syncs::<InterchainGasPayment, WatermarkLogStore<_>, IgpIndexer>(
+            .contract_syncs::<InterchainGasPayment>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
-                    .collect(),
+                dbs.iter().map(|(d, db)| (d.clone(), db.clone())).collect(),
             )
             .await?
             .into_iter()
@@ -160,13 +155,11 @@ impl BaseAgent for Relayer {
             .collect();
 
         let merkle_tree_hook_syncs = settings
-            .build_contract_syncs::<MerkleTreeInsertion, SequenceAwareLogStore<_>, MerkleTreeHookIndexer>(
+            .contract_syncs::<MerkleTreeInsertion>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
-                    .collect(),
+                dbs.iter().map(|(d, db)| (d.clone(), db.clone())).collect(),
             )
             .await?
             .into_iter()

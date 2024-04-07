@@ -16,7 +16,7 @@ use tracing::{debug, info, warn};
 
 use crate::settings::IndexSettings;
 
-mod cursors;
+pub(crate) mod cursors;
 mod eta_calculator;
 mod metrics;
 
@@ -38,7 +38,6 @@ pub struct ContractSync<T, D: HyperlaneLogStore<T>, I: Indexer<T>> {
 
 impl<T, D, I> ContractSync<T, D, I>
 where
-    T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
     D: HyperlaneLogStore<T>,
     I: Indexer<T> + 'static,
 {
@@ -46,7 +45,14 @@ where
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
+}
 
+impl<T, D, I> ContractSync<T, D, I>
+where
+    T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
+    D: HyperlaneLogStore<T>,
+    I: Indexer<T> + 'static,
+{
     /// Sync logs and write them to the LogStore
     #[tracing::instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, cursor))]
     pub async fn sync(&self, label: &'static str, mut cursor: Box<dyn ContractSyncCursor<T>>) {
@@ -136,6 +142,9 @@ pub trait ContractSyncer<T>: Send + Sync {
 
     /// Syncs events from the indexer using the provided cursor
     async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>);
+
+    /// The domain of this syncer
+    fn domain(&self) -> &HyperlaneDomain;
 }
 
 #[async_trait]
@@ -167,6 +176,10 @@ where
     async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>) {
         self.sync(label, cursor).await;
     }
+
+    fn domain(&self) -> &HyperlaneDomain {
+        ContractSync::domain(&self)
+    }
 }
 
 /// Log store for sequence aware cursors
@@ -194,5 +207,9 @@ impl<T: Sequenced + Debug> ContractSyncer<T> for SequencedDataContractSync<T> {
 
     async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>) {
         self.sync(label, cursor).await;
+    }
+
+    fn domain(&self) -> &HyperlaneDomain {
+        ContractSync::domain(&self)
     }
 }
