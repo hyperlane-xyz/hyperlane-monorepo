@@ -10,7 +10,6 @@ use hyperlane_core::{
 
 use crate::{
     cursors::CursorType,
-    db::HyperlaneRocksDB,
     settings::{chains::ChainConf, trace::TracingConfig},
     ContractSync, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
     SequenceAwareLogStore, SequencedDataContractSync, Server, WatermarkContractSync,
@@ -153,48 +152,48 @@ impl Settings {
     build_contract_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
 
     /// Build a contract sync for type `T` using indexer `I` and log store `D`
-    pub async fn sequenced_contract_sync<T>(
+    pub async fn sequenced_contract_sync<T, D>(
         &self,
         domain: &HyperlaneDomain,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
-        db: &HyperlaneRocksDB,
+        db: Arc<D>,
     ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
     where
         T: Sequenced + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        HyperlaneRocksDB: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T>,
+        D: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
     {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
         let indexer = SequenceIndexer::<T>::try_from_with_metrics(setup, metrics).await?;
         Ok(Arc::new(ContractSync::new(
             domain.clone(),
-            Arc::new(db.clone()) as SequenceAwareLogStore<_>,
+            db.clone() as SequenceAwareLogStore<_>,
             indexer,
             sync_metrics.clone(),
         )))
     }
 
     /// Build a contract sync for type `T` using indexer `I` and log store `D`
-    pub async fn watermark_contract_sync<T>(
+    pub async fn watermark_contract_sync<T, D>(
         &self,
         domain: &HyperlaneDomain,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
-        db: &HyperlaneRocksDB,
+        db: Arc<D>,
     ) -> eyre::Result<Arc<WatermarkContractSync<T>>>
     where
-        T: Sequenced + Debug,
+        T: Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        HyperlaneRocksDB: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T>,
+        D: HyperlaneLogStore<T> + HyperlaneWatermarkedLogStore<T> + 'static,
     {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
         let indexer = SequenceIndexer::<T>::try_from_with_metrics(setup, metrics).await?;
         Ok(Arc::new(ContractSync::new(
             domain.clone(),
-            Arc::new(db.clone()) as WatermarkLogStore<_>,
+            db.clone() as WatermarkLogStore<_>,
             indexer,
             sync_metrics.clone(),
         )))
@@ -203,19 +202,20 @@ impl Settings {
     /// Build multiple contract syncs.
     /// All contracts are currently implementing both sequenced and
     /// watermark traits
-    pub async fn contract_syncs<T>(
+    pub async fn contract_syncs<T, D>(
         &self,
         domains: impl Iterator<Item = &HyperlaneDomain>,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
-        dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
+        dbs: HashMap<HyperlaneDomain, Arc<D>>,
     ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
     where
         T: Sequenced + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
-        HyperlaneRocksDB: HyperlaneLogStore<T>
+        D: HyperlaneLogStore<T>
             + HyperlaneSequenceAwareIndexerStoreReader<T>
-            + HyperlaneWatermarkedLogStore<T>,
+            + HyperlaneWatermarkedLogStore<T>
+            + 'static,
     {
         // TODO: parallelize these calls again
         let mut syncs = vec![];
@@ -229,7 +229,7 @@ impl Settings {
                             &domain,
                             metrics,
                             sync_metrics,
-                            dbs.get(domain).unwrap(),
+                            dbs.get(domain).unwrap().clone(),
                         )
                         .await
                         .map(|r| r as Arc<dyn ContractSyncer<T>>)?;
@@ -241,7 +241,7 @@ impl Settings {
                             &domain,
                             metrics,
                             sync_metrics,
-                            dbs.get(domain).unwrap(),
+                            dbs.get(domain).unwrap().clone(),
                         )
                         .await
                         .map(|r| r as Arc<dyn ContractSyncer<T>>)?;

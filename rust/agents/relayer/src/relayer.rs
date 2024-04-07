@@ -131,11 +131,13 @@ impl BaseAgent for Relayer {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
         let message_syncs = settings
-            .contract_syncs::<HyperlaneMessage>(
+            .contract_syncs::<HyperlaneMessage, _>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
-                dbs.iter().map(|(d, db)| (d.clone(), db.clone())).collect(),
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+                    .collect(),
             )
             .await?
             .into_iter()
@@ -143,11 +145,13 @@ impl BaseAgent for Relayer {
             .collect();
 
         let interchain_gas_payment_syncs = settings
-            .contract_syncs::<InterchainGasPayment>(
+            .contract_syncs::<InterchainGasPayment, _>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
-                dbs.iter().map(|(d, db)| (d.clone(), db.clone())).collect(),
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+                    .collect(),
             )
             .await?
             .into_iter()
@@ -155,11 +159,13 @@ impl BaseAgent for Relayer {
             .collect();
 
         let merkle_tree_hook_syncs = settings
-            .contract_syncs::<MerkleTreeInsertion>(
+            .contract_syncs::<MerkleTreeInsertion, _>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
-                dbs.iter().map(|(d, db)| (d.clone(), db.clone())).collect(),
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+                    .collect(),
             )
             .await?
             .into_iter()
