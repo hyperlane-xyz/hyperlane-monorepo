@@ -292,11 +292,12 @@ export async function getMultiProviderForRole(
   connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
   debugLog(`Getting multiprovider for ${role} role`);
+  const multiProvider = new MultiProvider(txConfigs);
   if (process.env.CI === 'true') {
     debugLog('Returning multiprovider with default RPCs in CI');
-    return new MultiProvider(); // use default RPCs
+    // Return the multiProvider with default RPCs
+    return multiProvider;
   }
-  const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, _) => {
       if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
