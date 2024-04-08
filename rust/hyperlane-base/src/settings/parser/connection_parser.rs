@@ -51,6 +51,16 @@ pub fn build_ethereum_connection_conf(
                 .get_opt_key("gasLimit")
                 .parse_u256()
                 .end(),
+            max_fee_per_gas: value_parser
+                .chain(err)
+                .get_opt_key("maxFeePergas")
+                .parse_u256()
+                .end(),
+            max_priority_fee_per_gas: value_parser
+                .chain(err)
+                .get_opt_key("maxPriorityFeePerGas")
+                .parse_u256()
+                .end(),
         })
         .unwrap_or_default();
 
