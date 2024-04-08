@@ -128,14 +128,18 @@ export async function writeAgentConfig(
 
   const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
-  const startBlocksBigNumber = await promiseObjAll(
-    objMap(addresses, (chain, _) => {
+  const startBlocks = await promiseObjAll(
+    objMap(addresses, async (chain, _) => {
+      // If the index.from is specified in the chain metadata, use that.
+      const indexFrom = multiProvider.getChainMetadata(chain).index?.from;
+      if (indexFrom !== undefined) {
+        return indexFrom;
+      }
+
       const mailbox = core.getContracts(chain).mailbox;
-      return mailbox.deployedBlock();
+      const deployedBlock = await mailbox.deployedBlock();
+      return deployedBlock.toNumber();
     }),
-  );
-  const startBlocks = objMap(startBlocksBigNumber, (_, blockNumber) =>
-    blockNumber.toNumber(),
   );
 
   const agentConfig = buildAgentConfig(

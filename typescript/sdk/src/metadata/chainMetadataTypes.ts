@@ -194,6 +194,15 @@ export const ChainMetadataSchemaObject = z.object({
     .boolean()
     .optional()
     .describe('Whether the chain is considered a testnet or a mainnet.'),
+  index: z
+    .object({
+      from: z
+        .number()
+        .optional()
+        .describe('The block to start any indexing from.'),
+    })
+    .optional()
+    .describe('Indexing settings for the chain.'),
 });
 
 // Add refinements to the object schema to conditionally validate certain fields
@@ -264,6 +273,20 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
     {
       message: 'Denom values are required for Cosmos native tokens',
       path: ['nativeToken', 'denom'],
+    },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.technicalStack === ChainTechnicalStack.ArbitrumNitro &&
+        metadata.index?.from === undefined
+      ) {
+        return false;
+      } else return true;
+    },
+    {
+      message: 'An index.from value is required for Arbitrum Nitro chains',
+      path: ['index', 'from'],
     },
   );
 

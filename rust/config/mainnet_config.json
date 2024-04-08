@@ -75,7 +75,7 @@
       "gasCurrencyCoinGeckoId": "ethereum",
       "gnosisSafeTransactionServiceUrl": "https://safe-transaction-arbitrum.safe.global/",
       "index": {
-        "from": 18422579
+        "from": 143649797
       },
       "interchainGasPaymaster": "0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22",
       "interchainSecurityModule": "0xD0DBBF922076352cC50B285A0023536561F00EEa",
