@@ -12,8 +12,7 @@ import {
 import { getEnvironmentConfig } from '../core-utils';
 
 async function main() {
-  const { environment } = await withContext(withBuildArtifactPath(getArgs()))
-    .argv;
+  const { environment } = await getArgs().argv;
   const envConfig = getEnvironmentConfig(environment);
   const env = deployEnvToSdkEnv[environment];
 
@@ -24,7 +23,7 @@ async function main() {
     `${deployEnvToSdkEnv[environment]}.json`,
   );
 
-  writeAgentConfig(addressesPath, multiProvider, env);
+  await writeAgentConfig(addressesPath, multiProvider, env);
 }
 
 main()
