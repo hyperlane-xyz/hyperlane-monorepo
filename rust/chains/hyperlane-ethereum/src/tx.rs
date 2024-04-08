@@ -101,8 +101,7 @@ where
         return Ok(tx.gas_price(gas_price).gas(gas_limit));
     }
 
-    let Ok((base_fee, mut max_fee, mut max_priority_fee)) =
-        estimate_eip1559_fees(provider, None).await
+    let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
     else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
@@ -118,11 +117,11 @@ where
     }
 
     // Apply overrides for EIP 1559 tx params if they exist.
-    max_fee = transaction_overrides
+    let max_fee = transaction_overrides
         .max_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_fee);
-    max_priority_fee = transaction_overrides
+    let max_priority_fee = transaction_overrides
         .max_priority_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_priority_fee);
