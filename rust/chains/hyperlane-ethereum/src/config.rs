@@ -29,9 +29,9 @@ pub enum RpcConnectionConf {
 /// Ethereum connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    /// Connection configuration
+    /// RPC connection configuration
     pub rpc_connection: RpcConnectionConf,
-    /// Chain ID
+    /// Transaction overrides to use when sending transactions.
     pub transaction_overrides: TransactionOverrides,
 }
 
