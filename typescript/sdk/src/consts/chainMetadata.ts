@@ -50,6 +50,32 @@ export const alfajores: ChainMetadata = {
   rpcUrls: [{ http: 'https://alfajores-forno.celo-testnet.org' }],
 };
 
+export const ancient8: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://scan.ancient8.gg/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Ancient8 Explorer',
+      url: 'https://scan.ancient8.gg',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 0,
+  },
+  chainId: 888888888,
+  displayName: 'Ancient8',
+  domainId: 888888888,
+  gasCurrencyCoinGeckoId: 'ethereum',
+  isTestnet: false,
+  name: Chains.ancient8,
+  nativeToken: etherToken,
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://rpc.ancient8.gg' }],
+  technicalStack: ChainTechnicalStack.Other,
+};
+
 export const arbitrum: ChainMetadata = {
   blockExplorers: [
     {
@@ -934,6 +960,7 @@ export const viction: ChainMetadata = {
  */
 export const chainMetadata: ChainMap<ChainMetadata> = {
   alfajores,
+  ancient8,
   arbitrum,
   avalanche,
   base,

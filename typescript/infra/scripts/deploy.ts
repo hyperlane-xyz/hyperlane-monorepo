@@ -7,25 +7,34 @@ import {
   ChainMap,
   ContractVerifier,
   ExplorerLicenseType,
+  FallbackRoutingHookConfig,
   HypERC20Deployer,
   HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
+  HyperlaneHookDeployer,
   HyperlaneIgpDeployer,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   InterchainAccount,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
+  IsmConfig,
+  IsmType,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
+  buildAggregationIsmConfigs,
+  defaultMultisigConfigs,
+  hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts';
-import { safes } from '../config/environments/mainnet3/owners';
+import { core as coreConfig } from '../config/environments/mainnet3/core';
+import { DEPLOYER } from '../config/environments/mainnet3/owners';
 import { deployEnvToSdkEnv } from '../src/config/environment';
+import { tokens } from '../src/config/warp';
 import { deployWithArtifacts } from '../src/deployment/deploy';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
 import {
@@ -122,19 +131,41 @@ async function main() {
       multiProvider,
     );
     const routerConfig = core.getRouterConfig(envConfig.owners);
-    const inevm = {
-      ...routerConfig.inevm,
-      type: TokenType.native,
+
+    const ethereum = {
+      ...routerConfig.ethereum,
+      type: TokenType.collateral,
+      token: tokens.ethereum.USDC,
+      // Really, this should be an object config from something like:
+      //   buildAggregationIsmConfigs(
+      //     'ethereum',
+      //     ['ancient8'],
+      //     defaultMultisigConfigs,
+      //   ).ancient8
+      // However ISM objects are no longer able to be passed directly to the warp route
+      // deployer. As a temporary workaround, I'm using an ISM address from a previous
+      // ethereum <> ancient8 warp route deployment:
+      //   $ cast call 0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f 'interchainSecurityModule()(address)' --rpc-url https://rpc.ankr.com/eth
+      //   0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3
+      interchainSecurityModule: '0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3',
+      // This hook was recovered from running the deploy script
+      // for the hook module. The hook configuration is the Ethereum
+      // default hook for the Ancient8 remote (no routing).
+      hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
+      owner: DEPLOYER,
+    };
+
+    const ancient8 = {
+      ...routerConfig.ancient8,
+      type: TokenType.synthetic,
+      // Uses the default ISM
       interchainSecurityModule: ethers.constants.AddressZero,
-      owner: safes.inevm,
+      owner: DEPLOYER,
     };
-    const injective = {
-      ...routerConfig.injective,
-      type: TokenType.native,
-    };
+
     config = {
-      inevm,
-      injective,
+      ethereum,
+      ancient8,
     };
     deployer = new HypERC20Deployer(
       multiProvider,
@@ -197,6 +228,24 @@ async function main() {
       undefined,
       contractVerifier,
     );
+  } else if (module === Modules.HOOK) {
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      getAddresses(environment, Modules.PROXY_FACTORY),
+      multiProvider,
+    );
+    deployer = new HyperlaneHookDeployer(
+      multiProvider,
+      hyperlaneEnvironments[env],
+      ismFactory,
+    );
+    // Config is intended to be changed for ad-hoc use cases:
+    config = {
+      ethereum: {
+        ...(coreConfig.ethereum.defaultHook as FallbackRoutingHookConfig)
+          .domains.ancient8,
+        owner: DEPLOYER,
+      },
+    };
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
