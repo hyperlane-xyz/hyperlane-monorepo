@@ -53,7 +53,7 @@ pub fn build_ethereum_connection_conf(
                 .end(),
             max_fee_per_gas: value_parser
                 .chain(err)
-                .get_opt_key("maxFeePergas")
+                .get_opt_key("maxFeePerGas")
                 .parse_u256()
                 .end(),
             max_priority_fee_per_gas: value_parser
