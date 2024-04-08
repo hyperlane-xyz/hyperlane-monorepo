@@ -168,6 +168,7 @@ jobs:
           yarn ts-node ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
+            git --no-pager diff
             echo "Changes found in agent config: $CHANGES"
             exit 1
           fi
