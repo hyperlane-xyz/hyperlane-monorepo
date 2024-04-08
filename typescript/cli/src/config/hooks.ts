@@ -195,7 +195,7 @@ export async function createHookConfig(
     pageSize: 10,
   });
   if (hookType === HookType.MERKLE_TREE) {
-    lastConfig = { type: HookType.MERKLE_TREE };
+    lastConfig = createMerkleRootConfig();
   } else if (hookType === HookType.PROTOCOL_FEE) {
     lastConfig = await createProtocolFeeConfig(chain);
   } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
@@ -208,6 +208,14 @@ export async function createHookConfig(
     throw new Error(`Invalid hook type: ${hookType}`);
   }
   return lastConfig;
+}
+
+export async function createMerkleRootConfig(): Promise<HookConfig> {
+  const owner = await input({
+    message: 'Enter owner address',
+  });
+  const ownerAddress = normalizeAddressEvm(owner);
+  return { owner: ownerAddress, type: HookType.MERKLE_TREE };
 }
 
 export async function createProtocolFeeConfig(
