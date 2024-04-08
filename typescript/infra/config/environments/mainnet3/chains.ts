@@ -24,7 +24,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   bsc: {
     ...chainMetadata.bsc,
     transactionOverrides: {
-      gasPrice: 7 * 10 ** 9, // 7 gwei
+      gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
   polygon: {
@@ -34,7 +34,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       confirmations: 3,
     },
     transactionOverrides: {
-      maxFeePerGas: 250 * 10 ** 9, // 250 gwei
+      maxFeePerGas: 275 * 10 ** 9, // 275 gwei
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
       // gasPrice: 50 * 10 ** 9, // 50 gwei
     },
@@ -48,6 +48,15 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     transactionOverrides: {
       maxFeePerGas: 150 * 10 ** 9, // gwei
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
+    },
+  },
+  scroll: {
+    ...chainMetadata.scroll,
+    transactionOverrides: {
+      // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
+      // too low for the transaction to be included in a reasonable amount of time -
+      // this often leads to transaction underpriced issues.
+      gasPrice: 2 * 10 ** 9, // 2 gwei
     },
   },
 };
