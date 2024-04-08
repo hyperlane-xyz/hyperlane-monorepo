@@ -239,7 +239,7 @@ jobs:
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
         env:
-          RUST_BACKTRACE: 1
+          RUST_BACKTRACE: 'full'
 
       - name: agent tests excluding CosmWasm
         run: cargo run --release --bin run-locally
@@ -249,6 +249,7 @@ jobs:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
+          RUST_BACKTRACE: 'full'
 
   e2e:
     runs-on: ubuntu-latest
