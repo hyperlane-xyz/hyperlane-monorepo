@@ -97,11 +97,12 @@ function getArgs() {
 
 async function main() {
   const args = await getArgs();
-  const { timeout, defaultHook, requiredHook } = args;
+  const { timeout, defaultHook, requiredHook, mineforever } = args;
   let messages = args.messages;
 
   const signer = new Wallet(ANVIL_KEY);
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
+  const provider = multiProvider.getProvider(Chains.test1);
 
   const addresses = JSON.parse(
     fs.readFileSync('./config/environments/test/core/addresses.json', 'utf8'),
@@ -112,9 +113,7 @@ async function main() {
     list[Math.floor(Math.random() * list.length)];
 
   // Deploy a recipient
-  const recipientF = new TestSendReceiver__factory(
-    signer.connect(multiProvider.getProvider(Chains.test1)),
-  );
+  const recipientF = new TestSendReceiver__factory(signer.connect(provider));
   const recipient = await recipientF.deploy();
   await recipient.deployTransaction.wait();
 
@@ -163,6 +162,12 @@ async function main() {
     console.log(await chainSummary(core, local));
     console.log(await chainSummary(core, remote));
 
+    await sleep(timeout);
+  }
+
+  while (mineforever) {
+    // @ts-ignore send method not included on abstract provider interface
+    await provider.send('anvil_mine', ['0x01']);
     await sleep(timeout);
   }
 }
