@@ -63,7 +63,6 @@ export class ChainMetadataManager<MetaExt = {}> {
   addChain(metadata: ChainMetadata<MetaExt>): void {
     const parseResult = safeParseChainMetadata(metadata);
     if (!parseResult.success) {
-      console.log('parseResult', parseResult.error);
       throw new Error(
         `Invalid chain metadata for ${
           metadata.name
