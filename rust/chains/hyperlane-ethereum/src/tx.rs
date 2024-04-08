@@ -24,6 +24,8 @@ use crate::{Middleware, TransactionOverrides};
 /// An amount of gas to add to the estimated gas
 const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
+const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
+
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
 where
@@ -45,7 +47,9 @@ where
     info!(?to, %data, "Dispatching transaction");
     // We can set the gas higher here!
     let dispatch_fut = tx.send();
-    let dispatched = dispatch_fut.await?;
+    let dispatched = dispatch_fut
+        .await?
+        .interval(PENDING_TRANSACTION_POLLING_INTERVAL);
 
     let tx_hash: H256 = (*dispatched).into();
 
