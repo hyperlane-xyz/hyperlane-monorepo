@@ -19,13 +19,9 @@ import {
   InterchainAccount,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
-  IsmConfig,
-  IsmType,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -45,10 +41,9 @@ import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
   Modules,
-  SDK_MODULES,
   getAddresses,
+  getAddressesPath,
   getArgs,
-  getContractAddressesSdkFilepath,
   getModuleDirectory,
   withBuildArtifactPath,
   withContext,
@@ -255,15 +250,7 @@ async function main() {
 
   console.log(`Deploying to ${modulePath}`);
 
-  const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
-
-  const addresses = isSdkArtifact
-    ? path.join(
-        getContractAddressesSdkFilepath(),
-        `${deployEnvToSdkEnv[environment]}.json`,
-      )
-    : path.join(modulePath, 'addresses.json');
-
+  const addresses = getAddressesPath(environment, module);
   const verification = path.join(modulePath, 'verification.json');
 
   const cache = {

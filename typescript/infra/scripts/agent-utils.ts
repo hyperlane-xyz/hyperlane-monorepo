@@ -36,7 +36,12 @@ import {
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { Role } from '../src/roles';
-import { assertContext, assertRole, readJSON } from '../src/utils/utils';
+import {
+  assertContext,
+  assertRole,
+  readJSON,
+  readJSONAtPath,
+} from '../src/utils/utils';
 
 const debugLog = debug('infra:scripts:utils');
 
@@ -364,22 +369,22 @@ export function getModuleDirectory(
   return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
-export function getInfraAddresses(
+export function getAddressesPath(
   environment: DeployEnvironment,
   module: Modules,
 ) {
-  return readJSON(getModuleDirectory(environment, module), 'addresses.json');
+  const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
+
+  return isSdkArtifact
+    ? path.join(
+        getContractAddressesSdkFilepath(),
+        `${deployEnvToSdkEnv[environment]}.json`,
+      )
+    : path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
 export function getAddresses(environment: DeployEnvironment, module: Modules) {
-  if (SDK_MODULES.includes(module) && environment !== 'test') {
-    return readJSON(
-      getContractAddressesSdkFilepath(),
-      `${deployEnvToSdkEnv[environment]}.json`,
-    );
-  } else {
-    return getInfraAddresses(environment, module);
-  }
+  return readJSONAtPath(getAddressesPath(environment, module));
 }
 
 export function getAgentConfigDirectory() {
