@@ -9,6 +9,7 @@ import {
   ChainName,
   Chains,
   CoreConfig,
+  HyperlaneEnvironment,
   MultiProvider,
   RpcConsensusType,
   chainMetadata,
@@ -385,7 +386,7 @@ export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
 
-export function getAgentConfigJsonPath(environment: DeployEnvironment) {
+export function getAgentConfigJsonPath(environment: HyperlaneEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
 }
 

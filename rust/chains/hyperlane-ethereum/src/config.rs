@@ -44,10 +44,8 @@ pub struct TransactionOverrides {
     /// Gas limit to use for transactions.
     /// If specified, all transactions will use this gas limit.
     pub gas_limit: Option<U256>,
-
     /// Max fee per gas to use for EIP-1559 transactions.
     pub max_fee_per_gas: Option<U256>,
-
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
 }

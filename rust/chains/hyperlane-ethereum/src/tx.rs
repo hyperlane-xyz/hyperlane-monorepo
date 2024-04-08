@@ -98,11 +98,20 @@ where
     }
 
     let Ok((base_fee, mut max_fee, mut max_priority_fee)) =
-        estimate_eip1559_fees(&provider, None).await
+        estimate_eip1559_fees(provider, None).await
     else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
     };
+
+    // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
+    // This is useful for BSC, where the base fee is zero, there's a minimum gas price
+    // generally enforced by nodes of 3 gwei, but EIP 1559 estimation suggests a priority
+    // fee lower than 3 gwei because of privileged transactions being included by block
+    // producers that have a lower priority fee.
+    if base_fee.is_zero() {
+        return Ok(tx.gas(gas_limit));
+    }
 
     // Apply overrides for EIP 1559 tx params if they exist.
     max_fee = transaction_overrides
@@ -113,25 +122,6 @@ where
         .max_priority_fee_per_gas
         .map(Into::into)
         .unwrap_or(max_priority_fee);
-
-    // If the base fee is zero, just treat the chain as a non-EIP-1559 chain.
-    // This is useful for BSC, where the base fee is zero, there's a minimum gas price
-    // generally enforced by nodes of 3 gwei, but EIP 1559 estimation suggests a priority
-    // fee lower than 3 gwei because of privileged transactions being included by block
-    // producers that have a lower priority fee.
-    if base_fee.is_zero() {
-        let gas_price = provider
-            .get_gas_price()
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-
-        // Use whatever the the highest fee is - the max fee from EIP 1559 is generally
-        // more accurate as it's based on the last few blocks. Some chains like BSC
-        // with validators including txs at low prices can result in gas_prices being higher and
-        // more accurate, but other chains like Scroll will return a gas price that is too low
-        // to actually get your tx included.
-        return Ok(tx.gas(gas_limit).gas_price(gas_price.max(max_fee)));
-    }
 
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
@@ -161,7 +151,7 @@ type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU
 /// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
 /// EIP-1559 compatible transactions.
 async fn estimate_eip1559_fees<M>(
-    provider: &M,
+    provider: Arc<M>,
     estimator: Option<FeeEstimator>,
 ) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
 where
