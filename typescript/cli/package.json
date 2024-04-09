@@ -30,7 +30,7 @@
     "typescript": "^5.1.6"
   },
   "scripts": {
-    "hyperlane": "node ./dist/cli.js",
+    "hyperlane": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' node ./dist/cli.js",
     "build": "yarn version:update && tsc",
     "dev": "yarn version:update && tsc --watch",
     "clean": "rm -rf ./dist",
