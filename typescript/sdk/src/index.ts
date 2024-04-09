@@ -146,6 +146,7 @@ export {
   ProtocolFeeHookConfig,
 } from './hook/types.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
+export { EvmIsmReader } from './ism/read.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
