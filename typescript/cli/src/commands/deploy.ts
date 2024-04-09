@@ -124,7 +124,6 @@ const coreCommand: CommandModule = {
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
-
       throw error;
     }
     process.exit(0);
