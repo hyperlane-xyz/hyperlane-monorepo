@@ -16,7 +16,6 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -202,18 +201,13 @@ abstract contract HypTokenTest is Test {
             BOB.addressToBytes32(),
             _amount,
             bytes(""),
-            IPostDispatchHook(noopHook)
+            address(noopHook)
         );
         _processTransfers(BOB, _amount);
         assertEq(remoteToken.balanceOf(BOB), _amount);
     }
 
     function testTransfer_withHookSpecified() public {
-        bytes memory outboundMessage = localMailbox.buildOutboundMessage(
-            DESTINATION,
-            BOB.addressToBytes32(),
-            TokenMessage.format(BOB.addressToBytes32(), TRANSFER_AMT, bytes(""))
-        );
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
         bytes32 messageId = _performRemoteTransferWithHook(
@@ -221,7 +215,7 @@ abstract contract HypTokenTest is Test {
             TRANSFER_AMT
         );
         assertTrue(noopHook.messageDispatched(messageId));
-        /// @dev Using this test wold be ideal, but vm.expectCall with nested functions more than 1 level deep is broken
+        /// @dev Using this test would be ideal, but vm.expectCall with nested functions more than 1 level deep is broken
         /// In other words, the call graph of Route.transferRemote() -> Mailbox.dispatch() -> Hook.postDispatch() does not work with expectCall
         // vm.expectCall(
         //     address(noopHook),

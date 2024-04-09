@@ -132,7 +132,7 @@ abstract contract MailboxClient is OwnableUpgradeable {
         bytes32 _recipient,
         uint256 _value,
         bytes memory _messageBody,
-        bytes calldata _hookMetadata,
+        bytes memory _hookMetadata,
         IPostDispatchHook _hook
     ) internal virtual returns (bytes32) {
         return

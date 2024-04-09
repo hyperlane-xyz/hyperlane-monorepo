@@ -35,17 +35,14 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
 
     // ============ Internal functions ============
     function _postDispatch(
-        bytes calldata,
-        /*metadata*/
+        bytes calldata /*metadata*/,
         bytes calldata message
     ) internal override {
-        // test - empty
         messageDispatched[message.id()] = true;
     }
 
     function _quoteDispatch(
-        bytes calldata,
-        /*metadata*/
+        bytes calldata /*metadata*/,
         bytes calldata /*message*/
     ) internal view override returns (uint256) {
         return fee;

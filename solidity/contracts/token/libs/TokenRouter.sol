@@ -57,32 +57,14 @@ abstract contract TokenRouter is GasRouter {
         uint256 _amountOrId
     ) external payable virtual returns (bytes32 messageId) {
         return
-            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
-    }
-
-    /**
-     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
-     * @dev Delegates transfer logic to `_transferFromSender` implementation.
-     * @dev Emits `SentTransferRemote` event on the origin chain.
-     * @param _destination The identifier of the destination chain.
-     * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-     * @param _gasPayment The amount of native token to pay for interchain gas.
-     * @return messageId The identifier of the dispatched message.
-     */
-    function _transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amountOrId,
-        uint256 _gasPayment
-    ) internal returns (bytes32 messageId) {
-        bytes memory metadata = _transferFromSender(_amountOrId);
-        messageId = _dispatch(
-            _destination,
-            _gasPayment,
-            TokenMessage.format(_recipient, _amountOrId, metadata)
-        );
-        emit SentTransferRemote(_destination, _recipient, _amountOrId);
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                msg.value,
+                bytes(""),
+                address(0)
+            );
     }
 
     /**
@@ -102,7 +84,7 @@ abstract contract TokenRouter is GasRouter {
         bytes32 _recipient,
         uint256 _amountOrId,
         bytes calldata _hookMetadata,
-        IPostDispatchHook _hook
+        address _hook
     ) external payable virtual returns (bytes32 messageId) {
         return
             _transferRemote(
@@ -133,18 +115,28 @@ abstract contract TokenRouter is GasRouter {
         bytes32 _recipient,
         uint256 _amountOrId,
         uint256 _gasPayment,
-        bytes calldata _hookMetadata,
-        IPostDispatchHook _hook
+        bytes memory _hookMetadata,
+        address _hook
     ) internal returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
-        messageId = _dispatch(
-            _destination,
-            _recipient,
-            _gasPayment,
-            TokenMessage.format(_recipient, _amountOrId, metadata),
-            _hookMetadata,
-            _hook
-        );
+
+        if (address(_hook) == address(0)) {
+            messageId = _dispatch(
+                _destination,
+                _gasPayment,
+                TokenMessage.format(_recipient, _amountOrId, metadata)
+            );
+        } else {
+            messageId = _dispatch(
+                _destination,
+                _recipient,
+                _gasPayment,
+                TokenMessage.format(_recipient, _amountOrId, metadata),
+                _hookMetadata,
+                IPostDispatchHook(_hook)
+            );
+        }
+
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }
 
