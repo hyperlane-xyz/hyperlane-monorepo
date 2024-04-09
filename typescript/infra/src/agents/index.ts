@@ -1,5 +1,5 @@
 import fs from 'fs';
-import path from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
@@ -27,8 +27,8 @@ import { execCmd, isEthereumProtocolChain } from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
 
-const HELM_CHART_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
+const HELM_CHART_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
   '/../../../../rust/helm/hyperlane-agent/',
 );
 

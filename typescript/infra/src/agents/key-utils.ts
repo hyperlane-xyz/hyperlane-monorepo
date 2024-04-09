@@ -1,4 +1,4 @@
-import path from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
@@ -44,8 +44,8 @@ export interface KeyAsAddress {
   address: string;
 }
 
-const CONFIG_DIRECTORY_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
+const CONFIG_DIRECTORY_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
   '../../config',
 );
 
@@ -452,8 +452,8 @@ export async function persistRoleAddressesToLocalArtifacts(
   addresses[environment][context] = updated;
 
   // Resolve the relative path
-  const filePath = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
+  const filePath = join(
+    dirname(fileURLToPath(import.meta.url)),
     `../../config/${role}.json`,
   );
 

@@ -1,4 +1,4 @@
-import path from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import {
@@ -22,8 +22,8 @@ async function check() {
   }
 
   const multiProvider = await config.getMultiProvider();
-  const dir = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
+  const dir = join(
+    dirname(fileURLToPath(import.meta.url)),
     '../../',
     getEnvironmentDirectory(environment),
     'middleware/liquidity-layer',
