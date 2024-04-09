@@ -69,7 +69,6 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     const merkleHook: MerkleTreeHookConfig = {
       type: HookType.MERKLE_TREE,
-      ...ownerConfig,
     };
 
     const igpHook: IgpHookConfig = {

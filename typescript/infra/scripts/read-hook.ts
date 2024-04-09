@@ -13,18 +13,19 @@ import {
 
 // Examples from <monorepo>/typescript/infra:
 // Fallback routing hook on arbitrum (may take 2-3 minutes):
-//     yarn ts-node scripts/read-hook.ts -e mainnet3 --network arbitrum --hookAddress 0x9e8fFb1c26099e75Dd5D794030e2E9AA51471c25
+//     yarn tsx scripts/read-hook.ts -e mainnet3 --network arbitrum --hookAddress 0x9e8fFb1c26099e75Dd5D794030e2E9AA51471c25
 // IGP hook on inevm (may take 15s):
-//     yarn ts-node scripts/read-hook.ts -e mainnet3 --network inevm --hookAddress 0x19dc38aeae620380430C200a6E990D5Af5480117
+//     yarn tsx scripts/read-hook.ts -e mainnet3 --network inevm --hookAddress 0x19dc38aeae620380430C200a6E990D5Af5480117
 
 async function readHook() {
-  const { environment, network, hookAddress, context } = await withContext(
-    withNetwork(getArgs()),
-  )
-    .string('hookAddress')
-    .describe('hookAddress', 'hook address')
-    .demandOption('hookAddress')
-    .demandOption('network').argv;
+  const { environment, network, hookAddress, context, _concurrency } =
+    await withContext(withNetwork(getArgs()))
+      .string('hookAddress')
+      .describe('hookAddress', 'hook address')
+      .number('concurrency')
+      .describe('concurrency', 'maximum number of promises to run concurrently')
+      .demandOption('hookAddress')
+      .demandOption('network').argv;
 
   // manually create multiprovider because envConfig multiprovider excludes non-EVM chains
   const multiProvider = await getMultiProviderForRole(

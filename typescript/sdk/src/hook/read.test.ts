@@ -16,11 +16,11 @@ import {
 } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { MultiProvider } from '../providers/MultiProvider';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { Chains } from '../consts/chains.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { EvmHookReader } from './read';
+import { EvmHookReader } from './read.js';
 import {
   HookType,
   MerkleTreeHookConfig,
@@ -28,7 +28,7 @@ import {
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
-} from './types';
+} from './types.js';
 
 describe('EvmHookReader', () => {
   let evmHookReader: EvmHookReader;
@@ -68,7 +68,6 @@ describe('EvmHookReader', () => {
       .returns(mockContract as unknown as IPostDispatchHook);
 
     const expectedConfig: WithAddress<MerkleTreeHookConfig> = {
-      owner: mockOwner,
       address: mockAddress,
       type: HookType.MERKLE_TREE,
     };

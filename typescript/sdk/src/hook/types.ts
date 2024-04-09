@@ -4,6 +4,20 @@ import { OwnableConfig } from '../deploy/types.js';
 import { IgpConfig } from '../gas/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+// As found in IPostDispatchHook.sol
+export enum OnchainHookType {
+  UNUSED,
+  ROUTING,
+  AGGREGATION,
+  MERKLE_TREE,
+  INTERCHAIN_GAS_PAYMASTER,
+  FALLBACK_ROUTING,
+  ID_AUTH_ISM,
+  PAUSABLE,
+  PROTOCOL_FEE,
+  LAYER_ZERO_V1,
+}
+
 export enum HookType {
   MERKLE_TREE = 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
@@ -15,7 +29,7 @@ export enum HookType {
   PAUSABLE = 'pausableHook',
 }
 
-export type MerkleTreeHookConfig = OwnableConfig & {
+export type MerkleTreeHookConfig = {
   type: HookType.MERKLE_TREE;
 };
 
@@ -45,7 +59,7 @@ export type OpStackHookConfig = OwnableConfig & {
   destinationChain: ChainName;
 };
 
-type RoutingHookConfig = OwnableConfig & {
+export type RoutingHookConfig = OwnableConfig & {
   domains: ChainMap<HookConfig>;
 };
 
@@ -72,46 +86,3 @@ export type HooksConfig = {
   required: HookConfig;
   default: HookConfig;
 };
-
-// As found in IPostDispatchHook.sol
-export enum OnchainHookType {
-  UNUSED,
-  ROUTING,
-  AGGREGATION,
-  MERKLE_TREE,
-  INTERCHAIN_GAS_PAYMASTER,
-  FALLBACK_ROUTING,
-  ID_AUTH_ISM,
-  PAUSABLE,
-  PROTOCOL_FEE,
-  LAYER_ZERO_V1,
-}
-
-export function mapOnchainHookToHookType(
-  contractHook: OnchainHookType,
-): HookType {
-  switch (contractHook) {
-    case OnchainHookType.ROUTING:
-      return HookType.ROUTING;
-    case OnchainHookType.AGGREGATION:
-      return HookType.AGGREGATION;
-    case OnchainHookType.MERKLE_TREE:
-      return HookType.MERKLE_TREE;
-    case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
-      return HookType.INTERCHAIN_GAS_PAYMASTER;
-    case OnchainHookType.FALLBACK_ROUTING:
-      return HookType.FALLBACK_ROUTING;
-    case OnchainHookType.PAUSABLE:
-      return HookType.PAUSABLE;
-    case OnchainHookType.PROTOCOL_FEE:
-      return HookType.PROTOCOL_FEE;
-    // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
-    // For now assume it's OP_STACK
-    case OnchainHookType.ID_AUTH_ISM:
-      return HookType.OP_STACK;
-    default:
-      throw new Error(
-        `Unsupported ContractHookType: ${OnchainHookType[contractHook]}`,
-      );
-  }
-}

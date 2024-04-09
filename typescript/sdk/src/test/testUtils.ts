@@ -55,7 +55,6 @@ export function testCoreConfig(
       type: IsmType.TEST_ISM,
     },
     defaultHook: {
-      owner,
       type: HookType.MERKLE_TREE,
     },
     requiredHook: {

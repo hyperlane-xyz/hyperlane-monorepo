@@ -2,7 +2,9 @@ import { assert } from 'console';
 import { ethers, providers } from 'ethers';
 
 import {
+  DomainRoutingHook,
   DomainRoutingHook__factory,
+  FallbackDomainRoutingHook,
   FallbackDomainRoutingHook__factory,
   IPostDispatchHook__factory,
   InterchainGasPaymaster__factory,
@@ -37,7 +39,7 @@ import {
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
-  mapOnchainHookToHookType,
+  RoutingHookConfig,
 } from './types.js';
 
 interface HookReader<_ extends ProtocolType> {
@@ -81,27 +83,30 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
   async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {
     const hook = IPostDispatchHook__factory.connect(address, this.provider);
     const onchainHookType: OnchainHookType = await hook.hookType();
-    const hookType = mapOnchainHookToHookType(onchainHookType);
 
-    switch (hookType) {
-      case HookType.MERKLE_TREE:
-        return this.deriveMerkleTreeConfig(address);
-      case HookType.AGGREGATION:
-        return this.deriveAggregationConfig(address);
-      case HookType.INTERCHAIN_GAS_PAYMASTER:
-        return this.deriveIgpConfig(address);
-      case HookType.PROTOCOL_FEE:
-        return this.deriveProtocolFeeConfig(address);
-      case HookType.OP_STACK:
-        return this.deriveOpStackConfig(address);
-      case HookType.ROUTING:
+    switch (onchainHookType) {
+      case OnchainHookType.ROUTING:
         return this.deriveDomainRoutingConfig(address);
-      case HookType.FALLBACK_ROUTING:
+      case OnchainHookType.AGGREGATION:
+        return this.deriveAggregationConfig(address);
+      case OnchainHookType.MERKLE_TREE:
+        return this.deriveMerkleTreeConfig(address);
+      case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
+        return this.deriveIgpConfig(address);
+      case OnchainHookType.FALLBACK_ROUTING:
         return this.deriveFallbackRoutingConfig(address);
-      case HookType.PAUSABLE:
+      case OnchainHookType.PAUSABLE:
         return this.derivePausableConfig(address);
+      case OnchainHookType.PROTOCOL_FEE:
+        return this.deriveProtocolFeeConfig(address);
+      // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
+      // For now assume it's OP_STACK
+      case OnchainHookType.ID_AUTH_ISM:
+        return this.deriveOpStackConfig(address);
       default:
-        throw new Error(`Unsupported HookType: ${hookType}`);
+        throw new Error(
+          `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
+        );
     }
   }
 
@@ -109,11 +114,9 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    const owner = await hook.owner();
     assert((await hook.hookType()) === OnchainHookType.MERKLE_TREE);
 
     return {
-      owner,
       address,
       type: HookType.MERKLE_TREE,
     };
@@ -154,7 +157,8 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
 
     let oracleKey: string | undefined;
 
-    for (const domainId of this.multiProvider.getKnownDomainIds()) {
+    const domainIds = this.multiProvider.getKnownDomainIds();
+    const oracleKeyPromises = domainIds.map(async (domainId) => {
       const chainName = this.multiProvider.getChainName(domainId);
 
       // if getExchangeRateAndGasPrice throws or destinationGasLimit returns 0
@@ -174,13 +178,7 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
           gasOracle,
           this.provider,
         );
-        if (!oracleKey) {
-          oracleKey = await oracle.owner();
-        } else {
-          // asserting that the owner of the first oracle we encounter
-          // is the owner of all the oracles referenced in this IgpHook
-          assert(eqAddress(oracleKey, await oracle.owner()));
-        }
+        return oracle.owner();
       } catch (error) {
         // do nothing and continue iterating through known domain IDs
         this.logger.debug(
@@ -188,7 +186,22 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
           domainId,
           chainName,
         );
+        return null;
       }
+    });
+
+    const resolvedOracleKeys = (await Promise.all(oracleKeyPromises)).filter(
+      (key): key is string => key !== null,
+    );
+
+    // asserting that the owner of the first oracle we encounter
+    // is the owner of all the oracles referenced in this IgpHook
+    if (resolvedOracleKeys.length > 0) {
+      const allKeysMatch = resolvedOracleKeys.every((key) =>
+        eqAddress(resolvedOracleKeys[0], key),
+      );
+      assert(allKeysMatch, 'Not all oracle keys match');
+      oracleKey = resolvedOracleKeys[0];
     }
 
     return {
@@ -251,26 +264,7 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
     assert((await hook.hookType()) === OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
-    const domainHooks: DomainRoutingHookConfig['domains'] = {};
-
-    for (const domainId of this.multiProvider.getKnownDomainIds()) {
-      const chainName = this.multiProvider.getChainName(domainId);
-      try {
-        const domainHook = await hook.hooks(domainId);
-        if (domainHook === ethers.constants.AddressZero) {
-          continue;
-        }
-        domainHooks[chainName] = await this.deriveHookConfig(domainHook);
-      } catch (error) {
-        // if it throws, no entry for that domainId
-        // do nothing and continue iterating through known domain IDs
-        this.logger.debug(
-          'Domain not configured on Domain Routing Hook',
-          domainId,
-          chainName,
-        );
-      }
-    }
+    const domainHooks = await this.fetchDomainHooks(hook);
 
     return {
       owner,
@@ -290,26 +284,7 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
     assert((await hook.hookType()) === OnchainHookType.FALLBACK_ROUTING);
 
     const owner = await hook.owner();
-    const domainHooks: DomainRoutingHookConfig['domains'] = {};
-
-    for (const domainId of this.multiProvider.getKnownDomainIds()) {
-      const chainName = this.multiProvider.getChainName(domainId);
-      try {
-        const domainHook = await hook.hooks(domainId);
-        if (domainHook === ethers.constants.AddressZero) {
-          continue;
-        }
-        domainHooks[chainName] = await this.deriveHookConfig(domainHook);
-      } catch (error) {
-        // if it throws, no entry for that domainId
-        // do nothing and continue iterating through known domain IDs
-        this.logger.debug(
-          'Domain not configured on Fallback Domain Routing Hook',
-          domainId,
-          chainName,
-        );
-      }
-    }
+    const domainHooks = await this.fetchDomainHooks(hook);
 
     const fallbackHook = await hook.fallbackHook();
     const fallbackHookConfig = await this.deriveHookConfig(fallbackHook);
@@ -321,6 +296,42 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
       domains: domainHooks,
       fallback: fallbackHookConfig,
     };
+  }
+
+  private async fetchDomainHooks(
+    hook: DomainRoutingHook | FallbackDomainRoutingHook,
+  ): Promise<RoutingHookConfig['domains']> {
+    const domainIds = this.multiProvider.getKnownDomainIds();
+
+    const domainHooksPromises = domainIds.map(async (domainId) => {
+      const chainName = this.multiProvider.getChainName(domainId);
+      try {
+        const domainHook = await hook.hooks(domainId);
+        if (domainHook === ethers.constants.AddressZero) {
+          return null;
+        }
+        const config = await this.deriveHookConfig(domainHook);
+        return { chainName, config };
+      } catch (error) {
+        // if it throws, no entry for that domainId
+        // do nothing and continue iterating through known domain IDs
+        this.logger.debug(
+          `Domain not configured on ${hook.constructor.name}`,
+          domainId,
+          chainName,
+        );
+        return null;
+      }
+    });
+
+    const domainHooks: DomainRoutingHookConfig['domains'] = {};
+    (await Promise.all(domainHooksPromises)).forEach((result) => {
+      if (result) {
+        domainHooks[result.chainName] = result.config;
+      }
+    });
+
+    return domainHooks;
   }
 
   async derivePausableConfig(
