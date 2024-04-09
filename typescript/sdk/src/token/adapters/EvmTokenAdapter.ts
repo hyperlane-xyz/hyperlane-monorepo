@@ -204,12 +204,11 @@ export class EvmHypSyntheticAdapter
       interchainGas = await this.quoteTransferRemoteGas(destination);
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction.transferRemote(
-      destination,
-      recipBytes32,
-      weiAmountOrId,
-      { value: interchainGas.amount.toString() },
-    );
+    return this.contract.populateTransaction[
+      'transferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, weiAmountOrId, {
+      value: interchainGas.amount.toString(),
+    });
   }
 }
 
@@ -308,11 +307,8 @@ export class EvmHypNativeAdapter
     }
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction.transferRemote(
-      destination,
-      recipBytes32,
-      weiAmountOrId,
-      { value: txValue?.toString() },
-    );
+    return this.contract.populateTransaction[
+      'transferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
   }
 }
