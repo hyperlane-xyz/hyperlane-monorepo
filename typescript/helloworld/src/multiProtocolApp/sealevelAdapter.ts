@@ -24,7 +24,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
-import { IHelloWorldAdapter } from './types';
+import { IHelloWorldAdapter } from './types.js';
 
 export class SealevelHelloWorldAdapter
   extends SealevelRouterAdapter

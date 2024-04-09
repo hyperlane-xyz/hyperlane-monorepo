@@ -1,7 +1,7 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
-import { ethers } from 'hardhat';
+import { BigNumber, utils } from 'ethers';
+import hre from 'hardhat';
 
 import {
   InterchainAccountRouter,
@@ -20,21 +20,23 @@ import {
   HyperlaneProxyFactoryDeployer,
   InterchainAccount,
   InterchainAccountDeployer,
+  InterchainAccountFactories,
   MultiProvider,
   OwnableConfig,
   RouterConfig,
   TestCoreApp,
   TestCoreDeployer,
-  randomAddress,
   resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
-import { InterchainAccountFactories } from '@hyperlane-xyz/sdk/dist/middleware/account/contracts';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
 import {
   AnnotatedCallData,
   HyperlaneAppGovernor,
-} from '../src/govern/HyperlaneAppGovernor';
+} from '../src/govern/HyperlaneAppGovernor.js';
+
+// TODO de-dupe with test-utils after migrating this file to the SDK
+const randomAddress = () => utils.hexlify(utils.randomBytes(20));
 
 export class TestApp extends HyperlaneApp<{}> {}
 
@@ -105,7 +107,8 @@ describe('ICA governance', async () => {
   let governor: HyperlaneTestGovernor;
 
   before(async () => {
-    [signer] = await ethers.getSigners();
+    // @ts-ignore
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

@@ -18,10 +18,10 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { MinimalTokenMetadata } from '../config';
+import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { MinimalTokenMetadata } from '../config.js';
 
 import {
   IHypTokenAdapter,
@@ -29,7 +29,7 @@ import {
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
@@ -236,7 +236,7 @@ export class EvmHypCollateralAdapter
     if (!this.wrappedTokenAddress) {
       this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
     }
-    return this.wrappedTokenAddress;
+    return this.wrappedTokenAddress!;
   }
 
   protected async getWrappedTokenAdapter(): Promise<

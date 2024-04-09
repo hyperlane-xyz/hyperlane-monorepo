@@ -3,19 +3,19 @@ import Long from 'long';
 
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
-import { BaseCosmosAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { MinimalTokenMetadata } from '../config';
+import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { MinimalTokenMetadata } from '../config.js';
 
-import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter';
+import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 
 const COSMOS_IBC_TRANSFER_TIMEOUT = 600_000; // 10 minutes
 

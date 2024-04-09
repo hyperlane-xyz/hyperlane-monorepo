@@ -8,16 +8,16 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ValidatorAgentAwsUser } from '../../agents/aws';
-import { Role } from '../../roles';
-import { HelmStatefulSetValues } from '../infrastructure';
+import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
+import { Role } from '../../roles.js';
+import { HelmStatefulSetValues } from '../infrastructure.js';
 
 import {
   AgentConfigHelper,
   KeyConfig,
   RootAgentConfig,
   defaultChainSignerKeyConfig,
-} from './agent';
+} from './agent.js';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;

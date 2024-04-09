@@ -1,8 +1,8 @@
 import { Address } from '@hyperlane-xyz/utils';
 
-import { OwnableConfig } from '../deploy/types';
-import { IgpConfig } from '../gas/types';
-import { ChainMap, ChainName } from '../types';
+import { OwnableConfig } from '../deploy/types.js';
+import { IgpConfig } from '../gas/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export enum HookType {
   MERKLE_TREE = 'merkleTreeHook',

@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { Chains } from '../consts/chains.js';
 
-import { Token } from './Token';
-import { TokenAmount } from './TokenAmount';
-import { TokenStandard } from './TokenStandard';
+import { Token } from './Token.js';
+import { TokenAmount } from './TokenAmount.js';
+import { TokenStandard } from './TokenStandard.js';
 
 const token1 = new Token({
   chainName: Chains.ethereum,

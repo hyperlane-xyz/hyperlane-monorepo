@@ -8,16 +8,16 @@ import {
 import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
-} from '../src/deployment/verify';
-import { readJSONAtPath } from '../src/utils/utils';
+} from '../src/deployment/verify.js';
+import { readJSONAtPath } from '../src/utils/utils.js';
 
 import {
   assertEnvironment,
   getArgs,
   withBuildArtifactPath,
   withNetwork,
-} from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+} from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {
   const { environment, buildArtifactPath, verificationArtifactPath, network } =

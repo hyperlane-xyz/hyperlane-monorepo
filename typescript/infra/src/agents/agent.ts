@@ -1,9 +1,9 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { DeployEnvironment } from '../config';
-import { Role } from '../roles';
-import { assertRole } from '../utils/utils';
+import { Contexts } from '../../config/contexts.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { Role } from '../roles.js';
+import { assertRole } from '../utils/utils.js';
 
 export function isValidatorKey(role: Role) {
   return role === Role.Validator;

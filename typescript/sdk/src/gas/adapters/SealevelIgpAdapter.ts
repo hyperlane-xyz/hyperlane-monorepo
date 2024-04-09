@@ -3,15 +3,15 @@ import { deserializeUnchecked } from 'borsh';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { SealevelAccountDataWrapper } from '../../utils/sealevelSerialization';
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { SealevelAccountDataWrapper } from '../../utils/sealevelSerialization.js';
 
 import {
   SealevelOverheadIgpData,
   SealevelOverheadIgpDataSchema,
-} from './serialization';
+} from './serialization.js';
 
 export class SealevelOverheadIgpAdapter extends BaseSealevelAdapter {
   constructor(

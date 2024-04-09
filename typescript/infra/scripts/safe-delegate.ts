@@ -6,10 +6,10 @@ import { AddSafeDelegateProps } from '@safe-global/api-kit';
 
 import { AllChains } from '@hyperlane-xyz/sdk';
 
-import { getSafeDelegates, getSafeService } from '../src/utils/safe';
+import { getSafeDelegates, getSafeService } from '../src/utils/safe.js';
 
-import { getArgs as getRootArgs } from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+import { getArgs as getRootArgs } from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 function getArgs() {
   return getRootArgs()

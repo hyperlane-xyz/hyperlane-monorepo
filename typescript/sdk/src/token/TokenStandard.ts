@@ -3,9 +3,9 @@ import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 import {
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderType,
-} from '../providers/ProviderType';
+} from '../providers/ProviderType.js';
 
-import { TokenType } from './config';
+import { TokenType } from './config.js';
 
 export enum TokenStandard {
   // EVM

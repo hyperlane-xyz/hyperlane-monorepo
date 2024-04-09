@@ -11,8 +11,8 @@ import {
   AllProviderMethods,
   IProviderMethods,
   ProviderMethod,
-} from './ProviderMethods';
-import { RpcConfigWithConnectionInfo } from './types';
+} from './ProviderMethods.js';
+import { RpcConfigWithConnectionInfo } from './types.js';
 
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;

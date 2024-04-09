@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 
-import { Contexts } from '../config/contexts';
-import { AgentAwsKey } from '../src/agents/aws';
-import { AgentGCPKey } from '../src/agents/gcp';
-import { ReadOnlyCloudAgentKey } from '../src/agents/keys';
-import { Role } from '../src/roles';
+import { Contexts } from '../config/contexts.js';
+import { AgentAwsKey } from '../src/agents/aws/key.js';
+import { AgentGCPKey } from '../src/agents/gcp.js';
+import { ReadOnlyCloudAgentKey } from '../src/agents/keys.js';
+import { Role } from '../src/roles.js';
 
 describe('ReadOnlyCloudAgentKey', () => {
   describe('fromSerializedAddress', () => {

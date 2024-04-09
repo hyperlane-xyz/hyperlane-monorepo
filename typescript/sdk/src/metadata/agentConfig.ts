@@ -6,16 +6,19 @@ import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { ChainMetadata, ChainMetadataSchemaObject } from './chainMetadataTypes';
-import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
+import {
+  ChainMetadata,
+  ChainMetadataSchemaObject,
+} from './chainMetadataTypes.js';
+import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
-} from './deploymentArtifacts';
-import { MatchingListSchema } from './matchingList';
+} from './deploymentArtifacts.js';
+import { MatchingListSchema } from './matchingList.js';
 
 export enum RpcConsensusType {
   Single = 'single',

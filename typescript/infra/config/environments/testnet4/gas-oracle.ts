@@ -4,14 +4,12 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import {
   AllStorageGasOracleConfigs,
-  getAllStorageGasOracleConfigs,
-} from '../../../src/config';
-import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
+  getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
-} from '../../../src/config/gas-oracle';
+} from '../../../src/config/gas-oracle.js';
 
-import { supportedChainNames } from './chains';
+import { supportedChainNames } from './chains.js';
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {

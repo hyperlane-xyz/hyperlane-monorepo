@@ -12,25 +12,25 @@ import {
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
-} from '../../consts/environments';
+} from '../../consts/environments/index.js';
 import {
   appFromAddressesMapHelper,
   filterChainMapToProtocol,
-} from '../../contracts/contracts';
+} from '../../contracts/contracts.js';
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
   HyperlaneContractsMap,
-} from '../../contracts/types';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterApp } from '../../router/RouterApps';
-import { ChainName } from '../../types';
+} from '../../contracts/types.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { RouterApp } from '../../router/RouterApps.js';
+import { ChainName } from '../../types.js';
 
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
-} from './contracts';
-import { AccountConfig } from './types';
+} from './contracts.js';
+import { AccountConfig } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   constructor(

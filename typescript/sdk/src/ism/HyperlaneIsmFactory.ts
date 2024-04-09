@@ -26,22 +26,22 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp';
-import { chainMetadata } from '../consts/chainMetadata';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { chainMetadata } from '../consts/chainMetadata.js';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
-} from '../consts/environments';
-import { appFromAddressesMapHelper } from '../contracts/contracts';
-import { HyperlaneAddressesMap } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+} from '../consts/environments/index.js';
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
-} from '../deploy/contracts';
-import { resolveOrDeployAccountOwner } from '../deploy/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+} from '../deploy/contracts.js';
+import { resolveOrDeployAccountOwner } from '../deploy/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import {
   AggregationIsmConfig,
@@ -52,8 +52,8 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
-} from './types';
-import { routingModuleDelta } from './utils';
+} from './types.js';
+import { routingModuleDelta } from './utils.js';
 
 export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // The shape of this object is `ChainMap<Address | ChainMap<Address>`,

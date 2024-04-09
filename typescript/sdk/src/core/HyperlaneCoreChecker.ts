@@ -2,22 +2,22 @@ import { ethers, utils as ethersUtils } from 'ethers';
 
 import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { BytecodeHash } from '../consts/bytecode';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { proxyImplementation } from '../deploy/proxy';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { collectValidators, moduleMatchesConfig } from '../ism/utils';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { proxyImplementation } from '../deploy/proxy.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
+import { HyperlaneCore } from './HyperlaneCore.js';
 import {
   CoreConfig,
   CoreViolationType,
   MailboxViolation,
   MailboxViolationType,
   ValidatorAnnounceViolation,
-} from './types';
+} from './types.js';
 
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,

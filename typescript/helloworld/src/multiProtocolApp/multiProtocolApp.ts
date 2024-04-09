@@ -7,11 +7,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { StatCounts } from '../app/types';
+import { StatCounts } from '../app/types.js';
 
-import { EvmHelloWorldAdapter } from './evmAdapter';
-import { SealevelHelloWorldAdapter } from './sealevelAdapter';
-import { IHelloWorldAdapter } from './types';
+import { EvmHelloWorldAdapter } from './evmAdapter.js';
+import { SealevelHelloWorldAdapter } from './sealevelAdapter.js';
+import { IHelloWorldAdapter } from './types.js';
 
 export class HelloMultiProtocolApp extends MultiProtocolRouterApp<
   IHelloWorldAdapter,

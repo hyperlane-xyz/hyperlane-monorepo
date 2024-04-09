@@ -1,10 +1,10 @@
 import { HyperlaneCore, moduleCanCertainlyVerify } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../src/config/environment';
+import { deployEnvToSdkEnv } from '../src/config/environment.js';
 
-import { getArgs } from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+import { getArgs } from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {
   const args = await getArgs().argv;

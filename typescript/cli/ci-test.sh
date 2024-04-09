@@ -69,7 +69,7 @@ sleep 1
 if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
     # Fetch the RPC of chain to fork
     cd typescript/infra
-    RPC_URL=$(yarn ts-node scripts/print-chain-metadatas.ts -e mainnet3 | jq -r ".${CHAIN2}.rpcUrls[0].http")
+    RPC_URL=$(yarn tsx scripts/print-chain-metadatas.ts -e mainnet3 | jq -r ".${CHAIN2}.rpcUrls[0].http")
     cd ../../
 
     # run the fork chain

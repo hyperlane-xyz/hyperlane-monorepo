@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
-import { ZChainName } from '../metadata/customZodTypes';
-import type { TypedTransaction } from '../providers/ProviderType';
-import { TokenConfigSchema } from '../token/IToken';
-import type { TokenAmount } from '../token/TokenAmount';
-import type { ChainName } from '../types';
+import { ZChainName } from '../metadata/customZodTypes.js';
+import type { TypedTransaction } from '../providers/ProviderType.js';
+import { TokenConfigSchema } from '../token/IToken.js';
+import type { TokenAmount } from '../token/TokenAmount.js';
+import type { ChainName } from '../types.js';
 
 /**
  * Configuration used for instantiating a WarpCore

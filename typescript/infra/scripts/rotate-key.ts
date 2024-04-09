@@ -3,7 +3,7 @@ import {
   getArgs,
   withContext,
   withKeyRoleAndChain,
-} from './agent-utils';
+} from './agent-utils.js';
 
 async function rotateKey() {
   const argv = await withContext(withKeyRoleAndChain(getArgs())).argv;

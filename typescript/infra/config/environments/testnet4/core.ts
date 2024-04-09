@@ -20,9 +20,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains';
-import { igp } from './igp';
-import { owners } from './owners';
+import { supportedChainNames } from './chains.js';
+import { igp } from './igp.js';
+import { owners } from './owners.js';
 
 export const core: ChainMap<CoreConfig> = objMap(
   owners,

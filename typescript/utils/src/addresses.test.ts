@@ -4,8 +4,8 @@ import {
   addressToBytes,
   bytesToProtocolAddress,
   isZeroishAddress,
-} from './addresses';
-import { ProtocolType } from './types';
+} from './addresses.js';
+import { ProtocolType } from './types.js';
 
 const ETH_ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 const ETH_NON_ZERO_ADDR = '0x0000000000000000000000000000000000000001';
