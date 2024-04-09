@@ -18,12 +18,15 @@ import {
 //     yarn tsx scripts/read-hook.ts -e mainnet3 --network inevm --hookAddress 0x19dc38aeae620380430C200a6E990D5Af5480117
 
 async function readHook() {
-  const { environment, network, hookAddress, context, _concurrency } =
+  const { environment, network, hookAddress, context, disableConcurrency } =
     await withContext(withNetwork(getArgs()))
       .string('hookAddress')
       .describe('hookAddress', 'hook address')
-      .number('concurrency')
-      .describe('concurrency', 'maximum number of promises to run concurrently')
+      .boolean('disableConcurrency')
+      .describe(
+        'disableConcurrency',
+        'option to disable parallel iteration over hook domains',
+      )
       .demandOption('hookAddress')
       .demandOption('network').argv;
 
@@ -35,7 +38,11 @@ async function readHook() {
     Role.Deployer,
   );
 
-  const hookReader = new EvmHookReader(multiProvider, network);
+  const hookReader = new EvmHookReader(
+    multiProvider,
+    network,
+    disableConcurrency,
+  );
   const config = await hookReader.deriveHookConfig(hookAddress);
   console.log(EvmHookReader.stringifyConfig(config, 2));
 }

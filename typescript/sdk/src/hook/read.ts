@@ -72,7 +72,11 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
   protected readonly provider: providers.Provider;
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
 
-  constructor(protected readonly multiProvider: MultiProvider, chain: Chains) {
+  constructor(
+    protected readonly multiProvider: MultiProvider,
+    chain: Chains,
+    protected readonly disableConcurrency: boolean = false,
+  ) {
     this.provider = this.multiProvider.getProvider(chain);
   }
 
@@ -158,16 +162,13 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
     let oracleKey: string | undefined;
 
     const domainIds = this.multiProvider.getKnownDomainIds();
-    const oracleKeyPromises = domainIds.map(async (domainId) => {
-      const chainName = this.multiProvider.getChainName(domainId);
 
-      // if getExchangeRateAndGasPrice throws or destinationGasLimit returns 0
-      // then no gasOracle has been configured for the given domainId
+    // business logic of extracting relevant igp config per domain
+    const processDomain = async (domainId: number) => {
+      const chainName = this.multiProvider.getChainName(domainId);
       try {
-        // this will throw if no gasOracle configured
         const { tokenExchangeRate, gasPrice } =
           await hook.getExchangeRateAndGasPrice(domainId);
-        // this will simply return 0 if not configured
         const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
 
         overhead[chainName] = domainGasOverhead.toNumber();
@@ -180,7 +181,6 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
         );
         return oracle.owner();
       } catch (error) {
-        // do nothing and continue iterating through known domain IDs
         this.logger.debug(
           'Domain not configured on IGP Hook',
           domainId,
@@ -188,14 +188,22 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
         );
         return null;
       }
-    });
+    };
 
-    const resolvedOracleKeys = (await Promise.all(oracleKeyPromises)).filter(
+    let allKeys = [];
+    if (this.disableConcurrency) {
+      for (const domainId of domainIds) {
+        const owner = await processDomain(domainId);
+        allKeys.push(owner);
+      }
+    } else {
+      allKeys = await Promise.all(domainIds.map(processDomain));
+    }
+
+    const resolvedOracleKeys = allKeys.filter(
       (key): key is string => key !== null,
     );
 
-    // asserting that the owner of the first oracle we encounter
-    // is the owner of all the oracles referenced in this IgpHook
     if (resolvedOracleKeys.length > 0) {
       const allKeysMatch = resolvedOracleKeys.every((key) =>
         eqAddress(resolvedOracleKeys[0], key),
@@ -303,7 +311,8 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
   ): Promise<RoutingHookConfig['domains']> {
     const domainIds = this.multiProvider.getKnownDomainIds();
 
-    const domainHooksPromises = domainIds.map(async (domainId) => {
+    // business logic off fetching hook config per domain
+    const processDomain = async (domainId: number) => {
       const chainName = this.multiProvider.getChainName(domainId);
       try {
         const domainHook = await hook.hooks(domainId);
@@ -313,8 +322,6 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
         const config = await this.deriveHookConfig(domainHook);
         return { chainName, config };
       } catch (error) {
-        // if it throws, no entry for that domainId
-        // do nothing and continue iterating through known domain IDs
         this.logger.debug(
           `Domain not configured on ${hook.constructor.name}`,
           domainId,
@@ -322,16 +329,31 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
         );
         return null;
       }
-    });
+    };
 
-    const domainHooks: DomainRoutingHookConfig['domains'] = {};
-    (await Promise.all(domainHooksPromises)).forEach((result) => {
-      if (result) {
-        domainHooks[result.chainName] = result.config;
+    // if concurrency disabled, serially iterate over domainIds
+    const domainHooks: RoutingHookConfig['domains'] = {};
+    if (this.disableConcurrency) {
+      for (const domainId of domainIds) {
+        const result = await processDomain(domainId);
+        if (result) {
+          domainHooks[result.chainName] = result.config;
+        }
       }
-    });
-
-    return domainHooks;
+      return domainHooks;
+    }
+    // else split out each domainId into a promise
+    else {
+      const results = await Promise.all(
+        domainIds.map((domainId) => processDomain(domainId)),
+      );
+      return results.reduce((acc, result) => {
+        if (result) {
+          acc[result.chainName] = result.config;
+        }
+        return acc;
+      }, domainHooks);
+    }
   }
 
   async derivePausableConfig(
