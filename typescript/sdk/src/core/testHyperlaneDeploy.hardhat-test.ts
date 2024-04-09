@@ -2,18 +2,18 @@ import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains';
-import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../providers/MultiProvider';
+import { Chains } from '../consts/chains.js';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { TestCoreApp } from './TestCoreApp';
-import { TestCoreDeployer } from './TestCoreDeployer';
+import { TestCoreApp } from './TestCoreApp.js';
+import { TestCoreDeployer } from './TestCoreDeployer.js';
 
 const localChain = Chains.test1;
 const remoteChain = Chains.test2;
@@ -26,7 +26,7 @@ describe('TestCoreDeployer', async () => {
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 

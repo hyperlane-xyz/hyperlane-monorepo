@@ -1,6 +1,6 @@
-import { MultiProvider } from '../providers/MultiProvider';
+import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
+import { HyperlaneCore } from './HyperlaneCore.js';
 
 describe('HyperlaneCore', () => {
   describe('fromEnvironment', () => {

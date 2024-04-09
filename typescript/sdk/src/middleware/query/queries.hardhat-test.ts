@@ -1,6 +1,6 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import {
   InterchainQueryRouter,
@@ -9,21 +9,21 @@ import {
 } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
-import { Chains } from '../../consts/chains';
-import { HyperlaneContractsMap } from '../../contracts/types';
-import { TestCoreApp } from '../../core/TestCoreApp';
-import { TestCoreDeployer } from '../../core/TestCoreDeployer';
-import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer';
-import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterConfig } from '../../router/types';
-import { ChainMap } from '../../types';
+import { chainMetadata } from '../../consts/chainMetadata.js';
+import { Chains } from '../../consts/chains.js';
+import { HyperlaneContractsMap } from '../../contracts/types.js';
+import { TestCoreApp } from '../../core/TestCoreApp.js';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
+import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { RouterConfig } from '../../router/types.js';
+import { ChainMap } from '../../types.js';
 
-import { InterchainQuery } from './InterchainQuery';
-import { InterchainQueryChecker } from './InterchainQueryChecker';
-import { InterchainQueryDeployer } from './InterchainQueryDeployer';
-import { InterchainQueryFactories } from './contracts';
+import { InterchainQuery } from './InterchainQuery.js';
+import { InterchainQueryChecker } from './InterchainQueryChecker.js';
+import { InterchainQueryDeployer } from './InterchainQueryDeployer.js';
+import { InterchainQueryFactories } from './contracts.js';
 
 describe.skip('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
@@ -41,7 +41,7 @@ describe.skip('InterchainQueryRouter', async () => {
   let testQuery: TestQuery;
 
   before(async () => {
-    [signer] = await ethers.getSigners();
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

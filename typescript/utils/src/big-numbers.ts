@@ -1,4 +1,4 @@
-import BigNumber from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
 import { FixedNumber } from 'ethers';
 
 // Use toString(10) on bignumber.js to prevent ethers.js bigNumber error

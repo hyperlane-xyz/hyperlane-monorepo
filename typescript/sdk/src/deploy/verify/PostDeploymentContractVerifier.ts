@@ -1,12 +1,12 @@
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { ExplorerFamily } from '../../metadata/chainMetadataTypes';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ChainMap } from '../../types';
-import { MultiGeneric } from '../../utils/MultiGeneric';
+import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ChainMap } from '../../types.js';
+import { MultiGeneric } from '../../utils/MultiGeneric.js';
 
-import { ContractVerifier } from './ContractVerifier';
-import { BuildArtifact, CompilerOptions, VerificationInput } from './types';
+import { ContractVerifier } from './ContractVerifier.js';
+import { BuildArtifact, CompilerOptions, VerificationInput } from './types.js';
 
 export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInput> {
   protected logger = rootLogger.child({

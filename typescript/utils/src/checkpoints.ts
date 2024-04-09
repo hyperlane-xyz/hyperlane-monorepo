@@ -5,7 +5,7 @@ import {
   S3Checkpoint,
   S3CheckpointWithId,
   SignatureLike,
-} from './types';
+} from './types.js';
 
 function isValidSignature(signature: any): signature is SignatureLike {
   return typeof signature === 'string'

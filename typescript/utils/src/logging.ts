@@ -1,6 +1,6 @@
 import { LevelWithSilent, Logger, pino } from 'pino';
 
-import { safelyAccessEnvVar } from './env';
+import { safelyAccessEnvVar } from './env.js';
 
 // Level and format here should correspond with the agent options as much as possible
 // https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt

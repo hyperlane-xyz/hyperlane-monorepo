@@ -1,14 +1,14 @@
-import { Contexts } from '../../config/contexts';
-import { AgentAwsUser } from '../agents/aws';
-import { AgentGCPKey } from '../agents/gcp';
-import { AgentContextConfig } from '../config';
+import { Contexts } from '../../config/contexts.js';
+import { AgentAwsUser } from '../agents/aws/user.js';
+import { AgentGCPKey } from '../agents/gcp.js';
+import { AgentContextConfig } from '../config/agent/agent.js';
 import {
   HelloWorldKathyConfig,
   HelloWorldKathyRunMode,
-} from '../config/helloworld/types';
-import { Role } from '../roles';
-import { HelmCommand, helmifyValues } from '../utils/helm';
-import { execCmd } from '../utils/utils';
+} from '../config/helloworld/types.js';
+import { Role } from '../roles.js';
+import { HelmCommand, helmifyValues } from '../utils/helm.js';
+import { execCmd } from '../utils/utils.js';
 
 export async function runHelloworldKathyHelmCommand(
   helmCommand: HelmCommand,

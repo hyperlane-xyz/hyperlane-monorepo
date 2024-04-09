@@ -20,12 +20,12 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContracts } from '../contracts/types';
-import { ProxyFactoryFactories } from '../deploy/contracts';
-import { resolveOrDeployAccountOwner } from '../deploy/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { resolveOrDeployAccountOwner } from '../deploy/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
 import {
   IsmConfig,
@@ -34,7 +34,7 @@ import {
   RoutingIsmConfig,
   RoutingIsmDelta,
   ismTypeToModuleType,
-} from './types';
+} from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
 

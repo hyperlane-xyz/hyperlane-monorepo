@@ -11,13 +11,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { getAgentConfigJsonPath } from '../../scripts/agent-utils';
-import { DeployEnvironment } from '../config';
+import { getAgentConfigJsonPath } from '../../scripts/agent-utils.js';
+import { DeployEnvironment } from '../config/environment.js';
 import {
   readJSONAtPath,
   writeJsonAtPath,
   writeMergedJSONAtPath,
-} from '../utils/utils';
+} from '../utils/utils.js';
 
 export async function deployWithArtifacts<Config extends object>(
   configMap: ChainMap<Config>,

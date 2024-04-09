@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import path from 'path';
-import { prompt } from 'prompts';
+import prompts from 'prompts';
 
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
@@ -19,29 +19,25 @@ import {
   InterchainAccount,
   InterchainAccountDeployer,
   InterchainQueryDeployer,
-  IsmConfig,
-  IsmType,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
   TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../config/contexts';
-import { core as coreConfig } from '../config/environments/mainnet3/core';
-import { DEPLOYER } from '../config/environments/mainnet3/owners';
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { tokens } from '../src/config/warp';
-import { deployWithArtifacts } from '../src/deployment/deploy';
-import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender';
+import { Contexts } from '../config/contexts.js';
+import { core as coreConfig } from '../config/environments/mainnet3/core.js';
+import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
+import { deployEnvToSdkEnv } from '../src/config/environment.js';
+import { tokens } from '../src/config/warp.js';
+import { deployWithArtifacts } from '../src/deployment/deploy.js';
+import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
-} from '../src/deployment/verify';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
+} from '../src/deployment/verify.js';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
 
 import {
   Modules,
@@ -54,8 +50,8 @@ import {
   withContext,
   withModuleAndFork,
   withNetwork,
-} from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+} from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {
   const {
@@ -286,7 +282,7 @@ async function main() {
   if (environment !== 'test' && !fork) {
     const confirmConfig = network ? config[network] : config;
     console.log(JSON.stringify(confirmConfig, null, 2));
-    const { value: confirmed } = await prompt({
+    const { value: confirmed } = await prompts({
       type: 'confirm',
       name: 'value',
       message: `Confirm you want to deploy this ${module} configuration to ${environment}?`,

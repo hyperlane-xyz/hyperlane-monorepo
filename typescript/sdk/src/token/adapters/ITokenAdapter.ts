@@ -1,6 +1,6 @@
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
-import { MinimalTokenMetadata } from '../config';
+import { MinimalTokenMetadata } from '../config.js';
 
 export interface TransferParams {
   weiAmountOrId: Numberish;

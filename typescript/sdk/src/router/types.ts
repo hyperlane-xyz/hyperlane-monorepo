@@ -6,10 +6,10 @@ import {
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts/types';
-import { UpgradeConfig } from '../deploy/proxy';
-import { CheckerViolation, OwnableConfig } from '../deploy/types';
-import { IsmConfig } from '../ism/types';
+import { HyperlaneFactories } from '../contracts/types.js';
+import { UpgradeConfig } from '../deploy/proxy.js';
+import { CheckerViolation, OwnableConfig } from '../deploy/types.js';
+import { IsmConfig } from '../ism/types.js';
 
 export type RouterAddress = {
   router: Address;

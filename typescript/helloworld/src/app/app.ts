@@ -11,10 +11,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HelloWorld } from '../types';
+import { HelloWorld } from '../types/index.js';
 
-import { HelloWorldFactories } from './contracts';
-import { StatCounts } from './types';
+import { HelloWorldFactories } from './contracts.js';
+import { StatCounts } from './types.js';
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(

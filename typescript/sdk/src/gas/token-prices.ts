@@ -2,10 +2,10 @@ import CoinGecko from 'coingecko-api';
 
 import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
-import { CoreChainName, Mainnets } from '../consts/chains';
-import { ChainMetadata } from '../metadata/chainMetadataTypes';
-import { ChainMap, ChainName } from '../types';
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
+import { CoreChainName, Mainnets } from '../consts/chains.js';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;

@@ -1,5 +1,5 @@
-import { MultisigConfig } from '../ism/types';
-import { ChainMap } from '../types';
+import { MultisigConfig } from '../ism/types.js';
+import { ChainMap } from '../types.js';
 
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alfajores: {

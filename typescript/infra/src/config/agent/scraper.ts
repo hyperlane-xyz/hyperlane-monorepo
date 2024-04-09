@@ -3,10 +3,10 @@ import {
   ScraperConfig as ScraperAgentConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { Role } from '../../roles';
-import { HelmStatefulSetValues } from '../infrastructure';
+import { Role } from '../../roles.js';
+import { HelmStatefulSetValues } from '../infrastructure.js';
 
-import { AgentConfigHelper, RootAgentConfig } from './agent';
+import { AgentConfigHelper, RootAgentConfig } from './agent.js';
 
 export interface BaseScraperConfig {
   // no configs at this time

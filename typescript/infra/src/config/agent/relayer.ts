@@ -14,18 +14,16 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { AgentAwsUser } from '../../agents/aws';
-import { Role } from '../../roles';
-import { HelmStatefulSetValues } from '../infrastructure';
+import { AgentAwsUser } from '../../agents/aws/user.js';
+import { Role } from '../../roles.js';
+import { HelmStatefulSetValues } from '../infrastructure.js';
 
 import {
   AgentConfigHelper,
   KeyConfig,
   RootAgentConfig,
   defaultChainSignerKeyConfig,
-} from './agent';
-
-export { GasPaymentEnforcement as GasPaymentEnforcementConfig } from '@hyperlane-xyz/sdk';
+} from './agent.js';
 
 export interface MetricAppContext {
   name: string;

@@ -10,12 +10,13 @@ import {
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../../config/contexts';
-import { AgentContextConfig, DeployEnvironment } from '../../config';
-import { Role } from '../../roles';
+import { Contexts } from '../../../config/contexts.js';
+import { AgentContextConfig } from '../../config/agent/agent.js';
+import { DeployEnvironment } from '../../config/environment.js';
+import { Role } from '../../roles.js';
 
-import { AgentAwsKey } from './key';
-import { AgentAwsUser } from './user';
+import { AgentAwsKey } from './key.js';
+import { AgentAwsUser } from './user.js';
 
 export class ValidatorAgentAwsUser extends AgentAwsUser {
   private adminS3Client: S3Client;

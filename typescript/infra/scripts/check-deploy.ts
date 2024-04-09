@@ -15,14 +15,14 @@ import {
   resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../config/contexts';
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
-import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
-import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
-import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
-import { Role } from '../src/roles';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
+import { Contexts } from '../config/contexts.js';
+import { deployEnvToSdkEnv } from '../src/config/environment.js';
+import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
+import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
+import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
+import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor.js';
+import { Role } from '../src/roles.js';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
 
 import {
   Modules,
@@ -30,9 +30,9 @@ import {
   getArgs as getRootArgs,
   withContext,
   withModuleAndFork,
-} from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
-import { getHelloWorldApp } from './helloworld/utils';
+} from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
+import { getHelloWorldApp } from './helloworld/utils.js';
 
 function getArgs() {
   return withModuleAndFork(withContext(getRootArgs()))

@@ -9,12 +9,12 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
-import type { ChainMetadata } from '../metadata/chainMetadataTypes';
-import type { ChainMap, ChainName, ChainNameOrId } from '../types';
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
-import { MultiProvider, MultiProviderOptions } from './MultiProvider';
+import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
@@ -26,15 +26,15 @@ import {
   TypedProvider,
   TypedTransaction,
   ViemProvider,
-} from './ProviderType';
+} from './ProviderType.js';
 import {
   ProviderBuilderMap,
   defaultProviderBuilderMap,
-} from './providerBuilders';
+} from './providerBuilders.js';
 import {
   TransactionFeeEstimate,
   estimateTransactionFee,
-} from './transactionFeeEstimators';
+} from './transactionFeeEstimators.js';
 
 export interface MultiProtocolProviderOptions {
   logger?: Logger;
