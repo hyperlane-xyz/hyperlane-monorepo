@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { LevelWithSilent, Logger, pino } from 'pino';
 
 import { safelyAccessEnvVar } from './env.js';
@@ -95,4 +96,17 @@ export function createHyperlanePinoLogger(
       },
     },
   });
+}
+
+export function ethersBigNumberSerializer(key: string, value: any): any {
+  // Check if the value looks like a serialized BigNumber
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    value.type === 'BigNumber' &&
+    value.hex
+  ) {
+    return BigNumber.from(value.hex).toString();
+  }
+  return value;
 }

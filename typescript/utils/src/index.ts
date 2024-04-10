@@ -80,6 +80,7 @@ export {
   LogLevel,
   configureRootLogger,
   createHyperlanePinoLogger,
+  ethersBigNumberSerializer,
   getLogFormat,
   getLogLevel,
   getRootLogger,
@@ -138,6 +139,7 @@ export {
   S3CheckpointWithId,
   SignatureLike,
   TokenCaip19Id,
+  WithAddress,
 } from './types.js';
 export { assert } from './validation.js';
 export { BaseValidator } from './validator.js';
