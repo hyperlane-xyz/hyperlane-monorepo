@@ -11,10 +11,9 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  ProtocolType,
   WithAddress,
   assert,
-  ethersBigNumberReducer,
+  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -33,7 +32,7 @@ import {
   TestIsmConfig,
 } from './types.js';
 
-interface IsmReader<_ extends ProtocolType> {
+interface IsmReader {
   deriveIsmConfig(address: Address): Promise<WithAddress<IsmConfig>>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
@@ -47,7 +46,7 @@ interface IsmReader<_ extends ProtocolType> {
   ): Promise<WithAddress<PausableIsmConfig | TestIsmConfig | OpStackIsmConfig>>;
 }
 
-export class EvmIsmReader implements IsmReader<ProtocolType.Ethereum> {
+export class EvmIsmReader implements IsmReader {
   protected readonly provider: providers.Provider;
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
 
@@ -60,7 +59,7 @@ export class EvmIsmReader implements IsmReader<ProtocolType.Ethereum> {
   }
 
   public static stringifyConfig(config: IsmConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberReducer, space);
+    return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
   async deriveIsmConfig(address: Address): Promise<WithAddress<IsmConfig>> {
@@ -103,11 +102,20 @@ export class EvmIsmReader implements IsmReader<ProtocolType.Ethereum> {
     assert((await ism.moduleType()) === ModuleType.ROUTING);
 
     const domains: RoutingIsmConfig['domains'] = {};
+    const domainIds = await ism.domains();
 
-    for (const domainId of await ism.domains()) {
+    const processDomainId = async (domainId: (typeof domainIds)[number]) => {
       const chainName = this.multiProvider.getChainName(domainId.toNumber());
       const module = await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
+    };
+
+    if (this.disableConcurrency) {
+      for (const domainId of domainIds) {
+        await processDomainId(domainId);
+      }
+    } else {
+      await Promise.all(domainIds.map(processDomainId));
     }
 
     // Fallback routing ISM extends from MailboxClient, default routign
@@ -139,9 +147,18 @@ export class EvmIsmReader implements IsmReader<ProtocolType.Ethereum> {
     const [modules, threshold] = await ism.modulesAndThreshold(
       ethers.constants.AddressZero,
     );
-    const ismConfigs = await Promise.all(
-      modules.map((ismAddress) => this.deriveIsmConfig(ismAddress)),
-    );
+
+    let ismConfigs = [];
+    if (this.disableConcurrency) {
+      for (const ismAddress of modules) {
+        const config = await this.deriveIsmConfig(ismAddress);
+        ismConfigs.push(config);
+      }
+    } else {
+      ismConfigs = await Promise.all(
+        modules.map((ismAddress) => this.deriveIsmConfig(ismAddress)),
+      );
+    }
 
     return {
       address,
@@ -197,7 +214,7 @@ export class EvmIsmReader implements IsmReader<ProtocolType.Ethereum> {
       };
     } catch (error) {
       this.logger.debug(
-        'Error accessing paused property, implying this is not a Pausable ISM.',
+        'Error accessing "paused" property, implying this is not a Pausable ISM.',
         address,
       );
     }
@@ -215,27 +232,17 @@ export class EvmIsmReader implements IsmReader<ProtocolType.Ethereum> {
       };
     } catch (error) {
       this.logger.debug(
-        'Error accessing VERIFIED_MASK_INDEX property, implying this is not an OP Stack ISM.',
+        'Error accessing "VERIFIED_MASK_INDEX" property, implying this is not an OP Stack ISM.',
         address,
       );
     }
 
     // no specific properties, must be Test ISM
     const testIsm = TestIsm__factory.connect(address, this.provider);
-    try {
-      assert((await testIsm.moduleType()) === ModuleType.NULL);
-      return {
-        address,
-        type: IsmType.TEST_ISM,
-      };
-    } catch (error) {
-      this.logger.debug(
-        'Error accessing setVerify property, implying this is not a Test ISM.',
-        address,
-      );
-    }
-
-    // all else fails, throw an error
-    throw new Error(`Encountered invalid Null ISM at ${address}`);
+    assert((await testIsm.moduleType()) === ModuleType.NULL);
+    return {
+      address,
+      type: IsmType.TEST_ISM,
+    };
   }
 }

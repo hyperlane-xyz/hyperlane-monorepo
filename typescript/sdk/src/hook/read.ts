@@ -132,9 +132,17 @@ export class EvmHookReader implements HookReader {
     assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
-    const hookConfigs = await Promise.all(
-      hooks.map((hookAddress) => this.deriveHookConfig(hookAddress)),
-    );
+    let hookConfigs = [];
+    if (this.disableConcurrency) {
+      for (const hookAddress of hooks) {
+        const config = await this.deriveHookConfig(hookAddress);
+        hookConfigs.push(config);
+      }
+    } else {
+      hookConfigs = await Promise.all(
+        hooks.map((hookAddress) => this.deriveHookConfig(hookAddress)),
+      );
+    }
 
     return {
       address,

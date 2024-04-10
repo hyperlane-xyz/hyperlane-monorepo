@@ -20,6 +20,8 @@ import {
 //     yarn tsx scripts/read-config.ts -e mainnet3 --type ism --network celo --address 0x99e8E56Dce3402D6E09A82718937fc1cA2A9491E
 // Aggregation ISM for bsc domain on inevm (may take 5s)
 //     yarn tsx scripts/read-config.ts -e mainnet3 --type ism --network inevm --address 0x79A7c7Fe443971CBc6baD623Fdf8019C379a7178
+// Test ISM on alfajores testnet
+//     yarn tsx scripts/read-config.ts -e testnet4 --type ism --network alfajores --address 0xdB52E4853b6A40D2972E6797E0BDBDb3eB761966
 
 async function readConfig() {
   const { environment, network, context, type, address, disableConcurrency } =
@@ -66,11 +68,11 @@ async function readConfig() {
     console.error('Invalid type specified. Please use "ism" or "hook".');
     process.exit(1);
   }
+
+  process.exit(0);
 }
 
-readConfig()
-  .then()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+readConfig().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
