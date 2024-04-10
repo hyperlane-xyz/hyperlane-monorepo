@@ -3,8 +3,12 @@ import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import {
+  IInterchainSecurityModule,
+  IInterchainSecurityModule__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
+  OPStackIsm,
+  OPStackIsm__factory,
   PausableIsm,
   PausableIsm__factory,
   TestIsm,
@@ -45,7 +49,7 @@ describe('EvmIsmReader', () => {
   it('should derive multisig config correctly', async () => {
     const mockAddress = generateRandomAddress();
     const mockValidators = [generateRandomAddress(), generateRandomAddress()];
-    const mockThreshold = ethers.BigNumber.from('2');
+    const mockThreshold = 2;
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -57,12 +61,15 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(IMultisigIsm__factory, 'connect')
       .returns(mockContract as unknown as IMultisigIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
 
     const expectedConfig: WithAddress<MultisigIsmConfig> = {
       address: mockAddress,
       type: IsmType.MESSAGE_ID_MULTISIG,
       validators: mockValidators,
-      threshold: mockThreshold.toNumber(),
+      threshold: mockThreshold,
     };
 
     // top-level method infers ism type
@@ -88,6 +95,9 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(PausableIsm__factory, 'connect')
       .returns(mockContract as unknown as PausableIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
 
     const expectedConfig: WithAddress<PausableIsmConfig> = {
       address: mockAddress,
@@ -115,6 +125,15 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(TestIsm__factory, 'connect')
       .returns(mockContract as unknown as TestIsm);
+    sandbox
+      .stub(OPStackIsm__factory, 'connect')
+      .returns(mockContract as unknown as OPStackIsm);
+    sandbox
+      .stub(PausableIsm__factory, 'connect')
+      .returns(mockContract as unknown as PausableIsm);
+    sandbox
+      .stub(IInterchainSecurityModule__factory, 'connect')
+      .returns(mockContract as unknown as IInterchainSecurityModule);
 
     const expectedConfig: WithAddress<TestIsmConfig> = {
       address: mockAddress,
