@@ -165,7 +165,7 @@ jobs:
       - name: Generate ${{ matrix.environment }} agent config
         run: |
           cd typescript/infra
-          yarn ts-node ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
+          yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found in agent config: $CHANGES"
