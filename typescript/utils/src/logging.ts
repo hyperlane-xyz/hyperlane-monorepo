@@ -98,7 +98,7 @@ export function createHyperlanePinoLogger(
   });
 }
 
-export function ethersBigNumberReducer(key: string, value: any): any {
+export function ethersBigNumberSerializer(key: string, value: any): any {
   // Check if the value looks like a serialized BigNumber
   if (
     typeof value === 'object' &&

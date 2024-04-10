@@ -47,9 +47,7 @@ async function readHook() {
   console.log(EvmHookReader.stringifyConfig(config, 2));
 }
 
-readHook()
-  .then()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+readHook().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

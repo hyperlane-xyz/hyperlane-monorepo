@@ -80,7 +80,7 @@ export {
   LogLevel,
   configureRootLogger,
   createHyperlanePinoLogger,
-  ethersBigNumberReducer,
+  ethersBigNumberSerializer,
   getLogFormat,
   getLogLevel,
   getRootLogger,

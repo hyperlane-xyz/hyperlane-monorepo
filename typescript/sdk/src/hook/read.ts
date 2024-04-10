@@ -17,10 +17,9 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  ProtocolType,
   WithAddress,
   eqAddress,
-  ethersBigNumberReducer,
+  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -42,7 +41,7 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-interface HookReader<_ extends ProtocolType> {
+interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
     address: Address,
@@ -68,7 +67,7 @@ interface HookReader<_ extends ProtocolType> {
   ): Promise<WithAddress<PausableHookConfig>>;
 }
 
-export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
+export class EvmHookReader implements HookReader {
   protected readonly provider: providers.Provider;
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
 
@@ -81,7 +80,7 @@ export class EvmHookReader implements HookReader<ProtocolType.Ethereum> {
   }
 
   public static stringifyConfig(config: HookConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberReducer, space);
+    return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
   async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {
