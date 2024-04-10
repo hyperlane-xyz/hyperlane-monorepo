@@ -265,15 +265,20 @@ where
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        tx_gas_limit: Option<U256>,
+        tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, ()>> {
         let tx = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
         let tx_overrides = TransactionOverrides {
-            // If a gas limit is provided as a transaction override, use it.
-            gas_limit: self.conn.transaction_overrides.gas_limit.or(tx_gas_limit),
+            // If a gas limit is provided as a transaction override, use it instead
+            // of the estimate.
+            gas_limit: self
+                .conn
+                .transaction_overrides
+                .gas_limit
+                .or(tx_gas_estimate),
             ..self.conn.transaction_overrides.clone()
         };
         fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
