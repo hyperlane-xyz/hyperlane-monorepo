@@ -116,33 +116,33 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    // test config
-    const plumetestnet = {
-      ...routerConfig.plumetestnet,
-      type: TokenType.synthetic,
-      name: 'Wrapped Ether',
-      symbol: 'WETH',
-      decimals: 18,
-      totalSupply: '0',
-      gas: 0,
-    };
-    const sepolia = {
-      ...routerConfig.sepolia,
-      type: TokenType.native,
-      gas: 0,
-    };
-    const config = {
-      plumetestnet,
-      sepolia,
-    };
+    // // test config
+    // const plumetestnet = {
+    //   ...routerConfig.plumetestnet,
+    //   type: TokenType.synthetic,
+    //   name: 'Wrapped Ether',
+    //   symbol: 'WETH',
+    //   decimals: 18,
+    //   totalSupply: '0',
+    //   gas: 0,
+    // };
+    // const sepolia = {
+    //   ...routerConfig.sepolia,
+    //   type: TokenType.native,
+    //   gas: 0,
+    // };
+    // const config = {
+    //   plumetestnet,
+    //   sepolia,
+    // };
     const addresses = getAddresses(environment, Modules.WARP);
-    const filteredAddresses = Object.keys(addresses) // filter out changes not in config
-      .filter((key) => key in config)
-      .reduce((obj, key) => {
-        obj[key] = addresses[key];
-        return obj;
-      }, {} as typeof addresses);
-    const app = HypERC20App.fromAddressesMap(filteredAddresses, multiProvider);
+    // const filteredAddresses = Object.keys(addresses) // filter out changes not in config
+    //   .filter((key) => key in config)
+    //   .reduce((obj, key) => {
+    //     obj[key] = addresses[key];
+    //     return obj;
+    //   }, {} as typeof addresses);
+    const app = HypERC20App.fromAddressesMap(addresses, multiProvider);
 
     const checker = new HypERC20Checker(
       multiProvider,
