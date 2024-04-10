@@ -104,6 +104,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         let response: TxResponse = self
             .provider
             .grpc()
+            // TODO: consider transaction overrides for Cosmos.
             .wasm_send(announce_request, None)
             .await?;
 
