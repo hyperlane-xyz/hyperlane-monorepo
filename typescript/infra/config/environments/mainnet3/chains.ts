@@ -5,7 +5,7 @@ import {
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
 
-import { getChainMetadatas } from '../../../src/config/chain';
+import { getChainMetadatas } from '../../../src/config/chain.js';
 
 // The `Mainnets` from the SDK are all supported chains for the mainnet3 environment.
 // These chains may be any protocol type.

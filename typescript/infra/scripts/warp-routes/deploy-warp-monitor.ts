@@ -1,8 +1,8 @@
 import yargs from 'yargs';
 
-import { HelmCommand } from '../../src/utils/helm';
+import { HelmCommand } from '../../src/utils/helm.js';
 
-import { runWarpRouteHelmCommand } from './helm';
+import { runWarpRouteHelmCommand } from './helm.js';
 
 async function main() {
   const { filePath } = await yargs(process.argv.slice(2))

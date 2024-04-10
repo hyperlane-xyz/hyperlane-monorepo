@@ -3,17 +3,17 @@ import { BigNumber } from 'ethers';
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
-} from '../consts/environments';
-import { appFromAddressesMapHelper } from '../contracts/contracts';
-import { HyperlaneAddressesMap } from '../contracts/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+} from '../consts/environments/index.js';
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts';
+import { IgpFactories, igpFactories } from './contracts.js';
 
 export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(

@@ -4,9 +4,9 @@ import { Logger } from 'pino';
 
 import { rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
-import { ExplorerFamily } from '../../metadata/chainMetadataTypes';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ChainMap, ChainName } from '../../types';
+import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../../types.js';
 
 import {
   BuildArtifact,
@@ -16,7 +16,7 @@ import {
   ExplorerApiActions,
   ExplorerApiErrors,
   FormOptions,
-} from './types';
+} from './types.js';
 
 export class ContractVerifier {
   protected logger = rootLogger.child({ module: 'ContractVerifier' });

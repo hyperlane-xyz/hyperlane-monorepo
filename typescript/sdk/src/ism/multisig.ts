@@ -1,13 +1,13 @@
 import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../types';
+import { ChainMap, ChainName } from '../types.js';
 
 import {
   AggregationIsmConfig,
   IsmType,
   MultisigConfig,
   MultisigIsmConfig,
-} from './types';
+} from './types.js';
 
 // build multisigIsmConfig from multisigConfig
 // eg. for { sepolia (local), arbitrumsepolia, scrollsepolia }

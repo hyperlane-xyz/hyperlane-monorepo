@@ -9,8 +9,8 @@
       "ES2015", "ES2016", "ES2017", "ES2018",
       "ES2019", "ES2020","ES2021", "DOM"
     ],
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
@@ -23,6 +23,11 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "target": "ES2020",
+    "target": "es2022",
+  },
+  "ts-node": {
+    "experimentalSpecifierResolution": "node",
+    "experimentalResolver": true,
+    "files": true
   }
 }

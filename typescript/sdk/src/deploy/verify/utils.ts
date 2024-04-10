@@ -1,6 +1,6 @@
 import { ethers, utils } from 'ethers';
 
-import { ContractVerificationInput } from './types';
+import { ContractVerificationInput } from './types.js';
 
 export function formatFunctionArguments(
   fragment: utils.Fragment,

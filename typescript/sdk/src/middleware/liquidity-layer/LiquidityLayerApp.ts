@@ -14,14 +14,14 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../../app/HyperlaneApp';
-import { HyperlaneContracts } from '../../contracts/types';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ChainMap, ChainName } from '../../types';
-import { fetchWithTimeout } from '../../utils/fetch';
+import { HyperlaneApp } from '../../app/HyperlaneApp.js';
+import { HyperlaneContracts } from '../../contracts/types.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../../types.js';
+import { fetchWithTimeout } from '../../utils/fetch.js';
 
-import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer';
-import { liquidityLayerFactories } from './contracts';
+import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer.js';
+import { liquidityLayerFactories } from './contracts.js';
 
 const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
   'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';

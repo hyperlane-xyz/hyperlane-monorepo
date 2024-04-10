@@ -7,10 +7,10 @@ import type {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { deployInterchainAccount } from '../middleware/account/InterchainAccount';
-import { AccountConfig } from '../middleware/account/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import type { ChainName } from '../types';
+import { deployInterchainAccount } from '../middleware/account/InterchainAccount.js';
+import { AccountConfig } from '../middleware/account/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import type { ChainName } from '../types.js';
 
 export type Owner = Address | AccountConfig;
 

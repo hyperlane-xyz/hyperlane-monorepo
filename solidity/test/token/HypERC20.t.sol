@@ -16,6 +16,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
+import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
@@ -27,9 +28,14 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
+import {Message} from "../../contracts/libs/Message.sol";
 
 abstract contract HypTokenTest is Test {
     using TypeCasts for address;
+    using TokenMessage for bytes;
+    using Message for bytes;
+
     uint32 internal constant ORIGIN = 11;
     uint32 internal constant DESTINATION = 12;
     uint8 internal constant DECIMALS = 18;
@@ -183,6 +189,42 @@ abstract contract HypTokenTest is Test {
         vm.expectEmit(true, true, false, true);
         emit SentTransferRemote(DESTINATION, BOB.addressToBytes32(), _amount);
         _performRemoteTransferAndGas(_msgValue, _amount, _gasOverhead);
+    }
+
+    function _performRemoteTransferWithHook(
+        uint256 _msgValue,
+        uint256 _amount
+    ) internal returns (bytes32 messageId) {
+        vm.prank(ALICE);
+        messageId = localToken.transferRemote{value: _msgValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            _amount,
+            bytes(""),
+            address(noopHook)
+        );
+        _processTransfers(BOB, _amount);
+        assertEq(remoteToken.balanceOf(BOB), _amount);
+    }
+
+    function testTransfer_withHookSpecified() public {
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        bytes32 messageId = _performRemoteTransferWithHook(
+            REQUIRED_VALUE,
+            TRANSFER_AMT
+        );
+        assertTrue(noopHook.messageDispatched(messageId));
+        /// @dev Using this test would be ideal, but vm.expectCall with nested functions more than 1 level deep is broken
+        /// In other words, the call graph of Route.transferRemote() -> Mailbox.dispatch() -> Hook.postDispatch() does not work with expectCall
+        // vm.expectCall(
+        //     address(noopHook),
+        //     abi.encodeCall(
+        //         IPostDispatchHook.postDispatch,
+        //         (bytes(""), outboundMessage)
+        //     )
+        // );
+        /// @dev Also, using expectedCall with Mailbox.dispatch() won't work either because overloaded function selection is broken, see https://github.com/ethereum/solidity/issues/13815
     }
 
     function testBenchmark_overheadGasUsage() public virtual {

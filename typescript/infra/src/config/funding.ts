@@ -1,9 +1,9 @@
 import { ChainMap, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { FundableRole, Role } from '../roles';
+import { Contexts } from '../../config/contexts.js';
+import { FundableRole, Role } from '../roles.js';
 
-import { DockerConfig } from './agent';
+import { DockerConfig } from './agent/agent.js';
 
 export interface ContextAndRoles {
   context: Contexts;

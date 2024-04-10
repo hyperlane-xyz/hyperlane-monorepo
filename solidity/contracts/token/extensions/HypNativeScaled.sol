@@ -30,7 +30,14 @@ contract HypNativeScaled is HypNative {
         uint256 gasPayment = msg.value - _amount;
         uint256 scaledAmount = _amount / scale;
         return
-            _transferRemote(_destination, _recipient, scaledAmount, gasPayment);
+            _transferRemote(
+                _destination,
+                _recipient,
+                scaledAmount,
+                gasPayment,
+                bytes(""),
+                address(0)
+            );
     }
 
     /**

@@ -4,7 +4,7 @@ import {
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 
-import { HyperlaneAddresses } from '../contracts/types';
+import { HyperlaneAddresses } from '../contracts/types.js';
 
 export const coreFactories = {
   validatorAnnounce: new ValidatorAnnounce__factory(),

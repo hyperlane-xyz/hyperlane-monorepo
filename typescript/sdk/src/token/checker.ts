@@ -3,11 +3,11 @@ import { BigNumber } from 'ethers';
 import { ERC20, ERC20__factory, HypERC20Collateral } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { TokenMismatchViolation } from '../deploy/types';
-import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker';
-import { ChainName } from '../types';
+import { TokenMismatchViolation } from '../deploy/types.js';
+import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker.js';
+import { ChainName } from '../types.js';
 
-import { HypERC20App } from './app';
+import { HypERC20App } from './app.js';
 import {
   ERC20RouterConfig,
   HypERC20Config,
@@ -15,8 +15,8 @@ import {
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
-} from './config';
-import { HypERC20Factories } from './contracts';
+} from './config.js';
+import { HypERC20Factories } from './contracts.js';
 
 export class HypERC20Checker extends HyperlaneRouterChecker<
   HypERC20Factories,

@@ -7,15 +7,15 @@ import {
   objMerge,
 } from '@hyperlane-xyz/utils';
 
-import { filterOwnableContracts } from '../contracts/contracts';
+import { filterOwnableContracts } from '../contracts/contracts.js';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { RouterConfig } from '../router/types';
-import { ChainMap } from '../types';
+} from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap } from '../types.js';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,

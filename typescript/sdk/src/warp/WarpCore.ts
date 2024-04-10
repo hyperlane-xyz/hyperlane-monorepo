@@ -12,21 +12,21 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
   TransactionFeeEstimate,
   estimateTransactionFeeEthersV5ForGasUnits,
-} from '../providers/transactionFeeEstimators';
-import { IToken } from '../token/IToken';
-import { Token } from '../token/Token';
-import { TokenAmount } from '../token/TokenAmount';
-import { parseTokenConnectionId } from '../token/TokenConnection';
+} from '../providers/transactionFeeEstimators.js';
+import { IToken } from '../token/IToken.js';
+import { Token } from '../token/Token.js';
+import { TokenAmount } from '../token/TokenAmount.js';
+import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
-} from '../token/TokenStandard';
-import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter';
-import { ChainName, ChainNameOrId } from '../types';
+} from '../token/TokenStandard.js';
+import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
   FeeConstantConfig,
@@ -35,7 +35,7 @@ import {
   WarpCoreFeeEstimate,
   WarpTxCategory,
   WarpTypedTransaction,
-} from './types';
+} from './types.js';
 
 export interface WarpCoreOptions {
   logger?: Logger;

@@ -6,7 +6,7 @@ import { createPublicClient, http } from 'viem';
 
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes';
+import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 
 import {
   CosmJsProvider,
@@ -16,9 +16,9 @@ import {
   SolanaWeb3Provider,
   TypedProvider,
   ViemProvider,
-} from './ProviderType';
-import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider';
-import { ProviderRetryOptions } from './SmartProvider/types';
+} from './ProviderType.js';
+import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
+import { ProviderRetryOptions } from './SmartProvider/types.js';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],

@@ -11,7 +11,7 @@ import {
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 
-import { HyperlaneAppGovernor } from './HyperlaneAppGovernor';
+import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 
 export class ProxiedRouterGovernor<
   App extends RouterApp<any>,

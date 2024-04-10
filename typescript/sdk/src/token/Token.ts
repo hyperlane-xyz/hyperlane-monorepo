@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-empty-interface */
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
@@ -9,13 +9,13 @@ import {
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import { ChainName } from '../types';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { ChainName } from '../types.js';
 
-import type { IToken, TokenArgs } from './IToken';
-import { TokenAmount } from './TokenAmount';
-import { TokenConnection, TokenConnectionType } from './TokenConnection';
+import type { IToken, TokenArgs } from './IToken.js';
+import { TokenAmount } from './TokenAmount.js';
+import { TokenConnection, TokenConnectionType } from './TokenConnection.js';
 import {
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
@@ -24,34 +24,37 @@ import {
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
-} from './TokenStandard';
+} from './TokenStandard.js';
 import {
   CwHypCollateralAdapter,
   CwHypNativeAdapter,
   CwHypSyntheticAdapter,
   CwNativeTokenAdapter,
   CwTokenAdapter,
-} from './adapters/CosmWasmTokenAdapter';
+} from './adapters/CosmWasmTokenAdapter.js';
 import {
   CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
   CosmNativeTokenAdapter,
-} from './adapters/CosmosTokenAdapter';
+} from './adapters/CosmosTokenAdapter.js';
 import {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
-} from './adapters/EvmTokenAdapter';
-import type { IHypTokenAdapter, ITokenAdapter } from './adapters/ITokenAdapter';
+} from './adapters/EvmTokenAdapter.js';
+import type {
+  IHypTokenAdapter,
+  ITokenAdapter,
+} from './adapters/ITokenAdapter.js';
 import {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
-} from './adapters/SealevelTokenAdapter';
+} from './adapters/SealevelTokenAdapter.js';
 
 // Declaring the interface in addition to class allows
 // Typescript to infer the members vars from TokenArgs

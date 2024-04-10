@@ -2,7 +2,7 @@ import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 
 import { Address, HexString, assert, ensure0x } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
   Coin,
   DefaultHookResponse,
@@ -14,15 +14,15 @@ import {
   OwnerResponse,
   QueryMsg,
   RequiredHookResponse,
-} from '../../cw-types/Mailbox.types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+} from '../../cw-types/Mailbox.types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
-} from '../../providers/ProviderType';
-import { ChainName } from '../../types';
+} from '../../providers/ProviderType.js';
+import { ChainName } from '../../types.js';
 
-import { ICoreAdapter } from './types';
+import { ICoreAdapter } from './types.js';
 
 const MESSAGE_DISPATCH_EVENT_TYPE = 'wasm-mailbox_dispatch';
 const MESSAGE_DISPATCH_ID_EVENT_TYPE = 'wasm-mailbox_dispatch_id';

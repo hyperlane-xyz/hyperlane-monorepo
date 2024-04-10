@@ -9,16 +9,14 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
-
-export { Router } from '@hyperlane-xyz/core';
+} from '../contracts/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export abstract class RouterApp<
   Factories extends HyperlaneFactories,

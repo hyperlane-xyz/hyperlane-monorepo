@@ -4,13 +4,13 @@ import { ethers } from 'ethers';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { Chains } from '../consts/chains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
-import { TokenArgs } from './IToken';
-import { Token } from './Token';
-import { TokenStandard } from './TokenStandard';
+import { TokenArgs } from './IToken.js';
+import { Token } from './Token.js';
+import { TokenStandard } from './TokenStandard.js';
 
 // null values represent TODOs here, ideally all standards should be tested
 const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {

@@ -6,7 +6,7 @@ import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ZChainName, ZNzUint, ZUint } from './customZodTypes';
+import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',

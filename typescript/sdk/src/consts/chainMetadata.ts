@@ -4,10 +4,10 @@ import {
   ChainMetadata,
   ChainTechnicalStack,
   ExplorerFamily,
-} from '../metadata/chainMetadataTypes';
-import { ChainMap } from '../types';
+} from '../metadata/chainMetadataTypes.js';
+import { ChainMap } from '../types.js';
 
-import { Chains, Mainnets, Testnets } from './chains';
+import { Chains, Mainnets, Testnets } from './chains.js';
 
 /**
  * Common native currencies

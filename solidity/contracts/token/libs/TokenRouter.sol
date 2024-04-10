@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {GasRouter} from "../../client/GasRouter.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
@@ -56,31 +57,86 @@ abstract contract TokenRouter is GasRouter {
         uint256 _amountOrId
     ) external payable virtual returns (bytes32 messageId) {
         return
-            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                msg.value,
+                bytes(""),
+                address(0)
+            );
+    }
+
+    /**
+     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain with a specified hook
+     * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * @dev The metadata is the token metadata, and is DIFFERENT than the hook metadata.
+     * @dev Emits `SentTransferRemote` event on the origin chain.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hookMetadata The metadata passed into the hook
+     * @param _hook The post dispatch hook to be called by the Mailbox
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        bytes calldata _hookMetadata,
+        address _hook
+    ) external payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                msg.value,
+                _hookMetadata,
+                _hook
+            );
     }
 
     /**
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * @dev The metadata is the token metadata, and is DIFFERENT than the hook metadata.
      * @dev Emits `SentTransferRemote` event on the origin chain.
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
      * @param _gasPayment The amount of native token to pay for interchain gas.
+     * @param _hookMetadata The metadata passed into the hook
+     * @param _hook The post dispatch hook to be called by the Mailbox
      * @return messageId The identifier of the dispatched message.
      */
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId,
-        uint256 _gasPayment
+        uint256 _gasPayment,
+        bytes memory _hookMetadata,
+        address _hook
     ) internal returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
-        messageId = _dispatch(
-            _destination,
-            _gasPayment,
-            TokenMessage.format(_recipient, _amountOrId, metadata)
-        );
+
+        if (address(_hook) == address(0)) {
+            messageId = _dispatch(
+                _destination,
+                _gasPayment,
+                TokenMessage.format(_recipient, _amountOrId, metadata)
+            );
+        } else {
+            messageId = _dispatch(
+                _destination,
+                _recipient,
+                _gasPayment,
+                TokenMessage.format(_recipient, _amountOrId, metadata),
+                _hookMetadata,
+                IPostDispatchHook(_hook)
+            );
+        }
+
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }
 
