@@ -395,10 +395,10 @@ pub(crate) mod test {
     async fn test_next_action_retries_if_update_isnt_called() {
         let mut cursor = mock_rate_limited_cursor(None).await;
         let (action_1, _) = cursor.next_action().await.unwrap();
-        let (_action_2, _) = cursor.next_action().await.unwrap();
+        let (action_2, _) = cursor.next_action().await.unwrap();
 
         // Calling next_action without updating the cursor should return the same action
-        assert!(matches!(action_1, _action_2));
+        assert!(matches!(action_1, action_2));
     }
 
     #[tokio::test]
@@ -413,8 +413,8 @@ pub(crate) mod test {
         cursor.update(vec![], range.clone()).await.unwrap();
 
         let (action_3, _) = cursor.next_action().await.unwrap();
-        let _expected_range = range.end() + 1..=(range.end() + CHUNK_SIZE);
-        assert!(matches!(action_3, CursorAction::Query(_expected_range)));
+        let expected_range = range.end() + 1..=(range.end() + CHUNK_SIZE);
+        assert!(matches!(action_3, CursorAction::Query(expected_range)));
     }
 
     #[tokio::test]
