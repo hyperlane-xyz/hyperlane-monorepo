@@ -155,7 +155,6 @@ async function main() {
       // ethereum <> ancient8 warp route deployment:
       //   $ cast call 0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f 'interchainSecurityModule()(address)' --rpc-url https://rpc.ankr.com/eth
       //   0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3
-      // interchainSecurityModule: '0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3',
       interchainSecurityModule: ism.address,
       // This hook was recovered from running the deploy script
       // for the hook module. The hook configuration is the Ethereum

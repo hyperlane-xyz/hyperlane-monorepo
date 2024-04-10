@@ -25,7 +25,7 @@ done
 # echo all subsequent commands
 set -x
 
-# yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
 
 # get balance
 DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
@@ -37,9 +37,9 @@ AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 DEPLOY_DELTA="$((BEFORE-AFTER))"
 
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
-# yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE
 
 AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 GOVERN_DELTA="$((BEFORE-AFTER))"
 
-# yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
