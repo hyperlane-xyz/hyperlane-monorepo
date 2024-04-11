@@ -13,12 +13,12 @@ const environmentChainConfigs = {
     agentChainConfig: mainnet3AgentChainConfig,
     // We read the agent config from the file system instead of importing
     // to get around the agent JSON configs living outside the typescript rootDir
-    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('mainnet3')),
+    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('mainnet')),
     supportedChainNames: mainnet3SupportedChainNames,
   },
   testnet4: {
     agentChainConfig: testnet4AgentChainConfig,
-    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('testnet4')),
+    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('testnet')),
     supportedChainNames: testnet4SupportedChainNames,
   },
 };

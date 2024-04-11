@@ -133,6 +133,45 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
+  agent-configs:
+    runs-on: ubuntu-latest
+    needs: [yarn-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [mainnet3, testnet4]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
+      - name: build-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./*
+            !./rust
+          key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Generate ${{ matrix.environment }} agent config
+        run: |
+          cd typescript/infra
+          yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
+          CHANGES=$(git status -s)
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found in agent config: $CHANGES"
+            exit 1
+          fi
+
   e2e-matrix:
     runs-on: larger-runner
     needs: [yarn-build]

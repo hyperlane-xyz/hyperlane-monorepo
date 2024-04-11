@@ -352,7 +352,7 @@ impl Validator {
                     } else {
                         let result = self
                             .validator_announce
-                            .announce(signed_announcement.clone(), None)
+                            .announce(signed_announcement.clone())
                             .await;
                         Self::log_on_announce_failure(result, &chain_signer);
                     }

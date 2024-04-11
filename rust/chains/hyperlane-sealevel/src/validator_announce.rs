@@ -116,11 +116,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn announce(
-        &self,
-        _announcement: SignedType<Announcement>,
-        _tx_gas_limit: Option<U256>,
-    ) -> ChainResult<TxOutcome> {
+    async fn announce(&self, _announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         warn!(
             "Announcing validator storage locations within the agents is not supported on Sealevel"
         );

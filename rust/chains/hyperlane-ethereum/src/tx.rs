@@ -19,10 +19,12 @@ use ethers_core::{
 use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
 use tracing::{error, info};
 
-use crate::Middleware;
+use crate::{Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 const GAS_ESTIMATE_BUFFER: u32 = 50000;
+
+const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
@@ -45,7 +47,9 @@ where
     info!(?to, %data, "Dispatching transaction");
     // We can set the gas higher here!
     let dispatch_fut = tx.send();
-    let dispatched = dispatch_fut.await?;
+    let dispatched = dispatch_fut
+        .await?
+        .interval(PENDING_TRANSACTION_POLLING_INTERVAL);
 
     let tx_hash: H256 = (*dispatched).into();
 
@@ -76,14 +80,14 @@ where
 /// Populates the gas limit and price for a transaction
 pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
-    tx_gas_limit: Option<U256>,
     provider: Arc<M>,
+    transaction_overrides: &TransactionOverrides,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let gas_limit = if let Some(gas_limit) = tx_gas_limit {
+    let gas_limit = if let Some(gas_limit) = transaction_overrides.gas_limit {
         gas_limit
     } else {
         tx.estimate_gas()
@@ -91,6 +95,11 @@ where
             .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
             .into()
     };
+
+    if let Some(gas_price) = transaction_overrides.gas_price {
+        // If the gas price is set, we treat as a non-EIP-1559 chain.
+        return Ok(tx.gas_price(gas_price).gas(gas_limit));
+    }
 
     let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
     else {
@@ -106,6 +115,16 @@ where
     if base_fee.is_zero() {
         return Ok(tx.gas(gas_limit));
     }
+
+    // Apply overrides for EIP 1559 tx params if they exist.
+    let max_fee = transaction_overrides
+        .max_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_fee);
+    let max_priority_fee = transaction_overrides
+        .max_priority_fee_per_gas
+        .map(Into::into)
+        .unwrap_or(max_priority_fee);
 
     // Is EIP 1559 chain
     let mut request = Eip1559TransactionRequest::new();
