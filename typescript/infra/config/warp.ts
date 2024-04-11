@@ -1,24 +1,44 @@
+import { ethers } from 'ethers';
+
 import {
+  ChainMap,
+  ERC20RouterConfig,
   HyperlaneCore,
   HyperlaneIsmFactory,
   MultiProvider,
+  RouterConfig,
+  TokenConfig,
+  TokenType,
+  buildAggregationIsmConfigs,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { Modules, getAddresses } from '../../../scripts/agent-utils';
-import { deployEnvToSdkEnv } from '../../../src/config/environment';
+import { Modules, getAddresses } from '../scripts/agent-utils';
+import {
+  EnvironmentConfig,
+  deployEnvToSdkEnv,
+} from '../src/config/environment';
+import { tokens } from '../src/config/warp';
 
-import { environment } from './chains';
+import { DEPLOYER } from './environments/mainnet3/owners';
 
-async function getWarpConfig(multiProvider: MultiProvider) {
+export async function getWarpConfig(
+  multiProvider: MultiProvider,
+  envConfig: EnvironmentConfig,
+): Promise<ChainMap<TokenConfig & RouterConfig>> {
   const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
+    deployEnvToSdkEnv[envConfig.environment],
     multiProvider,
   );
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    getAddresses(environment, Modules.PROXY_FACTORY),
+    getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
     multiProvider,
   );
 
+  const owner = DEPLOYER;
+
+  // "Manually" deploying an ISM because the warp deployer doesn't support
+  // ISM objects at the moment, and the deploy involves strictly recoverable ISMs.
   const ism = await ismFactory.deploy({
     destination: 'ethereum',
     config: buildAggregationIsmConfigs(
@@ -30,38 +50,31 @@ async function getWarpConfig(multiProvider: MultiProvider) {
 
   const routerConfig = core.getRouterConfig(envConfig.owners);
 
-  const ethereum = {
+  const ethereum: TokenConfig & RouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
-    // Really, this should be an object config from something like:
-    //   buildAggregationIsmConfigs(
-    //     'ethereum',
-    //     ['ancient8'],
-    //     defaultMultisigConfigs,
-    //   ).ancient8
-    // However ISM objects are no longer able to be passed directly to the warp route
-    // deployer. As a temporary workaround, I'm using an ISM address from a previous
-    // ethereum <> ancient8 warp route deployment:
-    //   $ cast call 0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f 'interchainSecurityModule()(address)' --rpc-url https://rpc.ankr.com/eth
-    //   0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3
     interchainSecurityModule: ism.address,
     // This hook was recovered from running the deploy script
     // for the hook module. The hook configuration is the Ethereum
     // default hook for the Ancient8 remote (no routing).
     hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
-    owner: DEPLOYER,
+    owner,
   };
 
-  const ancient8 = {
+  // @ts-ignore
+  const ancient8: TokenConfig & RouterConfig = {
     ...routerConfig.ancient8,
+    // name: 'string',
+    // symbol: 'string',
+    // totalSupply: '0',
     type: TokenType.synthetic,
     // Uses the default ISM
     interchainSecurityModule: ethers.constants.AddressZero,
-    owner: DEPLOYER,
+    owner,
   };
 
-  config = {
+  return {
     ethereum,
     ancient8,
   };
