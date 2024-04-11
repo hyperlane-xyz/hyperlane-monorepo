@@ -144,6 +144,7 @@ const warpCommand: CommandModule = {
       out: outDirCommandOption,
       key: keyCommandOption,
       yes: skipConfirmationOption,
+      'dry-run': dryRunOption,
     }),
   handler: async (argv: any) => {
     const key: string = argv.key || ENV.HYP_KEY;
@@ -152,14 +153,27 @@ const warpCommand: CommandModule = {
     const coreArtifactsPath: string | undefined = argv.core;
     const outPath: string = argv.out;
     const skipConfirmation: boolean = argv.yes;
-    await runWarpRouteDeploy({
-      key,
-      chainConfigPath,
-      warpRouteDeploymentConfigPath,
-      coreArtifactsPath,
-      outPath,
-      skipConfirmation,
-    });
+    const dryRun: boolean = argv.dryRun;
+
+    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
+    logGray('------------------------------------------------');
+
+    if (dryRun) await verifyAnvil();
+
+    try {
+      await runWarpRouteDeploy({
+        key,
+        chainConfigPath,
+        warpRouteDeploymentConfigPath,
+        coreArtifactsPath,
+        outPath,
+        skipConfirmation,
+        dryRun,
+      });
+    } catch (error: any) {
+      evaluateIfDryRunFailure(error, dryRun);
+      throw error;
+    }
     process.exit(0);
   },
 };

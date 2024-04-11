@@ -27,9 +27,14 @@ import {
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { getContext, getMergedContractAddresses } from '../context.js';
+import {
+  getContext,
+  getDryRunContext,
+  getMergedContractAddresses,
+} from '../context.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import {
+  getArtifactsFiles,
   isFile,
   prepNewArtifactsFiles,
   runFileSelectionStep,
@@ -45,6 +50,7 @@ export async function runWarpRouteDeploy({
   coreArtifactsPath,
   outPath,
   skipConfirmation,
+  dryRun,
 }: {
   key: string;
   chainConfigPath: string;
@@ -52,14 +58,8 @@ export async function runWarpRouteDeploy({
   coreArtifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
+  dryRun: boolean;
 }) {
-  const { multiProvider, signer, coreArtifacts } = await getContext({
-    chainConfigPath,
-    coreConfig: { coreArtifactsPath },
-    keyConfig: { key },
-    skipConfirmation,
-  });
-
   if (
     !warpRouteDeploymentConfigPath ||
     !isFile(warpRouteDeploymentConfigPath)
@@ -80,6 +80,25 @@ export async function runWarpRouteDeploy({
     warpRouteDeploymentConfigPath,
   );
 
+  const context = dryRun
+    ? await getDryRunContext({
+        chainConfigPath,
+        chains: [warpRouteConfig.base.chainName],
+        coreConfig: { coreArtifactsPath },
+        keyConfig: { key },
+        skipConfirmation,
+      })
+    : await getContext({
+        chainConfigPath,
+        coreConfig: { coreArtifactsPath },
+        keyConfig: { key },
+        skipConfirmation,
+      });
+
+  const multiProvider = context.multiProvider;
+  const signer = context.signer;
+  const coreArtifacts = context.coreArtifacts;
+
   const configs = await runBuildConfigStep({
     warpRouteConfig,
     coreArtifacts,
@@ -94,6 +113,7 @@ export async function runWarpRouteDeploy({
     multiProvider,
     outPath,
     skipConfirmation,
+    dryRun,
   };
 
   logBlue('Warp route deployment plan');
@@ -219,6 +239,7 @@ interface DeployParams {
   multiProvider: MultiProvider;
   outPath: string;
   skipConfirmation: boolean;
+  dryRun: boolean;
 }
 
 async function runDeployPlanStep({
@@ -253,10 +274,14 @@ async function executeDeploy(params: DeployParams) {
 
   const { configMap, isNft, multiProvider, outPath } = params;
 
-  const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(outPath, [
-    { filename: 'warp-route-deployment', description: 'Contract addresses' },
-    { filename: 'warp-config', description: 'Warp config' },
-  ]);
+  const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(
+    outPath,
+    getArtifactsFiles(
+      { filename: 'warp-route-deployment', description: 'Contract addresses' },
+      { filename: 'warp-config', description: 'Warp config' },
+      params.dryRun,
+    ),
+  );
 
   const deployer = isNft
     ? new HypERC721Deployer(multiProvider)

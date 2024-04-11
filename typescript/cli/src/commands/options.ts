@@ -38,6 +38,7 @@ export type WarpCommandOptions = CommandOptions & {
   out: Options;
   key: Options;
   yes: Options;
+  'dry-run': Options;
 };
 
 export const coreTargetsCommandOption: Options = {

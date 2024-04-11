@@ -50,7 +50,7 @@ import {
 } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
-  ArtifactsFile,
+  getArtifactsFiles,
   prepNewArtifactsFiles,
   runFileSelectionStep,
   writeJson,
@@ -305,7 +305,11 @@ async function executeDeploy({
 
   const [contractsFilePath, agentFilePath] = prepNewArtifactsFiles(
     outPath,
-    getArtifactsFiles(dryRun),
+    getArtifactsFiles(
+      { filename: 'core-deployment', description: 'Contract addresses' },
+      { filename: 'agent-config', description: 'Agent configs' },
+      dryRun,
+    ),
   );
 
   const owner = await signer.getAddress();
@@ -376,24 +380,6 @@ async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
-}
-
-/**
- * Retrieves artifacts file metadata for the current command.
- * @param dryRun whether or not the current command is being dry-run
- * @returns the artifacts files
- */
-function getArtifactsFiles(dryRun: boolean): Array<ArtifactsFile> {
-  const coreDeploymentFile = {
-    filename: dryRun ? 'dry-run_core-deployment' : 'core-deployment',
-    description: 'Contract addresses',
-  };
-  const agentConfigFile = {
-    filename: dryRun ? 'dry-run_agent-config' : 'agent-config',
-    description: 'Agent configs',
-  };
-
-  return [coreDeploymentFile, agentConfigFile];
 }
 
 function buildIsmConfig(
