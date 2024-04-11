@@ -311,6 +311,7 @@ impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for Hyperlane
     }
 }
 
+// TODO: replace this blanket implementation to be able to do sequence-aware indexing
 #[async_trait]
 impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for HyperlaneRocksDB {
     /// Gets data by its sequence.

@@ -193,20 +193,7 @@ impl Scraper {
             )
             .await
             .unwrap();
-        // let latest_nonce = self
-        //     .scrapers
-        //     .get(&domain.id())
-        //     .unwrap()
-        //     .db
-        //     .last_message_nonce()
-        //     .await
-        //     .unwrap_or(None)
-        //     .unwrap_or(0);
-        let cursor = sync
-            // todo: this used to be a forward cursor, and was changed to a forward-backward cursor for simplicity,
-            // to match the cursors in other agents
-            .cursor(index_settings.clone())
-            .await;
+        let cursor = sync.cursor(index_settings.clone()).await;
         tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
             info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
         )
