@@ -310,7 +310,7 @@ pub fn initiate_solana_hyperlane_transfer(
         .join();
 
     let message_id = get_message_id_from_logs(output.clone())
-        .expect(format!("failed to get message id from logs: {:?}", output).as_str());
+        .unwrap_or_else(|| panic!("failed to get message id from logs: {:?}", output));
 
     log!("found message id: {}", message_id);
     sealevel_client(&solana_cli_tools_path, &solana_config_path)

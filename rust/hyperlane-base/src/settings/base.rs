@@ -9,7 +9,7 @@ use hyperlane_core::{
 };
 
 use crate::{
-    cursors::CursorType,
+    cursors::{CursorType, Indexable},
     settings::{chains::ChainConf, trace::TracingConfig},
     ContractSync, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
     SequenceAwareLogStore, SequencedDataContractSync, Server, WatermarkContractSync,
@@ -151,7 +151,7 @@ impl Settings {
     build_contract_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
     build_contract_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
 
-    /// Build a contract sync for type `T` using indexer `I` and log store `D`
+    /// Build a contract sync for type `T` using log store `D`
     pub async fn sequenced_contract_sync<T, D>(
         &self,
         domain: &HyperlaneDomain,
@@ -175,7 +175,7 @@ impl Settings {
         )))
     }
 
-    /// Build a contract sync for type `T` using indexer `I` and log store `D`
+    /// Build a contract sync for type `T` using log store `D`
     pub async fn watermark_contract_sync<T, D>(
         &self,
         domain: &HyperlaneDomain,
@@ -200,8 +200,8 @@ impl Settings {
     }
 
     /// Build multiple contract syncs.
-    /// All contracts are currently implementing both sequenced and
-    /// watermark traits
+    /// All contracts have to implement both sequenced and
+    /// watermark trait bounds
     pub async fn contract_syncs<T, D>(
         &self,
         domains: impl Iterator<Item = &HyperlaneDomain>,
@@ -210,7 +210,7 @@ impl Settings {
         dbs: HashMap<HyperlaneDomain, Arc<D>>,
     ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
     where
-        T: Sequenced + Debug + Send + Sync + Clone + Eq + Hash + 'static,
+        T: Indexable + Sequenced + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
         D: HyperlaneLogStore<T>
             + HyperlaneSequenceAwareIndexerStoreReader<T>
@@ -220,33 +220,25 @@ impl Settings {
         // TODO: parallelize these calls again
         let mut syncs = vec![];
         for domain in domains {
-            let cursor_type: CursorType = domain.domain_protocol().into();
-
-            let sync = match cursor_type {
-                CursorType::SequenceAware => {
-                    let res = self
-                        .sequenced_contract_sync(
-                            &domain,
-                            metrics,
-                            sync_metrics,
-                            dbs.get(domain).unwrap().clone(),
-                        )
-                        .await
-                        .map(|r| r as Arc<dyn ContractSyncer<T>>)?;
-                    res
-                }
-                CursorType::RateLimited => {
-                    let res = self
-                        .watermark_contract_sync(
-                            &domain,
-                            metrics,
-                            sync_metrics,
-                            dbs.get(domain).unwrap().clone(),
-                        )
-                        .await
-                        .map(|r| r as Arc<dyn ContractSyncer<T>>)?;
-                    res
-                }
+            let sync = match T::indexing_cursor(domain.domain_protocol()) {
+                CursorType::SequenceAware => self
+                    .sequenced_contract_sync(
+                        domain,
+                        metrics,
+                        sync_metrics,
+                        dbs.get(domain).unwrap().clone(),
+                    )
+                    .await
+                    .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
+                CursorType::RateLimited => self
+                    .watermark_contract_sync(
+                        domain,
+                        metrics,
+                        sync_metrics,
+                        dbs.get(domain).unwrap().clone(),
+                    )
+                    .await
+                    .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
             };
             syncs.push(sync);
         }

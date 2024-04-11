@@ -178,7 +178,7 @@ where
     }
 
     fn domain(&self) -> &HyperlaneDomain {
-        ContractSync::domain(&self)
+        ContractSync::domain(self)
     }
 }
 
@@ -213,6 +213,6 @@ where
     }
 
     fn domain(&self) -> &HyperlaneDomain {
-        ContractSync::domain(&self)
+        ContractSync::domain(self)
     }
 }

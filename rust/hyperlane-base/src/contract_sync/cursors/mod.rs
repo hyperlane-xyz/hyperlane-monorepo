@@ -1,6 +1,8 @@
 pub(crate) mod sequence_aware;
 
-use hyperlane_core::HyperlaneDomainProtocol;
+use hyperlane_core::{
+    Delivery, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion,
+};
 pub(crate) use sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
 
 pub(crate) mod rate_limited;
@@ -11,13 +13,50 @@ pub enum CursorType {
     RateLimited,
 }
 
-impl From<HyperlaneDomainProtocol> for CursorType {
-    fn from(value: HyperlaneDomainProtocol) -> Self {
-        match value {
-            HyperlaneDomainProtocol::Ethereum => Self::RateLimited,
+pub trait Indexable {
+    fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType;
+}
+
+impl Indexable for HyperlaneMessage {
+    fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType {
+        match domain {
+            HyperlaneDomainProtocol::Ethereum => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Fuel => todo!(),
-            HyperlaneDomainProtocol::Sealevel => Self::RateLimited,
-            HyperlaneDomainProtocol::Cosmos => Self::RateLimited,
+            HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
+        }
+    }
+}
+
+impl Indexable for InterchainGasPayment {
+    fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType {
+        match domain {
+            HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Fuel => todo!(),
+            HyperlaneDomainProtocol::Sealevel => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
+        }
+    }
+}
+
+impl Indexable for MerkleTreeInsertion {
+    fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType {
+        match domain {
+            HyperlaneDomainProtocol::Ethereum => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Fuel => todo!(),
+            HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
+        }
+    }
+}
+
+impl Indexable for Delivery {
+    fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType {
+        match domain {
+            HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Fuel => todo!(),
+            HyperlaneDomainProtocol::Sealevel => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
     }
 }
