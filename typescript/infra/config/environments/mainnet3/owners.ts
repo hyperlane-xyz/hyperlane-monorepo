@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { ethereumChainNames } from './chains';
+import { ethereumChainNames } from './chains.js';
 
 export const timelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',

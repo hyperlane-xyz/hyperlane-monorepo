@@ -3,7 +3,6 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "rootDir": "./src/",
-    "resolveJsonModule": true
   },
   "include": ["./src/**/*.ts", "./src/*.d.ts"]
 }

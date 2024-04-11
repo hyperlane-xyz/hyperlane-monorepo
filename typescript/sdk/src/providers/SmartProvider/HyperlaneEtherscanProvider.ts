@@ -2,13 +2,13 @@ import { providers } from 'ethers';
 
 import { objFilter, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { BlockExplorer } from '../../metadata/chainMetadataTypes';
+import { BlockExplorer } from '../../metadata/chainMetadataTypes.js';
 
 import {
   IProviderMethods,
   ProviderMethod,
   excludeProviderMethods,
-} from './ProviderMethods';
+} from './ProviderMethods.js';
 
 // Used for crude rate-limiting of explorer queries without API keys
 const hostToLastQueried: Record<string, number> = {};

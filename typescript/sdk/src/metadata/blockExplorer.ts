@@ -1,8 +1,8 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { solanaChainToClusterName } from '../consts/chainMetadata';
+import { solanaChainToClusterName } from '../consts/chainMetadata.js';
 
-import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes';
+import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
 export function getExplorerBaseUrl(metadata: ChainMetadata): string | null {
   if (!metadata?.blockExplorers?.length) return null;

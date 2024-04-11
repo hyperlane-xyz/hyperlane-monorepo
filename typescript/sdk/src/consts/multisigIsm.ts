@@ -1,5 +1,5 @@
-import { MultisigConfig } from '../ism/types';
-import { ChainMap } from '../types';
+import { MultisigConfig } from '../ism/types.js';
+import { ChainMap } from '../types.js';
 
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alfajores: {
@@ -9,6 +9,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xba279f965489d90f90490e3c49e860e0b43c2ae6',
       '0x86485dcec5f7bb8478dd251676372d054dea6653',
     ],
+  },
+
+  ancient8: {
+    threshold: 1,
+    validators: ['0xbb5842ae0e05215b53df4787a29144efb7e67551'],
   },
 
   arbitrum: {

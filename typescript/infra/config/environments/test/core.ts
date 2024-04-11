@@ -9,15 +9,15 @@ import {
   IgpHookConfig,
   IsmType,
   MerkleTreeHookConfig,
+  ProtocolFeeHookConfig,
   RoutingIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolFeeHookConfig } from '@hyperlane-xyz/sdk/src/hook/types';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { aggregationIsm } from './aggregationIsm';
-import { igp } from './igp';
-import { chainToValidator } from './multisigIsm';
-import { owners } from './owners';
+import { aggregationIsm } from './aggregationIsm.js';
+import { igp } from './igp.js';
+import { chainToValidator } from './multisigIsm.js';
+import { owners } from './owners.js';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const defaultIsm: RoutingIsmConfig = {

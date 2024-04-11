@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { prompts } from 'prompts';
+import prompts from 'prompts';
 
 import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -20,19 +20,19 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
-import { canProposeSafeTransactions } from '../utils/safe';
+import { canProposeSafeTransactions } from '../utils/safe.js';
 
 import {
   ManualMultiSend,
   MultiSend,
   SafeMultiSend,
   SignerMultiSend,
-} from './multisend';
+} from './multisend.js';
 
 export enum SubmissionType {
-  MANUAL = 'MANUAL',
-  SIGNER = 'SIGNER',
-  SAFE = 'SAFE',
+  MANUAL = 0,
+  SAFE = 1,
+  SIGNER = 2,
 }
 
 export type AnnotatedCallData = CallData & {
@@ -96,7 +96,7 @@ export abstract class HyperlaneAppGovernor<
         );
         const response =
           !confirm ||
-          (await prompts.confirm({
+          (await prompts({
             type: 'confirm',
             name: 'value',
             message: 'Can you confirm?',

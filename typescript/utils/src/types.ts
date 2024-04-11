@@ -25,6 +25,10 @@ export type TokenCaip19Id = `${string}:${string}/${string}:${string}`; // e.g. e
 export type HexString = string;
 export type Numberish = number | string | bigint;
 
+export type WithAddress<T> = T & {
+  address: Address;
+};
+
 // copied from node_modules/@ethersproject/bytes/src.ts/index.ts
 export type SignatureLike =
   | {

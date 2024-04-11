@@ -8,7 +8,7 @@ import {
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
 
-import { S3Receipt, S3Wrapper } from './s3';
+import { S3Receipt, S3Wrapper } from './s3.js';
 
 export enum CheckpointStatus {
   EXTRA = '➕',

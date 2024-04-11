@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 
-import { Chains } from '../consts/chains';
-import { MultiProvider } from '../providers/MultiProvider';
+import { Chains } from '../consts/chains.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { buildAgentConfig } from './agentConfig';
+import { buildAgentConfig } from './agentConfig.js';
 
 describe('Agent config', () => {
   const args: Parameters<typeof buildAgentConfig> = [

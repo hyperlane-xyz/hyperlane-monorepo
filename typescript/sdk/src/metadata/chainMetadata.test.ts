@@ -2,9 +2,9 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
+import { chainMetadata } from '../consts/chainMetadata.js';
 
-import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes';
+import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes.js';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,

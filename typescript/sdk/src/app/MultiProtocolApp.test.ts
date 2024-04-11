@@ -2,8 +2,8 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { Chains } from '../consts/chains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 import {
   BaseAppAdapter,
@@ -11,7 +11,7 @@ import {
   BaseEvmAdapter,
   BaseSealevelAdapter,
   MultiProtocolApp,
-} from './MultiProtocolApp';
+} from './MultiProtocolApp.js';
 
 class TestMultiProtocolApp extends MultiProtocolApp<BaseAppAdapter> {
   override protocolToAdapter(protocol: ProtocolType) {

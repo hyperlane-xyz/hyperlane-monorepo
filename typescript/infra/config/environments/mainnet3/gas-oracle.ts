@@ -5,14 +5,12 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
-  getAllStorageGasOracleConfigs,
-} from '../../../src/config';
-import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
+  getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
-} from '../../../src/config/gas-oracle';
+} from '../../../src/config/gas-oracle.js';
 
-import { supportedChainNames } from './chains';
+import { supportedChainNames } from './chains.js';
 import rawGasPrices from './gasPrices.json';
 import rawTokenPrices from './tokenPrices.json';
 

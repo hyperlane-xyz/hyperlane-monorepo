@@ -1,11 +1,14 @@
 import { GasRouter } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, HyperlaneContractsMap } from '../contracts/types';
-import { ChainMap } from '../types';
+import {
+  HyperlaneContracts,
+  HyperlaneContractsMap,
+} from '../contracts/types.js';
+import { ChainMap } from '../types.js';
 
-import { ProxiedRouterDeployer } from './ProxiedRouterDeployer';
-import { GasRouterConfig, ProxiedFactories } from './types';
+import { ProxiedRouterDeployer } from './ProxiedRouterDeployer.js';
+import { GasRouterConfig, ProxiedFactories } from './types.js';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,

@@ -1,15 +1,19 @@
-# Hyperlane Solidity
+# Hyperlane Core
 
-On-chain implementations of Hyperlane in Solidity.
+Hyperlane Core contains the contracts and typechain artifacts for the Hyperlane implementation for EVM.
 
-## Setup
+## Install
 
-- `yarn install`
+```bash
+# Install with NPM
+npm install @hyperlane-xyz/utils
 
-## Build
+# Or with Yarn
+yarn add @hyperlane-xyz/utils
+```
 
-- `yarn build`
+Note, this package uses [ESM Modules](https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c#pure-esm-package)
 
-## Test
+## License
 
-- `yarn test`
+Apache 2.0

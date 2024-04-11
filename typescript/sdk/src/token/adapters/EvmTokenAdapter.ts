@@ -18,10 +18,10 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { MinimalTokenMetadata } from '../config';
+import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { MinimalTokenMetadata } from '../config.js';
 
 import {
   IHypTokenAdapter,
@@ -29,7 +29,7 @@ import {
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
@@ -204,12 +204,11 @@ export class EvmHypSyntheticAdapter
       interchainGas = await this.quoteTransferRemoteGas(destination);
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction.transferRemote(
-      destination,
-      recipBytes32,
-      weiAmountOrId,
-      { value: interchainGas.amount.toString() },
-    );
+    return this.contract.populateTransaction[
+      'transferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, weiAmountOrId, {
+      value: interchainGas.amount.toString(),
+    });
   }
 }
 
@@ -237,7 +236,7 @@ export class EvmHypCollateralAdapter
     if (!this.wrappedTokenAddress) {
       this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
     }
-    return this.wrappedTokenAddress;
+    return this.wrappedTokenAddress!;
   }
 
   protected async getWrappedTokenAdapter(): Promise<
@@ -308,11 +307,8 @@ export class EvmHypNativeAdapter
     }
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction.transferRemote(
-      destination,
-      recipBytes32,
-      weiAmountOrId,
-      { value: txValue?.toString() },
-    );
+    return this.contract.populateTransaction[
+      'transferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
   }
 }

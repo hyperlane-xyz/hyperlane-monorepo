@@ -2,8 +2,8 @@ import { Logger } from 'pino';
 
 import { ProtocolType, exclude, pick, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
-import { ChainMap, ChainName, ChainNameOrId } from '../types';
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
+import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
   getExplorerAddressUrl,
@@ -11,13 +11,13 @@ import {
   getExplorerApiUrl,
   getExplorerBaseUrl,
   getExplorerTxUrl,
-} from './blockExplorer';
+} from './blockExplorer.js';
 import {
   ChainMetadata,
   ExplorerFamily,
   getDomainId,
   safeParseChainMetadata,
-} from './chainMetadataTypes';
+} from './chainMetadataTypes.js';
 
 export interface ChainMetadataManagerOptions {
   logger?: Logger;
@@ -214,7 +214,9 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the ids for all chains known to this MultiProvider
    */
   getKnownDomainIds(): number[] {
-    return this.getKnownChainNames().map(this.getDomainId);
+    return this.getKnownChainNames().map((chainName) =>
+      this.getDomainId(chainName),
+    );
   }
 
   /**

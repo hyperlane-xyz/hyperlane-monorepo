@@ -24,7 +24,8 @@ interface IPostDispatchHook {
         ID_AUTH_ISM,
         PAUSABLE,
         PROTOCOL_FEE,
-        LAYER_ZERO_V1
+        LAYER_ZERO_V1,
+        Rate_Limited_Hook
     }
 
     /**

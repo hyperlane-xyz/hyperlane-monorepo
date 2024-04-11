@@ -3,11 +3,14 @@ import { BigNumber } from 'ethers';
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { CheckerViolation, OwnableConfig } from '../deploy/types';
-import { ChainMap } from '../types';
+import type { CheckerViolation, OwnableConfig } from '../deploy/types.js';
+import { ChainMap } from '../types.js';
 
-import { IgpFactories } from './contracts';
-import { GasOracleContractType, StorageGasOracleConfig } from './oracle/types';
+import { IgpFactories } from './contracts.js';
+import {
+  GasOracleContractType,
+  StorageGasOracleConfig,
+} from './oracle/types.js';
 
 export type IgpConfig = OwnableConfig<keyof IgpFactories> & {
   beneficiary: Address;

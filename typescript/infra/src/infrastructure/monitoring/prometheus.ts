@@ -1,12 +1,12 @@
-import { InfrastructureConfig } from '../../config/infrastructure';
-import { fetchGCPSecret } from '../../utils/gcloud';
+import { InfrastructureConfig } from '../../config/infrastructure.js';
+import { fetchGCPSecret } from '../../utils/gcloud.js';
 import {
   HelmCommand,
   addHelmRepoIfRequired,
   getDeployableHelmChartName,
   helmifyValues,
-} from '../../utils/helm';
-import { execCmd } from '../../utils/utils';
+} from '../../utils/helm.js';
+import { execCmd } from '../../utils/utils.js';
 
 interface PrometheusSecrets {
   remote_write_uri: string;

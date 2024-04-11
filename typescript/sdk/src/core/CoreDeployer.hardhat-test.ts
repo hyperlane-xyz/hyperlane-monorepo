@@ -1,24 +1,24 @@
 import '@nomiclabs/hardhat-waffle';
 import { assert, expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 import sinon from 'sinon';
 
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { TestChains } from '../consts/chains';
-import { HyperlaneContractsMap } from '../contracts/types';
-import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { AggregationIsmConfig, IsmType } from '../ism/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { testCoreConfig } from '../test/testUtils';
-import { ChainMap } from '../types';
+import { TestChains } from '../consts/chains.js';
+import { HyperlaneContractsMap } from '../contracts/types.js';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { AggregationIsmConfig, IsmType } from '../ism/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { testCoreConfig } from '../test/testUtils.js';
+import { ChainMap } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
-import { HyperlaneCoreChecker } from './HyperlaneCoreChecker';
-import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
-import { CoreFactories } from './contracts';
-import { CoreConfig } from './types';
+import { HyperlaneCore } from './HyperlaneCore.js';
+import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
+import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
+import { CoreFactories } from './contracts.js';
+import { CoreConfig } from './types.js';
 
 describe('core', async () => {
   let multiProvider: MultiProvider;
@@ -29,7 +29,7 @@ describe('core', async () => {
   let ismFactory: HyperlaneIsmFactory;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
@@ -69,7 +69,7 @@ describe('core', async () => {
         requiredHook: config.defaultHook,
       }));
 
-      const [signer] = await ethers.getSigners();
+      const [signer] = await hre.ethers.getSigners();
       const nonceBefore = await signer.getTransactionCount();
 
       const updatedContracts = await deployer.deploy(updatedConfig);
@@ -106,7 +106,7 @@ describe('core', async () => {
         },
       );
 
-      const [signer] = await ethers.getSigners();
+      const [signer] = await hre.ethers.getSigners();
       const nonceBefore = await signer.getTransactionCount();
 
       await deployer.deploy(updatedConfig);

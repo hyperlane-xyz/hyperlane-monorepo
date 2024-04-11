@@ -1,10 +1,10 @@
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../types';
-import { CoreChainName } from '../chains';
+import { ChainName } from '../../types.js';
+import { CoreChainName } from '../chains.js';
 
-import mainnet from './mainnet.json';
-import testnet from './testnet.json';
+import mainnet from './mainnet.json' assert { type: 'json' };
+import testnet from './testnet.json' assert { type: 'json' };
 
 export const hyperlaneEnvironments = { mainnet, testnet };
 

@@ -9,14 +9,14 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
   BalanceResponse,
   ExecuteMsg as Cw20Execute,
   QueryMsg as Cw20Query,
   TokenInfoResponse,
-} from '../../cw-types/Cw20Base.types';
-import { QuoteDispatchResponse } from '../../cw-types/Mailbox.types';
+} from '../../cw-types/Cw20Base.types.js';
+import { QuoteDispatchResponse } from '../../cw-types/Mailbox.types.js';
 import {
   DomainsResponse,
   InterchainSecurityModuleResponse,
@@ -27,10 +27,10 @@ import {
   TokenTypeResponse,
   ExecuteMsg as WarpCw20Execute,
   QueryMsg as WarpCw20Query,
-} from '../../cw-types/WarpCw20.types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { ERC20Metadata } from '../config';
+} from '../../cw-types/WarpCw20.types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { ERC20Metadata } from '../config.js';
 
 import {
   IHypTokenAdapter,
@@ -38,7 +38,7 @@ import {
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 
 // Interacts with IBC denom tokens in CosmWasm
 export class CwNativeTokenAdapter

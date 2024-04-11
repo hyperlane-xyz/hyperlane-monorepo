@@ -1,6 +1,6 @@
 import { utils } from 'ethers';
 
-import { addressToBytes32 } from './addresses';
+import { addressToBytes32 } from './addresses.js';
 
 export function domainHash(domain: number, merkle_tree_hook: string): string {
   return utils.solidityKeccak256(

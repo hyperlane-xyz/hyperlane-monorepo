@@ -15,7 +15,7 @@ use hyperlane_core::{
 
 use crate::contracts::i_routing_ism::{IRoutingIsm as EthereumRoutingIsmInternal, IROUTINGISM_ABI};
 use crate::trait_builder::BuildableWithProvider;
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider};
 
 pub struct RoutingIsmBuilder {}
 
@@ -26,6 +26,7 @@ impl BuildableWithProvider for RoutingIsmBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumRoutingIsm::new(Arc::new(provider), locator))

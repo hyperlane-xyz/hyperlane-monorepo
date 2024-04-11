@@ -197,7 +197,6 @@ mod test {
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
         let messages_to_send = 5;
         let mut ops: VecDeque<_> = (1..=messages_to_send)
-            .into_iter()
             .map(|seconds_to_next_attempt| {
                 Box::new(MockPendingOperation::new(
                     seconds_to_next_attempt,

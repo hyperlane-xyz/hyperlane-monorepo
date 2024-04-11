@@ -5,16 +5,16 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContracts } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts';
-import { serializeDifference } from './oracle/types';
-import { IgpConfig } from './types';
+import { IgpFactories, igpFactories } from './contracts.js';
+import { serializeDifference } from './oracle/types.js';
+import { IgpConfig } from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,

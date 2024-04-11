@@ -6,24 +6,24 @@ import {
   timeout,
 } from '@hyperlane-xyz/utils';
 
-import { chainIdToMetadata } from '../consts/chainMetadata';
-import { CoreChainName } from '../consts/chains';
-import { hyperlaneContractAddresses } from '../consts/environments';
+import { chainIdToMetadata } from '../consts/chainMetadata.js';
+import { CoreChainName } from '../consts/chains.js';
+import { hyperlaneContractAddresses } from '../consts/environments/index.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
   ProviderType,
   SolanaWeb3Provider,
-} from '../providers/ProviderType';
-import { protocolToDefaultProviderBuilder } from '../providers/providerBuilders';
+} from '../providers/ProviderType.js';
+import { protocolToDefaultProviderBuilder } from '../providers/providerBuilders.js';
 
 import {
   getExplorerAddressUrl,
   getExplorerBaseUrl,
   getExplorerTxUrl,
-} from './blockExplorer';
-import { ChainMetadata, RpcUrl } from './chainMetadataTypes';
+} from './blockExplorer.js';
+import { ChainMetadata, RpcUrl } from './chainMetadataTypes.js';
 
 const HEALTH_CHECK_TIMEOUT = 5000; // 5s
 

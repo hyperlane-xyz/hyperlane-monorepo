@@ -1,20 +1,19 @@
 import { expect } from 'chai';
 import fs from 'fs';
-import path from 'path';
 import sinon from 'sinon';
 import { parse as yamlParse } from 'yaml';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import { ProviderType } from '../providers/ProviderType';
-import { Token } from '../token/Token';
-import { TokenStandard } from '../token/TokenStandard';
-import { InterchainGasQuote } from '../token/adapters/ITokenAdapter';
-import { ChainName } from '../types';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { Chains } from '../consts/chains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { ProviderType } from '../providers/ProviderType.js';
+import { Token } from '../token/Token.js';
+import { TokenStandard } from '../token/TokenStandard.js';
+import { InterchainGasQuote } from '../token/adapters/ITokenAdapter.js';
+import { ChainName } from '../types.js';
 
-import { WarpCore } from './WarpCore';
-import { WarpTxCategory } from './types';
+import { WarpCore } from './WarpCore.js';
+import { WarpTxCategory } from './types.js';
 
 const MOCK_LOCAL_QUOTE = { gasUnits: 2_000n, gasPrice: 100, fee: 200_000n };
 const MOCK_INTERCHAIN_QUOTE = { amount: 20_000n };
@@ -43,10 +42,7 @@ describe('WarpCore', () => {
       Token.FromChainMetadataNativeToken(chainMetadata[Chains.ethereum]),
     ]);
     const exampleConfig = yamlParse(
-      fs.readFileSync(
-        path.join(__dirname, './example-warp-core-config.yaml'),
-        'utf-8',
-      ),
+      fs.readFileSync('./src/warp/example-warp-core-config.yaml', 'utf-8'),
     );
     const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
     expect(fromArgs).to.be.instanceOf(WarpCore);

@@ -1,5 +1,5 @@
-import { AllDeprecatedChains } from '../consts/chains';
-import { ChainMap, ChainName } from '../types';
+import { AllDeprecatedChains } from '../consts/chains.js';
+import { ChainMap, ChainName } from '../types.js';
 
 // Generalized map container for chain name to some value
 export class MultiGeneric<Value> {
@@ -54,7 +54,7 @@ export class MultiGeneric<Value> {
     return Object.fromEntries(entries);
   }
 
-  remoteChains(name: ChainName): ChainName[] {
+  async remoteChains(name: ChainName): Promise<ChainName[]> {
     return this.chains().filter((key) => key !== name);
   }
 

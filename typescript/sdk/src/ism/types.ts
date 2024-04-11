@@ -8,8 +8,8 @@ import {
 } from '@hyperlane-xyz/core';
 import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
-import { OwnableConfig } from '../deploy/types';
-import { ChainMap } from '../types';
+import { OwnableConfig } from '../deploy/types.js';
+import { ChainMap } from '../types.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer

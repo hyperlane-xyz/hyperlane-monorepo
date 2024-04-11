@@ -1,7 +1,6 @@
 import { providers } from 'ethers';
 
 import {
-  ChainMap,
   ChainMetadata,
   ChainMetadataManager,
   ChainName,
@@ -13,9 +12,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 
-import { getSecretRpcEndpoint } from '../agents';
+import { getSecretRpcEndpoint } from '../agents/index.js';
 
-import { DeployEnvironment } from './environment';
+import { DeployEnvironment } from './environment.js';
 
 export const defaultRetry: ProviderRetryOptions = {
   maxRetries: 6,
