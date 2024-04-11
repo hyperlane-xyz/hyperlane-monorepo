@@ -1,4 +1,5 @@
 import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { CrossChainMessenger } from '@eth-optimism/sdk';
 import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -67,9 +68,6 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrum: 'ethereum',
   base: 'ethereum',
 };
-
-// Missing types declaration for bufio
-const CrossChainMessenger = require('@eth-optimism/sdk').CrossChainMessenger; // eslint-disable-line
 
 const constMetricLabels = {
   // this needs to get set in main because of async reasons
@@ -185,10 +183,6 @@ async function main() {
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
     .default('connection-type', RpcConsensusType.Single)
-    .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
-    ])
     .demandOption('connection-type')
 
     .boolean('skip-igp-claim')
