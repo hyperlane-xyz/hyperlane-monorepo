@@ -18,6 +18,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts/chains.js';
+import { concurrentMap } from '../index.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
@@ -53,7 +54,7 @@ export class EvmIsmReader implements IsmReader {
   constructor(
     protected readonly multiProvider: MultiProvider,
     chain: Chains,
-    protected readonly disableConcurrency: boolean = false,
+    protected readonly concurrency: number = 20,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
   }
@@ -104,19 +105,11 @@ export class EvmIsmReader implements IsmReader {
     const domains: RoutingIsmConfig['domains'] = {};
     const domainIds = await ism.domains();
 
-    const processDomainId = async (domainId: (typeof domainIds)[number]) => {
+    await concurrentMap(this.concurrency, domainIds, async (domainId) => {
       const chainName = this.multiProvider.getChainName(domainId.toNumber());
       const module = await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
-    };
-
-    if (this.disableConcurrency) {
-      for (const domainId of domainIds) {
-        await processDomainId(domainId);
-      }
-    } else {
-      await Promise.all(domainIds.map(processDomainId));
-    }
+    });
 
     // Fallback routing ISM extends from MailboxClient, default routign
     let ismType = IsmType.FALLBACK_ROUTING;
@@ -148,17 +141,11 @@ export class EvmIsmReader implements IsmReader {
       ethers.constants.AddressZero,
     );
 
-    let ismConfigs = [];
-    if (this.disableConcurrency) {
-      for (const ismAddress of modules) {
-        const config = await this.deriveIsmConfig(ismAddress);
-        ismConfigs.push(config);
-      }
-    } else {
-      ismConfigs = await Promise.all(
-        modules.map((ismAddress) => this.deriveIsmConfig(ismAddress)),
-      );
-    }
+    const ismConfigs = await concurrentMap(
+      this.concurrency,
+      modules,
+      async (module) => this.deriveIsmConfig(module),
+    );
 
     return {
       address,
