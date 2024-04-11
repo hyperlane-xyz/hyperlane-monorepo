@@ -62,12 +62,12 @@ export async function getWarpConfig(
     owner,
   };
 
-  // @ts-ignore
+  // @ts-ignore - The types as they stand require a synthetic to specify
+  // TokenMetadata, but in practice these are actually inferred from a
+  // collateral config. To avoid needing to specify the TokenMetadata, just
+  // ts-ignore for synthetic tokens.
   const ancient8: TokenConfig & RouterConfig = {
     ...routerConfig.ancient8,
-    // name: 'string',
-    // symbol: 'string',
-    // totalSupply: '0',
     type: TokenType.synthetic,
     // Uses the default ISM
     interchainSecurityModule: ethers.constants.AddressZero,
