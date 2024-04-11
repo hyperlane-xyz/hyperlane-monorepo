@@ -659,7 +659,8 @@
       "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "transactionOverrides": {
-        "maxFeePerGas": 350000000000
+        "maxFeePerGas": 350000000000,
+        "maxPriorityFeePerGas": 50000000000
       },
       "validatorAnnounce": "0x8c1001eBee6F25b31863A55EadfF149aF88B356F"
     },
