@@ -150,7 +150,7 @@ pub trait ContractSyncer<T>: Send + Sync {
 #[async_trait]
 impl<T> ContractSyncer<T> for WatermarkContractSync<T>
 where
-    T: Debug + Send + Sync + Clone + 'static,
+    T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing events from the indexer based on time
     async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
@@ -174,7 +174,7 @@ where
     }
 
     async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>) {
-        self.sync(label, cursor).await;
+        ContractSync::sync(self, label, cursor).await;
     }
 
     fn domain(&self) -> &HyperlaneDomain {
@@ -190,7 +190,10 @@ pub type SequencedDataContractSync<T> =
     SequenceAwareContractSync<T, Arc<dyn HyperlaneSequenceAwareIndexerStore<T>>>;
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncer<T> for SequencedDataContractSync<T> {
+impl<T> ContractSyncer<T> for SequencedDataContractSync<T>
+where
+    T: Sequenced + Debug + Clone + Eq + Hash,
+{
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
         Box::new(
@@ -206,7 +209,7 @@ impl<T: Sequenced + Debug> ContractSyncer<T> for SequencedDataContractSync<T> {
     }
 
     async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>) {
-        self.sync(label, cursor).await;
+        ContractSync::sync(self, label, cursor).await;
     }
 
     fn domain(&self) -> &HyperlaneDomain {
