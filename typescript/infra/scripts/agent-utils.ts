@@ -8,6 +8,7 @@ import {
   ChainName,
   Chains,
   CoreConfig,
+  HyperlaneEnvironment,
   MultiProvider,
   RpcConsensusType,
   chainMetadata,
@@ -36,7 +37,12 @@ import {
   deployEnvToSdkEnv,
 } from '../src/config/environment.js';
 import { Role } from '../src/roles.js';
-import { assertContext, assertRole, readJSON } from '../src/utils/utils.js';
+import {
+  assertContext,
+  assertRole,
+  readJSON,
+  readJSONAtPath,
+} from '../src/utils/utils.js';
 
 const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
 
@@ -287,11 +293,12 @@ export async function getMultiProviderForRole(
   connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
   debugLog(`Getting multiprovider for ${role} role`);
+  const multiProvider = new MultiProvider(txConfigs);
   if (process.env.CI === 'true') {
     debugLog('Returning multiprovider with default RPCs in CI');
-    return new MultiProvider(); // use default RPCs
+    // Return the multiProvider with default RPCs
+    return multiProvider;
   }
-  const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, _) => {
       if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
@@ -364,29 +371,29 @@ export function getModuleDirectory(
   return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
-export function getInfraAddresses(
+export function getAddressesPath(
   environment: DeployEnvironment,
   module: Modules,
 ) {
-  return readJSON(getModuleDirectory(environment, module), 'addresses.json');
+  const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
+
+  return isSdkArtifact
+    ? path.join(
+        getContractAddressesSdkFilepath(),
+        `${deployEnvToSdkEnv[environment]}.json`,
+      )
+    : path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
 export function getAddresses(environment: DeployEnvironment, module: Modules) {
-  if (SDK_MODULES.includes(module) && environment !== 'test') {
-    return readJSON(
-      getContractAddressesSdkFilepath(),
-      `${deployEnvToSdkEnv[environment]}.json`,
-    );
-  } else {
-    return getInfraAddresses(environment, module);
-  }
+  return readJSONAtPath(getAddressesPath(environment, module));
 }
 
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
 
-export function getAgentConfigJsonPath(environment: DeployEnvironment) {
+export function getAgentConfigJsonPath(environment: HyperlaneEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
 }
 
