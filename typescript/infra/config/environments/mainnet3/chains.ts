@@ -60,6 +60,12 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       gasPrice: 2 * 10 ** 9, // 2 gwei
     },
   },
+  moonbeam: {
+    ...chainMetadata.moonbeam,
+    transactionOverrides: {
+      maxFeePerGas: 350 * 10 ** 9, // 350 gwei
+    },
+  },
 };
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
