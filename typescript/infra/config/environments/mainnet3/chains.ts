@@ -64,6 +64,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     ...chainMetadata.moonbeam,
     transactionOverrides: {
       maxFeePerGas: 350 * 10 ** 9, // 350 gwei
+      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
 };
