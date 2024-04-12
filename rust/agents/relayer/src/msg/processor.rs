@@ -191,7 +191,6 @@ mod test {
         msg::{
             gas_payment::GasPaymentEnforcer,
             metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
-            pending_operation::PendingOperation,
         },
         processor::Processor,
     };
@@ -238,8 +237,11 @@ mod test {
             signer: Default::default(),
             reorg_period: Default::default(),
             addresses: Default::default(),
-            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf::Http {
-                url: "http://example.com".parse().unwrap(),
+            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
+                rpc_connection: hyperlane_ethereum::RpcConnectionConf::Http {
+                    url: "http://example.com".parse().unwrap(),
+                },
+                transaction_overrides: Default::default(),
             }),
             metrics_conf: Default::default(),
             index: Default::default(),

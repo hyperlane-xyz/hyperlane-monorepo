@@ -92,11 +92,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             .collect())
     }
 
-    async fn announce(
-        &self,
-        announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
-    ) -> ChainResult<TxOutcome> {
+    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let announce_request = AnnouncementRequest {
             announce: AnnouncementRequestInner {
                 validator: hex::encode(announcement.value.validator),
@@ -108,7 +104,8 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
         let response: TxResponse = self
             .provider
             .grpc()
-            .wasm_send(announce_request, tx_gas_limit)
+            // TODO: consider transaction overrides for Cosmos.
+            .wasm_send(announce_request, None)
             .await?;
 
         Ok(tx_response_to_outcome(response)?)

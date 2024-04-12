@@ -16,7 +16,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
-use crate::BuildableWithProvider;
+use crate::{BuildableWithProvider, ConnectionConf};
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -174,6 +174,7 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumProvider::new(

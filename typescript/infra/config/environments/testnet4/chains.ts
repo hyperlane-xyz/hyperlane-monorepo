@@ -27,7 +27,7 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   bsctestnet: {
     ...chainMetadata.bsctestnet,
     transactionOverrides: {
-      gasPrice: 80 * 10 ** 9, // 8 gwei
+      gasPrice: 8 * 10 ** 9, // 8 gwei
     },
   },
 };
