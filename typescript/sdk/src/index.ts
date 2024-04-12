@@ -440,7 +440,6 @@ export {
   Connection,
   TestChainNames,
 } from './types.js';
-export { concurrentMap } from './utils/concurrentMap.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { filterByChains } from './utils/filter.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';

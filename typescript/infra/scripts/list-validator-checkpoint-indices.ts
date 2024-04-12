@@ -1,4 +1,5 @@
-import { HyperlaneCore, concurrentMap } from '@hyperlane-xyz/sdk';
+import { HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { concurrentMap } from '@hyperlane-xyz/utils';
 
 import { S3Validator } from '../src/agents/aws/validator.js';
 import { deployEnvToSdkEnv } from '../src/config/environment.js';

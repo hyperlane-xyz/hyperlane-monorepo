@@ -18,14 +18,14 @@ import {
 import {
   Address,
   WithAddress,
+  concurrentMap,
   eqAddress,
   ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains.js';
-import { concurrentMap } from '../index.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
 import {
   AggregationHookConfig,
@@ -74,7 +74,7 @@ export class EvmHookReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: Chains,
+    chain: ChainName,
     protected readonly concurrency: number = 20,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
