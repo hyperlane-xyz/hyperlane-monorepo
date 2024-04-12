@@ -32,6 +32,10 @@ _main() {
 
     reset_anvil;
 
+    run_hyperlane_deploy_warp_dry_run;
+
+    reset_anvil;
+
     run_hyperlane_deploy_core;
     run_hyperlane_deploy_warp;
     run_hyperlane_send_message;
@@ -129,6 +133,32 @@ run_hyperlane_deploy_core_dry_run() {
     echo -e "\nDry-running contract deployments to Alfajores"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy core --dry-run \
         --targets alfajores \
+        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
+        --artifacts /tmp/empty-artifacts.json \
+        $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
+        --ism ${EXAMPLES_PATH}/ism.yaml \
+        --out /tmp \
+        --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
+        --yes
+
+    AFTER_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+    CORE_MIN_GAS=$(bc <<< "($BEFORE_CORE_DRY_RUN - $AFTER_CORE_DRY_RUN) / $GAS_PRICE")
+    echo "Gas used: $CORE_MIN_GAS"
+
+    CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
+    echo "Core artifacts:"
+    echo $CORE_ARTIFACTS_PATH
+    cat $CORE_ARTIFACTS_PATH
+
+    AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
+}
+
+run_hyperlane_deploy_warp_dry_run() {
+    BEFORE_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
+
+    echo -e "\nDry-running contract deployments to Alfajores"
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp --dry-run \
         --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
         --artifacts /tmp/empty-artifacts.json \
         $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
