@@ -147,7 +147,15 @@ const hyperlane: RootAgentConfig = {
       // we saw some issues with IGP indexing.
       {
         type: GasPaymentEnforcementPolicyType.None,
-        matchingList: routerMatchingList(injectiveInevmInjAddresses),
+        matchingList: [
+          ...routerMatchingList(injectiveInevmInjAddresses),
+          ...matchingList(inevmEthereumUsdcAddresses),
+          ...matchingList(inevmEthereumUsdtAddresses),
+          ...routerMatchingList(victionEthereumEthAddresses),
+          ...routerMatchingList(victionEthereumUsdcAddresses),
+          ...routerMatchingList(victionEthereumUsdtAddresses),
+          ...routerMatchingList(ancient8EthereumUsdcAddresses),
+        ],
       },
       ...gasPaymentEnforcement,
     ],
@@ -250,24 +258,14 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a72c3cf-20240314-173418',
+      tag: '2150e58-20240404-105923',
     },
     gasPaymentEnforcement: [
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
-          {
-            originDomain: getDomainId(chainMetadata.neutron),
-            destinationDomain: getDomainId(chainMetadata.mantapacific),
-            senderAddress: '*',
-            recipientAddress: '*',
-          },
-          {
-            originDomain: getDomainId(chainMetadata.neutron),
-            destinationDomain: getDomainId(chainMetadata.arbitrum),
-            senderAddress: '*',
-            recipientAddress: '*',
-          },
+          ...routerMatchingList(mantaTIAAddresses),
+          ...routerMatchingList(arbitrumTIAAddresses),
         ],
       },
       ...gasPaymentEnforcement,
