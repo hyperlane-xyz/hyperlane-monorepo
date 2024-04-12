@@ -287,7 +287,11 @@ async function executeDeploy(params: DeployParams) {
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
 
-  const deployedContracts = await deployer.deploy(configMap);
+  const baseOnlyConfigMap = { [params.origin]: configMap[params.origin] };
+
+  const deployedContracts = params.dryRun
+    ? await deployer.deploy(baseOnlyConfigMap)
+    : await deployer.deploy(configMap);
   logGreen('Hyp token deployments complete');
 
   log('Writing deployment artifacts');
