@@ -81,7 +81,7 @@ export async function runWarpRouteDeploy({
     warpRouteDeploymentConfigPath,
   );
 
-  const context = dryRun
+  const { multiProvider, signer, coreArtifacts } = dryRun
     ? await getDryRunContext({
         chainConfigPath,
         chains: [warpRouteConfig.base.chainName],
@@ -95,10 +95,6 @@ export async function runWarpRouteDeploy({
         keyConfig: { key },
         skipConfirmation,
       });
-
-  const multiProvider = context.multiProvider;
-  const signer = context.signer;
-  const coreArtifacts = context.coreArtifacts;
 
   const configs = await runBuildConfigStep({
     warpRouteConfig,
@@ -280,8 +276,13 @@ async function executeDeploy(params: DeployParams) {
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(
     outPath,
     getArtifactsFiles(
-      { filename: 'warp-route-deployment', description: 'Contract addresses' },
-      { filename: 'warp-config', description: 'Warp config' },
+      [
+        {
+          filename: 'warp-route-deployment',
+          description: 'Contract addresses',
+        },
+        { filename: 'warp-config', description: 'Warp config' },
+      ],
       params.dryRun,
     ),
   );

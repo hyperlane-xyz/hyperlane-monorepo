@@ -306,8 +306,10 @@ async function executeDeploy({
   const [contractsFilePath, agentFilePath] = prepNewArtifactsFiles(
     outPath,
     getArtifactsFiles(
-      { filename: 'core-deployment', description: 'Contract addresses' },
-      { filename: 'agent-config', description: 'Agent configs' },
+      [
+        { filename: 'core-deployment', description: 'Contract addresses' },
+        { filename: 'agent-config', description: 'Agent configs' },
+      ],
       dryRun,
     ),
   );

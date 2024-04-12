@@ -169,15 +169,14 @@ export function prepNewArtifactsFiles(
  * @returns the artifacts files
  */
 export function getArtifactsFiles(
-  deploymentFile: ArtifactsFile,
-  configFile: ArtifactsFile,
-  dryRun: boolean,
+  defaultFiles: ArtifactsFile[],
+  dryRun = false,
 ): Array<ArtifactsFile> {
-  if (dryRun) {
-    deploymentFile.filename = `dry-run_${deploymentFile.filename}`;
-    configFile.filename = `dry-run_${configFile.filename}`;
-  }
-  return [deploymentFile, configFile];
+  if (dryRun)
+    defaultFiles.forEach((defaultFile) => {
+      defaultFile.filename = `dry-run_${defaultFile.filename}`;
+    });
+  return defaultFiles;
 }
 
 export async function runFileSelectionStep(
