@@ -146,8 +146,8 @@ run_hyperlane_deploy_core_dry_run() {
     CORE_MIN_GAS=$(bc <<< "($BEFORE_CORE_DRY_RUN - $AFTER_CORE_DRY_RUN) / $GAS_PRICE")
     echo "Gas used: $CORE_MIN_GAS"
 
-    CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
-    echo "Core artifacts:"
+    CORE_ARTIFACTS_PATH=`find /tmp/dry-run_core-deployment* -type f -exec ls -t1 {} + | head -1`
+    echo "Core dry-run artifacts:"
     echo $CORE_ARTIFACTS_PATH
     cat $CORE_ARTIFACTS_PATH
 
@@ -155,7 +155,7 @@ run_hyperlane_deploy_core_dry_run() {
 }
 
 run_hyperlane_deploy_warp_dry_run() {
-    BEFORE_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
+    BEFORE_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
 
     echo -e "\nDry-running contract deployments to Alfajores"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp --dry-run \
@@ -167,15 +167,15 @@ run_hyperlane_deploy_warp_dry_run() {
         --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
 
-    AFTER_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+    AFTER_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
     GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    CORE_MIN_GAS=$(bc <<< "($BEFORE_CORE_DRY_RUN - $AFTER_CORE_DRY_RUN) / $GAS_PRICE")
-    echo "Gas used: $CORE_MIN_GAS"
+    WARP_MIN_GAS=$(bc <<< "($BEFORE_WARP_DRY_RUN - $AFTER_WARP_DRY_RUN) / $GAS_PRICE")
+    echo "Gas used: $WARP_MIN_GAS"
 
-    CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
-    echo "Core artifacts:"
-    echo $CORE_ARTIFACTS_PATH
-    cat $CORE_ARTIFACTS_PATH
+    WARP_ARTIFACTS_PATH=`find /tmp/dry-run_warp-route-deployment* -type f -exec ls -t1 {} + | head -1`
+    echo "Warp dry-run artifacts:"
+    echo $WARP_ARTIFACTS_PATH
+    cat $WARP_ARTIFACTS_PATH
 
     AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
 }
