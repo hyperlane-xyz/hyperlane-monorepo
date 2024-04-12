@@ -140,7 +140,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2150e58-20240404-105923',
+      tag: '2a16200-20240408-214947',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
@@ -148,6 +148,14 @@ const hyperlane: RootAgentConfig = {
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: routerMatchingList(injectiveInevmInjAddresses),
+      },
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: matchingList(inevmEthereumUsdcAddresses),
+      },
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: matchingList(inevmEthereumUsdtAddresses),
       },
       ...gasPaymentEnforcement,
     ],
