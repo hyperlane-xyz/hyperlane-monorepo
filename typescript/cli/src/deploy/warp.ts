@@ -40,6 +40,7 @@ import {
   runFileSelectionStep,
   writeJson,
 } from '../utils/files.js';
+import { resetFork } from '../utils/fork.js';
 
 import { runPreflightChecks } from './utils.js';
 
@@ -124,6 +125,8 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
   await executeDeploy(deploymentParams);
+
+  if (dryRun) await resetFork();
 }
 
 async function runBuildConfigStep({
