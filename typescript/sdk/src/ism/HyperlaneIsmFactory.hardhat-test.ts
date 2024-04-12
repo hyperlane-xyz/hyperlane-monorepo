@@ -5,7 +5,7 @@ import hre from 'hardhat';
 import { DomainRoutingIsm } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { TestChains } from '../consts/chains.js';
+import { TestChainName, testChains } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -53,7 +53,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
       type: IsmType.ROUTING,
       owner: randomAddress(),
       domains: Object.fromEntries(
-        TestChains.map((c) => [c, randomIsmConfig(depth + 1)]),
+        testChains.map((c) => [c, randomIsmConfig(depth + 1)]),
       ),
     };
     return config;
@@ -80,7 +80,7 @@ describe('HyperlaneIsmFactory', async () => {
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address, newMailboxAddress: Address;
-  const chain = 'test1';
+  const chain = TestChainName.test1;
 
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
@@ -102,10 +102,9 @@ describe('HyperlaneIsmFactory', async () => {
       type: IsmType.ROUTING,
       owner: await multiProvider.getSignerAddress(chain),
       domains: Object.fromEntries(
-        TestChains.filter((c) => c !== 'test1').map((c) => [
-          c,
-          randomMultisigIsmConfig(3, 5),
-        ]),
+        testChains
+          .filter((c) => c !== TestChainName.test1)
+          .map((c) => [c, randomMultisigIsmConfig(3, 5)]),
       ),
     };
   });
@@ -310,7 +309,10 @@ describe('HyperlaneIsmFactory', async () => {
       // deleting the domain and removing from multiprovider should unenroll the domain
       // NB: we'll deploy new multisigIsms for the domains bc of new factories but the routingIsm address should be the same because of existingIsmAddress
       delete exampleRoutingConfig.domains['test3'];
-      multiProvider = multiProvider.intersect(['test1', 'test2']).result;
+      multiProvider = multiProvider.intersect([
+        TestChainName.test1,
+        'test2',
+      ]).result;
       ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
       ismFactory = new HyperlaneIsmFactory(
         await ismFactoryDeployer.deploy(

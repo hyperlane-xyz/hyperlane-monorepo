@@ -13,8 +13,6 @@ import { Tendermint37Client } from '@cosmjs/tendermint-rpc';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata.js';
-import { Chains } from '../../consts/chains.js';
 import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter.js';
 import {
   MailboxResponse,
@@ -33,7 +31,7 @@ const neutronAddresses = {
 const neutron = chainMetadata.neutron;
 const mantapacific = chainMetadata.mantapacific;
 
-const multiProtocolProvider = new MultiProtocolProvider();
+const multiProtocolProvider = MultiProtocolProvider();
 
 const adapter = new CosmWasmCoreAdapter(
   Chains.neutron,

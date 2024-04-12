@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { Chains } from '../consts/chains.js';
+import { TestChainName, testChainMetadata } from '../consts/testChains.js';
 import { MockCoinGecko } from '../test/testUtils.js';
 
 import { CoinGeckoTokenPriceGetter } from './token-prices.js';
@@ -8,8 +8,8 @@ import { CoinGeckoTokenPriceGetter } from './token-prices.js';
 describe('TokenPriceGetter', () => {
   let tokenPriceGetter: CoinGeckoTokenPriceGetter;
   let mockCoinGecko: MockCoinGecko;
-  const chainA = Chains.ethereum,
-    chainB = Chains.polygon,
+  const chainA = TestChainName.test1,
+    chainB = TestChainName.test2,
     priceA = 10,
     priceB = 5.5;
   before(async () => {
@@ -20,6 +20,7 @@ describe('TokenPriceGetter', () => {
     mockCoinGecko.setTokenPrice(chainB, priceB);
     tokenPriceGetter = new CoinGeckoTokenPriceGetter(
       mockCoinGecko,
+      testChainMetadata,
       undefined,
       0,
     );

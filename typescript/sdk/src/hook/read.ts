@@ -23,8 +23,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
 import {
   AggregationHookConfig,
@@ -73,7 +73,7 @@ export class EvmHookReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: Chains,
+    chain: ChainName,
     protected readonly disableConcurrency: boolean = false,
   ) {
     this.provider = this.multiProvider.getProvider(chain);

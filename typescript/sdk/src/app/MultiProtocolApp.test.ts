@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains.js';
+import { TestChainName } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 import {
@@ -24,7 +24,8 @@ class TestMultiProtocolApp extends MultiProtocolApp<BaseAppAdapter> {
 
 describe('MultiProtocolApp', () => {
   describe('constructs', () => {
-    const multiProvider = new MultiProtocolProvider();
+    const multiProvider =
+      MultiProtocolProvider.createTestMultiProtocolProvider();
     it('creates an app class and gleans types from generic', async () => {
       const addresses = {
         ethereum: {},
@@ -34,7 +35,7 @@ describe('MultiProtocolApp', () => {
         addresses,
       );
       expect(app).to.be.instanceOf(MultiProtocolApp);
-      expect(app.adapter(Chains.ethereum).protocol).to.eql(
+      expect(app.adapter(TestChainName.test1).protocol).to.eql(
         ProtocolType.Ethereum,
       );
     });

@@ -1,0 +1,73 @@
+# An example Warp Core config
+# Contains the token + route data needed to create a Warp Core
+---
+tokens:
+  # test1 HypNative token
+  - chainName: test1 
+    standard: EvmHypNative
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x1234567890123456789012345678901234567890'
+    connections:
+      - { token: ethereum|test2|0x9876543210987654321098765432109876543210 }
+      - { token: cosmos|cosmostest|cosmostest1abcdefghijklmnopqrstuvwxyz1234567890ab }
+      - { token: sealevel|sealeveltest|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678 }
+  # test2 HypSynthetic token
+  - chainName: test2
+    standard: EvmHypSynthetic
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x9876543210987654321098765432109876543210'
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+      - { token: cosmos|cosmostest|cosmostest1abcdefghijklmnopqrstuvwxyz1234567890ab }
+  # sealeveltest HypSynthetic
+  - chainName: sealeveltest
+    standard: SealevelHypSynthetic
+    decimals: 9
+    symbol: ETH.sol
+    name: Ether on sealeveltest
+    addressOrDenom: s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+  # Cosmos cosmostest HypCollateral token
+  - chainName: cosmostest
+    standard: CwHypCollateral
+    decimals: 18
+    symbol: ETH.in
+    name: Ether on cosmostest
+    addressOrDenom: cosmostest1abcdefghijklmnopqrstuvwxyz1234567890ab
+    collateralAddressOrDenom: cosmostest1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+      - { token: ethereum|test2|0x9876543210987654321098765432109876543210 }
+  # Cosmos cosmostest Collateralized token
+  - chainName: cosmostest
+    standard: CW20
+    decimals: 18
+    symbol: ETH.in
+    name: Ether on cosmostest
+    addressOrDenom: cosmostest1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
+  # Cosmos cosmostest token with IBC two-hop
+  - chainName: cosmostest
+    standard: CosmosIbc
+    decimals: 18
+    symbol: ATOM 
+    name: Atom
+    addressOrDenom: atom
+    connections:
+      - token: ethereum|test2|0x9876543210987654321098765432109876543210
+        type: ibc
+        sourcePort: transfer
+        sourceChannel: channel-1
+        intermediateChainName: cosmostest
+        intermediateIbcDenom: untrn
+        intermediateRouterAddress: cosmostest1abcdefghijklmnopqrstuvwxyz1234567890ab
+options:
+  interchainFeeConstants:
+    - origin: cosmostest
+      destination: test2
+      amount: 1
+      addressOrDenom: untrn

@@ -16,8 +16,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
-import { Chains } from '../consts/chains.js';
+import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmHookReader } from './read.js';
@@ -39,12 +38,12 @@ describe('EvmHookReader', () => {
 
   beforeEach(async () => {
     sandbox = sinon.createSandbox();
-    multiProvider = new MultiProvider();
+    multiProvider = MultiProvider.createTestMultiProvider();
     multiProvider.setProvider(
-      Chains.ethereum,
+      TestChainName.test1,
       await ethers.getDefaultProvider(),
     );
-    evmHookReader = new EvmHookReader(multiProvider, Chains.ethereum);
+    evmHookReader = new EvmHookReader(multiProvider, TestChainName.test1);
   });
 
   afterEach(() => {
@@ -161,9 +160,7 @@ describe('EvmHookReader', () => {
       hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
       owner: sandbox.stub().resolves(mockOwner),
       l1Messenger: sandbox.stub().resolves(l1Messenger),
-      destinationDomain: sandbox
-        .stub()
-        .resolves(chainMetadata.ethereum.domainId),
+      destinationDomain: sandbox.stub().resolves(test1.domainId),
     };
     sandbox
       .stub(OPStackHook__factory, 'connect')
@@ -177,7 +174,7 @@ describe('EvmHookReader', () => {
       address: mockAddress,
       type: HookType.OP_STACK,
       nativeBridge: l1Messenger,
-      destinationChain: Chains.ethereum,
+      destinationChain: TestChainName.test1,
     };
 
     // top-level method infers hook type

@@ -27,11 +27,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
-import { chainMetadata } from '../consts/chainMetadata.js';
-import {
-  HyperlaneEnvironment,
-  hyperlaneEnvironments,
-} from '../consts/environments/index.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -64,18 +59,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   protected deployer?: HyperlaneDeployer<any, any>;
   setDeployer(deployer: HyperlaneDeployer<any, any>): void {
     this.deployer = deployer;
-  }
-
-  static fromEnvironment<Env extends HyperlaneEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider,
-  ): HyperlaneIsmFactory {
-    const envAddresses = hyperlaneEnvironments[env];
-    if (!envAddresses) {
-      throw new Error(`No addresses found for ${env}`);
-    }
-    /// @ts-ignore
-    return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
   }
 
   static fromAddressesMap(
@@ -248,9 +231,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config.domains = objFilter(
       config.domains,
       (domain, config): config is IsmConfig => {
-        const domainId =
-          chainMetadata[domain]?.domainId ??
-          this.multiProvider.tryGetDomainId(domain);
+        const domainId = this.multiProvider.tryGetDomainId(domain);
         if (domainId === null) {
           logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
@@ -259,10 +240,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         return domainId !== null;
       },
     );
-    const safeConfigDomains = Object.keys(config.domains).map(
-      (domain) =>
-        chainMetadata[domain]?.domainId ??
-        this.multiProvider.getDomainId(domain),
+    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
+      this.multiProvider.getDomainId(domain),
     );
     const delta: RoutingIsmDelta = existingIsmAddress
       ? await routingModuleDelta(

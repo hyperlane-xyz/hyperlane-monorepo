@@ -1,8 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { ethereum } from '../consts/chainMetadata.js';
-import { Chains } from '../consts/chains.js';
+import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 
@@ -13,8 +12,8 @@ describe('MultiProtocolCore', () => {
   describe('constructs', () => {
     it('with constructor', () => {
       const multiProvider = new MultiProtocolProvider({
-        ethereum: {
-          ...ethereum,
+        test1: {
+          ...test1,
         },
       });
       const core = new MultiProtocolCore(multiProvider, {
@@ -25,14 +24,7 @@ describe('MultiProtocolCore', () => {
         },
       });
       expect(core).to.be.instanceOf(MultiProtocolCore);
-      const ethAdapter = core.adapter(Chains.ethereum);
-      expect(ethAdapter).to.be.instanceOf(EvmCoreAdapter);
-    });
-    it('from environment', () => {
-      const multiProvider = new MultiProtocolProvider();
-      const core = MultiProtocolCore.fromEnvironment('mainnet', multiProvider);
-      expect(core).to.be.instanceOf(MultiProtocolCore);
-      const ethAdapter = core.adapter(Chains.ethereum);
+      const ethAdapter = core.adapter(TestChainName.Test1);
       expect(ethAdapter).to.be.instanceOf(EvmCoreAdapter);
     });
   });

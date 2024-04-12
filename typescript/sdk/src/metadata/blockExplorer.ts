@@ -1,6 +1,6 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { solanaChainToClusterName } from '../consts/chainMetadata.js';
+import { solanaChainToClusterName } from '../consts/sealevel.js';
 
 import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 

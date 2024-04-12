@@ -1,24 +1,21 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
-import { Chains } from '../consts/chains.js';
+import { TestChainName, test2 } from '../consts/testChains.js';
 
 import { Token } from './Token.js';
 import { TokenAmount } from './TokenAmount.js';
 import { TokenStandard } from './TokenStandard.js';
 
 const token1 = new Token({
-  chainName: Chains.ethereum,
+  chainName: TestChainName.test1,
   standard: TokenStandard.ERC20,
   addressOrDenom: ethers.constants.AddressZero,
   decimals: 4,
   symbol: 'FAKE',
   name: 'Fake Token',
 });
-const token2 = Token.FromChainMetadataNativeToken(
-  chainMetadata[Chains.neutron],
-);
+const token2 = Token.FromChainMetadataNativeToken(test2);
 
 describe('TokenAmount', () => {
   let tokenAmount1: TokenAmount;

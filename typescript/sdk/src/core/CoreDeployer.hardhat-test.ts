@@ -5,7 +5,7 @@ import sinon from 'sinon';
 
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { TestChains } from '../consts/chains.js';
+import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
@@ -34,7 +34,7 @@ describe('core', async () => {
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
     );
-    coreConfig = testCoreConfig(TestChains, signer.address);
+    coreConfig = testCoreConfig(testChains, signer.address);
     const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
@@ -83,7 +83,7 @@ describe('core', async () => {
       );
 
       // number of set hook transactions
-      const numTransactions = 2 * TestChains.length;
+      const numTransactions = 2 * testChains.length;
       const nonceAfter = await signer.getTransactionCount();
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
     });
@@ -114,7 +114,7 @@ describe('core', async () => {
       // 3x1 for aggregation ISM deploy
       // 3x1 for setting ISM transaction for mailbox
       // 3x1 for setting ISM transaction for test recipient
-      const numTransactions = 3 * TestChains.length;
+      const numTransactions = 3 * testChains.length;
       const nonceAfter = await signer.getTransactionCount();
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
     });
@@ -139,13 +139,16 @@ describe('core', async () => {
     });
 
     it('persists partial failure', async () => {
-      expect(deployer.deployedContracts).to.have.keys(['test1', 'test2']);
+      expect(deployer.deployedContracts).to.have.keys([
+        TestChainName.test1,
+        TestChainName.test2,
+      ]);
     });
 
     it('can be resumed from partial (chain) failure', async () => {
       sinon.restore(); // restore normal deployer behavior and test3 will be deployed
       const result = await deployer.deploy(coreConfig);
-      expect(result).to.have.keys(['test1', 'test2', 'test3']);
+      expect(result).to.have.keys(testChains);
       // Each test network key has entries about the other test networks, where ISM details are stored.
       // With this exception, the keys should be the same, so we check the intersections for equality.
       const testnetKeysIntersection = Object.keys(result.test1).filter(

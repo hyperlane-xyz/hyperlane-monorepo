@@ -6,32 +6,21 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp.js';
-export {
-  chainIdToMetadata,
-  chainMetadata,
-  mainnetChainsMetadata,
-  solanaChainToClusterName,
-  testnetChainsMetadata,
-} from './consts/chainMetadata.js';
-export {
-  AllChains,
-  AllDeprecatedChains,
-  Chains,
-  CoreChainName,
-  DeprecatedChains,
-  Mainnets,
-  TestChains,
-  Testnets,
-} from './consts/chains.js';
-export {
-  HyperlaneEnvironment,
-  HyperlaneEnvironmentChain,
-  hyperlaneContractAddresses,
-  hyperlaneEnvironments,
-} from './consts/environments/index.js';
+export { HyperlaneEnvironment } from './consts/environment.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
 export { defaultMultisigConfigs } from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
+export {
+  TestChainName,
+  testChains as TestChains,
+  multiProtocolTestChainMetadata,
+  test1,
+  test2,
+  test3,
+  testChainMetadata,
+  testCosmosChain,
+  testSealevelChain,
+} from './consts/testChains.js';
 export {
   attachContracts,
   attachContractsMap,
@@ -432,13 +421,7 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export {
-  ChainMap,
-  ChainName,
-  ChainNameOrId,
-  Connection,
-  TestChainNames,
-} from './types.js';
+export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { filterByChains } from './utils/filter.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';
@@ -447,10 +430,7 @@ export {
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
-export {
-  chainMetadataToWagmiChain,
-  wagmiChainMetadata,
-} from './utils/wagmi.js';
+export { chainMetadataToWagmiChain } from './utils/wagmi.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export {
   FeeConstantConfig,

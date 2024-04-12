@@ -13,7 +13,8 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json' assert { type: 'json' };
+//TODO
+import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json';
 import {
   Address,
   ProtocolType,

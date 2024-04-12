@@ -2,7 +2,6 @@ import { BigNumber, ethers } from 'ethers';
 
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { CoreFactories } from '../core/contracts.js';
 import { CoreConfig } from '../core/types.js';
@@ -132,12 +131,10 @@ export class MockCoinGecko implements CoinGeckoInterface {
   }
 
   setTokenPrice(chain: ChainName, price: number): void {
-    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
-    this.tokenPrices[id] = price;
+    this.tokenPrices[chain] = price;
   }
 
   setFail(chain: ChainName, fail: boolean): void {
-    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
-    this.fail[id] = fail;
+    this.fail[chain] = fail;
   }
 }

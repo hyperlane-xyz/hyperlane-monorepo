@@ -2,7 +2,6 @@ import { Logger } from 'pino';
 
 import { ProtocolType, exclude, pick, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -14,9 +13,9 @@ import {
 } from './blockExplorer.js';
 import {
   ChainMetadata,
+  ChainMetadataSchema,
   ExplorerFamily,
   getDomainId,
-  safeParseChainMetadata,
 } from './chainMetadataTypes.js';
 
 export interface ChainMetadataManagerOptions {
@@ -37,9 +36,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * or the SDK's default metadata if not provided
    */
   constructor(
-    chainMetadata: ChainMap<
-      ChainMetadata<MetaExt>
-    > = defaultChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
+    chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     options: ChainMetadataManagerOptions = {},
   ) {
     Object.entries(chainMetadata).forEach(([key, cm]) => {
@@ -61,14 +58,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's name or domain/chain ID collide
    */
   addChain(metadata: ChainMetadata<MetaExt>): void {
-    const parseResult = safeParseChainMetadata(metadata);
-    if (!parseResult.success) {
-      throw new Error(
-        `Invalid chain metadata for ${
-          metadata.name
-        }: ${parseResult.error.format()}`,
-      );
-    }
+    ChainMetadataSchema.parse(metadata);
     // Ensure no two chains have overlapping names/domainIds/chainIds
     for (const chainMetadata of Object.values(this.metadata)) {
       const { name, chainId, domainId } = chainMetadata;
