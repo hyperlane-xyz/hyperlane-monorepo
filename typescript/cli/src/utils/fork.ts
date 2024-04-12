@@ -16,6 +16,7 @@ export enum ANVIL_RPC_METHODS {
   IMPERSONATE_ACCOUNT = 'anvil_impersonateAccount',
   STOP_IMPERSONATING_ACCOUNT = 'anvil_stopImpersonatingAccount',
   NODE_INFO = 'anvil_nodeInfo',
+  GET_BALANCE = 'eth_getBalance',
 }
 
 /**
@@ -33,7 +34,7 @@ export const resetFork = async () => {
     },
   ]);
 
-  logGreen(`Successfully reset forked network ✅`);
+  logGreen(`✅ Successfully reset forked network`);
 };
 
 /**
@@ -60,7 +61,7 @@ export const setFork = async (
 
   multiProvider.setProvider(chain, provider);
 
-  logGreen(`Successfully forked ${chain} for dry-run ✅`);
+  logGreen(`✅ Successfully forked ${chain} for dry-run`);
 };
 
 /**
@@ -76,7 +77,7 @@ export const impersonateAccount = async (
   const provider = getLocalProvider();
   await provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]);
 
-  logGreen(`Successfully impersonated account (${address}) ✅`);
+  logGreen(`✅ Successfully impersonated account (${address})`);
 
   return provider.getSigner(address);
 };
@@ -99,7 +100,7 @@ export const stopImpersonatingAccount = async (address: Address) => {
   ]);
 
   logGreen(
-    `Successfully stopped account impersonation for address (${address}) ✅`,
+    `✅ Successfully stopped account impersonation for address (${address})`,
   );
 };
 
@@ -127,4 +128,19 @@ export const getLocalProvider = (
   const url = urlOverride ?? envUrl ?? DEFAULT_ANVIL_ENDPOINT;
 
   return new providers.JsonRpcProvider(url);
+};
+
+/**
+ * Retrieves the balance of an account.
+ * @param address the address to retrieve the balance of
+ * @returns the balance of the account
+ */
+export const getAccountBalance = async (address: Address) => {
+  const provider = getLocalProvider();
+  const balance = await provider.send(ANVIL_RPC_METHODS.GET_BALANCE, [
+    address,
+    'latest',
+  ]);
+
+  return balance;
 };

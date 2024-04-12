@@ -22,6 +22,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
+import { COMMAND } from '../commands/deploy.js';
 import {
   WarpRouteDeployConfig,
   readWarpRouteDeployConfig,
@@ -40,8 +41,9 @@ import {
   runFileSelectionStep,
   writeJson,
 } from '../utils/files.js';
-import { resetFork } from '../utils/fork.js';
+import { getAccountBalance } from '../utils/fork.js';
 
+import { completeDryRun } from './dry-run.js';
 import { runPreflightChecks } from './utils.js';
 
 export async function runWarpRouteDeploy({
@@ -120,9 +122,13 @@ export async function runWarpRouteDeploy({
     ...deploymentParams,
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
+
+  let accountBalanceInitial: number = 0;
+  if (dryRun) accountBalanceInitial = await getAccountBalance(key);
+
   await executeDeploy(deploymentParams);
 
-  if (dryRun) await resetFork();
+  if (dryRun) await completeDryRun(COMMAND.WARP, key, accountBalanceInitial);
 }
 
 async function runBuildConfigStep({

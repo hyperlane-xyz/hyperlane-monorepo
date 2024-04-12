@@ -32,11 +32,11 @@ export async function runPreflightChecks({
   log('Running pre-flight checks...');
 
   if (!origin || !remotes?.length) throw new Error('Invalid chain selection');
-  logGreen('Chain selections are valid ✅');
+  logGreen('✅ Chain selections are valid');
 
   if (remotes.includes(origin))
     throw new Error('Origin and remotes must be distinct');
-  logGreen('Origin and remote are distinct ✅');
+  logGreen('✅ Origin and remote are distinct');
 
   return runPreflightChecksForChains({
     chains: [origin, ...remotes],
@@ -71,10 +71,10 @@ export async function runPreflightChecksForChains({
     if (metadata.protocol !== ProtocolType.Ethereum)
       throw new Error('Only Ethereum chains are supported for now');
   }
-  logGreen('Chains are valid ✅');
+  logGreen('✅ Chains are valid');
 
   assertSigner(signer);
-  logGreen('Signer is valid ✅');
+  logGreen('✅ Signer is valid');
 
   await assertGasBalances(
     multiProvider,
@@ -82,7 +82,7 @@ export async function runPreflightChecksForChains({
     chainsToGasCheck ?? chains,
     minGas,
   );
-  logGreen('Balances are sufficient ✅');
+  logGreen('✅ Balances are sufficient');
 }
 
 // from parsed types

@@ -29,6 +29,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
+import { COMMAND } from '../commands/deploy.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -55,8 +56,9 @@ import {
   runFileSelectionStep,
   writeJson,
 } from '../utils/files.js';
-import { resetFork } from '../utils/fork.js';
+import { getAccountBalance } from '../utils/fork.js';
 
+import { completeDryRun } from './dry-run.js';
 import {
   isISMConfig,
   isZODISMConfig,
@@ -146,9 +148,13 @@ export async function runCoreDeploy({
     ...deploymentParams,
     minGas: MINIMUM_CORE_DEPLOY_GAS,
   });
+
+  let accountBalanceInitial: number = 0;
+  if (dryRun) accountBalanceInitial = await getAccountBalance(key);
+
   await executeDeploy(deploymentParams);
 
-  if (dryRun) await resetFork();
+  if (dryRun) await completeDryRun(COMMAND.CORE, key, accountBalanceInitial);
 }
 
 function runArtifactStep(

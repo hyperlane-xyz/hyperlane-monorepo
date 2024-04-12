@@ -26,11 +26,18 @@ import {
   warpConfigCommandOption,
 } from './options.js';
 
+export enum COMMAND {
+  DEPLOY = 'deploy',
+  KURTOSIS_AGENTS = 'kurtosis-agents',
+  CORE = 'core',
+  WARP = 'warp',
+}
+
 /**
  * Parent command
  */
 export const deployCommand: CommandModule = {
-  command: 'deploy',
+  command: COMMAND.DEPLOY,
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
@@ -46,7 +53,7 @@ export const deployCommand: CommandModule = {
  * Agent command
  */
 const agentCommand: CommandModule = {
-  command: 'kurtosis-agents',
+  command: COMMAND.KURTOSIS_AGENTS,
   describe: 'Deploy Hyperlane agents with Kurtosis',
   builder: (yargs) =>
     yargs.options<AgentCommandOptions>({
@@ -76,7 +83,7 @@ const agentCommand: CommandModule = {
  * Core command
  */
 const coreCommand: CommandModule = {
-  command: 'core',
+  command: COMMAND.CORE,
   describe: 'Deploy core Hyperlane contracts',
   builder: (yargs) =>
     yargs.options<CoreCommandOptions>({
@@ -134,7 +141,7 @@ const coreCommand: CommandModule = {
  * Warp command
  */
 const warpCommand: CommandModule = {
-  command: 'warp',
+  command: COMMAND.WARP,
   describe: 'Deploy Warp Route contracts',
   builder: (yargs) =>
     yargs.options<WarpCommandOptions>({
