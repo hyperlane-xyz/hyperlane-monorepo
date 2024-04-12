@@ -21,19 +21,20 @@ export enum ModuleType {
   MERKLE_ROOT_MULTISIG,
   MESSAGE_ID_MULTISIG,
   NULL,
+  CCIP_READ,
 }
 
 // this enum can be adjusted as per deployments necessary
 // meant for the deployer and checker
 export enum IsmType {
-  OP_STACK = 'opStackIsm',
-  ROUTING = 'domainRoutingIsm',
-  FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
-  AGGREGATION = 'staticAggregationIsm',
-  MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
-  MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
-  TEST_ISM = 'testIsm',
-  PAUSABLE = 'pausableIsm',
+  OP_STACK = 'opStackIsm', // NULL
+  ROUTING = 'domainRoutingIsm', // ROUTING
+  FALLBACK_ROUTING = 'defaultFallbackRoutingIsm', // ROUTING
+  AGGREGATION = 'staticAggregationIsm', // AGGREGATION
+  MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm', // MERKLE_ROOT_MULTISIG
+  MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm', // MESSAGE_ID_MULTISIG
+  TEST_ISM = 'testIsm', // NULL
+  PAUSABLE = 'pausableIsm', // NULL
 }
 
 // mapping between the two enums
