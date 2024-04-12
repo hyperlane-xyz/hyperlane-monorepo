@@ -18,13 +18,14 @@ import {
 import {
   Address,
   WithAddress,
+  concurrentMap,
   eqAddress,
   ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
 import {
   AggregationHookConfig,
@@ -73,8 +74,8 @@ export class EvmHookReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: Chains,
-    protected readonly disableConcurrency: boolean = false,
+    chain: ChainName,
+    protected readonly concurrency: number = 20,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
   }
@@ -132,8 +133,10 @@ export class EvmHookReader implements HookReader {
     assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
-    const hookConfigs = await Promise.all(
-      hooks.map((hookAddress) => this.deriveHookConfig(hookAddress)),
+    const hookConfigs = await concurrentMap(
+      this.concurrency,
+      hooks,
+      async (hook) => this.deriveHookConfig(hook),
     );
 
     return {
@@ -162,42 +165,35 @@ export class EvmHookReader implements HookReader {
 
     const domainIds = this.multiProvider.getKnownDomainIds();
 
-    // business logic of extracting relevant igp config per domain
-    const processDomain = async (domainId: number) => {
-      const chainName = this.multiProvider.getChainName(domainId);
-      try {
-        const { tokenExchangeRate, gasPrice } =
-          await hook.getExchangeRateAndGasPrice(domainId);
-        const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
+    const allKeys = await concurrentMap(
+      this.concurrency,
+      domainIds,
+      async (domainId) => {
+        const chainName = this.multiProvider.getChainName(domainId);
+        try {
+          const { tokenExchangeRate, gasPrice } =
+            await hook.getExchangeRateAndGasPrice(domainId);
+          const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
 
-        overhead[chainName] = domainGasOverhead.toNumber();
-        oracleConfig[chainName] = { tokenExchangeRate, gasPrice };
+          overhead[chainName] = domainGasOverhead.toNumber();
+          oracleConfig[chainName] = { tokenExchangeRate, gasPrice };
 
-        const { gasOracle } = await hook.destinationGasConfigs(domainId);
-        const oracle = StorageGasOracle__factory.connect(
-          gasOracle,
-          this.provider,
-        );
-        return oracle.owner();
-      } catch (error) {
-        this.logger.debug(
-          'Domain not configured on IGP Hook',
-          domainId,
-          chainName,
-        );
-        return null;
-      }
-    };
-
-    let allKeys = [];
-    if (this.disableConcurrency) {
-      for (const domainId of domainIds) {
-        const owner = await processDomain(domainId);
-        allKeys.push(owner);
-      }
-    } else {
-      allKeys = await Promise.all(domainIds.map(processDomain));
-    }
+          const { gasOracle } = await hook.destinationGasConfigs(domainId);
+          const oracle = StorageGasOracle__factory.connect(
+            gasOracle,
+            this.provider,
+          );
+          return oracle.owner();
+        } catch (error) {
+          this.logger.debug(
+            'Domain not configured on IGP Hook',
+            domainId,
+            chainName,
+          );
+          return null;
+        }
+      },
+    );
 
     const resolvedOracleKeys = allKeys.filter(
       (key): key is string => key !== null,
@@ -310,49 +306,24 @@ export class EvmHookReader implements HookReader {
   ): Promise<RoutingHookConfig['domains']> {
     const domainIds = this.multiProvider.getKnownDomainIds();
 
-    // business logic off fetching hook config per domain
-    const processDomain = async (domainId: number) => {
+    const domainHooks: RoutingHookConfig['domains'] = {};
+    await concurrentMap(this.concurrency, domainIds, async (domainId) => {
       const chainName = this.multiProvider.getChainName(domainId);
       try {
         const domainHook = await hook.hooks(domainId);
-        if (domainHook === ethers.constants.AddressZero) {
-          return null;
+        if (domainHook !== ethers.constants.AddressZero) {
+          domainHooks[chainName] = await this.deriveHookConfig(domainHook);
         }
-        const config = await this.deriveHookConfig(domainHook);
-        return { chainName, config };
       } catch (error) {
         this.logger.debug(
           `Domain not configured on ${hook.constructor.name}`,
           domainId,
           chainName,
         );
-        return null;
       }
-    };
+    });
 
-    // if concurrency disabled, serially iterate over domainIds
-    const domainHooks: RoutingHookConfig['domains'] = {};
-    if (this.disableConcurrency) {
-      for (const domainId of domainIds) {
-        const result = await processDomain(domainId);
-        if (result) {
-          domainHooks[result.chainName] = result.config;
-        }
-      }
-      return domainHooks;
-    }
-    // else split out each domainId into a promise
-    else {
-      const results = await Promise.all(
-        domainIds.map((domainId) => processDomain(domainId)),
-      );
-      return results.reduce((acc, result) => {
-        if (result) {
-          acc[result.chainName] = result.config;
-        }
-        return acc;
-      }, domainHooks);
-    }
+    return domainHooks;
   }
 
   async derivePausableConfig(
