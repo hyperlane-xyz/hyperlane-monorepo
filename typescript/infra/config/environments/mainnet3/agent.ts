@@ -140,7 +140,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'ce43ec7-20240413-134347',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
