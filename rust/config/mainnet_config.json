@@ -922,7 +922,7 @@
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "storageGasOracle": "0x481171eb1aad17eDE6a56005B7F1aB00C581ef13",
       "transactionOverrides": {
-        "gasPrice": 2000000000
+        "gasPrice": 3000000000
       },
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638"
     },

@@ -57,7 +57,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
       // too low for the transaction to be included in a reasonable amount of time -
       // this often leads to transaction underpriced issues.
-      gasPrice: 2 * 10 ** 9, // 2 gwei
+      gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
   moonbeam: {
