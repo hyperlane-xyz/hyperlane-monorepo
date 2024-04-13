@@ -4,6 +4,7 @@
  */
 export enum Chains {
   alfajores = 'alfajores',
+  ancient8 = 'ancient8',
   arbitrum = 'arbitrum',
   avalanche = 'avalanche',
   base = 'base',
@@ -18,7 +19,6 @@ export enum Chains {
   injective = 'injective',
   mantapacific = 'mantapacific',
   moonbeam = 'moonbeam',
-  mumbai = 'mumbai',
   nautilus = 'nautilus',
   neutron = 'neutron',
   optimism = 'optimism',
@@ -54,6 +54,7 @@ export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
 
 export const Mainnets: Array<CoreChainName> = [
   Chains.arbitrum,
+  Chains.ancient8,
   Chains.avalanche,
   Chains.bsc,
   Chains.celo,
@@ -78,7 +79,6 @@ export const Testnets: Array<CoreChainName> = [
   Chains.bsctestnet,
   Chains.chiado,
   Chains.fuji,
-  Chains.mumbai,
   Chains.plumetestnet,
   Chains.scrollsepolia,
   Chains.sepolia,

@@ -1,10 +1,12 @@
 import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldConfig } from '../../../src/config';
-import { HelloWorldKathyRunMode } from '../../../src/config/helloworld/types';
-import { Contexts } from '../../contexts';
+import {
+  HelloWorldConfig,
+  HelloWorldKathyRunMode,
+} from '../../../src/config/helloworld/types.js';
+import { Contexts } from '../../contexts.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
@@ -13,7 +15,7 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '7d1f975-20240312-113049',
+      tag: '17ac515-20240402-171932',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -33,7 +35,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '7d1f975-20240312-113049',
+      tag: '17ac515-20240402-171932',
     },
     chainsToSkip: [],
     runEnv: environment,

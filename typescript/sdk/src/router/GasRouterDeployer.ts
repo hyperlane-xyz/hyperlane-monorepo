@@ -4,17 +4,16 @@ import { Address } from '@hyperlane-xyz/utils';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
-  HyperlaneFactories,
-} from '../contracts/types';
-import { ChainMap } from '../types';
+} from '../contracts/types.js';
+import { ChainMap } from '../types.js';
 
-import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { GasRouterConfig } from './types';
+import { ProxiedRouterDeployer } from './ProxiedRouterDeployer.js';
+import { GasRouterConfig, ProxiedFactories } from './types.js';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,
-  Factories extends HyperlaneFactories,
-> extends HyperlaneRouterDeployer<Config, Factories> {
+  Factories extends ProxiedFactories,
+> extends ProxiedRouterDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): GasRouter;
 
   async enrollRemoteRouters(

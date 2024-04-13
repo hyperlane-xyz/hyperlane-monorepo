@@ -1,8 +1,8 @@
 import { AllChains, IsmType } from '@hyperlane-xyz/sdk';
 
-import { multisigIsms } from '../config/multisigIsm';
+import { multisigIsms } from '../config/multisigIsm.js';
 
-import { getArgs, withContext } from './agent-utils';
+import { getArgs, withContext } from './agent-utils.js';
 
 // This script exists to print the default multisig ISM validator sets for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(

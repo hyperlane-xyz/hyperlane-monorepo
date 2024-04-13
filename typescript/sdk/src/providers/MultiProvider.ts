@@ -11,13 +11,16 @@ import { Logger } from 'pino';
 
 import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
-import { CoreChainName, TestChains } from '../consts/chains';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
-import { ChainMetadata } from '../metadata/chainMetadataTypes';
-import { ChainMap, ChainName, ChainNameOrId } from '../types';
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
+import { CoreChainName, TestChains } from '../consts/chains.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
-import { ProviderBuilderFn, defaultProviderBuilder } from './providerBuilders';
+import {
+  ProviderBuilderFn,
+  defaultProviderBuilder,
+} from './providerBuilders.js';
 
 type Provider = providers.Provider;
 

@@ -1,8 +1,8 @@
-import { runPrometheusHelmCommand } from '../src/infrastructure/monitoring/prometheus';
-import { HelmCommand } from '../src/utils/helm';
+import { runPrometheusHelmCommand } from '../src/infrastructure/monitoring/prometheus.js';
+import { HelmCommand } from '../src/utils/helm.js';
 
-import { assertCorrectKubeContext, getArgs } from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+import { assertCorrectKubeContext, getArgs } from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {
   const { environment } = await getArgs().argv;

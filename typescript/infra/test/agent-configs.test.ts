@@ -1,24 +1,24 @@
 import { expect } from 'chai';
 
-import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent';
-import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/chains';
-import { hyperlaneContextAgentChainConfig as testnet4AgentChainConfig } from '../config/environments/testnet4/agent';
-import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/chains';
-import { getAgentConfigJsonPath } from '../scripts/agent-utils';
-import { ensureAgentChainConfigIncludesAllChainNames } from '../src/config';
-import { readJSONAtPath } from '../src/utils/utils';
+import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent.js';
+import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/chains.js';
+import { hyperlaneContextAgentChainConfig as testnet4AgentChainConfig } from '../config/environments/testnet4/agent.js';
+import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/chains.js';
+import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
+import { ensureAgentChainConfigIncludesAllChainNames } from '../src/config/agent/agent.js';
+import { readJSONAtPath } from '../src/utils/utils.js';
 
 const environmentChainConfigs = {
   mainnet3: {
     agentChainConfig: mainnet3AgentChainConfig,
     // We read the agent config from the file system instead of importing
     // to get around the agent JSON configs living outside the typescript rootDir
-    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('mainnet3')),
+    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('mainnet')),
     supportedChainNames: mainnet3SupportedChainNames,
   },
   testnet4: {
     agentChainConfig: testnet4AgentChainConfig,
-    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('testnet4')),
+    agentJsonConfig: readJSONAtPath(getAgentConfigJsonPath('testnet')),
     supportedChainNames: testnet4SupportedChainNames,
   },
 };

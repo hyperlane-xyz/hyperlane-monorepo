@@ -17,7 +17,7 @@ use hyperlane_core::{
 use crate::contracts::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::call_with_lag;
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider};
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
@@ -45,6 +45,7 @@ impl BuildableWithProvider for MerkleTreeHookBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumMerkleTreeHook::new(Arc::new(provider), locator))
@@ -62,6 +63,7 @@ impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumMerkleTreeHookIndexer::new(

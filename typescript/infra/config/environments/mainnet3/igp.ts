@@ -10,9 +10,9 @@ import {
   MainnetChains,
   ethereumChainNames,
   supportedChainNames,
-} from './chains';
-import { storageGasOracleConfig } from './gas-oracle';
-import { DEPLOYER, owners } from './owners';
+} from './chains.js';
+import { storageGasOracleConfig } from './gas-oracle.js';
+import { DEPLOYER, owners } from './owners.js';
 
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 

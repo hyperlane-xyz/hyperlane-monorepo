@@ -1,7 +1,8 @@
-import { AgentContextConfig, EnvironmentConfig } from '../config';
-import { LiquidityLayerRelayerConfig } from '../config/middleware';
-import { HelmCommand, helmifyValues } from '../utils/helm';
-import { execCmd } from '../utils/utils';
+import { AgentContextConfig } from '../config/agent/agent.js';
+import { EnvironmentConfig } from '../config/environment.js';
+import { LiquidityLayerRelayerConfig } from '../config/middleware.js';
+import { HelmCommand, helmifyValues } from '../utils/helm.js';
+import { execCmd } from '../utils/utils.js';
 
 export async function runLiquidityLayerRelayerHelmCommand(
   helmCommand: HelmCommand,

@@ -1,24 +1,24 @@
 import { ethers } from 'ethers';
 
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
-import { RouterConfig } from '../../router/types';
+import { Router } from '@hyperlane-xyz/core';
+
+import { HyperlaneContracts } from '../../contracts/types.js';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
+import { RouterConfig } from '../../router/types.js';
 
 import {
   InterchainQueryFactories,
   interchainQueryFactories,
-} from './contracts';
+} from './contracts.js';
 
 export type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer extends ProxiedRouterDeployer<
   InterchainQueryConfig,
-  InterchainQueryFactories,
-  'interchainQueryRouter'
+  InterchainQueryFactories
 > {
-  readonly routerContractName = 'interchainQueryRouter';
-
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -28,14 +28,26 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
     });
   }
 
-  async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
-    return [config.mailbox];
+  routerContractName(): string {
+    return 'InterchainQueryRouter';
   }
 
-  async initializeArgs(
-    chain: string,
+  routerContractKey<K extends keyof InterchainQueryFactories>(): K {
+    return 'interchainQueryRouter' as K;
+  }
+
+  router(contracts: HyperlaneContracts<InterchainQueryFactories>): Router {
+    return contracts.interchainQueryRouter;
+  }
+
+  async constructorArgs<K extends keyof InterchainQueryFactories>(
+    _: string,
     config: RouterConfig,
-  ): Promise<[string, string, string]> {
+  ): Promise<Parameters<InterchainQueryFactories[K]['deploy']>> {
+    return [config.mailbox] as any;
+  }
+
+  async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('ISM as object unimplemented');

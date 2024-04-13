@@ -23,17 +23,17 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
-import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel';
-import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter';
-import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
+import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter.js';
+import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
-} from '../../utils/sealevelSerialization';
-import { MinimalTokenMetadata } from '../config';
+} from '../../utils/sealevelSerialization.js';
+import { MinimalTokenMetadata } from '../config.js';
 
 import {
   IHypTokenAdapter,
@@ -41,14 +41,14 @@ import {
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 import {
   SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
-} from './serialization';
+} from './serialization.js';
 
 // author @tkporter @jmrossy
 // Interacts with native currencies

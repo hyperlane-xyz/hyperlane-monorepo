@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { GasRouterConfig } from '../router/types';
+import { GasRouterConfig } from '../router/types.js';
 
 export enum TokenType {
   synthetic = 'synthetic',
@@ -59,6 +59,10 @@ export const isCollateralConfig = (
   config.type === TokenType.collateralUri ||
   config.type === TokenType.fastCollateral ||
   config.type == TokenType.collateralVault;
+
+export const isCollateralVaultConfig = (
+  config: TokenConfig,
+): config is CollateralConfig => config.type === TokenType.collateralVault;
 
 export const isSyntheticConfig = (
   config: TokenConfig,

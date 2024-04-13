@@ -92,6 +92,10 @@ abstract contract MailboxClient is OwnableUpgradeable {
         return mailbox.latestDispatchedId() == id;
     }
 
+    function _isDelivered(bytes32 id) internal view returns (bool) {
+        return mailbox.delivered(id);
+    }
+
     function _metadata(
         uint32 /*_destinationDomain*/
     ) internal view virtual returns (bytes memory) {
@@ -123,6 +127,24 @@ abstract contract MailboxClient is OwnableUpgradeable {
             );
     }
 
+    function _dispatch(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        uint256 _value,
+        bytes memory _messageBody,
+        bytes memory _hookMetadata,
+        IPostDispatchHook _hook
+    ) internal virtual returns (bytes32) {
+        return
+            mailbox.dispatch{value: _value}(
+                _destinationDomain,
+                _recipient,
+                _messageBody,
+                _hookMetadata,
+                _hook
+            );
+    }
+
     function _quoteDispatch(
         uint32 _destinationDomain,
         bytes32 _recipient,
@@ -135,6 +157,23 @@ abstract contract MailboxClient is OwnableUpgradeable {
                 _messageBody,
                 _metadata(_destinationDomain),
                 hook
+            );
+    }
+
+    function _quoteDispatch(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        bytes memory _messageBody,
+        bytes calldata _hookMetadata,
+        IPostDispatchHook _hook
+    ) internal view virtual returns (uint256) {
+        return
+            mailbox.quoteDispatch(
+                _destinationDomain,
+                _recipient,
+                _messageBody,
+                _hookMetadata,
+                _hook
             );
     }
 }

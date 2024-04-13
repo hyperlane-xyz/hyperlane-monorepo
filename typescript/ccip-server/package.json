@@ -1,6 +1,6 @@
 {
     "name": "@hyperlane-xyz/ccip-server",
-    "version": "3.9.0",
+    "version": "3.10.0",
     "description": "CCIP server",
     "typings": "dist/index.d.ts",
     "typedocMain": "src/index.ts",
@@ -9,10 +9,10 @@
         "src"
     ],
     "engines": {
-        "node": ">=14"
+        "node": ">=16"
     },
     "scripts": {
-        "start": "ts-node src/server.ts",
+        "start": "tsx src/server.ts",
         "dev": "nodemon src/server.ts",
         "test": "jest",
         "prettier": "prettier --write ./src/* ./tests/"
@@ -27,7 +27,8 @@
         "prettier": "^2.8.8",
         "ts-jest": "^29.1.2",
         "ts-node": "^10.8.0",
-        "typescript": "5.1.6"
+        "tsx": "^4.7.1",
+        "typescript": "5.3.3"
     },
     "dependencies": {
         "@chainlink/ccip-read-server": "^0.2.1",

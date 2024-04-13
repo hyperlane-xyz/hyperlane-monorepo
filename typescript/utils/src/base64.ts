@@ -1,4 +1,4 @@
-import { rootLogger } from './logging';
+import { rootLogger } from './logging.js';
 
 export function toBase64(data: any): string | undefined {
   try {

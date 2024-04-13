@@ -22,8 +22,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { startMetricsServer } from '../../src/utils/metrics';
-import { readYaml } from '../../src/utils/utils';
+import { startMetricsServer } from '../../src/utils/metrics.js';
+import { readYaml } from '../../src/utils/utils.js';
 
 const logger = rootLogger.child({ module: 'warp-balance-monitor' });
 

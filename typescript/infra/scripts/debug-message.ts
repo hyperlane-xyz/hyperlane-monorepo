@@ -7,10 +7,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { bytes32ToAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { assertChain } from '../src/utils/utils';
+import { deployEnvToSdkEnv } from '../src/config/environment.js';
+import { assertChain } from '../src/utils/utils.js';
 
-import { getArgs } from './agent-utils';
+import { getArgs } from './agent-utils.js';
 
 async function main() {
   const argv = await getArgs()

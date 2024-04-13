@@ -11,19 +11,19 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, addressToBytes32, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContracts } from '../contracts/types';
-import { CoreAddresses } from '../core/contracts';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
-import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
-import { IgpFactories } from '../gas/contracts';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { IsmType, OpStackIsmConfig } from '../ism/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { CoreAddresses } from '../core/contracts.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
+import { IgpFactories } from '../gas/contracts.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { IsmType, OpStackIsmConfig } from '../ism/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { DeployedHook, HookFactories, hookFactories } from './contracts';
+import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -33,7 +33,7 @@ import {
   IgpHookConfig,
   OpStackHookConfig,
   ProtocolFeeHookConfig,
-} from './types';
+} from './types.js';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -116,7 +116,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config.maxProtocolFee,
       config.protocolFee,
       config.beneficiary,
-      config.owner,
+      await this.resolveInterchainAccountAsOwner(chain, config.owner),
     ]);
   }
 
@@ -260,6 +260,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
 
+    // we don't config owner as config.owner because there're post-deploy steps like
+    // enrolling routing hooks which need ownership, and therefore we transferOwnership at the end
     const deployer = await this.multiProvider.getSigner(chain).getAddress();
 
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;

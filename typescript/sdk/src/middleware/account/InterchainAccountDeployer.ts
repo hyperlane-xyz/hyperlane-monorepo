@@ -1,26 +1,25 @@
 import { ethers } from 'ethers';
 
-import { HyperlaneContracts } from '../../contracts/types';
-import { ContractVerifier } from '../../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
-import { ProxiedRouterConfig, RouterConfig } from '../../router/types';
-import { ChainName } from '../../types';
+import { Router } from '@hyperlane-xyz/core';
+
+import { HyperlaneContracts } from '../../contracts/types.js';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
+import { ProxiedRouterConfig, RouterConfig } from '../../router/types.js';
+import { ChainName } from '../../types.js';
 
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
-} from './contracts';
+} from './contracts.js';
 
 export type InterchainAccountConfig = ProxiedRouterConfig;
 
 export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   InterchainAccountConfig,
-  InterchainAccountFactories,
-  'interchainAccountRouter'
+  InterchainAccountFactories
 > {
-  readonly routerContractName = 'interchainAccountRouter';
-
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
@@ -29,15 +28,26 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
       contractVerifier,
     });
   }
-
-  async constructorArgs(_: string, config: RouterConfig): Promise<[string]> {
-    return [config.mailbox];
+  routerContractName(): string {
+    return 'interchainAccountRouter';
   }
 
-  async initializeArgs(
-    chain: string,
+  routerContractKey<K extends keyof InterchainAccountFactories>(): K {
+    return 'interchainAccountRouter' as K;
+  }
+
+  router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {
+    return contracts.interchainAccountRouter;
+  }
+
+  async constructorArgs<K extends keyof InterchainAccountFactories>(
+    _: string,
     config: RouterConfig,
-  ): Promise<[string, string, string]> {
+  ): Promise<Parameters<InterchainAccountFactories[K]['deploy']>> {
+    return [config.mailbox] as any;
+  }
+
+  async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     return [
       config.hook ?? ethers.constants.AddressZero,

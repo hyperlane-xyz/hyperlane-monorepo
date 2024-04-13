@@ -5,19 +5,20 @@ import {
   HyperlaneCore,
   HyperlaneDeployer,
   HyperlaneDeploymentArtifacts,
+  HyperlaneEnvironment,
   MultiProvider,
   buildAgentConfig,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { getAgentConfigJsonPath } from '../../scripts/agent-utils';
-import { DeployEnvironment } from '../config';
+import { getAgentConfigJsonPath } from '../../scripts/agent-utils.js';
+import { DeployEnvironment, deployEnvToSdkEnv } from '../config/environment.js';
 import {
   readJSONAtPath,
   writeJsonAtPath,
   writeMergedJSONAtPath,
-} from '../utils/utils';
+} from '../utils/utils.js';
 
 export async function deployWithArtifacts<Config extends object>(
   configMap: ChainMap<Config>,
@@ -107,7 +108,7 @@ export async function postDeploy<Config extends object>(
     await writeAgentConfig(
       agentConfig.addresses,
       agentConfig.multiProvider,
-      agentConfig.environment,
+      deployEnvToSdkEnv[agentConfig.environment],
     );
   }
 }
@@ -115,7 +116,7 @@ export async function postDeploy<Config extends object>(
 export async function writeAgentConfig(
   addressesPath: string,
   multiProvider: MultiProvider,
-  environment: DeployEnvironment,
+  environment: HyperlaneEnvironment,
 ) {
   let addresses: ChainMap<HyperlaneAddresses<any>> = {};
   try {
@@ -126,14 +127,18 @@ export async function writeAgentConfig(
 
   const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
-  const startBlocksBigNumber = await promiseObjAll(
-    objMap(addresses, (chain, _) => {
+  const startBlocks = await promiseObjAll(
+    objMap(addresses, async (chain, _) => {
+      // If the index.from is specified in the chain metadata, use that.
+      const indexFrom = multiProvider.getChainMetadata(chain).index?.from;
+      if (indexFrom !== undefined) {
+        return indexFrom;
+      }
+
       const mailbox = core.getContracts(chain).mailbox;
-      return mailbox.deployedBlock();
+      const deployedBlock = await mailbox.deployedBlock();
+      return deployedBlock.toNumber();
     }),
-  );
-  const startBlocks = objMap(startBlocksBigNumber, (_, blockNumber) =>
-    blockNumber.toNumber(),
   );
 
   const agentConfig = buildAgentConfig(

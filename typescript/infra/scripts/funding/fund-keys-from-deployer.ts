@@ -1,4 +1,5 @@
 import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { CrossChainMessenger } from '@eth-optimism/sdk';
 import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -13,39 +14,41 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
+import { Contexts } from '../../config/contexts.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
   getRoleKeysPerChain,
-} from '../../src/agents/key-utils';
+} from '../../src/agents/key-utils.js';
 import {
   BaseAgentKey,
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
-} from '../../src/agents/keys';
-import { DeployEnvironment } from '../../src/config';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
+} from '../../src/agents/keys.js';
+import {
+  DeployEnvironment,
+  deployEnvToSdkEnv,
+} from '../../src/config/environment.js';
 import {
   ContextAndRoles,
   ContextAndRolesMap,
   KeyFunderConfig,
-} from '../../src/config/funding';
-import { FundableRole, Role } from '../../src/roles';
-import { submitMetrics } from '../../src/utils/metrics';
+} from '../../src/config/funding.js';
+import { FundableRole, Role } from '../../src/roles.js';
+import { submitMetrics } from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
   assertRole,
   isEthereumProtocolChain,
   readJSONAtPath,
-} from '../../src/utils/utils';
-import { getAgentConfig, getArgs } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+} from '../../src/utils/utils.js';
+import { getAgentConfig, getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
-import * as L1ETHGateway from './utils/L1ETHGateway.json';
-import * as L1MessageQueue from './utils/L1MessageQueue.json';
-import * as L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+import L1ETHGateway from './utils/L1ETHGateway.json';
+import L1MessageQueue from './utils/L1MessageQueue.json';
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
 
 const logger = rootLogger.child({ module: 'fund-keys' });
 
@@ -65,9 +68,6 @@ const L2ToL1: ChainMap<ChainName> = {
   arbitrum: 'ethereum',
   base: 'ethereum',
 };
-
-// Missing types declaration for bufio
-const CrossChainMessenger = require('@eth-optimism/sdk').CrossChainMessenger; // eslint-disable-line
 
 const constMetricLabels = {
   // this needs to get set in main because of async reasons
@@ -111,7 +111,6 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   fuji: '1',
   ethereum: '0.4',
   polygon: '20',
-  mumbai: '1',
   optimism: '0.15',
   arbitrum: '0.1',
   bsc: '0.3',
@@ -144,7 +143,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
 // context provided in --contexts-and-roles, which requires the appropriate credentials.
 //
 // Example usage:
-//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet4 --context hyperlane --contexts-and-roles rc=relayer
+//   tsx ./scripts/funding/fund-keys-from-deployer.ts -e testnet4 --context hyperlane --contexts-and-roles rc=relayer
 async function main() {
   const { environment, ...argv } = await getArgs()
     .string('f')
@@ -184,10 +183,6 @@ async function main() {
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
     .default('connection-type', RpcConsensusType.Single)
-    .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
-    ])
     .demandOption('connection-type')
 
     .boolean('skip-igp-claim')
@@ -238,7 +233,7 @@ async function main() {
     failureOccurred ||= await funder.fund();
   }
 
-  await submitMetrics(metricsRegister, 'key-funder');
+  await submitMetrics(metricsRegister, `key-funder-${environment}`);
 
   if (failureOccurred) {
     logger.error('At least one failure occurred when funding');

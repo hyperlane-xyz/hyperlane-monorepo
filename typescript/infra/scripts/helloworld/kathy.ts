@@ -13,6 +13,7 @@ import {
   ProviderType,
   RpcConsensusType,
   TypedTransactionReceipt,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -21,26 +22,27 @@ import {
   objMap,
   retryAsync,
   rootLogger,
+  sleep,
   strip0x,
   timeout,
 } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { testnetConfigs } from '../../config/environments/testnet4/chains';
+import { Contexts } from '../../config/contexts.js';
+import { testnetConfigs } from '../../config/environments/testnet4/chains.js';
 import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
-} from '../../config/environments/testnet4/helloworld';
-import { owners } from '../../config/environments/testnet4/owners';
-import { CloudAgentKey } from '../../src/agents/keys';
-import { DeployEnvironment } from '../../src/config/environment';
-import { Role } from '../../src/roles';
-import { startMetricsServer } from '../../src/utils/metrics';
-import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, withContext } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+} from '../../config/environments/testnet4/helloworld.js';
+import { owners } from '../../config/environments/testnet4/owners.js';
+import { CloudAgentKey } from '../../src/agents/keys.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
+import { Role } from '../../src/roles.js';
+import { startMetricsServer } from '../../src/utils/metrics.js';
+import { assertChain, diagonalize } from '../../src/utils/utils.js';
+import { getArgs, withContext } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
-import { getHelloWorldMultiProtocolApp } from './utils';
+import { getHelloWorldMultiProtocolApp } from './utils.js';
 
 const logger = rootLogger.child({ module: 'kathy' });
 
@@ -245,9 +247,14 @@ async function main(): Promise<boolean> {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  chains.map((chain) =>
-    updateWalletBalanceMetricFor(app, chain, coreConfig.owners[chain].owner),
-  );
+  chains.map(async (chain) => {
+    const owner = await resolveOrDeployAccountOwner(
+      multiProvider,
+      chain,
+      coreConfig.owners[chain].owner,
+    );
+    return updateWalletBalanceMetricFor(app, chain, owner);
+  });
 
   // Incremented each time an entire cycle has occurred
   let currentCycle = 0;
@@ -365,11 +372,12 @@ async function main(): Promise<boolean> {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    updateWalletBalanceMetricFor(
-      app,
+    const owner = await resolveOrDeployAccountOwner(
+      multiProvider,
       origin,
       coreConfig.owners[origin].owner,
-    ).catch((e) => {
+    );
+    updateWalletBalanceMetricFor(app, origin, owner).catch((e) => {
       logger.warn('Failed to update wallet balance for chain', {
         chain: origin,
         err: format(e),

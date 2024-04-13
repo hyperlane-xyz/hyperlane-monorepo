@@ -3,8 +3,8 @@ import { CoreChainName } from '@hyperlane-xyz/sdk';
 import {
   CheckpointSyncerType,
   ValidatorBaseConfig,
-} from '../../src/config/agent/validator';
-import { Contexts } from '../contexts';
+} from '../../src/config/agent/validator.js';
+import { Contexts } from '../contexts.js';
 
 export type ValidatorKey = {
   identifier: string;

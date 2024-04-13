@@ -1,5 +1,7 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
+  HypERC20App,
+  HypERC20Checker,
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
@@ -9,25 +11,28 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
+  TokenType,
+  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../config/contexts';
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
-import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor';
-import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor';
-import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor';
-import { Role } from '../src/roles';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
+import { Contexts } from '../config/contexts.js';
+import { deployEnvToSdkEnv } from '../src/config/environment.js';
+import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
+import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
+import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
+import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor.js';
+import { Role } from '../src/roles.js';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
 
 import {
   Modules,
+  getAddresses,
   getArgs as getRootArgs,
   withContext,
   withModuleAndFork,
-} from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
-import { getHelloWorldApp } from './helloworld/utils';
+} from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
+import { getHelloWorldApp } from './helloworld/utils.js';
 
 function getArgs() {
   return withModuleAndFork(withContext(getRootArgs()))
@@ -50,7 +55,11 @@ async function check() {
         [fork]: { blocks: { confirmations: 0 } },
       });
 
-      const owner = config.core[fork].owner;
+      const owner = await resolveOrDeployAccountOwner(
+        multiProvider,
+        fork,
+        config.core[fork].owner,
+      );
       const signer = await impersonateAccount(owner, 1e18);
 
       multiProvider.setSigner(fork, signer);
@@ -61,6 +70,7 @@ async function check() {
   const core = HyperlaneCore.fromEnvironment(env, multiProvider);
   const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
   const routerConfig = core.getRouterConfig(config.owners);
+  const ica = InterchainAccount.fromEnvironment(env, multiProvider);
 
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
@@ -76,7 +86,6 @@ async function check() {
     const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const ica = InterchainAccount.fromEnvironment(env, multiProvider);
     const checker = new InterchainAccountChecker(
       multiProvider,
       ica,
@@ -106,6 +115,42 @@ async function check() {
       ismFactory,
     );
     governor = new ProxiedRouterGovernor(checker);
+  } else if (module === Modules.WARP) {
+    // test config
+    const plumetestnet = {
+      ...routerConfig.plumetestnet,
+      type: TokenType.synthetic,
+      name: 'Wrapped Ether',
+      symbol: 'WETH',
+      decimals: 18,
+      totalSupply: '0',
+      gas: 0,
+    };
+    const sepolia = {
+      ...routerConfig.sepolia,
+      type: TokenType.native,
+      gas: 0,
+    };
+    const config = {
+      plumetestnet,
+      sepolia,
+    };
+    const addresses = getAddresses(environment, Modules.WARP);
+    const filteredAddresses = Object.keys(addresses) // filter out changes not in config
+      .filter((key) => key in config)
+      .reduce((obj, key) => {
+        obj[key] = addresses[key];
+        return obj;
+      }, {} as typeof addresses);
+    const app = HypERC20App.fromAddressesMap(filteredAddresses, multiProvider);
+
+    const checker = new HypERC20Checker(
+      multiProvider,
+      app,
+      config as any,
+      ismFactory,
+    );
+    governor = new ProxiedRouterGovernor(checker, ica);
   } else {
     console.log(`Skipping ${module}, checker or governor unimplemented`);
     return;

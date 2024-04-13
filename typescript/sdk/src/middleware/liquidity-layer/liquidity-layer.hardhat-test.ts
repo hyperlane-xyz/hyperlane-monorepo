@@ -1,6 +1,6 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import {
   LiquidityLayerRouter,
@@ -16,23 +16,23 @@ import {
 } from '@hyperlane-xyz/core';
 import { addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
-import { Chains } from '../../consts/chains';
-import { TestCoreApp } from '../../core/TestCoreApp';
-import { TestCoreDeployer } from '../../core/TestCoreDeployer';
-import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer';
-import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ChainMap } from '../../types';
+import { chainMetadata } from '../../consts/chainMetadata.js';
+import { Chains } from '../../consts/chains.js';
+import { TestCoreApp } from '../../core/TestCoreApp.js';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
+import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ChainMap } from '../../types.js';
 
-import { LiquidityLayerApp } from './LiquidityLayerApp';
+import { LiquidityLayerApp } from './LiquidityLayerApp.js';
 import {
   BridgeAdapterType,
   CircleBridgeAdapterConfig,
   LiquidityLayerConfig,
   LiquidityLayerDeployer,
   PortalAdapterConfig,
-} from './LiquidityLayerRouterDeployer';
+} from './LiquidityLayerRouterDeployer.js';
 
 describe.skip('LiquidityLayerRouter', async () => {
   const localChain = Chains.test1;
@@ -53,7 +53,7 @@ describe.skip('LiquidityLayerRouter', async () => {
   let messageTransmitter: MockCircleMessageTransmitter;
 
   before(async () => {
-    [signer] = await ethers.getSigners();
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

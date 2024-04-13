@@ -1,28 +1,30 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { BigNumber, constants } from 'ethers';
+import hre from 'hardhat';
 
 import {
   InterchainAccountRouter,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 
-import { Chains } from '../../consts/chains';
-import { HyperlaneContractsMap } from '../../contracts/types';
-import { TestCoreApp } from '../../core/TestCoreApp';
-import { TestCoreDeployer } from '../../core/TestCoreDeployer';
-import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer';
-import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterConfig } from '../../router/types';
-import { ChainMap } from '../../types';
+import { Chains } from '../../consts/chains.js';
+import { HyperlaneContractsMap } from '../../contracts/types.js';
+import { TestCoreApp } from '../../core/TestCoreApp.js';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
+import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { RouterConfig } from '../../router/types.js';
+import { ChainMap } from '../../types.js';
 
-import { InterchainAccount } from './InterchainAccount';
-import { InterchainAccountChecker } from './InterchainAccountChecker';
-import { InterchainAccountDeployer } from './InterchainAccountDeployer';
-import { InterchainAccountFactories } from './contracts';
+import { InterchainAccount } from './InterchainAccount.js';
+import { InterchainAccountChecker } from './InterchainAccountChecker.js';
+import { InterchainAccountDeployer } from './InterchainAccountDeployer.js';
+import { InterchainAccountFactories } from './contracts.js';
+import { AccountConfig } from './types.js';
 
-describe.skip('InterchainAccounts', async () => {
+describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
@@ -32,10 +34,11 @@ describe.skip('InterchainAccounts', async () => {
   let remote: InterchainAccountRouter;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
+  let app: InterchainAccount;
   let config: ChainMap<RouterConfig>;
 
   before(async () => {
-    [signer] = await ethers.getSigners();
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
@@ -52,10 +55,10 @@ describe.skip('InterchainAccounts', async () => {
     );
     local = contracts[localChain].interchainAccountRouter;
     remote = contracts[remoteChain].interchainAccountRouter;
+    app = new InterchainAccount(contracts, multiProvider);
   });
 
   it('checks', async () => {
-    const app = new InterchainAccount(contracts, multiProvider);
     const checker = new InterchainAccountChecker(multiProvider, app, config);
     await checker.check();
     expect(checker.violations.length).to.eql(0);
@@ -75,17 +78,27 @@ describe.skip('InterchainAccounts', async () => {
       multiProvider.getDomainId(localChain),
       signer.address,
       local.address,
-      ethers.constants.AddressZero,
+      constants.AddressZero,
     );
 
-    await local['callRemote(uint32,address,uint256,bytes,bytes)'](
-      multiProvider.getDomainId(remoteChain),
-      recipient.address,
-      0,
+    const call = {
+      to: recipient.address,
       data,
-      '',
+      value: BigNumber.from('0'),
+    };
+    const quote = await local['quoteGasPayment(uint32)'](
+      multiProvider.getDomainId(remoteChain),
     );
+    const balanceBefore = await signer.getBalance();
+    const config: AccountConfig = {
+      origin: localChain,
+      owner: signer.address,
+      localRouter: local.address,
+    };
+    await app.callRemote(localChain, remoteChain, [call], config);
+    const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
+    expect(balanceAfter).to.lte(balanceBefore.sub(quote));
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
   });

@@ -3,15 +3,15 @@ import { format } from 'util';
 
 import { promiseObjAll, rootLogger } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
+import { Contexts } from '../../config/contexts.js';
 import {
   DeterministicKeyRoles,
   getDeterministicKey,
-} from '../../src/funding/deterministic-keys';
-import { Role } from '../../src/roles';
-import { assertChain } from '../../src/utils/utils';
-import { getArgs } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+} from '../../src/funding/deterministic-keys.js';
+import { Role } from '../../src/roles.js';
+import { assertChain } from '../../src/utils/utils.js';
+import { getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 const logger = rootLogger.child({ module: 'fund-deterministic-key' });
 

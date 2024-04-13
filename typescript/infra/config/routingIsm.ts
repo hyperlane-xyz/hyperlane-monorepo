@@ -9,13 +9,13 @@ import {
   TestChains,
 } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment } from '../src/config';
+import { DeployEnvironment } from '../src/config/environment.js';
 
-import { Contexts } from './contexts';
-import { environments } from './environments';
-import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains';
-import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
-import { multisigIsm } from './multisigIsm';
+import { Contexts } from './contexts.js';
+import { environments } from './environments/index.js';
+import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains.js';
+import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains.js';
+import { multisigIsm } from './multisigIsm.js';
 
 const chains = {
   test: TestChains,

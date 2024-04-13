@@ -1,17 +1,19 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { utils } from 'ethers';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { TestRecipient, TestRecipient__factory } from '../types';
 
-const testData = ethers.utils.hexlify(ethers.utils.toUtf8Bytes('test'));
+import { getSigner } from './signer';
+
+const testData = utils.hexlify(utils.toUtf8Bytes('test'));
 describe('TestRecipient', () => {
   let recipient: TestRecipient;
   let signerAddress: string;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
+    const signer = await getSigner();
     signerAddress = await signer.getAddress();
     const recipientFactory = new TestRecipient__factory(signer);
     recipient = await recipientFactory.deploy();

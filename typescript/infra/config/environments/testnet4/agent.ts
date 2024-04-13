@@ -1,5 +1,6 @@
 import {
   Chains,
+  GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -8,15 +9,14 @@ import {
   AgentChainConfig,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
-  routerMatchingList,
-} from '../../../src/config';
-import { GasPaymentEnforcementConfig } from '../../../src/config/agent/relayer';
-import { ALL_KEY_ROLES, Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+} from '../../../src/config/agent/agent.js';
+import { routerMatchingList } from '../../../src/config/agent/relayer.js';
+import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { environment, supportedChainNames } from './chains';
-import { helloWorld } from './helloworld';
-import { validatorChainConfig } from './validators';
+import { environment, supportedChainNames } from './chains.js';
+import { helloWorld } from './helloworld.js';
+import { validatorChainConfig } from './validators.js';
 import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
 const releaseCandidateHelloworldMatchingList = routerMatchingList(
@@ -36,7 +36,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.bsctestnet]: true,
     [Chains.eclipsetestnet]: true,
     [Chains.fuji]: true,
-    [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
@@ -47,7 +46,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.bsctestnet]: true,
     [Chains.eclipsetestnet]: true,
     [Chains.fuji]: true,
-    [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
@@ -59,7 +57,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // Cannot scrape non-EVM chains
     [Chains.eclipsetestnet]: false,
     [Chains.fuji]: true,
-    [Chains.mumbai]: true,
     [Chains.plumetestnet]: true,
     [Chains.scrollsepolia]: true,
     [Chains.sepolia]: true,
@@ -82,7 +79,7 @@ const contextBase = {
   },
 } as const;
 
-const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
+const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   // Default policy is OnChainFeeQuoting
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -98,7 +95,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -127,7 +124,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -135,7 +132,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
   },
 };
@@ -149,7 +146,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -159,7 +156,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '17ac515-20240402-171933',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

@@ -1,10 +1,10 @@
 import { chainMetadata, getReorgPeriod } from '@hyperlane-xyz/sdk';
 
-import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
-import { Contexts } from '../../contexts';
-import { validatorBaseConfigsFn } from '../utils';
+import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
+import { Contexts } from '../../contexts.js';
+import { validatorBaseConfigsFn } from '../utils.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 
 export const validatorChainConfig = (
   context: Contexts,
@@ -49,26 +49,6 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'fuji',
-      ),
-    },
-    mumbai: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.mumbai),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0xebc301013b6cd2548e347c28d2dc43ec20c068f2',
-            '0x315db9868fc8813b221b1694f8760ece39f45447',
-            '0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0x7fc2981964427f09e317eda559f506bfd37f1ccb',
-            '0x954168cf13faeaa248d412e145a17dc697556636',
-            '0x98a9f2610e44246ac0c749c20a07a6eb192ce9eb',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'mumbai',
       ),
     },
     bsctestnet: {

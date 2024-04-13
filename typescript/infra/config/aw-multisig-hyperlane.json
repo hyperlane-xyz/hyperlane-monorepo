@@ -6,6 +6,9 @@
       "0x86485dcec5f7bb8478dd251676372d054dea6653"
     ]
   },
+  "ancient8": {
+    "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
+  },
   "arbitrum": {
     "validators": [
       "0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1",
@@ -94,13 +97,6 @@
       "0x2225e2f4e9221049456da93b71d2de41f3b6b2a8",
       "0x4fe067bb455358e295bfcfb92519a6f9de94b98e",
       "0xcc4a78aa162482bea43313cd836ba7b560b44fc4"
-    ]
-  },
-  "mumbai": {
-    "validators": [
-      "0xebc301013b6cd2548e347c28d2dc43ec20c068f2",
-      "0x315db9868fc8813b221b1694f8760ece39f45447",
-      "0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5"
     ]
   },
   "neutron": {

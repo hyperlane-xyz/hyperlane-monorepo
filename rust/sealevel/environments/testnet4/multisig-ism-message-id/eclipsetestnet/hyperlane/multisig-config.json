@@ -35,15 +35,6 @@
     ],
     "type": 3
   },
-  "mumbai": {
-    "threshold": 2,
-    "validators": [
-      "0xebc301013b6cd2548e347c28d2dc43ec20c068f2",
-      "0x315db9868fc8813b221b1694f8760ece39f45447",
-      "0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5"
-    ],
-    "type": 3
-  },
   "scrollsepolia": {
     "threshold": 2,
     "validators": [

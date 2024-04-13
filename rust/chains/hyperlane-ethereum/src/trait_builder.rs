@@ -23,8 +23,8 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 
-use crate::EthereumFallbackProvider;
 use crate::{signers::Signers, ConnectionConf, RetryingProvider};
+use crate::{EthereumFallbackProvider, RpcConnectionConf};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -63,8 +63,8 @@ pub trait BuildableWithProvider {
         rpc_metrics: Option<JsonRpcClientMetrics>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
-        Ok(match conn {
-            ConnectionConf::HttpQuorum { urls } => {
+        Ok(match &conn.rpc_connection {
+            RpcConnectionConf::HttpQuorum { urls } => {
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
@@ -93,9 +93,9 @@ pub trait BuildableWithProvider {
                     builder = builder.add_provider(weighted_provider);
                 }
                 let quorum_provider = builder.build();
-                self.build(quorum_provider, locator, signer).await?
+                self.build(quorum_provider, conn, locator, signer).await?
             }
-            ConnectionConf::HttpFallback { urls } => {
+            RpcConnectionConf::HttpFallback { urls } => {
                 let mut builder = FallbackProvider::builder();
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
@@ -116,10 +116,10 @@ pub trait BuildableWithProvider {
                     _,
                     JsonRpcBlockGetter<PrometheusJsonRpcClient<Http>>,
                 >::new(fallback_provider);
-                self.build(ethereum_fallback_provider, locator, signer)
+                self.build(ethereum_fallback_provider, conn, locator, signer)
                     .await?
             }
-            ConnectionConf::Http { url } => {
+            RpcConnectionConf::Http { url } => {
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
                     .build()
@@ -132,13 +132,14 @@ pub trait BuildableWithProvider {
                     &middleware_metrics,
                 );
                 let retrying_http_provider = RetryingProvider::new(metrics_provider, None, None);
-                self.build(retrying_http_provider, locator, signer).await?
+                self.build(retrying_http_provider, conn, locator, signer)
+                    .await?
             }
-            ConnectionConf::Ws { url } => {
+            RpcConnectionConf::Ws { url } => {
                 let ws = Ws::connect(url)
                     .await
                     .map_err(EthereumProviderConnectionError::from)?;
-                self.build(ws, locator, signer).await?
+                self.build(ws, conn, locator, signer).await?
             }
         })
     }
@@ -184,6 +185,7 @@ pub trait BuildableWithProvider {
     async fn build<P>(
         &self,
         client: P,
+        conn: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
     ) -> ChainResult<Self::Output>
@@ -191,7 +193,8 @@ pub trait BuildableWithProvider {
         P: JsonRpcClient + 'static,
     {
         let provider = wrap_with_gas_oracle(Provider::new(client), locator.domain)?;
-        self.build_with_signer(provider, locator, signer).await
+        self.build_with_signer(provider, conn, locator, signer)
+            .await
     }
 
     /// Wrap the provider creation with a signing provider if signers were
@@ -199,6 +202,7 @@ pub trait BuildableWithProvider {
     async fn build_with_signer<M>(
         &self,
         provider: M,
+        conn: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
     ) -> ChainResult<Self::Output>
@@ -209,15 +213,20 @@ pub trait BuildableWithProvider {
             let signing_provider = wrap_with_signer(provider, signer)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
-            self.build_with_provider(signing_provider, locator)
+            self.build_with_provider(signing_provider, conn, locator)
         } else {
-            self.build_with_provider(provider, locator)
+            self.build_with_provider(provider, conn, locator)
         }
         .await)
     }
 
     /// Construct a new instance of the associated trait using a provider.
-    async fn build_with_provider<M>(&self, provider: M, locator: &ContractLocator) -> Self::Output
+    async fn build_with_provider<M>(
+        &self,
+        provider: M,
+        conn: &ConnectionConf,
+        locator: &ContractLocator,
+    ) -> Self::Output
     where
         M: Middleware + 'static;
 }
@@ -244,7 +253,7 @@ fn build_polygon_gas_oracle(chain: ethers_core::types::Chain) -> ChainResult<Box
 }
 
 /// Wrap the provider with a gas oracle middleware.
-/// Polygon and Mumbai require using the Polygon gas oracle, see discussion here
+/// Polygon requires using the Polygon gas oracle, see discussion here
 /// https://github.com/foundry-rs/foundry/issues/1703.
 /// Defaults to using the provider's gas oracle.
 fn wrap_with_gas_oracle<M>(
@@ -259,9 +268,6 @@ where
         match domain {
             HyperlaneDomain::Known(KnownHyperlaneDomain::Polygon) => {
                 build_polygon_gas_oracle(ethers_core::types::Chain::Polygon)?
-            }
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Mumbai) => {
-                build_polygon_gas_oracle(ethers_core::types::Chain::PolygonMumbai)?
             }
             _ => Box::new(ProviderOracle::new(provider.clone())),
         }

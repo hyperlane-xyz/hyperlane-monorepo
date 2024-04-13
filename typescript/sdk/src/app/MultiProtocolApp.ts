@@ -9,17 +9,17 @@ import {
   symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
   SolanaWeb3Provider,
   TypedProvider,
-} from '../providers/ProviderType';
-import { ChainMap, ChainName } from '../types';
-import { MultiGeneric } from '../utils/MultiGeneric';
+} from '../providers/ProviderType.js';
+import { ChainMap, ChainName } from '../types.js';
+import { MultiGeneric } from '../utils/MultiGeneric.js';
 
 /**
  * A minimal interface for an adapter that can be used with MultiProtocolApp

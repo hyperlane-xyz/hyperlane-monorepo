@@ -4,20 +4,17 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import {
   AllStorageGasOracleConfigs,
-  getAllStorageGasOracleConfigs,
-} from '../../../src/config';
-import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
+  getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
-} from '../../../src/config/gas-oracle';
+} from '../../../src/config/gas-oracle.js';
 
-import { supportedChainNames } from './chains';
+import { supportedChainNames } from './chains.js';
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
-  mumbai: ethers.utils.parseUnits('45', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
@@ -46,7 +43,6 @@ const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
 const chainTokenRarity: ChainMap<Rarity> = {
   alfajores: Rarity.Common,
   fuji: Rarity.Rare,
-  mumbai: Rarity.Rare,
   bsctestnet: Rarity.Rare,
   sepolia: Rarity.Mythic,
   scrollsepolia: Rarity.Rare,

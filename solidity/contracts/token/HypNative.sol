@@ -21,6 +21,20 @@ contract HypNative is TokenRouter {
     constructor(address _mailbox) TokenRouter(_mailbox) {}
 
     /**
+     * @notice Initializes the Hyperlane router
+     * @param _hook The post-dispatch hook contract.
+       @param _interchainSecurityModule The interchain security module contract.
+       @param _owner The this contract.
+     */
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
+    /**
      * @inheritdoc TokenRouter
      * @dev uses (`msg.value` - `_amount`) as interchain gas payment and `msg.sender` as refund address.
      */
@@ -31,7 +45,15 @@ contract HypNative is TokenRouter {
     ) public payable virtual override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 gasPayment = msg.value - _amount;
-        return _transferRemote(_destination, _recipient, _amount, gasPayment);
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                gasPayment,
+                bytes(""),
+                address(0)
+            );
     }
 
     function balanceOf(

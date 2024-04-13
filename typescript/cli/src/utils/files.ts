@@ -12,6 +12,11 @@ import { getTimestampForFilename } from './time.js';
 
 export type FileFormat = 'yaml' | 'json';
 
+export type ArtifactsFile = {
+  filename: string;
+  description: string;
+};
+
 export function isFile(filepath: string) {
   if (!filepath) return false;
   try {
@@ -144,7 +149,7 @@ function resolveYamlOrJson(
 
 export function prepNewArtifactsFiles(
   outPath: string,
-  files: Array<{ filename: string; description: string }>,
+  files: Array<ArtifactsFile>,
 ) {
   const timestamp = getTimestampForFilename();
   const newPaths: string[] = [];

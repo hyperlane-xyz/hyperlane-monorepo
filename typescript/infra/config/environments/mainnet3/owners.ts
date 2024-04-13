@@ -1,11 +1,30 @@
-import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import {
+  AddressesMap,
+  ChainMap,
+  OwnableConfig,
+  hyperlaneEnvironments,
+} from '@hyperlane-xyz/sdk';
+import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { ethereumChainNames } from './chains';
+import { ethereumChainNames } from './chains.js';
 
 export const timelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
 };
+
+export function localAccountRouters(): ChainMap<Address> {
+  const coreAddresses: ChainMap<AddressesMap> =
+    hyperlaneEnvironments['mainnet'];
+  const filteredAddresses = objFilter(
+    coreAddresses,
+    (local, addressMap): addressMap is AddressesMap =>
+      addressMap.interchainAccountRouter !== undefined,
+  );
+  return objMap(
+    filteredAddresses,
+    (local, addressMap) => addressMap.interchainAccountRouter,
+  );
+}
 
 export const safes: ChainMap<Address | undefined> = {
   mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI
@@ -28,6 +47,9 @@ export const safes: ChainMap<Address | undefined> = {
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
+// NOTE: if you wanna use ICA governance, you can do the following:
+// const localRouters = localAccountRouters();
+// owner: {origin: <HUB_CHAIN>, owner: <SAFE_ADDRESS>, localRouter: localRouters[chain]}
 export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => [
     local,

@@ -37,7 +37,7 @@ export {
   normalizeAddressSealevel,
   shortenAddress,
   strip0x,
-} from './src/addresses';
+} from './addresses.js';
 export {
   convertDecimals,
   eqAmountApproximate,
@@ -45,18 +45,19 @@ export {
   fromWeiRounded,
   toWei,
   tryParseAmount,
-} from './src/amount';
-export { chunk, exclude } from './src/arrays';
+} from './amount.js';
+export { chunk, exclude } from './arrays.js';
 export {
+  concurrentMap,
   pollAsync,
   raceWithContext,
   retryAsync,
   runWithTimeout,
   sleep,
   timeout,
-} from './src/async';
-export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './src/base58';
-export { fromBase64, toBase64 } from './src/base64';
+} from './async.js';
+export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './base58.js';
+export { fromBase64, toBase64 } from './base64.js';
 export {
   BigNumberMax,
   BigNumberMin,
@@ -65,33 +66,34 @@ export {
   isBigNumberish,
   isZeroish,
   mulBigAndFixed,
-} from './src/big-numbers';
-export { formatCallData } from './src/calldata';
+} from './big-numbers.js';
+export { formatCallData } from './calldata.js';
 export {
   isCheckpoint,
   isS3Checkpoint,
   isS3CheckpointWithId,
-} from './src/checkpoints';
-export { domainHash } from './src/domains';
-export { safelyAccessEnvVar } from './src/env';
-export { canonizeId, evmId } from './src/ids';
+} from './checkpoints.js';
+export { domainHash } from './domains.js';
+export { safelyAccessEnvVar } from './env.js';
+export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
   LogLevel,
   configureRootLogger,
   createHyperlanePinoLogger,
+  ethersBigNumberSerializer,
   getLogFormat,
   getLogLevel,
   getRootLogger,
   rootLogger,
   setRootLogger,
-} from './src/logging';
-export { mean, median, stdDev, sum } from './src/math';
-export { formatMessage, messageId, parseMessage } from './src/messages';
+} from './logging.js';
+export { mean, median, stdDev, sum } from './math.js';
+export { formatMessage, messageId, parseMessage } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
   parseLegacyMultisigIsmMetadata,
-} from './src/multisig';
+} from './multisig.js';
 export {
   ValueOf,
   arrayToObject,
@@ -106,16 +108,16 @@ export {
   objMerge,
   pick,
   promiseObjAll,
-} from './src/objects';
-export { difference, setEquality, symmetricDifference } from './src/sets';
+} from './objects.js';
+export { difference, setEquality, symmetricDifference } from './sets.js';
 export {
   errorToString,
   sanitizeString,
   streamToString,
   toTitleCase,
   trimToLength,
-} from './src/strings';
-export { isNullish, isNumeric } from './src/typeof';
+} from './strings.js';
+export { isNullish, isNumeric } from './typeof.js';
 export {
   Address,
   AddressBytes32,
@@ -138,6 +140,7 @@ export {
   S3CheckpointWithId,
   SignatureLike,
   TokenCaip19Id,
-} from './src/types';
-export { assert } from './src/validation';
-export { BaseValidator } from './src/validator';
+  WithAddress,
+} from './types.js';
+export { assert } from './validation.js';
+export { BaseValidator } from './validator.js';

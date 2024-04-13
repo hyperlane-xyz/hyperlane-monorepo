@@ -1,5 +1,5 @@
-import { MultisigConfig } from '../ism/types';
-import { ChainMap } from '../types';
+import { MultisigConfig } from '../ism/types.js';
+import { ChainMap } from '../types.js';
 
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alfajores: {
@@ -9,6 +9,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xba279f965489d90f90490e3c49e860e0b43c2ae6',
       '0x86485dcec5f7bb8478dd251676372d054dea6653',
     ],
+  },
+
+  ancient8: {
+    threshold: 1,
+    validators: ['0xbb5842ae0e05215b53df4787a29144efb7e67551'],
   },
 
   arbitrum: {
@@ -154,15 +159,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x645428d198d2e76cbd9c1647f5c80740bb750b97', // dsrv
       '0xaed886392df07897743d8e272d438f00c4c9a2ae', // everstake
       '0xcf0bb43255849cb3709a96ee166e5c3ce4adc7f9', // staked
-    ],
-  },
-
-  mumbai: {
-    threshold: 2,
-    validators: [
-      '0xebc301013b6cd2548e347c28d2dc43ec20c068f2',
-      '0x315db9868fc8813b221b1694f8760ece39f45447',
-      '0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5',
     ],
   },
 

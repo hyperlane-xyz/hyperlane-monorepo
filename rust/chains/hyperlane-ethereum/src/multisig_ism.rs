@@ -17,7 +17,7 @@ use crate::contracts::i_multisig_ism::{
     IMultisigIsm as EthereumMultisigIsmInternal, IMULTISIGISM_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider};
 
 impl<M> std::fmt::Display for EthereumMultisigIsmInternal<M>
 where
@@ -37,6 +37,7 @@ impl BuildableWithProvider for MultisigIsmBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumMultisigIsm::new(Arc::new(provider), locator))
