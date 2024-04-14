@@ -17,6 +17,14 @@ export function objKeys<T extends string | number>(obj: Record<T, any>): T[] {
   return Object.keys(obj) as T[];
 }
 
+export function objLength(obj: Record<any, any>) {
+  return Object.keys(obj).length;
+}
+
+export function isObjEmpty(obj: Record<any, any>) {
+  return objLength(obj) === 0;
+}
+
 export function objMapEntries<
   M extends Record<K, I>,
   K extends keyof M,
