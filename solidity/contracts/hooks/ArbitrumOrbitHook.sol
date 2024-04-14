@@ -28,7 +28,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice This object is meant to be used in an Aribtrum L1->L2 message passing.
 /// As an example, Hyperlane user interested in passing a message from Ethereum Mainnet to Arbitrum One calls the Mailbox on Ethereum Mainnet which calls this object.
-/// Utilmately, this causes the message's ID to be marked as verified on the L2 (ISM) so a relayer can relay the message.
+/// Ultimately, this causes the message ID to be marked as verified on the L2 ISM so a relayer can relay the message.
 /// The terms L1 and L2 used here to mean the source and destination chain, so L1->L2 can refer to L1->L2, L2->L3, L3->L4 and so on.
 /// You can find an introduction to Hyperlane's message passing at https://docs.hyperlane.xyz/docs/reference/messaging/messaging-interface.
 /// @notice When the Mailbox calls this object, the mechanism to realize L1->L2 message passing is through Arbitrum's retryables.
