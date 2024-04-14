@@ -11,6 +11,7 @@ version = { workspace = true }
 
 [dependencies]
 async-trait.workspace = true
+async-rwlock.workspace = true
 auto_impl.workspace = true
 bigdecimal.workspace = true
 borsh.workspace = true
@@ -25,6 +26,7 @@ ethers-core = { workspace = true, optional = true }
 ethers-providers = { workspace = true, optional = true }
 eyre.workspace = true
 fixed-hash.workspace = true
+futures = { workspace = true, optional = true }
 getrandom.workspace = true
 hex.workspace = true
 itertools.workspace = true
@@ -36,6 +38,8 @@ serde_json = { workspace = true }
 sha3 = { workspace = true }
 strum = { workspace = true, optional = true, features = ["derive"] }
 thiserror = { workspace = true }
+tokio = { workspace = true, optional = true, features = ["rt", "time"] }
+tracing.workspace = true
 primitive-types = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"]}
@@ -52,3 +56,4 @@ agent = ["ethers", "strum"]
 strum = ["dep:strum"]
 ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]
 solana = ["dep:solana-sdk"]
+async = ["tokio", "futures"]

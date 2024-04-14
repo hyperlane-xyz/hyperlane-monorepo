@@ -1,26 +1,23 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { BytecodeHash } from '../consts/bytecode';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { proxyImplementation } from '../deploy/proxy';
-import {
-  HyperlaneIsmFactory,
-  collectValidators,
-  moduleMatchesConfig,
-} from '../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { proxyImplementation } from '../deploy/proxy.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
+import { HyperlaneCore } from './HyperlaneCore.js';
 import {
   CoreConfig,
   CoreViolationType,
   MailboxViolation,
   MailboxViolationType,
   ValidatorAnnounceViolation,
-} from './types';
+} from './types.js';
 
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,
@@ -54,14 +51,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-
-    const ownableOverrides: Record<string, Address> =
-      config.ownerOverrides || {};
-    if (config.upgrade) {
-      const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
-      ownableOverrides.proxyAdmin = proxyOwner;
-    }
-    return this.checkOwnership(chain, config.owner, ownableOverrides);
+    return this.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
@@ -123,8 +113,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         ],
         (bytecode) =>
           // This is obviously super janky but basically we are searching
-          //  for the ocurrences of localDomain in the bytecode and remove
-          //  that to compare, but some coincidental ocurrences of
+          //  for the occurrences of localDomain in the bytecode and remove
+          //  that to compare, but some coincidental occurrences of
           // localDomain in the bytecode should be not be removed which
           // are just done via an offset guard
           bytecode
@@ -150,15 +140,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       );
     }
 
-    await this.checkBytecode(
-      chain,
-      'Mailbox proxy',
-      contracts.mailbox.address,
-      [
-        BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
-        BytecodeHash.OPT_PROXY_ADMIN_BYTECODE_HASH,
-      ],
-    );
+    await this.checkProxy(chain, 'Mailbox proxy', contracts.mailbox.address);
+
     await this.checkBytecode(
       chain,
       'ProxyAdmin',

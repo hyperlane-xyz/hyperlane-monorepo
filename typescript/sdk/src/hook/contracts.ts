@@ -4,11 +4,13 @@ import {
   InterchainGasPaymaster__factory,
   MerkleTreeHook__factory,
   OPStackHook__factory,
+  PausableHook__factory,
   ProtocolFee__factory,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
+import { ValueOf } from '@hyperlane-xyz/utils';
 
-import { HookType } from './types';
+import { HookType } from './types.js';
 
 export const hookFactories = {
   [HookType.MERKLE_TREE]: new MerkleTreeHook__factory(),
@@ -18,6 +20,11 @@ export const hookFactories = {
   [HookType.OP_STACK]: new OPStackHook__factory(),
   [HookType.ROUTING]: new DomainRoutingHook__factory(),
   [HookType.FALLBACK_ROUTING]: new FallbackDomainRoutingHook__factory(),
+  [HookType.PAUSABLE]: new PausableHook__factory(),
 };
 
 export type HookFactories = typeof hookFactories;
+
+export type DeployedHook = Awaited<
+  ReturnType<ValueOf<HookFactories>['deploy']>
+>;

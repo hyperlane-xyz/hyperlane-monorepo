@@ -2,34 +2,32 @@ import { BigNumber, ethers } from 'ethers';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
   ChainName,
   HyperlaneIgp,
-  HyperlaneIgpChecker,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
+  OwnerViolation,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
+import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor.js';
 
 export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
   HyperlaneIgp,
   IgpConfig
 > {
-  constructor(checker: HyperlaneIgpChecker, owners: ChainMap<Address>) {
-    super(checker, owners);
-  }
-
   protected async mapViolationsToCalls() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
         case 'InterchainGasPaymaster': {
           this.handleIgpViolation(violation as IgpViolation);
+          break;
+        }
+        case 'Owner': {
+          super.handleOwnerViolation(violation as OwnerViolation);
           break;
         }
         default:
@@ -48,6 +46,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
             'setBeneficiary',
             [beneficiaryViolation.expected],
           ),
+          value: BigNumber.from(0),
           description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
         });
         break;
@@ -76,6 +75,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
             'setDestinationGasConfigs',
             [configs],
           ),
+          value: BigNumber.from(0),
           description: `Setting ${Object.keys(gasOraclesViolation.expected)
             .map((remoteStr) => {
               const remote = remoteStr as ChainName;
@@ -106,6 +106,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
             'setDestinationGasConfigs',
             [configs],
           ),
+          value: BigNumber.from(0),
           description: `Setting ${Object.keys(violation.expected)
             .map((remoteStr) => {
               const remote = remoteStr as ChainName;

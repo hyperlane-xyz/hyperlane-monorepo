@@ -4,17 +4,16 @@ import { Address } from '@hyperlane-xyz/utils';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
-  HyperlaneFactories,
-} from '../contracts/types';
-import { ChainMap } from '../types';
+} from '../contracts/types.js';
+import { ChainMap } from '../types.js';
 
-import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { GasRouterConfig } from './types';
+import { ProxiedRouterDeployer } from './ProxiedRouterDeployer.js';
+import { GasRouterConfig, ProxiedFactories } from './types.js';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,
-  Factories extends HyperlaneFactories,
-> extends HyperlaneRouterDeployer<Config, Factories> {
+  Factories extends ProxiedFactories,
+> extends ProxiedRouterDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): GasRouter;
 
   async enrollRemoteRouters(
@@ -24,7 +23,7 @@ export abstract class GasRouterDeployer<
   ): Promise<void> {
     await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
 
-    this.logger(`Setting enrolled router destination gas...`);
+    this.logger.debug(`Setting enrolled router destination gas...`);
     for (const [chain, contracts] of Object.entries(contractsMap)) {
       const remoteDomains = await this.router(contracts).domains();
       const remoteChains = remoteDomains.map((domain) =>
@@ -45,7 +44,7 @@ export abstract class GasRouterDeployer<
         continue;
       }
 
-      this.logger(`Set destination gas on ${chain} for ${remoteChains}`);
+      this.logger.debug(`Set destination gas on ${chain} for ${remoteChains}`);
       await this.multiProvider.handleTx(
         chain,
         this.router(contracts)['setDestinationGas((uint32,uint256)[])'](

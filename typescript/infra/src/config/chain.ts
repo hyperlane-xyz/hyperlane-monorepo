@@ -1,16 +1,20 @@
 import { providers } from 'ethers';
 
 import {
+  ChainMetadata,
+  ChainMetadataManager,
   ChainName,
+  CoreChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
   RpcConsensusType,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 
-import { getSecretRpcEndpoint } from '../agents';
+import { getSecretRpcEndpoint } from '../agents/index.js';
 
-import { DeployEnvironment } from './environment';
+import { DeployEnvironment } from './environment.js';
 
 export const defaultRetry: ProviderRetryOptions = {
   maxRetries: 6,
@@ -22,9 +26,17 @@ export async function fetchProvider(
   chainName: ChainName,
   connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
-  const chainId = chainMetadata[chainName].chainId;
+  const cmm = new ChainMetadataManager(chainMetadata);
+  const chainData = cmm.tryGetChainMetadata(chainName);
+  if (!chainData) {
+    throw Error(`Unsupported chain: ${chainName}`);
+  }
+  const chainId = chainData.chainId;
   const single = connectionType === RpcConsensusType.Single;
-  const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
+  let rpcData = chainData.rpcUrls.map((url) => url.http);
+  if (rpcData.length === 0) {
+    rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
+  }
 
   if (connectionType === RpcConsensusType.Single) {
     return HyperlaneSmartProvider.fromRpcUrl(chainId, rpcData[0], defaultRetry);
@@ -42,4 +54,25 @@ export async function fetchProvider(
   } else {
     throw Error(`Unsupported connectionType: ${connectionType}`);
   }
+}
+
+export function getChainMetadatas(chains: Array<CoreChainName>) {
+  const allMetadatas = Object.fromEntries(
+    chains
+      .map((chain) => chainMetadata[chain])
+      .map((metadata) => [metadata.name, metadata]),
+  );
+
+  const ethereumMetadatas = objFilter(
+    allMetadatas,
+    (_, metadata): metadata is ChainMetadata =>
+      metadata.protocol === ProtocolType.Ethereum,
+  );
+  const nonEthereumMetadatas = objFilter(
+    allMetadatas,
+    (_, metadata): metadata is ChainMetadata =>
+      metadata.protocol !== ProtocolType.Ethereum,
+  );
+
+  return { ethereumMetadatas, nonEthereumMetadatas };
 }

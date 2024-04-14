@@ -9,6 +9,7 @@ use hyperlane_base::agent_main;
 
 use crate::validator::Validator;
 
+mod server;
 mod settings;
 mod submit;
 mod validator;

@@ -1,9 +1,9 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { DeployEnvironment } from '../config';
-import { Role } from '../roles';
-import { assertRole } from '../utils/utils';
+import { Contexts } from '../../config/contexts.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { Role } from '../roles.js';
+import { assertRole } from '../utils/utils.js';
 
 export function isValidatorKey(role: Role) {
   return role === Role.Validator;
@@ -48,7 +48,7 @@ export function userIdentifier(
   return identifier(false, environment, context, role, chainName, index);
 }
 
-// Doesn't perform any checks on whether the parsed values are valid,
+// Does not perform any checks on whether the parsed values are valid,
 // this is left to the caller.
 export function parseKeyIdentifier(identifier: string): {
   environment: string;

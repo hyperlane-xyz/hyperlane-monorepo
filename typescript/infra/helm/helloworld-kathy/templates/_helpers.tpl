@@ -66,7 +66,7 @@ The helloworld-kathy container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   command:
-  - ./node_modules/.bin/ts-node
+  - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/helloworld/kathy.ts
   - -e
   - {{ .Values.hyperlane.runEnv }}

@@ -1,27 +1,28 @@
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 import Long from 'long';
 
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
-import { BaseCosmosAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { MinimalTokenMetadata } from '../config';
+import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { MinimalTokenMetadata } from '../config.js';
 
-import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter';
+import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 
 const COSMOS_IBC_TRANSFER_TIMEOUT = 600_000; // 10 minutes
 
 // Interacts with native tokens on a Cosmos chain (e.g TIA on Celestia)
 export class CosmNativeTokenAdapter
   extends BaseCosmosAdapter
-  implements ITokenAdapter
+  implements ITokenAdapter<MsgTransferEncodeObject>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -36,17 +37,23 @@ export class CosmNativeTokenAdapter
     super(chainName, multiProvider, addresses);
   }
 
-  async getBalance(address: string): Promise<string> {
+  async getBalance(address: string): Promise<bigint> {
     const provider = await this.getProvider();
     const coin = await provider.getBalance(address, this.properties.ibcDenom);
-    return coin.amount;
+    return BigInt(coin.amount);
   }
 
   getMetadata(): Promise<MinimalTokenMetadata> {
     throw new Error('Metadata not available to native tokens');
   }
 
-  populateApproveTx(_transferParams: TransferParams): unknown {
+  async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  populateApproveTx(
+    _transferParams: TransferParams,
+  ): Promise<MsgTransferEncodeObject> {
     throw new Error('Approve not required for native tokens');
   }
 
@@ -62,7 +69,7 @@ export class CosmNativeTokenAdapter
 // methods don't apply to IBC transfers the way they do for Warp transfers
 export class CosmIbcTokenAdapter
   extends CosmNativeTokenAdapter
-  implements IHypTokenAdapter
+  implements IHypTokenAdapter<MsgTransferEncodeObject>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -97,8 +104,11 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
-  quoteGasPayment(_destination: Domain): Promise<string> {
-    throw new Error('Method not applicable to IBC adapters');
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
+    // TODO implement IBC interchain transfer gas estimation here
+    return { amount: 0n, addressOrDenom: this.properties.ibcDenom };
   }
 
   async populateTransferRemoteTx(
@@ -134,7 +144,7 @@ export class CosmIbcTokenAdapter
 // A.k.a. 'One-Click' cosmos to evm transfers
 export class CosmIbcToWarpTokenAdapter
   extends CosmIbcTokenAdapter
-  implements IHypTokenAdapter
+  implements IHypTokenAdapter<MsgTransferEncodeObject>
 {
   constructor(
     public readonly chainName: ChainName,
@@ -144,11 +154,18 @@ export class CosmIbcToWarpTokenAdapter
       destinationRouterAddress: Address;
     },
     public readonly properties: CosmIbcTokenAdapter['properties'] & {
-      derivedIbcDenom: string;
+      intermediateIbcDenom: string;
       intermediateChainName: ChainName;
     },
   ) {
     super(chainName, multiProvider, addresses, properties);
+  }
+
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
+    // TODO implement IBC interchain transfer gas estimation here
+    return { amount: 0n, addressOrDenom: this.properties.intermediateIbcDenom };
   }
 
   async populateTransferRemoteTx(
@@ -158,12 +175,24 @@ export class CosmIbcToWarpTokenAdapter
       this.properties.intermediateChainName,
       this.multiProvider,
       {
-        token: this.properties.derivedIbcDenom,
+        token: this.properties.intermediateIbcDenom,
         warpRouter: this.addresses.intermediateRouterAddress,
       },
-      this.properties.derivedIbcDenom,
     );
-    const transfer = await cwAdapter.populateTransferRemoteTx(transferParams);
+    assert(
+      transferParams.interchainGas?.addressOrDenom === this.properties.ibcDenom,
+      'Only same-denom interchain gas is supported for IBC to Warp transfers',
+    );
+    // This transformation is necessary to ensure the CW adapter recognizes the gas
+    // denom is the same as this adapter's denom (e.g. utia & igp/77...)
+    const intermediateInterchainGas = {
+      addressOrDenom: this.properties.intermediateIbcDenom,
+      amount: transferParams.interchainGas?.amount || 0n,
+    };
+    const transfer = await cwAdapter.populateTransferRemoteTx({
+      ...transferParams,
+      interchainGas: intermediateInterchainGas,
+    });
     const cwMemo = {
       wasm: {
         contract: transfer.contractAddress,

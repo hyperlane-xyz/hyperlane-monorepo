@@ -2,10 +2,14 @@ import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { utils as ethersUtils } from 'ethers';
 
-import { Address, HexString, ProtocolType } from './types';
+import { isNullish } from './typeof.js';
+import { Address, HexString, ProtocolType } from './types.js';
+import { assert } from './validation.js';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
+
+const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
 // https://github.com/cosmos/cosmos-sdk/blob/84c33215658131d87daf3c629e909e12ed9370fa/types/coin.go#L601C17-L601C44
 const COSMOS_DENOM_PATTERN = `[a-zA-Z][a-zA-Z0-9]{2,127}`;
@@ -21,8 +25,9 @@ const EVM_TX_HASH_REGEX = /^0x([A-Fa-f0-9]{64})$/;
 const SEALEVEL_TX_HASH_REGEX = /^[a-zA-Z1-9]{88}$/;
 const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
 
-const ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
-const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]{38}$/;
+const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
+const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
+const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
 
 export function isAddressEvm(address: Address) {
   return EVM_ADDRESS_REGEX.test(address);
@@ -53,6 +58,10 @@ export function getAddressProtocolType(address: Address) {
   }
 }
 
+export function isAddress(address: Address) {
+  return !!getAddressProtocolType(address);
+}
+
 function routeAddressUtil<T>(
   fns: Partial<Record<ProtocolType, (param: string) => T>>,
   param: string,
@@ -61,7 +70,7 @@ function routeAddressUtil<T>(
 ) {
   protocol ||= getAddressProtocolType(param);
   if (protocol && fns[protocol]) return fns[protocol]!(param);
-  else if (fallback) return fallback;
+  else if (!isNullish(fallback)) return fallback;
   else throw new Error(`Unsupported protocol ${protocol}`);
 }
 
@@ -207,7 +216,8 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
 
 export function isZeroishAddress(address: Address) {
   return (
-    ZEROISH_ADDRESS_REGEX.test(address) ||
+    EVM_ZEROISH_ADDRESS_REGEX.test(address) ||
+    SEALEVEL_ZEROISH_ADDRESS_REGEX.test(address) ||
     COSMOS_ZEROISH_ADDRESS_REGEX.test(address)
   );
 }
@@ -229,8 +239,7 @@ export function capitalizeAddress(address: Address) {
   else return address.toUpperCase();
 }
 
-// For EVM addresses only, kept for backwards compatibility and convenience
-export function addressToBytes32(address: Address): string {
+export function addressToBytes32Evm(address: Address): string {
   return ethersUtils
     .hexZeroPad(ethersUtils.hexStripZeros(address), 32)
     .toLowerCase();
@@ -242,7 +251,7 @@ export function bytes32ToAddress(bytes32: HexString): Address {
 }
 
 export function addressToBytesEvm(address: Address): Uint8Array {
-  const addrBytes32 = addressToBytes32(address);
+  const addrBytes32 = addressToBytes32Evm(address);
   return Buffer.from(strip0x(addrBytes32), 'hex');
 }
 
@@ -254,8 +263,11 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
   return fromBech32(address).data;
 }
 
-export function addressToBytes(address: Address, protocol?: ProtocolType) {
-  return routeAddressUtil(
+export function addressToBytes(
+  address: Address,
+  protocol?: ProtocolType,
+): Uint8Array {
+  const bytes = routeAddressUtil(
     {
       [ProtocolType.Ethereum]: addressToBytesEvm,
       [ProtocolType.Sealevel]: addressToBytesSol,
@@ -265,6 +277,11 @@ export function addressToBytes(address: Address, protocol?: ProtocolType) {
     new Uint8Array(),
     protocol,
   );
+  assert(
+    bytes.length && !bytes.every((b) => b == 0),
+    'address bytes must not be empty',
+  );
+  return bytes;
 }
 
 export function addressToByteHexString(
@@ -273,6 +290,29 @@ export function addressToByteHexString(
 ) {
   return ensure0x(
     Buffer.from(addressToBytes(address, protocol)).toString('hex'),
+  );
+}
+
+export function addressToBytes32(
+  address: Address,
+  protocol?: ProtocolType,
+): string {
+  // If the address is already bytes32, just return, avoiding a regression
+  // where an already bytes32 address cannot be categorized as a protocol address.
+  if (HEX_BYTES32_REGEX.test(ensure0x(address))) return ensure0x(address);
+
+  const bytes = addressToBytes(address, protocol);
+  return bytesToBytes32(bytes);
+}
+
+export function bytesToBytes32(bytes: Uint8Array): string {
+  if (bytes.length > 32) {
+    throw new Error('bytes must be 32 bytes or less');
+  }
+  // This 0x-prefixes the hex string
+  return ethersUtils.hexZeroPad(
+    ensure0x(Buffer.from(bytes).toString('hex')),
+    32,
   );
 }
 
@@ -297,6 +337,10 @@ export function bytesToProtocolAddress(
   toProtocol: ProtocolType,
   prefix?: string,
 ) {
+  assert(
+    bytes.length && !bytes.every((b) => b == 0),
+    'address bytes must not be empty',
+  );
   if (toProtocol === ProtocolType.Ethereum) {
     return bytesToAddressEvm(bytes);
   } else if (toProtocol === ProtocolType.Sealevel) {

@@ -11,13 +11,13 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceIndexer, H256,
+    MerkleTreeInsertion, SequenceAwareIndexer, H256,
 };
 
 use crate::contracts::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::call_with_lag;
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider};
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
@@ -45,6 +45,7 @@ impl BuildableWithProvider for MerkleTreeHookBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumMerkleTreeHook::new(Arc::new(provider), locator))
@@ -57,11 +58,12 @@ pub struct MerkleTreeHookIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<MerkleTreeInsertion>>;
+    type Output = Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumMerkleTreeHookIndexer::new(
@@ -105,6 +107,7 @@ impl<M> Indexer<MerkleTreeInsertion> for EthereumMerkleTreeHookIndexer<M>
 where
     M: Middleware + 'static,
 {
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
@@ -143,14 +146,14 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<MerkleTreeInsertion> for EthereumMerkleTreeHookIndexer<M>
+impl<M> SequenceAwareIndexer<MerkleTreeInsertion> for EthereumMerkleTreeHookIndexer<M>
 where
     M: Middleware + 'static,
 {
-    // TODO: if `SequenceIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+    // TODO: if `SequenceAwareIndexer` turns out to not depend on `Indexer` at all, then the supertrait
     // dependency could be removed, even if the builder would still need to return a type that is both
-    // `SequenceIndexer` and `Indexer`.
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    // `SequenceAwareIndexer` and `Indexer`.
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = self.get_finalized_block_number().await?;
         let sequence = self.contract.count().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))

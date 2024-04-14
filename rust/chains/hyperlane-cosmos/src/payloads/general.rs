@@ -1,11 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmptyStruct {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Log {
     pub msg_index: u64,
+    pub events: Vec<Event>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Events {
     pub events: Vec<Event>,
 }
 

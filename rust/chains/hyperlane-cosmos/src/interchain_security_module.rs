@@ -82,7 +82,7 @@ impl InterchainSecurityModule for CosmosInterchainSecurityModule {
             .await?;
 
         let module_type_response =
-            serde_json::from_slice::<hpl_interface::ism::ModuleTypeResponse>(&data)?;
+            serde_json::from_slice::<hyperlane_cosmwasm_interface::ism::ModuleTypeResponse>(&data)?;
         Ok(IsmType(module_type_response.typ).into())
     }
 

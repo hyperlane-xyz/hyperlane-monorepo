@@ -1,19 +1,18 @@
+/* eslint-disable no-console */
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
-import { Address, error } from '@hyperlane-xyz/utils';
+import { DomainRoutingIsm } from '@hyperlane-xyz/core';
+import { Address } from '@hyperlane-xyz/utils';
 
-import { TestChains } from '../consts/chains';
-import { TestCoreApp } from '../core/TestCoreApp';
-import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import { randomAddress, randomInt } from '../test/testUtils';
+import { TestChains } from '../consts/chains.js';
+import { TestCoreApp } from '../core/TestCoreApp.js';
+import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { randomAddress, randomInt } from '../test/testUtils.js';
 
-import {
-  HyperlaneIsmFactory,
-  moduleMatchesConfig,
-} from './HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
   IsmConfig,
@@ -21,7 +20,8 @@ import {
   ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
-} from './types';
+} from './types.js';
+import { moduleMatchesConfig } from './utils.js';
 
 function randomModuleType(): ModuleType {
   const choices = [
@@ -77,14 +77,15 @@ describe('HyperlaneIsmFactory', async () => {
   let ismFactory: HyperlaneIsmFactory;
   let coreApp: TestCoreApp;
   let multiProvider: MultiProvider;
+  let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address, newMailboxAddress: Address;
   const chain = 'test1';
 
   beforeEach(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
@@ -130,8 +131,8 @@ describe('HyperlaneIsmFactory', async () => {
         const ism = await ismFactory.deploy({ destination: chain, config });
         ismAddress = ism.address;
       } catch (e) {
-        error('Failed to deploy random ism config', e);
-        error(JSON.stringify(config, null, 2));
+        console.error('Failed to deploy random ism config', e);
+        console.error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
 
@@ -145,8 +146,8 @@ describe('HyperlaneIsmFactory', async () => {
         );
         expect(matches).to.be.true;
       } catch (e) {
-        error('Failed to match random ism config', e);
-        error(JSON.stringify(config, null, 2));
+        console.error('Failed to match random ism config', e);
+        console.error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
     });
@@ -207,6 +208,59 @@ describe('HyperlaneIsmFactory', async () => {
       expect(matches).to.be.true;
     });
 
+    it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      let matches = true;
+      exampleRoutingConfig.domains['test4'] = {
+        type: IsmType.MESSAGE_ID_MULTISIG,
+        threshold: 1,
+        validators: [randomAddress()],
+      };
+      let ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const existingIsm = ism.address;
+      matches =
+        matches &&
+        existingIsm === ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+
+      exampleRoutingConfig.domains['test5'] = {
+        type: IsmType.MESSAGE_ID_MULTISIG,
+        threshold: 1,
+        validators: [randomAddress()],
+      };
+      ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        existingIsmAddress: ism.address,
+        mailbox: mailboxAddress,
+      });
+      matches =
+        matches &&
+        existingIsm === ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+      expect(matches).to.be.true;
+    });
+
     it(`deletes route in an existing ${type}`, async () => {
       exampleRoutingConfig.type = type as
         | IsmType.ROUTING
@@ -237,6 +291,54 @@ describe('HyperlaneIsmFactory', async () => {
           ismFactory.getContracts(chain),
           mailboxAddress,
         ));
+      expect(matches).to.be.true;
+    });
+
+    it(`deletes route in an existing ${type} even if not in multiprovider`, async () => {
+      exampleRoutingConfig.type = type as
+        | IsmType.ROUTING
+        | IsmType.FALLBACK_ROUTING;
+      let matches = true;
+      let ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        mailbox: mailboxAddress,
+      });
+      const existingIsm = ism.address;
+      const domainsBefore = await (ism as DomainRoutingIsm).domains();
+
+      // deleting the domain and removing from multiprovider should unenroll the domain
+      // NB: we'll deploy new multisigIsms for the domains bc of new factories but the routingIsm address should be the same because of existingIsmAddress
+      delete exampleRoutingConfig.domains['test3'];
+      multiProvider = multiProvider.intersect(['test1', 'test2']).result;
+      ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+      ismFactory = new HyperlaneIsmFactory(
+        await ismFactoryDeployer.deploy(
+          multiProvider.mapKnownChains(() => ({})),
+        ),
+        multiProvider,
+      );
+      new TestCoreDeployer(multiProvider, ismFactory);
+      ism = await ismFactory.deploy({
+        destination: chain,
+        config: exampleRoutingConfig,
+        existingIsmAddress: ism.address,
+        mailbox: mailboxAddress,
+      });
+      const domainsAfter = await (ism as DomainRoutingIsm).domains();
+
+      matches =
+        matches &&
+        existingIsm == ism.address &&
+        (await moduleMatchesConfig(
+          chain,
+          ism.address,
+          exampleRoutingConfig,
+          ismFactory.multiProvider,
+          ismFactory.getContracts(chain),
+          mailboxAddress,
+        ));
+      expect(domainsBefore.length - 1).to.equal(domainsAfter.length);
       expect(matches).to.be.true;
     });
 

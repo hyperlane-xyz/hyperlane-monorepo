@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 
-import { ZHash, ZNzUint } from './customZodTypes';
+import { ZHash, ZNzUint } from './customZodTypes.js';
 
 const DomainSchema = z.union([
   z.literal('*'),

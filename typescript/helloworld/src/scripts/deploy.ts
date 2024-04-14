@@ -6,8 +6,8 @@ import {
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
-import { prodConfigs } from '../deploy/config';
-import { HelloWorldDeployer } from '../deploy/deploy';
+import { prodConfigs } from '../deploy/config.js';
+import { HelloWorldDeployer } from '../deploy/deploy.js';
 
 async function main() {
   console.info('Getting signer');

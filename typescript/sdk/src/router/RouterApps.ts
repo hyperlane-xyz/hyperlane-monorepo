@@ -1,5 +1,5 @@
-import debug from 'debug';
 import type { BigNumber } from 'ethers';
+import { Logger } from 'pino';
 
 import { GasRouter, Router } from '@hyperlane-xyz/core';
 import {
@@ -9,16 +9,14 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
-
-export { Router } from '@hyperlane-xyz/core';
+} from '../contracts/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export abstract class RouterApp<
   Factories extends HyperlaneFactories,
@@ -26,7 +24,7 @@ export abstract class RouterApp<
   constructor(
     contractsMap: HyperlaneContractsMap<Factories>,
     multiProvider: MultiProvider,
-    logger?: debug.Debugger,
+    logger?: Logger,
     readonly foreignDeployments: ChainMap<Address> = {},
   ) {
     super(contractsMap, multiProvider, logger);
@@ -44,11 +42,17 @@ export abstract class RouterApp<
     return this.foreignDeployments[chainName];
   }
 
-  override remoteChains(chainName: string): string[] {
-    return [
-      ...super.remoteChains(chainName),
-      ...Object.keys(this.foreignDeployments),
-    ].filter((chain) => chain !== chainName);
+  // check onchain for remote enrollments
+  override async remoteChains(chainName: string): Promise<ChainName[]> {
+    const router = this.router(this.contractsMap[chainName]);
+    const domainIds = (await router.domains()).map((domain) => {
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      if (chainName === null) {
+        throw new Error(`Chain name not found for domain: ${domain}`);
+      }
+      return chainName;
+    });
+    return domainIds;
   }
 
   getSecurityModules(): Promise<ChainMap<Address>> {

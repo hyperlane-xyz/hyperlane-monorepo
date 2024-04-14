@@ -1,16 +1,32 @@
-import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainMetadata,
+  Mainnets,
+  chainMetadata,
+} from '@hyperlane-xyz/sdk';
 
-import { AgentChainNames, Role } from '../../../src/roles';
+import { getChainMetadatas } from '../../../src/config/chain.js';
+
+// The `Mainnets` from the SDK are all supported chains for the mainnet3 environment.
+// These chains may be any protocol type.
+export const supportedChainNames = Mainnets;
+
+export type MainnetChains = (typeof supportedChainNames)[number];
+export const environment = 'mainnet3';
+
+const {
+  ethereumMetadatas: defaultEthereumMainnetConfigs,
+  nonEthereumMetadatas: nonEthereumMainnetConfigs,
+} = getChainMetadatas(supportedChainNames);
 
 export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
+  ...defaultEthereumMainnetConfigs,
   bsc: {
     ...chainMetadata.bsc,
     transactionOverrides: {
-      gasPrice: 7 * 10 ** 9, // 7 gwei
+      gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
-  avalanche: chainMetadata.avalanche,
-  base: chainMetadata.base,
   polygon: {
     ...chainMetadata.polygon,
     blocks: {
@@ -18,16 +34,12 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       confirmations: 3,
     },
     transactionOverrides: {
-      maxFeePerGas: 500 * 10 ** 9, // 500 gwei
-      maxPriorityFeePerGas: 100 * 10 ** 9, // 100 gwei
-      // gasPrice: 50 * 10 ** 9, // 50 gwei
+      // A very high max fee per gas is used as Polygon is susceptible
+      // to large swings in gas prices.
+      maxFeePerGas: 800 * 10 ** 9, // 800 gwei
+      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
-  polygonzkevm: chainMetadata.polygonzkevm,
-  scroll: chainMetadata.scroll,
-  celo: chainMetadata.celo,
-  arbitrum: chainMetadata.arbitrum,
-  optimism: chainMetadata.optimism,
   ethereum: {
     ...chainMetadata.ethereum,
     blocks: {
@@ -39,43 +51,29 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
-  moonbeam: chainMetadata.moonbeam,
-  gnosis: chainMetadata.gnosis,
-  mantapacific: chainMetadata.mantapacific,
-};
-
-// Blessed non-Ethereum chains.
-export const nonEthereumMainnetConfigs: ChainMap<ChainMetadata> = {
-  // solana: chainMetadata.solana,
-  neutron: chainMetadata.neutron,
+  scroll: {
+    ...chainMetadata.scroll,
+    transactionOverrides: {
+      // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
+      // too low for the transaction to be included in a reasonable amount of time -
+      // this often leads to transaction underpriced issues.
+      gasPrice: 2 * 10 ** 9, // 2 gwei
+    },
+  },
+  moonbeam: {
+    ...chainMetadata.moonbeam,
+    transactionOverrides: {
+      maxFeePerGas: 350 * 10 ** 9, // 350 gwei
+      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
+    },
+  },
 };
 
 export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...ethereumMainnetConfigs,
-  // ...nonEthereumMainnetConfigs,
+  ...nonEthereumMainnetConfigs,
 };
-
-export type MainnetChains = keyof typeof mainnetConfigs;
-export const supportedChainNames = Object.keys(
-  mainnetConfigs,
-) as MainnetChains[];
-export const environment = 'mainnet3';
 
 export const ethereumChainNames = Object.keys(
   ethereumMainnetConfigs,
 ) as MainnetChains[];
-
-// Remove mantapacific, as it's not considered a "blessed"
-// chain. It's not included in the scraper domains table,
-// and we don't relay to mantapacific on the Hyperlane or RC contexts.
-const hyperlaneContextRelayChains = ethereumChainNames.filter(
-  (chainName) => chainName !== chainMetadata.mantapacific.name,
-);
-
-// Hyperlane & RC context agent chain names.
-export const agentChainNames: AgentChainNames = {
-  // Run validators for all chains.
-  [Role.Validator]: supportedChainNames,
-  [Role.Relayer]: hyperlaneContextRelayChains,
-  [Role.Scraper]: hyperlaneContextRelayChains,
-};

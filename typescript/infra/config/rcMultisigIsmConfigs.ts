@@ -61,10 +61,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: ['0xace978aaa61d9ee44fe3ab147fd227e0e66b8909'],
   },
-  basegoerli: {
-    threshold: 1,
-    validators: ['0x81983e03363351b63848867bd76687cc80b9ff37'],
-  },
   fuji: {
     threshold: 1,
     validators: ['0xfc419f9ba3c56c55e28844ade491d428f5a77d55'],
@@ -73,21 +69,9 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: ['0x7572ffd8af1abc02cc1d234ac750d387fd6768a0'],
   },
-  lineagoerli: {
-    threshold: 1,
-    validators: ['0x52e2c6db923124e646011d172dea644e1cafe583'],
-  },
-  mumbai: {
-    threshold: 1,
-    validators: ['0x7fc2981964427f09e317eda559f506bfd37f1ccb'],
-  },
   bsctestnet: {
     threshold: 1,
     validators: ['0x6353c7402626054c824bd0eca721f82b725e2b4d'],
-  },
-  goerli: {
-    threshold: 1,
-    validators: ['0x6b32af7592948cbec6893363f77c08252d0ce0d7'],
   },
   scrollsepolia: {
     threshold: 1,
@@ -96,21 +80,5 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
   sepolia: {
     threshold: 1,
     validators: ['0x49f253c0dab33be1573d6c2769b3d9e584d91f82'],
-  },
-  moonbasealpha: {
-    threshold: 1,
-    validators: ['0x376260b40b2ba2100890f27de1eb18a2774f54d1'],
-  },
-  optimismgoerli: {
-    threshold: 1,
-    validators: ['0xed4cf9bf144457c927d7a39613c812c53f296283'],
-  },
-  arbitrumgoerli: {
-    threshold: 1,
-    validators: ['0x869f67e89b5c0826a3c2f2ba72e6ae1d8a1952ff'],
-  },
-  polygonzkevmtestnet: {
-    threshold: 1,
-    validators: ['0x2d0214068e5d8e49c638b5a4c70c75080204be21'],
   },
 };

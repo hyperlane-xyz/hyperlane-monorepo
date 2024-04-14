@@ -3,19 +3,19 @@ import { InterchainQueryRouter } from '@hyperlane-xyz/core';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
-} from '../../consts/environments';
-import { appFromAddressesMapHelper } from '../../contracts/contracts';
+} from '../../consts/environments/index.js';
+import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
 import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
-} from '../../contracts/types';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterApp } from '../../router/RouterApps';
+} from '../../contracts/types.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { RouterApp } from '../../router/RouterApps.js';
 
 import {
   InterchainQueryFactories,
   interchainQueryFactories,
-} from './contracts';
+} from './contracts.js';
 
 export class InterchainQuery extends RouterApp<InterchainQueryFactories> {
   router(

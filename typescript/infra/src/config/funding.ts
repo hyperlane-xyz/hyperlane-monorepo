@@ -1,16 +1,16 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMap, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { Role } from '../roles';
+import { Contexts } from '../../config/contexts.js';
+import { FundableRole, Role } from '../roles.js';
 
-import { DockerConfig } from './agent';
+import { DockerConfig } from './agent/agent.js';
 
 export interface ContextAndRoles {
   context: Contexts;
   roles: Role[];
 }
 
-export type ContextAndRolesMap = Partial<Record<Contexts, Role[]>>;
+export type ContextAndRolesMap = Partial<Record<Contexts, FundableRole[]>>;
 
 export interface KeyFunderConfig {
   docker: DockerConfig;
@@ -20,5 +20,7 @@ export interface KeyFunderConfig {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  connectionType: RpcConsensusType.Single | RpcConsensusType.Quorum;
+  connectionType: RpcConsensusType;
+  desiredBalancePerChain: ChainMap<string>;
+  desiredKathyBalancePerChain: ChainMap<string>;
 }

@@ -75,8 +75,8 @@ contract OPStackIsmTest is Test {
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 17_586_909);
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 106_233_774);
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 18_992_500);
+        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 114_696_811);
 
         testRecipient = new TestRecipient();
 
@@ -199,7 +199,9 @@ contract OPStackIsmTest is Test {
             .overrideMsgValue(uint256(2 ** 255 + 1));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");
+        vm.expectRevert(
+            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
+        );
         opHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
@@ -270,7 +272,7 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        // needs to be called by the cannonical messenger on Optimism
+        // needs to be called by the canonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
         opISM.verifyMessageId(messageId);
 

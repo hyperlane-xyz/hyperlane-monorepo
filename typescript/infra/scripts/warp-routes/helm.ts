@@ -1,37 +1,38 @@
-import { DeployEnvironment } from '../../src/config';
-import { HelmCommand, helmifyValues } from '../../src/utils/helm';
-import { execCmd } from '../../src/utils/utils';
-import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
+import { DeployEnvironment } from '../../src/config/environment.js';
+import { HelmCommand, helmifyValues } from '../../src/utils/helm.js';
+import { execCmd } from '../../src/utils/utils.js';
+import { assertCorrectKubeContext } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 export async function runWarpRouteHelmCommand(
   helmCommand: HelmCommand,
   runEnv: DeployEnvironment,
-  config: string,
+  configFilePath: string,
 ) {
   const envConfig = getEnvironmentConfig(runEnv);
   await assertCorrectKubeContext(envConfig);
-  const values = getWarpRoutesHelmValues(config);
-
+  const values = getWarpRoutesHelmValues(configFilePath);
+  const releaseName = getHelmReleaseName(configFilePath);
   return execCmd(
-    `helm ${helmCommand} ${getHelmReleaseName(
-      config,
-    )} ./helm/warp-routes --namespace ${runEnv} ${values.join(
+    `helm ${helmCommand} ${releaseName} ./helm/warp-routes --namespace ${runEnv} ${values.join(
       ' ',
-    )} --set fullnameOverride="${getHelmReleaseName(config)}"`,
+    )} --set fullnameOverride="${releaseName}"`,
   );
 }
 
 function getHelmReleaseName(route: string): string {
-  return `hyperlane-warp-route-${route}`;
+  const match = route.match(/\/([^/]+)-deployments\.yaml$/);
+  const name = match ? match[1] : route;
+  return `hyperlane-warp-route-${name.toLowerCase()}`; // helm requires lower case release names
 }
 
-function getWarpRoutesHelmValues(config: string) {
+function getWarpRoutesHelmValues(configFilePath: string) {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'ae8ce44-20231101-012032',
+      tag: '09344fc-20240321-203114',
     },
-    config: config, // nautilus or neutron
+    configFilePath: configFilePath,
   };
   return helmifyValues(values);
 }

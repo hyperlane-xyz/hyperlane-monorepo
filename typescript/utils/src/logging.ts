@@ -1,47 +1,112 @@
-import { safelyAccessEnvVar } from './env';
+import { BigNumber } from 'ethers';
+import { LevelWithSilent, Logger, pino } from 'pino';
 
-/* eslint-disable no-console */
-type LOG_LEVEL = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+import { safelyAccessEnvVar } from './env.js';
 
-const ENV_LOG_LEVEL = (
-  safelyAccessEnvVar('LOG_LEVEL') ?? 'debug'
-).toLowerCase() as LOG_LEVEL;
-const LOG_TRACE = ENV_LOG_LEVEL == 'trace';
-const LOG_DEBUG = LOG_TRACE || ENV_LOG_LEVEL == 'debug';
-const LOG_INFO = LOG_DEBUG || ENV_LOG_LEVEL == 'info';
-const LOG_WARN = LOG_INFO || ENV_LOG_LEVEL == 'warn';
-const LOG_ERROR = LOG_WARN || ENV_LOG_LEVEL == 'error';
+// Level and format here should correspond with the agent options as much as possible
+// https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
 
-export function trace(message: string, data?: any) {
-  if (LOG_TRACE) logWithFunction(console.trace, 'trace', message, data);
+// A custom enum definition because pino does not export an enum
+// and because we use 'off' instead of 'silent' to match the agent options
+export enum LogLevel {
+  Debug = 'debug',
+  Info = 'info',
+  Warn = 'warn',
+  Error = 'error',
+  Off = 'off',
 }
 
-export function debug(message: string, data?: any) {
-  if (LOG_DEBUG) logWithFunction(console.debug, 'debug', message, data);
+let logLevel: LevelWithSilent =
+  toPinoLevel(safelyAccessEnvVar('LOG_LEVEL', true)) || 'info';
+
+function toPinoLevel(level?: string): LevelWithSilent | undefined {
+  if (level && pino.levels.values[level]) return level as LevelWithSilent;
+  // For backwards compat and also to match agent level options
+  else if (level === 'none' || level === 'off') return 'silent';
+  else return undefined;
 }
 
-export function log(message: string, data?: any) {
-  if (LOG_INFO) logWithFunction(console.log, 'info', message, data);
+export function getLogLevel() {
+  return logLevel;
 }
 
-export function warn(message: string, data?: any) {
-  if (LOG_WARN) logWithFunction(console.warn, 'warn', message, data);
+export enum LogFormat {
+  Pretty = 'pretty',
+  JSON = 'json',
+}
+let logFormat: LogFormat = LogFormat.JSON;
+const envLogFormat = safelyAccessEnvVar('LOG_FORMAT', true) as
+  | LogFormat
+  | undefined;
+if (envLogFormat && Object.values(LogFormat).includes(envLogFormat))
+  logFormat = envLogFormat;
+
+export function getLogFormat() {
+  return logFormat;
 }
 
-export function error(message: string, data?: any) {
-  if (LOG_ERROR) logWithFunction(console.error, 'error', message, data);
+// Note, for brevity and convenience, the rootLogger is exported directly
+export let rootLogger = createHyperlanePinoLogger(logLevel, logFormat);
+
+export function getRootLogger() {
+  return rootLogger;
 }
 
-function logWithFunction(
-  logFn: (...contents: any[]) => void,
-  level: LOG_LEVEL,
-  message: string,
-  data?: any,
+export function configureRootLogger(
+  newLogFormat: LogFormat,
+  newLogLevel: LogLevel,
 ) {
-  const fullLog = {
-    ...data,
-    level,
-    message,
-  };
-  logFn(JSON.stringify(fullLog));
+  logFormat = newLogFormat;
+  logLevel = toPinoLevel(newLogLevel) || logLevel;
+  rootLogger = createHyperlanePinoLogger(logLevel, logFormat);
+  return rootLogger;
+}
+
+export function setRootLogger(logger: Logger) {
+  rootLogger = logger;
+  return rootLogger;
+}
+
+export function createHyperlanePinoLogger(
+  logLevel: LevelWithSilent,
+  logFormat: LogFormat,
+) {
+  return pino({
+    level: logLevel,
+    name: 'hyperlane',
+    formatters: {
+      // Remove pino's default bindings of hostname but keep pid
+      bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
+    },
+    hooks: {
+      logMethod(inputArgs, method, level) {
+        // Pino has no simple way of setting custom log shapes and they
+        // recommend against using pino-pretty in production so when
+        // pretty is enabled we circumvent pino and log directly to console
+        if (
+          logFormat === LogFormat.Pretty &&
+          level >= pino.levels.values[logLevel]
+        ) {
+          // eslint-disable-next-line no-console
+          console.log(...inputArgs);
+          // Then return null to prevent pino from logging
+          return null;
+        }
+        return method.apply(this, inputArgs);
+      },
+    },
+  });
+}
+
+export function ethersBigNumberSerializer(key: string, value: any): any {
+  // Check if the value looks like a serialized BigNumber
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    value.type === 'BigNumber' &&
+    value.hex
+  ) {
+    return BigNumber.from(value.hex).toString();
+  }
+  return value;
 }

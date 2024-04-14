@@ -19,7 +19,7 @@ tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"]}
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["fuels"] }

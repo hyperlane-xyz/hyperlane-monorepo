@@ -5,25 +5,29 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   AddressBytes32,
+  ProtocolType,
   messageId,
+  objFilter,
   objMap,
   parseMessage,
   pollAsync,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { chainMetadata } from '../consts/chainMetadata.js';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
-} from '../consts/environments';
-import { appFromAddressesMapHelper } from '../contracts/contracts';
-import { HyperlaneAddressesMap } from '../contracts/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { RouterConfig } from '../router/types';
-import { ChainMap, ChainName } from '../types';
+} from '../consts/environments/index.js';
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
+import { OwnableConfig } from '../deploy/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { CoreFactories, coreFactories } from './contracts';
-import { DispatchedMessage } from './types';
+import { CoreFactories, coreFactories } from './contracts.js';
+import { DispatchedMessage } from './types.js';
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromEnvironment<Env extends HyperlaneEnvironment>(
@@ -50,14 +54,20 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   getRouterConfig = (
-    owners: Address | ChainMap<Address>,
-  ): ChainMap<RouterConfig> =>
-    objMap(this.contractsMap, (chain, contracts) => {
-      return {
-        mailbox: contracts.mailbox.address,
-        owner: typeof owners === 'string' ? owners : owners[chain],
-      };
-    });
+    owners: Address | ChainMap<OwnableConfig>,
+  ): ChainMap<RouterConfig> => {
+    // get config
+    const config = objMap(this.contractsMap, (chain, contracts) => ({
+      mailbox: contracts.mailbox.address,
+      owner: typeof owners === 'string' ? owners : owners[chain].owner,
+    }));
+    // filter for EVM chains
+    return objFilter(
+      config,
+      (chainName, _): _ is RouterConfig =>
+        chainMetadata[chainName].protocol === ProtocolType.Ethereum,
+    );
+  };
 
   quoteGasPayment = (
     origin: ChainName,
@@ -103,11 +113,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   ): Promise<true> {
     await pollAsync(
       async () => {
-        this.logger(`Checking if message ${messageId} was processed`);
+        this.logger.debug(`Checking if message ${messageId} was processed`);
         const mailbox = this.contractsMap[destination].mailbox;
         const delivered = await mailbox.delivered(messageId);
         if (delivered) {
-          this.logger(`Message ${messageId} was processed`);
+          this.logger.info(`Message ${messageId} was processed`);
           return true;
         } else {
           throw new Error(`Message ${messageId} not yet processed`);
@@ -143,7 +153,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         ),
       ),
     );
-    this.logger(`All messages processed for tx ${sourceTx.transactionHash}`);
+    this.logger.info(
+      `All messages processed for tx ${sourceTx.transactionHash}`,
+    );
   }
 
   // Redundant with static method but keeping for backwards compatibility

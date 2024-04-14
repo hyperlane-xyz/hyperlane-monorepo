@@ -59,10 +59,10 @@ The warp-routes container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   command:
-  - ./node_modules/.bin/ts-node
+  - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/warp-routes/monitor-warp-routes-balances.ts
-  - -l 
+  - -v 
   - "10000"
-  - -c
-  - {{ .Values.config }}
+  - -f
+  - {{ .Values.configFilePath }}
 {{- end }}

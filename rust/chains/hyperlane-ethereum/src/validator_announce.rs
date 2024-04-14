@@ -18,7 +18,7 @@ use crate::{
     },
     trait_builder::BuildableWithProvider,
     tx::{fill_tx_gas_params, report_tx},
-    EthereumProvider,
+    ConnectionConf, EthereumProvider,
 };
 
 impl<M> std::fmt::Display for EthereumValidatorAnnounceInternal<M>
@@ -39,9 +39,14 @@ impl BuildableWithProvider for ValidatorAnnounceBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumValidatorAnnounce::new(Arc::new(provider), locator))
+        Box::new(EthereumValidatorAnnounce::new(
+            Arc::new(provider),
+            conn,
+            locator,
+        ))
     }
 }
 
@@ -54,6 +59,7 @@ where
     contract: Arc<EthereumValidatorAnnounceInternal<M>>,
     domain: HyperlaneDomain,
     provider: Arc<M>,
+    conn: ConnectionConf,
 }
 
 impl<M> EthereumValidatorAnnounce<M>
@@ -62,7 +68,7 @@ where
 {
     /// Create a reference to a ValidatoAnnounce contract at a specific Ethereum
     /// address on some chain
-    pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
+    pub fn new(provider: Arc<M>, conn: &ConnectionConf, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumValidatorAnnounceInternal::new(
                 locator.address,
@@ -70,6 +76,7 @@ where
             )),
             domain: locator.domain.clone(),
             provider,
+            conn: conn.clone(),
         }
     }
 
@@ -78,7 +85,6 @@ where
     async fn announce_contract_call(
         &self,
         announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
     ) -> ChainResult<ContractCall<M, bool>> {
         let serialized_signature: [u8; 65] = announcement.signature.into();
         let tx = self.contract.announce(
@@ -86,7 +92,7 @@ where
             announcement.value.storage_location,
             serialized_signature.into(),
         );
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await
+        fill_tx_gas_params(tx, self.provider.clone(), &self.conn.transaction_overrides).await
     }
 }
 
@@ -139,7 +145,7 @@ where
         let validator = announcement.value.validator;
         let eth_h160: ethers::types::H160 = validator.into();
 
-        let Ok(contract_call) = self.announce_contract_call(announcement, None).await else {
+        let Ok(contract_call) = self.announce_contract_call(announcement).await else {
             trace!("Unable to get announce contract call");
             return None;
         };
@@ -157,14 +163,8 @@ where
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn announce(
-        &self,
-        announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
-    ) -> ChainResult<TxOutcome> {
-        let contract_call = self
-            .announce_contract_call(announcement, tx_gas_limit)
-            .await?;
+    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
+        let contract_call = self.announce_contract_call(announcement).await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
     }

@@ -1,8 +1,8 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { solanaChainToClusterName } from '../consts/chainMetadata';
+import { solanaChainToClusterName } from '../consts/chainMetadata.js';
 
-import { ChainMetadata } from './chainMetadataTypes';
+import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
 export function getExplorerBaseUrl(metadata: ChainMetadata): string | null {
   if (!metadata?.blockExplorers?.length) return null;
@@ -15,6 +15,22 @@ export function getExplorerBaseUrl(metadata: ChainMetadata): string | null {
     url.searchParams.set('cluster', solanaChainToClusterName[metadata.name]);
   }
   return url.toString();
+}
+
+export function getExplorerApi(metadata: ChainMetadata): {
+  apiUrl: string;
+  apiKey?: string | undefined;
+  family?: ExplorerFamily | undefined;
+} | null {
+  const { protocol, blockExplorers } = metadata;
+  // TODO solana + cosmos support here as needed
+  if (protocol !== ProtocolType.Ethereum) return null;
+  if (!blockExplorers?.length || !blockExplorers[0].apiUrl) return null;
+  return {
+    apiUrl: blockExplorers[0].apiUrl,
+    apiKey: blockExplorers[0].apiKey,
+    family: blockExplorers[0].family,
+  };
 }
 
 export function getExplorerApiUrl(metadata: ChainMetadata): string | null {

@@ -2,14 +2,14 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
+import { chainMetadata } from '../consts/chainMetadata.js';
 
-import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes';
+import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes.js';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,
   domainId: 5,
-  name: 'goerli',
+  name: 'sepolia',
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://foobar.com' }],
 };
@@ -60,6 +60,8 @@ describe('ChainMetadataSchema', () => {
         chainId: 'cosmos',
         bech32Prefix: 'cosmos',
         slip44: 118,
+        restUrls: [],
+        grpcUrls: [],
       }),
     ).to.eq(true);
   });

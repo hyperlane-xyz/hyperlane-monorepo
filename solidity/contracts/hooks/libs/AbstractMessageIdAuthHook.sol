@@ -78,8 +78,6 @@ abstract contract AbstractMessageIdAuthHook is
             message.destination() == destinationDomain,
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
-        // Note AbstractMessageIdAuthorizationIsm's `verifiedMessages` stores each message's verification bit
-        // and msg.value together in the same slot, so msg.value has to be less than 2 ** 255.
         require(
             metadata.msgValue(0) < 2 ** 255,
             "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"

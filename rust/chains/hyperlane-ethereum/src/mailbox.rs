@@ -13,9 +13,9 @@ use ethers_contract::builders::ContractCall;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::fmt_bytes, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceIndexer,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
@@ -23,7 +23,7 @@ use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider, TransactionOverrides};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -40,11 +40,12 @@ pub struct SequenceIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for SequenceIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<HyperlaneMessage>>;
+    type Output = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumMailboxIndexer::new(
@@ -61,11 +62,12 @@ pub struct DeliveryIndexerBuilder {
 
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
-    type Output = Box<dyn SequenceIndexer<H256>>;
+    type Output = Box<dyn SequenceAwareIndexer<H256>>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumMailboxIndexer::new(
@@ -125,6 +127,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(
         &self,
@@ -147,12 +150,12 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
+impl<M> SequenceAwareIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
@@ -168,6 +171,7 @@ where
         self.get_finalized_block_number().await
     }
 
+    /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
     async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
@@ -184,13 +188,13 @@ where
 }
 
 #[async_trait]
-impl<M> SequenceIndexer<H256> for EthereumMailboxIndexer<M>
+impl<M> SequenceAwareIndexer<H256> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // A blanket implementation for this trait is fine for the EVM.
-        // TODO: Consider removing `Indexer` as a supertrait of `SequenceIndexer`
+        // TODO: Consider removing `Indexer` as a supertrait of `SequenceAwareIndexer`
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
@@ -205,9 +209,10 @@ impl BuildableWithProvider for MailboxBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumMailbox::new(Arc::new(provider), locator))
+        Box::new(EthereumMailbox::new(Arc::new(provider), conn, locator))
     }
 }
 
@@ -221,6 +226,7 @@ where
     domain: HyperlaneDomain,
     provider: Arc<M>,
     arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
+    conn: ConnectionConf,
 }
 
 impl<M> EthereumMailbox<M>
@@ -229,7 +235,7 @@ where
 {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
-    pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
+    pub fn new(provider: Arc<M>, conn: &ConnectionConf, locator: &ContractLocator) -> Self {
         // Arbitrum Nitro based chains are a special case for transaction cost estimation.
         // The gas amount that eth_estimateGas returns considers both L1 and L2 gas costs.
         // We use the NodeInterface, found at address(0xC8), to isolate the L2 gas costs.
@@ -249,6 +255,7 @@ where
             domain: locator.domain.clone(),
             provider,
             arbitrum_node_interface,
+            conn: conn.clone(),
         }
     }
 
@@ -258,13 +265,23 @@ where
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        tx_gas_limit: Option<U256>,
+        tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, ()>> {
         let tx = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await
+        let tx_overrides = TransactionOverrides {
+            // If a gas limit is provided as a transaction override, use it instead
+            // of the estimate.
+            gas_limit: self
+                .conn
+                .transaction_overrides
+                .gas_limit
+                .or(tx_gas_estimate),
+            ..self.conn.transaction_overrides.clone()
+        };
+        fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
     }
 }
 
@@ -325,7 +342,7 @@ where
             .into())
     }
 
-    #[instrument(skip(self), fields(metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -339,7 +356,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -421,7 +438,7 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::EthereumMailbox;
+    use crate::{ConnectionConf, EthereumMailbox, RpcConnectionConf};
 
     /// An amount of gas to add to the estimated gas
     const GAS_ESTIMATE_BUFFER: u32 = 50000;
@@ -430,12 +447,19 @@ mod test {
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
         let mock_provider = Arc::new(MockProvider::new());
         let provider = Arc::new(Provider::new(mock_provider.clone()));
+        let connection_conf = ConnectionConf {
+            rpc_connection: RpcConnectionConf::Http {
+                url: "http://127.0.0.1:8545".parse().unwrap(),
+            },
+            transaction_overrides: Default::default(),
+        };
 
         let mailbox = EthereumMailbox::new(
             provider.clone(),
+            &connection_conf,
             &ContractLocator {
                 // An Arbitrum Nitro chain
-                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
+                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet),
                 // Address doesn't matter because we're using a MockProvider
                 address: H256::default(),
             },

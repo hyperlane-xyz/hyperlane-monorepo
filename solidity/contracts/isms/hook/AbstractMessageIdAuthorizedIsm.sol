@@ -27,7 +27,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 /**
  * @title AbstractMessageIdAuthorizedIsm
- * @notice Uses external verfication options to verify interchain messages which need a authorized caller
+ * @notice Uses external verification options to verify interchain messages which need a authorized caller
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,
@@ -99,7 +99,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
      */
-    function verifyMessageId(bytes32 messageId) external payable virtual {
+    function verifyMessageId(bytes32 messageId) public payable virtual {
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"

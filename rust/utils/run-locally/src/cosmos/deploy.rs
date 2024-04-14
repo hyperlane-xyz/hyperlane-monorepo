@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use hpl_interface::{core, hook, igp, ism};
+use hyperlane_cosmwasm_interface::{core, hook, igp, ism};
 use macro_rules_attribute::apply;
 
 use crate::utils::as_task;
@@ -10,24 +10,23 @@ use super::{
 };
 
 #[cw_serde]
-pub struct IsmMultisigInstantiateMsg {
-    pub owner: String,
-}
-
-#[cw_serde]
 pub struct TestMockMsgReceiverInstantiateMsg {
     pub hrp: String,
 }
 
 #[cw_serde]
-pub struct IGPOracleInstantiateMsg {
+struct IgpInstantiateMsg {
+    pub hrp: String,
     pub owner: String,
+    pub gas_token: String,
+    pub beneficiary: String,
+    pub default_gas_usage: String, // u128 does not work with cw_serde
 }
 
 #[cw_serde]
 pub struct EmptyMsg {}
 
-const PREFIX: &str = "osmo";
+const BECH32_PREFIX: &str = "osmo";
 
 #[apply(as_task)]
 pub fn deploy_cw_hyperlane(
@@ -46,29 +45,19 @@ pub fn deploy_cw_hyperlane(
         codes.hpl_mailbox,
         core::mailbox::InstantiateMsg {
             owner: deployer_addr.to_string(),
-            hrp: PREFIX.to_string(),
+            hrp: BECH32_PREFIX.to_string(),
             domain,
         },
         "hpl_mailbox",
     );
-
-    // deploy igp set
-    #[cw_serde]
-    pub struct GasOracleInitMsg {
-        pub hrp: String,
-        pub owner: String,
-        pub gas_token: String,
-        pub beneficiary: String,
-        pub default_gas_usage: String,
-    }
 
     let igp = cli.wasm_init(
         &endpoint,
         &deployer,
         Some(deployer_addr),
         codes.hpl_igp,
-        GasOracleInitMsg {
-            hrp: PREFIX.to_string(),
+        IgpInstantiateMsg {
+            hrp: BECH32_PREFIX.to_string(),
             owner: deployer_addr.clone(),
             gas_token: "uosmo".to_string(),
             beneficiary: deployer_addr.clone(),
@@ -107,10 +96,23 @@ pub fn deploy_cw_hyperlane(
         &deployer,
         Some(deployer_addr),
         codes.hpl_ism_multisig,
-        IsmMultisigInstantiateMsg {
+        ism::multisig::InstantiateMsg {
             owner: deployer_addr.clone(),
         },
         "hpl_ism_multisig",
+    );
+
+    // deploy pausable ism
+    let ism_pausable = cli.wasm_init(
+        &endpoint,
+        &deployer,
+        Some(deployer_addr),
+        codes.hpl_ism_pausable,
+        ism::pausable::InstantiateMsg {
+            owner: deployer_addr.clone(),
+            paused: false,
+        },
+        "hpl_ism_pausable",
     );
 
     // deploy ism - aggregation
@@ -121,8 +123,8 @@ pub fn deploy_cw_hyperlane(
         codes.hpl_ism_aggregate,
         ism::aggregate::InstantiateMsg {
             owner: deployer_addr.clone(),
-            threshold: 1,
-            isms: vec![ism_multisig.clone()],
+            threshold: 2,
+            isms: vec![ism_multisig.clone(), ism_pausable.clone()],
         },
         "hpl_ism_aggregate",
     );
@@ -134,7 +136,6 @@ pub fn deploy_cw_hyperlane(
         Some(deployer_addr),
         codes.hpl_hook_merkle,
         hook::merkle::InstantiateMsg {
-            owner: deployer_addr.clone(),
             mailbox: mailbox.to_string(),
         },
         "hpl_hook_merkle",
@@ -159,7 +160,7 @@ pub fn deploy_cw_hyperlane(
         Some(deployer_addr),
         codes.hpl_validator_announce,
         core::va::InstantiateMsg {
-            hrp: PREFIX.to_string(),
+            hrp: BECH32_PREFIX.to_string(),
             mailbox: mailbox.to_string(),
         },
         "hpl_validator_announce",
@@ -173,7 +174,7 @@ pub fn deploy_cw_hyperlane(
         Some(deployer_addr),
         codes.hpl_test_mock_msg_receiver,
         TestMockMsgReceiverInstantiateMsg {
-            hrp: PREFIX.to_string(),
+            hrp: BECH32_PREFIX.to_string(),
         },
         "hpl_test_mock_msg_receiver",
     );

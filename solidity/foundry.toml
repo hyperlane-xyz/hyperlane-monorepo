@@ -5,7 +5,8 @@ libs = ['node_modules', 'lib']
 test = 'test'
 cache_path = 'forge-cache'
 allow_paths = ["../node_modules"]
-solc = '0.8.19'
+solc_version = '0.8.22'
+evm_version= 'paris'
 optimizer = true
 optimizer_runs = 999_999
 
@@ -13,8 +14,5 @@ optimizer_runs = 999_999
 verbosity = 4
 
 [rpc_endpoints]
-mainnet = "https://rpc.ankr.com/eth"
-optimism = "https://rpc.ankr.com/optimism"
-arbitrum = "https://rpc.ankr.com/arbitrum"
-sepolia = "https://rpc.ankr.com/eth_sepolia"
-sepolia_arb = "https://arbitrum-sepolia.blockpi.network/v1/rpc/public"
+mainnet = "https://eth.merkle.io"
+optimism = "https://mainnet.optimism.io	"

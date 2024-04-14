@@ -6,15 +6,15 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::{Context, Result};
+use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, U256};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, H256, U256};
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
-    metadata::{BaseMetadataBuilder, MetadataBuilder},
+    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
     pending_operation::*,
 };
 
@@ -35,7 +35,7 @@ pub struct MessageContext {
     pub origin_db: HyperlaneRocksDB,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
-    pub metadata_builder: BaseMetadataBuilder,
+    pub metadata_builder: Arc<BaseMetadataBuilder>,
     /// Used to determine if messages from the origin have made sufficient gas
     /// payments.
     pub origin_gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -50,6 +50,7 @@ pub struct MessageContext {
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
     ctx: Arc<MessageContext>,
+    app_context: Option<String>,
     #[new(default)]
     submitted: bool,
     #[new(default)]
@@ -100,8 +101,24 @@ impl Eq for PendingMessage {}
 
 #[async_trait]
 impl PendingOperation for PendingMessage {
-    fn domain(&self) -> &HyperlaneDomain {
+    fn id(&self) -> H256 {
+        self.message.id()
+    }
+
+    fn priority(&self) -> u32 {
+        self.message.nonce
+    }
+
+    fn origin_domain_id(&self) -> u32 {
+        self.message.origin
+    }
+
+    fn destination_domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
+    }
+
+    fn app_context(&self) -> Option<String> {
+        self.app_context.clone()
     }
 
     #[instrument]
@@ -153,9 +170,18 @@ impl PendingOperation for PendingMessage {
             "fetching ISM address. Potentially malformed recipient ISM address."
         );
 
+        let message_metadata_builder = op_try!(
+            MessageMetadataBuilder::new(
+                ism_address,
+                &self.message,
+                self.ctx.metadata_builder.clone()
+            )
+            .await,
+            "getting the message metadata builder"
+        );
+
         let Some(metadata) = op_try!(
-            self.ctx
-                .metadata_builder
+            message_metadata_builder
                 .build(ism_address, &self.message)
                 .await,
             "building metadata"
@@ -184,7 +210,7 @@ impl PendingOperation for PendingMessage {
                 .await,
             "checking if message meets gas payment requirement"
         ) else {
-            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
+            warn!(?tx_cost_estimate, "Gas payment requirement not met yet");
             return self.on_reprepare();
         };
 
@@ -249,7 +275,7 @@ impl PendingOperation for PendingMessage {
             self.next_attempt_after = Some(Instant::now() + CONFIRM_DELAY);
             PendingOperationResult::Success
         } else {
-            info!(
+            warn!(
                 txid=?tx_outcome.transaction_id,
                 "Transaction attempting to process message reverted"
             );
@@ -293,8 +319,12 @@ impl PendingOperation for PendingMessage {
         }
     }
 
-    fn _next_attempt_after(&self) -> Option<Instant> {
+    fn next_attempt_after(&self) -> Option<Instant> {
         self.next_attempt_after
+    }
+
+    fn reset_attempts(&mut self) {
+        self.reset_attempts();
     }
 
     #[cfg(test)]
@@ -306,8 +336,12 @@ impl PendingOperation for PendingMessage {
 impl PendingMessage {
     /// Constructor that tries reading the retry count from the HyperlaneDB in order to recompute the `next_attempt_after`.
     /// In case of failure, behaves like `Self::new(...)`.
-    pub fn from_persisted_retries(message: HyperlaneMessage, ctx: Arc<MessageContext>) -> Self {
-        let mut pm = Self::new(message, ctx);
+    pub fn from_persisted_retries(
+        message: HyperlaneMessage,
+        ctx: Arc<MessageContext>,
+        app_context: Option<String>,
+    ) -> Self {
+        let mut pm = Self::new(message, ctx, app_context);
         match pm
             .ctx
             .origin_db

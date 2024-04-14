@@ -1,14 +1,18 @@
-import debug from 'debug';
 import { BigNumber, providers, utils } from 'ethers';
 
-import { chunk, isBigNumberish, isNullish } from '@hyperlane-xyz/utils';
+import {
+  chunk,
+  isBigNumberish,
+  isNullish,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import {
   AllProviderMethods,
   IProviderMethods,
   ProviderMethod,
-} from './ProviderMethods';
-import { RpcConfigWithConnectionInfo } from './types';
+} from './ProviderMethods.js';
+import { RpcConfigWithConnectionInfo } from './types.js';
 
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
@@ -17,7 +21,7 @@ export class HyperlaneJsonRpcProvider
   extends providers.StaticJsonRpcProvider
   implements IProviderMethods
 {
-  protected readonly logger = debug('hyperlane:JsonRpcProvider');
+  protected readonly logger = rootLogger.child({ module: 'JsonRpcProvider' });
   public readonly supportedMethods = AllProviderMethods;
 
   constructor(
@@ -30,7 +34,7 @@ export class HyperlaneJsonRpcProvider
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
     if (this.options?.debug)
-      this.logger(
+      this.logger.debug(
         `HyperlaneJsonRpcProvider performing method ${method} for reqId ${reqId}`,
       );
     if (method === ProviderMethod.GetLogs) {
@@ -47,7 +51,9 @@ export class HyperlaneJsonRpcProvider
         ProviderMethod.GetBlockNumber,
       ].includes(method as ProviderMethod)
     ) {
-      this.logger(`Received 0x result from ${method} for reqId ${reqId}.`);
+      this.logger.debug(
+        `Received 0x result from ${method} for reqId ${reqId}.`,
+      );
       throw new Error('Invalid response from provider');
     }
     return result;
@@ -89,7 +95,7 @@ export class HyperlaneJsonRpcProvider
     }
 
     if (startBlock > endBlock) {
-      this.logger(
+      this.logger.info(
         `Start block ${startBlock} greater than end block. Using ${endBlock} instead`,
       );
       startBlock = endBlock;
@@ -98,20 +104,20 @@ export class HyperlaneJsonRpcProvider
       ? endBlock - maxBlockRange * NUM_LOG_BLOCK_RANGES_TO_QUERY + 1
       : 0;
     if (startBlock < minForBlockRange) {
-      this.logger(
+      this.logger.info(
         `Start block ${startBlock} requires too many queries, using ${minForBlockRange}.`,
       );
       startBlock = minForBlockRange;
     }
     const minForBlockAge = maxBlockAge ? currentBlockNumber - maxBlockAge : 0;
     if (startBlock < minForBlockAge) {
-      this.logger(
+      this.logger.info(
         `Start block ${startBlock} below max block age, increasing to ${minForBlockAge}`,
       );
       startBlock = minForBlockAge;
     }
     if (minBlockNumber && startBlock < minBlockNumber) {
-      this.logger(
+      this.logger.info(
         `Start block ${startBlock} below config min, increasing to ${minBlockNumber}`,
       );
       startBlock = minBlockNumber;

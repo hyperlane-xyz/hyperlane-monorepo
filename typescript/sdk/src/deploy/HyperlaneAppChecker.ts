@@ -1,4 +1,4 @@
-import { keccak256 } from 'ethers/lib/utils';
+import { utils } from 'ethers';
 
 import { Ownable, TimelockController__factory } from '@hyperlane-xyz/core';
 import {
@@ -10,21 +10,24 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp';
-import { filterOwnableContracts } from '../contracts/contracts';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { filterOwnableContracts } from '../contracts/contracts.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { UpgradeConfig, isProxy, proxyAdmin } from './proxy';
+import { UpgradeConfig, isProxy, proxyAdmin } from './proxy.js';
 import {
   AccessControlViolation,
   BytecodeMismatchViolation,
   CheckerViolation,
+  Owner,
   OwnerViolation,
   ProxyAdminViolation,
   TimelockControllerViolation,
   ViolationType,
-} from './types';
+  resolveOrDeployAccountOwner,
+} from './types.js';
 
 export abstract class HyperlaneAppChecker<
   App extends HyperlaneApp<any>,
@@ -172,7 +175,7 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const provider = this.multiProvider.getProvider(chain);
     const bytecode = await provider.getCode(address);
-    const bytecodeHash = keccak256(
+    const bytecodeHash = utils.keccak256(
       modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
     );
     if (!expectedBytecodeHashes.includes(bytecodeHash)) {
@@ -186,6 +189,18 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
+  protected async checkProxy(
+    chain: ChainName,
+    name: string,
+    address: string,
+  ): Promise<void> {
+    return this.checkBytecode(chain, name, address, [
+      BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
+      BytecodeHash.TRANSPARENT_PROXY_4_9_3_BYTECODE_HASH,
+      BytecodeHash.OPT_TRANSPARENT_PROXY_BYTECODE_HASH,
+    ]);
+  }
+
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
     const contracts = this.app.getContracts(chain);
     return filterOwnableContracts(contracts);
@@ -193,12 +208,19 @@ export abstract class HyperlaneAppChecker<
 
   protected async checkOwnership(
     chain: ChainName,
-    owner: Address,
+    owner: Owner,
     ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
-      const expectedOwner = ownableOverrides?.[name] ?? owner;
+      let expectedOwner = ownableOverrides?.[name] ?? owner;
+      if (typeof expectedOwner !== 'string') {
+        expectedOwner = await resolveOrDeployAccountOwner(
+          this.multiProvider,
+          chain,
+          expectedOwner,
+        );
+      }
       const actual = await contract.owner();
       if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {

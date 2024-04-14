@@ -1,13 +1,17 @@
 import fs from 'fs';
 
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { rm, writeFile } from 'fs/promises';
 
-import { execCmd, execCmdAndParseJson } from './utils';
+import { execCmd, execCmdAndParseJson } from './utils.js';
 
 interface IamCondition {
   title: string;
   expression: string;
 }
+
+const debugLog = rootLogger.child({ module: 'infra:utils:gcloud' }).debug;
 
 // Allows secrets to be overridden via environment variables to avoid
 // gcloud calls. This is particularly useful for running commands in k8s,
@@ -23,7 +27,7 @@ export async function fetchGCPSecret(
 
   const envVarOverride = tryGCPSecretFromEnvVariable(secretName);
   if (envVarOverride !== undefined) {
-    console.log(
+    debugLog(
       `Using environment variable instead of GCP secret with name ${secretName}`,
     );
     output = envVarOverride;
@@ -41,7 +45,7 @@ export async function fetchGCPSecret(
 
 // If the environment variable GCP_SECRET_OVERRIDES_ENABLED is `true`,
 // this will attempt to find an environment variable of the form:
-//  `GCP_SECRET_OVERRIDE_${gcpSecretName..replaceAll('-', '_').toUpperCase()}`
+//  `GCP_SECRET_OVERRIDE_${gcpSecretName.replaceAll('-', '_').toUpperCase()}`
 // If found, it's returned, otherwise, undefined is returned.
 function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
   const overridingEnabled =
@@ -58,9 +62,12 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
 
 export async function gcpSecretExists(secretName: string) {
   const fullName = `projects/${await getCurrentProjectNumber()}/secrets/${secretName}`;
+  debugLog(`Checking if GCP secret exists for ${fullName}`);
+
   const matches = await execCmdAndParseJson(
     `gcloud secrets list --filter name=${fullName} --format json`,
   );
+  debugLog(`Matches: ${matches.length}`);
   return matches.length > 0;
 }
 
@@ -80,10 +87,12 @@ export async function setGCPSecret(
     await execCmd(
       `gcloud secrets create ${secretName} --data-file=${fileName} --replication-policy=automatic --labels=${labelString}`,
     );
+    debugLog(`Created new GCP secret for ${secretName}`);
   } else {
     await execCmd(
       `gcloud secrets versions add ${secretName} --data-file=${fileName}`,
     );
+    debugLog(`Added new version to existing GCP secret for ${secretName}`);
   }
   await rm(fileName);
 }
@@ -95,6 +104,9 @@ export async function createServiceAccountIfNotExists(
   let serviceAccountInfo = await getServiceAccountInfo(serviceAccountName);
   if (!serviceAccountInfo) {
     serviceAccountInfo = await createServiceAccount(serviceAccountName);
+    debugLog(`Created new service account with name ${serviceAccountName}`);
+  } else {
+    debugLog(`Service account with name ${serviceAccountName} already exists`);
   }
   return serviceAccountInfo.email;
 }
@@ -110,6 +122,7 @@ export async function grantServiceAccountRoleIfNotExists(
     matchedBinding &&
     iamConditionsEqual(condition, matchedBinding.condition)
   ) {
+    debugLog(`Service account ${serviceAccountEmail} already has role ${role}`);
     return;
   }
   await execCmd(
@@ -119,6 +132,7 @@ export async function grantServiceAccountRoleIfNotExists(
         : ''
     }`,
   );
+  debugLog(`Granted role ${role} to service account ${serviceAccountEmail}`);
 }
 
 export async function createServiceAccountKey(serviceAccountEmail: string) {
@@ -128,12 +142,14 @@ export async function createServiceAccountKey(serviceAccountEmail: string) {
   );
   const key = JSON.parse(fs.readFileSync(localKeyFile, 'utf8'));
   fs.rmSync(localKeyFile);
+  debugLog(`Created new service account key for ${serviceAccountEmail}`);
   return key;
 }
 
 // The alphanumeric project name / ID
 export async function getCurrentProject() {
   const [result] = await execCmd('gcloud config get-value project');
+  debugLog(`Current GCP project ID: ${result.trim()}`);
   return result.trim();
 }
 
@@ -150,10 +166,12 @@ async function getIamMemberPolicyBindings(memberEmail: string) {
   const unprocessedRoles = await execCmdAndParseJson(
     `gcloud projects get-iam-policy $(gcloud config get-value project) --format "json(bindings)" --flatten="bindings[].members" --filter="bindings.members:${memberEmail}"`,
   );
-  return unprocessedRoles.map((unprocessedRoleObject: any) => ({
+  const bindings = unprocessedRoles.map((unprocessedRoleObject: any) => ({
     role: unprocessedRoleObject.bindings.role,
     condition: unprocessedRoleObject.bindings.condition,
   }));
+  debugLog(`Retrieved IAM policy bindings for ${memberEmail}`);
+  return bindings;
 }
 
 async function createServiceAccount(serviceAccountName: string) {
@@ -169,8 +187,10 @@ async function getServiceAccountInfo(serviceAccountName: string) {
     `gcloud iam service-accounts list --format json --filter displayName="${serviceAccountName}"`,
   );
   if (matches.length === 0) {
+    debugLog(`No service account found with name ${serviceAccountName}`);
     return undefined;
   }
+  debugLog(`Found service account with name ${serviceAccountName}`);
   return matches[0];
 }
 

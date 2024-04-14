@@ -1,13 +1,13 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { ethereum } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import { ProviderType } from '../providers/ProviderType';
+import { ethereum } from '../consts/chainMetadata.js';
+import { Chains } from '../consts/chains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { ProviderType } from '../providers/ProviderType.js';
 
-import { MultiProtocolCore } from './MultiProtocolCore';
-import { EvmCoreAdapter } from './adapters/EvmCoreAdapter';
+import { MultiProtocolCore } from './MultiProtocolCore.js';
+import { EvmCoreAdapter } from './adapters/EvmCoreAdapter.js';
 
 describe('MultiProtocolCore', () => {
   describe('constructs', () => {

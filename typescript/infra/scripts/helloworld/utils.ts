@@ -18,11 +18,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { EnvironmentConfig } from '../../src/config';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { HelloWorldConfig } from '../../src/config/helloworld/types';
-import { Role } from '../../src/roles';
+import { Contexts } from '../../config/contexts.js';
+import {
+  EnvironmentConfig,
+  deployEnvToSdkEnv,
+} from '../../src/config/environment.js';
+import { HelloWorldConfig } from '../../src/config/helloworld/types.js';
+import { Role } from '../../src/roles.js';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
@@ -155,6 +157,21 @@ export function getHelloWorldConfig(
     throw new Error(
       `Environment ${coreConfig.environment} does not have a HelloWorld config`,
     );
+  }
+  const config = helloWorldConfigs[context];
+  if (!config) {
+    throw new Error(`Context ${context} does not have a HelloWorld config`);
+  }
+  return config;
+}
+
+// for create-key, you don't want to fetch the multisig[chain].validators.threshold for yet to be created multisigs
+export function getJustHelloWorldConfig(
+  helloWorldConfigs: Partial<Record<Contexts, HelloWorldConfig>> | undefined,
+  context: Contexts,
+): HelloWorldConfig {
+  if (!helloWorldConfigs) {
+    throw new Error(`Environment does not have a HelloWorld config`);
   }
   const config = helloWorldConfigs[context];
   if (!config) {

@@ -6,7 +6,7 @@ import { Domain } from '@hyperlane-xyz/utils';
 import {
   SealevelAccountDataWrapper,
   getSealevelAccountDataSchema,
-} from '../../utils/sealevelSerialization';
+} from '../../utils/sealevelSerialization.js';
 
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L24
 export enum SealevelInterchainGasPaymasterType {

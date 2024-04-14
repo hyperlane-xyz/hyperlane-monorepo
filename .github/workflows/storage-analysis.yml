@@ -16,7 +16,7 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - uses: actions/setup-node@v3
@@ -55,12 +55,4 @@ jobs:
 
       # Compare outputs
       - name: Compare outputs
-        run: diff --unified solidity/base-storage solidity/HEAD-storage > layout.diff
-
-      - name: Comment PR with layout diff
-        uses: yorhodes/actions-comment-pull-request@v2.4.6
-        with:
-          header: Storage Layout Diff
-          filePath: layout.diff
-          mdLanguage: diff
-          comment_tag: storagelayoutdiff
+        run: diff --unified solidity/base-storage solidity/HEAD-storage

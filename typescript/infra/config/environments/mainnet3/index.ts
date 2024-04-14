@@ -1,23 +1,23 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMetadata, RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 
 import {
   getKeysForRole,
   getMultiProviderForRole,
-} from '../../../scripts/utils';
-import { EnvironmentConfig } from '../../../src/config';
-import { Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+} from '../../../scripts/agent-utils.js';
+import { EnvironmentConfig } from '../../../src/config/environment.js';
+import { Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { agents } from './agent';
-import { environment as environmentName, mainnetConfigs } from './chains';
-import { core } from './core';
-import { keyFunderConfig } from './funding';
-import { storageGasOracleConfig } from './gas-oracle';
-import { helloWorld } from './helloworld';
-import { igp } from './igp';
-import { infrastructure } from './infrastructure';
-import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer';
-import { owners } from './owners';
+import { agents } from './agent.js';
+import { environment as environmentName, mainnetConfigs } from './chains.js';
+import { core } from './core.js';
+import { keyFunderConfig } from './funding.js';
+import { helloWorld } from './helloworld.js';
+import { igp } from './igp.js';
+import { infrastructure } from './infrastructure.js';
+import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
+import { owners } from './owners.js';
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
@@ -26,15 +26,22 @@ export const environment: EnvironmentConfig = {
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
     connectionType?: RpcConsensusType,
-  ) =>
-    getMultiProviderForRole(
+  ) => {
+    const config = objFilter(
       mainnetConfigs,
+      (_, chainMetadata): chainMetadata is ChainMetadata =>
+        chainMetadata.protocol === ProtocolType.Ethereum,
+    );
+
+    return getMultiProviderForRole(
+      config,
       environmentName,
       context,
       role,
       undefined,
       connectionType,
-    ),
+    );
+  },
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
@@ -46,7 +53,6 @@ export const environment: EnvironmentConfig = {
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
-  storageGasOracleConfig,
   liquidityLayerConfig: {
     bridgeAdapters: bridgeAdapterConfigs,
     relayer: relayerConfig,

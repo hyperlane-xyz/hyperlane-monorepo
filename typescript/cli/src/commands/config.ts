@@ -1,6 +1,5 @@
 import { CommandModule } from 'yargs';
 
-import { log, logGreen } from '../../logger.js';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { createHooksConfigMap } from '../config/hooks.js';
 import { createIsmConfigMap, readIsmConfig } from '../config/ism.js';
@@ -8,7 +7,11 @@ import {
   createMultisigConfig,
   readMultisigConfig,
 } from '../config/multisig.js';
-import { createWarpConfig, readWarpRouteConfig } from '../config/warp.js';
+import {
+  createWarpRouteDeployConfig,
+  readWarpRouteDeployConfig,
+} from '../config/warp.js';
+import { log, logGreen } from '../logger.js';
 import { FileFormat } from '../utils/files.js';
 
 import {
@@ -43,7 +46,7 @@ const createCommand: CommandModule = {
       .command(createChainConfigCommand)
       .command(createIsmConfigCommand)
       .command(createHookConfigCommand)
-      .command(createWarpConfigCommand)
+      .command(createWarpRouteDeployConfigCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -113,12 +116,12 @@ const createHookConfigCommand: CommandModule = {
   },
 };
 
-const createWarpConfigCommand: CommandModule = {
+const createWarpRouteDeployConfigCommand: CommandModule = {
   command: 'warp',
-  describe: 'Create a new Warp Route tokens config',
+  describe: 'Create a new Warp Route deployment config',
   builder: (yargs) =>
     yargs.options({
-      output: outputFileOption('./configs/warp-tokens.yaml'),
+      output: outputFileOption('./configs/warp-route-deployment.yaml'),
       format: fileFormatOption,
       chains: chainsCommandOption,
     }),
@@ -126,7 +129,7 @@ const createWarpConfigCommand: CommandModule = {
     const format: FileFormat = argv.format;
     const outPath: string = argv.output;
     const chainConfigPath: string = argv.chains;
-    await createWarpConfig({ format, outPath, chainConfigPath });
+    await createWarpRouteDeployConfig({ format, outPath, chainConfigPath });
     process.exit(0);
   },
 };
@@ -217,7 +220,7 @@ const validateWarpCommand: CommandModule = {
     }),
   handler: async (argv) => {
     const path = argv.path as string;
-    readWarpRouteConfig(path);
+    readWarpRouteDeployConfig(path);
     logGreen('Config is valid');
     process.exit(0);
   },
