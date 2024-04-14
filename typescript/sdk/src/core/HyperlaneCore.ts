@@ -6,6 +6,7 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
+  WithAddress,
   messageId,
   objFilter,
   objMap,
@@ -22,6 +23,8 @@ import {
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
+import { EvmIsmReader } from '../ism/read.js';
+import { IsmConfig, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -83,6 +86,45 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   protected getDestination(message: DispatchedMessage): ChainName {
     return this.multiProvider.getChainName(message.parsed.destination);
+  }
+
+  getRecipientIsmAddress(message: DispatchedMessage): Promise<Address> {
+    const destinationMailbox = this.contractsMap[this.getDestination(message)];
+    return destinationMailbox.mailbox.recipientIsm(message.parsed.recipient);
+  }
+
+  async getRecipientIsmConfig(
+    message: DispatchedMessage,
+  ): Promise<WithAddress<IsmConfig>> {
+    const destinationChain = this.getDestination(message);
+    const ismReader = new EvmIsmReader(this.multiProvider, destinationChain);
+    const address = await this.getRecipientIsmAddress(message);
+    return ismReader.deriveIsmConfig(address);
+  }
+
+  async relayMessage(
+    message: DispatchedMessage,
+  ): Promise<ethers.ContractReceipt> {
+    const destinationChain = this.getDestination(message);
+    const mailbox = this.contractsMap[destinationChain].mailbox;
+    const ismConfig = await this.getRecipientIsmConfig(message);
+    if (typeof ismConfig === 'string') {
+      throw new Error(
+        `No ISM config found for recipient ${message.parsed.recipient}`,
+      );
+    }
+
+    // TODO: implement metadata builders
+    const moduleType = ismTypeToModuleType(ismConfig.type);
+    switch (moduleType) {
+      case ModuleType.NULL:
+        return this.multiProvider.handleTx(
+          destinationChain,
+          mailbox.process('', message.message),
+        );
+      default:
+        throw new Error(`Unsupported module type ${moduleType}`);
+    }
   }
 
   protected waitForProcessReceipt(
