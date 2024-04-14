@@ -7,6 +7,7 @@ import {
   AddressBytes32,
   ProtocolType,
   WithAddress,
+  bytes32ToAddress,
   messageId,
   objFilter,
   objMap,
@@ -90,7 +91,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   getRecipientIsmAddress(message: DispatchedMessage): Promise<Address> {
     const destinationMailbox = this.contractsMap[this.getDestination(message)];
-    return destinationMailbox.mailbox.recipientIsm(message.parsed.recipient);
+    const ethAddress = bytes32ToAddress(message.parsed.recipient);
+    return destinationMailbox.mailbox.recipientIsm(ethAddress);
   }
 
   async getRecipientIsmConfig(
@@ -119,7 +121,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const moduleType = ismTypeToModuleType(ismConfig.type);
     switch (moduleType) {
       case ModuleType.NULL:
-        metadata = '';
+        metadata = '0x';
         break;
       default:
         throw new Error(`Unsupported module type ${moduleType}`);
