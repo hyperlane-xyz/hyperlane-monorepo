@@ -13,6 +13,7 @@
     },
     "scripts": {
         "start": "tsx src/server.ts",
+        "build": "tsc",
         "dev": "nodemon src/server.ts",
         "test": "jest",
         "prettier": "prettier --write ./src/* ./tests/"
