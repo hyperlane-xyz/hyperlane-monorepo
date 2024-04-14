@@ -146,6 +146,9 @@ async function executeDelivery({
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
     log(`Message: ${JSON.stringify(message)}`);
+
+    await core.relayMessage(message);
+    logGreen('Message was self-relayed!');
   } catch (e) {
     errorRed(
       `Encountered error sending message from ${origin} to ${destination}`,
