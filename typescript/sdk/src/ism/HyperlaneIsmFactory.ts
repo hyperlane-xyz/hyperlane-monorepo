@@ -17,6 +17,7 @@ import {
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   TestIsm__factory,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -175,6 +176,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         await this.deployer?.transferOwnershipOfContracts(destination, config, {
           [IsmType.PAUSABLE]: contract,
         });
+        break;
+      case IsmType.TRUSTED_RELAYER:
+        if (!this.deployer) {
+          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
+        } else if (!mailbox) {
+          throw new Error(
+            `Mailbox address is required for deploying ${ismType}`,
+          );
+        }
+        contract = await this.deployer?.deployContractFromFactory(
+          destination,
+          new TrustedRelayerIsm__factory(),
+          IsmType.TRUSTED_RELAYER,
+          [mailbox, config.relayer],
+        );
         break;
       case IsmType.TEST_ISM:
         if (!this.deployer) {
