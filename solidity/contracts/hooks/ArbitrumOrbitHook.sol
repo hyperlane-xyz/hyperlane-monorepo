@@ -79,7 +79,7 @@ contract ArbitrumOrbitHook is AbstractMessageIdAuthHook {
         bytes memory payload
     ) internal override {
         address refundAddress = metadata.refundAddress(address(0));
-        uint256 ticketID = l1Inbox.createRetryableTicket{value: msg.value}(
+        l1Inbox.createRetryableTicket{value: msg.value}(
             TypeCasts.bytes32ToAddress(ism),
             metadata.msgValue(0),
             _submissionFee(),
@@ -89,7 +89,6 @@ contract ArbitrumOrbitHook is AbstractMessageIdAuthHook {
             _maxFeePerGas(metadata),
             payload
         );
-        emit RetryableTicketCreated(ticketID);
     }
 
     function _quoteDispatch(
