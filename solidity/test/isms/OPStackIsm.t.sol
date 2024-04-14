@@ -199,7 +199,9 @@ contract OPStackIsmTest is Test {
             .overrideMsgValue(uint256(2 ** 255 + 1));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("OPStackHook: msgValue must be less than 2 ** 255");
+        vm.expectRevert(
+            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
+        );
         opHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
@@ -270,7 +272,7 @@ contract OPStackIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        // needs to be called by the cannonical messenger on Optimism
+        // needs to be called by the canonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
         opISM.verifyMessageId(messageId);
 

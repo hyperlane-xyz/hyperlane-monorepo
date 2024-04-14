@@ -18,11 +18,11 @@ import {
   RoutingIsmConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains';
-import { igp } from './igp';
-import { owners } from './owners';
+import { supportedChainNames } from './chains.js';
+import { igp } from './igp.js';
+import { owners } from './owners.js';
 
 export const core: ChainMap<CoreConfig> = objMap(
   owners,
@@ -100,7 +100,7 @@ export const core: ChainMap<CoreConfig> = objMap(
       type: HookType.PROTOCOL_FEE,
       maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
       protocolFee: BigNumber.from(1).toString(), // 1 wei of native token
-      beneficiary: ownerConfig.owner,
+      beneficiary: ownerConfig.owner as Address,
       ...ownerConfig,
     };
 

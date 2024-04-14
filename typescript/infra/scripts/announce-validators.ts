@@ -5,17 +5,17 @@ import * as path from 'path';
 
 import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
-import { S3Validator } from '../src/agents/aws/validator';
-import { CheckpointSyncerType } from '../src/config';
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { isEthereumProtocolChain } from '../src/utils/utils';
+import { S3Validator } from '../src/agents/aws/validator.js';
+import { CheckpointSyncerType } from '../src/config/agent/validator.js';
+import { deployEnvToSdkEnv } from '../src/config/environment.js';
+import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
 import {
   getAgentConfig,
   getArgs as getRootArgs,
   withContext,
-} from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+} from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 function getArgs() {
   return withContext(getRootArgs())
@@ -23,7 +23,7 @@ function getArgs() {
     .choices('chain', AllChains)
     .describe(
       'location',
-      'location, e.g. s3://hyperlane-testnet4-goerli-validator-0/us-east-1',
+      'location, e.g. s3://hyperlane-testnet4-sepolia-validator-0/us-east-1',
     )
     .string('location')
     .check(({ context, chain, location }) => {

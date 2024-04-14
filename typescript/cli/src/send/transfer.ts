@@ -1,33 +1,30 @@
-import { input } from '@inquirer/prompts';
-import { BigNumber, ethers } from 'ethers';
+import { select } from '@inquirer/prompts';
+import { ethers } from 'ethers';
 
 import {
-  ERC20__factory,
-  HypERC20Collateral__factory,
-  HypERC20__factory,
-} from '@hyperlane-xyz/core';
-import {
   ChainName,
-  EvmHypCollateralAdapter,
   HyperlaneContractsMap,
   HyperlaneCore,
   MultiProtocolProvider,
   MultiProvider,
-  TokenType,
+  ProviderType,
+  TokenAmount,
+  WarpCore,
+  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGreen } from '../../logger.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
-import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
+import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function sendTestTransfer({
   key,
   chainConfigPath,
   coreArtifactsPath,
+  warpConfigPath,
   origin,
   destination,
   routerAddress,
@@ -39,6 +36,7 @@ export async function sendTestTransfer({
   key: string;
   chainConfigPath: string;
   coreArtifactsPath?: string;
+  warpConfigPath: string;
   origin?: ChainName;
   destination?: ChainName;
   routerAddress?: Address;
@@ -47,11 +45,12 @@ export async function sendTestTransfer({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
 }) {
-  const { signer, multiProvider, customChains, coreArtifacts } =
+  const { signer, multiProvider, customChains, coreArtifacts, warpCoreConfig } =
     await getContext({
       chainConfigPath,
       coreConfig: { coreArtifactsPath },
       keyConfig: { key },
+      warpConfig: { warpConfigPath },
     });
 
   if (!origin) {
@@ -68,51 +67,6 @@ export async function sendTestTransfer({
     );
   }
 
-  if (!routerAddress) {
-    routerAddress = await input({
-      message: 'Please specify the router address',
-    });
-  }
-
-  // TODO: move to SDK token router app
-  // deduce TokenType
-  // 1. decimals() call implies synthetic
-  // 2. wrappedToken() call implies collateral
-  // 3. if neither, it's native
-  let tokenAddress: Address | undefined;
-  let tokenType: TokenType;
-  const provider = multiProvider.getProvider(origin);
-  try {
-    const synthRouter = HypERC20__factory.connect(routerAddress, provider);
-    await synthRouter.decimals();
-    tokenType = TokenType.synthetic;
-    tokenAddress = routerAddress;
-  } catch (error) {
-    try {
-      const collateralRouter = HypERC20Collateral__factory.connect(
-        routerAddress,
-        provider,
-      );
-      tokenAddress = await collateralRouter.wrappedToken();
-      tokenType = TokenType.collateral;
-    } catch (error) {
-      tokenType = TokenType.native;
-    }
-  }
-
-  if (tokenAddress) {
-    // checks token balances for collateral and synthetic
-    await assertTokenBalance(
-      multiProvider,
-      signer,
-      origin,
-      tokenAddress,
-      wei.toString(),
-    );
-  } else {
-    await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
-  }
-
   await runPreflightChecks({
     origin,
     remotes: [destination],
@@ -126,8 +80,8 @@ export async function sendTestTransfer({
     executeDelivery({
       origin,
       destination,
+      warpCoreConfig,
       routerAddress,
-      tokenType,
       wei,
       recipient,
       signer,
@@ -143,8 +97,8 @@ export async function sendTestTransfer({
 async function executeDelivery({
   origin,
   destination,
+  warpCoreConfig,
   routerAddress,
-  tokenType,
   wei,
   recipient,
   multiProvider,
@@ -154,8 +108,8 @@ async function executeDelivery({
 }: {
   origin: ChainName;
   destination: ChainName;
-  routerAddress: Address;
-  tokenType: TokenType;
+  warpCoreConfig: WarpCoreConfig;
+  routerAddress?: Address;
   wei: string;
   recipient?: string;
   multiProvider: MultiProvider;
@@ -176,62 +130,75 @@ async function executeDelivery({
   const provider = multiProvider.getProvider(origin);
   const connectedSigner = signer.connect(provider);
 
-  if (tokenType === TokenType.collateral) {
-    const wrappedToken = await getWrappedToken(routerAddress, provider);
-    const token = ERC20__factory.connect(wrappedToken, connectedSigner);
-    const approval = await token.allowance(signerAddress, routerAddress);
-    if (approval.lt(wei)) {
-      const approveTx = await token.approve(routerAddress, wei);
-      await approveTx.wait();
+  const warpCore = WarpCore.FromConfig(
+    MultiProtocolProvider.fromMultiProvider(multiProvider),
+    warpCoreConfig,
+  );
+
+  if (!routerAddress) {
+    const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
+    if (tokensForRoute.length === 0) {
+      logRed(`No Warp Routes found from ${origin} to ${destination}`);
+      throw new Error('Error finding warp route');
+    }
+
+    routerAddress = (await select({
+      message: `Select router address`,
+      choices: [
+        ...tokensForRoute.map((t) => ({
+          value: t.addressOrDenom,
+          description: `${t.name} ($${t.symbol})`,
+        })),
+      ],
+      pageSize: 10,
+    })) as string;
+  }
+
+  const token = warpCore.findToken(origin, routerAddress);
+  if (!token) {
+    logRed(
+      `No Warp Routes found from ${origin} to ${destination} with router address ${routerAddress}`,
+    );
+    throw new Error('Error finding warp route');
+  }
+
+  const senderAddress = await signer.getAddress();
+  const errors = await warpCore.validateTransfer({
+    originTokenAmount: token.amount(wei),
+    destination,
+    recipient: recipient ?? senderAddress,
+    sender: senderAddress,
+  });
+  if (errors) {
+    logRed('Unable to validate transfer', errors);
+    throw new Error('Error validating transfer');
+  }
+
+  const transferTxs = await warpCore.getTransferRemoteTxs({
+    originTokenAmount: new TokenAmount(wei, token),
+    destination,
+    sender: senderAddress,
+    recipient: recipient ?? senderAddress,
+  });
+
+  const txReceipts = [];
+  for (const tx of transferTxs) {
+    if (tx.type === ProviderType.EthersV5) {
+      const txResponse = await connectedSigner.sendTransaction(tx.transaction);
+      const txReceipt = await multiProvider.handleTx(origin, txResponse);
+      txReceipts.push(txReceipt);
     }
   }
 
-  // TODO move next section into MultiProtocolTokenApp when it exists
-  const adapter = new EvmHypCollateralAdapter(
-    origin,
-    MultiProtocolProvider.fromMultiProvider(multiProvider),
-    { token: routerAddress },
-  );
-  const destinationDomain = multiProvider.getDomainId(destination);
-  const gasPayment = await adapter.quoteGasPayment(destinationDomain);
-  const txValue =
-    tokenType === TokenType.native
-      ? BigNumber.from(gasPayment).add(wei).toString()
-      : gasPayment;
-  const transferTx = await adapter.populateTransferRemoteTx({
-    weiAmountOrId: wei,
-    destination: destinationDomain,
-    recipient,
-    txValue,
-  });
+  const transferTxReceipt = txReceipts[txReceipts.length - 1];
 
-  const txResponse = await connectedSigner.sendTransaction(transferTx);
-  const txReceipt = await multiProvider.handleTx(origin, txResponse);
-
-  const message = core.getDispatchedMessages(txReceipt)[0];
+  const message = core.getDispatchedMessages(transferTxReceipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);
 
   if (skipWaitForDelivery) return;
 
   // Max wait 10 minutes
-  await core.waitForMessageProcessed(txReceipt, 10000, 60);
+  await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
   logGreen(`Transfer sent to destination chain!`);
-}
-
-async function getWrappedToken(
-  address: Address,
-  provider: ethers.providers.Provider,
-): Promise<Address> {
-  try {
-    const contract = HypERC20Collateral__factory.connect(address, provider);
-    const wrappedToken = await contract.wrappedToken();
-    if (ethers.utils.isAddress(wrappedToken)) return wrappedToken;
-    else throw new Error('Invalid wrapped token address');
-  } catch (error) {
-    log('Error getting wrapped token', error);
-    throw new Error(
-      `Could not get wrapped token from router address ${address}`,
-    );
-  }
 }

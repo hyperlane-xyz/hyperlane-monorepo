@@ -12,7 +12,7 @@ outputFile="./buildArtifact.json"
 echo 'Finding and processing hardhat build artifact...'
 
 # Find most recently modified JSON build artifact
-if [[ $OSTYPE == 'darwin'* ]]; then
+if [ "$(uname)" = "Darwin" ]; then
     # for local flow
     jsonFiles=$(find "$artifactsDir" -type f -name "*.json" -exec stat -f "%m %N" {} \; | sort -rn | head -n 1 | cut -d' ' -f2-)
 else
@@ -20,7 +20,7 @@ else
     jsonFiles=$(find "$artifactsDir" -type f -name "*.json" -exec stat -c "%Y %n" {} \; | sort -rn | head -n 1 | cut -d' ' -f2-)
 fi
 
-if [[ ! -f "$jsonFiles" ]]; then
+if [ ! -f "$jsonFiles" ]; then
   echo 'Failed to find build artifact'
   exit 1
 fi

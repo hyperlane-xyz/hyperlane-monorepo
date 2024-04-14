@@ -1,25 +1,25 @@
 import { PublicKey } from '@solana/web3.js';
-import debug from 'debug';
 
 import {
   Address,
   ProtocolType,
   objMap,
   promiseObjAll,
+  rootLogger,
   symmetricDifference,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
   SolanaWeb3Provider,
   TypedProvider,
-} from '../providers/ProviderType';
-import { ChainMap, ChainName } from '../types';
-import { MultiGeneric } from '../utils/MultiGeneric';
+} from '../providers/ProviderType.js';
+import { ChainMap, ChainName } from '../types.js';
+import { MultiGeneric } from '../utils/MultiGeneric.js';
 
 /**
  * A minimal interface for an adapter that can be used with MultiProtocolApp
@@ -33,7 +33,7 @@ export abstract class BaseAppAdapter {
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider<any>,
     public readonly addresses: Record<string, Address>,
-    public readonly logger = debug(`hyperlane:AppAdapter`),
+    public readonly logger = rootLogger.child({ module: `AppAdapter` }),
   ) {}
 }
 
@@ -119,7 +119,7 @@ export abstract class MultiProtocolApp<
   constructor(
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: ChainMap<ContractAddrs>,
-    public readonly logger = debug('hyperlane:MultiProtocolApp'),
+    public readonly logger = rootLogger.child({ module: 'MultiProtocolApp' }),
   ) {
     const multiProviderChains = multiProvider.getKnownChainNames();
     const addressesChains = Object.keys(addresses);

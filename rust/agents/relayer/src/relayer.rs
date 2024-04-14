@@ -16,7 +16,8 @@ use hyperlane_base::{
     SequencedDataContractSync, WatermarkContractSync,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
+    MpmcReceiver, U256,
 };
 use tokio::{
     sync::{
@@ -27,23 +28,24 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
-use crate::processor::Processor;
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        metadata::{AppContextClassifier, BaseMetadataBuilder},
+        metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+        op_queue::QueueOperation,
         pending_message::{MessageContext, MessageSubmissionMetrics},
-        pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
+    server::{self as relayer_server, MessageRetryRequest},
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 use crate::{
     merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics},
     processor::ProcessorExt,
 };
+use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -73,6 +75,7 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+    metric_app_contexts: Vec<(MatchingList, String)>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
@@ -226,7 +229,7 @@ impl BaseAgent for Relayer {
                     core.metrics.clone(),
                     db,
                     5,
-                    AppContextClassifier::new(
+                    IsmAwareAppContextClassifier::new(
                         mailboxes[destination].clone(),
                         settings.metric_app_contexts.clone(),
                     ),
@@ -264,6 +267,7 @@ impl BaseAgent for Relayer {
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
+            metric_app_contexts: settings.metric_app_contexts,
             core_metrics,
             agent_metrics,
             chain_metrics,
@@ -274,23 +278,31 @@ impl BaseAgent for Relayer {
     async fn run(self) {
         let mut tasks = vec![];
 
-        // running http server
+        // run server
+        let mpmc_channel = MpmcChannel::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let custom_routes = relayer_server::routes(mpmc_channel.sender());
+
         let server = self
             .core
             .settings
             .server(self.core_metrics.clone())
             .expect("Failed to create server");
-        let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
+        let server_task = server
+            .run_with_custom_routes(custom_routes)
+            .instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         for (dest_domain, dest_conf) in &self.destination_chains {
-            let (send_channel, receive_channel) =
-                mpsc::unbounded_channel::<Box<DynPendingOperation>>();
+            let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
 
-            tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
+            tasks.push(self.run_destination_submitter(
+                dest_domain,
+                receive_channel,
+                mpmc_channel.receiver(),
+            ));
 
             let metrics_updater = MetricsUpdater::new(
                 dest_conf,
@@ -372,7 +384,7 @@ impl Relayer {
     fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
-        send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     ) -> Instrumented<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -402,6 +414,7 @@ impl Relayer {
             metrics,
             send_channels,
             destination_ctxs,
+            self.metric_app_contexts.clone(),
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
@@ -428,11 +441,13 @@ impl Relayer {
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: UnboundedReceiver<Box<DynPendingOperation>>,
+        receiver: UnboundedReceiver<QueueOperation>,
+        retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
             receiver,
+            retry_receiver_channel,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
         );
         let span = info_span!("SerialSubmitter", destination=%destination);

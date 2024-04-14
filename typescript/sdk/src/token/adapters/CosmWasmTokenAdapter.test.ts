@@ -13,16 +13,16 @@ import { Tendermint37Client } from '@cosmjs/tendermint-rpc';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
-import { Chains } from '../../consts/chains';
-import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter';
+import { chainMetadata } from '../../consts/chainMetadata.js';
+import { Chains } from '../../consts/chains.js';
+import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter.js';
 import {
   MailboxResponse,
   QueryMsg as MerkleQuery,
   OwnerResponse,
-} from '../../cw-types/HookMerkle.types';
-import { CosmWasmMultisigAdapter } from '../../ism/adapters/CosmWasmMultisigAdapter';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+} from '../../cw-types/HookMerkle.types.js';
+import { CosmWasmMultisigAdapter } from '../../ism/adapters/CosmWasmMultisigAdapter.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 
 const neutronAddresses = {
   mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',

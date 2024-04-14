@@ -18,11 +18,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { EnvironmentConfig } from '../../src/config';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { HelloWorldConfig } from '../../src/config/helloworld/types';
-import { Role } from '../../src/roles';
+import { Contexts } from '../../config/contexts.js';
+import {
+  EnvironmentConfig,
+  deployEnvToSdkEnv,
+} from '../../src/config/environment.js';
+import { HelloWorldConfig } from '../../src/config/helloworld/types.js';
+import { Role } from '../../src/roles.js';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,

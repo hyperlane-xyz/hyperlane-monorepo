@@ -1,4 +1,5 @@
 import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { CrossChainMessenger } from '@eth-optimism/sdk';
 import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -11,87 +12,62 @@ import {
   MultiProvider,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  error,
-  log,
-  objFilter,
-  objMap,
-  warn,
-} from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
+import { Contexts } from '../../config/contexts.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
   getRoleKeysPerChain,
-} from '../../src/agents/key-utils';
+} from '../../src/agents/key-utils.js';
 import {
   BaseAgentKey,
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
-} from '../../src/agents/keys';
-import { DeployEnvironment } from '../../src/config';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
+} from '../../src/agents/keys.js';
+import {
+  DeployEnvironment,
+  deployEnvToSdkEnv,
+} from '../../src/config/environment.js';
 import {
   ContextAndRoles,
   ContextAndRolesMap,
   KeyFunderConfig,
-} from '../../src/config/funding';
-import { FundableRole, Role } from '../../src/roles';
-import { submitMetrics } from '../../src/utils/metrics';
+} from '../../src/config/funding.js';
+import { FundableRole, Role } from '../../src/roles.js';
+import { submitMetrics } from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
   assertRole,
   isEthereumProtocolChain,
   readJSONAtPath,
-} from '../../src/utils/utils';
-import { getAgentConfig, getArgs } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+} from '../../src/utils/utils.js';
+import { getAgentConfig, getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
-import * as L1ETHGateway from './utils/L1ETHGateway.json';
-import * as L1MessageQueue from './utils/L1MessageQueue.json';
-import * as L1ScrollMessenger from './utils/L1ScrollMessenger.json';
-import * as PolygonZkEVMBridge from './utils/PolygonZkEVMBridge.json';
+import L1ETHGateway from './utils/L1ETHGateway.json';
+import L1MessageQueue from './utils/L1MessageQueue.json';
+import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
+
+const logger = rootLogger.child({ module: 'fund-keys' });
 
 const nativeBridges = {
   scrollsepolia: {
     l1ETHGateway: '0x8A54A2347Da2562917304141ab67324615e9866d',
     l1Messenger: '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A',
   },
-  polygonzkevmtestnet: {
-    l1EVMBridge: '0xF6BEEeBB578e214CA9E23B0e9683454Ff88Ed2A7',
-  },
 };
 
-type L2Chain =
-  | Chains.optimism
-  | Chains.optimismgoerli
-  | Chains.arbitrum
-  | Chains.arbitrumgoerli
-  | Chains.base;
+type L2Chain = Chains.optimism | Chains.arbitrum | Chains.base;
 
-const L2Chains: ChainName[] = [
-  Chains.optimism,
-  Chains.optimismgoerli,
-  Chains.arbitrum,
-  Chains.arbitrumgoerli,
-  Chains.base,
-  Chains.polygonzkevmtestnet,
-];
+const L2Chains: ChainName[] = [Chains.optimism, Chains.arbitrum, Chains.base];
 
 const L2ToL1: ChainMap<ChainName> = {
-  optimismgoerli: 'goerli',
-  arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
   arbitrum: 'ethereum',
   base: 'ethereum',
-  polygonzkevmtestnet: 'goerli',
 };
-
-// Missing types declaration for bufio
-const CrossChainMessenger = require('@eth-optimism/sdk').CrossChainMessenger; // eslint-disable-line
 
 const constMetricLabels = {
   // this needs to get set in main because of async reasons
@@ -135,19 +111,14 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   fuji: '1',
   ethereum: '0.4',
   polygon: '20',
-  mumbai: '1',
   optimism: '0.15',
   arbitrum: '0.1',
   bsc: '0.3',
   bsctestnet: '1',
-  goerli: '1',
   sepolia: '1',
   moonbeam: '5',
-  optimismgoerli: '1',
-  arbitrumgoerli: '1',
   gnosis: '5',
   scrollsepolia: '0.1',
-  polygonzkevmtestnet: '0.1',
   base: '0.1',
   scroll: '0.1',
   polygonzkevm: '0.1',
@@ -172,7 +143,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
 // context provided in --contexts-and-roles, which requires the appropriate credentials.
 //
 // Example usage:
-//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet4 --context hyperlane --contexts-and-roles rc=relayer
+//   tsx ./scripts/funding/fund-keys-from-deployer.ts -e testnet4 --context hyperlane --contexts-and-roles rc=relayer
 async function main() {
   const { environment, ...argv } = await getArgs()
     .string('f')
@@ -212,10 +183,6 @@ async function main() {
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
     .default('connection-type', RpcConsensusType.Single)
-    .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
-    ])
     .demandOption('connection-type')
 
     .boolean('skip-igp-claim')
@@ -266,10 +233,10 @@ async function main() {
     failureOccurred ||= await funder.fund();
   }
 
-  await submitMetrics(metricsRegister, 'key-funder');
+  await submitMetrics(metricsRegister, `key-funder-${environment}`);
 
   if (failureOccurred) {
-    error('At least one failure occurred when funding');
+    logger.error('At least one failure occurred when funding');
     process.exit(1);
   }
 }
@@ -298,9 +265,12 @@ class ContextFunder {
           isEthereumProtocolChain(chain) &&
           multiProvider.tryGetChainName(chain) !== null;
         if (!valid) {
-          warn('Skipping funding for non-blessed or non-Ethereum chain', {
-            chain,
-          });
+          logger.warn(
+            'Skipping funding for non-blessed or non-Ethereum chain',
+            {
+              chain,
+            },
+          );
         }
         return valid;
       },
@@ -330,7 +300,7 @@ class ContextFunder {
     desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
     filePath: string,
   ) {
-    log('Reading identifiers and addresses from file', {
+    logger.info('Reading identifiers and addresses from file', {
       filePath,
     });
     // A big array of KeyAsAddress, including keys that we may not care about.
@@ -380,7 +350,7 @@ class ContextFunder {
       },
     );
 
-    log('Successfully read keys for context from file', {
+    logger.info('Successfully read keys for context from file', {
       filePath,
       readOnlyKeysPerChain,
       context,
@@ -489,7 +459,7 @@ class ContextFunder {
     const failureOccurred = (await Promise.allSettled(promises)).reduce(
       (failureAgg, result, i) => {
         if (result.status === 'rejected') {
-          error('Funding promise for chain rejected', {
+          logger.error('Funding promise for chain rejected', {
             chain: chainKeyEntries[i][0],
             error: format(result.reason),
           });
@@ -509,7 +479,7 @@ class ContextFunder {
   ): Promise<boolean> {
     const provider = this.multiProvider.tryGetProvider(chain);
     if (!provider) {
-      error('Cannot get chain connection', {
+      logger.error('Cannot get chain connection', {
         chain,
       });
       // Consider this an error, but don't throw and prevent all future funding attempts
@@ -522,7 +492,7 @@ class ContextFunder {
     try {
       await this.fundKeyIfRequired(chain, key, desiredBalance);
     } catch (err) {
-      error('Error funding key', {
+      logger.error('Error funding key', {
         key: await getKeyInfo(
           key,
           chain,
@@ -562,7 +532,7 @@ class ContextFunder {
   private async attemptToClaimFromIgp(chain: ChainName) {
     const igpClaimThresholdEther = igpClaimThresholdPerChain[chain];
     if (!igpClaimThresholdEther) {
-      warn(`No IGP claim threshold for chain ${chain}`);
+      logger.warn(`No IGP claim threshold for chain ${chain}`);
       return;
     }
     const igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
@@ -571,14 +541,14 @@ class ContextFunder {
     const igp = this.igp.getContracts(chain).interchainGasPaymaster;
     const igpBalance = await provider.getBalance(igp.address);
 
-    log('Checking IGP balance', {
+    logger.info('Checking IGP balance', {
       chain,
       igpBalance: ethers.utils.formatEther(igpBalance),
       igpClaimThreshold: ethers.utils.formatEther(igpClaimThreshold),
     });
 
     if (igpBalance.gt(igpClaimThreshold)) {
-      log('IGP balance exceeds claim threshold, claiming', {
+      logger.info('IGP balance exceeds claim threshold, claiming', {
         chain,
       });
       await this.multiProvider.sendTransaction(
@@ -586,7 +556,7 @@ class ContextFunder {
         await igp.populateTransaction.claim(),
       );
     } else {
-      log('IGP balance does not exceed claim threshold, skipping', {
+      logger.info('IGP balance does not exceed claim threshold, skipping', {
         chain,
       });
     }
@@ -641,14 +611,14 @@ class ContextFunder {
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
 
     if (fundingAmount.eq(0)) {
-      log('Skipping funding for key', {
+      logger.info('Skipping funding for key', {
         key: keyInfo,
         context: this.context,
         chain,
       });
       return;
     } else {
-      log('Funding key', {
+      logger.info('Funding key', {
         chain,
         amount: ethers.utils.formatEther(fundingAmount),
         key: keyInfo,
@@ -666,7 +636,7 @@ class ContextFunder {
       to: key.address,
       value: fundingAmount,
     });
-    log('Sent transaction', {
+    logger.info('Sent transaction', {
       key: keyInfo,
       txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
         hash: tx.transactionHash,
@@ -674,7 +644,7 @@ class ContextFunder {
       context: this.context,
       chain,
     });
-    log('Got transaction receipt', {
+    logger.info('Got transaction receipt', {
       key: keyInfo,
       tx,
       context: this.context,
@@ -684,7 +654,7 @@ class ContextFunder {
 
   private async bridgeToL2(l2Chain: L2Chain, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    log('Bridging ETH to L2', {
+    logger.info('Bridging ETH to L2', {
       amount: ethers.utils.formatEther(amount),
       l1Funder: await getAddressInfo(
         await this.multiProvider.getSignerAddress(l1Chain),
@@ -704,8 +674,6 @@ class ContextFunder {
       tx = await this.bridgeToArbitrum(l2Chain, amount);
     } else if (l2Chain.includes('scroll')) {
       tx = await this.bridgeToScroll(l2Chain, amount, to);
-    } else if (l2Chain.includes('zkevm')) {
-      tx = await this.bridgeToPolygonCDK(l2Chain, amount, to);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
@@ -777,31 +745,6 @@ class ContextFunder {
       l2GasLimit,
       {
         value: totalAmount,
-      },
-    );
-  }
-
-  private async bridgeToPolygonCDK(
-    l2Chain: L2Chain,
-    amount: BigNumber,
-    to: Address,
-  ) {
-    const l1Chain = L2ToL1[l2Chain];
-    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
-    const polygonZkEVMbridge = new ethers.Contract(
-      nativeBridges.polygonzkevmtestnet.l1EVMBridge,
-      PolygonZkEVMBridge.abi,
-      l1ChainSigner,
-    );
-    return polygonZkEVMbridge.bridgeAsset(
-      1, // 0 is mainnet, 1 is l2
-      to,
-      amount,
-      ethers.constants.AddressZero,
-      true,
-      [],
-      {
-        value: amount,
       },
     );
   }
@@ -916,7 +859,7 @@ async function gracefullyHandleError(
     await fn();
     return false;
   } catch (err) {
-    error(errorMessage, {
+    logger.error(errorMessage, {
       chain,
       error: format(err),
     });
@@ -925,7 +868,7 @@ async function gracefullyHandleError(
 }
 
 main().catch((err) => {
-  error('Error occurred in main', {
+  logger.error('Error occurred in main', {
     // JSON.stringifying an Error returns '{}'.
     // This is a workaround from https://stackoverflow.com/a/60370781
     error: format(err),

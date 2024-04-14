@@ -8,25 +8,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 const circleDomainMapping = [
-  {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
-    circleDomain: 0,
-  },
   { hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]), circleDomain: 1 },
 ];
 
 const wormholeDomainMapping = [
   {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
-    wormholeDomain: 2,
-  },
-  {
     hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]),
     wormholeDomain: 6,
-  },
-  {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.mumbai]),
-    wormholeDomain: 5,
   },
   {
     hyperlaneDomain: getDomainId(chainMetadata[Chains.bsctestnet]),
@@ -39,20 +27,6 @@ const wormholeDomainMapping = [
 ];
 
 export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
-  [Chains.goerli]: {
-    portal: {
-      type: BridgeAdapterType.Portal,
-      portalBridgeAddress: '0xF890982f9310df57d00f659cf4fd87e65adEd8d7',
-      wormholeDomainMapping,
-    },
-    circle: {
-      type: BridgeAdapterType.Circle,
-      tokenMessengerAddress: '0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8',
-      messageTransmitterAddress: '0x26413e8157cd32011e726065a5462e97dd4d03d9',
-      usdcAddress: '0x07865c6e87b9f70255377e024ace6630c1eaa37f',
-      circleDomainMapping,
-    },
-  },
   [Chains.fuji]: {
     portal: {
       type: BridgeAdapterType.Portal,
@@ -65,13 +39,6 @@ export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
       messageTransmitterAddress: '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79',
       usdcAddress: '0x5425890298aed601595a70ab815c96711a31bc65',
       circleDomainMapping,
-    },
-  },
-  [Chains.mumbai]: {
-    portal: {
-      type: BridgeAdapterType.Portal,
-      portalBridgeAddress: '0x377D55a7928c046E18eEbb61977e714d2a76472a',
-      wormholeDomainMapping,
     },
   },
   [Chains.bsctestnet]: {

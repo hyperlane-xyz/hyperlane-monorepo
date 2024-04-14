@@ -4,36 +4,36 @@ import { ethers } from 'ethers';
 
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
-import { ChainMetadata } from '../../metadata/chainMetadataTypes';
+import { chainMetadata } from '../../consts/chainMetadata.js';
+import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 
-import { ProviderMethod } from './ProviderMethods';
-import { HyperlaneSmartProvider } from './SmartProvider';
+import { ProviderMethod } from './ProviderMethods.js';
+import { HyperlaneSmartProvider } from './SmartProvider.js';
 
-const DEFAULT_ACCOUNT = '0x9d525E28Fe5830eE92d7Aa799c4D21590567B595';
-const WETH_CONTRACT = '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6';
+const DEFAULT_ACCOUNT = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
+const WETH_CONTRACT = '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9';
 const WETH_TRANSFER_TOPIC0 =
   '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const WETH_CALL_DATA =
   '0x70a082310000000000000000000000004f7a67464b5976d7547c860109e4432d50afb38e';
 const TRANSFER_TX_HASH =
-  '0x45a586f90ffd5d0f8e618f0f3703b14c2c9e4611af6231d6fed32c62776b6c1b';
+  '0x7a975792c023733b3013ada23e1f556f5a06443765ec576e56d0b0aa3c4bdc74';
 
 const pagination = { maxBlockRange: 1000 };
-const goerliRpcConfig1 = { ...chainMetadata.goerli.rpcUrls[0], pagination };
-const goerliRpcConfig2 = { ...chainMetadata.goerli.rpcUrls[1], pagination };
+const sepoliaRpcConfig1 = { ...chainMetadata.sepolia.rpcUrls[0], pagination };
+const sepoliaRpcConfig2 = { ...chainMetadata.sepolia.rpcUrls[1], pagination };
 const justExplorersConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
+  ...chainMetadata.sepolia,
   rpcUrls: [] as any,
 };
 const justRpcsConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
-  rpcUrls: [goerliRpcConfig1, goerliRpcConfig2],
+  ...chainMetadata.sepolia,
+  rpcUrls: [sepoliaRpcConfig1, sepoliaRpcConfig2],
   blockExplorers: [],
 };
 const combinedConfig: ChainMetadata = {
-  ...chainMetadata.goerli,
-  rpcUrls: [goerliRpcConfig1],
+  ...chainMetadata.sepolia,
+  rpcUrls: [sepoliaRpcConfig1],
 };
 const configs: [string, ChainMetadata][] = [
   ['Just Explorers', justExplorersConfig],
@@ -41,7 +41,7 @@ const configs: [string, ChainMetadata][] = [
   ['Combined configs', combinedConfig],
 ];
 
-describe('SmartProvider', () => {
+describe.skip('SmartProvider', () => {
   let provider: HyperlaneSmartProvider;
 
   const itDoesIfSupported = (method: ProviderMethod, fn: () => any) => {

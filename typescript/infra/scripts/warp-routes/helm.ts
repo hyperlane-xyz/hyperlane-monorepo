@@ -1,8 +1,8 @@
-import { DeployEnvironment } from '../../src/config';
-import { HelmCommand, helmifyValues } from '../../src/utils/helm';
-import { execCmd } from '../../src/utils/utils';
-import { assertCorrectKubeContext } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+import { DeployEnvironment } from '../../src/config/environment.js';
+import { HelmCommand, helmifyValues } from '../../src/utils/helm.js';
+import { execCmd } from '../../src/utils/utils.js';
+import { assertCorrectKubeContext } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 export async function runWarpRouteHelmCommand(
   helmCommand: HelmCommand,
@@ -30,7 +30,7 @@ function getWarpRoutesHelmValues(configFilePath: string) {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '4a8f20f-20240207-232324',
+      tag: '09344fc-20240321-203114',
     },
     configFilePath: configFilePath,
   };

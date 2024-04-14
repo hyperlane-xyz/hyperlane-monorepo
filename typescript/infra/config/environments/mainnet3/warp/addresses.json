@@ -1,8 +1,10 @@
 {
-  "inevm": {
-    "HypERC20": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147"
+  "ancient8": {
+    "HypERC20": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5",
+    "synthetic": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5"
   },
   "ethereum": {
-    "HypERC20Collateral": "0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f"
+    "HypERC20Collateral": "0x8b4192B9Ad1fCa440A5808641261e5289e6de95D",
+    "collateral": "0x8b4192B9Ad1fCa440A5808641261e5289e6de95D"
   }
 }

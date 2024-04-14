@@ -4,11 +4,11 @@ import {
   IgpConfig,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
-import { exclude, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { TestChains, chainNames } from './chains';
-import { multisigIsm } from './multisigIsm';
-import { owners } from './owners';
+import { TestChains, chainNames } from './chains.js';
+import { multisigIsm } from './multisigIsm.js';
+import { owners } from './owners.js';
 
 function getGasOracles(local: TestChains) {
   return Object.fromEntries(
@@ -30,8 +30,8 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, ownerConfig) => {
     ]),
   );
   return {
-    oracleKey: ownerConfig.owner,
-    beneficiary: ownerConfig.owner,
+    oracleKey: ownerConfig.owner as Address, // owner can be AccountConfig
+    beneficiary: ownerConfig.owner as Address, // same as above
     gasOracleType: getGasOracles(chain),
     overhead,
     ...ownerConfig,

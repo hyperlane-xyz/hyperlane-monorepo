@@ -7,12 +7,33 @@ import type {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import type { ChainName } from '../types';
+import { deployInterchainAccount } from '../middleware/account/InterchainAccount.js';
+import { AccountConfig } from '../middleware/account/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import type { ChainName } from '../types.js';
+
+export type Owner = Address | AccountConfig;
 
 export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = {
-  owner: Address;
+  owner: Owner;
   ownerOverrides?: Partial<Record<Keys, Address>>;
 };
+
+export async function resolveOrDeployAccountOwner(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  owner: Owner,
+): Promise<Address> {
+  if (typeof owner === 'string') {
+    return owner;
+  } else {
+    if (!owner.localRouter) {
+      throw new Error('localRouter is required for AccountConfig');
+    }
+    // submits a transaction to deploy an interchain account if the owner is an AccountConfig and the ICA isn't not deployed yet
+    return await deployInterchainAccount(multiProvider, chain, owner);
+  }
+}
 
 export function isOwnableConfig(config: object): config is OwnableConfig {
   return 'owner' in config;
@@ -33,6 +54,7 @@ export enum ViolationType {
   ProxyAdmin = 'ProxyAdmin',
   TimelockController = 'TimelockController',
   AccessControl = 'AccessControl',
+  TokenMismatch = 'TokenMismatch',
 }
 
 export interface OwnerViolation extends CheckerViolation {
@@ -71,4 +93,8 @@ export interface NotDeployedViolation extends CheckerViolation {
 export interface BytecodeMismatchViolation extends CheckerViolation {
   type: ViolationType.BytecodeMismatch;
   name: string;
+}
+
+export interface TokenMismatchViolation extends CheckerViolation {
+  tokenAddress: Address;
 }

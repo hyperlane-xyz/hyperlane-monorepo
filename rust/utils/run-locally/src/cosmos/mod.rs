@@ -570,7 +570,7 @@ fn termination_invariants_met(
     let expected_gas_payments = messages_expected;
     if gas_payments_scraped != expected_gas_payments {
         log!(
-            "Scraper has scraped {} gas payments, expected {}",
+            "Relayer has indexed {} gas payments, expected {}",
             gas_payments_scraped,
             expected_gas_payments
         );

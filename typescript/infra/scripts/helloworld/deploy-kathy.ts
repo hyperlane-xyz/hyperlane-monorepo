@@ -1,9 +1,9 @@
-import { runHelloworldKathyHelmCommand } from '../../src/helloworld/kathy';
-import { HelmCommand } from '../../src/utils/helm';
-import { assertCorrectKubeContext } from '../agent-utils';
-import { getConfigsBasedOnArgs } from '../core-utils';
+import { runHelloworldKathyHelmCommand } from '../../src/helloworld/kathy.js';
+import { HelmCommand } from '../../src/utils/helm.js';
+import { assertCorrectKubeContext } from '../agent-utils.js';
+import { getConfigsBasedOnArgs } from '../core-utils.js';
 
-import { getHelloWorldConfig } from './utils';
+import { getHelloWorldConfig } from './utils.js';
 
 async function main() {
   const { agentConfig, envConfig, context } = await getConfigsBasedOnArgs();

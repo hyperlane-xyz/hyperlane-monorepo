@@ -13,7 +13,6 @@ import {
   Transaction,
   TransactionInstruction,
 } from '@solana/web3.js';
-import BigNumber from 'bignumber.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
 import {
@@ -24,63 +23,68 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
-import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel';
-import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter';
-import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
+import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter.js';
+import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
-} from '../../utils/sealevelSerialization';
-import { MinimalTokenMetadata } from '../config';
+} from '../../utils/sealevelSerialization.js';
+import { MinimalTokenMetadata } from '../config.js';
 
 import {
   IHypTokenAdapter,
   ITokenAdapter,
+  InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 import {
   SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
-} from './serialization';
+} from './serialization.js';
 
 // author @tkporter @jmrossy
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
   extends BaseSealevelAdapter
-  implements ITokenAdapter
+  implements ITokenAdapter<Transaction>
 {
-  async getBalance(address: Address): Promise<string> {
+  async getBalance(address: Address): Promise<bigint> {
     const balance = await this.getProvider().getBalance(new PublicKey(address));
-    return balance.toString();
+    return BigInt(balance.toString());
   }
 
   async getMetadata(): Promise<MinimalTokenMetadata> {
     throw new Error('Metadata not available to native tokens');
   }
 
-  populateApproveTx(_params: TransferParams): Transaction {
+  async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  async populateApproveTx(): Promise<Transaction> {
     throw new Error('Approve not required for native tokens');
   }
 
-  populateTransferTx({
+  async populateTransferTx({
     weiAmountOrId,
     recipient,
     fromAccountOwner,
-  }: TransferParams): Transaction {
+  }: TransferParams): Promise<Transaction> {
     if (!fromAccountOwner)
       throw new Error('fromAccountOwner required for Sealevel');
     return new Transaction().add(
       SystemProgram.transfer({
         fromPubkey: new PublicKey(fromAccountOwner),
         toPubkey: new PublicKey(recipient),
-        lamports: new BigNumber(weiAmountOrId).toNumber(),
+        lamports: BigInt(weiAmountOrId),
       }),
     );
   }
@@ -89,7 +93,7 @@ export class SealevelNativeTokenAdapter
 // Interacts with SPL token programs
 export class SealevelTokenAdapter
   extends BaseSealevelAdapter
-  implements ITokenAdapter
+  implements ITokenAdapter<Transaction>
 {
   public readonly tokenProgramPubKey: PublicKey;
 
@@ -103,12 +107,12 @@ export class SealevelTokenAdapter
     this.tokenProgramPubKey = new PublicKey(addresses.token);
   }
 
-  async getBalance(owner: Address): Promise<string> {
+  async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
     const response = await this.getProvider().getTokenAccountBalance(
       tokenPubKey,
     );
-    return response.value.amount;
+    return BigInt(response.value.amount);
   }
 
   async getMetadata(_isNft?: boolean): Promise<MinimalTokenMetadata> {
@@ -116,16 +120,20 @@ export class SealevelTokenAdapter
     return { decimals: 9, symbol: 'SPL', name: 'SPL Token' };
   }
 
+  async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
   populateApproveTx(_params: TransferParams): Promise<Transaction> {
     throw new Error('Approve not required for sealevel tokens');
   }
 
-  populateTransferTx({
+  async populateTransferTx({
     weiAmountOrId,
     recipient,
     fromAccountOwner,
     fromTokenAccount,
-  }: TransferParams): Transaction {
+  }: TransferParams): Promise<Transaction> {
     if (!fromTokenAccount)
       throw new Error('fromTokenAccount required for Sealevel');
     if (!fromAccountOwner)
@@ -135,7 +143,7 @@ export class SealevelTokenAdapter
         new PublicKey(fromTokenAccount),
         new PublicKey(recipient),
         new PublicKey(fromAccountOwner),
-        new BigNumber(weiAmountOrId).toNumber(),
+        BigInt(weiAmountOrId),
       ),
     );
   }
@@ -164,7 +172,7 @@ const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
 
 export abstract class SealevelHypTokenAdapter
   extends SealevelTokenAdapter
-  implements IHypTokenAdapter
+  implements IHypTokenAdapter<Transaction>
 {
   public readonly warpProgramPubKey: PublicKey;
   protected cachedTokenAccountData: SealevelHyperlaneTokenData | undefined;
@@ -235,9 +243,11 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<string> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO Solana support
-    return '0';
+    return { amount: 0n };
   }
 
   async populateTransferRemoteTx({
@@ -264,7 +274,7 @@ export abstract class SealevelHypTokenAdapter
       data: new SealevelTransferRemoteInstruction({
         destination_domain: destination,
         recipient: addressToBytes(recipient),
-        amount_or_id: new BigNumber(weiAmountOrId).toNumber(),
+        amount_or_id: BigInt(weiAmountOrId),
       }),
     });
     const serializedData = serialize(SealevelTransferRemoteSchema, value);
@@ -492,7 +502,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     );
   }
 
-  override async getBalance(owner: Address): Promise<string> {
+  override async getBalance(owner: Address): Promise<bigint> {
     return this.wrappedNative.getBalance(owner);
   }
 
@@ -525,7 +535,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
 
 // Interacts with Hyp Collateral token programs
 export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
-  async getBalance(owner: Address): Promise<string> {
+  async getBalance(owner: Address): Promise<bigint> {
     // Special case where the owner is the warp route program ID.
     // This is because collateral warp routes don't hold escrowed collateral
     // tokens in their associated token account - instead, they hold them in
@@ -535,7 +545,7 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
       const response = await this.getProvider().getTokenAccountBalance(
         collateralAccount,
       );
-      return response.value.amount;
+      return BigInt(response.value.amount);
     }
 
     return super.getBalance(owner);
@@ -593,12 +603,12 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
     ];
   }
 
-  override async getBalance(owner: Address): Promise<string> {
+  override async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
     const response = await this.getProvider().getTokenAccountBalance(
       tokenPubKey,
     );
-    return response.value.amount;
+    return BigInt(response.value.amount);
   }
 
   deriveMintAuthorityAccount(): PublicKey {

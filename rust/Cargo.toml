@@ -72,6 +72,7 @@ cosmrs = { version = "0.14", default-features = false, features = [
   "tokio",
   "grpc",
 ] }
+cosmwasm-std = "*"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
@@ -79,7 +80,6 @@ derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
 ed25519-dalek = "~1.0"
-enum_dispatch = "0.3"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
 fuels = "0.38"

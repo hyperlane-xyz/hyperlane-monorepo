@@ -1,5 +1,75 @@
 # @hyperlane-xyz/cli
 
+## 3.10.0
+
+### Minor Changes
+
+- 3ec81081c: Breaking: Update the `hyperlane chains list` command to accept an `env` (either 'mainnet' or 'testnet') to list chains for.
+
+  Update `hyperlane chains list` command to pull the set of core chains from the contract addresses constant in the SDK.
+
+- 96485144a: SDK support for ICA deployment and operation.
+- 4e7a43be6: Replace Debug logger with Pino
+
+### Patch Changes
+
+- 5373d54ca: Add --log and --verbosity settings to CLI
+- Updated dependencies [96485144a]
+- Updated dependencies [38358ecec]
+- Updated dependencies [ed0d4188c]
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/utils@3.10.0
+  - @hyperlane-xyz/sdk@3.10.0
+
+## 3.9.0
+
+### Minor Changes
+
+- 11f257ebc: Add Yield Routes to CLI
+
+### Patch Changes
+
+- Updated dependencies [11f257ebc]
+  - @hyperlane-xyz/sdk@3.9.0
+  - @hyperlane-xyz/utils@3.9.0
+
+## 3.8.2
+
+### Patch Changes
+
+- bfc2b792b: Fix bug with HypCollateral warp route deployments
+  - @hyperlane-xyz/sdk@3.8.2
+  - @hyperlane-xyz/utils@3.8.2
+
+## 3.8.1
+
+### Patch Changes
+
+- Updated dependencies [5daaae274]
+  - @hyperlane-xyz/utils@3.8.1
+  - @hyperlane-xyz/sdk@3.8.1
+
+## 3.8.0
+
+### Patch Changes
+
+- 9681df08d: TestRecipient as part of core deployer
+- 9681df08d: Update CLI Warp route deployment output shape to new WarpCore config
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+  - @hyperlane-xyz/sdk@3.8.0
+  - @hyperlane-xyz/utils@3.8.0
+
 ## 3.7.0
 
 ### Minor Changes

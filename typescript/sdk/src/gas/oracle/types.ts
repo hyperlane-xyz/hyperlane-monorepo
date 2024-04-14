@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { StorageGasOracle } from '@hyperlane-xyz/core';
 
-import { TOKEN_EXCHANGE_RATE_EXPONENT } from '../../consts/igp';
+import { TOKEN_EXCHANGE_RATE_EXPONENT } from '../../consts/igp.js';
 
 export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',
@@ -14,7 +14,12 @@ export type StorageGasOracleConfig = Pick<
   'gasPrice' | 'tokenExchangeRate'
 >;
 
-export const formatGasOracleConfig = (config: StorageGasOracleConfig) => ({
+export const formatGasOracleConfig = (
+  config: StorageGasOracleConfig,
+): {
+  tokenExchangeRate: string;
+  gasPrice: string;
+} => ({
   tokenExchangeRate: ethers.utils.formatUnits(
     config.tokenExchangeRate,
     TOKEN_EXCHANGE_RATE_EXPONENT,

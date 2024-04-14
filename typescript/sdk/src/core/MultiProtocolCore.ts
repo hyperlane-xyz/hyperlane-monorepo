@@ -1,21 +1,19 @@
-import debug from 'debug';
+import { HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
-
-import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp';
+import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
 import {
   HyperlaneEnvironment,
   hyperlaneEnvironments,
-} from '../consts/environments';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
-import { TypedTransactionReceipt } from '../providers/ProviderType';
-import { ChainMap, ChainName } from '../types';
+} from '../consts/environments/index.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { TypedTransactionReceipt } from '../providers/ProviderType.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { CosmWasmCoreAdapter } from './adapters/CosmWasmCoreAdapter';
-import { EvmCoreAdapter } from './adapters/EvmCoreAdapter';
-import { SealevelCoreAdapter } from './adapters/SealevelCoreAdapter';
-import { ICoreAdapter } from './adapters/types';
-import { CoreAddresses } from './contracts';
+import { CosmWasmCoreAdapter } from './adapters/CosmWasmCoreAdapter.js';
+import { EvmCoreAdapter } from './adapters/EvmCoreAdapter.js';
+import { SealevelCoreAdapter } from './adapters/SealevelCoreAdapter.js';
+import { ICoreAdapter } from './adapters/types.js';
+import { CoreAddresses } from './contracts.js';
 
 export class MultiProtocolCore extends MultiProtocolApp<
   ICoreAdapter,
@@ -24,7 +22,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
   constructor(
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: ChainMap<CoreAddresses>,
-    public readonly logger = debug('hyperlane:MultiProtocolCore'),
+    public readonly logger = rootLogger.child({ module: 'MultiProtocolCore' }),
   ) {
     super(multiProvider, addresses, logger);
   }
@@ -57,6 +55,13 @@ export class MultiProtocolCore extends MultiProtocolApp<
     if (protocol === ProtocolType.Sealevel) return SealevelCoreAdapter;
     if (protocol === ProtocolType.Cosmos) return CosmWasmCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
+  }
+
+  extractMessageIds(
+    origin: ChainName,
+    sourceTx: TypedTransactionReceipt,
+  ): Array<{ messageId: HexString; destination: ChainName }> {
+    return this.adapter(origin).extractMessageIds(sourceTx);
   }
 
   async waitForMessagesProcessed(

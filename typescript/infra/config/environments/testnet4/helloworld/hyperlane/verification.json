@@ -75,38 +75,6 @@
       "isProxy": false
     }
   ],
-  "mumbai": [
-    {
-      "name": "HelloWorld",
-      "address": "0x854fd51C04408ad84DA3838A4fF7282522F7866E",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x1A4d8a5eD6C93Af828655e15C44eeE2c2851F0D6",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x79B6151129780f5A80DFEF7c1E967b21A9674A7D",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000008ab67caf605c6ee83cbfefb0d8d67fdd3bf7b591",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xBEadC848cAB77875d066466b9F3509f069a0a4F5",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000008ab67caf605c6ee83cbfefb0d8d67fdd3bf7b591",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x04980C17e2CE26578C82f81207e706e4505FaE3B",
-      "constructorArguments": "0000000000000000000000002d1889fe5b092cd988972261434f7e5f260411150000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
   "bsctestnet": [
     {
       "name": "HelloWorld",
@@ -145,44 +113,6 @@
       "isProxy": false
     }
   ],
-  "goerli": [
-    {
-      "name": "HelloWorld",
-      "address": "0x0637A1360Ea44602DAe5c4ba515c2BCb6C762fbc",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x405BFdEcB33230b4Ad93C29ba4499b776CfBa189",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xBF5b89eBdF86560F872603e2063f17b78dFbae02",
-      "constructorArguments": "000000000000000000000000c4796aabce2a9d774ce4603f5db5fb1605791dbd0000000000000000000000000cd26594ea6c6526927c0f5225ac09f6288e7140",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xA5F234545270cea8f31A8760b8b7ABcaA3654951",
-      "constructorArguments": "000000000000000000000000c4796aabce2a9d774ce4603f5db5fb1605791dbd0000000000000000000000000cd26594ea6c6526927c0f5225ac09f6288e7140",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x33AA9cFBC7E222B3eC231EcAa58dd846cC393C28",
-      "constructorArguments": "000000000000000000000000c4796aabce2a9d774ce4603f5db5fb1605791dbd0000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x31b6a75ef30C8612738CC55eA3CB2d5DD3694DC7",
-      "constructorArguments": "00000000000000000000000049cfd6ef774acab14814d699e3f7ee36fdfba9320000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
   "moonbasealpha": [
     {
       "name": "HelloWorld",
@@ -212,94 +142,6 @@
       "name": "HelloWorld",
       "address": "0x3Ce607F6FcE5Dfb9821f33504d86E04A4CD0C75f",
       "constructorArguments": "00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f0000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
-  "optimismgoerli": [
-    {
-      "name": "HelloWorld",
-      "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x3582d1238cBC812165981E4fFaB0E8D9a4518910",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x050500E43Fa7F245f3012527DE29d22176c594c7",
-      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea200000000000000000000000002a7661273528eff3d78cbe7cbd1a717b28b89fc",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x7Dc5cE596995af8e5D568563038109B9bCA7F7c6",
-      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea200000000000000000000000002a7661273528eff3d78cbe7cbd1a717b28b89fc",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xe7B2e23A9A77556736DBB040A8a5159a80Db73D5",
-      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea20000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x138e726C327E9dd0779104B8d42331757CAeeB9F",
-      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea20000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x372Cf98E673C235C1abD78DEAA61480e6fe55e46",
-      "constructorArguments": "000000000000000000000000b5f021728ea6223e3948db2da61d612307945ea20000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
-  "arbitrumgoerli": [
-    {
-      "name": "HelloWorld",
-      "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xB8D70C9352AA59f5EB138e045117841910c107a3",
-      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xA3bAaC7d60d10abA54cC2Ffb4b63469810C5aDc0",
-      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x9C63cE44d595cfd97215fcb97d58CFD07a9D6BD7",
-      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc0000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x22C7d91A4533536FE6006EFA46074E2Df8f82e82",
-      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc0000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xFd1e3710347659703962934d2381970ae0022227",
-      "constructorArguments": "00000000000000000000000013dabc0351407d5aaa0a50003a166a73b4febfdc0000000000000000000000000000000000000000000000000000000000000000",
       "isProxy": false
     }
   ],
@@ -370,44 +212,6 @@
       "name": "HelloWorld",
       "address": "0x66b71A4e18FbE09a6977A6520B47fEDdffA82a1c",
       "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a680000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    }
-  ],
-  "polygonzkevmtestnet": [
-    {
-      "name": "HelloWorld",
-      "address": "0xD0680F80F4f947968206806C2598Cbc5b6FE5b03",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x433f7d6d0cB9eb8FF2902Ad01C1BEd6C09934a33",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0xEe421285728284000ec6c6C55C6F9161faeFfa99",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f8000000000000000000000000ad34a66bf6db18e858f6b686557075568c6e031c",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "HelloWorld",
-      "address": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
-      "constructorArguments": "000000000000000000000000598face78a4302f11e3de0bee1894da0b2cb71f80000000000000000000000000000000000000000000000000000000000000000",
       "isProxy": false
     }
   ]

@@ -1,16 +1,30 @@
 import { chainMetadata, getReorgPeriod } from '@hyperlane-xyz/sdk';
 
-import { ValidatorBaseChainConfigMap } from '../../../src/config/agent';
-import { Contexts } from '../../contexts';
-import { validatorBaseConfigsFn } from '../utils';
+import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
+import { Contexts } from '../../contexts.js';
+import { validatorBaseConfigsFn } from '../utils.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 
 export const validatorChainConfig = (
   context: Contexts,
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   return {
+    ancient8: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.ancient8),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xbb5842ae0e05215b53df4787a29144efb7e67551'],
+          [Contexts.ReleaseCandidate]: [
+            '0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'ancient8',
+      ),
+    },
     celo: {
       interval: 5,
       reorgPeriod: getReorgPeriod(chainMetadata.celo),
@@ -216,11 +230,7 @@ export const validatorChainConfig = (
       reorgPeriod: getReorgPeriod(chainMetadata.injective),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: [
-            '0xbfb8911b72cfb138c7ce517c57d9c691535dc517',
-            '0x6faa139c33a7e6f53cb101f6b2ae392298283ed2',
-            '0x0115e3a66820fb99da30d30e2ce52a453ba99d92',
-          ],
+          [Contexts.Hyperlane]: ['0xbfb8911b72cfb138c7ce517c57d9c691535dc517'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },

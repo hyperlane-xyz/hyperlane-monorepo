@@ -1,15 +1,15 @@
 import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
-import { KeyFunderConfig } from '../../../src/config/funding';
-import { Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+import { KeyFunderConfig } from '../../../src/config/funding.js';
+import { Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'c037206-20240220-152500',
+    tag: 'b0811ba-20240411-151216',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -23,20 +23,16 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  connectionType: RpcConsensusType.Quorum,
+  connectionType: RpcConsensusType.Fallback,
   // desired balance config
   desiredBalancePerChain: {
     alfajores: '5',
-    arbitrumgoerli: '0.5',
     bsctestnet: '5',
     fuji: '5',
-    goerli: '0.5',
-    mumbai: '5',
-    optimismgoerli: '0.5',
     plumetestnet: '0.2',
-    polygonzkevmtestnet: '1',
-    scrollsepolia: '1',
     sepolia: '5',
+    // Funder boosts itself upto 5x balance on L2 before dispersing funds
+    scrollsepolia: '1',
   },
   desiredKathyBalancePerChain: {
     plumetestnet: '0.05',

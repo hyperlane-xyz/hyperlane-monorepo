@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
-import { ethereum } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { ethereum } from '../consts/chainMetadata.js';
+import { Chains } from '../consts/chains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 describe('MultiProtocolProvider', () => {
   describe('constructs', () => {

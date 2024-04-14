@@ -1,31 +1,37 @@
 import fs from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
 import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
+import { Contexts } from '../../config/contexts.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
-  DeployEnvironment,
   DockerConfig,
   HelmRootAgentValues,
-  RelayerConfigHelper,
   RootAgentConfig,
-  ScraperConfigHelper,
-  ValidatorConfigHelper,
-} from '../config';
-import { AgentRole, Role } from '../roles';
-import { fetchGCPSecret } from '../utils/gcloud';
+} from '../config/agent/agent.js';
+import { RelayerConfigHelper } from '../config/agent/relayer.js';
+import { ScraperConfigHelper } from '../config/agent/scraper.js';
+import { ValidatorConfigHelper } from '../config/agent/validator.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { AgentRole, Role } from '../roles.js';
+import { fetchGCPSecret } from '../utils/gcloud.js';
 import {
   HelmCommand,
   buildHelmChartDependencies,
   helmifyValues,
-} from '../utils/helm';
-import { execCmd, isEthereumProtocolChain } from '../utils/utils';
+} from '../utils/helm.js';
+import { execCmd, isEthereumProtocolChain } from '../utils/utils.js';
 
-import { AgentGCPKey } from './gcp';
+import { AgentGCPKey } from './gcp.js';
 
-const HELM_CHART_PATH = __dirname + '/../../../../rust/helm/hyperlane-agent/';
+const HELM_CHART_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '/../../../../rust/helm/hyperlane-agent/',
+);
+
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
   console.warn(
     `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
@@ -112,7 +118,7 @@ export abstract class AgentHelmManager {
         runEnv: this.environment,
         context: this.context,
         aws: !!this.config.aws,
-        chains: this.config.environmentChainNames.map((chain) => {
+        chains: this.config.contextChainNames[this.role].map((chain) => {
           const metadata = chainMetadata[chain];
           const reorgPeriod = metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
@@ -120,7 +126,6 @@ export abstract class AgentHelmManager {
           }
           return {
             name: chain,
-            disabled: !this.config.contextChainNames[this.role].includes(chain),
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },

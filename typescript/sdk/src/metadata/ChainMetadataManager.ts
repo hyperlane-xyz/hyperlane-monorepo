@@ -1,9 +1,9 @@
-import { Debugger, debug } from 'debug';
+import { Logger } from 'pino';
 
-import { ProtocolType, exclude, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, exclude, pick, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
-import { ChainMap, ChainName } from '../types';
+import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
+import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
   getExplorerAddressUrl,
@@ -11,16 +11,16 @@ import {
   getExplorerApiUrl,
   getExplorerBaseUrl,
   getExplorerTxUrl,
-} from './blockExplorer';
+} from './blockExplorer.js';
 import {
   ChainMetadata,
   ExplorerFamily,
   getDomainId,
   safeParseChainMetadata,
-} from './chainMetadataTypes';
+} from './chainMetadataTypes.js';
 
 export interface ChainMetadataManagerOptions {
-  loggerName?: string;
+  logger?: Logger;
 }
 
 /**
@@ -30,7 +30,7 @@ export interface ChainMetadataManagerOptions {
  */
 export class ChainMetadataManager<MetaExt = {}> {
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
-  public readonly logger: Debugger;
+  public readonly logger: Logger;
 
   /**
    * Create a new ChainMetadataManager with the given chainMetadata,
@@ -49,7 +49,11 @@ export class ChainMetadataManager<MetaExt = {}> {
         );
       this.addChain(cm);
     });
-    this.logger = debug(options?.loggerName || 'hyperlane:MetadataManager');
+    this.logger =
+      options?.logger ||
+      rootLogger.child({
+        module: 'MetadataManager',
+      });
   }
 
   /**
@@ -89,7 +93,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's metadata has not been set
    */
   tryGetChainMetadata(
-    chainNameOrId: ChainName | number,
+    chainNameOrId: ChainNameOrId,
   ): ChainMetadata<MetaExt> | null {
     // First check if it's a chain name
     if (this.metadata[chainNameOrId]) return this.metadata[chainNameOrId];
@@ -104,7 +108,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the metadata for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getChainMetadata(chainNameOrId: ChainName | number): ChainMetadata<MetaExt> {
+  getChainMetadata(chainNameOrId: ChainNameOrId): ChainMetadata<MetaExt> {
     const chainMetadata = this.tryGetChainMetadata(chainNameOrId);
     if (!chainMetadata) {
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
@@ -113,9 +117,17 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
+   * Returns true if the given chain name, chain id, or domain id is
+   * include in this manager's metadata, false otherwise
+   */
+  hasChain(chainNameOrId: ChainNameOrId): boolean {
+    return !!this.tryGetChainMetadata(chainNameOrId);
+  }
+
+  /**
    * Get the name for a given chain name, chain id, or domain id
    */
-  tryGetChainName(chainNameOrId: ChainName | number): string | null {
+  tryGetChainName(chainNameOrId: ChainNameOrId): string | null {
     return this.tryGetChainMetadata(chainNameOrId)?.name ?? null;
   }
 
@@ -123,7 +135,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the name for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getChainName(chainNameOrId: ChainName | number): string {
+  getChainName(chainNameOrId: ChainNameOrId): string {
     return this.getChainMetadata(chainNameOrId).name;
   }
 
@@ -137,7 +149,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get the id for a given chain name, chain id, or domain id
    */
-  tryGetChainId(chainNameOrId: ChainName | number): number | string | null {
+  tryGetChainId(chainNameOrId: ChainNameOrId): number | string | null {
     return this.tryGetChainMetadata(chainNameOrId)?.chainId ?? null;
   }
 
@@ -145,7 +157,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the id for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getChainId(chainNameOrId: ChainName | number): number | string {
+  getChainId(chainNameOrId: ChainNameOrId): number | string {
     return this.getChainMetadata(chainNameOrId).chainId;
   }
 
@@ -159,7 +171,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get the domain id for a given chain name, chain id, or domain id
    */
-  tryGetDomainId(chainNameOrId: ChainName | number): number | null {
+  tryGetDomainId(chainNameOrId: ChainNameOrId): number | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     return getDomainId(metadata) ?? null;
@@ -169,7 +181,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the domain id for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getDomainId(chainNameOrId: ChainName | number): number {
+  getDomainId(chainNameOrId: ChainNameOrId): number {
     const domainId = this.tryGetDomainId(chainNameOrId);
     if (!domainId) throw new Error(`No domain id set for ${chainNameOrId}`);
     return domainId;
@@ -178,7 +190,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get the protocol type for a given chain name, chain id, or domain id
    */
-  tryGetProtocol(chainNameOrId: ChainName | number): ProtocolType | null {
+  tryGetProtocol(chainNameOrId: ChainNameOrId): ProtocolType | null {
     return this.tryGetChainMetadata(chainNameOrId)?.protocol ?? null;
   }
 
@@ -186,7 +198,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the protocol type for a given chain name, chain id, or domain id
    * @throws if chain's metadata or protocol has not been set
    */
-  getProtocol(chainNameOrId: ChainName | number): ProtocolType {
+  getProtocol(chainNameOrId: ChainNameOrId): ProtocolType {
     return this.getChainMetadata(chainNameOrId).protocol;
   }
 
@@ -202,7 +214,9 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the ids for all chains known to this MultiProvider
    */
   getKnownDomainIds(): number[] {
-    return this.getKnownChainNames().map(this.getDomainId);
+    return this.getKnownChainNames().map((chainName) =>
+      this.getDomainId(chainName),
+    );
   }
 
   /**
@@ -227,7 +241,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get an RPC URL for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getRpcUrl(chainNameOrId: ChainName | number): string {
+  getRpcUrl(chainNameOrId: ChainNameOrId): string {
     const { rpcUrls } = this.getChainMetadata(chainNameOrId);
     if (!rpcUrls?.length || !rpcUrls[0].http)
       throw new Error(`No RPC URl configured for ${chainNameOrId}`);
@@ -237,7 +251,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get a block explorer URL for a given chain name, chain id, or domain id
    */
-  tryGetExplorerUrl(chainNameOrId: ChainName | number): string | null {
+  tryGetExplorerUrl(chainNameOrId: ChainNameOrId): string | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     return getExplorerBaseUrl(metadata);
@@ -247,7 +261,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get a block explorer URL for a given chain name, chain id, or domain id
    * @throws if chain's metadata or block explorer data has no been set
    */
-  getExplorerUrl(chainNameOrId: ChainName | number): string {
+  getExplorerUrl(chainNameOrId: ChainNameOrId): string {
     const url = this.tryGetExplorerUrl(chainNameOrId);
     if (!url) throw new Error(`No explorer url set for ${chainNameOrId}`);
     return url;
@@ -284,7 +298,7 @@ export class ChainMetadataManager<MetaExt = {}> {
   /**
    * Get a block explorer's API URL for a given chain name, chain id, or domain id
    */
-  tryGetExplorerApiUrl(chainNameOrId: ChainName | number): string | null {
+  tryGetExplorerApiUrl(chainNameOrId: ChainNameOrId): string | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     return getExplorerApiUrl(metadata);
@@ -294,7 +308,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get a block explorer API URL for a given chain name, chain id, or domain id
    * @throws if chain's metadata or block explorer data has no been set
    */
-  getExplorerApiUrl(chainNameOrId: ChainName | number): string {
+  getExplorerApiUrl(chainNameOrId: ChainNameOrId): string {
     const url = this.tryGetExplorerApiUrl(chainNameOrId);
     if (!url) throw new Error(`No explorer api url set for ${chainNameOrId}`);
     return url;
@@ -304,7 +318,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get a block explorer URL for given chain's tx
    */
   tryGetExplorerTxUrl(
-    chainNameOrId: ChainName | number,
+    chainNameOrId: ChainNameOrId,
     response: { hash: string },
   ): string | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
@@ -317,7 +331,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's metadata or block explorer data has no been set
    */
   getExplorerTxUrl(
-    chainNameOrId: ChainName | number,
+    chainNameOrId: ChainNameOrId,
     response: { hash: string },
   ): string {
     return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
@@ -327,7 +341,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get a block explorer URL for given chain's address
    */
   async tryGetExplorerAddressUrl(
-    chainNameOrId: ChainName | number,
+    chainNameOrId: ChainNameOrId,
     address?: string,
   ): Promise<string | null> {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
@@ -340,7 +354,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if address or the chain's block explorer data has no been set
    */
   async getExplorerAddressUrl(
-    chainNameOrId: ChainName | number,
+    chainNameOrId: ChainNameOrId,
     address?: string,
   ): Promise<string> {
     const url = await this.tryGetExplorerAddressUrl(chainNameOrId, address);

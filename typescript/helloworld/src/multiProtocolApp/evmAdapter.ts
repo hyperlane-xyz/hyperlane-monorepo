@@ -9,9 +9,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { HelloWorld, HelloWorld__factory } from '../types';
+import { HelloWorld, HelloWorld__factory } from '../types/index.js';
 
-import { IHelloWorldAdapter } from './types';
+import { IHelloWorldAdapter } from './types.js';
 
 export class EvmHelloWorldAdapter
   extends EvmRouterAdapter

@@ -8,15 +8,15 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
-} from '../../providers/ProviderType';
-import { ChainName } from '../../types';
+} from '../../providers/ProviderType.js';
+import { ChainName } from '../../types.js';
 
-import { ICoreAdapter } from './types';
+import { ICoreAdapter } from './types.js';
 
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/mailbox/src/processor.rs
 const MESSAGE_DISPATCH_LOG_REGEX = /Dispatched message to (.*), ID (.*)/;
@@ -45,7 +45,6 @@ export class SealevelCoreAdapter
     if (!logs)
       throw new Error('Transaction logs required to check message delivery');
     const parsedLogs = SealevelCoreAdapter.parseMessageDispatchLogs(logs);
-    if (!parsedLogs.length) throw new Error('Message dispatch log not found');
     return parsedLogs.map(({ destination, messageId }) => ({
       messageId: ensure0x(messageId),
       destination: this.multiProvider.getChainName(destination),

@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers';
+
 import {
   CoreConfig,
   CoreViolationType,
@@ -10,7 +12,7 @@ import {
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 
-import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
+import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor.js';
 
 export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
@@ -47,6 +49,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
             'setDefaultIsm',
             [ismAddress],
           ),
+          value: BigNumber.from(0),
           description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
         });
         break;

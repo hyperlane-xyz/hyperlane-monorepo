@@ -2,20 +2,20 @@ import { BigNumber } from 'ethers';
 
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { BytecodeHash } from '../consts/bytecode';
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { proxyImplementation } from '../deploy/proxy';
-import { ChainName } from '../types';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { proxyImplementation } from '../deploy/proxy.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneIgp } from './HyperlaneIgp';
+import { HyperlaneIgp } from './HyperlaneIgp.js';
 import {
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
   IgpViolationType,
-} from './types';
+} from './types.js';
 
 export class HyperlaneIgpChecker extends HyperlaneAppChecker<
   HyperlaneIgp,
@@ -80,11 +80,11 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       expected: {},
     };
 
-    const remotes = this.app.remoteChains(local);
+    const remotes = await this.app.remoteChains(local);
     for (const remote of remotes) {
       let expectedOverhead = this.configMap[local].overhead[remote];
       if (!expectedOverhead) {
-        this.app.logger(
+        this.app.logger.debug(
           `No overhead configured for ${local} -> ${remote}, defaulting to 0`,
         );
         expectedOverhead = 0;

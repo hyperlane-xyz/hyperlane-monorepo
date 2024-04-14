@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { MultiProtocolProvider, ProviderType } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { mainnetConfigs } from '../config/environments/mainnet3/chains';
+import { mainnetConfigs } from '../config/environments/mainnet3/chains.js';
 
 async function main() {
   const metadata = mainnetConfigs;

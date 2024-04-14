@@ -19,7 +19,7 @@ spec:
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: IfNotPresent
             command:
-            - ./node_modules/.bin/ts-node
+            - ./node_modules/.bin/tsx
             - ./typescript/infra/scripts/funding/fund-keys-from-deployer.ts
             - -e
             - {{ .Values.hyperlane.runEnv }}

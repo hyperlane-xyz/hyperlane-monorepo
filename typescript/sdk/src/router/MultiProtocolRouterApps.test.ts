@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { Chains } from '../consts/chains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
-import { MultiProtocolRouterApp } from './MultiProtocolRouterApps';
-import { EvmRouterAdapter } from './adapters/EvmRouterAdapter';
-import { RouterAddress } from './types';
+import { MultiProtocolRouterApp } from './MultiProtocolRouterApps.js';
+import { EvmRouterAdapter } from './adapters/EvmRouterAdapter.js';
+import { RouterAddress } from './types.js';
 
 describe('MultiProtocolRouterApp', () => {
   describe('constructs', () => {

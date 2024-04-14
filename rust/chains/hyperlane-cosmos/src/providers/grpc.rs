@@ -31,10 +31,12 @@ use hyperlane_core::{
 };
 use protobuf::Message as _;
 use serde::Serialize;
+use std::fmt::Debug;
 use tonic::{
     transport::{Channel, Endpoint},
     GrpcMethod, IntoRequest,
 };
+use tracing::{debug, instrument};
 use url::Url;
 
 use crate::{address::CosmosAddress, CosmosAmount};
@@ -89,14 +91,14 @@ pub trait WasmProvider: Send + Sync {
     async fn latest_block_height(&self) -> ChainResult<u64>;
 
     /// Perform a wasm query against the stored contract address.
-    async fn wasm_query<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_query<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         payload: T,
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
     /// Perform a wasm query against a specified contract address.
-    async fn wasm_query_to<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_query_to<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         to: String,
         payload: T,
@@ -104,14 +106,14 @@ pub trait WasmProvider: Send + Sync {
     ) -> ChainResult<Vec<u8>>;
 
     /// Send a wasm tx.
-    async fn wasm_send<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_send<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         payload: T,
         gas_limit: Option<U256>,
     ) -> ChainResult<TxResponse>;
 
     /// Estimate gas for a wasm tx.
-    async fn wasm_estimate_gas<T: Serialize + Sync + Send + Clone>(
+    async fn wasm_estimate_gas<T: Serialize + Sync + Send + Clone + Debug>(
         &self,
         payload: T,
     ) -> ChainResult<u64>;
@@ -191,12 +193,13 @@ impl WasmGrpcProvider {
         self.gas_price.amount.clone()
     }
 
-    /// Generates an unsigned SignDoc for a transaction.
-    async fn generate_unsigned_sign_doc(
+    /// Generates an unsigned SignDoc for a transaction and the Coin amount
+    /// required to pay for tx fees.
+    async fn generate_unsigned_sign_doc_and_fee(
         &self,
         msgs: Vec<cosmrs::Any>,
         gas_limit: u64,
-    ) -> ChainResult<SignDoc> {
+    ) -> ChainResult<(SignDoc, Coin)> {
         // As this function is only used for estimating gas or sending transactions,
         // we can reasonably expect to have a signer.
         let signer = self.get_signer()?;
@@ -215,15 +218,14 @@ impl WasmGrpcProvider {
         let amount: u128 = (FixedPointNumber::from(gas_limit) * self.gas_price())
             .ceil_to_integer()
             .try_into()?;
-        let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
-            Coin::new(
-                // The fee to pay is the gas limit * the gas price
-                amount,
-                self.conf.get_canonical_asset().as_str(),
-            )
-            .map_err(Into::<HyperlaneCosmosError>::into)?,
-            gas_limit,
-        ));
+        let fee_coin = Coin::new(
+            // The fee to pay is the gas limit * the gas price
+            amount,
+            self.conf.get_canonical_asset().as_str(),
+        )
+        .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let auth_info =
+            signer_info.auth_info(Fee::from_amount_and_gas(fee_coin.clone(), gas_limit));
 
         let chain_id = self
             .conf
@@ -231,39 +233,46 @@ impl WasmGrpcProvider {
             .parse()
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
-        Ok(
+        Ok((
             SignDoc::new(&tx_body, &auth_info, &chain_id, account_info.account_number)
                 .map_err(Into::<HyperlaneCosmosError>::into)?,
-        )
+            fee_coin,
+        ))
     }
 
-    /// Generates a raw signed transaction including `msgs`, estimating gas if a limit is not provided.
-    async fn generate_raw_signed_tx(
+    /// Generates a raw signed transaction including `msgs`, estimating gas if a limit is not provided,
+    /// and the Coin amount required to pay for tx fees.
+    async fn generate_raw_signed_tx_and_fee(
         &self,
         msgs: Vec<cosmrs::Any>,
         gas_limit: Option<u64>,
-    ) -> ChainResult<Vec<u8>> {
+    ) -> ChainResult<(Vec<u8>, Coin)> {
         let gas_limit = if let Some(l) = gas_limit {
             l
         } else {
             self.estimate_gas(msgs.clone()).await?
         };
 
-        let sign_doc = self.generate_unsigned_sign_doc(msgs, gas_limit).await?;
+        let (sign_doc, fee) = self
+            .generate_unsigned_sign_doc_and_fee(msgs, gas_limit)
+            .await?;
 
         let signer = self.get_signer()?;
         let tx_signed = sign_doc
             .sign(&signer.signing_key()?)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
-        Ok(tx_signed
-            .to_bytes()
-            .map_err(Into::<HyperlaneCosmosError>::into)?)
+        Ok((
+            tx_signed
+                .to_bytes()
+                .map_err(Into::<HyperlaneCosmosError>::into)?,
+            fee,
+        ))
     }
 
     /// Estimates gas for a transaction containing `msgs`.
     async fn estimate_gas(&self, msgs: Vec<cosmrs::Any>) -> ChainResult<u64> {
         // Get a sign doc with 0 gas, because we plan to simulate
-        let sign_doc = self.generate_unsigned_sign_doc(msgs, 0).await?;
+        let (sign_doc, _) = self.generate_unsigned_sign_doc_and_fee(msgs, 0).await?;
 
         let raw_tx = TxRaw {
             body_bytes: sign_doc.body_bytes,
@@ -475,7 +484,7 @@ impl WasmProvider for WasmGrpcProvider {
 
     async fn wasm_query<T>(&self, payload: T, block_height: Option<u64>) -> ChainResult<Vec<u8>>
     where
-        T: Serialize + Send + Sync + Clone,
+        T: Serialize + Send + Sync + Clone + Debug,
     {
         let contract_address = self.contract_address.as_ref().ok_or_else(|| {
             ChainCommunicationError::from_other_str("No contract address available")
@@ -525,9 +534,10 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(response.data)
     }
 
+    #[instrument(skip(self))]
     async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
     where
-        T: Serialize + Send + Sync + Clone,
+        T: Serialize + Send + Sync + Clone + Debug,
     {
         let signer = self.get_signer()?;
         let contract_address = self.contract_address.as_ref().ok_or_else(|| {
@@ -551,7 +561,21 @@ impl WasmProvider for WasmGrpcProvider {
                 None
             }
         });
-        let tx_bytes = self.generate_raw_signed_tx(msgs, gas_limit).await?;
+        let (tx_bytes, fee) = self.generate_raw_signed_tx_and_fee(msgs, gas_limit).await?;
+
+        // Check if the signer has enough funds to pay for the fee so we can get
+        // a more informative error.
+        let signer_balance = self
+            .get_balance(signer.address.clone(), fee.denom.to_string())
+            .await?;
+        let fee_amount: U256 = fee.amount.into();
+        if signer_balance < fee_amount {
+            return Err(ChainCommunicationError::InsufficientFunds {
+                required: fee_amount,
+                available: signer_balance,
+            });
+        }
+
         let tx_res = self
             .provider
             .call(move |provider| {
@@ -575,6 +599,7 @@ impl WasmProvider for WasmGrpcProvider {
                 Box::pin(future)
             })
             .await?;
+        debug!(tx_result=?tx_res, domain=?self.domain, ?payload, "Wasm transaction sent");
         Ok(tx_res)
     }
 

@@ -1,9 +1,10 @@
-import debug, { Debugger } from 'debug';
 import { providers } from 'ethers';
+import { Logger } from 'pino';
 
 import {
   raceWithContext,
   retryAsync,
+  rootLogger,
   runWithTimeout,
   sleep,
 } from '@hyperlane-xyz/utils';
@@ -13,18 +14,18 @@ import {
   ChainMetadata,
   ExplorerFamily,
   RpcUrl,
-} from '../../metadata/chainMetadataTypes';
+} from '../../metadata/chainMetadataTypes.js';
 
-import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider';
-import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider';
-import { IProviderMethods, ProviderMethod } from './ProviderMethods';
+import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
+import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
   SmartProviderOptions,
-} from './types';
+} from './types.js';
 
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
@@ -36,7 +37,7 @@ export class HyperlaneSmartProvider
   extends providers.BaseProvider
   implements IProviderMethods
 {
-  protected logger: Debugger;
+  protected logger: Logger;
 
   // TODO also support blockscout here
   public readonly explorerProviders: HyperlaneEtherscanProvider[];
@@ -53,7 +54,9 @@ export class HyperlaneSmartProvider
     super(network);
     const supportedMethods = new Set<ProviderMethod>();
 
-    this.logger = debug(`hyperlane:SmartProvider:${this.network.chainId}`);
+    this.logger = rootLogger.child({
+      module: `SmartProvider:${this.network.chainId}`,
+    });
 
     if (!rpcUrls?.length && !blockExplorers?.length)
       throw new Error('At least one RPC URL or block explorer is required');
@@ -171,7 +174,7 @@ export class HyperlaneSmartProvider
       });
       return true;
     } catch (error) {
-      this.logger('Provider is unhealthy', error);
+      this.logger.error('Provider is unhealthy', error);
       return false;
     }
   }
@@ -226,7 +229,7 @@ export class HyperlaneSmartProvider
         if (result.status === ProviderStatus.Success) {
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
-          this.logger(
+          this.logger.debug(
             `Slow response from provider #${pIndex}.${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,
@@ -234,8 +237,8 @@ export class HyperlaneSmartProvider
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
-          this.logger(
-            `Error from provider #${pIndex}.${
+          this.logger.warn(
+            `Error from provider #${pIndex}: ${result.error} - ${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,
           );
@@ -300,14 +303,14 @@ export class HyperlaneSmartProvider
   ): Promise<ProviderPerformResult> {
     try {
       if (this.options?.debug)
-        this.logger(
+        this.logger.debug(
           `Provider #${pIndex} performing method ${method} for reqId ${reqId}`,
         );
       const result = await provider.perform(method, params, reqId);
       return { status: ProviderStatus.Success, value: result };
     } catch (error) {
       if (this.options?.debug)
-        this.logger(
+        this.logger.error(
           `Error performing ${method} on provider #${pIndex} for reqId ${reqId}`,
           error,
         );
@@ -353,7 +356,7 @@ export class HyperlaneSmartProvider
     errors: unknown[],
     fallbackMsg: string,
   ): void {
-    this.logger(fallbackMsg);
+    this.logger.error(fallbackMsg);
     // TODO inspect the errors in some clever way to choose which to throw
     if (errors.length > 0) throw errors[0];
     else throw new Error(fallbackMsg);

@@ -1,22 +1,20 @@
-import debug from 'debug';
-
 import {
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContracts } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts';
-import { serializeDifference } from './oracle/types';
-import { IgpConfig } from './types';
+import { IgpFactories, igpFactories } from './contracts.js';
+import { serializeDifference } from './oracle/types.js';
+import { IgpConfig } from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -27,7 +25,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, igpFactories, {
-      logger: debug('hyperlane:IgpDeployer'),
+      logger: rootLogger.child({ module: 'IgpDeployer' }),
       contractVerifier,
     });
   }
@@ -38,13 +36,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
-    const beneficiary = config.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
+      'interchainGasPaymaster',
       proxyAdmin.address,
       [],
-      [await this.multiProvider.getSignerAddress(chain), beneficiary],
+      [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
@@ -58,7 +56,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
         !currentGasConfig.gasOverhead.eq(newGasOverhead)
       ) {
-        this.logger(
+        this.logger.debug(
           `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
         );
         gasParamsToSet.push({
@@ -93,11 +91,11 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const gasOracle = await this.deployContract(chain, 'storageGasOracle', []);
 
     if (!config.oracleConfig) {
-      this.logger('No oracle config provided, skipping...');
+      this.logger.debug('No oracle config provided, skipping...');
       return gasOracle;
     }
 
-    this.logger(`Configuring gas oracle from ${chain}...`);
+    this.logger.debug(`Configuring gas oracle from ${chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
     // For each remote, check if the gas oracle has the correct data
@@ -113,7 +111,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
-        this.logger(`-> ${remote} ${serializeDifference(actual, desired)}`);
+        this.logger.debug(
+          `-> ${remote} ${serializeDifference(actual, desired)}`,
+        );
         configsToSet.push({
           remoteDomain,
           ...desired,

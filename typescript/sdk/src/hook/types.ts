@@ -1,8 +1,22 @@
 import { Address } from '@hyperlane-xyz/utils';
 
-import { OwnableConfig } from '../deploy/types';
-import { IgpConfig } from '../gas/types';
-import { ChainMap, ChainName } from '../types';
+import { OwnableConfig } from '../deploy/types.js';
+import { IgpConfig } from '../gas/types.js';
+import { ChainMap, ChainName } from '../types.js';
+
+// As found in IPostDispatchHook.sol
+export enum OnchainHookType {
+  UNUSED,
+  ROUTING,
+  AGGREGATION,
+  MERKLE_TREE,
+  INTERCHAIN_GAS_PAYMASTER,
+  FALLBACK_ROUTING,
+  ID_AUTH_ISM,
+  PAUSABLE,
+  PROTOCOL_FEE,
+  LAYER_ZERO_V1,
+}
 
 export enum HookType {
   MERKLE_TREE = 'merkleTreeHook',
@@ -39,13 +53,13 @@ export type PausableHookConfig = OwnableConfig & {
   type: HookType.PAUSABLE;
 };
 
-export type OpStackHookConfig = {
+export type OpStackHookConfig = OwnableConfig & {
   type: HookType.OP_STACK;
   nativeBridge: Address;
   destinationChain: ChainName;
 };
 
-type RoutingHookConfig = OwnableConfig & {
+export type RoutingHookConfig = OwnableConfig & {
   domains: ChainMap<HookConfig>;
 };
 
