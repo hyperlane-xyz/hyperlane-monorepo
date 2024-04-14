@@ -5,6 +5,7 @@ import {
   OPStackIsm,
   PausableIsm,
   TestIsm,
+  TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
 import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
@@ -34,13 +35,12 @@ export enum IsmType {
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
   TEST_ISM = 'testIsm',
   PAUSABLE = 'pausableIsm',
+  TRUSTED_RELAYER = 'trustedRelayer'
 }
 
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
-    case IsmType.OP_STACK:
-      return ModuleType.NULL;
     case IsmType.ROUTING:
       return ModuleType.ROUTING;
     case IsmType.FALLBACK_ROUTING:
@@ -51,9 +51,10 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.MERKLE_ROOT_MULTISIG;
     case IsmType.MESSAGE_ID_MULTISIG:
       return ModuleType.MESSAGE_ID_MULTISIG;
+    case IsmType.OP_STACK:
     case IsmType.TEST_ISM:
-      return ModuleType.NULL;
     case IsmType.PAUSABLE:
+    case IsmType.TRUSTED_RELAYER:
       return ModuleType.NULL;
   }
 }
@@ -93,6 +94,11 @@ export type OpStackIsmConfig = {
   nativeBridge: Address;
 };
 
+export type TrustedRelayerIsmConfig = {
+  type: IsmType.TRUSTED_RELAYER;
+  relayer: Address;
+};
+
 export type IsmConfig =
   | Address
   | RoutingIsmConfig
@@ -100,7 +106,8 @@ export type IsmConfig =
   | AggregationIsmConfig
   | OpStackIsmConfig
   | TestIsmConfig
-  | PausableIsmConfig;
+  | PausableIsmConfig
+  | TrustedRelayerIsmConfig;
 
 export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
@@ -111,6 +118,7 @@ export type DeployedIsmType = {
   [IsmType.OP_STACK]: OPStackIsm;
   [IsmType.TEST_ISM]: TestIsm;
   [IsmType.PAUSABLE]: PausableIsm;
+  [IsmType.TRUSTED_RELAYER]: TrustedRelayerIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
