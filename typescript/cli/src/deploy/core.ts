@@ -56,7 +56,7 @@ import {
   runFileSelectionStep,
   writeJson,
 } from '../utils/files.js';
-import { getAccountBalance } from '../utils/fork.js';
+import { getAnvilAccountBalance } from '../utils/fork.js';
 
 import { completeDryRun } from './dry-run.js';
 import {
@@ -150,7 +150,7 @@ export async function runCoreDeploy({
   });
 
   let accountBalanceInitial: number = 0;
-  if (dryRun) accountBalanceInitial = await getAccountBalance(key);
+  if (dryRun) accountBalanceInitial = await getAnvilAccountBalance(key);
 
   await executeDeploy(deploymentParams);
 

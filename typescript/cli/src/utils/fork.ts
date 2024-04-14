@@ -135,7 +135,7 @@ export const getLocalProvider = (
  * @param address the address to retrieve the balance of
  * @returns the balance of the account
  */
-export const getAccountBalance = async (address: Address) => {
+export const getAnvilAccountBalance = async (address: Address) => {
   const provider = getLocalProvider();
   const balance = await provider.send(ANVIL_RPC_METHODS.GET_BALANCE, [
     address,

@@ -5,7 +5,7 @@ import { COMMAND } from '../commands/deploy.js';
 import { logGray, logGreen, logPink, warnYellow } from '../logger.js';
 import {
   ANVIL_RPC_METHODS,
-  getAccountBalance,
+  getAnvilAccountBalance,
   getLocalProvider,
   resetFork,
   setFork,
@@ -63,7 +63,7 @@ export async function completeDryRun(
   accountBalanceInitial: number,
 ) {
   const accountBalanceDelta =
-    accountBalanceInitial - (await getAccountBalance(impersonatedAccount));
+    accountBalanceInitial - (await getAnvilAccountBalance(impersonatedAccount));
   logPink(
     `⛽️ Approximate gas usage during ${command} dry-run: ${accountBalanceDelta} wei`,
   );
