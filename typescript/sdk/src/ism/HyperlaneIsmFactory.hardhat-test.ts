@@ -157,7 +157,11 @@ describe('HyperlaneIsmFactory', async () => {
       const config = randomIsmConfig();
       let ismAddress: string;
       try {
-        const ism = await ismFactory.deploy({ destination: chain, config });
+        const ism = await ismFactory.deploy({
+          destination: chain,
+          config,
+          mailbox: mailboxAddress,
+        });
         ismAddress = ism.address;
       } catch (e) {
         console.error('Failed to deploy random ism config', e);
