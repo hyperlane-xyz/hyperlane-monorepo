@@ -5728,15 +5728,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@layerzerolabs/lz-evm-protocol-v2@npm:^2.0.2":
-  version: 2.2.4
-  resolution: "@layerzerolabs/lz-evm-protocol-v2@npm:2.2.4"
-  peerDependencies:
-    "@openzeppelin/contracts": ^4.8.1 || ^5.0.0
-    "@openzeppelin/contracts-upgradeable": ^4.8.1 || ^5.0.0
-    hardhat-deploy: ^0.11.44
-    solidity-bytes-utils: ^0.8.0
-  checksum: dd35957149843a01c2c1924fead948fc78fb8e88c4588647bc0957d1abdf198d289be73ed24aca7637ba6b47e9ccfd624a0e766e1201293c6225bde7556dda54
+"@layerzerolabs/lz-evm-protocol-v2@npm:^2.0.2, @layerzerolabs/lz-evm-protocol-v2@npm:^2.0.6":
+  version: 2.0.6
+  resolution: "@layerzerolabs/lz-evm-protocol-v2@npm:2.0.6"
+  checksum: 868797107856bc3da48f26f0851ca9f329293af1bc6d033d20ce907225bc9bf2f1d903c32a3a8612338e6ded6cab6f029150004ac540143cc413c1687b8de2cb
   languageName: node
   linkType: hard
 

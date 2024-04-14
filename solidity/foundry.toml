@@ -16,3 +16,4 @@ verbosity = 4
 [rpc_endpoints]
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
+arbitrum = "https://rpc.ankr.com/arbitrum"

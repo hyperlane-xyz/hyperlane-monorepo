@@ -33,7 +33,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 /// You can find an introduction to Hyperlane's message passing at https://docs.hyperlane.xyz/docs/reference/messaging/messaging-interface.
 /// @notice When the Mailbox calls this object, the mechanism to realize L1->L2 message passing is through Arbitrum's retryables.
 /// At a high level, when Mailbox calls this object, this object creates a retryable,
-/// Then Arbitrum **strongly gurantees the retryable will eventually be executed successfully**.
+/// Then Arbitrum **strongly guarantees the retryable will eventually be executed successfully**.
 /// You can find retryable docs and its lifecycle at https://docs.arbitrum.io/arbos/l1-to-l2-messaging#submission.
 /// @dev This object is meant to be called as custom hook. So as an end user, you will want to
 /// give this object's address as custom hook when calling the Mailbox.
@@ -104,7 +104,7 @@ contract ArbitrumOrbitHook is AbstractMessageIdAuthHook {
 
     /// @notice Get submission fee for creating an Arbitrum retryable ticket
     function _submissionFee() private view returns (uint256 fee) {
-        // See IInboxBase.sol for detatils.
+        // See IInboxBase.sol for details.
         // 1st param dataLength: 36 bytes is always 36 bytes because the data is always the verifyMessageId calldata to the ISM.
         // The calldata has 4 bytes for method ID and 32 bytes for message ID.
         // 2nd param block base assumption: 0 wei means block.basefee is used.
