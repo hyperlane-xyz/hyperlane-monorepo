@@ -115,16 +115,20 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     }
 
     // TODO: implement metadata builders
+    let metadata: string;
     const moduleType = ismTypeToModuleType(ismConfig.type);
     switch (moduleType) {
       case ModuleType.NULL:
-        return this.multiProvider.handleTx(
-          destinationChain,
-          mailbox.process('', message.message),
-        );
+        metadata = '';
+        break;
       default:
         throw new Error(`Unsupported module type ${moduleType}`);
     }
+
+    return this.multiProvider.handleTx(
+      destinationChain,
+      mailbox.process(metadata, message.message),
+    );
   }
 
   protected waitForProcessReceipt(
