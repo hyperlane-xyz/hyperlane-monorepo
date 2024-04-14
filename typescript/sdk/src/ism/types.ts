@@ -35,7 +35,7 @@ export enum IsmType {
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
   TEST_ISM = 'testIsm',
   PAUSABLE = 'pausableIsm',
-  TRUSTED_RELAYER = 'trustedRelayer'
+  TRUSTED_RELAYER = 'trustedRelayerIsm'
 }
 
 // mapping between the two enums
