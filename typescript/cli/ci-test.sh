@@ -128,6 +128,10 @@ kill_anvil() {
 }
 
 run_hyperlane_deploy_core_dry_run() {
+    if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
+        return;
+    fi
+
     BEFORE_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
 
     echo -e "\nDry-running contract deployments to Alfajores"
@@ -155,6 +159,10 @@ run_hyperlane_deploy_core_dry_run() {
 }
 
 run_hyperlane_deploy_warp_dry_run() {
+    if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
+        return;
+    fi
+
     BEFORE_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
 
     echo -e "\nDry-running warp route deployments to Alfajores"
