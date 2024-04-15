@@ -54,7 +54,7 @@ export const messageOptions: { [k: string]: Options } = {
     description: 'Timeout in seconds',
     default: 5 * 60,
   },
-  selfrelay,
+  'self-relay': selfrelay,
   quick: {
     type: 'boolean',
     description: 'Skip wait for message to be delivered',
