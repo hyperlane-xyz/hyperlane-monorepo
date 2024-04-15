@@ -18,14 +18,12 @@ import {
   TokenFactories,
   TokenType,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   getTokenConnectionId,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import {
-  WarpRouteDeployConfig,
-  readWarpRouteDeployConfig,
-} from '../config/warp.js';
+import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getContext, getMergedContractAddresses } from '../context.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
@@ -137,7 +135,7 @@ async function runBuildConfigStep({
 
   // Create configs that coalesce together values from the config file,
   // the artifacts, and the SDK as a fallback
-  const configMap: ChainMap<TokenConfig & RouterConfig> = {
+  const configMap: WarpRouteDeployConfig = {
     [baseChainName]: {
       type: baseType,
       token:

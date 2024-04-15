@@ -1,4 +1,5 @@
 import type { Contract } from 'ethers';
+import { z } from 'zod';
 
 import type {
   AccessControl,
@@ -12,10 +13,15 @@ import { AccountConfig } from '../middleware/account/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import type { ChainName } from '../types.js';
 
+import { ownableConfigSchema } from './schemas.js';
+
 export type Owner = Address | AccountConfig;
 
-export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = {
-  owner: Owner;
+/// @dev ownerOverrides is added outside of the Schema because zod handle generics in a weird way (uses functions)
+/// See https://stackoverflow.com/questions/74907523/creating-zod-schema-for-generic-interface
+export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = z.infer<
+  typeof ownableConfigSchema
+> & {
   ownerOverrides?: Partial<Record<Keys, Address>>;
 };
 

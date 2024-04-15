@@ -1,23 +1,31 @@
+import { z } from 'zod';
+
 import {
   MailboxClient,
   ProxyAdmin__factory,
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import type { Address } from '@hyperlane-xyz/utils';
 
+import type { Address } from '../../../utils/dist/index.js';
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation, OwnableConfig } from '../deploy/types.js';
-import { IsmConfig } from '../ism/types.js';
+
+import {
+  foreignDeploymentConfigSchema,
+  mailboxClientConfigSchema,
+} from './schemas.js';
+
+// import { IsmConfig } from '../ism/types.js';
 
 export type RouterAddress = {
   router: Address;
 };
 
-export type ForeignDeploymentConfig = {
-  foreignDeployment?: Address;
-};
+export type ForeignDeploymentConfig = z.infer<
+  typeof foreignDeploymentConfigSchema
+>;
 
 export type RouterConfig = MailboxClientConfig &
   OwnableConfig &
@@ -42,13 +50,8 @@ export const proxiedFactories: ProxiedFactories = {
 };
 
 // TODO: merge with kunal's hook deployer
-type HookConfig = Address;
 
-export type MailboxClientConfig = {
-  mailbox: Address;
-  hook?: HookConfig;
-  interchainSecurityModule?: IsmConfig;
-};
+export type MailboxClientConfig = z.infer<typeof mailboxClientConfigSchema>;
 
 export enum ClientViolationType {
   InterchainSecurityModule = 'ClientIsm',
