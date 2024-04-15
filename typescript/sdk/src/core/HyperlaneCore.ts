@@ -6,6 +6,7 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
+  assert,
   bytes32ToAddress,
   messageId,
   objFilter,
@@ -24,7 +25,7 @@ import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
 import { EvmIsmReader } from '../ism/read.js';
-import { ModuleType, ismTypeToModuleType } from '../ism/types.js';
+import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -103,6 +104,18 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async buildMetadata(message: DispatchedMessage): Promise<string> {
     const ismConfig = await this.getRecipientIsmConfig(message);
+    const destinationChain = this.getDestination(message);
+
+    switch (ismConfig.type) {
+      case IsmType.TRUSTED_RELAYER:
+        const destinationSigner = await this.multiProvider.getSignerAddress(
+          destinationChain,
+        );
+        assert(
+          ismConfig.relayer === destinationSigner,
+          `${destinationChain} signer ${destinationSigner} must be trusted relayer ${ismConfig.relayer}`,
+        );
+    }
 
     // TODO: implement metadata builders for other module types
     const moduleType = ismTypeToModuleType(ismConfig.type);
