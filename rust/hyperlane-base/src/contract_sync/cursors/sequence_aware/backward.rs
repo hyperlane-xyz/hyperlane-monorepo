@@ -274,7 +274,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     /// and logs the inconsistencies.
     fn rewind_due_to_sequence_gaps(
         &mut self,
-        logs: &Vec<(T, LogMeta)>,
+        logs: &Vec<(Indexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         expected_sequences: &HashSet<u32>,
         expected_sequence_range: &RangeInclusive<u32>,
@@ -300,7 +300,9 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Clone + Debug + 'static> ContractSyncCursor<T> for BackwardSequenceAwareSyncCursor<T> {
+impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+    for BackwardSequenceAwareSyncCursor<T>
+{
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);

@@ -102,7 +102,7 @@ impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Clone + Debug + 'static> ContractSyncCursor<T>
+impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     for ForwardBackwardSequenceAwareSyncCursor<T>
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {

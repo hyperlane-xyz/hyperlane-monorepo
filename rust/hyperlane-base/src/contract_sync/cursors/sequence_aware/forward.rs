@@ -227,7 +227,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// - If the target block is reached and the target sequence hasn't been reached, the cursor rewinds to the last indexed snapshot.
     fn update_block_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(Indexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
@@ -300,7 +300,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds and the range will be retried.
     fn update_sequence_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(Indexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
@@ -358,7 +358,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// and logs the inconsistencies due to sequence gaps.
     fn rewind_due_to_sequence_gaps(
         &mut self,
-        logs: &Vec<(T, LogMeta)>,
+        logs: &Vec<(Indexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         expected_sequences: &HashSet<u32>,
         expected_sequence_range: &RangeInclusive<u32>,
@@ -386,7 +386,9 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Clone + Debug + 'static> ContractSyncCursor<T> for ForwardSequenceAwareSyncCursor<T> {
+impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+    for ForwardSequenceAwareSyncCursor<T>
+{
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
