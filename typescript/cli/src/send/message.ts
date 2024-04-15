@@ -25,7 +25,7 @@ export async function sendTestMessage({
   skipWaitForDelivery,
   selfRelay,
 }: {
-  key: string;
+  key?: string;
   chainConfigPath: string;
   coreArtifactsPath?: string;
   origin?: ChainName;

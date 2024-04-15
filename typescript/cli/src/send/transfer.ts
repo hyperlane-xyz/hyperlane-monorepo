@@ -34,7 +34,7 @@ export async function sendTestTransfer({
   skipWaitForDelivery,
   selfRelay,
 }: {
-  key: string;
+  key?: string;
   chainConfigPath: string;
   coreArtifactsPath?: string;
   warpConfigPath: string;
