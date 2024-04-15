@@ -83,7 +83,7 @@ const messageCommand: CommandModule = {
     const timeoutSec: number = argv.timeout;
     const skipWaitForDelivery: boolean = argv.quick;
     const messageBody: string = argv.messageBody;
-    const selfRelay: boolean = argv.selfrelay;
+    const selfRelay: boolean = argv['selfrelay'];
     await sendTestMessage({
       key,
       chainConfigPath,
@@ -135,7 +135,7 @@ const transferCommand: CommandModule = {
     const wei: string = argv.wei;
     const recipient: string | undefined = argv.recipient;
     const skipWaitForDelivery: boolean = argv.quick;
-    const selfRelay: boolean = argv.selfrelay;
+    const selfRelay: boolean = argv['self-relay'];
     await sendTestTransfer({
       key,
       chainConfigPath,

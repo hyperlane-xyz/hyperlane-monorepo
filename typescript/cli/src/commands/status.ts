@@ -21,7 +21,7 @@ export const statusCommand: CommandModule = {
     const messageId: string | undefined = argv.id;
     const destination: string | undefined = argv.destination;
     const origin: string | undefined = argv.origin;
-    const selfRelay: boolean = argv.selfrelay;
+    const selfRelay: boolean = argv['self-relay'];
     const key: string | undefined = argv.key;
 
     await checkMessageStatus({
