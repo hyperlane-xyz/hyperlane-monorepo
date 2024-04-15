@@ -32,6 +32,7 @@ export const selfrelay: Options = {
   type: 'boolean',
   description: 'Relay message on destination chain',
   default: false,
+  alias: ['s', 'sr'],
 };
 
 /**
