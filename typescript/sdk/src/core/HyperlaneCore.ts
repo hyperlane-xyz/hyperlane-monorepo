@@ -24,7 +24,7 @@ import {
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
-import { EvmIsmReader } from '../ism/read.js';
+import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
 import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
@@ -95,7 +95,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return destinationMailbox.mailbox.recipientIsm(ethAddress);
   }
 
-  async getRecipientIsmConfig(message: DispatchedMessage) {
+  async getRecipientIsmConfig(
+    message: DispatchedMessage,
+  ): Promise<DerivedIsmConfigWithAddress> {
     const destinationChain = this.getDestination(message);
     const ismReader = new EvmIsmReader(this.multiProvider, destinationChain);
     const address = await this.getRecipientIsmAddress(message);
@@ -108,6 +110,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
     switch (ismConfig.type) {
       case IsmType.TRUSTED_RELAYER:
+        // eslint-disable-next-line no-case-declarations
         const destinationSigner = await this.multiProvider.getSignerAddress(
           destinationChain,
         );

@@ -41,8 +41,12 @@ type NullIsmConfig =
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig;
 
+export type DerivedIsmConfigWithAddress = WithAddress<
+  Exclude<IsmConfig, Address>
+>;
+
 interface IsmReader {
-  deriveIsmConfig(address: Address): Promise<WithAddress<IsmConfig>>;
+  deriveIsmConfig(address: Address): Promise<DerivedIsmConfigWithAddress>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
@@ -71,7 +75,7 @@ export class EvmIsmReader implements IsmReader {
 
   async deriveIsmConfig(
     address: Address,
-  ): Promise<WithAddress<Exclude<IsmConfig, Address>>> {
+  ): Promise<DerivedIsmConfigWithAddress> {
     const ism = IInterchainSecurityModule__factory.connect(
       address,
       this.provider,
