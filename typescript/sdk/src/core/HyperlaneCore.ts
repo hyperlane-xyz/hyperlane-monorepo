@@ -208,6 +208,20 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return HyperlaneCore.getDispatchedMessages(sourceTx);
   }
 
+  async getDispatchTx(
+    originChain: ChainName,
+    messageId: string,
+  ): Promise<ethers.ContractReceipt | ViemTxReceipt> {
+    const mailbox = this.contractsMap[originChain].mailbox;
+    const filter = mailbox.filters.DispatchId(messageId);
+    const matchingEvents = await mailbox.queryFilter(filter);
+    if (matchingEvents.length === 0) {
+      throw new Error(`No dispatch event found for message ${messageId}`);
+    }
+    const event = matchingEvents[0]; // only 1 event per message ID
+    return event.getTransactionReceipt();
+  }
+
   static getDispatchedMessages(
     sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {

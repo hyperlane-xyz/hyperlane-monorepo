@@ -28,10 +28,16 @@ export const sendCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
+export const selfrelay: Options = {
+  type: 'boolean',
+  description: 'Relay message on destination chain',
+  default: false,
+};
+
 /**
  * Message command
  */
-const messageOptions: { [k: string]: Options } = {
+export const messageOptions: { [k: string]: Options } = {
   key: keyCommandOption,
   origin: {
     type: 'string',
@@ -48,11 +54,7 @@ const messageOptions: { [k: string]: Options } = {
     description: 'Timeout in seconds',
     default: 5 * 60,
   },
-  selfrelay: {
-    type: 'boolean',
-    description: 'Relay message on destination chain',
-    default: false,
-  },
+  selfrelay,
   quick: {
     type: 'boolean',
     description: 'Skip wait for message to be delivered',
