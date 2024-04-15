@@ -435,10 +435,12 @@ async function persistAddressesLocally(
     relayerAddresses,
   );
 
-  await persistValidatorAddressesToLocalArtifacts(
-    agentConfig.context,
-    multisigValidatorKeys,
-  );
+  if (Object.keys(multisigValidatorKeys).length > 0) {
+    await persistValidatorAddressesToLocalArtifacts(
+      agentConfig.context,
+      multisigValidatorKeys,
+    );
+  }
 }
 
 // non-validator roles
