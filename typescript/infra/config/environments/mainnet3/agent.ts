@@ -143,8 +143,9 @@ const hyperlane: RootAgentConfig = {
       tag: '2a16200-20240408-214947',
     },
     gasPaymentEnforcement: [
-      // Temporary measure to ensure all inEVM warp route messages are delivered -
-      // we saw some issues with IGP indexing.
+      // To cover ourselves against IGP indexing issues and to ensure Nexus
+      // users have the best possible experience, we whitelist messages between
+      // warp routes that we know are certainly paying for gas.
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
