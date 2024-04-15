@@ -11,7 +11,7 @@
 #   fastSynthetic
 ---
 base:
-  chainName: alfajores
+  chainName: anvil
   type: native
   # address: 0x123... # Required for collateral types
   # isNft: true # If the token is an NFT (ERC721), set to true
@@ -19,7 +19,7 @@ base:
   # mailbox: 0x123 # Optional mailbox address route
   # interchainGasPaymaster: 0x123 # Optional interchainGasPaymaster address
 synthetics:
-  - chainName: fuji
+  - chainName: ethereum
   # You can optionally set the token metadata, otherwise the base token's will be used
   # name: "MySyntheticToken"
   # symbol: "MST"

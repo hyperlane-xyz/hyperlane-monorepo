@@ -13,12 +13,6 @@ anvil:
     name: Ether
     symbol: ETH
     decimals: 18
-alfajores:
-  rpcUrls:
-    - http: http://127.0.0.1:8545
-  blocks:
-    confirmations: 1
-    estimateBlockTime: 1
 ethereum:
   rpcUrls:
     - http: http://127.0.0.1:8555
