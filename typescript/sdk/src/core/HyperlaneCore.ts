@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
@@ -10,6 +11,7 @@ import {
   objFilter,
   objMap,
   parseMessage,
+  pollAsync,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
