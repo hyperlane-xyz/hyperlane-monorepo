@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::LogMeta;
+use crate::{Indexed, LogMeta};
 
 /// Interface for a HyperlaneLogStore that ingests logs.
 #[async_trait]
@@ -12,7 +12,7 @@ use crate::LogMeta;
 pub trait HyperlaneLogStore<T>: Send + Sync + Debug {
     /// Store a list of logs and their associated metadata
     /// Returns the number of elements that were stored.
-    async fn store_logs(&self, logs: &[(T, LogMeta)]) -> Result<u32>;
+    async fn store_logs(&self, logs: &[(Indexed<T>, LogMeta)]) -> Result<u32>;
 }
 
 /// A sequence is a monotonically increasing number that is incremented every time a message ID is indexed.

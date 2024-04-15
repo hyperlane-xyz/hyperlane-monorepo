@@ -1,16 +1,23 @@
 use std::{
-    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+    collections::HashSet,
+    fmt::Debug,
+    hash::Hash,
+    io::{Read, Write},
+    marker::PhantomData,
+    sync::Arc,
+    time::Duration,
 };
 
 use axum::async_trait;
 use cursors::*;
 use derive_new::new;
 use hyperlane_core::{
-    utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
-    SequenceAwareIndexer, Sequenced,
+    utils::fmt_sync_time, ContractSyncCursor, CursorAction, Decode, Encode, HyperlaneDomain,
+    HyperlaneLogStore, HyperlaneProtocolError, HyperlaneSequenceAwareIndexerStore,
+    HyperlaneWatermarkedLogStore, Indexer, SequenceAwareIndexer, Sequenced,
 };
 pub use metrics::ContractSyncMetrics;
+// use serde::Encode;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 

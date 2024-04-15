@@ -5,8 +5,8 @@ use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta,
-    Sequenced,
+    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed,
+    LogMeta, Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -33,7 +33,7 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
-impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
+impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     pub fn new(
         chunk_size: u32,
         db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
@@ -161,7 +161,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds to the last indexed snapshot, and ranges will be retried.
     fn update_block_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(Indexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
         current_indexing_snapshot: TargetSnapshot,
@@ -215,7 +215,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds and the range will be retried.
     fn update_sequence_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(Indexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
         current_indexing_snapshot: TargetSnapshot,
@@ -300,7 +300,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCursor<T> {
+impl<T: Clone + Debug + 'static> ContractSyncCursor<T> for BackwardSequenceAwareSyncCursor<T> {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -327,7 +327,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
     /// ## logs
     /// The logs to ingest. If any logs are duplicated or their sequence is higher than the current indexing snapshot,
     /// they are filtered out.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
+    async fn update(
+        &mut self,
+        logs: Vec<(Indexed<T>, LogMeta)>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()> {
         let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() else {
             // We're synced, no need to update at all.
             return Ok(());

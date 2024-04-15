@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::Indexed;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -132,8 +133,8 @@ where
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+        let mut events: Vec<(Indexed<HyperlaneMessage>, LogMeta)> = self
             .contract
             .dispatch_filter()
             .from_block(*range.start())
@@ -141,10 +142,15 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (HyperlaneMessage::from(event.message.to_vec()), meta.into()))
+            .map(|(event, meta)| {
+                (
+                    HyperlaneMessage::from(event.message.to_vec()).into(),
+                    meta.into(),
+                )
+            })
             .collect();
 
-        events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
+        events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
         Ok(events)
     }
 }
@@ -173,7 +179,10 @@ where
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -182,7 +191,7 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (H256::from(event.message_id), meta.into()))
+            .map(|(event, meta)| (Indexed::new(H256::from(event.message_id)), meta.into()))
             .collect())
     }
 }

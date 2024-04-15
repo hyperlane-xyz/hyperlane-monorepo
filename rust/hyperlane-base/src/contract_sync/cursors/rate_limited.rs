@@ -10,7 +10,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneWatermarkedLogStore,
-    IndexMode, Indexer, LogMeta, SequenceAwareIndexer,
+    IndexMode, Indexed, Indexer, LogMeta, SequenceAwareIndexer,
 };
 use tokio::time::sleep;
 use tracing::warn;
@@ -284,7 +284,11 @@ where
         self.sync_state.next_block.saturating_sub(1)
     }
 
-    async fn update(&mut self, _: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
+    async fn update(
+        &mut self,
+        _: Vec<(Indexed<T>, LogMeta)>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()> {
         // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
         // safely shared across multiple cursors, so long as they are running sufficiently in sync
         self.db
@@ -318,7 +322,7 @@ pub(crate) mod test {
 
         #[async_trait]
         impl Indexer<()> for Indexer {
-            async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<((), LogMeta)>>;
+            async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(hyperlane_core::Indexed<()> , LogMeta)>>;
             async fn get_finalized_block_number(&self) -> ChainResult<u32>;
         }
 
@@ -337,7 +341,7 @@ pub(crate) mod test {
 
         #[async_trait]
         impl HyperlaneLogStore<()> for Db {
-            async fn store_logs(&self, logs: &[((), LogMeta)]) -> Result<u32>;
+            async fn store_logs(&self, logs: &[(hyperlane_core::Indexed<()> , LogMeta)]) -> Result<u32>;
         }
 
         #[async_trait]

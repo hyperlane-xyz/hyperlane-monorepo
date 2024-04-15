@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
     InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 use hyperlane_sealevel_igp::{
@@ -106,7 +106,7 @@ pub struct SealevelInterchainGasPaymasterIndexer {
 /// IGP payment data on Sealevel
 #[derive(Debug, new)]
 pub struct SealevelGasPayment {
-    payment: InterchainGasPayment,
+    payment: Indexed<InterchainGasPayment>,
     log_meta: LogMeta,
     igp_account_pubkey: H256,
 }
@@ -223,7 +223,11 @@ impl SealevelInterchainGasPaymasterIndexer {
         };
 
         Ok(SealevelGasPayment::new(
-            igp_payment,
+            Indexed::new(igp_payment).with_sequence(
+                sequence_number
+                    .try_into()
+                    .map_err(StrOrIntParseError::from)?,
+            ),
             LogMeta {
                 address: self.igp.program_id.to_bytes().into(),
                 block_number: gas_payment_account.slot,
@@ -245,7 +249,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         info!(
             ?range,
             "Fetching SealevelInterchainGasPaymasterIndexer InterchainGasPayment logs"
@@ -263,6 +267,8 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
                 }
             }
         }
+        // this is where the info about sequence gets lost.
+        // must return Indexed<T> here
         Ok(payments)
     }
 

@@ -1,6 +1,8 @@
-use std::io::{Error, ErrorKind};
+use std::io::{Cursor, Error, ErrorKind};
 
-use crate::{GasPaymentKey, HyperlaneProtocolError, H160, H256, H512, U256};
+use serde::{Deserialize, Serialize};
+
+use crate::{GasPaymentKey, HyperlaneProtocolError, IndexingDecorator, H160, H256, H512, U256};
 
 /// Simple trait for types with a canonical encoding
 pub trait Encode {
@@ -201,6 +203,29 @@ impl Decode for GasPaymentKey {
         Ok(Self {
             message_id: H256::read_from(reader)?,
             destination: u32::read_from(reader)?,
+        })
+    }
+}
+
+impl Encode for IndexingDecorator {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut written = 0;
+        written += self.sequence.write_to(writer)?;
+        Ok(written)
+    }
+}
+
+impl Decode for IndexingDecorator {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        Ok(Self {
+            sequence: u32::read_from(reader)?,
         })
     }
 }

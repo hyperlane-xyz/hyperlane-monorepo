@@ -8,8 +8,8 @@ use std::{
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta,
-    SequenceAwareIndexer, Sequenced,
+    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed,
+    LogMeta, SequenceAwareIndexer, Sequenced,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -41,7 +41,7 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
-impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
+impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
@@ -386,7 +386,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCursor<T> {
+impl<T: Clone + Debug + 'static> ContractSyncCursor<T> for ForwardSequenceAwareSyncCursor<T> {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -417,7 +417,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
     /// - Even if the logs include a gap, in practice these logs will have already been inserted into the DB.
     ///   This means that while gaps result in a rewind here, already known logs may be "fast forwarded" through,
     ///   and the cursor won't actually end up re-indexing already known logs.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
+    async fn update(
+        &mut self,
+        logs: Vec<(Indexed<T>, LogMeta)>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()> {
         // Remove any sequence duplicates, filter out any logs preceding our current snapshot,
         // and sort in ascending order.
         let logs = logs
@@ -443,7 +447,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
 #[cfg(test)]
 pub(crate) mod test {
     use derive_new::new;
-    use hyperlane_core::{ChainResult, HyperlaneLogStore, Indexer};
+    use hyperlane_core::{ChainResult, HyperlaneLogStore, Indexed, Indexer};
 
     use super::*;
 
@@ -468,7 +472,10 @@ pub(crate) mod test {
     where
         T: Sequenced + Debug,
     {
-        async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(T, LogMeta)>> {
+        async fn fetch_logs(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
             Ok(vec![])
         }
 
@@ -484,7 +491,7 @@ pub(crate) mod test {
 
     #[async_trait]
     impl<T: Sequenced + Debug> HyperlaneLogStore<T> for MockHyperlaneSequenceAwareIndexerStore<T> {
-        async fn store_logs(&self, logs: &[(T, LogMeta)]) -> eyre::Result<u32> {
+        async fn store_logs(&self, logs: &[(Indexed<T>, LogMeta)]) -> eyre::Result<u32> {
             Ok(logs.len() as u32)
         }
     }
@@ -645,7 +652,10 @@ pub(crate) mod test {
             // Update the cursor with the found log.
             cursor
                 .update(
-                    vec![(MockSequencedData::new(5), log_meta_with_block(115))],
+                    vec![(
+                        Indexed::new(MockSequencedData::new(5)).with_sequence(5),
+                        log_meta_with_block(115),
+                    )],
                     expected_range,
                 )
                 .await
@@ -722,7 +732,10 @@ pub(crate) mod test {
             // Update the cursor with the found log.
             cursor
                 .update(
-                    vec![(MockSequencedData::new(5), log_meta_with_block(195))],
+                    vec![(
+                        Indexed::new(MockSequencedData::new(5)).with_sequence(5),
+                        log_meta_with_block(195),
+                    )],
                     expected_range,
                 )
                 .await

@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use async_trait::async_trait;
 use eyre::Result;
 use paste::paste;
@@ -5,9 +7,9 @@ use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore,
-    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
-    MerkleTreeInsertion, H256,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
+    IndexingDecorator, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
+    LogMeta, MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -22,7 +24,8 @@ const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
-const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
+const INDEXING_DECORATOR_BY_IGP_KEY: &str = "indexing_decorator_by_igp_key_";
+const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
@@ -110,6 +113,35 @@ impl HyperlaneRocksDB {
     /// If the provided gas payment, identified by its metadata, has not been
     /// processed, processes the gas payment and records it as processed.
     /// Returns whether the gas payment was processed for the first time.
+    pub fn process_indexed_gas_payment(
+        &self,
+        indexed_payment: Indexed<InterchainGasPayment>,
+        log_meta: &LogMeta,
+    ) -> DbResult<bool> {
+        let payment = indexed_payment.inner().clone();
+        let gas_payment_key = payment.into();
+
+        if let Ok(_) = self.retrieve_indexing_decorator_by_gas_payment_key(&gas_payment_key) {
+            trace!(
+                ?indexed_payment,
+                ?log_meta,
+                "Attempted to process an already-processed indexed gas payment"
+            );
+            // Return false to indicate the gas payment was already processed
+            return Ok(false);
+        }
+
+        self.store_indexing_decorator_by_gas_payment_key(
+            &gas_payment_key,
+            indexed_payment.decorator(),
+        )?;
+
+        self.process_gas_payment(payment, log_meta)
+    }
+
+    /// If the provided gas payment, identified by its metadata, has not been
+    /// processed, processes the gas payment and records it as processed.
+    /// Returns whether the gas payment was processed for the first time.
     pub fn process_gas_payment(
         &self,
         payment: InterchainGasPayment,
@@ -174,10 +206,7 @@ impl HyperlaneRocksDB {
 
     /// Update the total gas payment for a message to include gas_payment
     fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
-        let gas_payment_key = GasPaymentKey {
-            message_id: event.message_id,
-            destination: event.destination,
-        };
+        let gas_payment_key = event.into();
         let existing_payment = self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
         let total = existing_payment + event;
 
@@ -233,10 +262,10 @@ impl HyperlaneRocksDB {
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
     #[instrument(skip_all)]
-    async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored = 0;
         for (message, meta) in messages {
-            let stored_message = self.store_message(message, meta.block_number)?;
+            let stored_message = self.store_message(&message.inner(), meta.block_number)?;
             if stored_message {
                 stored += 1;
             }
@@ -248,21 +277,39 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     }
 }
 
+async fn store_and_count_new<T: Copy>(
+    store: &HyperlaneRocksDB,
+    logs: &[(T, LogMeta)],
+    log_type: &str,
+    process: impl Fn(&HyperlaneRocksDB, T, &LogMeta) -> DbResult<bool>,
+) -> Result<u32> {
+    let mut new_logs = 0;
+    for (log, meta) in logs {
+        if process(store, *log, meta)? {
+            new_logs += 1;
+        }
+    }
+    if new_logs > 0 {
+        debug!(new_logs, log_type, "Wrote new logs to database");
+    }
+    Ok(new_logs)
+}
+
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
     #[instrument(skip_all)]
-    async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
-        let mut new = 0;
-        for (payment, meta) in payments {
-            if self.process_gas_payment(*payment, meta)? {
-                new += 1;
-            }
-        }
-        if new > 0 {
-            debug!(payments = new, "Wrote new gas payments to database");
-        }
-        Ok(new)
+    async fn store_logs(
+        &self,
+        payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
+    ) -> Result<u32> {
+        store_and_count_new(
+            self,
+            payments,
+            "gas payments",
+            HyperlaneRocksDB::process_indexed_gas_payment,
+        )
+        .await
     }
 }
 
@@ -270,10 +317,10 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
 impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Store every tree insertion event
     #[instrument(skip_all)]
-    async fn store_logs(&self, leaves: &[(MerkleTreeInsertion, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)]) -> Result<u32> {
         let mut insertions = 0;
         for (insertion, meta) in leaves {
-            if self.process_tree_insertion(insertion, meta.block_number)? {
+            if self.process_tree_insertion(&insertion.inner(), meta.block_number)? {
                 insertions += 1;
             }
         }
@@ -377,6 +424,7 @@ make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
 make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
 make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
 make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_gas_payment_key, GAS_PAYMENT_FOR_MESSAGE_ID, GasPaymentKey, InterchainGasPaymentData);
+make_store_and_retrieve!(pub(self), indexing_decorator_by_gas_payment_key, INDEXING_DECORATOR_BY_IGP_KEY, GasPaymentKey, IndexingDecorator);
 make_store_and_retrieve!(
     pub,
     pending_message_retry_count_by_message_id,
