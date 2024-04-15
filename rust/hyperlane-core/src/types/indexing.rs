@@ -1,6 +1,6 @@
 use derive_new::new;
 
-use crate::{HyperlaneMessage, MerkleTreeInsertion};
+use crate::{HyperlaneMessage, MerkleTreeInsertion, Sequenced};
 
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Hash, new)]
 /// Additional indexing data associated to a type
@@ -15,6 +15,12 @@ pub struct Indexed<T> {
     inner: T,
     #[new(default)]
     decorator: IndexingDecorator,
+}
+
+impl<T: Send + Sync + 'static> Sequenced for Indexed<T> {
+    fn sequence(&self) -> u32 {
+        self.sequence()
+    }
 }
 
 impl<T> Indexed<T> {

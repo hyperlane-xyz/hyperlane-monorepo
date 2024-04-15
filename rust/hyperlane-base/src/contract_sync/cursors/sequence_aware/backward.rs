@@ -454,9 +454,9 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(97), log_meta_with_block(970)),
-                        (MockSequencedData::new(98), log_meta_with_block(980)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                        (MockSequencedData::new(97).into(), log_meta_with_block(970)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                     ],
                     expected_range,
                 )
@@ -521,10 +521,10 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(96), log_meta_with_block(850)),
-                        (MockSequencedData::new(97), log_meta_with_block(860)),
-                        (MockSequencedData::new(98), log_meta_with_block(870)),
-                        (MockSequencedData::new(99), log_meta_with_block(880)),
+                        (MockSequencedData::new(96).into(), log_meta_with_block(850)),
+                        (MockSequencedData::new(97).into(), log_meta_with_block(860)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(870)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(880)),
                     ],
                     expected_range,
                 )
@@ -555,7 +555,7 @@ mod test {
 
             async fn update_and_expect_rewind(
                 cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
-                logs: Vec<(MockSequencedData, LogMeta)>,
+                logs: Vec<(Indexed<MockSequencedData>, LogMeta)>,
             ) {
                 // For a more rigorous test case, first do a range where no logs are found,
                 // then in the next range there are issues, and we should rewind to the last indexed snapshot.
@@ -616,9 +616,9 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(96), log_meta_with_block(850)),
-                    (MockSequencedData::new(97), log_meta_with_block(860)),
-                    (MockSequencedData::new(98), log_meta_with_block(870)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(850)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(860)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(870)),
                 ],
             )
             .await;
@@ -627,9 +627,9 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(96), log_meta_with_block(850)),
-                    (MockSequencedData::new(97), log_meta_with_block(860)),
-                    (MockSequencedData::new(99), log_meta_with_block(890)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(850)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(860)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(890)),
                 ],
             )
             .await;
@@ -652,10 +652,13 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
-                        (MockSequencedData::new(100), log_meta_with_block(1000)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
+                        (
+                            MockSequencedData::new(100).into(),
+                            log_meta_with_block(1000),
+                        ),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                     ],
                     expected_range,
                 )
@@ -696,7 +699,7 @@ mod test {
                     (0..=99)
                         .map(|i| {
                             (
-                                MockSequencedData::new(i),
+                                MockSequencedData::new(i).into(),
                                 log_meta_with_block(900 + i as u64),
                             )
                         })
@@ -794,15 +797,15 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(95), log_meta_with_block(950)),
-                        (MockSequencedData::new(96), log_meta_with_block(960)),
-                        (MockSequencedData::new(97), log_meta_with_block(970)),
+                        (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                        (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                        (MockSequencedData::new(97).into(), log_meta_with_block(970)),
                         // Add a duplicate here
-                        (MockSequencedData::new(98), log_meta_with_block(980)),
-                        (MockSequencedData::new(98), log_meta_with_block(980)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                         // Put this out of order
-                        (MockSequencedData::new(94), log_meta_with_block(940)),
+                        (MockSequencedData::new(94).into(), log_meta_with_block(940)),
                     ],
                     expected_range,
                 )
@@ -865,7 +868,7 @@ mod test {
 
             async fn update_and_expect_rewind(
                 cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
-                logs: Vec<(MockSequencedData, LogMeta)>,
+                logs: Vec<(Indexed<MockSequencedData>, LogMeta)>,
             ) {
                 // Expect the range to be:
                 // (current - chunk_size, current)
@@ -897,10 +900,10 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(94), log_meta_with_block(940)),
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
+                    (MockSequencedData::new(94).into(), log_meta_with_block(940)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
                 ],
             )
             .await;
@@ -909,11 +912,11 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(94), log_meta_with_block(940)),
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
-                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                    (MockSequencedData::new(94).into(), log_meta_with_block(940)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                 ],
             )
             .await;
@@ -922,11 +925,11 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(97), log_meta_with_block(970)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
-                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(970)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                 ],
             )
             .await;
@@ -935,13 +938,13 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(93), log_meta_with_block(940)),
-                    (MockSequencedData::new(94), log_meta_with_block(950)),
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(97), log_meta_with_block(970)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
-                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                    (MockSequencedData::new(93).into(), log_meta_with_block(940)),
+                    (MockSequencedData::new(94).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(970)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                 ],
             )
             .await;
@@ -967,7 +970,7 @@ mod test {
                     (0..=99)
                         .map(|i| {
                             (
-                                MockSequencedData::new(i),
+                                MockSequencedData::new(i).into(),
                                 log_meta_with_block(900 + i as u64),
                             )
                         })
