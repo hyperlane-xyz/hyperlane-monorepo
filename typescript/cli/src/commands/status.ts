@@ -23,7 +23,8 @@ export const statusCommand: CommandModule = {
     const destination: string | undefined = argv.destination;
     const origin: string | undefined = argv.origin;
     const selfRelay: boolean = argv.selfrelay;
-    const key: string = argv.key || ENV.HYP_KEY;
+    const key: string | undefined = argv.key || ENV.HYP_KEY;
+
     await checkMessageStatus({
       chainConfigPath,
       coreArtifactsPath,

@@ -21,12 +21,14 @@ export async function checkMessageStatus({
   destination?: ChainName;
   origin?: ChainName;
   selfRelay?: boolean;
-  key: string;
+  key?: string;
 }) {
+  const keyConfig = selfRelay ? { key } : undefined;
+
   const { multiProvider, customChains, coreArtifacts } = await getContext({
     chainConfigPath,
     coreConfig: { coreArtifactsPath },
-    keyConfig: { key },
+    keyConfig,
   });
 
   if (!destination) {
