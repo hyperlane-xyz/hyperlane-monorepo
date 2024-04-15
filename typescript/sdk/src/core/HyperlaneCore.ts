@@ -6,8 +6,8 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
-  assert,
   bytes32ToAddress,
+  eqAddress,
   messageId,
   objFilter,
   objMap,
@@ -114,10 +114,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         const destinationSigner = await this.multiProvider.getSignerAddress(
           destinationChain,
         );
-        assert(
-          ismConfig.relayer === destinationSigner,
-          `${destinationChain} signer ${destinationSigner} must be trusted relayer ${ismConfig.relayer}`,
-        );
+        if (!eqAddress(destinationSigner, ismConfig.relayer)) {
+          this.logger.warn(
+            `${destinationChain} signer ${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
+          );
+        }
     }
 
     // TODO: implement metadata builders for other module types
