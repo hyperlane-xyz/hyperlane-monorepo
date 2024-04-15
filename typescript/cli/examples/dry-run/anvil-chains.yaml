@@ -1,0 +1,17 @@
+anvil:
+  chainId: 31337
+  domainId: 31337
+  name: anvil
+  protocol: ethereum
+  rpcUrls:
+    - http: http://127.0.0.1:8545
+  nativeToken:
+    name: Ether
+    symbol: ETH
+    decimals: 18
+alfajores:
+  rpcUrls:
+    - http: https://alfajores-forno.celo-testnet.org
+  blocks:
+    confirmations: 1
+    estimateBlockTime: 1

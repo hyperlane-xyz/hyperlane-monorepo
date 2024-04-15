@@ -29,9 +29,6 @@ _main() {
     DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]');
 
     run_hyperlane_deploy_core_dry_run;
-
-    # reset_anvil;
-
     run_hyperlane_deploy_warp_dry_run;
 
     reset_anvil;
@@ -137,7 +134,7 @@ run_hyperlane_deploy_core_dry_run() {
     echo -e "\nDry-running contract deployments to Alfajores"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy core --dry-run \
         --targets alfajores \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
+        --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
         --artifacts /tmp/empty-artifacts.json \
         $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
         --ism ${EXAMPLES_PATH}/ism.yaml \
@@ -167,9 +164,9 @@ run_hyperlane_deploy_warp_dry_run() {
 
     echo -e "\nDry-running warp route deployments to Alfajores"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp --dry-run \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
+        --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
         --core $CORE_ARTIFACTS_PATH \
-        --config ${EXAMPLES_PATH}/fork/warp-route-deployment.yaml \
+        --config ${EXAMPLES_PATH}/dry-run/warp-route-deployment.yaml \
         --out /tmp \
         --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
