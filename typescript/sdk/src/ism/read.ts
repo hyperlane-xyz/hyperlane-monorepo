@@ -63,7 +63,9 @@ export class EvmIsmReader implements IsmReader {
     return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
-  async deriveIsmConfig(address: Address): Promise<WithAddress<IsmConfig>> {
+  async deriveIsmConfig(
+    address: Address,
+  ): Promise<WithAddress<Exclude<IsmConfig, Address>>> {
     const ism = IInterchainSecurityModule__factory.connect(
       address,
       this.provider,

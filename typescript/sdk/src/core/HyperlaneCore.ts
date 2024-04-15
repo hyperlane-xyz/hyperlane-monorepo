@@ -1,18 +1,15 @@
 import { ethers } from 'ethers';
-import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   AddressBytes32,
   ProtocolType,
-  WithAddress,
   bytes32ToAddress,
   messageId,
   objFilter,
   objMap,
   parseMessage,
-  pollAsync,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
@@ -25,7 +22,7 @@ import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
 import { EvmIsmReader } from '../ism/read.js';
-import { IsmConfig, ModuleType, ismTypeToModuleType } from '../ism/types.js';
+import { ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -95,37 +92,33 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return destinationMailbox.mailbox.recipientIsm(ethAddress);
   }
 
-  async getRecipientIsmConfig(
-    message: DispatchedMessage,
-  ): Promise<WithAddress<IsmConfig>> {
+  async getRecipientIsmConfig(message: DispatchedMessage) {
     const destinationChain = this.getDestination(message);
     const ismReader = new EvmIsmReader(this.multiProvider, destinationChain);
     const address = await this.getRecipientIsmAddress(message);
     return ismReader.deriveIsmConfig(address);
   }
 
-  async relayMessage(
-    message: DispatchedMessage,
-  ): Promise<ethers.ContractReceipt> {
-    const destinationChain = this.getDestination(message);
-    const mailbox = this.contractsMap[destinationChain].mailbox;
+  async buildMetadata(message: DispatchedMessage): Promise<string> {
     const ismConfig = await this.getRecipientIsmConfig(message);
-    if (typeof ismConfig === 'string') {
-      throw new Error(
-        `No ISM config found for recipient ${message.parsed.recipient}`,
-      );
-    }
 
-    // TODO: implement metadata builders
-    let metadata: string;
+    // TODO: implement metadata builders for other module types
     const moduleType = ismTypeToModuleType(ismConfig.type);
     switch (moduleType) {
       case ModuleType.NULL:
-        metadata = '0x';
-        break;
+        return '0x';
       default:
         throw new Error(`Unsupported module type ${moduleType}`);
     }
+  }
+
+  async relayMessage(
+    message: DispatchedMessage,
+  ): Promise<ethers.ContractReceipt> {
+    const metadata = await this.buildMetadata(message);
+
+    const destinationChain = this.getDestination(message);
+    const mailbox = this.contractsMap[destinationChain].mailbox;
 
     return this.multiProvider.handleTx(
       destinationChain,
