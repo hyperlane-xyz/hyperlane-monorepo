@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   HypERC20App,
@@ -16,7 +18,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
+import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
 import { deployEnvToSdkEnv } from '../src/config/environment.js';
+import { tokens } from '../src/config/warp.js';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
@@ -117,23 +121,42 @@ async function check() {
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
     // test config
-    const plumetestnet = {
-      ...routerConfig.plumetestnet,
+    const ethereum = {
+      ...routerConfig.ethereum,
+      type: TokenType.collateral,
+      token: tokens.ethereum.USDC,
+      // Really, this should be an object config from something like:
+      //   buildAggregationIsmConfigs(
+      //     'ethereum',
+      //     ['ancient8'],
+      //     defaultMultisigConfigs,
+      //   ).ancient8
+      // However ISM objects are no longer able to be passed directly to the warp route
+      // deployer. As a temporary workaround, I'm using an ISM address from a previous
+      // ethereum <> ancient8 warp route deployment:
+      //   $ cast call 0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f 'interchainSecurityModule()(address)' --rpc-url https://rpc.ankr.com/eth
+      //   0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3
+      interchainSecurityModule: '0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3',
+      // This hook was recovered from running the deploy script
+      // for the hook module. The hook configuration is the Ethereum
+      // default hook for the Ancient8 remote (no routing).
+      hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
+      owner: DEPLOYER,
+    };
+    const ancient8 = {
+      ...routerConfig.ancient8,
       type: TokenType.synthetic,
-      name: 'Wrapped Ether',
-      symbol: 'WETH',
-      decimals: 18,
-      totalSupply: '0',
-      gas: 0,
+      name: 'USD Coin',
+      symbol: 'USDC',
+      decimals: 6,
+      // Uses the default ISM
+      interchainSecurityModule: ethers.constants.AddressZero,
+      owner: DEPLOYER,
     };
-    const sepolia = {
-      ...routerConfig.sepolia,
-      type: TokenType.native,
-      gas: 0,
-    };
+
     const config = {
-      plumetestnet,
-      sepolia,
+      ethereum,
+      ancient8,
     };
     const addresses = getAddresses(environment, Modules.WARP);
     const filteredAddresses = Object.keys(addresses) // filter out changes not in config

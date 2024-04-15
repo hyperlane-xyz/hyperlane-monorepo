@@ -343,7 +343,7 @@ jobs:
             chain: sepolia
             module: core
           - environment: mainnet3
-            chain: inevm
+            chain: ancient8
             module: warp
 
     steps:
