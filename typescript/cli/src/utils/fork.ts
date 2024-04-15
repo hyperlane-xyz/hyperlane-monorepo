@@ -16,7 +16,6 @@ export enum ANVIL_RPC_METHODS {
   IMPERSONATE_ACCOUNT = 'anvil_impersonateAccount',
   STOP_IMPERSONATING_ACCOUNT = 'anvil_stopImpersonatingAccount',
   NODE_INFO = 'anvil_nodeInfo',
-  GET_BALANCE = 'eth_getBalance',
 }
 
 /**
@@ -128,19 +127,4 @@ export const getLocalProvider = (
   const url = urlOverride ?? envUrl ?? DEFAULT_ANVIL_ENDPOINT;
 
   return new providers.JsonRpcProvider(url);
-};
-
-/**
- * Retrieves the balance of an account.
- * @param address the address to retrieve the balance of
- * @returns the balance of the account
- */
-export const getAnvilAccountBalance = async (address: Address) => {
-  const provider = getLocalProvider();
-  const balance = await provider.send(ANVIL_RPC_METHODS.GET_BALANCE, [
-    address,
-    'latest',
-  ]);
-
-  return balance;
 };

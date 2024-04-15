@@ -1,15 +1,15 @@
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
-import { COMMAND } from '../commands/deploy.js';
-import { logGray, logGreen, logPink, warnYellow } from '../logger.js';
+import { Command } from '../commands/deploy.js';
+import { logGray, logGreen, warnYellow } from '../logger.js';
 import {
   ANVIL_RPC_METHODS,
-  getAnvilAccountBalance,
   getLocalProvider,
   resetFork,
   setFork,
 } from '../utils/fork.js';
+
+import { toUpperCamelCase } from './utils.js';
 
 /**
  * Forks a provided network onto MultiProvider
@@ -31,7 +31,7 @@ export async function forkNetworkToMultiProvider(
  * Ensures an anvil node is running locally.
  */
 export async function verifyAnvil() {
-  logGray('Verifying anvil node is running...');
+  logGray('🔎 Verifying anvil node is running...');
 
   const provider = getLocalProvider();
   try {
@@ -57,20 +57,8 @@ export function evaluateIfDryRunFailure(error: any, dryRun: boolean) {
     );
 }
 
-export async function completeDryRun(
-  command: COMMAND,
-  impersonatedAccount: Address,
-  accountBalanceInitial: number,
-) {
-  const accountBalanceDelta =
-    accountBalanceInitial - (await getAnvilAccountBalance(impersonatedAccount));
-  logPink(
-    `⛽️ Approximate gas usage during ${command} dry-run: ${accountBalanceDelta} wei`,
-  );
+export async function completeDryRun(command: Command) {
   await resetFork();
-  logGreen(`✅ ${toUpperCamelCase(command)} dry-run completed successfully`);
-}
 
-function toUpperCamelCase(string: string) {
-  return string.charAt(0).toUpperCase() + string.slice(1);
+  logGreen(`✅ ${toUpperCamelCase(command)} dry-run completed successfully`);
 }

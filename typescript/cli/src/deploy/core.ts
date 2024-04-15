@@ -29,7 +29,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { COMMAND } from '../commands/deploy.js';
+import { Command } from '../commands/deploy.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -56,12 +56,12 @@ import {
   runFileSelectionStep,
   writeJson,
 } from '../utils/files.js';
-import { getAnvilAccountBalance } from '../utils/fork.js';
 
-import { completeDryRun } from './dry-run.js';
 import {
+  completeDeploy,
   isISMConfig,
   isZODISMConfig,
+  prepareDeploy,
   runPreflightChecksForChains,
 } from './utils.js';
 
@@ -149,12 +149,24 @@ export async function runCoreDeploy({
     minGas: MINIMUM_CORE_DEPLOY_GAS,
   });
 
-  let accountBalanceInitial: number = 0;
-  if (dryRun) accountBalanceInitial = await getAnvilAccountBalance(key);
+  const userAddress = dryRun ? key : await signer.getAddress();
+
+  const initialBalances = await prepareDeploy(
+    multiProvider,
+    userAddress,
+    chains,
+  );
 
   await executeDeploy(deploymentParams);
 
-  if (dryRun) await completeDryRun(COMMAND.CORE, key, accountBalanceInitial);
+  await completeDeploy(
+    Command.CORE,
+    initialBalances,
+    multiProvider,
+    userAddress,
+    chains,
+    dryRun,
+  );
 }
 
 function runArtifactStep(
@@ -379,7 +391,7 @@ async function executeDeploy({
   }
   artifacts = objMerge(artifacts, isms);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
-  logGreen('Core contracts deployed');
+  logGreen('✅ Core contracts deployed');
 
   log('Writing agent configs');
   await writeAgentConfig(agentFilePath, artifacts, chains, multiProvider);

@@ -22,7 +22,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { COMMAND } from '../commands/deploy.js';
+import { Command } from '../commands/deploy.js';
 import {
   WarpRouteDeployConfig,
   readWarpRouteDeployConfig,
@@ -41,10 +41,8 @@ import {
   runFileSelectionStep,
   writeJson,
 } from '../utils/files.js';
-import { getAnvilAccountBalance } from '../utils/fork.js';
 
-import { completeDryRun } from './dry-run.js';
-import { runPreflightChecks } from './utils.js';
+import { completeDeploy, prepareDeploy, runPreflightChecks } from './utils.js';
 
 export async function runWarpRouteDeploy({
   key,
@@ -123,12 +121,25 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  let accountBalanceInitial: number = 0;
-  if (dryRun) accountBalanceInitial = await getAnvilAccountBalance(key);
+  const userAddress = dryRun ? key : await signer.getAddress();
+  const chains = [deploymentParams.origin, ...configs.remotes];
+
+  const initialBalances = await prepareDeploy(
+    multiProvider,
+    userAddress,
+    chains,
+  );
 
   await executeDeploy(deploymentParams);
 
-  if (dryRun) await completeDryRun(COMMAND.WARP, key, accountBalanceInitial);
+  await completeDeploy(
+    Command.WARP,
+    initialBalances,
+    multiProvider,
+    userAddress,
+    chains,
+    dryRun,
+  );
 }
 
 async function runBuildConfigStep({
@@ -297,12 +308,13 @@ async function executeDeploy(params: DeployParams) {
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
 
-  const baseOnlyConfigMap = { [params.origin]: configMap[params.origin] };
+  const config = params.dryRun
+    ? { [params.origin]: configMap[params.origin] }
+    : configMap;
 
-  const deployedContracts = params.dryRun
-    ? await deployer.deploy(baseOnlyConfigMap)
-    : await deployer.deploy(configMap);
-  logGreen('Hyp token deployments complete');
+  const deployedContracts = await deployer.deploy(config);
+
+  logGreen('✅ Hyp token deployments complete');
 
   log('Writing deployment artifacts');
   writeTokenDeploymentArtifacts(contractsFilePath, deployedContracts, params);

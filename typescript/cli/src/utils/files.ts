@@ -170,10 +170,10 @@ export function prepNewArtifactsFiles(
  */
 export function getArtifactsFiles(
   defaultFiles: ArtifactsFile[],
-  dryRun = false,
+  dryRun: boolean = false,
 ): Array<ArtifactsFile> {
   if (dryRun)
-    defaultFiles.forEach((defaultFile) => {
+    defaultFiles.map((defaultFile: ArtifactsFile) => {
       defaultFile.filename = `dry-run_${defaultFile.filename}`;
     });
   return defaultFiles;

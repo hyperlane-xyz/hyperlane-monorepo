@@ -142,5 +142,5 @@ export const dryRunOption: Options = {
   description:
     'Simulate deployment on forked network. Please ensure an anvil node instance is running during execution via `anvil`.',
   default: false,
-  alias: 'd',
+  alias: ['d', 'dr'],
 };
