@@ -108,9 +108,19 @@ spec:
               RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING=$(echo $RELAYER_SOLANA_INDEX_DERIV_QUERY | jq -r '.data.result[0].value[1] | select(. < "0.0001")')
               echo "Liveness probe: relayer Solana index deriv value not increasing: $RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" > /proc/1/fd/1
 
+              # Get the number of times this container has been restarted in the last 30 min.
+              RELAYER_RESTARTS_30_MIN=$(curl 'http://prometheus-server.monitoring.svc.cluster.local/api/v1/query' --data-urlencode 'query=sum by (pod)(increase(kube_pod_container_status_restarts_total{exported_namespace="mainnet2", container="agent", pod=~".*relayer.*"}[30m]))')
+              echo "Liveness probe: relayer restarts in the last 30 mins: $RELAYER_RESTARTS_30_MIN" > /proc/1/fd/1
+
+              # If the relayer has restarted at all in the last 30 mins, don't restart - we want to give it a chance.
+              # The presence of this env var means that the relayer has recent restarts.
+              RELAYER_HAS_RECENT_RESTARTS=$(echo $RELAYER_RESTARTS_30_MIN | jq -r '.data.result[0].value[1] | select(. = "0")')
+              echo "Liveness probe: does the relayer have any recent restarts: $RELAYER_HAS_NO_RECENT_RESTARTS" > /proc/1/fd/1
+
               # If either is empty, the relayer is healthy because the relayer is not behind the validators, or the relayer
-              # is currently catching up to the validators
-              if [ -z "$RELAYER_CMP_VALIDATOR_NEGATIVE" ] || [ -z "$RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" ]; then
+              # is currently catching up to the validators.
+              # If there are recent restarts, we don't restart to give the relayer a chance to get healthy.
+              if [ -z "$RELAYER_CMP_VALIDATOR_NEGATIVE" ] || [ -z "$RELAYER_SOLANA_INDEX_DERIV_VALUE_NOT_INCREASING" ] || [ -z "RELAYER_HAS_RECENT_RESTARTS" ]; then
                 echo "Liveness probe: Relayer is healthy" > /proc/1/fd/1
                 exit 0
               else
