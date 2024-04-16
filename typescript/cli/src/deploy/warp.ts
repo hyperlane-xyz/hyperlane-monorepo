@@ -121,7 +121,7 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const userAddress = dryRun ? key : await signer.getAddress();
+  const userAddress = dryRun ? key! : await signer.getAddress();
   const chains = [deploymentParams.origin, ...configs.remotes];
 
   const initialBalances = await prepareDeploy(

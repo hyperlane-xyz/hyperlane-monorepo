@@ -149,7 +149,7 @@ export async function runCoreDeploy({
     minGas: MINIMUM_CORE_DEPLOY_GAS,
   });
 
-  const userAddress = dryRun ? key : await signer.getAddress();
+  const userAddress = dryRun ? key! : await signer.getAddress();
 
   const initialBalances = await prepareDeploy(
     multiProvider,
