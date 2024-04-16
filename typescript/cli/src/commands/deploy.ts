@@ -5,7 +5,6 @@ import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure, verifyAnvil } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
-import { ENV } from '../utils/env.js';
 
 import {
   AgentCommandOptions,
@@ -98,7 +97,7 @@ const coreCommand: CommandModule = {
       'dry-run': dryRunOption,
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || ENV.HYP_KEY;
+    const key: string | undefined = argv.key;
     const chainConfigPath: string = argv.chains;
     const outPath: string = argv.out;
     const chains: string[] | undefined = argv.targets
@@ -154,7 +153,7 @@ const warpCommand: CommandModule = {
       'dry-run': dryRunOption,
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || ENV.HYP_KEY;
+    const key: string | undefined = argv.key;
     const chainConfigPath: string = argv.chains;
     const warpRouteDeploymentConfigPath: string | undefined = argv.config;
     const coreArtifactsPath: string | undefined = argv.core;

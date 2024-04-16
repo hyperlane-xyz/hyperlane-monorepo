@@ -53,7 +53,7 @@ export async function runWarpRouteDeploy({
   skipConfirmation,
   dryRun,
 }: {
-  key: string;
+  key?: string;
   chainConfigPath: string;
   warpRouteDeploymentConfigPath?: string;
   coreArtifactsPath?: string;

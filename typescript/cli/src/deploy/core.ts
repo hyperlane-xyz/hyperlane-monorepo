@@ -79,7 +79,7 @@ export async function runCoreDeploy({
   skipConfirmation,
   dryRun,
 }: {
-  key: string;
+  key?: string;
   chainConfigPath: string;
   chains?: ChainName[];
   ismConfigPath?: string;

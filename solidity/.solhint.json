@@ -10,7 +10,9 @@
     "var-name-mixedcase": "off",
     "func-name-mixedcase": "off",
     "reason-string": ["warn",{"maxLength":64}],
-    "prettier/prettier": "error"
+    "prettier/prettier": "error",
+    "custom-errors": "off",
+    "gas-custom-errors": "off"
   },
   "plugins": ["prettier"]
 }
