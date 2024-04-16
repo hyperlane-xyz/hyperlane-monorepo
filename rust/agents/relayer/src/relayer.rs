@@ -115,6 +115,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
+                u32::MAX,
             )
             .await?;
         let interchain_gas_payment_syncs = settings
@@ -125,6 +126,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
                     .collect(),
+                0,
             )
             .await?;
 

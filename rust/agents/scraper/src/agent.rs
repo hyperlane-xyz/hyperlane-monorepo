@@ -118,6 +118,7 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db.clone(),
                 index_settings.clone(),
+                0,
             )
             .await,
         );
@@ -128,6 +129,7 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db,
                 index_settings.clone(),
+                0,
             )
             .await,
         );
@@ -145,6 +147,7 @@ macro_rules! spawn_sync_task {
             contract_sync_metrics: Arc<ContractSyncMetrics>,
             db: HyperlaneSqlDb,
             index_settings: IndexSettings,
+            error_retry_count: u32,
         ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
             let sync = self
                 .as_ref()
@@ -154,6 +157,7 @@ macro_rules! spawn_sync_task {
                     &metrics.clone(),
                     &contract_sync_metrics.clone(),
                     Arc::new(db.clone()),
+                    error_retry_count,
                 )
                 .await
                 .unwrap();
@@ -186,6 +190,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(db.clone()),
+                u32::MAX,
             )
             .await
             .unwrap();
