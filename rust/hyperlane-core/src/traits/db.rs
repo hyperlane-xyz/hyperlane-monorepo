@@ -20,7 +20,7 @@ pub trait HyperlaneLogStore<T>: Send + Sync + Debug {
 /// is equal to the leaf index.
 pub trait Sequenced: 'static + Send + Sync {
     /// The sequence of this sequenced type.
-    fn sequence(&self) -> u32;
+    fn sequence(&self) -> Option<u32>;
 }
 
 /// A read-only interface for a sequence-aware indexer store.

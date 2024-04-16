@@ -205,13 +205,25 @@ impl Decode for GasPaymentKey {
     }
 }
 
+// TODO: Could generalize this implementation to support encoding arbitrary `Option<T>`
+// where T: Encode + Decode
 impl Encode for IndexingDecorator {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write,
     {
         let mut written = 0;
-        written += self.sequence.write_to(writer)?;
+        match self.sequence {
+            Some(sequence) => {
+                let sequence_is_defined = true;
+                written += sequence_is_defined.write_to(writer)?;
+                written += sequence.write_to(writer)?;
+            }
+            None => {
+                let sequence_is_defined = false;
+                written += sequence_is_defined.write_to(writer)?;
+            }
+        }
         Ok(written)
     }
 }
@@ -222,8 +234,30 @@ impl Decode for IndexingDecorator {
         R: std::io::Read,
         Self: Sized,
     {
-        Ok(Self {
-            sequence: u32::read_from(reader)?,
-        })
+        let sequence_is_defined = bool::read_from(reader)?;
+        let sequence = if sequence_is_defined {
+            Some(u32::read_from(reader)?)
+        } else {
+            None
+        };
+        Ok(Self { sequence })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{Decode, Encode};
+
+    #[test]
+    fn test_encoding_indexing_decorator() {
+        let decorator = super::IndexingDecorator { sequence: Some(42) };
+        let encoded = decorator.to_vec();
+        let decoded = super::IndexingDecorator::read_from(&mut &encoded[..]).unwrap();
+        assert_eq!(decorator, decoded);
+
+        let decorator = super::IndexingDecorator { sequence: None };
+        let encoded = decorator.to_vec();
+        let decoded = super::IndexingDecorator::read_from(&mut &encoded[..]).unwrap();
+        assert_eq!(decorator, decoded);
     }
 }

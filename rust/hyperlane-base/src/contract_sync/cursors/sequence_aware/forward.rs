@@ -252,7 +252,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
         if let Some(highest_sequence_log) = logs.last() {
             // Update the last indexed snapshot.
             self.last_indexed_snapshot = LastIndexedSnapshot {
-                sequence: Some(highest_sequence_log.0.sequence()),
+                sequence: highest_sequence_log.0.sequence(),
                 at_block: highest_sequence_log.1.block_number.try_into()?,
             };
         }
@@ -345,7 +345,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
 
         // Update the last indexed snapshot.
         self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: Some(highest_sequence_log.0.sequence()),
+            sequence: highest_sequence_log.0.sequence(),
             at_block: highest_sequence_log.1.block_number.try_into()?,
         };
         // Position the current snapshot to the next sequence.
@@ -429,13 +429,17 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
         let logs = logs
             .into_iter()
             .unique_by(|(log, _)| log.sequence())
-            .filter(|(log, _)| log.sequence() >= self.current_indexing_snapshot.sequence)
+            .filter(|(log, _)| {
+                log.sequence()
+                    .map(|seq| seq >= self.current_indexing_snapshot.sequence)
+                    .unwrap_or_default()
+            })
             .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
             .collect::<Vec<_>>();
 
         let all_log_sequences = logs
             .iter()
-            .map(|(log, _)| log.sequence())
+            .filter_map(|(log, _)| log.sequence())
             .collect::<HashSet<_>>();
 
         match &self.index_mode {
@@ -506,7 +510,7 @@ pub(crate) mod test {
             Ok(self
                 .logs
                 .iter()
-                .find(|(log, _)| log.sequence() == sequence)
+                .find(|(log, _)| log.sequence() == Some(sequence))
                 .map(|(log, _)| log.clone()))
         }
 
@@ -517,7 +521,7 @@ pub(crate) mod test {
             Ok(self
                 .logs
                 .iter()
-                .find(|(log, _)| log.sequence() == sequence)
+                .find(|(log, _)| log.sequence() == Some(sequence))
                 .map(|(_, meta)| meta.block_number))
         }
     }
@@ -535,8 +539,8 @@ pub(crate) mod test {
     }
 
     impl Sequenced for MockSequencedData {
-        fn sequence(&self) -> u32 {
-            self.sequence
+        fn sequence(&self) -> Option<u32> {
+            Some(self.sequence)
         }
     }
 

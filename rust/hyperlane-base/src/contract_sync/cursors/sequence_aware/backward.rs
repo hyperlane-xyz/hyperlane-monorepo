@@ -198,7 +198,12 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
         if let Some(lowest_sequence_log) = logs.first() {
             // Update the last snapshot.
             self.last_indexed_snapshot = LastIndexedSnapshot {
-                sequence: Some(lowest_sequence_log.0.sequence()),
+                sequence: Some(
+                    lowest_sequence_log
+                        .0
+                        .sequence()
+                        .ok_or(eyre::eyre!("Missing indexing sequence"))?,
+                ),
                 at_block: lowest_sequence_log.1.block_number.try_into()?,
             };
         }
@@ -261,7 +266,12 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
 
         // Update the last indexed snapshot.
         self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: Some(lowest_sequence_log.0.sequence()),
+            sequence: Some(
+                lowest_sequence_log
+                    .0
+                    .sequence()
+                    .ok_or(eyre::eyre!("Missing indexing sequence"))?,
+            ),
             at_block: lowest_sequence_log.1.block_number.try_into()?,
         };
         // Position the current snapshot to the previous sequence.
@@ -344,13 +354,17 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
         let logs = logs
             .into_iter()
             .unique_by(|(log, _)| log.sequence())
-            .filter(|(log, _)| log.sequence() <= current_indexing_snapshot.sequence)
+            .filter(|(log, _)| {
+                log.sequence()
+                    .map(|seq| seq <= current_indexing_snapshot.sequence)
+                    .unwrap_or_default()
+            })
             .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
             .collect::<Vec<_>>();
 
         let all_log_sequences = logs
             .iter()
-            .map(|(log, _)| log.sequence())
+            .filter_map(|(log, _)| log.sequence())
             .collect::<HashSet<_>>();
 
         match &self.index_mode {

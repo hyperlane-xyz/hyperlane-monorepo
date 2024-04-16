@@ -7,7 +7,7 @@ use crate::{HyperlaneMessage, MerkleTreeInsertion, Sequenced};
 pub struct IndexingDecorator {
     // this field could be made optional if it doesn't apply to all instances
     // of the decorator
-    pub(crate) sequence: u32,
+    pub(crate) sequence: Option<u32>,
 }
 
 /// Wrapper struct that adds indexing information to a type
@@ -19,7 +19,7 @@ pub struct Indexed<T> {
 }
 
 impl<T: Send + Sync + 'static> Sequenced for Indexed<T> {
-    fn sequence(&self) -> u32 {
+    fn sequence(&self) -> Option<u32> {
         self.sequence()
     }
 }
@@ -27,12 +27,12 @@ impl<T: Send + Sync + 'static> Sequenced for Indexed<T> {
 impl<T> Indexed<T> {
     /// Set the sequence of the indexed value, returning a new instance of `Self`
     pub fn with_sequence(mut self, sequence: u32) -> Self {
-        self.decorator.sequence = sequence;
+        self.decorator.sequence = Some(sequence);
         self
     }
 
     /// Get the sequence of the indexed value
-    pub fn sequence(&self) -> u32 {
+    pub fn sequence(&self) -> Option<u32> {
         self.decorator.sequence
     }
 

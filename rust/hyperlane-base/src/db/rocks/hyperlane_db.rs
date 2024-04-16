@@ -117,8 +117,13 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
         let payment = *(indexed_payment.inner());
-        let gas_payment_key = payment.into();
 
+        if indexed_payment.sequence().is_none() {
+            // only store the payment and return early
+            return self.process_gas_payment(payment, log_meta);
+        }
+        // otherwise store the indexing decorator as well
+        let gas_payment_key = payment.into();
         if let Ok(Some(_)) = self.retrieve_indexing_decorator_by_gas_payment_key(&gas_payment_key) {
             trace!(
                 ?indexed_payment,
@@ -134,7 +139,7 @@ impl HyperlaneRocksDB {
             indexed_payment.decorator(),
         )?;
 
-        self.process_gas_payment(payment, log_meta)
+        Ok(true)
     }
 
     /// If the provided gas payment, identified by its metadata, has not been
