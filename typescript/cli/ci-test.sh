@@ -378,4 +378,5 @@ run_hyperlane_status() {
 }
 
 _main "$@";
+
 exit;
