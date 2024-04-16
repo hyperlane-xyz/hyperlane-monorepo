@@ -2,6 +2,8 @@ import { Options } from 'yargs';
 
 import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
+import { ENV } from '../utils/env.js';
+
 export const logFormatCommandOption: Options = {
   type: 'string',
   description: 'Log output format',
@@ -81,6 +83,7 @@ export const keyCommandOption: Options = {
   description: `Default: A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
 Dry-run: An address to simulate transaction signing on a forked network, or use the HYP_KEY env var.`,
   alias: 'k',
+  default: ENV.HYP_KEY,
 };
 
 export const chainsCommandOption: Options = {
