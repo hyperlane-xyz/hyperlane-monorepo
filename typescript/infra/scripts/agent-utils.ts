@@ -1,4 +1,5 @@
-import path from 'path';
+import path, { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import yargs, { Argv } from 'yargs';
 
 import {
@@ -266,7 +267,11 @@ export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
   );
   if (symDiff.size > 0) {
     throw new Error(
-      `Validator config invalid. Validator context chain names: ${validatorContextChainNames}, validator config chains: ${validatorConfigChains}, diff: ${symDiff}`,
+      `Validator config invalid.\nValidator context chain names: ${[
+        ...validatorContextChainNames,
+      ]}\nValidator config chains: ${[...validatorConfigChains]}\nDiff: ${[
+        ...symDiff,
+      ]}`,
     );
   }
 }
@@ -429,4 +434,20 @@ export function getValidatorsByChain(
     });
   }
   return validators;
+}
+
+export function getInfraPath() {
+  return join(dirname(fileURLToPath(import.meta.url)), '../');
+}
+
+export function getAWValidatorsPath(
+  environment: DeployEnvironment,
+  context: Contexts,
+) {
+  return join(
+    getInfraPath(),
+    getEnvironmentDirectory(environment),
+    'aw-validators',
+    `${context}.json`,
+  );
 }

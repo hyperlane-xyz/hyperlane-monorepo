@@ -4,12 +4,14 @@ import { fileURLToPath } from 'url';
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { Address, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
-import localAWMultisigAddresses from '../../config/aw-multisig-hyperlane.json';
-// AW - Abacus Works
 import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';
 import localKathyAddresses from '../../config/kathy.json';
 import localRelayerAddresses from '../../config/relayer.json';
+import {
+  getAWValidatorsPath,
+  getInfraPath,
+} from '../../scripts/agent-utils.js';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
 import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent';
 import { DeployEnvironment } from '../config/environment';
@@ -18,7 +20,6 @@ import {
   execCmd,
   isEthereumProtocolChain,
   readJSON,
-  writeJSON,
   writeJsonAtPath,
 } from '../utils/utils.js';
 
@@ -34,8 +35,6 @@ export const relayerAddresses: LocalRoleAddresses =
   localRelayerAddresses as LocalRoleAddresses;
 export const kathyAddresses: LocalRoleAddresses =
   localKathyAddresses as LocalRoleAddresses;
-export const awMultisigAddresses: ChainMap<{ validators: Address[] }> =
-  localAWMultisigAddresses as ChainMap<{ validators: Address[] }>;
 
 const debugLog = rootLogger.child({ module: 'infra:agents:key:utils' }).debug;
 
@@ -44,10 +43,7 @@ export interface KeyAsAddress {
   address: string;
 }
 
-const CONFIG_DIRECTORY_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../config',
-);
+const CONFIG_DIRECTORY_PATH = join(getInfraPath(), 'config');
 
 // ==================
 // Functions for getting keys
@@ -437,6 +433,7 @@ async function persistAddressesLocally(
 
   if (Object.keys(multisigValidatorKeys).length > 0) {
     await persistValidatorAddressesToLocalArtifacts(
+      agentConfig.runEnv,
       agentConfig.context,
       multisigValidatorKeys,
     );
@@ -454,29 +451,21 @@ export async function persistRoleAddressesToLocalArtifacts(
   addresses[environment][context] = updated;
 
   // Resolve the relative path
-  const filePath = join(
-    dirname(fileURLToPath(import.meta.url)),
-    `../../config/${role}.json`,
-  );
+  const filePath = join(getInfraPath(), `config/${role}.json`);
 
   writeJsonAtPath(filePath, addresses);
 }
 
 // maintaining the multisigIsm schema sans threshold
 export async function persistValidatorAddressesToLocalArtifacts(
+  environment: DeployEnvironment,
   context: Contexts,
   fetchedValidatorAddresses: ChainMap<{ validators: Address[] }>,
 ) {
-  for (const chain of Object.keys(fetchedValidatorAddresses)) {
-    awMultisigAddresses[chain] = {
-      validators: fetchedValidatorAddresses[chain].validators, // fresh from aws
-    };
-  }
   // Write the updated object back to the file
-  writeJSON(
-    CONFIG_DIRECTORY_PATH,
-    `aw-multisig-${context}.json`,
-    awMultisigAddresses,
+  writeJsonAtPath(
+    getAWValidatorsPath(environment, context),
+    fetchedValidatorAddresses,
   );
 }
 

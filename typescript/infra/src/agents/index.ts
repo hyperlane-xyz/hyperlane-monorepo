@@ -1,10 +1,10 @@
 import fs from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
+import { getInfraPath } from '../../scripts/agent-utils.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
@@ -28,8 +28,8 @@ import { execCmd, isEthereumProtocolChain } from '../utils/utils.js';
 import { AgentGCPKey } from './gcp.js';
 
 const HELM_CHART_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '/../../../../rust/helm/hyperlane-agent/',
+  getInfraPath(),
+  '/../../rust/helm/hyperlane-agent/',
 );
 
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
