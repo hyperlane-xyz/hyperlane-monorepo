@@ -137,11 +137,11 @@ export async function completeDeploy(
     const balanceDelta = initialBalances[chain].sub(currentBalance);
     if (dryRun && balanceDelta.lt(0)) break;
     logPink(
-      `\t- Gas used during ${command} ${
+      `\t- Gas required for ${command} ${
         dryRun ? 'dry-run' : 'deploy'
-      } on ${chain}: ${balanceDelta} wei or ${ethers.utils.formatEther(
-        balanceDelta,
-      )} ether`,
+      } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
+        multiProvider.getChainMetadata(chain).nativeToken?.symbol
+      }`,
     );
   }
 
