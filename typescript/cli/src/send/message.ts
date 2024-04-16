@@ -23,8 +23,9 @@ export async function sendTestMessage({
   messageBody,
   timeoutSec,
   skipWaitForDelivery,
+  selfRelay,
 }: {
-  key: string;
+  key?: string;
   chainConfigPath: string;
   coreArtifactsPath?: string;
   origin?: ChainName;
@@ -32,6 +33,7 @@ export async function sendTestMessage({
   messageBody: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
+  selfRelay?: boolean;
 }) {
   const { signer, multiProvider, customChains, coreArtifacts } =
     await getContext({
@@ -71,6 +73,7 @@ export async function sendTestMessage({
       multiProvider,
       coreArtifacts,
       skipWaitForDelivery,
+      selfRelay,
     }),
     timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
@@ -84,6 +87,7 @@ async function executeDelivery({
   multiProvider,
   coreArtifacts,
   skipWaitForDelivery,
+  selfRelay,
 }: {
   origin: ChainName;
   destination: ChainName;
@@ -91,6 +95,7 @@ async function executeDelivery({
   multiProvider: MultiProvider;
   coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
+  selfRelay?: boolean;
 }) {
   const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
   const core = HyperlaneCore.fromAddressesMap(
@@ -146,6 +151,12 @@ async function executeDelivery({
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
     log(`Message: ${JSON.stringify(message)}`);
+
+    if (selfRelay) {
+      await core.relayMessage(message);
+      logGreen('Message was self-relayed!');
+      return;
+    }
   } catch (e) {
     errorRed(
       `Encountered error sending message from ${origin} to ${destination}`,

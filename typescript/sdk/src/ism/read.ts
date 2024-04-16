@@ -8,6 +8,7 @@ import {
   PausableIsm__factory,
   StaticAggregationIsm__factory,
   TestIsm__factory,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -31,10 +32,21 @@ import {
   PausableIsmConfig,
   RoutingIsmConfig,
   TestIsmConfig,
+  TrustedRelayerIsmConfig,
 } from './types.js';
 
+type NullIsmConfig =
+  | PausableIsmConfig
+  | TestIsmConfig
+  | OpStackIsmConfig
+  | TrustedRelayerIsmConfig;
+
+export type DerivedIsmConfigWithAddress = WithAddress<
+  Exclude<IsmConfig, Address>
+>;
+
 interface IsmReader {
-  deriveIsmConfig(address: Address): Promise<WithAddress<IsmConfig>>;
+  deriveIsmConfig(address: Address): Promise<DerivedIsmConfigWithAddress>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
@@ -42,9 +54,7 @@ interface IsmReader {
   deriveMultisigConfig(
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>>;
-  deriveNullConfig(
-    address: Address,
-  ): Promise<WithAddress<PausableIsmConfig | TestIsmConfig | OpStackIsmConfig>>;
+  deriveNullConfig(address: Address): Promise<WithAddress<NullIsmConfig>>;
 }
 
 export class EvmIsmReader implements IsmReader {
@@ -63,7 +73,9 @@ export class EvmIsmReader implements IsmReader {
     return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
-  async deriveIsmConfig(address: Address): Promise<WithAddress<IsmConfig>> {
+  async deriveIsmConfig(
+    address: Address,
+  ): Promise<DerivedIsmConfigWithAddress> {
     const ism = IInterchainSecurityModule__factory.connect(
       address,
       this.provider,
@@ -184,9 +196,27 @@ export class EvmIsmReader implements IsmReader {
 
   async deriveNullConfig(
     address: Address,
-  ): Promise<
-    WithAddress<PausableIsmConfig | TestIsmConfig | OpStackIsmConfig>
-  > {
+  ): Promise<WithAddress<NullIsmConfig>> {
+    // if it has trustedRelayer() property --> TrustedRelayer ISM
+    const trustedRelayerIsm = TrustedRelayerIsm__factory.connect(
+      address,
+      this.provider,
+    );
+    try {
+      const relayer = await trustedRelayerIsm.trustedRelayer();
+      assert((await trustedRelayerIsm.moduleType()) === ModuleType.NULL);
+      return {
+        address,
+        relayer,
+        type: IsmType.TRUSTED_RELAYER,
+      };
+    } catch (error) {
+      this.logger.debug(
+        'Error accessing "trustedRelayer" property, implying this is not a Trusted Relayer ISM.',
+        address,
+      );
+    }
+
     // if it has paused() property --> PAUSABLE
     const pausableIsm = PausableIsm__factory.connect(address, this.provider);
     try {

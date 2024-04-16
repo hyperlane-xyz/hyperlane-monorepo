@@ -13,6 +13,8 @@ import {
   PausableIsm__factory,
   TestIsm,
   TestIsm__factory,
+  TrustedRelayerIsm,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
@@ -96,6 +98,9 @@ describe('EvmIsmReader', () => {
       .stub(PausableIsm__factory, 'connect')
       .returns(mockContract as unknown as PausableIsm);
     sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(mockContract as unknown as TrustedRelayerIsm);
+    sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
 
@@ -131,6 +136,9 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(PausableIsm__factory, 'connect')
       .returns(mockContract as unknown as PausableIsm);
+    sandbox
+      .stub(TrustedRelayerIsm__factory, 'connect')
+      .returns(mockContract as unknown as TrustedRelayerIsm);
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
