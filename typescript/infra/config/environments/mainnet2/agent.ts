@@ -127,7 +127,7 @@ const hyperlane: RootAgentConfig = {
     connectionType: AgentConnectionType.HttpFallback,
     docker: {
       repo,
-      tag: 'ad870de-20240321-111358',
+      tag: '475bd1c-20240416-105206',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -145,7 +145,7 @@ const hyperlane: RootAgentConfig = {
     },
     chainDockerOverrides: {
       [chainMetadata.solana.name]: {
-        tag: '49a581b-20240203-151524',
+        tag: '475bd1c-20240416-105206',
       },
       [chainMetadata.nautilus.name]: {
         tag: '3b0685f-20230815-110725',
