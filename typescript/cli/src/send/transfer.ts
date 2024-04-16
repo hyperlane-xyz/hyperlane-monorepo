@@ -32,8 +32,9 @@ export async function sendTestTransfer({
   recipient,
   timeoutSec,
   skipWaitForDelivery,
+  selfRelay,
 }: {
-  key: string;
+  key?: string;
   chainConfigPath: string;
   coreArtifactsPath?: string;
   warpConfigPath: string;
@@ -44,6 +45,7 @@ export async function sendTestTransfer({
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
+  selfRelay?: boolean;
 }) {
   const { signer, multiProvider, customChains, coreArtifacts, warpCoreConfig } =
     await getContext({
@@ -88,6 +90,7 @@ export async function sendTestTransfer({
       multiProvider,
       coreArtifacts,
       skipWaitForDelivery,
+      selfRelay,
     }),
     timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
@@ -105,6 +108,7 @@ async function executeDelivery({
   signer,
   coreArtifacts,
   skipWaitForDelivery,
+  selfRelay,
 }: {
   origin: ChainName;
   destination: ChainName;
@@ -116,6 +120,7 @@ async function executeDelivery({
   signer: ethers.Signer;
   coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
+  selfRelay?: boolean;
 }) {
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
@@ -195,6 +200,12 @@ async function executeDelivery({
   const message = core.getDispatchedMessages(transferTxReceipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);
+
+  if (selfRelay) {
+    await core.relayMessage(message);
+    logGreen('Message was self-relayed!');
+    return;
+  }
 
   if (skipWaitForDelivery) return;
 

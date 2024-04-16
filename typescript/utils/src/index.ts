@@ -48,6 +48,7 @@ export {
 } from './amount.js';
 export { chunk, exclude } from './arrays.js';
 export {
+  concurrentMap,
   pollAsync,
   raceWithContext,
   retryAsync,

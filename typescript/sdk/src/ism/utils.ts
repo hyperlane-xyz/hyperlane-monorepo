@@ -10,6 +10,7 @@ import {
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -298,6 +299,17 @@ export async function moduleMatchesConfig(
     case IsmType.TEST_ISM: {
       // This is just a TestISM
       matches = true;
+      break;
+    }
+    case IsmType.TRUSTED_RELAYER: {
+      const trustedRelayerIsm = TrustedRelayerIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const type = await trustedRelayerIsm.moduleType();
+      matches &&= type === ModuleType.NULL;
+      const relayer = await trustedRelayerIsm.trustedRelayer();
+      matches &&= eqAddress(relayer, config.relayer);
       break;
     }
     case IsmType.PAUSABLE: {
