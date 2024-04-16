@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
     ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed,
-    LogMeta, Sequenced,
+    LogMeta,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};

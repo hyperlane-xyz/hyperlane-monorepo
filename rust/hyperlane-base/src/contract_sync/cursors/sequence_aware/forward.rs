@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
     ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed,
-    LogMeta, SequenceAwareIndexer, Sequenced,
+    LogMeta, SequenceAwareIndexer,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -449,7 +449,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
 #[cfg(test)]
 pub(crate) mod test {
     use derive_new::new;
-    use hyperlane_core::{ChainResult, HyperlaneLogStore, Indexed, Indexer};
+    use hyperlane_core::{ChainResult, HyperlaneLogStore, Indexed, Indexer, Sequenced};
 
     use super::*;
 

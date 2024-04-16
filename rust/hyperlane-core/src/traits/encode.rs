@@ -1,6 +1,4 @@
-use std::io::{Cursor, Error, ErrorKind};
-
-use serde::{Deserialize, Serialize};
+use std::io::{Error, ErrorKind};
 
 use crate::{GasPaymentKey, HyperlaneProtocolError, IndexingDecorator, H160, H256, H512, U256};
 

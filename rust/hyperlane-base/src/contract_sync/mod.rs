@@ -1,20 +1,14 @@
 use std::{
-    collections::HashSet,
-    fmt::Debug,
-    hash::Hash,
-    io::{Read, Write},
-    marker::PhantomData,
-    sync::Arc,
-    time::Duration,
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
 };
 
 use axum::async_trait;
 use cursors::*;
 use derive_new::new;
 use hyperlane_core::{
-    utils::fmt_sync_time, ContractSyncCursor, CursorAction, Decode, Encode, HyperlaneDomain,
-    HyperlaneLogStore, HyperlaneProtocolError, HyperlaneSequenceAwareIndexerStore,
-    HyperlaneWatermarkedLogStore, Indexer, SequenceAwareIndexer, Sequenced,
+    utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
+    HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
+    SequenceAwareIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 // use serde::Encode;
@@ -199,7 +193,7 @@ pub type SequencedDataContractSync<T> =
 #[async_trait]
 impl<T> ContractSyncer<T> for SequencedDataContractSync<T>
 where
-    T: Sequenced + Debug + Clone + Eq + Hash,
+    T: Send + Sync + Debug + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {

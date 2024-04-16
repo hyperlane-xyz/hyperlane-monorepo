@@ -1,5 +1,3 @@
-use std::cmp::min;
-
 use async_trait::async_trait;
 use eyre::Result;
 use paste::paste;
@@ -118,10 +116,10 @@ impl HyperlaneRocksDB {
         indexed_payment: Indexed<InterchainGasPayment>,
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
-        let payment = indexed_payment.inner().clone();
+        let payment = *(indexed_payment.inner());
         let gas_payment_key = payment.into();
 
-        if let Ok(_) = self.retrieve_indexing_decorator_by_gas_payment_key(&gas_payment_key) {
+        if let Ok(Some(_)) = self.retrieve_indexing_decorator_by_gas_payment_key(&gas_payment_key) {
             trace!(
                 ?indexed_payment,
                 ?log_meta,
@@ -265,7 +263,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored = 0;
         for (message, meta) in messages {
-            let stored_message = self.store_message(&message.inner(), meta.block_number)?;
+            let stored_message = self.store_message(message.inner(), meta.block_number)?;
             if stored_message {
                 stored += 1;
             }
@@ -320,7 +318,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     async fn store_logs(&self, leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)]) -> Result<u32> {
         let mut insertions = 0;
         for (insertion, meta) in leaves {
-            if self.process_tree_insertion(&insertion.inner(), meta.block_number)? {
+            if self.process_tree_insertion(insertion.inner(), meta.block_number)? {
                 insertions += 1;
             }
         }

@@ -90,7 +90,7 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
         let messages = Indexer::<HyperlaneMessage>::fetch_logs(&self.0, range).await?;
         let merkle_tree_insertions = messages
             .into_iter()
-            .map(|(m, meta)| (message_to_merkle_tree_insertion(&m.inner()).into(), meta))
+            .map(|(m, meta)| (message_to_merkle_tree_insertion(m.inner()).into(), meta))
             .collect();
         Ok(merkle_tree_insertions)
     }
