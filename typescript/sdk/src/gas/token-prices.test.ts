@@ -10,7 +10,7 @@ describe('TokenPriceGetter', () => {
   let mockCoinGecko: MockCoinGecko;
   const chainA = TestChainName.test1,
     chainB = TestChainName.test2,
-    priceA = 10,
+    priceA = 1,
     priceB = 5.5;
   before(async () => {
     mockCoinGecko = new MockCoinGecko();
@@ -44,8 +44,8 @@ describe('TokenPriceGetter', () => {
         chainA,
         chainB,
       );
-      const expectedExchangeRate = priceA / priceB;
-      expect(exchangeRate).to.equal(expectedExchangeRate);
+      // Should equal 1 because testnet prices are always forced to 1
+      expect(exchangeRate).to.equal(1);
     });
   });
 });

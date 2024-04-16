@@ -73,10 +73,12 @@ describe('WarpCore', () => {
         testSealevelChain.name,
         sealevelHypSynthetic.addressOrDenom,
       ),
-    ).to.be.null;
+    ).to.be.instanceOf(Token);
     expect(
       warpCore.findToken(testCosmosChain.name, cw20.addressOrDenom),
     ).to.be.instanceOf(Token);
+    expect(warpCore.findToken(test1.name, sealevelHypSynthetic.addressOrDenom))
+      .to.be.null;
   });
 
   it('Gets transfer gas quote', async () => {
@@ -136,9 +138,9 @@ describe('WarpCore', () => {
     );
     await testQuote(cosmosIbc, test1.name, TokenStandard.CosmosNative);
     // Note, this route uses an igp quote const config
-    await testQuote(cwHypCollateral, test1.name, TokenStandard.CosmosNative, {
+    await testQuote(cwHypCollateral, test2.name, TokenStandard.CosmosNative, {
       amount: 1n,
-      addressOrDenom: 'untrn',
+      addressOrDenom: 'atom',
     });
 
     stubs.forEach((s) => s.restore());
@@ -154,7 +156,7 @@ describe('WarpCore', () => {
     const testCollateral = async (
       token: Token,
       destination: ChainName,
-      expectedBigResult = true,
+      expectedBigResult: boolean,
     ) => {
       const smallResult = await warpCore.isDestinationCollateralSufficient({
         originTokenAmount: token.amount(TRANSFER_AMOUNT),
@@ -174,19 +176,17 @@ describe('WarpCore', () => {
       ).to.equal(expectedBigResult);
     };
 
-    await testCollateral(evmHypNative, test1.name);
+    await testCollateral(evmHypNative, test2.name, true);
     await testCollateral(evmHypNative, testCosmosChain.name, false);
-    await testCollateral(evmHypNative, testSealevelChain.name);
-    await testCollateral(cwHypCollateral, test1.name);
+    await testCollateral(evmHypNative, testSealevelChain.name, true);
+    await testCollateral(cwHypCollateral, test1.name, false);
 
     stubs.forEach((s) => s.restore());
   });
 
   it('Validates transfers', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
-      sinon
-        .stub(t, 'getBalance')
-        .returns(Promise.resolve({ amount: MOCK_BALANCE } as any)),
+      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
     );
     const quoteStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
@@ -198,7 +198,7 @@ describe('WarpCore', () => {
 
     const validResult = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
-      destination: test1.name,
+      destination: test2.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });

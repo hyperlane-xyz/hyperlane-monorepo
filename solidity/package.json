@@ -37,12 +37,12 @@
   "exports": {
     ".": "./dist/index.js",
     "./mailbox": "./dist/contracts/Mailbox.js",
-    "./buildArtifact.json": "./buildArtifact.json",
+    "./buildArtifact.js": "./dist/buildArtifact.js",
+    "./buildArtifact.json": "./dist/buildArtifact.json",
     "./contracts": "./contracts"
   },
   "types": "./dist/index.d.ts",
   "files": [
-    "/buildArtifact.json",
     "/dist",
     "/contracts"
   ],

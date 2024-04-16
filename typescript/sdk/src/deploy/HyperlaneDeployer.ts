@@ -13,8 +13,7 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-//TODO
-import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   ProtocolType,
@@ -92,11 +91,11 @@ export abstract class HyperlaneDeployer<
       );
     }
 
-    // if none provided, instantiate a default verifier with SDK's included build artifact
+    // if none provided, instantiate a default verifier with the default core contract build artifact
     this.options.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
-      SdkBuildArtifact,
+      coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
   }

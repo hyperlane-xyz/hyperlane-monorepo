@@ -10,14 +10,14 @@ describe('Agent config', () => {
     [TestChainName.test1],
     MultiProvider.createTestMultiProvider(),
     {
-      ethereum: {
+      test1: {
         mailbox: '0xmailbox',
         interchainGasPaymaster: '0xgas',
         validatorAnnounce: '0xannounce',
         merkleTreeHook: '0xmerkle',
       },
     },
-    { ethereum: 0 },
+    { test1: 0 },
   ];
 
   it('Should generate a new agent config', () => {

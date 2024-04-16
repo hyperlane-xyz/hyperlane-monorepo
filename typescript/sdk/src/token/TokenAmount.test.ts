@@ -30,7 +30,7 @@ describe('TokenAmount', () => {
 
   it('Formats human readable string', () => {
     expect(tokenAmount1.getDecimalFormattedAmount()).to.eq(12345.6789);
-    expect(tokenAmount2.getDecimalFormattedAmount()).to.eq(0.000001);
+    expect(tokenAmount2.getDecimalFormattedAmount()).to.eq(1e-18);
   });
 
   it('Does arithmetic', () => {

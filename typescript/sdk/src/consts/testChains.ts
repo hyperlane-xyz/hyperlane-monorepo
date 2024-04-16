@@ -76,6 +76,7 @@ export const testSealevelChain: ChainMetadata = {
   chainId: 987654321,
   domainId: 987654321,
   name: 'testsealevel',
+  nativeToken: { decimals: 9, name: 'Sol', symbol: 'SOL' },
   protocol: ProtocolType.Sealevel,
   rpcUrls: [{ http: 'http://127.0.0.1:8899' }],
 };
