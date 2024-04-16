@@ -267,8 +267,6 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
                 }
             }
         }
-        // this is where the info about sequence gets lost.
-        // must return Indexed<T> here
         Ok(payments)
     }
 
