@@ -17,10 +17,12 @@ import {
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   TestIsm__factory,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  assert,
   eqAddress,
   objFilter,
   rootLogger,
@@ -129,10 +131,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        if (!this.deployer) {
-          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
-        }
-        contract = await this.deployer?.deployContractFromFactory(
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
           destination,
           new OPStackIsm__factory(),
           IsmType.OP_STACK,
@@ -140,10 +143,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       case IsmType.PAUSABLE:
-        if (!this.deployer) {
-          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
-        }
-        contract = await this.deployer?.deployContractFromFactory(
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
           destination,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
@@ -155,15 +159,28 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             ),
           ],
         );
-        await this.deployer?.transferOwnershipOfContracts(destination, config, {
+        await this.deployer.transferOwnershipOfContracts(destination, config, {
           [IsmType.PAUSABLE]: contract,
         });
+        break;
+      case IsmType.TRUSTED_RELAYER:
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
+        contract = await this.deployer.deployContractFromFactory(
+          destination,
+          new TrustedRelayerIsm__factory(),
+          IsmType.TRUSTED_RELAYER,
+          [mailbox, config.relayer],
+        );
         break;
       case IsmType.TEST_ISM:
         if (!this.deployer) {
           throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
         }
-        contract = await this.deployer?.deployContractFromFactory(
+        contract = await this.deployer.deployContractFromFactory(
           destination,
           new TestIsm__factory(),
           IsmType.TEST_ISM,

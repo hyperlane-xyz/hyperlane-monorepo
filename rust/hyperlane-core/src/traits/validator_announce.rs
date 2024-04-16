@@ -17,11 +17,7 @@ pub trait ValidatorAnnounce: HyperlaneContract + Send + Sync + Debug {
     ) -> ChainResult<Vec<Vec<String>>>;
 
     /// Announce a storage location for a validator
-    async fn announce(
-        &self,
-        announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
-    ) -> ChainResult<TxOutcome>;
+    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome>;
 
     /// Returns the number of additional tokens needed to pay for the announce
     /// transaction. Return `None` if the needed tokens cannot be determined.

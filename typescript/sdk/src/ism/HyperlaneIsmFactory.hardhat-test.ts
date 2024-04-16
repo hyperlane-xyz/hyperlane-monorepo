@@ -2,7 +2,7 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { DomainRoutingIsm } from '@hyperlane-xyz/core';
+import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
@@ -20,6 +20,7 @@ import {
   ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
+  TrustedRelayerIsmConfig,
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
 
@@ -28,6 +29,7 @@ function randomModuleType(): ModuleType {
     ModuleType.AGGREGATION,
     ModuleType.MERKLE_ROOT_MULTISIG,
     ModuleType.ROUTING,
+    ModuleType.NULL,
   ];
   return choices[randomInt(choices.length)];
 }
@@ -66,6 +68,12 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
       type: IsmType.AGGREGATION,
       threshold: randomInt(n, 1),
       modules,
+    };
+    return config;
+  } else if (moduleType === ModuleType.NULL) {
+    const config: TrustedRelayerIsmConfig = {
+      type: IsmType.TRUSTED_RELAYER,
+      relayer: randomAddress(),
     };
     return config;
   } else {
@@ -122,12 +130,37 @@ describe('HyperlaneIsmFactory', async () => {
     expect(matches).to.be.true;
   });
 
+  it('deploys a trusted relayer ism', async () => {
+    const relayer = randomAddress();
+    const config: TrustedRelayerIsmConfig = {
+      type: IsmType.TRUSTED_RELAYER,
+      relayer,
+    };
+    const ism = (await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    })) as TrustedRelayerIsm;
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+    expect(matches).to.be.true;
+  });
+
   for (let i = 0; i < 16; i++) {
     it('deploys a random ism config', async () => {
       const config = randomIsmConfig();
       let ismAddress: string;
       try {
-        const ism = await ismFactory.deploy({ destination: chain, config });
+        const ism = await ismFactory.deploy({
+          destination: chain,
+          config,
+          mailbox: mailboxAddress,
+        });
         ismAddress = ism.address;
       } catch (e) {
         console.error('Failed to deploy random ism config', e);

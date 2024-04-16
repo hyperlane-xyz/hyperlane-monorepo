@@ -36,13 +36,9 @@ describe('EvmHookReader', () => {
 
   const generateRandomAddress = () => ethers.Wallet.createRandom().address;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
-    multiProvider.setProvider(
-      TestChainName.test1,
-      await ethers.getDefaultProvider(),
-    );
     evmHookReader = new EvmHookReader(multiProvider, TestChainName.test1);
   });
 

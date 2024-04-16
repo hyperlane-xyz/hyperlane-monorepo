@@ -2,6 +2,8 @@ import { Options } from 'yargs';
 
 import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
+import { ENV } from '../utils/env.js';
+
 export const logFormatCommandOption: Options = {
   type: 'string',
   description: 'Log output format',
@@ -38,6 +40,7 @@ export type WarpCommandOptions = CommandOptions & {
   out: Options;
   key: Options;
   yes: Options;
+  'dry-run': Options;
 };
 
 export const coreTargetsCommandOption: Options = {
@@ -81,6 +84,7 @@ export const keyCommandOption: Options = {
   description: `Default: A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
 Dry-run: An address to simulate transaction signing on a forked network, or use the HYP_KEY env var.`,
   alias: 'k',
+  default: ENV.HYP_KEY,
 };
 
 export const chainsCommandOption: Options = {
@@ -141,5 +145,5 @@ export const dryRunOption: Options = {
   description:
     'Simulate deployment on forked network. Please ensure an anvil node instance is running during execution via `anvil`.',
   default: false,
-  alias: 'd',
+  alias: ['d', 'dr'],
 };

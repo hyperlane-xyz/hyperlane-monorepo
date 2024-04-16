@@ -4,7 +4,6 @@ import { CommandModule, Options } from 'yargs';
 import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { ENV } from '../utils/env.js';
 
 import {
   chainsCommandOption,
@@ -28,10 +27,17 @@ export const sendCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
+export const selfrelay: Options = {
+  type: 'boolean',
+  description: 'Relay message on destination chain',
+  default: false,
+  alias: ['s', 'sr'],
+};
+
 /**
  * Message command
  */
-const messageOptions: { [k: string]: Options } = {
+export const messageOptions: { [k: string]: Options } = {
   key: keyCommandOption,
   origin: {
     type: 'string',
@@ -48,6 +54,7 @@ const messageOptions: { [k: string]: Options } = {
     description: 'Timeout in seconds',
     default: 5 * 60,
   },
+  'self-relay': selfrelay,
   quick: {
     type: 'boolean',
     description: 'Skip wait for message to be delivered',
@@ -68,7 +75,7 @@ const messageCommand: CommandModule = {
       },
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || ENV.HYP_KEY;
+    const key: string | undefined = argv.key;
     const chainConfigPath: string = argv.chains;
     const coreArtifactsPath: string | undefined = argv.core;
     const origin: string | undefined = argv.origin;
@@ -76,6 +83,7 @@ const messageCommand: CommandModule = {
     const timeoutSec: number = argv.timeout;
     const skipWaitForDelivery: boolean = argv.quick;
     const messageBody: string = argv.messageBody;
+    const selfRelay: boolean = argv['selfrelay'];
     await sendTestMessage({
       key,
       chainConfigPath,
@@ -85,6 +93,7 @@ const messageCommand: CommandModule = {
       messageBody: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(messageBody)),
       timeoutSec,
       skipWaitForDelivery,
+      selfRelay,
     });
     process.exit(0);
   },
@@ -115,7 +124,7 @@ const transferCommand: CommandModule = {
       },
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || ENV.HYP_KEY;
+    const key: string | undefined = argv.key;
     const chainConfigPath: string = argv.chains;
     const coreArtifactsPath: string | undefined = argv.core;
     const warpConfigPath: string = argv.warp;
@@ -126,6 +135,7 @@ const transferCommand: CommandModule = {
     const wei: string = argv.wei;
     const recipient: string | undefined = argv.recipient;
     const skipWaitForDelivery: boolean = argv.quick;
+    const selfRelay: boolean = argv['self-relay'];
     await sendTestTransfer({
       key,
       chainConfigPath,
@@ -138,6 +148,7 @@ const transferCommand: CommandModule = {
       recipient,
       timeoutSec,
       skipWaitForDelivery,
+      selfRelay,
     });
     process.exit(0);
   },

@@ -20,7 +20,7 @@ export interface KeyFunderConfig {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  connectionType: RpcConsensusType.Single | RpcConsensusType.Quorum;
+  connectionType: RpcConsensusType;
   desiredBalancePerChain: ChainMap<string>;
   desiredKathyBalancePerChain: ChainMap<string>;
 }

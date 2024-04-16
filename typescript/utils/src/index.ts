@@ -48,6 +48,7 @@ export {
 } from './amount.js';
 export { chunk, exclude } from './arrays.js';
 export {
+  concurrentMap,
   pollAsync,
   raceWithContext,
   retryAsync,
@@ -99,9 +100,11 @@ export {
   deepCopy,
   deepEquals,
   invertKeysAndValues,
+  isObjEmpty,
   isObject,
   objFilter,
   objKeys,
+  objLength,
   objMap,
   objMapEntries,
   objMerge,

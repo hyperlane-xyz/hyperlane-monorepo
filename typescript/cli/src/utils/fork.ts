@@ -33,7 +33,7 @@ export const resetFork = async () => {
     },
   ]);
 
-  logGreen(`Successfully reset forked network ✅`);
+  logGreen(`✅ Successfully reset forked network`);
 };
 
 /**
@@ -60,7 +60,7 @@ export const setFork = async (
 
   multiProvider.setProvider(chain, provider);
 
-  logGreen(`Successfully forked ${chain} for dry-run ✅`);
+  logGreen(`✅ Successfully forked ${chain} for dry-run`);
 };
 
 /**
@@ -76,7 +76,7 @@ export const impersonateAccount = async (
   const provider = getLocalProvider();
   await provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]);
 
-  logGreen(`Successfully impersonated account (${address}) ✅`);
+  logGreen(`✅ Successfully impersonated account (${address})`);
 
   return provider.getSigner(address);
 };
@@ -99,7 +99,7 @@ export const stopImpersonatingAccount = async (address: Address) => {
   ]);
 
   logGreen(
-    `Successfully stopped account impersonation for address (${address}) ✅`,
+    `✅ Successfully stopped account impersonation for address (${address})`,
   );
 };
 
