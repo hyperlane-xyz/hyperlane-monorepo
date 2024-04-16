@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': patch
+'@hyperlane-xyz/utils': patch
 ---
 
-Create GithubRegistry class
+Add objLength and isObjEmpty utils
