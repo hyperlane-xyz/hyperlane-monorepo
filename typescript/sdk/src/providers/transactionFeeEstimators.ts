@@ -4,11 +4,11 @@ import { toUtf8 } from '@cosmjs/encoding';
 import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
-import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx';
+import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
   CosmJsProvider,
@@ -24,7 +24,7 @@ import {
   TypedTransaction,
   ViemProvider,
   ViemTransaction,
-} from './ProviderType';
+} from './ProviderType.js';
 
 export interface TransactionFeeEstimate {
   gasUnits: number | bigint;

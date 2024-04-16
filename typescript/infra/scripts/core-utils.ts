@@ -1,8 +1,8 @@
-import { Contexts } from '../config/contexts';
-import { environments } from '../config/environments';
-import { DeployEnvironment } from '../src/config';
+import { Contexts } from '../config/contexts.js';
+import { environments } from '../config/environments/index.js';
+import { DeployEnvironment } from '../src/config/environment.js';
 
-import { getAgentConfig, getArgs, withContext } from './agent-utils';
+import { getAgentConfig, getArgs, withContext } from './agent-utils.js';
 
 // utils which use both environment configs
 

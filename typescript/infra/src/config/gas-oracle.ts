@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { convertDecimals } from '@hyperlane-xyz/utils';
 
-import { mustGetChainNativeTokenDecimals } from '../utils/utils';
+import { mustGetChainNativeTokenDecimals } from '../utils/utils.js';
 
 // Gas data to configure on a single local chain. Includes DestinationOracleConfig
 // for each remote chain.

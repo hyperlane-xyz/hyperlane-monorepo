@@ -1,5 +1,5 @@
 // @ts-ignore
-import * as asn1 from 'asn1.js';
+import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
@@ -15,36 +15,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { FundableRole, Role } from '../roles';
-
-export function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Map an async function over a list xs with a given concurrency level
- *
- * @param concurrency number of `mapFn` concurrent executions
- * @param xs list of value
- * @param mapFn mapping function
- */
-export async function concurrentMap<A, B>(
-  concurrency: number,
-  xs: A[],
-  mapFn: (val: A, idx: number) => Promise<B>,
-): Promise<B[]> {
-  let res: B[] = [];
-  for (let i = 0; i < xs.length; i += concurrency) {
-    const remaining = xs.length - i;
-    const sliceSize = Math.min(remaining, concurrency);
-    const slice = xs.slice(i, i + sliceSize);
-    res = res.concat(
-      await Promise.all(slice.map((elem, index) => mapFn(elem, i + index))),
-    );
-  }
-  return res;
-}
+import { Contexts } from '../../config/contexts.js';
+import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {
   return condition ? data : {};

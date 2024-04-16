@@ -5,17 +5,17 @@ import * as path from 'path';
 
 import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
-import { S3Validator } from '../src/agents/aws/validator';
-import { CheckpointSyncerType } from '../src/config';
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { isEthereumProtocolChain } from '../src/utils/utils';
+import { S3Validator } from '../src/agents/aws/validator.js';
+import { CheckpointSyncerType } from '../src/config/agent/validator.js';
+import { deployEnvToSdkEnv } from '../src/config/environment.js';
+import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
 import {
   getAgentConfig,
   getArgs as getRootArgs,
   withContext,
-} from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+} from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 function getArgs() {
   return withContext(getRootArgs())

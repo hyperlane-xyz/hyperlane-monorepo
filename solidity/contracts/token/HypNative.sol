@@ -45,7 +45,15 @@ contract HypNative is TokenRouter {
     ) public payable virtual override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 gasPayment = msg.value - _amount;
-        return _transferRemote(_destination, _recipient, _amount, gasPayment);
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                gasPayment,
+                bytes(""),
+                address(0)
+            );
     }
 
     function balanceOf(

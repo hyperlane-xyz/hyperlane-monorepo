@@ -6,13 +6,13 @@ import {
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment } from '../src/config';
+import { DeployEnvironment } from '../src/config/environment.js';
 
-import { Contexts } from './contexts';
-import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
-import { chainNames as testChains } from './environments/test/chains';
-import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
-import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs';
+import { Contexts } from './contexts.js';
+import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains.js';
+import { chainNames as testChains } from './environments/test/chains.js';
+import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains.js';
+import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs.js';
 
 const chains = {
   mainnet3: mainnet3Chains,

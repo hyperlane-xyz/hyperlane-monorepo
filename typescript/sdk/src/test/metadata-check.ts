@@ -3,10 +3,10 @@ import { ethers } from 'ethers';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { CoreChainName, TestChains } from '../consts/chains';
-import { isBlockExplorerHealthy, isRpcHealthy } from '../metadata/health';
-import { ChainMap } from '../types';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { CoreChainName, TestChains } from '../consts/chains.js';
+import { isBlockExplorerHealthy, isRpcHealthy } from '../metadata/health.js';
+import { ChainMap } from '../types.js';
 
 const PROTOCOL_TO_ADDRESS: Record<ProtocolType, Address> = {
   [ProtocolType.Ethereum]: ethers.constants.AddressZero,

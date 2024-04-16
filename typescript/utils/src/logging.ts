@@ -1,6 +1,7 @@
+import { BigNumber } from 'ethers';
 import { LevelWithSilent, Logger, pino } from 'pino';
 
-import { safelyAccessEnvVar } from './env';
+import { safelyAccessEnvVar } from './env.js';
 
 // Level and format here should correspond with the agent options as much as possible
 // https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
@@ -95,4 +96,17 @@ export function createHyperlanePinoLogger(
       },
     },
   });
+}
+
+export function ethersBigNumberSerializer(key: string, value: any): any {
+  // Check if the value looks like a serialized BigNumber
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    value.type === 'BigNumber' &&
+    value.hex
+  ) {
+    return BigNumber.from(value.hex).toString();
+  }
+  return value;
 }

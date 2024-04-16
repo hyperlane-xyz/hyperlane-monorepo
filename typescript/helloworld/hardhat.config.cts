@@ -10,22 +10,14 @@ import 'solidity-coverage';
 module.exports = {
   solidity: {
     version: '0.8.19',
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 999_999,
-      },
-    },
   },
   gasReporter: {
     currency: 'USD',
   },
   typechain: {
-    outDir: './types',
+    outDir: './src/types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
-  },
-  mocha: {
-    bail: true,
+    node16Modules: true,
   },
 };

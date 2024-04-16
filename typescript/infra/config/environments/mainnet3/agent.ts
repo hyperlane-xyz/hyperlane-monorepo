@@ -1,5 +1,6 @@
 import {
   Chains,
+  GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
   chainMetadata,
@@ -10,18 +11,17 @@ import {
   AgentChainConfig,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
-} from '../../../src/config';
+} from '../../../src/config/agent/agent.js';
 import {
-  GasPaymentEnforcementConfig,
   matchingList,
   routerMatchingList,
-} from '../../../src/config/agent/relayer';
-import { ALL_KEY_ROLES, Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+} from '../../../src/config/agent/relayer.js';
+import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { environment, supportedChainNames } from './chains';
-import { helloWorld } from './helloworld';
-import { validatorChainConfig } from './validators';
+import { environment, supportedChainNames } from './chains.js';
+import { helloWorld } from './helloworld.js';
+import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
@@ -125,7 +125,7 @@ const contextBase = {
   },
 } as const;
 
-const gasPaymentEnforcement: GasPaymentEnforcementConfig[] = [
+const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
   },
@@ -140,7 +140,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2150e58-20240404-105923',
+      tag: '2a16200-20240408-214947',
     },
     gasPaymentEnforcement: [
       // Temporary measure to ensure all inEVM warp route messages are delivered -
@@ -148,6 +148,14 @@ const hyperlane: RootAgentConfig = {
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: routerMatchingList(injectiveInevmInjAddresses),
+      },
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: matchingList(inevmEthereumUsdcAddresses),
+      },
+      {
+        type: GasPaymentEnforcementPolicyType.None,
+        matchingList: matchingList(inevmEthereumUsdtAddresses),
       },
       ...gasPaymentEnforcement,
     ],

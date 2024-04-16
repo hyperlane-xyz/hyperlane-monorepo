@@ -10,6 +10,7 @@ import {
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -20,12 +21,12 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContracts } from '../contracts/types';
-import { ProxyFactoryFactories } from '../deploy/contracts';
-import { resolveOrDeployAccountOwner } from '../deploy/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { resolveOrDeployAccountOwner } from '../deploy/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
 import {
   IsmConfig,
@@ -34,7 +35,7 @@ import {
   RoutingIsmConfig,
   RoutingIsmDelta,
   ismTypeToModuleType,
-} from './types';
+} from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
 
@@ -298,6 +299,17 @@ export async function moduleMatchesConfig(
     case IsmType.TEST_ISM: {
       // This is just a TestISM
       matches = true;
+      break;
+    }
+    case IsmType.TRUSTED_RELAYER: {
+      const trustedRelayerIsm = TrustedRelayerIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+      const type = await trustedRelayerIsm.moduleType();
+      matches &&= type === ModuleType.NULL;
+      const relayer = await trustedRelayerIsm.trustedRelayer();
+      matches &&= eqAddress(relayer, config.relayer);
       break;
     }
     case IsmType.PAUSABLE: {

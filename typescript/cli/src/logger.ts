@@ -45,6 +45,8 @@ export const logBoldUnderlinedRed = (...args: any) =>
   logColor('info', chalk.red.bold.underline, ...args);
 export const logTip = (...args: any) =>
   logColor('info', chalk.bgYellow, ...args);
+export const warnYellow = (...args: any) =>
+  logColor('warn', chalk.yellow, ...args);
 export const errorRed = (...args: any) => logColor('error', chalk.red, ...args);
 
 // No support for table in pino so print directly to console

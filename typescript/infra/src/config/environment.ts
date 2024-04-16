@@ -11,16 +11,16 @@ import {
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { environments } from '../../config/environments';
-import { CloudAgentKey } from '../agents/keys';
-import { Role } from '../roles';
+import { Contexts } from '../../config/contexts.js';
+import { environments } from '../../config/environments/index.js';
+import { CloudAgentKey } from '../agents/keys.js';
+import { Role } from '../roles.js';
 
-import { RootAgentConfig } from './agent';
-import { KeyFunderConfig } from './funding';
-import { HelloWorldConfig } from './helloworld/types';
-import { InfrastructureConfig } from './infrastructure';
-import { LiquidityLayerRelayerConfig } from './middleware';
+import { RootAgentConfig } from './agent/agent.js';
+import { KeyFunderConfig } from './funding.js';
+import { HelloWorldConfig } from './helloworld/types.js';
+import { InfrastructureConfig } from './infrastructure.js';
+import { LiquidityLayerRelayerConfig } from './middleware.js';
 
 // TODO: fix this?
 export const EnvironmentNames = ['test', 'testnet4', 'mainnet3'];

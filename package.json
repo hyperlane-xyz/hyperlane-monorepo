@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",
-    "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
-    "eslint": "^8.43.0",
-    "eslint-config-prettier": "^8.8.0",
+    "@typescript-eslint/eslint-plugin": "^7.4.0",
+    "@typescript-eslint/parser": "^7.4.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
-    "prettier": "^2.8.8"
+    "prettier": "^2.8.8",
+    "tsx": "^4.7.1"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.2"
@@ -42,6 +43,8 @@
     "recursive-readdir": "^2.2.3",
     "underscore": "^1.13",
     "undici": "^5.11",
-    "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7"
+    "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7",
+    "@typechain/ethers-v5": "11.1.2",
+    "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
   }
 }

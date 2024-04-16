@@ -14,18 +14,18 @@ import {
   ChainMetadata,
   ExplorerFamily,
   RpcUrl,
-} from '../../metadata/chainMetadataTypes';
+} from '../../metadata/chainMetadataTypes.js';
 
-import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider';
-import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider';
-import { IProviderMethods, ProviderMethod } from './ProviderMethods';
+import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
+import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
   SmartProviderOptions,
-} from './types';
+} from './types.js';
 
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
@@ -238,7 +238,7 @@ export class HyperlaneSmartProvider
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
           this.logger.warn(
-            `Error from provider #${pIndex}.${
+            `Error from provider #${pIndex}: ${result.error} - ${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,
           );

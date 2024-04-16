@@ -1,6 +1,6 @@
 import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
-import { AgentChainNames, Role } from '../../../src/roles';
+import { AgentChainNames, Role } from '../../../src/roles.js';
 
 export const testConfigs: ChainMap<ChainMetadata> = {
   test1: chainMetadata.test1,

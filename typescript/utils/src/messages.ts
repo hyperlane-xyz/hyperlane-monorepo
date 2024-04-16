@@ -1,7 +1,7 @@
 import { BigNumber, ethers, utils } from 'ethers';
 
-import { addressToBytes32 } from './addresses';
-import { Address, Domain, HexString, ParsedMessage } from './types';
+import { addressToBytes32 } from './addresses.js';
+import { Address, Domain, HexString, ParsedMessage } from './types.js';
 
 /**
  * JS Implementation of solidity/contracts/libs/Message.sol#formatMessage

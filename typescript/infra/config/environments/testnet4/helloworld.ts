@@ -1,10 +1,12 @@
 import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldConfig } from '../../../src/config';
-import { HelloWorldKathyRunMode } from '../../../src/config/helloworld/types';
-import { Contexts } from '../../contexts';
+import {
+  HelloWorldConfig,
+  HelloWorldKathyRunMode,
+} from '../../../src/config/helloworld/types.js';
+import { Contexts } from '../../contexts.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 

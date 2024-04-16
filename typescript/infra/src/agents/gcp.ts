@@ -1,19 +1,19 @@
 import { encodeSecp256k1Pubkey, pubkeyToAddress } from '@cosmjs/amino';
 import { Keypair } from '@solana/web3.js';
-import { Debugger, debug } from 'debug';
 import { Wallet, ethers } from 'ethers';
+import { Logger } from 'pino';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType, strip0x } from '@hyperlane-xyz/utils';
+import { ProtocolType, rootLogger, strip0x } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { DeployEnvironment } from '../config';
-import { Role } from '../roles';
-import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
-import { execCmd, include } from '../utils/utils';
+import { Contexts } from '../../config/contexts.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { Role } from '../roles.js';
+import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud.js';
+import { execCmd, include } from '../utils/utils.js';
 
-import { isValidatorKey, keyIdentifier } from './agent';
-import { CloudAgentKey } from './keys';
+import { isValidatorKey, keyIdentifier } from './agent.js';
+import { CloudAgentKey } from './keys.js';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -39,7 +39,7 @@ interface FetchedKey {
 type RemoteKey = UnfetchedKey | FetchedKey;
 
 export class AgentGCPKey extends CloudAgentKey {
-  protected logger: Debugger;
+  protected logger: Logger;
 
   constructor(
     environment: DeployEnvironment,
@@ -50,23 +50,25 @@ export class AgentGCPKey extends CloudAgentKey {
     private remoteKey: RemoteKey = { fetched: false },
   ) {
     super(environment, context, role, chainName, index);
-    this.logger = debug(`infra:agents:key:gcp:${this.identifier}`);
+    this.logger = rootLogger.child({
+      module: `infra:agents:key:gcp:${this.identifier}`,
+    });
   }
 
   async createIfNotExists() {
-    this.logger('Checking if key exists and creating if not');
+    this.logger.debug('Checking if key exists and creating if not');
     try {
       await this.fetch();
-      this.logger('Key already exists');
+      this.logger.debug('Key already exists');
     } catch (err) {
-      this.logger('Key does not exist, creating new key');
+      this.logger.debug('Key does not exist, creating new key');
       await this.create();
     }
   }
 
   serializeAsAddress() {
     this.requireFetched();
-    this.logger('Serializing key as address');
+    this.logger.debug('Serializing key as address');
     return {
       identifier: this.identifier,
       // @ts-ignore
@@ -102,7 +104,7 @@ export class AgentGCPKey extends CloudAgentKey {
 
   addressForProtocol(protocol: ProtocolType): string | undefined {
     this.requireFetched();
-    this.logger(`Getting address for protocol: ${protocol}`);
+    this.logger.debug(`Getting address for protocol: ${protocol}`);
 
     switch (protocol) {
       case ProtocolType.Ethereum:
@@ -124,13 +126,13 @@ export class AgentGCPKey extends CloudAgentKey {
         return pubkeyToAddress(encodedPubkey, 'neutron');
       }
       default:
-        this.logger(`Unsupported protocol: ${protocol}`);
+        this.logger.debug(`Unsupported protocol: ${protocol}`);
         return undefined;
     }
   }
 
   async fetch() {
-    this.logger('Fetching key');
+    this.logger.debug('Fetching key');
     const secret: SecretManagerPersistedKeys = (await fetchGCPSecret(
       this.identifier,
     )) as any;
@@ -139,34 +141,34 @@ export class AgentGCPKey extends CloudAgentKey {
       privateKey: secret.privateKey,
       address: secret.address,
     };
-    this.logger(`Key fetched successfully: ${secret.address}`);
+    this.logger.debug(`Key fetched successfully: ${secret.address}`);
   }
 
   async create() {
-    this.logger('Creating new key');
+    this.logger.debug('Creating new key');
     this.remoteKey = await this._create(false);
-    this.logger('Key created successfully');
+    this.logger.debug('Key created successfully');
   }
 
   async update() {
-    this.logger('Updating key');
+    this.logger.debug('Updating key');
     this.remoteKey = await this._create(true);
-    this.logger('Key updated successfully');
+    this.logger.debug('Key updated successfully');
     return this.address;
   }
 
   async delete() {
-    this.logger('Deleting key');
+    this.logger.debug('Deleting key');
     await execCmd(`gcloud secrets delete ${this.identifier} --quiet`);
-    this.logger('Key deleted successfully');
+    this.logger.debug('Key deleted successfully');
   }
 
   async getSigner(
     provider?: ethers.providers.Provider,
   ): Promise<ethers.Signer> {
-    this.logger('Getting signer');
+    this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
-      this.logger('Key not fetched, fetching now');
+      this.logger.debug('Key not fetched, fetching now');
       await this.fetch();
     }
     return new Wallet(this.privateKey, provider);
@@ -174,14 +176,14 @@ export class AgentGCPKey extends CloudAgentKey {
 
   private requireFetched() {
     if (!this.remoteKey.fetched) {
-      this.logger('Key not fetched, throwing error');
+      this.logger.debug('Key not fetched, throwing error');
       throw new Error("Can't persist without address");
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async _create(rotate: boolean) {
-    this.logger(`Creating key with rotation: ${rotate}`);
+    this.logger.debug(`Creating key with rotation: ${rotate}`);
     const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();
     const identifier = this.identifier;
@@ -206,7 +208,7 @@ export class AgentGCPKey extends CloudAgentKey {
         }),
       },
     );
-    this.logger('Key creation data persisted to GCP');
+    this.logger.debug('Key creation data persisted to GCP');
 
     return {
       fetched: true,

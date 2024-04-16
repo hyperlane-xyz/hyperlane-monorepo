@@ -4,10 +4,10 @@ import {
   ChainMetadata,
   ChainTechnicalStack,
   ExplorerFamily,
-} from '../metadata/chainMetadataTypes';
-import { ChainMap } from '../types';
+} from '../metadata/chainMetadataTypes.js';
+import { ChainMap } from '../types.js';
 
-import { Chains, Mainnets, Testnets } from './chains';
+import { Chains, Mainnets, Testnets } from './chains.js';
 
 /**
  * Common native currencies
@@ -97,6 +97,13 @@ export const arbitrum: ChainMetadata = {
   // ETH is used for gas
   gnosisSafeTransactionServiceUrl:
     'https://safe-transaction-arbitrum.safe.global/',
+  index: {
+    // Arbitrum Nitro flavored chains record the L1 block number they were deployed at,
+    // not the L2 block number. See https://docs.arbitrum.io/build-decentralized-apps/arbitrum-vs-ethereum/block-numbers-and-time#ethereum-block-numbers-within-arbitrum.
+    // This is the block that the Mailbox was deployed at:
+    // https://arbiscan.io/tx/0x946b241bfa1465d8de7247c155a533d2ee9437a2763a0399f1ca458f13b5efa5
+    from: 143649797,
+  },
   name: Chains.arbitrum,
   nativeToken: etherToken,
   protocol: ProtocolType.Ethereum,
@@ -600,6 +607,13 @@ export const plumetestnet: ChainMetadata = {
   chainId: 161221135,
   displayName: 'Plume Testnet',
   domainId: 161221135,
+  index: {
+    // Arbitrum Nitro flavored chains record the L1 block number they were deployed at,
+    // not the L2 block number. See https://docs.arbitrum.io/build-decentralized-apps/arbitrum-vs-ethereum/block-numbers-and-time#ethereum-block-numbers-within-arbitrum.
+    // This is the block that the Mailbox was deployed at:
+    // https://plume-testnet.explorer.caldera.xyz/tx/0x72d11097bc54e318a1c3e6a74c8f59d0f2dbed1478854e633ee71e65b7b2a2f8
+    from: 4206,
+  },
   isTestnet: true,
   name: Chains.plumetestnet,
   nativeToken: {
@@ -609,6 +623,7 @@ export const plumetestnet: ChainMetadata = {
   },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://plume-testnet.rpc.caldera.xyz/http' }],
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const polygon: ChainMetadata = {

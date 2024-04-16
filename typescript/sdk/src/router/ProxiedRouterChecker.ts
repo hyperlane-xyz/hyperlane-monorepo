@@ -1,8 +1,8 @@
-import { ChainName } from '../types';
+import { ChainName } from '../types.js';
 
-import { HyperlaneRouterChecker } from './HyperlaneRouterChecker';
-import { RouterApp } from './RouterApps';
-import { ProxiedFactories, ProxiedRouterConfig } from './types';
+import { HyperlaneRouterChecker } from './HyperlaneRouterChecker.js';
+import { RouterApp } from './RouterApps.js';
+import { ProxiedFactories, ProxiedRouterConfig } from './types.js';
 
 export abstract class ProxiedRouterChecker<
   Factories extends ProxiedFactories,

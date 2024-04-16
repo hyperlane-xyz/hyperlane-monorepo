@@ -1,18 +1,17 @@
-import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import { IMailbox__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts/types';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { moduleMatchesConfig } from '../ism/utils';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { HyperlaneFactories } from '../contracts/types.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { RouterApp } from './RouterApps';
+import { RouterApp } from './RouterApps.js';
 import {
   ClientViolation,
   ClientViolationType,
@@ -20,7 +19,7 @@ import {
   RouterConfig,
   RouterViolation,
   RouterViolationType,
-} from './types';
+} from './types.js';
 
 export class HyperlaneRouterChecker<
   Factories extends HyperlaneFactories,
@@ -70,7 +69,7 @@ export class HyperlaneRouterChecker<
         );
 
         if (!matches) {
-          const violation: ConnectionClientViolation = {
+          const violation: ClientViolation = {
             chain,
             type: violationType,
             contract: router,

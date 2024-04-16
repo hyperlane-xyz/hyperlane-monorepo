@@ -3,11 +3,11 @@ import { ethers } from 'ethers';
 import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
 import { messageId } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
-import { ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
-import { coreFactories } from './contracts';
+import { HyperlaneCore } from './HyperlaneCore.js';
+import { coreFactories } from './contracts.js';
 
 export const testCoreFactories = {
   ...coreFactories,

@@ -34,11 +34,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
         todo!()
     }
 
-    async fn announce(
-        &self,
-        announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
-    ) -> ChainResult<TxOutcome> {
+    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         todo!()
     }
 
