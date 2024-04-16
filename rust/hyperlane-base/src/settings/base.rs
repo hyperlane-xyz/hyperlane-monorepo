@@ -143,6 +143,7 @@ macro_rules! build_indexer_fns {
             metrics: &CoreMetrics,
             sync_metrics: &ContractSyncMetrics,
             db: Arc<$db>,
+            error_retry_count: u32,
         ) -> eyre::Result<Box<$ret>> {
             let setup = self.chain_setup(domain)?;
             let indexer = setup.$singular(metrics).await?;
@@ -151,6 +152,7 @@ macro_rules! build_indexer_fns {
                 db.clone(),
                 indexer.into(),
                 sync_metrics.clone(),
+                error_retry_count,
             );
 
             Ok(Box::new(sync))
@@ -163,11 +165,17 @@ macro_rules! build_indexer_fns {
             metrics: &CoreMetrics,
             sync_metrics: &ContractSyncMetrics,
             dbs: HashMap<HyperlaneDomain, Arc<$db>>,
+            error_retry_count: u32,
         ) -> Result<HashMap<HyperlaneDomain, Arc<$ret>>> {
-            try_join_all(
-                domains
-                    .map(|d| self.$singular(d, metrics, sync_metrics, dbs.get(d).unwrap().clone())),
-            )
+            try_join_all(domains.map(|d| {
+                self.$singular(
+                    d,
+                    metrics,
+                    sync_metrics,
+                    dbs.get(d).unwrap().clone(),
+                    error_retry_count,
+                )
+            }))
             .await?
             .into_iter()
             .map(|i| Ok((i.domain().clone(), Arc::from(i))))

@@ -1,17 +1,18 @@
 use std::{
-    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
+    collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, ops::RangeInclusive,
+    sync::Arc, time::Duration,
 };
 
 use cursor::*;
 use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, Indexer, LogMeta,
     SequenceIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::settings::IndexSettings;
 
@@ -30,6 +31,7 @@ pub struct ContractSync<T, D: HyperlaneLogStore<T>, I: Indexer<T>> {
     db: D,
     indexer: I,
     metrics: ContractSyncMetrics,
+    error_retry_count: u32,
     _phantom: PhantomData<T>,
 }
 
@@ -74,10 +76,9 @@ where
                 CursorAction::Query(range) => loop {
                     debug!(?range, "Looking for for events in index range");
 
-                    let logs = match self.indexer.fetch_logs(range.clone()).await {
+                    let logs = match self.get_logs(range.clone()).await {
                         Ok(logs) => logs,
-                        Err(err) => {
-                            warn!(?err, "Failed to fetch logs");
+                        Err(_err) => {
                             break SLEEP_DURATION;
                         }
                     };
@@ -111,6 +112,31 @@ where
             };
             sleep(sleep_duration).await;
         }
+    }
+
+    #[instrument(skip(self), fields(domain = self.domain().name()))]
+    async fn get_logs(&self, range: RangeInclusive<u32>) -> eyre::Result<Vec<(T, LogMeta)>> {
+        let mut attempt = 0;
+
+        while attempt <= self.error_retry_count {
+            // Sleep before retrying
+            if attempt > 0 {
+                sleep(SLEEP_DURATION).await;
+            }
+
+            match self.indexer.fetch_logs(range.clone()).await {
+                Ok(logs) => {
+                    return Ok(logs);
+                }
+                Err(err) => {
+                    warn!(?err, attempt, "Failed to fetch logs");
+                }
+            };
+
+            attempt += 1;
+        }
+
+        Err(eyre::eyre!("Failed to fetch logs"))
     }
 }
 

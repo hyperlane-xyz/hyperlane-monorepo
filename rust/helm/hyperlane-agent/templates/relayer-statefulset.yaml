@@ -101,7 +101,7 @@ spec:
 
               # Make a query to see if the relayer's Solana index is increasing over the last 5 mins.
               RELAYER_SOLANA_INDEX_DERIV_QUERY=$(curl 'http://prometheus-server.monitoring.svc.cluster.local/api/v1/query' --data-urlencode 'query=deriv(hyperlane_last_known_message_nonce{phase="processor_loop", hyperlane_deployment="mainnet2", origin="solana", remote="any"}[5m])')
-              echo "Liveness probe: relayer Solana index deriv: $RELAYER_SOLANA_INDEX_DERIV" > /proc/1/fd/1
+              echo "Liveness probe: relayer Solana index deriv: $RELAYER_SOLANA_INDEX_DERIV_QUERY" > /proc/1/fd/1
 
               # This env var will be empty if the value is increasing, so the presence of this
               # env var is a signal that the relayer is unhealthy.

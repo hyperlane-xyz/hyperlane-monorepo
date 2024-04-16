@@ -74,6 +74,7 @@ impl BaseAgent for Validator {
                 &metrics,
                 &contract_sync_metrics,
                 Arc::new(msg_db.clone()),
+                u32::MAX,
             )
             .await?
             .into();
