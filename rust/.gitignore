@@ -4,3 +4,4 @@ relayerdb
 kathydb
 hyperlane_db
 config/test_config.json
+validator_db_anvil*
