@@ -136,7 +136,7 @@ where
             attempt += 1;
         }
 
-        return Err(eyre::eyre!("Failed to fetch logs"));
+        Err(eyre::eyre!("Failed to fetch logs"))
     }
 }
 
