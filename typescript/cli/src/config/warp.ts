@@ -136,23 +136,28 @@ export async function createWarpRouteDeployConfig({
   );
 
   // TODO add more prompts here to support customizing the token metadata
-  let baseType: TokenType;
+  let result: WarpRouteDeployConfig;
   if (isNative) {
-    baseType = TokenType.native;
+    result = {
+      [baseChain]: {
+        type: TokenType.native,
+      },
+    };
   } else {
-    baseType = isYieldBearing
-      ? TokenType.collateralVault
-      : TokenType.collateral;
+    result = {
+      [baseChain]: {
+        type: isYieldBearing ? TokenType.collateralVault : TokenType.collateral,
+        token: baseAddress,
+        isNft,
+      },
+    };
   }
-  const result: WarpRouteDeployConfig = {
-    base: {
-      chainName: baseChain,
-      type: baseType,
-      address: baseAddress,
-      isNft,
-    },
-    synthetics: syntheticChains.map((chain) => ({ chainName: chain })),
-  };
+
+  syntheticChains.map((chain) => {
+    result[chain] = {
+      type: TokenType.synthetic,
+    };
+  });
 
   if (isValidWarpRouteDeployConfig(result)) {
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);
