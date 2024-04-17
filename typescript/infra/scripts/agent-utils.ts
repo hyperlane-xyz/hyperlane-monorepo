@@ -41,6 +41,7 @@ import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
+  getInfraPath,
   readJSON,
   readJSONAtPath,
 } from '../src/utils/utils.js';
@@ -434,10 +435,6 @@ export function getValidatorsByChain(
     });
   }
   return validators;
-}
-
-export function getInfraPath() {
-  return join(dirname(fileURLToPath(import.meta.url)), '../');
 }
 
 export function getAWValidatorsPath(

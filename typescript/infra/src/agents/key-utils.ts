@@ -8,16 +8,14 @@ import { Contexts } from '../../config/contexts.js';
 import { helloworld } from '../../config/environments/helloworld.js';
 import localKathyAddresses from '../../config/kathy.json';
 import localRelayerAddresses from '../../config/relayer.json';
-import {
-  getAWValidatorsPath,
-  getInfraPath,
-} from '../../scripts/agent-utils.js';
+import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
 import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent';
 import { DeployEnvironment } from '../config/environment';
 import { Role } from '../roles.js';
 import {
   execCmd,
+  getInfraPath,
   isEthereumProtocolChain,
   readJSON,
   writeJsonAtPath,

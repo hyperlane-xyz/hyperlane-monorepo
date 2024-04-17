@@ -8,12 +8,8 @@ import {
 import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet4/token-bridge.js';
-import { readJSON } from '../../src/utils/utils.js';
-import {
-  getArgs,
-  getEnvironmentDirectory,
-  getInfraPath,
-} from '../agent-utils.js';
+import { getInfraPath, readJSON } from '../../src/utils/utils.js';
+import { getArgs, getEnvironmentDirectory } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const logger = rootLogger.child({ module: 'portal-relayer' });

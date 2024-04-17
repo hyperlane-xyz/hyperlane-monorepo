@@ -4,7 +4,6 @@ import { join } from 'path';
 import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
-import { getInfraPath } from '../../scripts/agent-utils.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
@@ -23,7 +22,11 @@ import {
   buildHelmChartDependencies,
   helmifyValues,
 } from '../utils/helm.js';
-import { execCmd, isEthereumProtocolChain } from '../utils/utils.js';
+import {
+  execCmd,
+  getInfraPath,
+  isEthereumProtocolChain,
+} from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
 
