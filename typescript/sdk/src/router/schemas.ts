@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ownableConfigSchema } from '../deploy/schemas.js';
 import { ZHash } from '../index.js';
 import { ismConfigSchema } from '../ism/schemas.js';
 
@@ -21,8 +22,6 @@ const hyperlaneFactoriesSchema = z.any();
 const proxyAdminFactorySchema = z.any();
 
 const timelockControllerFactorySchema = z.any();
-
-const ownableConfigSchema = z.any();
 
 export const routerAddressSchema = z.object({
   router: addressSchema,
@@ -46,5 +45,6 @@ export const mailboxClientConfigSchema = z.object({
 });
 
 export const routerConfigSchema = mailboxClientConfigSchema
-  .and(ownableConfigSchema)
-  .and(foreignDeploymentConfigSchema);
+  .merge(ownableConfigSchema)
+  .merge(foreignDeploymentConfigSchema)
+  .deepPartial();

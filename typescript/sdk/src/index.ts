@@ -425,6 +425,8 @@ export {
   TokenMetadata,
   TokenType,
   isCollateralConfig,
+  isSyntheticConfig,
+  isNativeConfig,
   isUriConfig,
 } from './token/config.js';
 export {
@@ -463,5 +465,8 @@ export {
 } from './warp/types.js';
 
 export { mailboxClientConfigSchema } from './router/schemas.js';
-export { WarpRouteDeployConfigSchema } from './token/schemas.js';
-export { WarpRouteDeployConfig } from './token/types.js';
+export {
+  WarpRouteDeployConfigSchema,
+  tokenRouterConfigSchema,
+} from './token/schemas.js';
+export { WarpRouteDeployConfig, TokenRouterConfig } from './token/types.js';

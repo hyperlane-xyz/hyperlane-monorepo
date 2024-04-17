@@ -67,7 +67,7 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     const interchainAccountIsm = await this.deployContract(
       chain,
       'interchainAccountIsm',
-      [config.mailbox],
+      [config.mailbox as string],
     );
     const modifiedConfig = {
       ...config,

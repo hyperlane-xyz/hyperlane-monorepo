@@ -1,12 +1,11 @@
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
-// import { objMap } from '@hyperlane-xyz/utils';
 import { routerConfigSchema } from '../router/schemas.js';
 
-import { TokenType, isCollateralConfig } from './config.js';
+import { TokenType } from './config.js';
 
-/// This is a recreation of the ethersjs type, BigNumberish
+/// @notice This is a recreation of the ethersjs type, BigNumberish
 /// @dev consider moving this to a higher place if other schemas depend on this
 export const bigNumberIshSchema = z.union([
   z.instanceof(ethers.BigNumber),
@@ -28,58 +27,58 @@ export const tokenDecimalsSchema = z.object({
 });
 
 export const eRC20MetadataSchema = tokenMetadataSchema
-  .partial()
-  .and(tokenDecimalsSchema.partial());
+  .merge(tokenDecimalsSchema)
+  .partial();
 
-export const syntheticConfigSchema = tokenMetadataSchema.and(
+export const eRC721MetadataSchema = z.object({
+  isNft: z.boolean().optional(),
+});
+
+export const collateralConfigSchema = eRC721MetadataSchema
+  .merge(eRC20MetadataSchema)
+  .merge(
+    z.object({
+      type: z.enum([
+        TokenType.collateral,
+        TokenType.collateralUri,
+        TokenType.fastCollateral,
+        TokenType.collateralVault,
+      ]),
+      token: z.string(),
+    }),
+  );
+
+export const nativeConfigSchema = tokenDecimalsSchema.partial().merge(
   z.object({
-    type: z.union([
-      z.literal(TokenType.synthetic),
-      z.literal(TokenType.syntheticUri),
-      z.literal(TokenType.fastSynthetic),
+    type: z.enum([TokenType.native]),
+  }),
+);
+
+export const syntheticConfigSchema = tokenMetadataSchema.partial().merge(
+  z.object({
+    type: z.enum([
+      TokenType.synthetic,
+      TokenType.syntheticUri,
+      TokenType.fastSynthetic,
     ]),
   }),
 );
 
-export const collateralConfigSchema = z
-  .object({
-    type: z.union([
-      z.literal(TokenType.collateral),
-      z.literal(TokenType.collateralUri),
-      z.literal(TokenType.fastCollateral),
-      z.literal(TokenType.fastSynthetic),
-      z.literal(TokenType.collateralVault),
-    ]),
-    token: z.string(),
-  })
-  .and(eRC20MetadataSchema);
-
-export const nativeConfigSchema = z
-  .object({
-    type: z.literal(TokenType.native),
-  })
-  .and(tokenDecimalsSchema.partial());
-
-export const tokenConfigSchema = z.union([
-  syntheticConfigSchema,
-  collateralConfigSchema,
+/// @dev discriminatedUnion is basically a switch statement for zod schemas
+/// It uses the 'type' key to pick from the array of schemas to validate
+export const tokenConfigSchema = z.discriminatedUnion('type', [
   nativeConfigSchema,
+  collateralConfigSchema,
+  syntheticConfigSchema,
 ]);
 
-export const WarpRouteDeployConfigSchema = z
-  .record(z.string(), z.intersection(tokenConfigSchema, routerConfigSchema))
-  .superRefine((warpRouteDeployConfigs, ctx) => {
-    for (const [_, config] of Object.entries(warpRouteDeployConfigs)) {
-      // For collateralVault Warp Routes, token will specify the vault address
-      if (
-        isCollateralConfig(config) &&
-        config.token === ethers.constants.AddressZero
-      )
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Vault address is required when type is collateralVault',
-          path: ['token'],
-        });
-    }
-    return true;
-  });
+// TODO capitalize-case all the schema names
+export const tokenRouterConfigSchema = z.intersection(
+  tokenConfigSchema,
+  routerConfigSchema,
+);
+
+export const WarpRouteDeployConfigSchema = z.record(
+  z.string(),
+  tokenRouterConfigSchema,
+);
