@@ -1,6 +1,9 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import {
+  ChainMetadata,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
 
 export enum TestChainName {
@@ -12,6 +15,15 @@ export enum TestChainName {
 export const testChains: Array<ChainName> = Object.values(TestChainName);
 
 export const test1: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://api.etherscan.io/api',
+      apiKey: 'fakekey',
+      family: ExplorerFamily.Etherscan,
+      name: 'Etherscan',
+      url: 'https://etherscan.io',
+    },
+  ],
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
@@ -60,6 +72,14 @@ export const testChainMetadata: ChainMap<ChainMetadata> = {
 };
 
 export const testCosmosChain: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://www.mintscan.io/cosmos',
+      family: ExplorerFamily.Other,
+      name: 'Mintscan',
+      url: 'https://www.mintscan.io/cosmos',
+    },
+  ],
   bech32Prefix: 'testcosmos',
   chainId: 'testcosmos',
   domainId: 123456789,
@@ -73,6 +93,14 @@ export const testCosmosChain: ChainMetadata = {
 };
 
 export const testSealevelChain: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://explorer.solana.com?cluster=devnet',
+      family: ExplorerFamily.Other,
+      name: 'Solana Explorer',
+      url: 'https://explorer.solana.com?cluster=devnet',
+    },
+  ],
   chainId: 987654321,
   domainId: 987654321,
   name: 'testsealevel',
