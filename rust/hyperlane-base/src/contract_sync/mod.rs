@@ -167,7 +167,6 @@ where
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
-                index_settings.mode,
             )
             .await
             .unwrap(),

@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneWatermarkedLogStore,
-    IndexMode, Indexed, Indexer, LogMeta, SequenceAwareIndexer,
+    ContractSyncCursor, CursorAction, HyperlaneWatermarkedLogStore, Indexed, Indexer, LogMeta,
+    SequenceAwareIndexer,
 };
 use tokio::time::sleep;
 use tracing::warn;
@@ -20,8 +20,6 @@ use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 /// Time window for the moving average used in the eta calculator in seconds.
 const ETA_TIME_WINDOW: f64 = 2. * 60.;
 
-const MAX_SEQUENCE_RANGE: u32 = 20;
-
 #[derive(Debug, new)]
 pub(crate) struct SyncState {
     chunk_size: u32,
@@ -29,39 +27,13 @@ pub(crate) struct SyncState {
     start_block: u32,
     /// The next block that should be indexed.
     next_block: u32,
-    mode: IndexMode,
-    /// The next sequence index that the cursor is looking for.
-    /// In the EVM, this is used for optimizing indexing,
-    /// because it's cheaper to make read calls for the sequence index than
-    /// to call `eth_getLogs` with a block range.
-    /// In Sealevel, historic queries aren't supported, so the sequence field
-    /// is used to query storage in sequence.
-    next_sequence: u32,
     direction: SyncDirection,
 }
 
 impl SyncState {
-    async fn get_next_range(
-        &mut self,
-        max_sequence: Option<u32>,
-        tip: u32,
-    ) -> Result<Option<RangeInclusive<u32>>> {
+    async fn get_next_range(&mut self, tip: u32) -> Result<Option<RangeInclusive<u32>>> {
         // We attempt to index a range of blocks that is as large as possible.
-        let range = match self.mode {
-            IndexMode::Block => self.block_range(tip),
-            IndexMode::Sequence => {
-                let max_sequence = max_sequence.ok_or_else(|| {
-                    ChainCommunicationError::from_other_str(
-                        "Sequence indexing requires a max sequence",
-                    )
-                })?;
-                if let Some(range) = self.sequence_range(max_sequence)? {
-                    range
-                } else {
-                    return Ok(None);
-                }
-            }
-        };
+        let range = self.block_range(tip);
         if range.is_empty() {
             return Ok(None);
         }
@@ -85,52 +57,14 @@ impl SyncState {
         from..=to
     }
 
-    /// Returns the next sequence range to index.
-    ///
-    /// # Arguments
-    ///
-    /// * `tip` - The current tip of the chain.
-    /// * `max_sequence` - The maximum sequence that should be indexed.
-    /// `max_sequence` is the exclusive upper bound of the range to be indexed.
-    /// (e.g. `0..max_sequence`)
-    fn sequence_range(&self, max_sequence: u32) -> Result<Option<RangeInclusive<u32>>> {
-        let (from, to) = match self.direction {
-            SyncDirection::Forward => {
-                let sequence_start = self.next_sequence;
-                let mut sequence_end = sequence_start + MAX_SEQUENCE_RANGE;
-                if self.next_sequence >= max_sequence {
-                    return Ok(None);
-                }
-                sequence_end = u32::min(sequence_end, max_sequence.saturating_sub(1));
-                (sequence_start, sequence_end)
-            }
-            SyncDirection::Backward => {
-                let sequence_end = self.next_sequence;
-                let sequence_start = sequence_end.saturating_sub(MAX_SEQUENCE_RANGE);
-                (sequence_start, sequence_end)
-            }
-        };
-        Ok(Some(from..=to))
-    }
-
     fn update_range(&mut self, range: RangeInclusive<u32>) {
         match self.direction {
-            SyncDirection::Forward => match self.mode {
-                IndexMode::Block => {
-                    self.next_block = *range.end() + 1;
-                }
-                IndexMode::Sequence => {
-                    self.next_sequence = *range.end() + 1;
-                }
-            },
-            SyncDirection::Backward => match self.mode {
-                IndexMode::Block => {
-                    self.next_block = range.start().saturating_sub(1);
-                }
-                IndexMode::Sequence => {
-                    self.next_sequence = range.start().saturating_sub(1);
-                }
-            },
+            SyncDirection::Forward => {
+                self.next_block = *range.end() + 1;
+            }
+            SyncDirection::Backward => {
+                self.next_block = range.start().saturating_sub(1);
+            }
         }
     }
 }
@@ -146,10 +80,10 @@ pub enum SyncDirection {
 /// queried is and also handling rate limiting. Rate limiting is automatically
 /// performed by `next_action`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
+    // TODO: Sequence information is no longer required, so just use Indexer
     indexer: Arc<dyn SequenceAwareIndexer<T>>,
     db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
-    max_sequence: Option<u32>,
     last_tip_update: Instant,
     eta_calculator: SyncerEtaCalculator,
     sync_state: SyncState,
@@ -162,22 +96,18 @@ impl<T> RateLimitedContractSyncCursor<T> {
         db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
         initial_height: u32,
-        mode: IndexMode,
     ) -> Result<Self> {
-        let (max_sequence, tip) = indexer.latest_sequence_count_and_tip().await?;
+        let (_, tip) = indexer.latest_sequence_count_and_tip().await?;
         Ok(Self {
             indexer,
             db,
             tip,
-            max_sequence,
             last_tip_update: Instant::now(),
             eta_calculator: SyncerEtaCalculator::new(initial_height, tip, ETA_TIME_WINDOW),
             sync_state: SyncState::new(
                 chunk_size,
                 initial_height,
                 initial_height,
-                mode,
-                Default::default(),
                 // The rate limited cursor currently only syncs in the forward direction.
                 SyncDirection::Forward,
             ),
@@ -216,34 +146,22 @@ impl<T> RateLimitedContractSyncCursor<T> {
     }
 
     fn sync_end(&self) -> Result<u32> {
-        match self.sync_state.mode {
-            IndexMode::Block => Ok(self.tip),
-            IndexMode::Sequence => self
-                .max_sequence
-                .ok_or(eyre::eyre!("Sequence indexing requires a max sequence",)),
-        }
+        Ok(self.tip)
     }
 
     fn sync_position(&self) -> u32 {
-        match self.sync_state.mode {
-            IndexMode::Block => self.sync_state.next_block,
-            IndexMode::Sequence => self.sync_state.next_sequence,
-        }
+        self.sync_state.next_block
     }
 
     fn sync_step(&self) -> u32 {
-        match self.sync_state.mode {
-            IndexMode::Block => self.sync_state.chunk_size,
-            IndexMode::Sequence => MAX_SEQUENCE_RANGE,
-        }
+        self.sync_state.chunk_size
     }
 
     async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
-        let (max_sequence, tip) = self.indexer.latest_sequence_count_and_tip().await?;
+        let (_, tip) = self.indexer.latest_sequence_count_and_tip().await?;
         self.tip = tip;
-        self.max_sequence = max_sequence;
 
-        self.sync_state.get_next_range(max_sequence, tip).await
+        self.sync_state.get_next_range(tip).await
     }
 
     fn sync_eta(&mut self) -> Result<Duration> {
@@ -377,13 +295,11 @@ pub(crate) mod test {
         db.expect_store_high_watermark().returning(|_| Ok(()));
         let chunk_size = CHUNK_SIZE;
         let initial_height = INITIAL_HEIGHT;
-        let mode = IndexMode::Block;
         RateLimitedContractSyncCursor::new(
             Arc::new(indexer),
             Arc::new(db),
             chunk_size,
             initial_height,
-            mode,
         )
         .await
         .unwrap()
