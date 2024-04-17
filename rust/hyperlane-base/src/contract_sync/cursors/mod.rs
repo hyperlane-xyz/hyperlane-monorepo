@@ -33,7 +33,7 @@ impl Indexable for InterchainGasPayment {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
             HyperlaneDomainProtocol::Fuel => todo!(),
-            HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Sealevel => CursorType::RateLimited,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
     }
@@ -55,7 +55,7 @@ impl Indexable for Delivery {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
             HyperlaneDomainProtocol::Fuel => todo!(),
-            HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::Sealevel => CursorType::RateLimited,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
     }
