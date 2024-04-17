@@ -20,12 +20,12 @@ async function deployERC20() {
   console.log('Test ERC20 contract deployed', contract.address);
 
   const warpDeploymentConfig: WarpRouteDeployConfig = {
-    base: {
-      chainName: chain1,
+    [chain1]: {
       type: TokenType.collateral,
-      address: contract.address,
+      token: contract.address,
+      isNft: false,
     },
-    synthetics: [{ chainName: chain2 }],
+    [chain2]: { type: TokenType.synthetic },
   };
 
   console.log('Writing deployment config to', outPath);
