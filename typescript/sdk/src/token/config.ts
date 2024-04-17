@@ -37,9 +37,6 @@ export const isTokenMetadata = (metadata: any): metadata is TokenMetadata =>
 export const isErc20Metadata = (metadata: any): metadata is ERC20Metadata =>
   metadata.decimals && isTokenMetadata(metadata);
 
-// export type SyntheticConfig = TokenMetadata & {
-//   type: TokenType.synthetic | TokenType.syntheticUri | TokenType.fastSynthetic;
-// };
 export type SyntheticConfig = z.infer<typeof syntheticConfigSchema>;
 export type CollateralConfig = {
   type:

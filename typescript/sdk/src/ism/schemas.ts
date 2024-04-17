@@ -1,32 +1,36 @@
 import { z } from 'zod';
 
 import { ownableConfigSchema } from '../deploy/schemas.js';
+import { ZHash } from '../index.js';
 
-import {
-  AggregationIsmConfig,
-  IsmConfig,
-  IsmType,
-  ModuleType,
-} from './types.js';
-
-export const moduleTypeSchema = z.nativeEnum(ModuleType);
-
-export const ismTypeSchema = z.nativeEnum(IsmType);
+import { AggregationIsmConfig, IsmConfig, IsmType } from './types.js';
 
 export const testIsmConfigSchema = z.object({
   type: z.literal(IsmType.TEST_ISM),
 });
 
-export const deployedIsmTypeSchema = z.object({});
-
-const addressSchema = z.any();
-
-const chainMapSchema = z.any();
-
 export const multisigConfigSchema = z.object({
-  validators: z.array(addressSchema),
+  validators: z.array(ZHash),
   threshold: z.number(),
 });
+
+export const trustedRelayerIsmConfigSchema = z.object({
+  type: z.literal(IsmType.TRUSTED_RELAYER),
+  relayer: z.string(),
+});
+
+export const opStackIsmConfigSchema = z.object({
+  type: z.literal(IsmType.OP_STACK),
+  origin: z.string(),
+  nativeBridge: z.string(),
+});
+
+export const pausableIsmConfigSchema = ownableConfigSchema.and(
+  z.object({
+    type: z.literal(IsmType.PAUSABLE),
+    paused: z.boolean().optional(),
+  }),
+);
 
 export const multisigIsmConfigSchema = multisigConfigSchema.and(
   z.object({
@@ -37,28 +41,15 @@ export const multisigIsmConfigSchema = multisigConfigSchema.and(
   }),
 );
 
-export const pausableIsmConfigSchema = ownableConfigSchema.and(
-  z.object({
-    type: z.literal(IsmType.PAUSABLE),
-    paused: z.boolean().optional(),
-  }),
-);
-
 export const routingIsmConfigSchema = ownableConfigSchema.and(
   z.object({
     type: z.union([
       z.literal(IsmType.ROUTING),
       z.literal(IsmType.FALLBACK_ROUTING),
     ]),
-    domains: chainMapSchema,
+    domains: z.record(z.string(), z.nativeEnum(IsmType)),
   }),
 );
-
-export const opStackIsmConfigSchema = z.object({
-  type: z.literal(IsmType.OP_STACK),
-  origin: addressSchema,
-  nativeBridge: addressSchema,
-});
 
 export const aggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> =
   z.lazy(() =>
@@ -71,12 +62,13 @@ export const aggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> =
 
 export const ismConfigSchema: z.ZodSchema<IsmConfig> = z.lazy(() =>
   z.union([
-    addressSchema,
-    routingIsmConfigSchema,
-    multisigIsmConfigSchema,
-    aggregationIsmConfigSchema,
-    opStackIsmConfigSchema,
+    z.string(),
     testIsmConfigSchema,
+    opStackIsmConfigSchema,
     pausableIsmConfigSchema,
+    trustedRelayerIsmConfigSchema,
+    multisigIsmConfigSchema,
+    routingIsmConfigSchema,
+    aggregationIsmConfigSchema,
   ]),
 );

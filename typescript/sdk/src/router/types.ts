@@ -17,8 +17,6 @@ import {
   mailboxClientConfigSchema,
 } from './schemas.js';
 
-// import { IsmConfig } from '../ism/types.js';
-
 export type RouterAddress = {
   router: Address;
 };
