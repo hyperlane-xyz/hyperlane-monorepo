@@ -4974,7 +4974,7 @@ __metadata:
     terminal-link: "npm:^3.0.0"
     tsx: "npm:^4.7.1"
     typescript: "npm:^5.1.6"
-    yaml: "npm:^2.3.1"
+    yaml: "npm:^2.4.1"
     yargs: "npm:^17.7.2"
     zod: "npm:^3.21.2"
   bin:
@@ -5038,6 +5038,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/core": "npm:3.10.0"
+    "@hyperlane-xyz/registry": "npm:^1.0.3"
     "@hyperlane-xyz/sdk": "npm:3.10.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -5137,6 +5138,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/registry@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "@hyperlane-xyz/registry@npm:1.0.3"
+  dependencies:
+    yaml: "npm:^2"
+  checksum: fd441cc6a60c7581008e86b4e30fd542d878595c962c0fe202c5322c75a5a2044d0f7c55e6f20177bedd817c62cd20954ffe5f54a3f3249a897d36056d2b8eed
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/sdk@npm:3.10.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
@@ -5174,7 +5184,7 @@ __metadata:
     tsx: "npm:^4.7.1"
     typescript: "npm:5.3.3"
     viem: "npm:^1.20.0"
-    yaml: "npm:^2.3.1"
+    yaml: "npm:^2.4.1"
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -24503,10 +24513,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yaml@npm:^2.3.1":
-  version: 2.3.1
-  resolution: "yaml@npm:2.3.1"
-  checksum: 66501d597e43766eb94dc175d28ec8b2c63087d6a78783e59b4218eee32b9172740f9f27d54b7bc0ca8af61422f7134929f9974faeaac99d583787e793852fd2
+"yaml@npm:^2, yaml@npm:^2.4.1":
+  version: 2.4.1
+  resolution: "yaml@npm:2.4.1"
+  bin:
+    yaml: bin.mjs
+  checksum: 2c54fd69ef59126758ae710f9756405a7d41abcbb61aca894250d0e81e76057c14dc9bb00a9528f72f99b8f24077f694a6f7fd09cdd6711fcec2eebfbb5df409
   languageName: node
   linkType: hard
 
