@@ -8,12 +8,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objFilter, sleep } from '@hyperlane-xyz/utils';
 
-import { readJSON } from '../../src/utils/utils.js';
-import {
-  getArgs,
-  getEnvironmentDirectory,
-  getInfraPath,
-} from '../agent-utils.js';
+import { getInfraPath, readJSON } from '../../src/utils/utils.js';
+import { getArgs, getEnvironmentDirectory } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function check() {
