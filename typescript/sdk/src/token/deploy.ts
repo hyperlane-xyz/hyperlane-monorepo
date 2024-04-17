@@ -205,11 +205,16 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   async deployContracts(chain: ChainName, config: HypERC20Config) {
-    const { [this.routerContractKey(config)]: router } =
-      await super.deployContracts(chain, config);
-
-    await this.configureClient(chain, router as MailboxClient, config);
-    return { [config.type]: router } as any;
+    const deployedContracts = await super.deployContracts(chain, config);
+    await this.configureClient(
+      chain,
+      deployedContracts[this.routerContractKey(config)],
+      config,
+    );
+    return {
+      [config.type]: deployedContracts[this.routerContractKey(config)], // router
+      ...deployedContracts,
+    } as any;
   }
 
   async buildTokenMetadata(
