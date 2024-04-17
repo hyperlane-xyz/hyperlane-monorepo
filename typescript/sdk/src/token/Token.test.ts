@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
 import { expect } from 'chai';
 import { ethers } from 'ethers';
-import sinon from 'sinon';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -12,6 +11,7 @@ import {
   testSealevelChain,
 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { stubMultiProtocolProvider } from '../test/testUtils.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
@@ -172,23 +172,7 @@ describe('Token', () => {
       if (!address)
         throw new Error(`No address for standard ${tokenArgs.standard}`);
 
-      const sandbox = sinon.createSandbox();
-      sandbox.stub(multiProvider, 'getEthersV5Provider').returns({
-        getBalance: async () => '100',
-      } as any);
-      sandbox.stub(multiProvider, 'getCosmJsProvider').returns({
-        getBalance: async () => ({ amount: '100' }),
-      } as any);
-      sandbox.stub(multiProvider, 'getCosmJsWasmProvider').returns({
-        getBalance: async () => ({ amount: '100' }),
-        queryContractSmart: async () => ({
-          type: { native: { fungible: { denom: 'denom' } } },
-        }),
-      } as any);
-      sandbox.stub(multiProvider, 'getSolanaWeb3Provider').returns({
-        getBalance: async () => '100',
-        getTokenAccountBalance: async () => ({ value: { amount: '100' } }),
-      } as any);
+      const sandbox = stubMultiProtocolProvider(multiProvider);
       // @ts-ignore simple extra mock for the Ethers V5 token contract call
       adapter.contract = {
         balanceOf: async () => '100',

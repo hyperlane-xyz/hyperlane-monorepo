@@ -1,7 +1,7 @@
 import { MultisigConfig } from '../ism/types.js';
 import { ChainMap } from '../types.js';
 
-// TODO consider migrating these to the registry too
+// TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alfajores: {
     threshold: 2,

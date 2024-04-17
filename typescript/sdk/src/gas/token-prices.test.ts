@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { TestChainName, testChainMetadata } from '../consts/testChains.js';
-import { MockCoinGecko } from '../test/testUtils.js';
+import { MockCoinGecko } from '../test/MockCoinGecko.js';
 
 import { CoinGeckoTokenPriceGetter } from './token-prices.js';
 
