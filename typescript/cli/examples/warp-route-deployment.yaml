@@ -4,24 +4,31 @@
 # Token Types:
 #   native
 #   collateral
-#   collateralVault
 #   synthetic
 #   collateralUri
 #   syntheticUri
 #   fastCollateral
 #   fastSynthetic
 ---
-base:
-  chainName: anvil1
+anvil:
   type: native
-  # address: 0x123... # Required for collateral types. For collateralVault types, specifies the ERC4626 vault to deposit collateral into
-  # isNft: true # If the token is an NFT (ERC721), set to true
+  token: '0x6d2e03b7EfFEae98BD302A9F836D0d6Ab0002766' # Collateral/vault address. Required for collateral types
   # owner: 0x123 # Optional owner address for synthetic token
-  # mailbox: 0x123 # Optional mailbox address route
+  # mailbox: '0x6d2e03b7EfFEae98BD302A9F836D0d6Ab0002766' # mailbox address route
   # interchainGasPaymaster: 0x123 # Optional interchainGasPaymaster address
-synthetics:
-  - chainName: anvil2
-  # You can optionally set the token metadata, otherwise the base token's will be used
+  isNft: true # If the token is an NFT (ERC721), set to true
+  # You can optionally set the token metadata
+  name: 'MyCollateralToken'
+  symbol: 'MCT'
+  totalSupply: 10000000
+
+ethereum:
+  type: synthetic
+  token: '0x6d2e03b7EfFEae98BD302A9F836D0d6Ab0002766' # Collateral/vault address. Required for collateral types
+  # owner: 0x123 # Optional owner address for synthetic token
+  # mailbox: '0x6d2e03b7EfFEae98BD302A9F836D0d6Ab0002766' # mailbox address route
+  # interchainGasPaymaster: 0x123 # Optional interchainGasPaymaster address
+  # You can optionally set the token metadata
   # name: "MySyntheticToken"
   # symbol: "MST"
   # totalSupply: 10000000
