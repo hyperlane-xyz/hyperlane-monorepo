@@ -88,7 +88,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Scraper]: {
     [Chains.arbitrum]: true,
-    [Chains.ancient8]: false,
+    [Chains.ancient8]: true,
     [Chains.avalanche]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
@@ -143,11 +143,20 @@ const hyperlane: RootAgentConfig = {
       tag: '2a16200-20240408-214947',
     },
     gasPaymentEnforcement: [
-      // Temporary measure to ensure all inEVM warp route messages are delivered -
-      // we saw some issues with IGP indexing.
+      // To cover ourselves against IGP indexing issues and to ensure Nexus
+      // users have the best possible experience, we whitelist messages between
+      // warp routes that we know are certainly paying for gas.
       {
         type: GasPaymentEnforcementPolicyType.None,
-        matchingList: routerMatchingList(injectiveInevmInjAddresses),
+        matchingList: [
+          ...routerMatchingList(injectiveInevmInjAddresses),
+          ...matchingList(inevmEthereumUsdcAddresses),
+          ...matchingList(inevmEthereumUsdtAddresses),
+          ...routerMatchingList(victionEthereumEthAddresses),
+          ...routerMatchingList(victionEthereumUsdcAddresses),
+          ...routerMatchingList(victionEthereumUsdtAddresses),
+          ...routerMatchingList(ancient8EthereumUsdcAddresses),
+        ],
       },
       {
         type: GasPaymentEnforcementPolicyType.None,
@@ -199,7 +208,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'c1da894-20240321-175000',
+      tag: '2a16200-20240408-214947',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -208,7 +217,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '2a16200-20240408-214947',
     },
   },
 };
@@ -222,7 +231,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a72c3cf-20240314-173418',
+      tag: '2a16200-20240408-214947',
     },
     whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
@@ -234,7 +243,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: '2a16200-20240408-214947',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -258,24 +267,14 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a72c3cf-20240314-173418',
+      tag: '2a16200-20240408-214947',
     },
     gasPaymentEnforcement: [
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
-          {
-            originDomain: getDomainId(chainMetadata.neutron),
-            destinationDomain: getDomainId(chainMetadata.mantapacific),
-            senderAddress: '*',
-            recipientAddress: '*',
-          },
-          {
-            originDomain: getDomainId(chainMetadata.neutron),
-            destinationDomain: getDomainId(chainMetadata.arbitrum),
-            senderAddress: '*',
-            recipientAddress: '*',
-          },
+          ...routerMatchingList(mantaTIAAddresses),
+          ...routerMatchingList(arbitrumTIAAddresses),
         ],
       },
       ...gasPaymentEnforcement,
