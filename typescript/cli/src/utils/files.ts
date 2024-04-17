@@ -163,6 +163,22 @@ export function prepNewArtifactsFiles(
   return newPaths;
 }
 
+/**
+ * Retrieves artifacts file metadata for the current command.
+ * @param dryRun whether or not the current command is being dry-run
+ * @returns the artifacts files
+ */
+export function getArtifactsFiles(
+  defaultFiles: ArtifactsFile[],
+  dryRun: boolean = false,
+): Array<ArtifactsFile> {
+  if (dryRun)
+    defaultFiles.map((defaultFile: ArtifactsFile) => {
+      defaultFile.filename = `dry-run_${defaultFile.filename}`;
+    });
+  return defaultFiles;
+}
+
 export async function runFileSelectionStep(
   folderPath: string,
   description: string,
