@@ -1,9 +1,10 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import { BigNumber, constants } from 'ethers';
 
 import { TokenType, WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 
-const SOME_ADDRESS = '0x6d2e03b7EfFEae98BD302A9F836D0d6Ab0002766';
+const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [
   TokenType.collateral,
   TokenType.collateralUri,
@@ -88,7 +89,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     }
   });
 
-  it.only('should succeed if non-collateral type and token is empty', async () => {
+  it('should succeed if non-collateral type and token is empty', async () => {
     for (const type of NON_COLLATERAL_TYPES) {
       const config: any = {
         arbitrum: {
