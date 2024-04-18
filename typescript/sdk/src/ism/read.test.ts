@@ -30,7 +30,7 @@ import {
   TestIsmConfig,
 } from './types.js';
 
-describe.only('EvmIsmReader', () => {
+describe('EvmIsmReader', () => {
   let evmIsmReader: EvmIsmReader;
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
