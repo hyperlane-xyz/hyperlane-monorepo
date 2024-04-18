@@ -73,7 +73,7 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         _performRemoteTransfer(0, transferAmount);
 
         // Increase vault balance, which will reduce share redeemed for the same amount
-        primaryToken.mintTo(address(vault), yieldAmount);
+        primaryToken.mint(address(vault), yieldAmount);
 
         // Transfer back from Bob to Alice
         vm.prank(BOB);

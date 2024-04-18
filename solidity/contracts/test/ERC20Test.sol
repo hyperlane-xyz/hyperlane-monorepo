@@ -3,7 +3,10 @@ pragma solidity >=0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract ERC20Test is ERC20 {
+import "../token/IXERC20.sol";
+import "../token/IFiatToken.sol";
+
+contract ERC20Test is ERC20, IXERC20, IFiatToken {
     uint8 public immutable _decimals;
 
     constructor(
@@ -20,11 +23,19 @@ contract ERC20Test is ERC20 {
         return _decimals;
     }
 
-    function mint(uint256 amount) public {
-        _mint(msg.sender, amount);
+    function mint(
+        address account,
+        uint256 amount
+    ) external override(IFiatToken, IXERC20) returns (bool) {
+        _mint(account, amount);
+        return true;
     }
 
-    function mintTo(address account, uint256 amount) public {
-        _mint(account, amount);
+    function burn(uint256 amount) public override(IFiatToken) {
+        _burn(msg.sender, amount);
+    }
+
+    function burn(address account, uint256 amount) public override(IXERC20) {
+        _burn(account, amount);
     }
 }

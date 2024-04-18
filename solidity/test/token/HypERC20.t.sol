@@ -26,6 +26,10 @@ import {GasRouter} from "../../contracts/client/GasRouter.sol";
 
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
+import {HypXERC20Collateral} from "../../contracts/token/HypXERC20Collateral.sol";
+import {IXERC20} from "../../contracts/token/IXERC20.sol";
+import {HypFiatTokenCollateral} from "../../contracts/token/HypFiatTokenCollateral.sol";
+import {IFiatToken} from "../../contracts/token/IFiatToken.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
@@ -137,7 +141,7 @@ abstract contract HypTokenTest is Test {
     }
 
     function _mintAndApprove(uint256 _amount, address _account) internal {
-        primaryToken.mint(_amount);
+        primaryToken.mint(address(this), _amount);
         primaryToken.approve(_account, _amount);
     }
 
@@ -387,6 +391,98 @@ contract HypERC20CollateralTest is HypTokenTest {
             GAS_LIMIT * igp.gasPrice()
         );
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+}
+
+contract HypXERC20CollateralTest is HypTokenTest {
+    using TypeCasts for address;
+    HypXERC20Collateral internal xerc20Collateral;
+
+    function setUp() public override {
+        super.setUp();
+
+        localToken = new HypXERC20Collateral(
+            address(primaryToken),
+            address(localMailbox)
+        );
+        xerc20Collateral = HypXERC20Collateral(address(localToken));
+
+        xerc20Collateral.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        primaryToken.transfer(address(localToken), 1000e18);
+        primaryToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testRemoteTransfer() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        vm.expectCall(
+            address(primaryToken),
+            abi.encodeCall(IXERC20.burn, (ALICE, TRANSFER_AMT))
+        );
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+
+    function testHandle() public {
+        vm.expectCall(
+            address(primaryToken),
+            abi.encodeCall(IXERC20.mint, (ALICE, TRANSFER_AMT))
+        );
+        _handleLocalTransfer(TRANSFER_AMT);
+    }
+}
+
+contract HypFiatTokenCollateralTest is HypTokenTest {
+    using TypeCasts for address;
+    HypFiatTokenCollateral internal fiatTokenCollateral;
+
+    function setUp() public override {
+        super.setUp();
+
+        localToken = new HypFiatTokenCollateral(
+            address(primaryToken),
+            address(localMailbox)
+        );
+        fiatTokenCollateral = HypFiatTokenCollateral(address(localToken));
+
+        fiatTokenCollateral.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        primaryToken.transfer(address(localToken), 1000e18);
+        primaryToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testRemoteTransfer() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        vm.expectCall(
+            address(primaryToken),
+            abi.encodeCall(IFiatToken.burn, (TRANSFER_AMT))
+        );
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+
+    function testHandle() public {
+        vm.expectCall(
+            address(primaryToken),
+            abi.encodeCall(IFiatToken.mint, (ALICE, TRANSFER_AMT))
+        );
+        _handleLocalTransfer(TRANSFER_AMT);
     }
 }
 
