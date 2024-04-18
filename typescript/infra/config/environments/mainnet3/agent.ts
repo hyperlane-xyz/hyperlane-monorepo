@@ -126,8 +126,66 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  // To cover ourselves against IGP indexing issues and to ensure Nexus
+  // users have the best possible experience, we whitelist messages between
+  // warp routes that we know are certainly paying for gas.
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      ...routerMatchingList(injectiveInevmInjAddresses),
+      ...matchingList(inevmEthereumUsdcAddresses),
+      ...matchingList(inevmEthereumUsdtAddresses),
+      ...routerMatchingList(victionEthereumEthAddresses),
+      ...routerMatchingList(victionEthereumUsdcAddresses),
+      ...routerMatchingList(victionEthereumUsdtAddresses),
+      ...routerMatchingList(ancient8EthereumUsdcAddresses),
+    ],
+  },
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: matchingList(inevmEthereumUsdcAddresses),
+  },
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: matchingList(inevmEthereumUsdtAddresses),
+  },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+  },
+];
+
+const metricAppContexts = [
+  {
+    name: 'helloworld',
+    matchingList: routerMatchingList(helloWorld[Contexts.Hyperlane].addresses),
+  },
+  {
+    name: 'injective_inevm_inj',
+    matchingList: routerMatchingList(injectiveInevmInjAddresses),
+  },
+  {
+    name: 'inevm_ethereum_usdc',
+    matchingList: matchingList(inevmEthereumUsdcAddresses),
+  },
+  {
+    name: 'inevm_ethereum_usdt',
+    matchingList: matchingList(inevmEthereumUsdtAddresses),
+  },
+  {
+    name: 'viction_ethereum_eth',
+    matchingList: routerMatchingList(victionEthereumEthAddresses),
+  },
+  {
+    name: 'viction_ethereum_usdc',
+    matchingList: routerMatchingList(victionEthereumUsdcAddresses),
+  },
+  {
+    name: 'viction_ethereum_usdt',
+    matchingList: routerMatchingList(victionEthereumUsdtAddresses),
+  },
+  {
+    name: 'ancient8_ethereum_usdc',
+    matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
   },
 ];
 
@@ -142,68 +200,8 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: '2a16200-20240408-214947',
     },
-    gasPaymentEnforcement: [
-      // To cover ourselves against IGP indexing issues and to ensure Nexus
-      // users have the best possible experience, we whitelist messages between
-      // warp routes that we know are certainly paying for gas.
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: [
-          ...routerMatchingList(injectiveInevmInjAddresses),
-          ...matchingList(inevmEthereumUsdcAddresses),
-          ...matchingList(inevmEthereumUsdtAddresses),
-          ...routerMatchingList(victionEthereumEthAddresses),
-          ...routerMatchingList(victionEthereumUsdcAddresses),
-          ...routerMatchingList(victionEthereumUsdtAddresses),
-          ...routerMatchingList(ancient8EthereumUsdcAddresses),
-        ],
-      },
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: matchingList(inevmEthereumUsdcAddresses),
-      },
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: matchingList(inevmEthereumUsdtAddresses),
-      },
-      ...gasPaymentEnforcement,
-    ],
-    metricAppContexts: [
-      {
-        name: 'helloworld',
-        matchingList: routerMatchingList(
-          helloWorld[Contexts.Hyperlane].addresses,
-        ),
-      },
-      {
-        name: 'injective_inevm_inj',
-        matchingList: routerMatchingList(injectiveInevmInjAddresses),
-      },
-      {
-        name: 'inevm_ethereum_usdc',
-        matchingList: matchingList(inevmEthereumUsdcAddresses),
-      },
-      {
-        name: 'inevm_ethereum_usdt',
-        matchingList: matchingList(inevmEthereumUsdtAddresses),
-      },
-      {
-        name: 'viction_ethereum_eth',
-        matchingList: routerMatchingList(victionEthereumEthAddresses),
-      },
-      {
-        name: 'viction_ethereum_usdc',
-        matchingList: routerMatchingList(victionEthereumUsdcAddresses),
-      },
-      {
-        name: 'viction_ethereum_usdt',
-        matchingList: routerMatchingList(victionEthereumUsdtAddresses),
-      },
-      {
-        name: 'ancient8_ethereum_usdc',
-        matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
-      },
-    ],
+    gasPaymentEnforcement: gasPaymentEnforcement,
+    metricAppContexts,
   },
   validators: {
     docker: {
@@ -233,12 +231,11 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: '2a16200-20240408-214947',
     },
-    whitelist: releaseCandidateHelloworldMatchingList,
+    // We're temporarily (ab)using the RC relayer as a way to increase
+    // message throughput.
+    // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
-    transactionGasLimit: 750000,
-    // Skipping arbitrum because the gas price estimates are inclusive of L1
-    // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrum.name],
+    metricAppContexts,
   },
   validators: {
     docker: {
