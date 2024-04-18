@@ -170,7 +170,7 @@ export function prepNewArtifactsFiles(
  */
 export function getArtifactsFiles(
   defaultFiles: ArtifactsFile[],
-  dryRun: boolean = false,
+  dryRun: string = '',
 ): Array<ArtifactsFile> {
   if (dryRun)
     defaultFiles.map((defaultFile: ArtifactsFile) => {

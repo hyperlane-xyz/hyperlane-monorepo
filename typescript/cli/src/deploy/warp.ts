@@ -24,6 +24,7 @@ import {
   isNativeConfig,
   isSyntheticConfig,
 } from '@hyperlane-xyz/sdk';
+import { RouterConfig } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Command } from '../commands/deploy.js';
@@ -60,7 +61,7 @@ export async function runWarpRouteDeploy({
   coreArtifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
-  dryRun: boolean;
+  dryRun: string;
 }) {
   if (
     !warpRouteDeploymentConfigPath ||
@@ -85,7 +86,7 @@ export async function runWarpRouteDeploy({
   const { multiProvider, signer, coreArtifacts } = dryRun
     ? await getDryRunContext({
         chainConfigPath,
-        chains: [warpRouteConfig.base.chainName],
+        chains: [dryRun],
         coreConfig: { coreArtifactsPath },
         keyConfig: { key },
         skipConfirmation,
@@ -238,7 +239,7 @@ interface DeployParams {
   multiProvider: MultiProvider;
   outPath: string;
   skipConfirmation: boolean;
-  dryRun: boolean;
+  dryRun: string;
 }
 
 async function runDeployPlanStep({
@@ -295,7 +296,9 @@ async function executeDeploy(params: DeployParams) {
     ? { [params.origin]: configMap[params.origin] }
     : configMap;
 
-  const deployedContracts = await deployer.deploy(config);
+  const deployedContracts = await deployer.deploy(
+    config as ChainMap<TokenConfig & RouterConfig>,
+  ); /// @todo remove ChainMap once Hyperlane deployers are refactored
 
   logGreen('✅ Hyp token deployments complete');
 
