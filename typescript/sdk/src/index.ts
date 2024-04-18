@@ -464,9 +464,9 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 
-export { mailboxClientConfigSchema } from './router/schemas.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   WarpRouteDeployConfigSchema,
-  tokenRouterConfigSchema,
+  TokenRouterConfigSchema as tokenRouterConfigSchema,
 } from './token/schemas.js';
 export { WarpRouteDeployConfig, TokenRouterConfig } from './token/types.js';

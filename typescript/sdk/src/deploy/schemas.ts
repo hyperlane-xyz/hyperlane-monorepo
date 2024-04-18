@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { accountConfigSchema } from '../middleware/account/schemas.js';
+import { AccountConfigSchema } from '../middleware/account/schemas.js';
 
-export const ownerSchema = z.union([z.string(), accountConfigSchema]);
+export const OwnerSchema = z.union([z.string(), AccountConfigSchema]);
 
-export const ownableConfigSchema = z.object({
-  owner: ownerSchema,
+export const OwnableConfigSchema = z.object({
+  owner: OwnerSchema,
 });

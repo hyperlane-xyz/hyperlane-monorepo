@@ -13,8 +13,8 @@ import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation, OwnableConfig } from '../deploy/types.js';
 
 import {
-  foreignDeploymentConfigSchema,
-  mailboxClientConfigSchema,
+  ForeignDeploymentConfigSchema,
+  MailboxClientConfigSchema,
 } from './schemas.js';
 
 export type RouterAddress = {
@@ -22,7 +22,7 @@ export type RouterAddress = {
 };
 
 export type ForeignDeploymentConfig = z.infer<
-  typeof foreignDeploymentConfigSchema
+  typeof ForeignDeploymentConfigSchema
 >;
 
 export type RouterConfig = MailboxClientConfig &
@@ -49,7 +49,7 @@ export const proxiedFactories: ProxiedFactories = {
 
 // TODO: merge with kunal's hook deployer
 
-export type MailboxClientConfig = z.infer<typeof mailboxClientConfigSchema>;
+export type MailboxClientConfig = z.infer<typeof MailboxClientConfigSchema>;
 
 export enum ClientViolationType {
   InterchainSecurityModule = 'ClientIsm',

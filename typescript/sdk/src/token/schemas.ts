@@ -15,46 +15,45 @@ export const bigNumberIshSchema = z.union([
   z.number(),
 ]);
 
-export const tokenMetadataSchema = z.object({
+export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
   totalSupply: bigNumberIshSchema,
 });
 
-export const tokenDecimalsSchema = z.object({
+export const TokenDecimalsSchema = z.object({
   decimals: z.number(),
   scale: z.number().optional(),
 });
 
-export const eRC20MetadataSchema = tokenMetadataSchema
-  .merge(tokenDecimalsSchema)
-  .partial();
+export const ERC20MetadataSchema =
+  TokenMetadataSchema.merge(TokenDecimalsSchema).partial();
 
-export const eRC721MetadataSchema = z.object({
+export const ERC721MetadataSchema = z.object({
   isNft: z.boolean().optional(),
 });
 
-export const collateralConfigSchema = eRC721MetadataSchema
-  .merge(eRC20MetadataSchema)
-  .merge(
-    z.object({
-      type: z.enum([
-        TokenType.collateral,
-        TokenType.collateralUri,
-        TokenType.fastCollateral,
-        TokenType.collateralVault,
-      ]),
-      token: z.string(),
-    }),
-  );
+export const CollateralConfigSchema = ERC721MetadataSchema.merge(
+  ERC20MetadataSchema,
+).merge(
+  z.object({
+    type: z.enum([
+      TokenType.collateral,
+      TokenType.collateralUri,
+      TokenType.fastCollateral,
+      TokenType.collateralVault,
+    ]),
+    token: z.string(),
+  }),
+);
 
-export const nativeConfigSchema = tokenDecimalsSchema.partial().merge(
+export const NativeConfigSchema = TokenDecimalsSchema.partial().merge(
   z.object({
     type: z.enum([TokenType.native]),
   }),
 );
 
-export const syntheticConfigSchema = tokenMetadataSchema.partial().merge(
+export const SyntheticConfigSchema = TokenMetadataSchema.partial().merge(
   z.object({
     type: z.enum([
       TokenType.synthetic,
@@ -66,19 +65,18 @@ export const syntheticConfigSchema = tokenMetadataSchema.partial().merge(
 
 /// @dev discriminatedUnion is basically a switch statement for zod schemas
 /// It uses the 'type' key to pick from the array of schemas to validate
-export const tokenConfigSchema = z.discriminatedUnion('type', [
-  nativeConfigSchema,
-  collateralConfigSchema,
-  syntheticConfigSchema,
+export const TokenConfigSchema = z.discriminatedUnion('type', [
+  NativeConfigSchema,
+  CollateralConfigSchema,
+  SyntheticConfigSchema,
 ]);
 
-// TODO capitalize-case all the schema names
-export const tokenRouterConfigSchema = z.intersection(
-  tokenConfigSchema,
+export const TokenRouterConfigSchema = z.intersection(
+  TokenConfigSchema,
   routerConfigSchema,
 );
 
 export const WarpRouteDeployConfigSchema = z.record(
   z.string(),
-  tokenRouterConfigSchema,
+  TokenRouterConfigSchema,
 );
