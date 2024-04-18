@@ -1,13 +1,13 @@
-import { MultiProvider } from '@hyperlane-xyz/sdk';
-
-import { Command } from '../commands/deploy.js';
-import { logGray, logGreen, warnYellow } from '../logger.js';
 import {
   ANVIL_RPC_METHODS,
+  MultiProvider,
   getLocalProvider,
   resetFork,
   setFork,
-} from '../utils/fork.js';
+} from '@hyperlane-xyz/sdk';
+
+import { Command } from '../commands/deploy.js';
+import { logGray, logGreen, warnYellow } from '../logger.js';
 
 import { toUpperCamelCase } from './utils.js';
 

@@ -6,6 +6,7 @@ import {
   IsmConfig,
   MultiProvider,
   MultisigConfig,
+  getLocalProvider,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -13,7 +14,6 @@ import { Command } from '../commands/deploy.js';
 import { parseIsmConfig } from '../config/ism.js';
 import { log, logGreen, logPink } from '../logger.js';
 import { assertGasBalances } from '../utils/balances.js';
-import { getLocalProvider } from '../utils/fork.js';
 import { assertSigner } from '../utils/keys.js';
 
 import { completeDryRun } from './dry-run.js';
