@@ -1,5 +1,4 @@
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import {
   LiquidityLayerApp,
@@ -9,7 +8,7 @@ import {
 import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet4/token-bridge.js';
-import { readJSON } from '../../src/utils/utils.js';
+import { getInfraPath, readJSON } from '../../src/utils/utils.js';
 import { getArgs, getEnvironmentDirectory } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -20,8 +19,7 @@ async function relayPortalTransfers() {
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const dir = join(
-    dirname(fileURLToPath(import.meta.url)),
-    '../../',
+    getInfraPath(),
     getEnvironmentDirectory(environment),
     'middleware/liquidity-layer',
   );

@@ -1,11 +1,4 @@
 {
-  "alfajores": {
-    "validators": [
-      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
-      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
-      "0x86485dcec5f7bb8478dd251676372d054dea6653"
-    ]
-  },
   "ancient8": {
     "validators": ["0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"]
   },
@@ -37,13 +30,6 @@
       "0x50ff94984161976a13e9ec3b2a7647da5319448f"
     ]
   },
-  "bsctestnet": {
-    "validators": [
-      "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
-      "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
-      "0x1f030345963c54ff8229720dd3a711c15c554aeb"
-    ]
-  },
   "celo": {
     "validators": [
       "0xb51768c1388e976486a43dbbbbf9ce04cf45e990",
@@ -51,21 +37,11 @@
       "0xd796c1d4fcfb3c63acfa6e4113aa6ae1399b337c"
     ]
   },
-  "eclipsetestnet": {
-    "validators": ["0xf344f34abca9a444545b5295066348a0ae22dda3"]
-  },
   "ethereum": {
     "validators": [
       "0x0580884289890805802012b9872afa5ae41a5fa6",
       "0xa5465cb5095a2e6093587e644d6121d6ed55c632",
       "0x87cf8a85465118aff9ec728ca157798201b1e368"
-    ]
-  },
-  "fuji": {
-    "validators": [
-      "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
-      "0x895ae30bc83ff1493b9cf7781b0b813d23659857",
-      "0x43e915573d9f1383cbf482049e4a012290759e7f"
     ]
   },
   "gnosis": {
@@ -82,13 +58,6 @@
       "0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee"
     ]
   },
-  "injective": {
-    "validators": [
-      "0xbfb8911b72cfb138c7ce517c57d9c691535dc517",
-      "0x6faa139c33a7e6f53cb101f6b2ae392298283ed2",
-      "0x0115e3a66820fb99da30d30e2ce52a453ba99d92"
-    ]
-  },
   "mantapacific": {
     "validators": [
       "0x84fcb05e6e5961df2dfd9f36e8f2b3e87ede7d76",
@@ -103,13 +72,6 @@
       "0xcaa9c6e6efa35e4a8b47565f3ce98845fa638bf3"
     ]
   },
-  "mumbai": {
-    "validators": [
-      "0xebc301013b6cd2548e347c28d2dc43ec20c068f2",
-      "0x315db9868fc8813b221b1694f8760ece39f45447",
-      "0x17517c98358c5937c5d9ee47ce1f5b4c2b7fc9f5"
-    ]
-  },
   "neutron": {
     "validators": [
       "0x307a8fe091b8273c7ce3d277b161b4a2167279b1",
@@ -122,13 +84,6 @@
       "0x7e4391786e0b5b0cbaada12d32c931e46e44f104",
       "0x138ca73e805afa14e85d80f6e35c46e6f235429e",
       "0x2d58cdb2bed9aac57b488b1bad06839ddc280a78"
-    ]
-  },
-  "plumetestnet": {
-    "validators": [
-      "0xe765a214849f3ecdf00793b97d00422f2d408ea6",
-      "0xb59998f71efc65190a85ac5e81b66bd72a192a3b",
-      "0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c"
     ]
   },
   "polygon": {
@@ -151,23 +106,6 @@
       "0x64b98b96ccae6e660ecf373b5dd61bcc34fd19ee",
       "0x07c2f32a402543badc3141f6b98969d75ef2ac28"
     ]
-  },
-  "scrollsepolia": {
-    "validators": [
-      "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
-      "0x9a11ed23ae962974018ab45bc133caabff7b3271",
-      "0x7867bea3c9761fe64e6d124b171f91fd5dd79644"
-    ]
-  },
-  "sepolia": {
-    "validators": [
-      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
-      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
-      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
-    ]
-  },
-  "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
   },
   "viction": {
     "validators": [
