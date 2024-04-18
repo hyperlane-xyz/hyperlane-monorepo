@@ -28,6 +28,14 @@ export const RpcUrlSchema = z.object({
     .string()
     .url()
     .describe('The HTTP URL of the RPC endpoint (preferably HTTPS).'),
+  concurrency: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'The maximum number of concurrent async executions per function mapping.',
+    ),
   webSocket: z
     .string()
     .optional()

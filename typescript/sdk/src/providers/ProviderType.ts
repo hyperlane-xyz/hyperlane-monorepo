@@ -48,6 +48,42 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
 
+type ProtocolTypesMapping = {
+  [ProtocolType.Ethereum]: {
+    transaction: EthersV5Transaction;
+    provider: EthersV5Provider;
+    contract: EthersV5Contract;
+    receipt: EthersV5TransactionReceipt;
+  };
+  [ProtocolType.Sealevel]: {
+    transaction: SolanaWeb3Transaction;
+    provider: SolanaWeb3Provider;
+    contract: SolanaWeb3Contract;
+    receipt: SolanaWeb3TransactionReceipt;
+  };
+  [ProtocolType.Cosmos]: {
+    transaction: CosmJsWasmTransaction;
+    provider: CosmJsWasmProvider;
+    contract: CosmJsWasmContract;
+    receipt: CosmJsWasmTransactionReceipt;
+  };
+};
+export type SupportedProtocolType = keyof ProtocolTypesMapping;
+
+type ProtocolTyped<
+  T extends SupportedProtocolType,
+  K extends keyof ProtocolTypesMapping[T],
+> = ProtocolTypesMapping[T][K];
+
+export type ProtocolTypedTransaction<T extends SupportedProtocolType> =
+  ProtocolTyped<T, 'transaction'>;
+export type ProtocolTypedProvider<T extends SupportedProtocolType> =
+  ProtocolTyped<T, 'provider'>;
+export type ProtocolTypedContract<T extends SupportedProtocolType> =
+  ProtocolTyped<T, 'contract'>;
+export type ProtocolTypedReceipt<T extends SupportedProtocolType> =
+  ProtocolTyped<T, 'receipt'>;
+
 /**
  * Providers with discriminated union of type
  */
