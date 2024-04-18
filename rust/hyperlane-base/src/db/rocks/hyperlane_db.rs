@@ -6,8 +6,8 @@ use tracing::{debug, instrument, trace};
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
-    IndexingDecorator, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
-    LogMeta, MerkleTreeInsertion, H256,
+    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
+    MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -22,7 +22,7 @@ const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
-const INDEXING_DECORATOR_BY_IGP_KEY: &str = "indexing_decorator_by_igp_key_";
+const GAS_PAYMENT_BY_SEQUENCE: &str = "indexing_decorator_by_igp_key_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
@@ -117,15 +117,14 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
         let payment = *(indexed_payment.inner());
-
         let gas_processing_successful = self.process_gas_payment(payment, log_meta)?;
-        if indexed_payment.sequence().is_none() {
-            // only store the payment and return early if there's no sequence
+
+        // only store the payment and return early if there's no sequence
+        let Some(gas_payment_sequence) = indexed_payment.sequence else {
             return Ok(gas_processing_successful);
-        }
+        };
         // otherwise store the indexing decorator as well
-        let gas_payment_key = payment.into();
-        if let Ok(Some(_)) = self.retrieve_indexing_decorator_by_gas_payment_key(&gas_payment_key) {
+        if let Ok(Some(_)) = self.retrieve_gas_payment_by_sequence(&gas_payment_sequence) {
             trace!(
                 ?indexed_payment,
                 ?log_meta,
@@ -135,10 +134,8 @@ impl HyperlaneRocksDB {
             return Ok(false);
         }
 
-        self.store_indexing_decorator_by_gas_payment_key(
-            &gas_payment_key,
-            indexed_payment.decorator(),
-        )?;
+        self.store_gas_payment_by_sequence(&gas_payment_sequence, indexed_payment.inner())?;
+        self.store_gas_payment_block_by_sequence(&gas_payment_sequence, &log_meta.block_number)?;
 
         Ok(gas_processing_successful)
     }
@@ -366,13 +363,13 @@ impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for Hyperlane
 #[async_trait]
 impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for HyperlaneRocksDB {
     /// Gets data by its sequence.
-    async fn retrieve_by_sequence(&self, _sequence: u32) -> Result<Option<InterchainGasPayment>> {
-        Ok(None)
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<InterchainGasPayment>> {
+        Ok(self.retrieve_gas_payment_by_sequence(&sequence)?)
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number_by_sequence(&self, _sequence: u32) -> Result<Option<u64>> {
-        Ok(None)
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
+        Ok(self.retrieve_gas_payment_block_by_sequence(&sequence)?)
     }
 }
 
@@ -428,7 +425,8 @@ make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
 make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
 make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
 make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_gas_payment_key, GAS_PAYMENT_FOR_MESSAGE_ID, GasPaymentKey, InterchainGasPaymentData);
-make_store_and_retrieve!(pub(self), indexing_decorator_by_gas_payment_key, INDEXING_DECORATOR_BY_IGP_KEY, GasPaymentKey, IndexingDecorator);
+make_store_and_retrieve!(pub(self), gas_payment_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, InterchainGasPayment);
+make_store_and_retrieve!(pub(self), gas_payment_block_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, u64);
 make_store_and_retrieve!(
     pub,
     pending_message_retry_count_by_message_id,

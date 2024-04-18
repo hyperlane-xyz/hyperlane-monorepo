@@ -8,8 +8,9 @@ use std::{
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed,
-    LogMeta, SequenceAwareIndexer,
+    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
+    SequenceIndexed,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -227,7 +228,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// - If the target block is reached and the target sequence hasn't been reached, the cursor rewinds to the last indexed snapshot.
     fn update_block_range(
         &mut self,
-        logs: Vec<(Indexed<T>, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
@@ -252,7 +253,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
         if let Some(highest_sequence_log) = logs.last() {
             // Update the last indexed snapshot.
             self.last_indexed_snapshot = LastIndexedSnapshot {
-                sequence: highest_sequence_log.0.sequence(),
+                sequence: Some(highest_sequence_log.0.sequence),
                 at_block: highest_sequence_log.1.block_number.try_into()?,
             };
         }
@@ -300,7 +301,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds and the range will be retried.
     fn update_sequence_range(
         &mut self,
-        logs: Vec<(Indexed<T>, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
@@ -345,7 +346,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
 
         // Update the last indexed snapshot.
         self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: highest_sequence_log.0.sequence(),
+            sequence: Some(highest_sequence_log.0.sequence),
             at_block: highest_sequence_log.1.block_number.try_into()?,
         };
         // Position the current snapshot to the next sequence.
@@ -358,7 +359,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// and logs the inconsistencies due to sequence gaps.
     fn rewind_due_to_sequence_gaps(
         &mut self,
-        logs: &Vec<(Indexed<T>, LogMeta)>,
+        logs: &Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         expected_sequences: &HashSet<u32>,
         expected_sequence_range: &RangeInclusive<u32>,
@@ -426,20 +427,16 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     ) -> Result<()> {
         // Remove any sequence duplicates, filter out any logs preceding our current snapshot,
         // and sort in ascending order.
-        let logs = logs
+        let logs = indexed_to_sequence_indexed_array(logs)?
             .into_iter()
-            .unique_by(|(log, _)| log.sequence())
-            .filter(|(log, _)| {
-                log.sequence()
-                    .map(|seq| seq >= self.current_indexing_snapshot.sequence)
-                    .unwrap_or_default()
-            })
-            .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
+            .unique_by(|(log, _)| log.sequence)
+            .filter(|(log, _)| log.sequence >= self.current_indexing_snapshot.sequence)
+            .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence.cmp(&log_b.sequence))
             .collect::<Vec<_>>();
 
         let all_log_sequences = logs
             .iter()
-            .filter_map(|(log, _)| log.sequence())
+            .map(|(log, _)| log.sequence)
             .collect::<HashSet<_>>();
 
         match &self.index_mode {

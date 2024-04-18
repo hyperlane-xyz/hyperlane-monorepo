@@ -5,8 +5,8 @@ use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed,
-    LogMeta,
+    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceIndexed,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -161,7 +161,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds to the last indexed snapshot, and ranges will be retried.
     fn update_block_range(
         &mut self,
-        logs: Vec<(Indexed<T>, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
         current_indexing_snapshot: TargetSnapshot,
@@ -198,12 +198,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
         if let Some(lowest_sequence_log) = logs.first() {
             // Update the last snapshot.
             self.last_indexed_snapshot = LastIndexedSnapshot {
-                sequence: Some(
-                    lowest_sequence_log
-                        .0
-                        .sequence()
-                        .ok_or(eyre::eyre!("Missing indexing sequence"))?,
-                ),
+                sequence: Some(lowest_sequence_log.0.sequence),
                 at_block: lowest_sequence_log.1.block_number.try_into()?,
             };
         }
@@ -220,7 +215,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds and the range will be retried.
     fn update_sequence_range(
         &mut self,
-        logs: Vec<(Indexed<T>, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
         current_indexing_snapshot: TargetSnapshot,
@@ -266,12 +261,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
 
         // Update the last indexed snapshot.
         self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: Some(
-                lowest_sequence_log
-                    .0
-                    .sequence()
-                    .ok_or(eyre::eyre!("Missing indexing sequence"))?,
-            ),
+            sequence: Some(lowest_sequence_log.0.sequence),
             at_block: lowest_sequence_log.1.block_number.try_into()?,
         };
         // Position the current snapshot to the previous sequence.
@@ -284,7 +274,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     /// and logs the inconsistencies.
     fn rewind_due_to_sequence_gaps(
         &mut self,
-        logs: &Vec<(Indexed<T>, LogMeta)>,
+        logs: &Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         expected_sequences: &HashSet<u32>,
         expected_sequence_range: &RangeInclusive<u32>,
@@ -351,20 +341,15 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
 
         // Remove any duplicates, filter out any logs with a higher sequence than our
         // current snapshot, and sort in ascending order.
-        let logs = logs
+        let logs = indexed_to_sequence_indexed_array(logs)?
             .into_iter()
-            .unique_by(|(log, _)| log.sequence())
-            .filter(|(log, _)| {
-                log.sequence()
-                    .map(|seq| seq <= current_indexing_snapshot.sequence)
-                    .unwrap_or_default()
-            })
-            .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
+            .unique_by(|(log, _)| log.sequence)
+            .filter(|(log, _)| log.sequence <= current_indexing_snapshot.sequence)
+            .sorted_by_key(|(log, _)| log.sequence)
             .collect::<Vec<_>>();
-
         let all_log_sequences = logs
             .iter()
-            .filter_map(|(log, _)| log.sequence())
+            .map(|(log, _)| log.sequence)
             .collect::<HashSet<_>>();
 
         match &self.index_mode {

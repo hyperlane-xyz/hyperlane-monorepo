@@ -2,46 +2,61 @@ use derive_new::new;
 
 use crate::{HyperlaneMessage, MerkleTreeInsertion, Sequenced};
 
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Hash, new)]
-/// Additional indexing data associated to a type
-pub struct IndexingDecorator {
-    pub(crate) sequence: Option<u32>,
-}
-
 /// Wrapper struct that adds indexing information to a type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, new)]
 pub struct Indexed<T> {
     inner: T,
     #[new(default)]
-    decorator: IndexingDecorator,
+    /// Optional sequence data that is useful during indexing
+    pub sequence: Option<u32>,
+}
+
+/// Counterpart of `Indexed` that is sure to have the `sequence` field set
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, new)]
+pub struct SequenceIndexed<T> {
+    inner: T,
+    /// Optional sequence data that is useful during indexing
+    pub sequence: u32,
+}
+
+impl<T> TryFrom<Indexed<T>> for SequenceIndexed<T> {
+    type Error = eyre::Report;
+
+    fn try_from(value: Indexed<T>) -> Result<Self, Self::Error> {
+        match value.sequence {
+            Some(sequence) => Ok(SequenceIndexed::new(value.inner, sequence)),
+            None => eyre::bail!("Missing indexing sequence"),
+        }
+    }
+}
+
+/// Convert a vector of `Indexed` values to a vector of `SequenceIndexed` values
+/// so that if any `Option` is `None`, the conversion will fail
+pub fn indexed_to_sequence_indexed_array<T, U>(
+    indexed_array: Vec<(Indexed<T>, U)>,
+) -> Result<Vec<(SequenceIndexed<T>, U)>, eyre::Report> {
+    indexed_array
+        .into_iter()
+        .map(|(item, meta)| SequenceIndexed::<T>::try_from(item).map(|si| (si, meta)))
+        .collect()
 }
 
 impl<T: Send + Sync + 'static> Sequenced for Indexed<T> {
     fn sequence(&self) -> Option<u32> {
-        self.sequence()
+        self.sequence
     }
 }
 
 impl<T> Indexed<T> {
     /// Set the sequence of the indexed value, returning a new instance of `Self`
     pub fn with_sequence(mut self, sequence: u32) -> Self {
-        self.decorator.sequence = Some(sequence);
+        self.sequence = Some(sequence);
         self
-    }
-
-    /// Get the sequence of the indexed value
-    pub fn sequence(&self) -> Option<u32> {
-        self.decorator.sequence
     }
 
     /// Get the inner value
     pub fn inner(&self) -> &T {
         &self.inner
-    }
-
-    /// Get the entire decorator struct stored alongside the indexed type
-    pub fn decorator(&self) -> &IndexingDecorator {
-        &self.decorator
     }
 }
 

@@ -151,12 +151,11 @@ impl<T> RateLimitedContractSyncCursor<T> {
         let sync_end = self.sync_end();
         let to = u32::min(sync_end, self.sync_position() + self.sync_step());
         let from = self.sync_position();
-        let eta = if to < sync_end {
+        if to < sync_end {
             self.eta_calculator.calculate(from, sync_end)
         } else {
             Duration::from_secs(0)
-        };
-        eta
+        }
     }
 }
 
@@ -285,6 +284,9 @@ pub(crate) mod test {
                 indexer
                     .expect_latest_sequence_count_and_tip()
                     .returning(move || Ok((None, 100)));
+                indexer
+                    .expect_get_finalized_block_number()
+                    .returning(move || Ok(100));
             }
         }
 
