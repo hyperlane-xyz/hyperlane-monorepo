@@ -12,8 +12,6 @@ use hyperlane_core::{
     ContractSyncCursor, CursorAction, HyperlaneWatermarkedLogStore, Indexed, Indexer, LogMeta,
     SequenceAwareIndexer,
 };
-use tokio::time::sleep;
-use tracing::warn;
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
 
@@ -31,7 +29,7 @@ pub(crate) struct SyncState {
 }
 
 impl SyncState {
-    async fn get_next_range(&mut self, tip: u32) -> Result<Option<RangeInclusive<u32>>> {
+    async fn get_next_range(&self, tip: u32) -> Result<Option<RangeInclusive<u32>>> {
         // We attempt to index a range of blocks that is as large as possible.
         let range = self.block_range(tip);
         if range.is_empty() {
@@ -116,37 +114,24 @@ impl<T> RateLimitedContractSyncCursor<T> {
 
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
-    async fn get_rate_limit(&mut self) -> Result<Option<Duration>> {
+    async fn get_rate_limit(&self) -> Result<Option<Duration>> {
         if self.sync_state.next_block + self.sync_state.chunk_size < self.tip {
             // If doing the full chunk wouldn't exceed the already known tip we do not need to rate limit.
-            Ok(None)
-        } else {
-            // We are within one chunk size of the known tip.
-            // If it's been fewer than 30s since the last tip update, sleep for a bit until we're ready to fetch the next tip.
-            if let Some(sleep_time) =
-                Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed())
-            {
-                return Ok(Some(sleep_time));
-            }
-            match self.indexer.get_finalized_block_number().await {
-                Ok(tip) => {
-                    // we retrieved a new tip value, go ahead and update.
-                    self.last_tip_update = Instant::now();
-                    self.tip = tip;
-                    Ok(None)
-                }
-                Err(e) => {
-                    warn!(error = %e, "Failed to get next block range because we could not get the current tip");
-                    // we are failing to make a basic query, we should wait before retrying.
-                    sleep(Duration::from_secs(10)).await;
-                    Err(e.into())
-                }
-            }
+            return Ok(None);
         }
+
+        // We are within one chunk size of the known tip.
+        // If it's been fewer than 30s since the last tip update, sleep for a bit until we're ready to fetch the next tip.
+        if let Some(sleep_time) =
+            Duration::from_secs(30).checked_sub(self.last_tip_update.elapsed())
+        {
+            return Ok(Some(sleep_time));
+        }
+        Ok(None)
     }
 
-    fn sync_end(&self) -> Result<u32> {
-        Ok(self.tip)
+    fn sync_end(&self) -> u32 {
+        self.tip
     }
 
     fn sync_position(&self) -> u32 {
@@ -157,15 +142,13 @@ impl<T> RateLimitedContractSyncCursor<T> {
         self.sync_state.chunk_size
     }
 
-    async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+    async fn get_next_range(&self) -> Result<Option<RangeInclusive<u32>>> {
         let (_, tip) = self.indexer.latest_sequence_count_and_tip().await?;
-        self.tip = tip;
-
         self.sync_state.get_next_range(tip).await
     }
 
-    fn sync_eta(&mut self) -> Result<Duration> {
-        let sync_end = self.sync_end()?;
+    fn sync_eta(&mut self) -> Duration {
+        let sync_end = self.sync_end();
         let to = u32::min(sync_end, self.sync_position() + self.sync_step());
         let from = self.sync_position();
         let eta = if to < sync_end {
@@ -173,17 +156,17 @@ impl<T> RateLimitedContractSyncCursor<T> {
         } else {
             Duration::from_secs(0)
         };
-        Ok(eta)
+        eta
     }
 }
 
 #[async_trait]
 impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
 where
-    T: Send + Debug + 'static,
+    T: Send + Sync + Debug + 'static,
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
-        let eta = self.sync_eta()?;
+        let eta = self.sync_eta();
 
         let rate_limit = self.get_rate_limit().await?;
         if let Some(rate_limit) = rate_limit {
@@ -218,7 +201,21 @@ where
             ))
             .await?;
         self.sync_state.update_range(range);
-        Ok(())
+
+        match self.indexer.get_finalized_block_number().await {
+            Ok(tip) => {
+                // we retrieved a new tip value, go ahead and update.
+                self.last_tip_update = Instant::now();
+                self.tip = tip;
+                Ok(())
+            }
+            Err(e) => {
+                return Err(eyre::eyre!(
+                    "Failed to update the cursor because we could not get the current tip: {}",
+                    e
+                ))
+            }
+        }
     }
 }
 

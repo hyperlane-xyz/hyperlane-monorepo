@@ -11,7 +11,6 @@ use hyperlane_core::{
     SequenceAwareIndexer,
 };
 pub use metrics::ContractSyncMetrics;
-// use serde::Encode;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 

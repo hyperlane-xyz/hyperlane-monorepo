@@ -5,8 +5,6 @@ use crate::{HyperlaneMessage, MerkleTreeInsertion, Sequenced};
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Hash, new)]
 /// Additional indexing data associated to a type
 pub struct IndexingDecorator {
-    // this field could be made optional if it doesn't apply to all instances
-    // of the decorator
     pub(crate) sequence: Option<u32>,
 }
 
