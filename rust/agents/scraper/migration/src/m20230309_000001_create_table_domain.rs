@@ -23,6 +23,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "ancient8",
+        token: "ETH",
+        domain: 888888888,
+        chain_id: 888888888,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "arbitrum",
         token: "ETH",
         domain: 42161,

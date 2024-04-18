@@ -13,7 +13,7 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
     settings::ChainConf,
-    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
+    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
@@ -97,14 +97,13 @@ impl BaseAgent for Validator {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let merkle_tree_hook_sync = settings
-            .build_merkle_tree_hook_indexer(
+            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
                 &settings.origin_chain,
                 &metrics,
                 &contract_sync_metrics,
-                Arc::new(msg_db.clone()),
+                msg_db.clone().into(),
             )
-            .await?
-            .into();
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -208,9 +207,7 @@ impl Validator {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
+        let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move {
             contract_sync.clone().sync("merkle_tree_hook", cursor).await;
         })

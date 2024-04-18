@@ -5,7 +5,6 @@ import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure, verifyAnvil } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
-import { ENV } from '../utils/env.js';
 
 import {
   AgentCommandOptions,
@@ -26,11 +25,18 @@ import {
   warpConfigCommandOption,
 } from './options.js';
 
+export enum Command {
+  DEPLOY = 'deploy',
+  KURTOSIS_AGENTS = 'kurtosis-agents',
+  CORE = 'core',
+  WARP = 'warp',
+}
+
 /**
  * Parent command
  */
 export const deployCommand: CommandModule = {
-  command: 'deploy',
+  command: Command.DEPLOY,
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
@@ -46,7 +52,7 @@ export const deployCommand: CommandModule = {
  * Agent command
  */
 const agentCommand: CommandModule = {
-  command: 'kurtosis-agents',
+  command: Command.KURTOSIS_AGENTS,
   describe: 'Deploy Hyperlane agents with Kurtosis',
   builder: (yargs) =>
     yargs.options<AgentCommandOptions>({
@@ -76,7 +82,7 @@ const agentCommand: CommandModule = {
  * Core command
  */
 const coreCommand: CommandModule = {
-  command: 'core',
+  command: Command.CORE,
   describe: 'Deploy core Hyperlane contracts',
   builder: (yargs) =>
     yargs.options<CoreCommandOptions>({
@@ -91,7 +97,7 @@ const coreCommand: CommandModule = {
       'dry-run': dryRunOption,
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || ENV.HYP_KEY;
+    const key: string | undefined = argv.key;
     const chainConfigPath: string = argv.chains;
     const outPath: string = argv.out;
     const chains: string[] | undefined = argv.targets
@@ -134,7 +140,7 @@ const coreCommand: CommandModule = {
  * Warp command
  */
 const warpCommand: CommandModule = {
-  command: 'warp',
+  command: Command.WARP,
   describe: 'Deploy Warp Route contracts',
   builder: (yargs) =>
     yargs.options<WarpCommandOptions>({
@@ -144,22 +150,36 @@ const warpCommand: CommandModule = {
       out: outDirCommandOption,
       key: keyCommandOption,
       yes: skipConfirmationOption,
+      'dry-run': dryRunOption,
     }),
   handler: async (argv: any) => {
-    const key: string = argv.key || ENV.HYP_KEY;
+    const key: string | undefined = argv.key;
     const chainConfigPath: string = argv.chains;
     const warpRouteDeploymentConfigPath: string | undefined = argv.config;
     const coreArtifactsPath: string | undefined = argv.core;
     const outPath: string = argv.out;
     const skipConfirmation: boolean = argv.yes;
-    await runWarpRouteDeploy({
-      key,
-      chainConfigPath,
-      warpRouteDeploymentConfigPath,
-      coreArtifactsPath,
-      outPath,
-      skipConfirmation,
-    });
+    const dryRun: boolean = argv.dryRun;
+
+    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
+    logGray('------------------------------------------------');
+
+    if (dryRun) await verifyAnvil();
+
+    try {
+      await runWarpRouteDeploy({
+        key,
+        chainConfigPath,
+        warpRouteDeploymentConfigPath,
+        coreArtifactsPath,
+        outPath,
+        skipConfirmation,
+        dryRun,
+      });
+    } catch (error: any) {
+      evaluateIfDryRunFailure(error, dryRun);
+      throw error;
+    }
     process.exit(0);
   },
 };

@@ -1,3 +1,5 @@
+import path from 'path';
+
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HelmCommand, helmifyValues } from '../../src/utils/helm.js';
 import { execCmd } from '../../src/utils/utils.js';
@@ -27,12 +29,16 @@ function getHelmReleaseName(route: string): string {
 }
 
 function getWarpRoutesHelmValues(configFilePath: string) {
+  // The path should be relative to the monorepo root
+  const pathRelativeToMonorepoRoot = configFilePath.includes('typescript/infra')
+    ? configFilePath
+    : path.join('typescript/infra', configFilePath);
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '09344fc-20240321-203114',
+      tag: '135e6a8-20240415-135635',
     },
-    configFilePath: configFilePath,
+    configFilePath: pathRelativeToMonorepoRoot,
   };
   return helmifyValues(values);
 }
