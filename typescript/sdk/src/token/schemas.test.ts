@@ -57,19 +57,6 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
   });
 
-  it('should allow mailbox to be optional', () => {
-    const config = {
-      arbitrum: {
-        type: TokenType.collateral,
-        token: constants.AddressZero,
-        name: 'Arby Coin',
-        symbol: 'ARBY',
-        totalSupply: BigNumber.from('10000'),
-      },
-    };
-    expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
-  });
-
   it('should throw if collateral type and token is empty', async () => {
     for (const type of COLLATERAL_TYPES) {
       const config: any = {

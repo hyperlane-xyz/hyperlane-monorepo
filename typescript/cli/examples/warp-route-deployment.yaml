@@ -10,7 +10,7 @@
 #   fastCollateral
 #   fastSynthetic
 ---
-anvil:
+anvil1:
   type: native
   # token: "0x123" # Collateral/vault address. Required for collateral types
   # owner: "0x123" # Optional owner address for synthetic token
@@ -22,7 +22,7 @@ anvil:
   # symbol: "MCT"
   # totalSupply: 10000000
 
-ethereum:
+anvil2:
   type: synthetic
   # token: "0x123" # Collateral/vault address. Required for collateral types
   # owner: "0x123" # Optional owner address for synthetic token
