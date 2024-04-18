@@ -15,7 +15,7 @@ pub struct Indexed<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, new)]
 pub struct SequenceIndexed<T> {
     inner: T,
-    /// Optional sequence data that is useful during indexing
+    /// Sequence data that is useful during indexing
     pub sequence: u32,
 }
 
