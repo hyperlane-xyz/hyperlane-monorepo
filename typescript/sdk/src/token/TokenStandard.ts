@@ -14,6 +14,8 @@ export enum TokenStandard {
   EvmNative = 'EvmNative',
   EvmHypNative = 'EvmHypNative',
   EvmHypCollateral = 'EvmHypCollateral',
+  EvmHypXERC20Collateral = 'EvmHypXERC20Collateral',
+  EvmHypFiatCollateral = 'EvmHypFiatCollateral',
   EvmHypcollateralVault = 'EvmHypcollateralVault',
   EvmHypSynthetic = 'EvmHypSynthetic',
 
@@ -53,6 +55,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypCollateral: ProtocolType.Ethereum,
   EvmHypcollateralVault: ProtocolType.Ethereum,
   EvmHypSynthetic: ProtocolType.Ethereum,
+  EvmHypXERC20Collateral: ProtocolType.Ethereum,
+  EvmHypFiatCollateral: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -98,6 +102,8 @@ export const TOKEN_NFT_STANDARDS = [
 export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
+  TokenStandard.EvmHypXERC20Collateral,
+  TokenStandard.EvmHypFiatCollateral,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
   TokenStandard.CwHypCollateral,
@@ -107,6 +113,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
 export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypNative,
   TokenStandard.EvmHypCollateral,
+  TokenStandard.EvmHypXERC20Collateral,
+  TokenStandard.EvmHypFiatCollateral,
   TokenStandard.EvmHypSynthetic,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
@@ -136,6 +144,8 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralVault]: TokenStandard.EvmHypcollateralVault,
+  [TokenType.collateralFiat]: TokenStandard.EvmHypFiatCollateral,
+  [TokenType.collateralXERC20]: TokenStandard.EvmHypXERC20Collateral,
   [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
   [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,
   [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,

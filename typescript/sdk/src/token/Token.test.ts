@@ -136,6 +136,8 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
 
   // Fuel
   [TokenStandard.FuelNative]: null,
+  [TokenStandard.EvmHypXERC20Collateral]: null,
+  [TokenStandard.EvmHypFiatCollateral]: null,
 };
 
 const PROTOCOL_TO_ADDRESS: Partial<Record<ProtocolType, Address>> = {
