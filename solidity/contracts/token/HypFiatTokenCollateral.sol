@@ -1,19 +1,18 @@
 pragma solidity >=0.8.0;
 
 import {IFiatToken} from "./IFiatToken.sol";
-import {TokenRouter} from "./libs/TokenRouter.sol";
+import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 
-contract HypFiatTokenCollateral is TokenRouter {
-    IFiatToken public immutable fiatToken;
-
-    constructor(address _fiatToken, address _mailbox) TokenRouter(_mailbox) {
-        fiatToken = IFiatToken(_fiatToken);
-    }
+contract HypFiatTokenCollateral is HypERC20Collateral {
+    constructor(
+        address _fiatToken,
+        address _mailbox
+    ) HypERC20Collateral(_fiatToken, _mailbox) {}
 
     function _transferFromSender(
         uint256 _amountOrId
     ) internal override returns (bytes memory) {
-        fiatToken.burn(_amountOrId);
+        IFiatToken(address(wrappedToken)).burn(_amountOrId);
         return "";
     }
 
@@ -22,12 +21,6 @@ contract HypFiatTokenCollateral is TokenRouter {
         uint256 _amountOrId,
         bytes calldata /*metadata*/
     ) internal override {
-        fiatToken.mint(_recipient, _amountOrId);
-    }
-
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return fiatToken.balanceOf(_account);
+        IFiatToken(address(wrappedToken)).mint(_recipient, _amountOrId);
     }
 }

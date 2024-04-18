@@ -1,19 +1,18 @@
 pragma solidity >=0.8.0;
 
 import {IXERC20} from "./IXERC20.sol";
-import {TokenRouter} from "./libs/TokenRouter.sol";
+import {HypERC20Collateral} from "./HypERC20Collateral.sol";
 
-contract HypXERC20Collateral is TokenRouter {
-    IXERC20 public immutable xerc20;
-
-    constructor(address _xerc20, address _mailbox) TokenRouter(_mailbox) {
-        xerc20 = IXERC20(_xerc20);
-    }
+contract HypXERC20Collateral is HypERC20Collateral {
+    constructor(
+        address _xerc20,
+        address _mailbox
+    ) HypERC20Collateral(_xerc20, _mailbox) {}
 
     function _transferFromSender(
         uint256 _amountOrId
     ) internal override returns (bytes memory metadata) {
-        xerc20.burn(msg.sender, _amountOrId);
+        IXERC20(address(wrappedToken)).burn(msg.sender, _amountOrId);
         return "";
     }
 
@@ -22,12 +21,6 @@ contract HypXERC20Collateral is TokenRouter {
         uint256 _amountOrId,
         bytes calldata /*metadata*/
     ) internal override {
-        xerc20.mint(_recipient, _amountOrId);
-    }
-
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return xerc20.balanceOf(_account);
+        IXERC20(address(wrappedToken)).mint(_recipient, _amountOrId);
     }
 }
