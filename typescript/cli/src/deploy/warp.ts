@@ -164,6 +164,7 @@ async function runBuildConfigStep({
 
   /// @dev This will keep track of the base collateral metadata which can get overwritten if there are multiple collaterals.
   /// These 'base' variables are used to derive synthetic fields
+  /// @todo Remove this artifact when multi-collateral is enabled
   let baseChainName = '';
   let baseMetadata = {} as MinimalTokenMetadata;
   // Create config that coalesce together values from the config file,
