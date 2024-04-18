@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{bail, Result};
 use paste::paste;
 use tracing::{debug, instrument, trace};
 
@@ -376,19 +376,45 @@ impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for Hyperlan
 /// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
 /// The high watermark cursor is relatively conservative in writing block numbers, so this shouldn't result in any events being missed.
 #[async_trait]
-impl<T> HyperlaneWatermarkedLogStore<T> for HyperlaneRocksDB
-where
-    HyperlaneRocksDB: HyperlaneLogStore<T>,
-{
+impl HyperlaneWatermarkedLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Gets the block number high watermark
     async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
         let watermark = self.retrieve_decodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK)?;
         Ok(watermark)
     }
+
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
         let result = self.store_encodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK, &block_number)?;
         Ok(result)
+    }
+}
+
+// Keep this implementation for type compatibility with the `contract_syncs` sync builder
+#[async_trait]
+impl HyperlaneWatermarkedLogStore<HyperlaneMessage> for HyperlaneRocksDB {
+    /// Gets the block number high watermark
+    async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
+        bail!("Not implemented")
+    }
+
+    /// Stores the block number high watermark
+    async fn store_high_watermark(&self, _block_number: u32) -> Result<()> {
+        bail!("Not implemented")
+    }
+}
+
+// Keep this implementation for type compatibility with the `contract_syncs` sync builder
+#[async_trait]
+impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+    /// Gets the block number high watermark
+    async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
+        bail!("Not implemented")
+    }
+
+    /// Stores the block number high watermark
+    async fn store_high_watermark(&self, _block_number: u32) -> Result<()> {
+        bail!("Not implemented")
     }
 }
 
