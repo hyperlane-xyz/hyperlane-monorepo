@@ -1,7 +1,14 @@
 #!/bin/bash
 
+if [ -d "coverage" ]; then
+    rm -rf coverage
+fi
+
 # generates lcov.info
-forge coverage --report lcov --no-match-test testFork
+forge coverage \
+    --report lcov \
+    --no-match-test testFork \
+    --ir-minimum # https://github.com/foundry-rs/foundry/issues/3357
 
 if ! command -v lcov &>/dev/null; then
     echo "lcov is not installed. Installing..."
@@ -10,14 +17,16 @@ fi
 
 lcov --version
 
-# forge does not instrument libraries https://github.com/foundry-rs/foundry/issues/4854
-EXCLUDE="*test* *mock* *node_modules* $(grep -r 'library' contracts -l)"
-lcov --rc lcov_branch_coverage=1 \
+# exclude FastTokenRouter until https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2806
+EXCLUDE="*test* *mock* *node_modules* *FastHyp*"
+lcov \
+    --branch-coverage \
+    --remove lcov.info $EXCLUDE \
     --output-file forge-pruned-lcov.info \
-    --remove lcov.info $EXCLUDE
 
 if [ "$CI" != "true" ]; then
-    genhtml --rc lcov_branch_coverage=1 \
-        --output-directory coverage forge-pruned-lcov.info \
-        && open coverage/index.html
+    genhtml forge-pruned-lcov.info \
+        --branch-coverage \
+        --output-directory coverage
+    open coverage/index.html
 fi
