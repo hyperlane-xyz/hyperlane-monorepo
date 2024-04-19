@@ -26,7 +26,7 @@ export class TxSubmitterBuilder<HTX extends HyperlaneTx> {
    */
   public async submitTxs(hyperlaneTxs: HTX[]): Promise<TransactionReceipt[]> {
     for (const txSubmitter of this.txSubmitters) {
-      // TODO: Ensure the sendTxs() implmentation is called iff that TxSubmitter supports the current HyperlaneTx type
+      // TODO: Ensure the sendTxs() implementation is called iff that TxSubmitter supports the current HyperlaneTx type
       return await txSubmitter.sendTxs(hyperlaneTxs);
     }
 

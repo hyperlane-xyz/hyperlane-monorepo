@@ -1,6 +1,6 @@
 import { PopulatedTransaction } from 'ethers';
 
-// TOOD: May require additional fields
+// TODO: May require additional fields
 type HyperlaneTxProps = {
   populatedTx: PopulatedTransaction;
 };
