@@ -13,7 +13,7 @@ use hyperlane_core::{
     Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::ConnectionConf;
+use crate::{ConnectionConf, StarknetProvider};
 
 /// A reference to a Mailbox contract on some Starknet chain
 pub struct StarknetMailbox {
@@ -28,7 +28,7 @@ impl StarknetMailbox {
         locator: ContractLocator,
         mut wallet: LocalWallet,
     ) -> ChainResult<Self> {
-        let provider = make_provider(conf)?;
+        let provider = StarknetProvider::new(locator.domain.clone(), conf);
         wallet.set_provider(provider);
         let address = Bech32ContractId::from_h256(&locator.address);
 
