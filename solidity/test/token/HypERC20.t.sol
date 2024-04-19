@@ -141,7 +141,7 @@ abstract contract HypTokenTest is Test {
     }
 
     function _mintAndApprove(uint256 _amount, address _account) internal {
-        primaryToken.mint(address(this), _amount);
+        primaryToken.mint(_amount);
         primaryToken.approve(_account, _amount);
     }
 
@@ -478,10 +478,16 @@ contract HypFiatTokenCollateralTest is HypTokenTest {
     }
 
     function testHandle() public {
-        vm.expectCall(
-            address(primaryToken),
-            abi.encodeCall(IFiatToken.mint, (ALICE, TRANSFER_AMT))
+        bytes memory data = abi.encodeCall(
+            IFiatToken.mint,
+            (ALICE, TRANSFER_AMT)
         );
+        vm.mockCall(address(primaryToken), 0, data, abi.encode(false));
+        vm.expectRevert("FiatToken mint failed");
+        _handleLocalTransfer(TRANSFER_AMT);
+        vm.clearMockedCalls();
+
+        vm.expectCall(address(primaryToken), data);
         _handleLocalTransfer(TRANSFER_AMT);
     }
 }

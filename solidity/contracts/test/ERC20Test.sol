@@ -23,6 +23,10 @@ contract ERC20Test is ERC20, IXERC20, IFiatToken {
         return _decimals;
     }
 
+    function mint(uint256 amount) public {
+        _mint(msg.sender, amount);
+    }
+
     function mint(
         address account,
         uint256 amount
