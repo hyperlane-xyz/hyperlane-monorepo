@@ -14,11 +14,10 @@ use hyperlane_core::{
 };
 use tracing::instrument;
 
-use crate::contracts::i_interchain_gas_paymaster::{
+use crate::interfaces::i_interchain_gas_paymaster::{
     IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
 };
-use crate::trait_builder::BuildableWithProvider;
-use crate::{ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -224,6 +223,6 @@ impl HyperlaneAbi for EthereumInterchainGasPaymasterAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IINTERCHAINGASPAYMASTER_ABI)
+        crate::extract_fn_map(&IINTERCHAINGASPAYMASTER_ABI)
     }
 }

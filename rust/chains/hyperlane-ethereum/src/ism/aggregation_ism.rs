@@ -13,11 +13,10 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, H256,
 };
 
-use crate::contracts::i_aggregation_ism::{
+use crate::interfaces::i_aggregation_ism::{
     IAggregationIsm as EthereumAggregationIsmInternal, IAGGREGATIONISM_ABI,
 };
-use crate::trait_builder::BuildableWithProvider;
-use crate::{ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
 pub struct AggregationIsmBuilder {}
 
@@ -113,6 +112,6 @@ impl HyperlaneAbi for EthereumAggregationIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IAGGREGATIONISM_ABI)
+        crate::extract_fn_map(&IAGGREGATIONISM_ABI)
     }
 }
