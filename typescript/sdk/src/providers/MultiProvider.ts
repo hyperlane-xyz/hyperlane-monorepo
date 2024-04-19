@@ -347,7 +347,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     tx: PopulatedTransaction,
     from?: string,
   ): Promise<providers.TransactionRequest> {
-    const txFrom = from ? from : await this.getSignerAddress(chainNameOrId);
+    const txFrom = from ?? (await this.getSignerAddress(chainNameOrId));
     const overrides = this.getTransactionOverrides(chainNameOrId);
     return {
       ...tx,
