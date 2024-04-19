@@ -311,7 +311,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       ...overrides,
     });
 
-    this.logger.debug({ transaction: deployTx }, `Deploying contract`);
+    this.logger.trace({ transaction: deployTx }, `Deploying contract`);
 
     // wait for deploy tx to be confirmed
     await this.handleTx(chainNameOrId, contract.deployTransaction);
