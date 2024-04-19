@@ -180,5 +180,8 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Starknet => rpcs.iter().next().map(|url| {
+            ChainConnectionConf::Starknet(h_starknet::ConnectionConf { url: url.clone() })
+        }),
     }
 }

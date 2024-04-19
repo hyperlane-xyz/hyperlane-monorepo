@@ -106,6 +106,10 @@ pub enum KnownHyperlaneDomain {
     /// Cosmos local chains
     CosmosTest99990 = 99990,
     CosmosTest99991 = 99991,
+
+    /// Starknet
+    StarknetSepolia = 23448594392895567,
+    StarknetMainnet = 23448594291968334,
 }
 
 #[derive(Clone)]
@@ -173,6 +177,8 @@ pub enum HyperlaneDomainProtocol {
     Sealevel,
     /// A Cosmos-based chain type which uses hyperlane-cosmos.
     Cosmos,
+    /// A Starknet-based chain type which uses hyperlane-starknet.
+    Starknet,
 }
 
 impl HyperlaneDomainProtocol {
@@ -183,6 +189,7 @@ impl HyperlaneDomainProtocol {
             Fuel => format!("{:?}", addr),
             Sealevel => format!("{:?}", addr),
             Cosmos => format!("{:?}", addr),
+            Starknet => format!("{:?}", addr),
         }
     }
 }
@@ -199,6 +206,7 @@ impl HyperlaneDomainProtocol {
 )]
 pub enum HyperlaneDomainTechnicalStack {
     ArbitrumNitro,
+    Starknet,
     #[default]
     Other,
 }
@@ -215,10 +223,10 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam, Gnosis, MantaPacific, Neutron, Injective, InEvm
+                Moonbeam, Gnosis, MantaPacific, Neutron, Injective, InEvm, StarknetMainnet
             ],
             Testnet: [
-                Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet, Fuji, BinanceSmartChainTestnet
+                Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet, Fuji, BinanceSmartChainTestnet, StarknetSepolia
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
         })
@@ -237,6 +245,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, Injective],
+            HyperlaneDomainProtocol::Starknet: [StarknetSepolia, StarknetMainnet],
         })
     }
 
@@ -251,6 +260,7 @@ impl KnownHyperlaneDomain {
                 ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm,
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991
             ],
+            HyperlaneDomainTechnicalStack::Starknet: [StarknetSepolia, StarknetMainnet],
         })
     }
 }
@@ -430,7 +440,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum, Cosmos],
+            IndexMode::Block: [Ethereum, Cosmos, Starknet],
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }

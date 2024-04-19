@@ -7,6 +7,7 @@ members = [
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-sealevel",
+  "chains/hyperlane-starknet",
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
@@ -160,6 +161,7 @@ spl-associated-token-account = { version = "=1.1.2", features = [
 spl-noop = { version = "=0.1.3", features = ["no-entrypoint"] }
 spl-token = { version = "=3.5.0", features = ["no-entrypoint"] }
 spl-token-2022 = { version = "=0.5.0", features = ["no-entrypoint"] }
+starknet = { version = "0.10.0" }
 spl-type-length-value = "=0.1.0"
 static_assertions = "1.1"
 strum = "0.25.0"

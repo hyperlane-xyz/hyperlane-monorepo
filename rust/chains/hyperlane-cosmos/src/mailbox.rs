@@ -43,8 +43,7 @@ pub struct CosmosMailbox {
 }
 
 impl CosmosMailbox {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
-    /// chain
+    /// Create a new cosmos mailbox
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
