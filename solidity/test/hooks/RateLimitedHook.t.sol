@@ -36,7 +36,7 @@ contract RateLimitedHookTest is Test {
     HypERC20 warpRouteRemote;
 
     function _mintAndApprove(uint256 amount) internal {
-        token.mint(address(this), amount);
+        token.mint(amount);
         token.approve(address(warpRouteLocal), amount);
     }
 
