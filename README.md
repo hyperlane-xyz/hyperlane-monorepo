@@ -67,7 +67,7 @@ If you are using [VSCode](https://code.visualstudio.com/), you can launch the [m
 ### Logging
 
 The typescript tooling uses [Pino](https://github.com/pinojs/pino) based logging, which outputs structured JSON logs by default.
-The verbosity level and style can be configured with environment variables:
+The verbosity level and style [can be configured](https://docs.hyperlane.xyz/docs/operate/config-reference#loglevel) with environment variables:
 
 ```sh
 LOG_LEVEL=DEBUG|INFO|WARN|ERROR|OFF
