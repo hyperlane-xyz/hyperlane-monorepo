@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    BlockInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
-    TxnInfo, H256, U256,
+    BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
+    HyperlaneProvider, TxnInfo, H256, U256,
 };
 use tendermint_rpc::{client::CompatMode, HttpClient};
 
-use crate::{ConnectionConf, HyperlaneCosmosError, Signer};
+use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 use self::grpc::WasmGrpcProvider;
 
@@ -31,7 +31,14 @@ impl CosmosProvider {
         locator: Option<ContractLocator>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let grpc_client = WasmGrpcProvider::new(conf.clone(), locator, signer)?;
+        let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
+        let grpc_client = WasmGrpcProvider::new(
+            domain.clone(),
+            conf.clone(),
+            gas_price.clone(),
+            locator,
+            signer,
+        )?;
         let rpc_client = HttpClient::builder(
             conf.get_rpc_url()
                 .parse()
@@ -91,5 +98,9 @@ impl HyperlaneProvider for CosmosProvider {
             .grpc_client
             .get_balance(address, self.canonical_asset.clone())
             .await?)
+    }
+
+    async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
+        Ok(None)
     }
 }

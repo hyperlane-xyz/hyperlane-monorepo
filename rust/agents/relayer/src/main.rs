@@ -18,6 +18,7 @@ mod msg;
 mod processor;
 mod prover;
 mod relayer;
+mod server;
 mod settings;
 
 #[tokio::main(flavor = "current_thread")]

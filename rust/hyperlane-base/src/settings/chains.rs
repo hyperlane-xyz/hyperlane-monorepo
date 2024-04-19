@@ -1,6 +1,7 @@
+use axum::async_trait;
 use ethers::prelude::Selector;
 use h_cosmos::CosmosProvider;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context, Result};
 
@@ -9,7 +10,7 @@ use hyperlane_core::{
     AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
     HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceIndexer,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
     ValidatorAnnounce, H256,
 };
 use hyperlane_cosmos as h_cosmos;
@@ -27,6 +28,13 @@ use crate::{
 };
 
 use super::ChainSigner;
+
+/// A trait for converting to a type from a chain configuration with metrics
+#[async_trait]
+pub trait TryFromWithMetrics<T>: Sized {
+    /// Try to convert the chain configuration into the type
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self>;
+}
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
@@ -48,6 +56,50 @@ pub struct ChainConf {
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
     pub index: IndexSettings,
+}
+
+/// A sequence-aware indexer for messages
+pub type MessageIndexer = Arc<dyn SequenceAwareIndexer<HyperlaneMessage>>;
+
+/// A sequence-aware indexer for deliveries
+pub type DeliveryIndexer = Arc<dyn SequenceAwareIndexer<H256>>;
+
+/// A sequence-aware indexer for interchain gas payments
+pub type IgpIndexer = Arc<dyn SequenceAwareIndexer<InterchainGasPayment>>;
+
+/// A sequence-aware indexer for merkle tree hooks
+pub type MerkleTreeHookIndexer = Arc<dyn SequenceAwareIndexer<MerkleTreeInsertion>>;
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for MessageIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_message_indexer(metrics).await.map(Into::into)
+    }
+}
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for DeliveryIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_delivery_indexer(metrics).await.map(Into::into)
+    }
+}
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for IgpIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_interchain_gas_payment_indexer(metrics)
+            .await
+            .map(Into::into)
+    }
+}
+
+#[async_trait]
+impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
+    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
+        conf.build_merkle_tree_hook_indexer(metrics)
+            .await
+            .map(Into::into)
+    }
 }
 
 /// A connection to _some_ blockchain.
@@ -85,7 +137,7 @@ pub struct CoreContractAddresses {
     /// Address of the ValidatorAnnounce contract
     pub validator_announce: H256,
     /// Address of the MerkleTreeHook contract
-    pub merkle_tree_hook: Option<H256>,
+    pub merkle_tree_hook: H256,
 }
 
 /// Indexing settings
@@ -111,16 +163,18 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
+        let locator = self.locator(H256::zero());
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
-                let locator = self.locator(H256::zero());
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => Ok(Box::new(h_sealevel::SealevelProvider::new(
+                locator.domain.clone(),
+                conf,
+            )) as Box<dyn HyperlaneProvider>),
             ChainConnectionConf::Cosmos(conf) => {
-                let locator = self.locator(H256::zero());
                 let provider = CosmosProvider::new(
                     locator.domain.clone(),
                     conf.clone(),
@@ -171,13 +225,7 @@ impl ChainConf {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MerkleTreeHook>> {
         let ctx = "Building merkle tree hook";
-        // TODO: if the merkle tree hook is set for sealevel, it's still a mailbox program
-        // that the connection is made to using the pda seeds, which will not be usable.
-        let address = self
-            .addresses
-            .merkle_tree_hook
-            .unwrap_or(self.addresses.mailbox);
-        let locator = self.locator(address);
+        let locator = self.locator(self.addresses.merkle_tree_hook);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -207,7 +255,7 @@ impl ChainConf {
     pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn SequenceIndexer<HyperlaneMessage>>> {
+    ) -> Result<Box<dyn SequenceAwareIndexer<HyperlaneMessage>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -226,7 +274,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
@@ -236,7 +284,7 @@ impl ChainConf {
                     signer,
                     self.reorg_period,
                 )?);
-                Ok(indexer as Box<dyn SequenceIndexer<HyperlaneMessage>>)
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
         }
         .context(ctx)
@@ -246,7 +294,7 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn SequenceIndexer<H256>>> {
+    ) -> Result<Box<dyn SequenceAwareIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
@@ -265,7 +313,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
-                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
@@ -275,7 +323,7 @@ impl ChainConf {
                     signer,
                     self.reorg_period,
                 )?);
-                Ok(indexer as Box<dyn SequenceIndexer<H256>>)
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
         }
         .context(ctx)
@@ -324,7 +372,7 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn SequenceIndexer<InterchainGasPayment>>> {
+    ) -> Result<Box<dyn SequenceAwareIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
@@ -346,7 +394,7 @@ impl ChainConf {
                 let indexer = Box::new(
                     h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
                 );
-                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
@@ -354,7 +402,7 @@ impl ChainConf {
                     locator,
                     self.reorg_period,
                 )?);
-                Ok(indexer as Box<dyn SequenceIndexer<InterchainGasPayment>>)
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)
@@ -364,13 +412,9 @@ impl ChainConf {
     pub async fn build_merkle_tree_hook_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<Box<dyn SequenceIndexer<MerkleTreeInsertion>>> {
+    ) -> Result<Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>> {
         let ctx = "Building merkle tree hook indexer";
-        let address = self
-            .addresses
-            .merkle_tree_hook
-            .unwrap_or(self.addresses.mailbox);
-        let locator = self.locator(address);
+        let locator = self.locator(self.addresses.merkle_tree_hook);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
@@ -385,9 +429,13 @@ impl ChainConf {
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => {
-                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new());
-                Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
+            ChainConnectionConf::Sealevel(conf) => {
+                let mailbox_indexer =
+                    Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
+                    *mailbox_indexer,
+                ));
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
@@ -398,7 +446,7 @@ impl ChainConf {
                     signer,
                     self.reorg_period,
                 )?);
-                Ok(indexer as Box<dyn SequenceIndexer<MerkleTreeInsertion>>)
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
         }
         .context(ctx)
@@ -698,13 +746,11 @@ impl ChainConf {
             self.addresses.interchain_gas_paymaster,
             EthereumInterchainGasPaymasterAbi::fn_map_owned(),
         );
-        if let Some(address) = self.addresses.merkle_tree_hook {
-            register_contract(
-                "merkle_tree_hook",
-                address,
-                EthereumInterchainGasPaymasterAbi::fn_map_owned(),
-            );
-        }
+        register_contract(
+            "merkle_tree_hook",
+            self.addresses.merkle_tree_hook,
+            EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+        );
 
         cfg
     }

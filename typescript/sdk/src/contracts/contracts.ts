@@ -12,9 +12,9 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, Connection } from '../types';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, Connection } from '../types.js';
 
 import {
   HyperlaneAddresses,
@@ -22,7 +22,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from './types';
+} from './types.js';
 
 export function serializeContractsMap<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>,
@@ -231,6 +231,6 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 
   return {
     contractsMap: filteredContractsMap,
-    multiProvider: intersection.result,
+    multiProvider: multiProvider,
   };
 }

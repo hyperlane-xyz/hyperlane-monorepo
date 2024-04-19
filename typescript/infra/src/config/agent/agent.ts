@@ -2,24 +2,28 @@ import {
   AgentChainMetadata,
   AgentSignerAwsKey,
   AgentSignerKeyType,
+  ChainMap,
   ChainName,
   RpcConsensusType,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../../config/contexts';
-import { AgentChainNames, Role } from '../../roles';
-import { DeployEnvironment } from '../environment';
-import { HelmImageValues } from '../infrastructure';
+import { Contexts } from '../../../config/contexts.js';
+import { AgentChainNames, AgentRole, Role } from '../../roles.js';
+import { DeployEnvironment } from '../environment.js';
+import { HelmImageValues } from '../infrastructure.js';
 
 import {
   BaseRelayerConfig,
   HelmRelayerChainValues,
   HelmRelayerValues,
-} from './relayer';
-import { BaseScraperConfig, HelmScraperValues } from './scraper';
-import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
+} from './relayer.js';
+import { BaseScraperConfig, HelmScraperValues } from './scraper.js';
+import {
+  HelmValidatorValues,
+  ValidatorBaseChainConfigMap,
+} from './validator.js';
 
 export type DeepPartial<T> = T extends object
   ? {
@@ -56,7 +60,6 @@ interface HelmHyperlaneValues {
 export interface HelmAgentChainOverride
   extends DeepPartial<AgentChainMetadata> {
   name: AgentChainMetadata['name'];
-  disabled?: boolean;
 }
 
 export interface RootAgentConfig extends AgentContextConfig {
@@ -205,5 +208,43 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
     case ProtocolType.Sealevel:
     default:
       return { type: AgentSignerKeyType.Hex };
+  }
+}
+
+export type AgentChainConfig = Record<AgentRole, ChainMap<boolean>>;
+
+/// Converts an AgentChainConfig to an AgentChainNames object.
+export function getAgentChainNamesFromConfig(
+  config: AgentChainConfig,
+  supportedChainNames: ChainName[],
+): AgentChainNames {
+  ensureAgentChainConfigIncludesAllChainNames(config, supportedChainNames);
+
+  return objMap(config, (role, roleConfig) =>
+    Object.entries(roleConfig)
+      .filter(([_chain, enabled]) => enabled)
+      .map(([chain]) => chain),
+  );
+}
+
+// Throws if any of the roles in the config do not have all the expected chain names.
+export function ensureAgentChainConfigIncludesAllChainNames(
+  config: AgentChainConfig,
+  expectedChainNames: ChainName[],
+) {
+  for (const [role, roleConfig] of Object.entries(config)) {
+    const chainNames = Object.keys(roleConfig);
+    const missingChainNames = expectedChainNames.filter(
+      (chainName) => !chainNames.includes(chainName),
+    );
+    const unknownChainNames = chainNames.filter(
+      (chainName) => !expectedChainNames.includes(chainName),
+    );
+
+    if (missingChainNames.length > 0 || unknownChainNames.length > 0) {
+      throw new Error(
+        `${role} agent chain config incorrect. Missing chain names: ${missingChainNames}, unknown chain names: ${unknownChainNames}`,
+      );
+    }
   }
 }

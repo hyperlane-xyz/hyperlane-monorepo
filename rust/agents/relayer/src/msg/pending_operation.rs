@@ -1,12 +1,9 @@
-use std::{cmp::Ordering, time::Instant};
+use std::{cmp::Ordering, fmt::Debug, time::Instant};
 
 use async_trait::async_trait;
-use enum_dispatch::enum_dispatch;
-use eyre::Report;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, H256};
 
-#[allow(unused_imports)] // required for enum_dispatch
-use super::pending_message::PendingMessage;
+use super::op_queue::QueueOperation;
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
@@ -28,10 +25,32 @@ use super::pending_message::PendingMessage;
 /// responsible for checking if the operation has reached a point at which we
 /// consider it safe from reorgs.
 #[async_trait]
-#[enum_dispatch]
-pub trait PendingOperation {
+pub trait PendingOperation: Send + Sync + Debug {
+    /// Get the unique identifier for this operation.
+    fn id(&self) -> H256;
+
+    /// A lower value means a higher priority, such as the message nonce
+    /// As new types of PendingOperations are added, an idea is to just use the
+    /// current length of the queue as this item's priority.
+    /// Overall this method isn't critical, since it's only used to compare
+    /// operations when neither of them have a `next_attempt_after`
+    fn priority(&self) -> u32;
+
+    /// The domain this originates from.
+    fn origin_domain_id(&self) -> u32;
+
     /// The domain this operation will take place on.
-    fn domain(&self) -> &HyperlaneDomain;
+    fn destination_domain(&self) -> &HyperlaneDomain;
+
+    /// Label to use for metrics granularity.
+    fn app_context(&self) -> Option<String>;
+
+    /// Get tuple of labels for metrics.
+    fn get_operation_labels(&self) -> (String, String) {
+        let app_context = self.app_context().unwrap_or("Unknown".to_string());
+        let destination = self.destination_domain().to_string();
+        (destination, app_context)
+    }
 
     /// Prepare to submit this operation. This will be called before every
     /// submission and will usually have a very short gap between it and the
@@ -51,52 +70,48 @@ pub trait PendingOperation {
     ///
     /// This is only used for sorting, the functions are responsible for
     /// returning `NotReady` if it is too early and matters.
-    fn _next_attempt_after(&self) -> Option<Instant>;
+    fn next_attempt_after(&self) -> Option<Instant>;
+
+    /// Reset the number of attempts this operation has made, causing it to be
+    /// retried immediately.
+    fn reset_attempts(&mut self);
 
     #[cfg(test)]
     /// Set the number of times this operation has been retried.
     fn set_retries(&mut self, retries: u32);
 }
 
-/// A "dynamic" pending operation implementation which knows about the
-/// different sub types and can properly implement PartialEq and
-/// PartialOrd for them.
-#[enum_dispatch(PendingOperation)]
-#[derive(Debug, PartialEq, Eq)]
-pub enum DynPendingOperation {
-    PendingMessage,
-}
-
-impl PartialOrd for DynPendingOperation {
+impl PartialOrd for QueueOperation {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-/// Sort by their next allowed attempt time and if no allowed time is set,
-/// then put it in front of those with a time (they have been tried
-/// before) and break ties between ones that have not been tried with
-/// the nonce.
-impl Ord for DynPendingOperation {
+impl PartialEq for QueueOperation {
+    fn eq(&self, other: &Self) -> bool {
+        self.id().eq(&other.id())
+    }
+}
+
+impl Eq for QueueOperation {}
+
+impl Ord for QueueOperation {
     fn cmp(&self, other: &Self) -> Ordering {
-        use DynPendingOperation::*;
         use Ordering::*;
-        match (self._next_attempt_after(), other._next_attempt_after()) {
+        match (self.next_attempt_after(), other.next_attempt_after()) {
             (Some(a), Some(b)) => a.cmp(&b),
             // No time means it should come before
             (None, Some(_)) => Less,
             (Some(_), None) => Greater,
-            (None, None) => match (self, other) {
-                (PendingMessage(a), PendingMessage(b)) => {
-                    if a.message.origin == b.message.origin {
-                        // Should execute in order of nonce for the same origin
-                        a.message.nonce.cmp(&b.message.nonce)
-                    } else {
-                        // There is no priority between these messages, so arbitrarily use the id
-                        a.message.id().cmp(&b.message.id())
-                    }
+            (None, None) => {
+                if self.origin_domain_id() == other.origin_domain_id() {
+                    // Should execute in order of nonce for the same origin
+                    self.priority().cmp(&other.priority())
+                } else {
+                    // There is no priority between these messages, so arbitrarily use the id
+                    self.id().cmp(&other.id())
                 }
-            },
+            }
         }
     }
 }
@@ -110,9 +125,6 @@ pub enum PendingOperationResult {
     Reprepare,
     /// Do not attempt to run the operation again, forget about it
     Drop,
-    /// Pass the error up the chain, this is non-recoverable and indicates a
-    /// system failure.
-    CriticalFailure(Report),
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.
@@ -121,30 +133,27 @@ macro_rules! make_op_try {
         /// Handle a result and either return early with retry or a critical failure on
         /// error.
         macro_rules! op_try {
-                                        (critical: $e:expr, $ctx:literal) => {
-                                            match $e {
-                                                Ok(v) => v,
-                                                Err(e) => {
-                                                    error!(error=?e, concat!("Error when ", $ctx));
-                                                    return PendingOperationResult::CriticalFailure(
-                                                        Err::<(), _>(e)
-                                                            .context(concat!("When ", $ctx))
-                                                            .unwrap_err()
-                                                    );
-                                                }
-                                            }
-                                        };
-                                        ($e:expr, $ctx:literal) => {
-                                            match $e {
-                                                Ok(v) => v,
-                                                Err(e) => {
-                                                    warn!(error=?e, concat!("Error when ", $ctx));
-                                                    #[allow(clippy::redundant_closure_call)]
-                                                    return $on_retry();
-                                                }
-                                            }
-                                        };
+                            (critical: $e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        error!(error=?e, concat!("Critical error when ", $ctx));
+                                        #[allow(clippy::redundant_closure_call)]
+                                        return $on_retry();
                                     }
+                                }
+                            };
+                            ($e:expr, $ctx:literal) => {
+                                match $e {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        warn!(error=?e, concat!("Error when ", $ctx));
+                                        #[allow(clippy::redundant_closure_call)]
+                                        return $on_retry();
+                                    }
+                                }
+                            };
+                        }
     };
 }
 

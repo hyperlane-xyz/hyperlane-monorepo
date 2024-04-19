@@ -183,7 +183,7 @@ async fn test_dispatch_from_eoa() {
         .unwrap();
 
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -238,7 +238,7 @@ async fn test_dispatch_from_eoa() {
         .unwrap();
 
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 1,
         origin: LOCAL_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -300,7 +300,7 @@ async fn test_dispatch_from_program() {
             .unwrap();
 
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         // The sender should be the program ID because its dispatch authority signed
@@ -389,7 +389,7 @@ async fn test_dispatch_returns_message_id() {
         message_body: message_body.clone(),
     };
     let expected_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -411,13 +411,13 @@ async fn test_dispatch_returns_message_id() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. [writeable] Outbox PDA.
-            // 1. [signer] Message sender signer.
-            // 2. [executable] System program.
-            // 3. [executable] SPL Noop program.
-            // 4. [signer] Payer.
-            // 5. [signer] Unique message account.
-            // 6. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+            // 0. `[writeable]` Outbox PDA.
+            // 1. `[signer]` Message sender signer.
+            // 2. `[executable]` System program.
+            // 3. `[executable]` SPL Noop program.
+            // 4. `[signer]` Payer.
+            // 5. `[signer]` Unique message account.
+            // 6. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
             //    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),
@@ -574,7 +574,7 @@ async fn test_process_successful_verify_and_handle() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -605,7 +605,7 @@ async fn test_process_successful_verify_and_handle() {
 
     // Send another to illustrate that the sequence is incremented
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -647,7 +647,7 @@ async fn test_process_errors_if_message_already_processed() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -697,7 +697,7 @@ async fn test_process_errors_if_ism_verify_fails() {
     test_ism.set_accept(false).await.unwrap();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -743,7 +743,7 @@ async fn test_process_errors_if_recipient_handle_fails() {
         .unwrap();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -784,7 +784,7 @@ async fn test_process_errors_if_incorrect_destination_domain() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -905,7 +905,7 @@ async fn test_process_errors_if_reentrant() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
         sender: payer.pubkey().to_bytes().into(),
@@ -964,9 +964,9 @@ async fn test_inbox_set_default_ism() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. [writeable] - The Inbox PDA account.
-            // 1. [] - The Outbox PDA account.
-            // 2. [signer] - The owner of the Mailbox.
+            // 0. `[writeable]` - The Inbox PDA account.
+            // 1. `[]` - The Outbox PDA account.
+            // 2. `[signer]` - The owner of the Mailbox.
             AccountMeta::new(mailbox_accounts.inbox, false),
             AccountMeta::new_readonly(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),
@@ -1011,9 +1011,9 @@ async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. [writeable] - The Inbox PDA account.
-            // 1. [] - The Outbox PDA account.
-            // 2. [signer] - The owner of the Mailbox.
+            // 0. `[writeable]` - The Inbox PDA account.
+            // 1. `[]` - The Outbox PDA account.
+            // 2. `[signer]` - The owner of the Mailbox.
             AccountMeta::new(mailbox_accounts.inbox, false),
             AccountMeta::new_readonly(mailbox_accounts.outbox, false),
             AccountMeta::new_readonly(non_owner.pubkey(), true),
@@ -1033,9 +1033,9 @@ async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. [writeable] - The Inbox PDA account.
-            // 1. [] - The Outbox PDA account.
-            // 2. [signer] - The owner of the Mailbox.
+            // 0. `[writeable]` - The Inbox PDA account.
+            // 1. `[]` - The Outbox PDA account.
+            // 2. `[signer]` - The owner of the Mailbox.
             AccountMeta::new(mailbox_accounts.inbox, false),
             AccountMeta::new_readonly(mailbox_accounts.outbox, false),
             AccountMeta::new_readonly(payer.pubkey(), false),

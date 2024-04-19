@@ -11,8 +11,10 @@ version.workspace = true
 
 [dependencies]
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"]}
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos"}
 toml_edit.workspace = true
 k256.workspace = true
+jobserver.workspace = true
 ripemd.workspace = true
 sha2.workspace = true
 serde.workspace = true
@@ -27,5 +29,8 @@ ureq = { workspace = true, default-features = false }
 which.workspace = true
 macro_rules_attribute.workspace = true
 regex.workspace = true
-hpl-interface.workspace = true
+hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
+
+[features]
+cosmos = []

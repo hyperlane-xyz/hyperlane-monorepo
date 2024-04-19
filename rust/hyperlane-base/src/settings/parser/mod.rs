@@ -11,12 +11,15 @@ use std::{
 
 use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
+use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, IndexMode,
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneDomainTechnicalStack, IndexMode,
 };
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
+use url::Url;
 
 pub use self::json_value_parser::ValueParser;
 pub use super::envs::*;
@@ -133,47 +136,7 @@ fn parse_chain(
         .parse_u32()
         .unwrap_or(1);
 
-    let rpcs_base = chain
-        .chain(&mut err)
-        .get_key("rpcUrls")
-        .into_array_iter()
-        .map(|urls| {
-            urls.filter_map(|v| {
-                v.chain(&mut err)
-                    .get_key("http")
-                    .parse_from_str("Invalid http url")
-                    .end()
-            })
-            .collect_vec()
-        })
-        .unwrap_or_default();
-
-    let rpc_overrides = chain
-        .chain(&mut err)
-        .get_opt_key("customRpcUrls")
-        .parse_string()
-        .end()
-        .map(|urls| {
-            urls.split(',')
-                .filter_map(|url| {
-                    url.parse()
-                        .take_err(&mut err, || &chain.cwp + "customRpcUrls")
-                })
-                .collect_vec()
-        });
-
-    let rpcs = rpc_overrides.unwrap_or(rpcs_base);
-
-    if rpcs.is_empty() {
-        err.push(
-            &chain.cwp + "rpc_urls",
-            eyre!("Missing base rpc definitions for chain"),
-        );
-        err.push(
-            &chain.cwp + "custom_rpc_urls",
-            eyre!("Also missing rpc overrides for chain"),
-        );
-    }
+    let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
 
     let from = chain
         .chain(&mut err)
@@ -220,7 +183,7 @@ fn parse_chain(
         .end();
     let merkle_tree_hook = chain
         .chain(&mut err)
-        .get_opt_key("merkleTreeHook")
+        .get_key("merkleTreeHook")
         .parse_address_hash()
         .end();
 
@@ -233,7 +196,7 @@ fn parse_chain(
         default_rpc_consensus_type,
     );
 
-    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce]);
+    cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
     err.into_result(ChainConf {
         domain,
         signer,
@@ -285,9 +248,16 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
         .parse_from_str::<HyperlaneDomainProtocol>("Invalid Hyperlane domain protocol")
         .end();
 
-    cfg_unwrap_all!(&chain.cwp, err: [domain_id, protocol]);
+    let technical_stack = chain
+        .chain(&mut err)
+        .get_opt_key("technicalStack")
+        .parse_from_str::<HyperlaneDomainTechnicalStack>("Invalid chain technical stack")
+        .end()
+        .or_else(|| Some(HyperlaneDomainTechnicalStack::default()));
 
-    let domain = HyperlaneDomain::from_config(domain_id, name, protocol)
+    cfg_unwrap_all!(&chain.cwp, err: [domain_id, protocol, technical_stack]);
+
+    let domain = HyperlaneDomain::from_config(domain_id, name, protocol, technical_stack)
         .context("Invalid domain data")
         .take_err(&mut err, || chain.cwp.clone());
 
@@ -397,4 +367,86 @@ pub fn recase_json_value(mut val: Value, case: Case) -> Value {
         _ => {}
     }
     val
+}
+
+/// Expects AgentSigner.
+fn parse_cosmos_gas_price(gas_price: ValueParser) -> ConfigResult<RawCosmosAmount> {
+    let mut err = ConfigParsingError::default();
+
+    let amount = gas_price
+        .chain(&mut err)
+        .get_opt_key("amount")
+        .parse_string()
+        .end();
+
+    let denom = gas_price
+        .chain(&mut err)
+        .get_opt_key("denom")
+        .parse_string()
+        .end();
+    cfg_unwrap_all!(&gas_price.cwp, err: [denom, amount]);
+    err.into_result(RawCosmosAmount::new(denom.to_owned(), amount.to_owned()))
+}
+
+fn parse_urls(
+    chain: &ValueParser,
+    key: &str,
+    protocol: &str,
+    err: &mut ConfigParsingError,
+) -> Vec<Url> {
+    chain
+        .chain(err)
+        .get_key(key)
+        .into_array_iter()
+        .map(|urls| {
+            urls.filter_map(|v| {
+                v.chain(err)
+                    .get_key(protocol)
+                    .parse_from_str("Invalid url")
+                    .end()
+            })
+            .collect_vec()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_custom_urls(
+    chain: &ValueParser,
+    key: &str,
+    err: &mut ConfigParsingError,
+) -> Option<Vec<Url>> {
+    chain
+        .chain(err)
+        .get_opt_key(key)
+        .parse_string()
+        .end()
+        .map(|urls| {
+            urls.split(',')
+                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + key))
+                .collect_vec()
+        })
+}
+
+fn parse_base_and_override_urls(
+    chain: &ValueParser,
+    base_key: &str,
+    override_key: &str,
+    protocol: &str,
+    err: &mut ConfigParsingError,
+) -> Vec<Url> {
+    let base = parse_urls(chain, base_key, protocol, err);
+    let overrides = parse_custom_urls(chain, override_key, err);
+    let combined = overrides.unwrap_or(base);
+
+    if combined.is_empty() {
+        err.push(
+            &chain.cwp + base_key,
+            eyre!("Missing base {} definitions for chain", base_key),
+        );
+        err.push(
+            &chain.cwp + "custom_rpc_urls",
+            eyre!("Also missing {} overrides for chain", base_key),
+        );
+    }
+    combined
 }

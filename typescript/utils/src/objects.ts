@@ -6,7 +6,24 @@ export function deepEquals(v1: any, v2: any) {
   return JSON.stringify(v1) === JSON.stringify(v2);
 }
 
+export function deepCopy(v: any) {
+  return JSON.parse(JSON.stringify(v));
+}
+
 export type ValueOf<T> = T[keyof T];
+
+// Useful for maintaining type safety when using Object.keys
+export function objKeys<T extends string | number>(obj: Record<T, any>): T[] {
+  return Object.keys(obj) as T[];
+}
+
+export function objLength(obj: Record<any, any>) {
+  return Object.keys(obj).length;
+}
+
+export function isObjEmpty(obj: Record<any, any>) {
+  return objLength(obj) === 0;
+}
 
 export function objMapEntries<
   M extends Record<K, I>,

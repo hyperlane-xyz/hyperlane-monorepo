@@ -1,22 +1,23 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContractsMap } from '../contracts/types';
-import { CoreFactories } from '../core/contracts';
-import { CoreConfig } from '../core/types';
-import { IgpFactories } from '../gas/contracts';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneContractsMap } from '../contracts/types.js';
+import { CoreFactories } from '../core/contracts.js';
+import { CoreConfig } from '../core/types.js';
+import { IgpFactories } from '../gas/contracts.js';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
-} from '../gas/token-prices';
-import { HookType } from '../hook/types';
-import { IsmType } from '../ism/types';
-import { RouterConfig } from '../router/types';
-import { ChainMap, ChainName } from '../types';
+} from '../gas/token-prices.js';
+import { IgpConfig } from '../gas/types.js';
+import { HookType } from '../hook/types.js';
+import { IsmType } from '../ism/types.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export function randomInt(max: number, min = 0): number {
   return Math.floor(Math.random() * (max - min)) + min;
@@ -66,6 +67,34 @@ export function testCoreConfig(
   };
 
   return Object.fromEntries(chains.map((local) => [local, chainConfig]));
+}
+
+const TEST_ORACLE_CONFIG = {
+  gasPrice: ethers.utils.parseUnits('1', 'gwei'),
+  tokenExchangeRate: ethers.utils.parseUnits('1', 10),
+};
+
+export function testIgpConfig(
+  chains: ChainName[],
+  owner = nonZeroAddress,
+): ChainMap<IgpConfig> {
+  return Object.fromEntries(
+    chains.map((local) => [
+      local,
+      {
+        owner,
+        oracleKey: owner,
+        beneficiary: owner,
+        // TODO: these should be one map
+        overhead: Object.fromEntries(
+          exclude(local, chains).map((remote) => [remote, 60000]),
+        ),
+        oracleConfig: Object.fromEntries(
+          exclude(local, chains).map((remote) => [remote, TEST_ORACLE_CONFIG]),
+        ),
+      },
+    ]),
+  );
 }
 
 // A mock CoinGecko intended to be used by tests

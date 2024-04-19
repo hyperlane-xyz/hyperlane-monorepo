@@ -1,24 +1,26 @@
 // use std::path::Path;
 
+use std::path::Path;
+
 use crate::config::Config;
 use crate::metrics::agent_balance_sum;
 use maplit::hashmap;
 
 use crate::logging::log;
+use crate::solana::solana_termination_invariants_met;
 use crate::{fetch_metric, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
-// use crate::solana::solana_termination_invariants_met;
 
 // This number should be even, so the messages can be split into two equal halves
 // sent before and after the relayer spins up, to avoid rounding errors.
-pub const SOL_MESSAGES_EXPECTED: u32 = 0;
+pub const SOL_MESSAGES_EXPECTED: u32 = 20;
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
 pub fn termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,
-    // solana_cli_tools_path: &Path,
-    // solana_config_path: &Path,
+    solana_cli_tools_path: &Path,
+    solana_config_path: &Path,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
     let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
@@ -74,10 +76,10 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    // if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
-    //     log!("Solana termination invariants not met");
-    //     return Ok(false);
-    // }
+    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
+        log!("Solana termination invariants not met");
+        return Ok(false);
+    }
 
     let dispatched_messages_scraped = fetch_metric(
         "9093",

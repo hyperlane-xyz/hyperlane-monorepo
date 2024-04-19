@@ -17,7 +17,7 @@ pub use crate::contracts::i_ccip_read_ism::{
     ICcipReadIsm as EthereumCcipReadIsmInternal, OffchainLookup, ICCIPREADISM_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
-use crate::EthereumProvider;
+use crate::{ConnectionConf, EthereumProvider};
 
 pub struct CcipReadIsmBuilder {}
 
@@ -28,6 +28,7 @@ impl BuildableWithProvider for CcipReadIsmBuilder {
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
+        _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumCcipReadIsm::new(Arc::new(provider), locator))

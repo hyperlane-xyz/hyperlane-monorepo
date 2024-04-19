@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 
-import { Chains } from '../consts/chains';
-import { MockCoinGecko } from '../test/testUtils';
+import { Chains } from '../consts/chains.js';
+import { MockCoinGecko } from '../test/testUtils.js';
 
-import { CoinGeckoTokenPriceGetter } from './token-prices';
+import { CoinGeckoTokenPriceGetter } from './token-prices.js';
 
 describe('TokenPriceGetter', () => {
   let tokenPriceGetter: CoinGeckoTokenPriceGetter;

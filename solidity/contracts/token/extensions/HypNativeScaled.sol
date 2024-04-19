@@ -30,11 +30,18 @@ contract HypNativeScaled is HypNative {
         uint256 gasPayment = msg.value - _amount;
         uint256 scaledAmount = _amount / scale;
         return
-            _transferRemote(_destination, _recipient, scaledAmount, gasPayment);
+            _transferRemote(
+                _destination,
+                _recipient,
+                scaledAmount,
+                gasPayment,
+                bytes(""),
+                address(0)
+            );
     }
 
     /**
-     * @dev Sends scaled `_amount` (multipled by `scale`) to `_recipient`.
+     * @dev Sends scaled `_amount` (multiplied by `scale`) to `_recipient`.
      * @inheritdoc TokenRouter
      */
     function _transferTo(

@@ -1,21 +1,21 @@
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber } from 'ethers';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { BytecodeHash } from '../consts/bytecode';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { proxyImplementation } from '../deploy/proxy';
-import { ChainName } from '../types';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { chainMetadata } from '../consts/chainMetadata.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { proxyImplementation } from '../deploy/proxy.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneIgp } from './HyperlaneIgp';
+import { HyperlaneIgp } from './HyperlaneIgp.js';
 import {
-  GasOracleContractType,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
   IgpViolationType,
-} from './types';
+} from './types.js';
 
 export class HyperlaneIgpChecker extends HyperlaneAppChecker<
   HyperlaneIgp,
@@ -31,21 +31,11 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-
-    const ownableOverrides: Record<string, string> = {
-      storageGasOracle: config.oracleKey,
-    };
-    await super.checkOwnership(chain, config.owner, ownableOverrides);
+    await super.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
   async checkBytecodes(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    await this.checkBytecode(
-      chain,
-      'InterchainGasPaymaster proxy',
-      contracts.interchainGasPaymaster.address,
-      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
-    );
     const implementation = await proxyImplementation(
       this.multiProvider.getProvider(chain),
       contracts.interchainGasPaymaster.address,
@@ -54,25 +44,22 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       chain,
       'InterchainGasPaymaster implementation',
       implementation,
-      [BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH],
-    );
-
-    await this.checkBytecode(
-      chain,
-      'InterchainGasPaymaster proxy',
-      contracts.interchainGasPaymaster.address,
-      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
+      [
+        BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+        BytecodeHash.OPT_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+      ],
       (bytecode) =>
-        bytecode
-          // We persist the block number in the bytecode now too, so we have to strip it
+        bytecode // We persist the block number in the bytecode now too, so we have to strip it
           .replaceAll(
             /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
             (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
-          )
-          .replaceAll(
-            /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
-            (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
           ),
+    );
+
+    await this.checkProxy(
+      chain,
+      'InterchainGasPaymaster proxy',
+      contracts.interchainGasPaymaster.address,
     );
   }
 
@@ -93,17 +80,19 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       expected: {},
     };
 
-    const remotes = this.app.remoteChains(local);
+    const remotes = await this.app.remoteChains(local);
     for (const remote of remotes) {
       let expectedOverhead = this.configMap[local].overhead[remote];
       if (!expectedOverhead) {
-        this.app.logger(
+        this.app.logger.debug(
           `No overhead configured for ${local} -> ${remote}, defaulting to 0`,
         );
         expectedOverhead = 0;
       }
 
-      const remoteId = this.multiProvider.getDomainId(remote);
+      const remoteId =
+        chainMetadata[remote]?.domainId ??
+        this.multiProvider.getDomainId(remote);
       const existingOverhead = await defaultIsmIgp.destinationGasLimit(
         remoteId,
         0,
@@ -138,17 +127,16 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       expected: {},
     };
 
-    // In addition to all remote chains on the app, which are just Ethereum chains,
-    // also consider what the config says about non-Ethereum chains.
-    const remotes = new Set([
-      ...this.app.remoteChains(local),
-      ...Object.keys(this.configMap[local].gasOracleType),
-    ]);
+    const remotes = new Set(
+      Object.keys(this.configMap[local].oracleConfig ?? {}),
+    );
     for (const remote of remotes) {
-      const remoteId = this.multiProvider.getDomainId(remote);
+      const remoteId =
+        chainMetadata[remote]?.domainId ??
+        this.multiProvider.getDomainId(remote);
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
       const actualGasOracle = destinationGasConfigs.gasOracle;
-      const expectedGasOracle = this.getGasOracleAddress(local, remote);
+      const expectedGasOracle = coreContracts.storageGasOracle.address;
 
       if (!eqAddress(actualGasOracle, expectedGasOracle)) {
         const remoteChain = remote as ChainName;
@@ -173,24 +161,6 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         expected: expectedBeneficiary,
       };
       this.addViolation(violation);
-    }
-  }
-
-  getGasOracleAddress(local: ChainName, remote: ChainName): Address {
-    const config = this.configMap[local];
-    const gasOracleType = config.gasOracleType[remote];
-    if (!gasOracleType) {
-      this.app.logger(
-        `No gas oracle for local ${local} and remote ${remote}, defaulting to zero address`,
-      );
-      return ethers.constants.AddressZero;
-    }
-    const coreContracts = this.app.getContracts(local);
-    switch (gasOracleType) {
-      case GasOracleContractType.StorageGasOracle:
-        return coreContracts.storageGasOracle.address;
-      default:
-        throw Error(`Unsupported gas oracle type ${gasOracleType}`);
     }
   }
 }

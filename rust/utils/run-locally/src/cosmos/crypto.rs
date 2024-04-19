@@ -1,6 +1,4 @@
-// TODO: this file can be removed if `CosmosAddress` can be imported from `hyperlane-cosmos`.
-// However, adding a hyperlane-cosmos dep creates a dep cycle.
-// Look into how this can be fixed.
+// TODO: this file can be removed by replacing `KeyPair` uses with `CosmosAddress`
 
 use k256::ecdsa::{SigningKey, VerifyingKey};
 use ripemd::Ripemd160;
@@ -26,7 +24,7 @@ pub fn pub_to_addr(pub_key: &[u8], prefix: &str) -> String {
     let sha_hash = sha256_digest(pub_key);
     let rip_hash = ripemd160_digest(sha_hash);
 
-    let addr = hpl_interface::types::bech32_encode(prefix, &rip_hash).unwrap();
+    let addr = hyperlane_cosmwasm_interface::types::bech32_encode(prefix, &rip_hash).unwrap();
 
     addr.to_string()
 }

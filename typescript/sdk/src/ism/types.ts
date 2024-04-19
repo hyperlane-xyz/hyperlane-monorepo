@@ -3,11 +3,14 @@ import {
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
+  PausableIsm,
   TestIsm,
+  TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
-import type { Address, ValueOf } from '@hyperlane-xyz/utils';
+import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
-import { ChainMap } from '../types';
+import { OwnableConfig } from '../deploy/types.js';
+import { ChainMap } from '../types.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
@@ -19,6 +22,7 @@ export enum ModuleType {
   MERKLE_ROOT_MULTISIG,
   MESSAGE_ID_MULTISIG,
   NULL,
+  CCIP_READ,
 }
 
 // this enum can be adjusted as per deployments necessary
@@ -31,13 +35,13 @@ export enum IsmType {
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
   TEST_ISM = 'testIsm',
+  PAUSABLE = 'pausableIsm',
+  TRUSTED_RELAYER = 'trustedRelayerIsm',
 }
 
-// mapping betweent the two enums
+// mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
-    case IsmType.OP_STACK:
-      return ModuleType.NULL;
     case IsmType.ROUTING:
       return ModuleType.ROUTING;
     case IsmType.FALLBACK_ROUTING:
@@ -48,7 +52,10 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.MERKLE_ROOT_MULTISIG;
     case IsmType.MESSAGE_ID_MULTISIG:
       return ModuleType.MESSAGE_ID_MULTISIG;
+    case IsmType.OP_STACK:
     case IsmType.TEST_ISM:
+    case IsmType.PAUSABLE:
+    case IsmType.TRUSTED_RELAYER:
       return ModuleType.NULL;
   }
 }
@@ -66,9 +73,13 @@ export type TestIsmConfig = {
   type: IsmType.TEST_ISM;
 };
 
-export type RoutingIsmConfig = {
+export type PausableIsmConfig = OwnableConfig & {
+  type: IsmType.PAUSABLE;
+  paused?: boolean;
+};
+
+export type RoutingIsmConfig = OwnableConfig & {
   type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
-  owner: Address;
   domains: ChainMap<IsmConfig>;
 };
 
@@ -84,13 +95,20 @@ export type OpStackIsmConfig = {
   nativeBridge: Address;
 };
 
+export type TrustedRelayerIsmConfig = {
+  type: IsmType.TRUSTED_RELAYER;
+  relayer: Address;
+};
+
 export type IsmConfig =
   | Address
   | RoutingIsmConfig
   | MultisigIsmConfig
   | AggregationIsmConfig
   | OpStackIsmConfig
-  | TestIsmConfig;
+  | TestIsmConfig
+  | PausableIsmConfig
+  | TrustedRelayerIsmConfig;
 
 export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
@@ -100,6 +118,16 @@ export type DeployedIsmType = {
   [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
   [IsmType.OP_STACK]: OPStackIsm;
   [IsmType.TEST_ISM]: TestIsm;
+  [IsmType.PAUSABLE]: PausableIsm;
+  [IsmType.TRUSTED_RELAYER]: TrustedRelayerIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
+
+// for finding the difference between the onchain deployment and the config provided
+export type RoutingIsmDelta = {
+  domainsToUnenroll: Domain[]; // new or updated isms for the domain
+  domainsToEnroll: Domain[]; // isms to remove
+  owner?: Address; // is the owner different
+  mailbox?: Address; // is the mailbox different (only for fallback routing)
+};

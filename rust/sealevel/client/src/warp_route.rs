@@ -20,7 +20,7 @@ use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{
-        enroll_remote_routers_instruction, set_destination_gas_configs,
+        enroll_remote_routers_instruction, set_destination_gas_configs, set_igp_instruction,
         set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
 };
@@ -125,8 +125,8 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 &deploy.warp_route_name,
                 deploy.token_config_file,
                 deploy.chain_config_file,
-                deploy.environments_dir,
-                &deploy.environment,
+                deploy.env_args.environments_dir,
+                &deploy.env_args.environment,
                 deploy.built_so_dir,
             );
         }
@@ -206,7 +206,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         let domain_id = chain_config.domain_id();
 
         // TODO: consider pulling the setting of defaults into router.rs,
-        // and possibly have a more distinct connection client abstration.
+        // and possibly have a more distinct connection client abstraction.
 
         let mailbox = app_config
             .router_config()
@@ -286,7 +286,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     collateral_info
                         .spl_token_program
                         .as_ref()
-                        .expect("Cannot initalize collateral warp route without SPL token program")
+                        .expect("Cannot initialize collateral warp route without SPL token program")
                         .program_id(),
                     collateral_info.mint.parse().expect("Invalid mint address"),
                 )
@@ -433,6 +433,27 @@ impl ConnectionClient for WarpRouteDeployer {
 
         set_interchain_security_module_instruction(*program_id, token_data.owner.unwrap(), ism)
             .unwrap()
+    }
+
+    fn get_interchain_gas_paymaster(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+    ) -> Option<(Pubkey, InterchainGasPaymasterType)> {
+        let token_data = get_token_data::<()>(client, program_id);
+
+        token_data.interchain_gas_paymaster
+    }
+
+    fn set_interchain_gas_paymaster_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        igp_config: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) -> Option<Instruction> {
+        let token_data = get_token_data::<()>(client, program_id);
+
+        Some(set_igp_instruction(*program_id, token_data.owner.unwrap(), igp_config).unwrap())
     }
 }
 

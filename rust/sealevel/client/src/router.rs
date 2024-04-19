@@ -268,6 +268,21 @@ pub(crate) trait ConnectionClient: Ownable {
         program_id: &Pubkey,
         ism: Option<Pubkey>,
     ) -> Instruction;
+
+    /// Gets the IGP configured on-chain.
+    fn get_interchain_gas_paymaster(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+    ) -> Option<(Pubkey, InterchainGasPaymasterType)>;
+
+    /// Gets an instruction to set the IGP.
+    fn set_interchain_gas_paymaster_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        igp_config: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) -> Option<Instruction>;
 }
 
 /// Idempotently deploys routers on multiple Sealevel chains and enrolls all routers (including
@@ -426,8 +441,6 @@ fn configure_connection_client(
     router_config: &RouterConfig,
     chain_config: &ChainMetadata,
 ) {
-    // Just ISM for now
-
     let client = chain_config.client();
 
     let actual_ism = deployer.get_interchain_security_module(&client, program_id);
@@ -450,6 +463,35 @@ fn configure_connection_client(
             )
             .with_client(&client)
             .send_with_payer();
+    }
+
+    let actual_igp = deployer.get_interchain_gas_paymaster(&client, program_id);
+    let expected_igp = router_config
+        .connection_client
+        .interchain_gas_paymaster_config(&client);
+
+    if actual_igp != expected_igp {
+        let instruction = deployer.set_interchain_gas_paymaster_instruction(
+            &client,
+            program_id,
+            expected_igp.clone(),
+        );
+        if let Some(instruction) = instruction {
+            ctx.new_txn()
+                .add_with_description(
+                    instruction,
+                    format!(
+                        "Setting IGP for chain: {} ({}) to {:?}",
+                        chain_config.name,
+                        chain_config.domain_id(),
+                        expected_igp
+                    ),
+                )
+                .with_client(&client)
+                .send_with_payer();
+        } else {
+            println!("WARNING: Invalid configured IGP {:?}, expected {:?} for chain {} ({}), but cannot craft instruction to change it", actual_igp, expected_igp, chain_config.name, chain_config.domain_id());
+        }
     }
 }
 
@@ -541,17 +583,18 @@ fn enroll_all_remote_routers<
             .collect::<Vec<RemoteRouterConfig>>();
 
         if !router_configs.is_empty() {
-            println!(
-                "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
-                chain_name, program_id, router_configs,
-            );
-
             ctx.new_txn()
-                .add(deployer.enroll_remote_routers_instruction(
-                    program_id,
-                    ctx.payer_pubkey,
-                    router_configs,
-                ))
+                .add_with_description(
+                    deployer.enroll_remote_routers_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        router_configs.clone(),
+                    ),
+                    format!(
+                        "Enrolling routers for chain: {}, program_id {}, routers: {:?}",
+                        chain_name, program_id, router_configs,
+                    ),
+                )
                 .with_client(&chain_config.client())
                 .send_with_payer();
         } else {

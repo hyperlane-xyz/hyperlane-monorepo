@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use thiserror::Error;
 
-use crate::{BlockInfo, ChainResult, HyperlaneChain, TxnInfo, H256, U256};
+use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, U256};
 
 /// Interface for a provider. Allows abstraction over different provider types
 /// for different chains.
@@ -27,6 +27,9 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 
     /// Fetch the balance of the wallet address associated with the chain provider.
     async fn get_balance(&self, address: String) -> ChainResult<U256>;
+
+    /// Fetch metrics related to this chain
+    async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>>;
 }
 
 /// Errors when querying for provider information.

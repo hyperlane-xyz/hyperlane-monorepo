@@ -1,0 +1,270 @@
+{
+  "alfajores": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-alfajores.celoscan.io/api",
+        "family": "etherscan",
+        "name": "CeloScan",
+        "url": "https://alfajores.celoscan.io"
+      },
+      {
+        "apiUrl": "https://explorer.celo.org/alfajores/api",
+        "family": "blockscout",
+        "name": "Blockscout",
+        "url": "https://explorer.celo.org/alfajores"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 5,
+      "reorgPeriod": 0
+    },
+    "chainId": 44787,
+    "displayName": "Alfajores",
+    "domainId": 44787,
+    "isTestnet": true,
+    "name": "alfajores",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "CELO",
+      "symbol": "CELO"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://alfajores-forno.celo-testnet.org"
+      }
+    ]
+  },
+  "fuji": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-testnet.snowtrace.io/api",
+        "family": "etherscan",
+        "name": "SnowTrace",
+        "url": "https://testnet.snowtrace.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 3
+    },
+    "chainId": 43113,
+    "displayName": "Fuji",
+    "domainId": 43113,
+    "isTestnet": true,
+    "name": "fuji",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Avalanche",
+      "symbol": "AVAX"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://api.avax-test.network/ext/bc/C/rpc",
+        "pagination": {
+          "maxBlockRange": 2048
+        }
+      }
+    ]
+  },
+  "bsctestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-testnet.bscscan.com/api",
+        "family": "etherscan",
+        "name": "BscScan",
+        "url": "https://testnet.bscscan.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 9
+    },
+    "chainId": 97,
+    "displayName": "BSC Testnet",
+    "domainId": 97,
+    "isTestnet": true,
+    "name": "bsctestnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "BNB",
+      "symbol": "BNB"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://bsc-testnet.publicnode.com"
+      },
+      {
+        "http": "https://bsc-testnet.blockpi.network/v1/rpc/public"
+      }
+    ],
+    "transactionOverrides": {
+      "gasPrice": 80000000000
+    }
+  },
+  "scrollsepolia": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-sepolia.scrollscan.com/api",
+        "family": "etherscan",
+        "name": "Scroll Explorer",
+        "url": "https://sepolia.scrollscan.dev/"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 1
+    },
+    "chainId": 534351,
+    "displayName": "Scroll Sepolia",
+    "domainId": 534351,
+    "isTestnet": true,
+    "name": "scrollsepolia",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://sepolia-rpc.scroll.io"
+      }
+    ]
+  },
+  "sepolia": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-sepolia.etherscan.io/api",
+        "family": "etherscan",
+        "name": "Etherscan",
+        "url": "https://sepolia.etherscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 13,
+      "reorgPeriod": 2
+    },
+    "chainId": 11155111,
+    "displayName": "Sepolia",
+    "domainId": 11155111,
+    "isTestnet": true,
+    "name": "sepolia",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://ethereum-sepolia.blockpi.network/v1/rpc/public"
+      },
+      {
+        "http": "https://rpc.sepolia.org"
+      }
+    ]
+  },
+  "moonbasealpha": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-moonbase.moonscan.io/api",
+        "family": "etherscan",
+        "name": "MoonScan",
+        "url": "https://moonbase.moonscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 12,
+      "reorgPeriod": 1
+    },
+    "chainId": 1287,
+    "displayName": "Moonbase Alpha",
+    "displayNameShort": "Moonbase",
+    "domainId": 1287,
+    "isTestnet": true,
+    "name": "moonbasealpha",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "DEV",
+      "symbol": "DEV"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.api.moonbase.moonbeam.network"
+      }
+    ]
+  },
+  "solanatestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.solana.com",
+        "family": "other",
+        "name": "Solana Explorer",
+        "url": "https://explorer.solana.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 0.4,
+      "reorgPeriod": 0
+    },
+    "chainId": 1399811150,
+    "displayName": "Solana Testnet",
+    "displayNameShort": "Sol Testnet",
+    "domainId": 1399811150,
+    "isTestnet": true,
+    "name": "solanatestnet",
+    "nativeToken": {
+      "decimals": 9,
+      "name": "Sol",
+      "symbol": "SOL"
+    },
+    "protocol": "sealevel",
+    "rpcUrls": [
+      {
+        "http": "https://api.testnet.solana.com"
+      }
+    ]
+  },
+  "eclipsetestnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://testnet.dev2.eclipsenetwork.xyz",
+        "family": "other",
+        "name": "Eclipse Testnet Explorer",
+        "url": "https://explorer.dev.eclipsenetwork.xyz/?cluster=testnet"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 0.4,
+      "reorgPeriod": 0
+    },
+    "chainId": 239092742,
+    "displayName": "Eclipse Testnet",
+    "domainId": 239092742,
+    "isTestnet": true,
+    "name": "eclipsetestnet",
+    "nativeToken": {
+      "decimals": 9,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "sealevel",
+    "rpcUrls": [
+      {
+        "http": "https://testnet.dev2.eclipsenetwork.xyz"
+      }
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use hpl_interface::types::bech32_decode;
+use hyperlane_cosmos::RawCosmosAmount;
+use hyperlane_cosmwasm_interface::types::bech32_decode;
 
 use super::{cli::OsmosisCLI, CosmosNetwork};
 
@@ -35,19 +36,15 @@ pub struct TxResponse {
     pub logs: Vec<TxLog>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Coin {
-    pub denom: String,
-    pub amount: String,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Codes {
     pub hpl_hook_merkle: u64,
     pub hpl_hook_routing: u64,
     pub hpl_igp: u64,
     pub hpl_igp_oracle: u64,
+    pub hpl_ism_aggregate: u64,
     pub hpl_ism_multisig: u64,
+    pub hpl_ism_pausable: u64,
     pub hpl_ism_routing: u64,
     pub hpl_test_mock_ism: u64,
     pub hpl_test_mock_hook: u64,
@@ -62,6 +59,7 @@ pub struct Deployments {
     pub hook_routing: String,
     pub igp: String,
     pub igp_oracle: String,
+    pub ism_aggregate: String,
     pub ism_routing: String,
     pub ism_multisig: String,
     pub mailbox: String,
@@ -73,7 +71,7 @@ pub struct Deployments {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct BalanceResponse {
-    pub balances: Vec<Coin>,
+    pub balances: Vec<RawCosmosAmount>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -121,10 +119,12 @@ pub struct AgentConfig {
     pub protocol: String,
     pub chain_id: String,
     pub rpc_urls: Vec<AgentUrl>,
-    pub grpc_url: String,
-    pub prefix: String,
+    pub grpc_urls: Vec<AgentUrl>,
+    pub bech32_prefix: String,
     pub signer: AgentConfigSigner,
     pub index: AgentConfigIndex,
+    pub gas_price: RawCosmosAmount,
+    pub contract_address_bytes: usize,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -157,13 +157,26 @@ impl AgentConfig {
                     network.launch_resp.endpoint.rpc_addr.replace("tcp://", "")
                 ),
             }],
-            grpc_url: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
-            prefix: "osmo".to_string(),
+            grpc_urls: vec![
+                // The first url points to a nonexistent node, but is used for checking fallback provider logic
+                AgentUrl {
+                    http: "localhost:1337".to_string(),
+                },
+                AgentUrl {
+                    http: format!("http://{}", network.launch_resp.endpoint.grpc_addr),
+                },
+            ],
+            bech32_prefix: "osmo".to_string(),
             signer: AgentConfigSigner {
                 typ: "cosmosKey".to_string(),
                 key: format!("0x{}", hex::encode(validator.priv_key.to_bytes())),
                 prefix: "osmo".to_string(),
             },
+            gas_price: RawCosmosAmount {
+                denom: "uosmo".to_string(),
+                amount: "0.05".to_string(),
+            },
+            contract_address_bytes: 32,
             index: AgentConfigIndex {
                 from: 1,
                 chunk: 100,

@@ -3,7 +3,7 @@ import { ZodTypeAny, z } from 'zod';
 
 import { ChainName, HyperlaneContractsMap } from '@hyperlane-xyz/sdk';
 
-import { log, logBlue } from '../../logger.js';
+import { log, logBlue } from '../logger.js';
 import { readYamlOrJson, runFileSelectionStep } from '../utils/files.js';
 
 const RecursiveObjectSchema: ZodTypeAny = z.lazy(() =>
@@ -33,14 +33,31 @@ export function readDeploymentArtifacts(filePath: string) {
   return artifacts;
 }
 
-export async function runDeploymentArtifactStep(
-  artifactsPath?: string,
-  message?: string,
-  selectedChains?: ChainName[],
+/**
+ * Prompts the user to specify deployment artifacts, or to generate new ones if none are present or selected.
+ * @returns the selected artifacts, or undefined if they are to be generated from scratch
+ */
+export async function runDeploymentArtifactStep({
+  artifactsPath,
+  message,
+  selectedChains,
   defaultArtifactsPath = './artifacts',
   defaultArtifactsNamePattern = 'core-deployment',
-): Promise<HyperlaneContractsMap<any> | undefined> {
+  skipConfirmation = false,
+  dryRun = false,
+}: {
+  artifactsPath?: string;
+  message?: string;
+  selectedChains?: ChainName[];
+  defaultArtifactsPath?: string;
+  defaultArtifactsNamePattern?: string;
+  skipConfirmation?: boolean;
+  dryRun?: boolean;
+}): Promise<HyperlaneContractsMap<any> | undefined> {
   if (!artifactsPath) {
+    if (skipConfirmation) return undefined;
+    if (dryRun) defaultArtifactsNamePattern = 'dry-run_core-deployment';
+
     const useArtifacts = await confirm({
       message: message || 'Do you want use some existing contract addresses?',
     });

@@ -55,3 +55,8 @@ Run warp route deployments: `hyperlane deploy warp`
 View SDK contract addresses: `hyperlane chains addresses`
 
 Send test message: `hyperlane send message`
+
+## Logging
+
+The logging format can be toggled between human-readable vs JSON-structured logs using the `LOG_FORMAT` environment variable or the `--log <pretty|json>` flag.
+The logging verbosity can be configured using the `LOG_LEVEL` environment variable or the `--verbosity <debug|info|warn|error|off>` flag.

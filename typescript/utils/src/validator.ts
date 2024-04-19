@@ -1,7 +1,13 @@
 import { ethers } from 'ethers';
 
-import { domainHash } from './domains';
-import { Address, Checkpoint, Domain, HexString, SignatureLike } from './types';
+import { domainHash } from './domains.js';
+import {
+  Address,
+  Checkpoint,
+  Domain,
+  HexString,
+  SignatureLike,
+} from './types.js';
 
 /**
  * Utilities for validators to construct and verify checkpoints.

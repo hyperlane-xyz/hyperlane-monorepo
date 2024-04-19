@@ -6,16 +6,19 @@ import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { ChainMetadata, ChainMetadataSchemaObject } from './chainMetadataTypes';
-import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
+import {
+  ChainMetadata,
+  ChainMetadataSchemaObject,
+} from './chainMetadataTypes.js';
+import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
-} from './deploymentArtifacts';
-import { MatchingListSchema } from './matchingList';
+} from './deploymentArtifacts.js';
+import { MatchingListSchema } from './matchingList.js';
 
 export enum RpcConsensusType {
   Single = 'single',
@@ -92,6 +95,30 @@ export type AgentSignerCosmosKey = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSignerNode = z.infer<typeof AgentSignerNodeSchema>;
 export type AgentSigner = z.infer<typeof AgentSignerSchema>;
 
+// Additional chain metadata for Cosmos chains required by the agents.
+const AgentCosmosChainMetadataSchema = z.object({
+  canonicalAsset: z
+    .string()
+    .describe(
+      'The name of the canonical asset for this chain, usually in "micro" form, e.g. untrn',
+    ),
+  gasPrice: z.object({
+    denom: z
+      .string()
+      .describe('The coin denom, usually in "micro" form, e.g. untrn'),
+    amount: z
+      .string()
+      .regex(/^(\d*[.])?\d+$/)
+      .describe('The the gas price, in denom, to pay for each unit of gas'),
+  }),
+  contractAddressBytes: z
+    .number()
+    .int()
+    .positive()
+    .lte(32)
+    .describe('The number of bytes used to represent a contract address.'),
+});
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )
@@ -100,7 +127,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .string()
       .optional()
       .describe(
-        'Specify a comma seperated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
+        'Specify a comma separated list of custom RPC URLs to use for this chain. If not specified, the default RPC urls will be used.',
       ),
     rpcConsensusType: z
       .nativeEnum(RpcConsensusType)
@@ -126,6 +153,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       })
       .optional(),
   })
+  .merge(AgentCosmosChainMetadataSchema.partial())
   .refine((metadata) => {
     // Make sure that the signer is valid for the protocol
 
@@ -138,25 +166,47 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
 
     switch (metadata.protocol) {
       case ProtocolType.Ethereum:
-        return [
-          AgentSignerKeyType.Hex,
-          signerType === AgentSignerKeyType.Aws,
-          signerType === AgentSignerKeyType.Node,
-        ].includes(signerType);
+        if (
+          ![
+            AgentSignerKeyType.Hex,
+            signerType === AgentSignerKeyType.Aws,
+            signerType === AgentSignerKeyType.Node,
+          ].includes(signerType)
+        ) {
+          return false;
+        }
+        break;
 
       case ProtocolType.Cosmos:
-        return [AgentSignerKeyType.Cosmos].includes(signerType);
+        if (![AgentSignerKeyType.Cosmos].includes(signerType)) {
+          return false;
+        }
+        break;
 
       case ProtocolType.Sealevel:
-        return [AgentSignerKeyType.Hex].includes(signerType);
+        if (![AgentSignerKeyType.Hex].includes(signerType)) {
+          return false;
+        }
+        break;
 
       case ProtocolType.Fuel:
-        return [AgentSignerKeyType.Hex].includes(signerType);
+        if (![AgentSignerKeyType.Hex].includes(signerType)) {
+          return false;
+        }
+        break;
 
       default:
-        // Just default to true if we don't know the protocol
-        return true;
+      // Just accept it if we don't know the protocol
     }
+
+    // If the protocol type is Cosmos, require everything in AgentCosmosChainMetadataSchema
+    if (metadata.protocol === ProtocolType.Cosmos) {
+      if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
+        return false;
+      }
+    }
+
+    return true;
   });
 
 export type AgentChainMetadata = z.infer<typeof AgentChainMetadataSchema>;
@@ -235,29 +285,36 @@ const GasPaymentEnforcementSchema = z.union([
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
 
+const MetricAppContextSchema = z.object({
+  name: z.string().min(1),
+  matchingList: MatchingListSchema.describe(
+    'A matching list, any message that matches will be classified as this app context.',
+  ),
+});
+
 export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
-    .nonempty()
+    .min(1)
     .optional()
     .describe('The path to the relayer database.'),
   relayChains: CommaSeperatedChainList.describe(
-    'Comma seperated list of chains to relay messages between.',
+    'Comma separated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
-    .union([z.array(GasPaymentEnforcementSchema), z.string().nonempty()])
+    .union([z.array(GasPaymentEnforcementSchema), z.string().min(1)])
     .optional()
     .describe(
       'The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.',
     ),
   whitelist: z
-    .union([MatchingListSchema, z.string().nonempty()])
+    .union([MatchingListSchema, z.string().min(1)])
     .optional()
     .describe(
       'If no whitelist is provided ALL messages will be considered on the whitelist.',
     ),
   blacklist: z
-    .union([MatchingListSchema, z.string().nonempty()])
+    .union([MatchingListSchema, z.string().min(1)])
     .optional()
     .describe(
       'If no blacklist is provided ALL will be considered to not be on the blacklist.',
@@ -274,12 +331,18 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'If true, allows local storage based checkpoint syncers. Not intended for production use.',
     ),
+  metricAppContexts: z
+    .union([z.array(MetricAppContextSchema), z.string().min(1)])
+    .optional()
+    .describe(
+      'A list of app contexts and their matching lists to use for metrics. A message will be classified as the first matching app context.',
+    ),
 });
 
 export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
-  db: z.string().nonempty().describe('Database connection string'),
+  db: z.string().min(1).describe('Database connection string'),
   chainsToScrape: CommaSeperatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
@@ -290,32 +353,29 @@ export type ScraperConfig = z.infer<typeof ScraperAgentConfigSchema>;
 export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
   db: z
     .string()
-    .nonempty()
+    .min(1)
     .optional()
     .describe('The path to the validator database.'),
   originChainName: z
     .string()
-    .nonempty()
+    .min(1)
     .describe('Name of the chain to validate messages on'),
   validator: AgentSignerSchema.describe('The validator attestation signer'),
   checkpointSyncer: z.discriminatedUnion('type', [
     z
       .object({
         type: z.literal('localStorage'),
-        path: z
-          .string()
-          .nonempty()
-          .describe('Path to the local storage location'),
+        path: z.string().min(1).describe('Path to the local storage location'),
       })
       .describe('A local checkpoint syncer'),
     z
       .object({
         type: z.literal('s3'),
-        bucket: z.string().nonempty(),
-        region: z.string().nonempty(),
+        bucket: z.string().min(1),
+        region: z.string().min(1),
         folder: z
           .string()
-          .nonempty()
+          .min(1)
           .optional()
           .describe(
             'The folder/key-prefix to use, defaults to the root of the bucket',
@@ -332,6 +392,8 @@ export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
+// Note this works well for EVM chains only, and likely needs some love
+// before being useful for non-EVM chains.
 export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,

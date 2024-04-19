@@ -4,9 +4,8 @@
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::future::Future;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
@@ -14,16 +13,12 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
-use hyperlane_core::metrics::agent::u256_as_scaled_f64;
-use hyperlane_core::HyperlaneDomainProtocol;
-use log::{debug, trace};
 use maplit::hashmap;
-use prometheus::{CounterVec, GaugeVec, IntCounterVec, IntGaugeVec};
+use prometheus::{CounterVec, IntCounterVec};
 use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
 
 pub use error::PrometheusMiddlewareError;
-use tokio::time::MissedTickBehavior;
 
 pub use crate::ChainInfo;
 
@@ -50,16 +45,6 @@ pub struct ContractInfo {
     /// Mapping from function selectors to human readable names.
     pub functions: HashMap<Selector, String>,
 }
-
-/// Expected label names for the `block_height` metric.
-pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
-/// Help string for the metric.
-pub const BLOCK_HEIGHT_HELP: &str = "Tracks the current block height of the chain";
-
-/// Expected label names for the `gas_price_gwei` metric.
-pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
-/// Help string for the metric.
-pub const GAS_PRICE_GWEI_HELP: &str = "Tracks the current gas price of the chain";
 
 /// Expected label names for the `contract_call_duration_seconds` metric.
 pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
@@ -128,19 +113,6 @@ pub const TRANSACTION_SEND_TOTAL_HELP: &str = "Number of transactions sent";
 /// Container for all the relevant middleware metrics.
 #[derive(Clone, Builder)]
 pub struct MiddlewareMetrics {
-    /// Tracks the current block height of the chain.
-    /// - `chain`: the chain name (or ID if the name is unknown) of the chain
-    ///   the block number refers to.
-    #[builder(setter(into, strip_option), default)]
-    block_height: Option<IntGaugeVec>,
-
-    /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if
-    /// available or else the median of the transactions.
-    /// - `chain`: the chain name (or chain ID if the name is unknown) of the
-    ///   chain the gas price refers to.
-    #[builder(setter(into, strip_option), default)]
-    gas_price_gwei: Option<GaugeVec>,
-
     /// Contract call durations by contract and function
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
     ///   chain the tx occurred on.
@@ -464,89 +436,6 @@ impl<M> PrometheusMiddleware<M> {
             inner: Arc::new(inner),
             metrics,
             conf: Arc::new(RwLock::new(conf)),
-        }
-    }
-}
-
-impl<M: Middleware> PrometheusMiddleware<M> {
-    /// Start the update cycle using tokio. This must be called if you want
-    /// some metrics to be updated automatically. Alternatively you could call
-    /// update yourself.
-    pub fn start_updating_on_interval(
-        self: &Arc<Self>,
-        period: Duration,
-    ) -> impl Future<Output = ()> + Send {
-        let zelf = Arc::downgrade(self);
-
-        async move {
-            let mut interval = tokio::time::interval(period);
-            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-            loop {
-                if let Some(zelf) = zelf.upgrade() {
-                    zelf.update().await;
-                } else {
-                    return;
-                }
-                interval.tick().await;
-            }
-        }
-    }
-}
-
-impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
-    /// Update gauges. You should submit this on a schedule to your runtime to
-    /// be collected once on a regular interval that ideally aligns with the
-    /// prometheus scrape interval.
-    pub fn update(&self) -> impl Future<Output = ()> {
-        // all metrics are Arcs internally so just clone the ones we want to report for.
-        let block_height = self.metrics.block_height.clone();
-        let gas_price_gwei = self.metrics.gas_price_gwei.clone();
-
-        let data_ref = self.conf.clone();
-        let client = self.inner.clone();
-
-        async move {
-            let data = data_ref.read().await;
-            let chain = chain_name(&data.chain);
-            debug!("Updating metrics for chain ({chain})");
-
-            if block_height.is_some() || gas_price_gwei.is_some() {
-                Self::update_block_details(&*client, chain, block_height, gas_price_gwei).await;
-            }
-
-            // more metrics to come...
-        }
-    }
-
-    async fn update_block_details(
-        client: &M,
-        chain: &str,
-        block_height: Option<IntGaugeVec>,
-        gas_price_gwei: Option<GaugeVec>,
-    ) {
-        let Ok(Some(current_block)) = client.get_block(BlockNumber::Latest).await else {
-            return;
-        };
-
-        if let Some(block_height) = block_height {
-            let height = current_block
-                .number
-                .expect("Block number should always be Some for included blocks.")
-                .as_u64() as i64;
-            trace!("Block height for chain {chain} is {height}");
-            block_height
-                .with(&hashmap! { "chain" => chain })
-                .set(height);
-        }
-        if let Some(gas_price_gwei) = gas_price_gwei {
-            if let Some(london_fee) = current_block.base_fee_per_gas {
-                let gas =
-                    u256_as_scaled_f64(london_fee.into(), HyperlaneDomainProtocol::Ethereum) * 1e9;
-                trace!("Gas price for chain {chain} is {gas:.1}gwei");
-                gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
-            } else {
-                trace!("Gas price for chain {chain} unknown, chain is pre-london");
-            }
         }
     }
 }

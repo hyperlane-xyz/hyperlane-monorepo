@@ -1,73 +1,49 @@
 {
+  "scrollsepolia": [
+    {
+      "name": "HelloWorld",
+      "address": "0xA9425D5cBcD2c83EB2a5BF453EAA18968db3ef77",
+      "constructorArguments": "0000000000000000000000003c5154a193d6e2955650f9305c8d80c18c814a680000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
   "alfajores": [
     {
-      "name": "router",
-      "address": "0x40Adcb03F3C58170b4751c4140636FC6085Ff475",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    }
-  ],
-  "fuji": [
-    {
-      "name": "router",
-      "address": "0xAc003FcDD0EE223664F2A000B5A59D082745700b",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    }
-  ],
-  "mumbai": [
-    {
-      "name": "router",
-      "address": "0xaB0892029C3E7dD4c0235590dc296E618A7b4d03",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    }
-  ],
-  "bsctestnet": [
-    {
-      "name": "router",
-      "address": "0xd259b0e793535325786675542aB296c451535c27",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    }
-  ],
-  "goerli": [
-    {
-      "name": "router",
-      "address": "0x03e9531ae74e8F0f96DE26788a22d35bdaD24185",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    }
-  ],
-  "moonbasealpha": [
-    {
-      "name": "router",
-      "address": "0xE9D6317a10860340f035f3d09052D9d376855bE8",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    }
-  ],
-  "optimismgoerli": [
-    {
-      "name": "router",
-      "address": "0x057d38d184d74192B96840D8FbB37e584dDb569A",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
-      "isProxy": false
-    }
-  ],
-  "arbitrumgoerli": [
-    {
-      "name": "router",
-      "address": "0xaAF1BF6f2BfaE290ea8615066fd167e396a2f578",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "name": "HelloWorld",
+      "address": "0x4D1d8394cBb445A75aE63fDd24421A353B73FF25",
+      "constructorArguments": "000000000000000000000000ef9f292fcebc3848bf4bb92a96a04f9ecbb78e590000000000000000000000000000000000000000000000000000000000000000",
       "isProxy": false
     }
   ],
   "sepolia": [
     {
-      "name": "Router",
-      "address": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217",
-      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f987d7edcb5890cb321437d8145e3d51131298b6",
+      "name": "HelloWorld",
+      "address": "0xEB25e6e42B743a815E5C0409007993a828a0565f",
+      "constructorArguments": "000000000000000000000000ffaef09b3cd11d9b20d1a19becca54eec28847660000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "fuji": [
+    {
+      "name": "HelloWorld",
+      "address": "0x29d70a6753D3F3E756502dE6dCd393fE85a97b73",
+      "constructorArguments": "0000000000000000000000005b6cff85442b851a8e6eabd2a4e4507b5135b3b00000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "HelloWorld",
+      "address": "0x643C7A37FB191A8a63BAB40264B251714F527AED",
+      "constructorArguments": "000000000000000000000000f9f6f5646f478d5ab4e20b0f910c92f1ccc9cc6d0000000000000000000000000000000000000000000000000000000000000000",
+      "isProxy": false
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "HelloWorld",
+      "address": "0xabB6e0A30acEB8327EcC6D25bABf409081fDF2DA",
+      "constructorArguments": "00000000000000000000000076189acfa212298d7022624a4633411ee0d2f26f0000000000000000000000000000000000000000000000000000000000000000",
       "isProxy": false
     }
   ]

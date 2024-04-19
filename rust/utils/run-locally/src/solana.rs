@@ -75,7 +75,7 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
     let solana_tools_dir = tempdir().unwrap();
     log!("Downloading solana cli release v{}", SOLANA_CLI_VERSION);
     let solana_release_name = {
-        // best effort ot pick one of the supported targets
+        // best effort to pick one of the supported targets
         let target = if cfg!(target_os = "linux") {
             "x86_64-unknown-linux-gnu"
         } else if cfg!(target_os = "macos") {
@@ -282,10 +282,10 @@ pub fn start_solana_test_validator(
 }
 
 #[apply(as_task)]
-pub fn _initiate_solana_hyperlane_transfer(
+pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
-) {
+) -> String {
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
         .arg("keypair", SOLANA_KEYPAIR)
@@ -309,21 +309,23 @@ pub fn _initiate_solana_hyperlane_transfer(
         .run_with_output()
         .join();
 
-    let message_id = _get_message_id_from_logs(output);
-    if let Some(message_id) = message_id {
-        sealevel_client(&solana_cli_tools_path, &solana_config_path)
-            .cmd("igp")
-            .cmd("pay-for-gas")
-            .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-            .arg("message-id", message_id)
-            .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
-            .arg("gas", "100000")
-            .run()
-            .join();
-    }
+    let message_id = get_message_id_from_logs(output.clone())
+        .unwrap_or_else(|| panic!("failed to get message id from logs: {:?}", output));
+
+    log!("found message id: {}", message_id);
+    sealevel_client(&solana_cli_tools_path, &solana_config_path)
+        .cmd("igp")
+        .cmd("pay-for-gas")
+        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("message-id", message_id.clone())
+        .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
+        .arg("gas", "100000")
+        .run()
+        .join();
+    message_id
 }
 
-fn _get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
+fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
     let message_id_regex = Regex::new(r"Dispatched message to \d+, ID 0x([0-9a-fA-F]+)").unwrap();
     for log in logs {
         // Use the regular expression to capture the ID
@@ -337,7 +339,7 @@ fn _get_message_id_from_logs(logs: Vec<String>) -> Option<String> {
     None
 }
 
-pub fn _solana_termination_invariants_met(
+pub fn solana_termination_invariants_met(
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
 ) -> bool {
@@ -349,7 +351,7 @@ pub fn _solana_termination_invariants_met(
             // This value was gotten by observing the relayer logs.
             // TODO: get the actual message-id so we don't have to hardcode it
             "message-id",
-            "0x7b8ba684e5ce44f898c5fa81785c83a00e32b5bef3412e648eb7a17bec497685",
+            "0x89c76191bd40b1858b7957e35bf3455122826e4737c5540b9dc5a555370d78c5",
         )
         .arg("program-id", "9tCUWNjpqcf3NUSrtp7vquYVCwbEByvLjZUrhG5dgvhj")
         .run_with_output()

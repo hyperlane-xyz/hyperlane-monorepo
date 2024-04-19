@@ -8,9 +8,9 @@ import {
   getDomainId,
 } from '@hyperlane-xyz/sdk';
 
-import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware';
+import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 
 const circleDomainMapping = [
   {

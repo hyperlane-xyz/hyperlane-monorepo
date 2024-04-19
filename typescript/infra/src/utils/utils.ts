@@ -1,9 +1,12 @@
 // @ts-ignore
-import * as asn1 from 'asn1.js';
+import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
-import path from 'path';
+import stringify from 'json-stable-stringify';
+import path, { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { parse as yamlParse } from 'yaml';
 
 import {
   AllChains,
@@ -13,36 +16,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { Role } from '../roles';
-
-export function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Map an async function over a list xs with a given concurrency level
- *
- * @param concurrency number of `mapFn` concurrent executions
- * @param xs list of value
- * @param mapFn mapping function
- */
-export async function concurrentMap<A, B>(
-  concurrency: number,
-  xs: A[],
-  mapFn: (val: A, idx: number) => Promise<B>,
-): Promise<B[]> {
-  let res: B[] = [];
-  for (let i = 0; i < xs.length; i += concurrency) {
-    const remaining = xs.length - i;
-    const sliceSize = Math.min(remaining, concurrency);
-    const slice = xs.slice(i, i + sliceSize);
-    res = res.concat(
-      await Promise.all(slice.map((elem, index) => mapFn(elem, i + index))),
-    );
-  }
-  return res;
-}
+import { Contexts } from '../../config/contexts.js';
+import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {
   return condition ? data : {};
@@ -69,7 +44,7 @@ export function getEthereumAddress(publicKey: Buffer): string {
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
   const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
-  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
+  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
   return EthAddr;
 }
 
@@ -178,7 +153,7 @@ export function writeJsonAtPath(filepath: string, obj: any) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filepath, JSON.stringify(obj, null, 2) + '\n');
+  fs.writeFileSync(filepath, stringify(obj, { space: '  ' }) + '\n');
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
@@ -200,10 +175,22 @@ export function readJSON(directory: string, filename: string) {
   return readJSONAtPath(path.join(directory, filename));
 }
 
+export function readYaml<T>(filepath: string): T {
+  return yamlParse(readFileAtPath(filepath)) as T;
+}
+
 export function assertRole(roleStr: string) {
   const role = roleStr as Role;
   if (!Object.values(Role).includes(role)) {
     throw Error(`Invalid role ${role}`);
+  }
+  return role;
+}
+
+export function assertFundableRole(roleStr: string): FundableRole {
+  const role = roleStr as Role;
+  if (role !== Role.Relayer && role !== Role.Kathy) {
+    throw Error(`Invalid fundable role ${role}`);
   }
   return role;
 }
@@ -277,4 +264,8 @@ export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
 export function isEthereumProtocolChain(chainName: ChainName) {
   if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
   return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
+}
+
+export function getInfraPath() {
+  return join(dirname(fileURLToPath(import.meta.url)), '../../');
 }

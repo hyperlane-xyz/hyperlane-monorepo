@@ -36,9 +36,12 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
 }
 
 /// Interface for indexing data in sequence.
+/// SequenceAwareIndexer is an umbrella trait for all indexers types (sequence-aware and rate-limited).
+/// The rate-limited indexer doesn't need `SequenceAwareIndexer`, so impls of `SequenceAwareIndexer` just return nullish values.
+/// TODO: Refactor such that indexers aren't required to implement `SequenceAwareIndexer`
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait SequenceIndexer<T>: Indexer<T> {
+pub trait SequenceAwareIndexer<T>: Indexer<T> {
     /// Return the latest finalized sequence (if any) and block number
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
 }

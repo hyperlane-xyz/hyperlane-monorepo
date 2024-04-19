@@ -1,37 +1,44 @@
-import { DeployEnvironment } from '../../src/config';
-import { HelmCommand, helmifyValues } from '../../src/utils/helm';
-import { execCmd } from '../../src/utils/utils';
-import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
+import path from 'path';
+
+import { DeployEnvironment } from '../../src/config/environment.js';
+import { HelmCommand, helmifyValues } from '../../src/utils/helm.js';
+import { execCmd } from '../../src/utils/utils.js';
+import { assertCorrectKubeContext } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 export async function runWarpRouteHelmCommand(
   helmCommand: HelmCommand,
   runEnv: DeployEnvironment,
-  config: string,
+  configFilePath: string,
 ) {
   const envConfig = getEnvironmentConfig(runEnv);
   await assertCorrectKubeContext(envConfig);
-  const values = getWarpRoutesHelmValues(config);
-
+  const values = getWarpRoutesHelmValues(configFilePath);
+  const releaseName = getHelmReleaseName(configFilePath);
   return execCmd(
-    `helm ${helmCommand} ${getHelmReleaseName(
-      config,
-    )} ./helm/warp-routes --namespace ${runEnv} ${values.join(
+    `helm ${helmCommand} ${releaseName} ./helm/warp-routes --namespace ${runEnv} ${values.join(
       ' ',
-    )} --set fullnameOverride="${getHelmReleaseName(config)}"`,
+    )} --set fullnameOverride="${releaseName}"`,
   );
 }
 
 function getHelmReleaseName(route: string): string {
-  return `hyperlane-warp-route-${route}`;
+  const match = route.match(/\/([^/]+)-deployments\.yaml$/);
+  const name = match ? match[1] : route;
+  return `hyperlane-warp-route-${name.toLowerCase()}`; // helm requires lower case release names
 }
 
-function getWarpRoutesHelmValues(config: string) {
+function getWarpRoutesHelmValues(configFilePath: string) {
+  // The path should be relative to the monorepo root
+  const pathRelativeToMonorepoRoot = configFilePath.includes('typescript/infra')
+    ? configFilePath
+    : path.join('typescript/infra', configFilePath);
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'ae8ce44-20231101-012032',
+      tag: '135e6a8-20240415-135635',
     },
-    config: config, // nautilus or neutron
+    configFilePath: pathRelativeToMonorepoRoot,
   };
   return helmifyValues(values);
 }

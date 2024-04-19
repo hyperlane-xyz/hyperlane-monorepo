@@ -1,6 +1,7 @@
 use crate::HyperlaneDomainProtocol;
 use std::time::Duration;
 
+#[cfg(feature = "float")]
 use crate::U256;
 
 const ETHEREUM_DECIMALS: u8 = 18;

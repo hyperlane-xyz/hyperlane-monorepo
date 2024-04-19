@@ -3,11 +3,15 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::reversed_empty_ranges)]
 
+use std::{ops::Mul, str::FromStr};
+
+use bigdecimal::BigDecimal;
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::impl_fixed_hash_conversions;
+use num_traits::Zero;
 use uint::construct_uint;
 
-use crate::types::serialize;
+use crate::{types::serialize, ChainCommunicationError};
 
 /// Error type for conversion.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -335,5 +339,92 @@ impl From<solana_sdk::hash::Hash> for H256 {
 impl From<solana_sdk::signature::Signature> for H512 {
     fn from(sig: solana_sdk::signature::Signature) -> Self {
         H512(sig.into())
+    }
+}
+
+/// Wrapper type around `BigDecimal` to implement various traits on it
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FixedPointNumber(BigDecimal);
+
+impl FixedPointNumber {
+    /// Zero
+    pub fn zero() -> Self {
+        Self(BigDecimal::zero())
+    }
+
+    /// Round up to the nearest integer
+    pub fn ceil_to_integer(&self) -> Self {
+        Self(self.0.with_scale(0))
+    }
+
+    /// Ceil
+    pub fn ceil(&self, fractional_digit_count: i64) -> Self {
+        Self(
+            self.0
+                .with_scale_round(fractional_digit_count, bigdecimal::RoundingMode::Ceiling),
+        )
+    }
+}
+
+impl Default for FixedPointNumber {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+impl TryFrom<U256> for FixedPointNumber {
+    type Error = ChainCommunicationError;
+    fn try_from(val: U256) -> Result<Self, Self::Error> {
+        let u256_string = val.to_string();
+        Ok(Self(BigDecimal::from_str(&u256_string)?))
+    }
+}
+
+impl TryInto<U256> for FixedPointNumber {
+    type Error = ChainCommunicationError;
+
+    fn try_into(self) -> Result<U256, Self::Error> {
+        // Remove all decimals
+        let big_integer_string = self.0.with_scale(0).to_string();
+        let value = U256::from_dec_str(&big_integer_string)?;
+        Ok(value)
+    }
+}
+
+impl TryInto<u128> for FixedPointNumber {
+    type Error = ChainCommunicationError;
+
+    fn try_into(self) -> Result<u128, Self::Error> {
+        let u256: U256 = self.try_into()?;
+        Ok(u256.as_u128())
+    }
+}
+
+impl<T> From<T> for FixedPointNumber
+where
+    T: Into<BigDecimal>,
+{
+    fn from(val: T) -> Self {
+        Self(val.into())
+    }
+}
+
+impl<T> Mul<T> for FixedPointNumber
+where
+    T: Into<FixedPointNumber>,
+{
+    type Output = FixedPointNumber;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        Self(self.0 * rhs.0)
+    }
+}
+
+impl FromStr for FixedPointNumber {
+    type Err = ChainCommunicationError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(BigDecimal::from_str(s)?))
     }
 }
