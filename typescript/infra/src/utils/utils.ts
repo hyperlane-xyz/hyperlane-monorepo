@@ -10,8 +10,10 @@ import { parse as yamlParse } from 'yaml';
 
 import {
   AllChains,
+  ChainMetadata,
   ChainName,
   CoreChainName,
+  NativeToken,
   chainMetadata,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
@@ -253,12 +255,12 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
   return diagonalized;
 }
 
-export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
+export function mustGetChainNativeToken(chain: ChainName): NativeToken {
   const metadata = chainMetadata[chain];
   if (!metadata.nativeToken) {
     throw new Error(`No native token for chain ${chain}`);
   }
-  return metadata.nativeToken.decimals;
+  return metadata.nativeToken;
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {

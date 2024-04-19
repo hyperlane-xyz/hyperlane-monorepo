@@ -1,20 +1,74 @@
 {
-  "ancient8": "1",
-  "arbitrum": "0.1",
-  "avalanche": "43.212830197",
-  "bsc": "5",
-  "celo": "50.0",
-  "ethereum": "40",
-  "mantapacific": "0.100132136",
-  "moonbeam": "250.229955436",
-  "optimism": "1",
-  "polygon": "220",
-  "gnosis": "15",
-  "base": "1.2",
-  "scroll": "2.5",
-  "polygonzkevm": "7",
-  "inevm": "0.1",
-  "viction": "0.25",
-  "neutron": "0.1",
-  "injective": "0.1"
+  "arbitrum": {
+    "amount": "0.01",
+    "decimals": 9
+  },
+  "ancient8": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "avalanche": {
+    "amount": "25.0",
+    "decimals": 9
+  },
+  "bsc": {
+    "amount": "5.0",
+    "decimals": 9
+  },
+  "celo": {
+    "amount": "10.0",
+    "decimals": 9
+  },
+  "ethereum": {
+    "amount": "10.454378049",
+    "decimals": 9
+  },
+  "mantapacific": {
+    "amount": "0.101770193",
+    "decimals": 9
+  },
+  "moonbeam": {
+    "amount": "125.0",
+    "decimals": 9
+  },
+  "optimism": {
+    "amount": "0.054237761",
+    "decimals": 9
+  },
+  "polygon": {
+    "amount": "148.085375624",
+    "decimals": 9
+  },
+  "gnosis": {
+    "amount": "6.358465542",
+    "decimals": 9
+  },
+  "base": {
+    "amount": "0.036418242",
+    "decimals": 9
+  },
+  "scroll": {
+    "amount": "0.87",
+    "decimals": 9
+  },
+  "polygonzkevm": {
+    "amount": "1.56",
+    "decimals": 9
+  },
+  "inevm": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "viction": {
+    "amount": "0.25",
+    "decimals": 9
+  },
+  "neutron": {
+    "amount": "0.0053",
+    "decimals": 1
+  },
+  "injective": {
+    "amount": "700000000",
+    "decimals": 1
+  }
 }

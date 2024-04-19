@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   InterchainGasPaymaster,
   ProxyAdmin,
@@ -6,6 +8,7 @@ import {
 import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata.js';
+import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -112,12 +115,23 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
-        console.log(`-> ${remote} ${serializeDifference(actual, desired)}`);
+        console.log(`-> ${remote} - ${serializeDifference(actual, desired)}`);
         configsToSet.push({
           remoteDomain,
           ...desired,
         });
       }
+
+      const exampleRemoteGas = 200_000;
+      const exampleRemoteGasCost = desired.tokenExchangeRate
+        .mul(desired.gasPrice)
+        .mul(exampleRemoteGas)
+        .div(TOKEN_EXCHANGE_RATE_SCALE);
+      console.log(
+        `-> ${remote} - 200k remote gas cost: ${ethers.utils.formatEther(
+          exampleRemoteGasCost,
+        )}`,
+      );
     }
 
     if (configsToSet.length > 0) {

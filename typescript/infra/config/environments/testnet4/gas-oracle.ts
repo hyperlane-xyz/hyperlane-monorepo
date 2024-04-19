@@ -1,10 +1,14 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  TOKEN_EXCHANGE_RATE_EXPONENT,
+} from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
-  TOKEN_EXCHANGE_RATE_DECIMALS,
   getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
@@ -35,9 +39,9 @@ enum Rarity {
 // "Value" of the testnet tokens with 10 decimals of precision.
 // Imagine these as quoted in USD
 const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
-  [Rarity.Common]: ethers.utils.parseUnits('0.5', TOKEN_EXCHANGE_RATE_DECIMALS),
-  [Rarity.Rare]: ethers.utils.parseUnits('1', TOKEN_EXCHANGE_RATE_DECIMALS),
-  [Rarity.Mythic]: ethers.utils.parseUnits('5', TOKEN_EXCHANGE_RATE_DECIMALS),
+  [Rarity.Common]: ethers.utils.parseUnits('0.5', TOKEN_EXCHANGE_RATE_EXPONENT),
+  [Rarity.Rare]: ethers.utils.parseUnits('1', TOKEN_EXCHANGE_RATE_EXPONENT),
+  [Rarity.Mythic]: ethers.utils.parseUnits('5', TOKEN_EXCHANGE_RATE_EXPONENT),
 };
 
 const chainTokenRarity: ChainMap<Rarity> = {
@@ -69,6 +73,9 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
-    gasPrices,
+    objMap(gasPrices, (_, gasPrice) => ({
+      amount: gasPrice.toString(),
+      decimals: 1,
+    })),
     getTokenExchangeRate,
   );

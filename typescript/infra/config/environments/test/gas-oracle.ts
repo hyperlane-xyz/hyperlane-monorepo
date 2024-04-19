@@ -1,10 +1,14 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  TOKEN_EXCHANGE_RATE_EXPONENT,
+} from '@hyperlane-xyz/sdk';
 
 import {
   AllStorageGasOracleConfigs,
-  TOKEN_EXCHANGE_RATE_DECIMALS,
+  GasPriceConfig,
   getAllStorageGasOracleConfigs,
 } from '../../../src/config/gas-oracle.js';
 
@@ -12,14 +16,23 @@ import { chainNames } from './chains.js';
 
 const TEST_TOKEN_EXCHANGE_RATE = ethers.utils.parseUnits(
   '1',
-  TOKEN_EXCHANGE_RATE_DECIMALS,
+  TOKEN_EXCHANGE_RATE_EXPONENT,
 );
-const TEST_GAS_PRICE = ethers.utils.parseUnits('2', 'gwei');
+const TEST_GAS_PRICE = ethers.utils.parseUnits('2', 'gwei').toString();
 
-const gasPrices: ChainMap<BigNumber> = {
-  test1: TEST_GAS_PRICE,
-  test2: TEST_GAS_PRICE,
-  test3: TEST_GAS_PRICE,
+const gasPrices: ChainMap<GasPriceConfig> = {
+  test1: {
+    amount: TEST_GAS_PRICE,
+    decimals: 1,
+  },
+  test2: {
+    amount: TEST_GAS_PRICE,
+    decimals: 1,
+  },
+  test3: {
+    amount: TEST_GAS_PRICE,
+    decimals: 1,
+  },
 };
 
 function getTokenExchangeRate(
