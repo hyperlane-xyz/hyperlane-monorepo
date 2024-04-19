@@ -26,10 +26,10 @@ import {GasRouter} from "../../contracts/client/GasRouter.sol";
 
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
-import {HypXERC20Collateral} from "../../contracts/token/HypXERC20Collateral.sol";
-import {IXERC20} from "../../contracts/token/IXERC20.sol";
-import {HypFiatTokenCollateral} from "../../contracts/token/HypFiatTokenCollateral.sol";
-import {IFiatToken} from "../../contracts/token/IFiatToken.sol";
+import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
+import {IFiatToken} from "../../contracts/token/interfaces/IFiatToken.sol";
+import {HypXERC20Collateral} from "../../contracts/token/extensions/HypXERC20Collateral.sol";
+import {HypFiatTokenCollateral} from "../../contracts/token/extensions/HypFiatTokenCollateral.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";

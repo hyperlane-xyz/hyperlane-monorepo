@@ -1,7 +1,7 @@
 pragma solidity >=0.8.0;
 
-import {IFiatToken} from "./IFiatToken.sol";
-import {HypERC20Collateral} from "./HypERC20Collateral.sol";
+import {IFiatToken} from "../interfaces/IFiatToken.sol";
+import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 contract HypFiatTokenCollateral is HypERC20Collateral {
     constructor(

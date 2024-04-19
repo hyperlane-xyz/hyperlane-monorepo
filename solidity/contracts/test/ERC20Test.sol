@@ -3,8 +3,8 @@ pragma solidity >=0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-import "../token/IXERC20.sol";
-import "../token/IFiatToken.sol";
+import "../token/interfaces/IXERC20.sol";
+import "../token/interfaces/IFiatToken.sol";
 
 contract ERC20Test is ERC20, IXERC20, IFiatToken {
     uint8 public immutable _decimals;

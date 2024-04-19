@@ -20,7 +20,7 @@ import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 
-import {HypERC20CollateralVaultDeposit} from "../../contracts/token/HypERC20CollateralVaultDeposit.sol";
+import {HypERC20CollateralVaultDeposit} from "../../contracts/token/extensions/HypERC20CollateralVaultDeposit.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
 contract HypERC20CollateralVaultDepositTest is HypTokenTest {
