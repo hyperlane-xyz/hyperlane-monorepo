@@ -3,7 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
-  TOKEN_EXCHANGE_RATE_EXPONENT,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -26,7 +26,7 @@ import rawTokenPrices from './tokenPrices.json';
 const tokenUsdPrices: ChainMap<BigNumber> = objMap(
   rawTokenPrices,
   (_, tokenUsdPrice) =>
-    ethers.utils.parseUnits(tokenUsdPrice, TOKEN_EXCHANGE_RATE_EXPONENT),
+    ethers.utils.parseUnits(tokenUsdPrice, TOKEN_EXCHANGE_RATE_DECIMALS),
 );
 
 // Gets the exchange rate of the remote quoted in local tokens

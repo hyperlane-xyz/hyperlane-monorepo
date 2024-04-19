@@ -3,7 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
-  TOKEN_EXCHANGE_RATE_EXPONENT,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -16,7 +16,7 @@ import { chainNames } from './chains.js';
 
 const TEST_TOKEN_EXCHANGE_RATE = ethers.utils.parseUnits(
   '1',
-  TOKEN_EXCHANGE_RATE_EXPONENT,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
 );
 const TEST_GAS_PRICE = ethers.utils.parseUnits('2', 'gwei').toString();
 

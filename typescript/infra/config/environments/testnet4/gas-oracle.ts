@@ -3,7 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
-  TOKEN_EXCHANGE_RATE_EXPONENT,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -39,9 +39,9 @@ enum Rarity {
 // "Value" of the testnet tokens with 10 decimals of precision.
 // Imagine these as quoted in USD
 const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
-  [Rarity.Common]: ethers.utils.parseUnits('0.5', TOKEN_EXCHANGE_RATE_EXPONENT),
-  [Rarity.Rare]: ethers.utils.parseUnits('1', TOKEN_EXCHANGE_RATE_EXPONENT),
-  [Rarity.Mythic]: ethers.utils.parseUnits('5', TOKEN_EXCHANGE_RATE_EXPONENT),
+  [Rarity.Common]: ethers.utils.parseUnits('0.5', TOKEN_EXCHANGE_RATE_DECIMALS),
+  [Rarity.Rare]: ethers.utils.parseUnits('1', TOKEN_EXCHANGE_RATE_DECIMALS),
+  [Rarity.Mythic]: ethers.utils.parseUnits('5', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
 
 const chainTokenRarity: ChainMap<Rarity> = {

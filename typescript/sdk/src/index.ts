@@ -25,7 +25,7 @@ export {
 } from './consts/chains.js';
 export {
   TOKEN_EXCHANGE_RATE_SCALE,
-  TOKEN_EXCHANGE_RATE_EXPONENT,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
 } from './consts/igp.js';
 export {
   HyperlaneEnvironment,
