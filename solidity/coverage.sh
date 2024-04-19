@@ -1,9 +1,5 @@
 #!/bin/bash
 
-if [ -d "coverage" ]; then
-    rm -rf coverage
-fi
-
 # generates lcov.info
 forge coverage \
     --report lcov \
@@ -20,13 +16,13 @@ lcov --version
 # exclude FastTokenRouter until https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2806
 EXCLUDE="*test* *mock* *node_modules* *FastHyp*"
 lcov \
-    --branch-coverage \
+    --rc lcov_branch_coverage=1 \
     --remove lcov.info $EXCLUDE \
     --output-file forge-pruned-lcov.info \
 
 if [ "$CI" != "true" ]; then
     genhtml forge-pruned-lcov.info \
-        --branch-coverage \
+        --rc lcov_branch_coverage=1 \
         --output-directory coverage
     open coverage/index.html
 fi
