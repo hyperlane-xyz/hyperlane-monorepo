@@ -10,7 +10,7 @@ import { DeployEnvironment } from '../src/config/environment.js';
 
 import { Contexts } from './contexts.js';
 import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains.js';
-import { chainNames as testChains } from './environments/test/chains.js';
+import { testChainNames as testChains } from './environments/test/chains.js';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains.js';
 import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs.js';
 

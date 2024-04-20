@@ -1,22 +1,19 @@
 import {
   ChainMap,
+  ChainName,
   IgpConfig,
   defaultMultisigConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
-import {
-  MainnetChains,
-  ethereumChainNames,
-  supportedChainNames,
-} from './chains.js';
+import { ethereumChainNames, supportedChainNames } from './chains.js';
 import { storageGasOracleConfig } from './gas-oracle.js';
 import { DEPLOYER, owners } from './owners.js';
 
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 
-const remoteOverhead = (remote: MainnetChains) =>
+const remoteOverhead = (remote: ChainName) =>
   ethereumChainNames.includes(remote)
     ? multisigIsmVerificationCost(
         defaultMultisigConfigs[remote].threshold,
@@ -36,7 +33,7 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (local, owner) => ({
   overhead: Object.fromEntries(
     exclude(local, supportedChainNames).map((remote) => [
       remote,
-      remoteOverhead(remote as MainnetChains),
+      remoteOverhead(remote),
     ]),
   ),
   oracleConfig: storageGasOracleConfig[local],

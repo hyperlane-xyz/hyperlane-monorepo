@@ -4,7 +4,6 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
-  HyperlaneEnvironment,
   IgpConfig,
   MultiProvider,
   OwnableConfig,
@@ -29,6 +28,15 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof (typeof environments)[E],
   ChainName
 >;
+export enum AgentEnvironment {
+  Testnet = 'testnet',
+  Mainnet = 'mainnet',
+}
+export const envNameToAgentEnv: Record<DeployEnvironment, AgentEnvironment> = {
+  test: AgentEnvironment.Testnet,
+  testnet4: AgentEnvironment.Testnet,
+  mainnet3: AgentEnvironment.Mainnet,
+};
 
 export type EnvironmentConfig = {
   environment: DeployEnvironment;
@@ -54,13 +62,4 @@ export type EnvironmentConfig = {
     bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;
   };
-};
-
-export const deployEnvToSdkEnv: Record<
-  DeployEnvironment,
-  HyperlaneEnvironment
-> = {
-  test: 'testnet', // TODO: remove this
-  mainnet3: 'mainnet',
-  testnet4: 'testnet',
 };

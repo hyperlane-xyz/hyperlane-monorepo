@@ -5,7 +5,6 @@ import {
   HyperlaneCore,
   HyperlaneDeployer,
   HyperlaneDeploymentArtifacts,
-  HyperlaneEnvironment,
   MultiProvider,
   buildAgentConfig,
   serializeContractsMap,
@@ -13,7 +12,11 @@ import {
 import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { getAgentConfigJsonPath } from '../../scripts/agent-utils.js';
-import { DeployEnvironment, deployEnvToSdkEnv } from '../config/environment.js';
+import {
+  AgentEnvironment,
+  DeployEnvironment,
+  envNameToAgentEnv,
+} from '../config/environment.js';
 import {
   readJSONAtPath,
   writeJsonAtPath,
@@ -108,7 +111,7 @@ export async function postDeploy<Config extends object>(
     await writeAgentConfig(
       agentConfig.addresses,
       agentConfig.multiProvider,
-      deployEnvToSdkEnv[agentConfig.environment],
+      envNameToAgentEnv[agentConfig.environment],
     );
   }
 }
@@ -116,7 +119,7 @@ export async function postDeploy<Config extends object>(
 export async function writeAgentConfig(
   addressesPath: string,
   multiProvider: MultiProvider,
-  environment: HyperlaneEnvironment,
+  environment: AgentEnvironment,
 ) {
   let addresses: ChainMap<HyperlaneAddresses<any>> = {};
   try {

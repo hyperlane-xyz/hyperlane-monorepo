@@ -1,7 +1,8 @@
-import { EvmHookReader, EvmIsmReader, chainMetadata } from '@hyperlane-xyz/sdk';
+import { EvmHookReader, EvmIsmReader } from '@hyperlane-xyz/sdk';
 
 import { mainnetConfigs } from '../config/environments/mainnet3/chains.js';
 import { testnetConfigs } from '../config/environments/testnet4/chains.js';
+import { getChain } from '../config/registry.js';
 import { Role } from '../src/roles.js';
 
 import {
@@ -42,7 +43,7 @@ async function readConfig() {
       .demandOption('network').argv;
 
   const multiProvider = await getMultiProviderForRole(
-    chainMetadata[network].isTestnet ? testnetConfigs : mainnetConfigs,
+    getChain(network).isTestnet ? testnetConfigs : mainnetConfigs,
     environment,
     context,
     Role.Deployer,

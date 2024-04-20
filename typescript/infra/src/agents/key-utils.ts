@@ -11,8 +11,8 @@ import { helloworld } from '../../config/environments/helloworld.js';
 import localKathyAddresses from '../../config/kathy.json';
 import localRelayerAddresses from '../../config/relayer.json';
 import { getJustHelloWorldConfig } from '../../scripts/helloworld/utils.js';
-import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent';
-import { DeployEnvironment } from '../config/environment';
+import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent.js';
+import { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import {
   execCmd,

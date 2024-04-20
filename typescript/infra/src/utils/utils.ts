@@ -7,15 +7,11 @@ import stringify from 'json-stable-stringify';
 import path from 'path';
 import { parse as yamlParse } from 'yaml';
 
-import {
-  AllChains,
-  ChainName,
-  CoreChainName,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { getChain, getChains } from '../../config/registry.js';
 import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {
@@ -196,7 +192,7 @@ export function assertFundableRole(roleStr: string): FundableRole {
 
 export function assertChain(chainStr: string) {
   const chain = chainStr as ChainName;
-  if (!AllChains.includes(chain as CoreChainName)) {
+  if (!getChains().includes(chain)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
@@ -253,7 +249,7 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
 }
 
 export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
-  const metadata = chainMetadata[chain];
+  const metadata = getChain(chain);
   if (!metadata.nativeToken) {
     throw new Error(`No native token for chain ${chain}`);
   }
@@ -261,6 +257,6 @@ export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {
-  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
+  if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
+  return getChain(chainName).protocol === ProtocolType.Ethereum;
 }

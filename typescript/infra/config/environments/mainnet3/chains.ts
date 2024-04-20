@@ -1,17 +1,12 @@
-import {
-  ChainMap,
-  ChainMetadata,
-  Mainnets,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 
 import { getChainMetadatas } from '../../../src/config/chain.js';
+import { getChain, getMainnets } from '../../registry.js';
 
 // The `Mainnets` from the SDK are all supported chains for the mainnet3 environment.
 // These chains may be any protocol type.
-export const supportedChainNames = Mainnets;
+export const supportedChainNames = getMainnets();
 
-export type MainnetChains = (typeof supportedChainNames)[number];
 export const environment = 'mainnet3';
 
 const {
@@ -22,15 +17,15 @@ const {
 export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   ...defaultEthereumMainnetConfigs,
   bsc: {
-    ...chainMetadata.bsc,
+    ...getChain('bsc'),
     transactionOverrides: {
       gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
   polygon: {
-    ...chainMetadata.polygon,
+    ...getChain('polygon'),
     blocks: {
-      ...chainMetadata.polygon.blocks,
+      ...getChain('polygon').blocks,
       confirmations: 3,
     },
     transactionOverrides: {
@@ -41,9 +36,9 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
   ethereum: {
-    ...chainMetadata.ethereum,
+    ...getChain('ethereum'),
     blocks: {
-      ...chainMetadata.ethereum.blocks,
+      ...getChain('ethereum').blocks,
       confirmations: 3,
     },
     transactionOverrides: {
@@ -52,7 +47,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
   scroll: {
-    ...chainMetadata.scroll,
+    ...getChain('scroll'),
     transactionOverrides: {
       // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
       // too low for the transaction to be included in a reasonable amount of time -
@@ -61,7 +56,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
   moonbeam: {
-    ...chainMetadata.moonbeam,
+    ...getChain('moonbeam'),
     transactionOverrides: {
       maxFeePerGas: 350 * 10 ** 9, // 350 gwei
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
@@ -76,4 +71,4 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
 
 export const ethereumChainNames = Object.keys(
   ethereumMainnetConfigs,
-) as MainnetChains[];
+) as ChainName[];

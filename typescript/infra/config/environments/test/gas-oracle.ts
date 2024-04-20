@@ -8,7 +8,7 @@ import {
   getAllStorageGasOracleConfigs,
 } from '../../../src/config/gas-oracle.js';
 
-import { chainNames } from './chains.js';
+import { testChainNames } from './chains.js';
 
 const TEST_TOKEN_EXCHANGE_RATE = ethers.utils.parseUnits(
   '1',
@@ -30,4 +30,8 @@ function getTokenExchangeRate(
 }
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);
+  getAllStorageGasOracleConfigs(
+    testChainNames,
+    gasPrices,
+    getTokenExchangeRate,
+  );

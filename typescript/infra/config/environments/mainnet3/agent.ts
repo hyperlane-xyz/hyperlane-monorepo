@@ -1,10 +1,7 @@
 import {
-  Chains,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
-  chainMetadata,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -18,6 +15,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment, supportedChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
@@ -46,68 +44,68 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
-    [Chains.arbitrum]: true,
-    [Chains.ancient8]: true,
-    [Chains.avalanche]: true,
-    [Chains.bsc]: true,
-    [Chains.celo]: true,
-    [Chains.ethereum]: true,
-    [Chains.neutron]: true,
-    [Chains.mantapacific]: true,
-    [Chains.moonbeam]: true,
-    [Chains.optimism]: true,
-    [Chains.polygon]: true,
-    [Chains.gnosis]: true,
-    [Chains.base]: true,
-    [Chains.scroll]: true,
-    [Chains.polygonzkevm]: true,
-    [Chains.injective]: true,
-    [Chains.inevm]: true,
-    [Chains.viction]: true,
+    arbitrum: true,
+    ancient8: true,
+    avalanche: true,
+    bsc: true,
+    celo: true,
+    ethereum: true,
+    neutron: true,
+    mantapacific: true,
+    moonbeam: true,
+    optimism: true,
+    polygon: true,
+    gnosis: true,
+    base: true,
+    scroll: true,
+    polygonzkevm: true,
+    injective: true,
+    inevm: true,
+    viction: true,
   },
   [Role.Relayer]: {
-    [Chains.arbitrum]: true,
-    [Chains.ancient8]: true,
-    [Chains.avalanche]: true,
-    [Chains.bsc]: true,
-    [Chains.celo]: true,
-    [Chains.ethereum]: true,
+    arbitrum: true,
+    ancient8: true,
+    avalanche: true,
+    bsc: true,
+    celo: true,
+    ethereum: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
-    [Chains.neutron]: false,
-    [Chains.mantapacific]: false,
-    [Chains.moonbeam]: true,
-    [Chains.optimism]: true,
-    [Chains.polygon]: true,
-    [Chains.gnosis]: true,
-    [Chains.base]: true,
-    [Chains.scroll]: true,
-    [Chains.polygonzkevm]: true,
-    [Chains.injective]: true,
-    [Chains.inevm]: true,
-    [Chains.viction]: true,
+    neutron: false,
+    mantapacific: false,
+    moonbeam: true,
+    optimism: true,
+    polygon: true,
+    gnosis: true,
+    base: true,
+    scroll: true,
+    polygonzkevm: true,
+    injective: true,
+    inevm: true,
+    viction: true,
   },
   [Role.Scraper]: {
-    [Chains.arbitrum]: true,
-    [Chains.ancient8]: false,
-    [Chains.avalanche]: true,
-    [Chains.bsc]: true,
-    [Chains.celo]: true,
-    [Chains.ethereum]: true,
+    arbitrum: true,
+    ancient8: false,
+    avalanche: true,
+    bsc: true,
+    celo: true,
+    ethereum: true,
     // Cannot scrape non-EVM chains
-    [Chains.neutron]: false,
-    [Chains.mantapacific]: true,
-    [Chains.moonbeam]: true,
-    [Chains.optimism]: true,
-    [Chains.polygon]: true,
-    [Chains.gnosis]: true,
-    [Chains.base]: true,
-    [Chains.scroll]: true,
-    [Chains.polygonzkevm]: true,
+    neutron: false,
+    mantapacific: true,
+    moonbeam: true,
+    optimism: true,
+    polygon: true,
+    gnosis: true,
+    base: true,
+    scroll: true,
+    polygonzkevm: true,
     // Cannot scrape non-EVM chains
-    [Chains.injective]: false,
-    [Chains.inevm]: true,
+    injective: false,
+    inevm: true,
     // Has RPC non-compliance that breaks scraping.
-    [Chains.viction]: false,
+    viction: false,
   },
 };
 
@@ -229,7 +227,7 @@ const releaseCandidate: RootAgentConfig = {
     transactionGasLimit: 750000,
     // Skipping arbitrum because the gas price estimates are inclusive of L1
     // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrum.name],
+    skipTransactionGasLimitFor: ['arbitrum'],
   },
   validators: {
     docker: {
@@ -245,11 +243,7 @@ const neutron: RootAgentConfig = {
   ...contextBase,
   contextChainNames: {
     validator: [],
-    relayer: [
-      chainMetadata.neutron.name,
-      chainMetadata.mantapacific.name,
-      chainMetadata.arbitrum.name,
-    ],
+    relayer: ['neutron', 'mantapacific', 'arbitrum'],
     scraper: [],
   },
   context: Contexts.Neutron,
@@ -265,14 +259,14 @@ const neutron: RootAgentConfig = {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
           {
-            originDomain: getDomainId(chainMetadata.neutron),
-            destinationDomain: getDomainId(chainMetadata.mantapacific),
+            originDomain: getDomainId('neutron'),
+            destinationDomain: getDomainId('mantapacific'),
             senderAddress: '*',
             recipientAddress: '*',
           },
           {
-            originDomain: getDomainId(chainMetadata.neutron),
-            destinationDomain: getDomainId(chainMetadata.arbitrum),
+            originDomain: getDomainId('neutron'),
+            destinationDomain: getDomainId('arbitrum'),
             senderAddress: '*',
             recipientAddress: '*',
           },

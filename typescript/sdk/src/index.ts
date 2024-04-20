@@ -11,12 +11,12 @@ export { defaultMultisigConfigs } from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
 export {
   TestChainName,
-  testChains as TestChains,
   multiProtocolTestChainMetadata,
   test1,
   test2,
   test3,
   testChainMetadata,
+  testChains,
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
