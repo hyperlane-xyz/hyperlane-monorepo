@@ -40,7 +40,6 @@ import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
 import {
   Modules,
   getAddresses,
-  getAddressesPath,
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
@@ -247,20 +246,19 @@ async function main() {
 
   console.log(`Deploying to ${modulePath}`);
 
-  const addresses = getAddressesPath(environment, module);
   const verification = path.join(modulePath, 'verification.json');
 
   const cache = {
-    addresses,
     verification,
     read: environment !== 'test',
     write: !fork,
+    environment,
+    module,
   };
   // Don't write agent config in fork tests
   const agentConfig =
     module === Modules.CORE && !fork
       ? {
-          addresses,
           environment,
           multiProvider,
         }

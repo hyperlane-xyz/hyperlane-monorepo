@@ -7,7 +7,7 @@ import stringify from 'json-stable-stringify';
 import path from 'path';
 import { parse as yamlParse } from 'yaml';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, testChains } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -190,9 +190,8 @@ export function assertFundableRole(roleStr: string): FundableRole {
   return role;
 }
 
-export function assertChain(chainStr: string) {
-  const chain = chainStr as ChainName;
-  if (!getChains().includes(chain)) {
+export function assertChain(chain: ChainName) {
+  if (!getChains().includes(chain) && !testChains.includes(chain)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;

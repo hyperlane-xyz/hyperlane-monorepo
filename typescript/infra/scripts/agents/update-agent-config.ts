@@ -1,6 +1,6 @@
 import { envNameToAgentEnv } from '../../src/config/environment.js';
 import { writeAgentConfig } from '../../src/deployment/deploy.js';
-import { Modules, getAddressesPath, getArgs } from '../agent-utils.js';
+import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
@@ -10,9 +10,7 @@ async function main() {
 
   let multiProvider = await envConfig.getMultiProvider();
 
-  const addressesPath = getAddressesPath(environment, Modules.CORE);
-
-  await writeAgentConfig(addressesPath, multiProvider, env);
+  await writeAgentConfig(multiProvider, env);
 }
 
 main()

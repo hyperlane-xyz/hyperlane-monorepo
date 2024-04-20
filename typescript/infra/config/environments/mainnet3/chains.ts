@@ -1,11 +1,29 @@
 import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 
 import { getChainMetadatas } from '../../../src/config/chain.js';
-import { getChain, getMainnets } from '../../registry.js';
+import { getChain } from '../../registry.js';
 
-// The `Mainnets` from the SDK are all supported chains for the mainnet3 environment.
 // These chains may be any protocol type.
-export const supportedChainNames = getMainnets();
+export const supportedChainNames = [
+  'arbitrum',
+  'ancient8',
+  'avalanche',
+  'bsc',
+  'celo',
+  'ethereum',
+  'neutron',
+  'mantapacific',
+  'moonbeam',
+  'optimism',
+  'polygon',
+  'gnosis',
+  'base',
+  'scroll',
+  'polygonzkevm',
+  'injective',
+  'inevm',
+  'viction',
+];
 
 export const environment = 'mainnet3';
 

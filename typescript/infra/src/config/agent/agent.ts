@@ -222,7 +222,7 @@ export function getAgentChainNamesFromConfig(
 ): AgentChainNames {
   ensureAgentChainConfigIncludesAllChainNames(config, supportedChainNames);
 
-  return objMap(config, (role, roleConfig) =>
+  return objMap(config, (_, roleConfig) =>
     Object.entries(roleConfig)
       .filter(([_chain, enabled]) => enabled)
       .map(([chain]) => chain),

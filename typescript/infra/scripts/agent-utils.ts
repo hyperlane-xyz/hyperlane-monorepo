@@ -11,6 +11,7 @@ import {
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   ProtocolType,
   objMap,
   promiseObjAll,
@@ -21,7 +22,12 @@ import {
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
-import { getChain, getChains } from '../config/registry.js';
+import {
+  getChain,
+  getChainAddresses,
+  getChains,
+  getRegistry,
+} from '../config/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';
@@ -38,6 +44,7 @@ import {
   assertContext,
   assertRole,
   readJSONAtPath,
+  writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
 const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
@@ -57,7 +64,7 @@ export enum Modules {
   WARP = 'warp',
 }
 
-export const SDK_MODULES = [
+export const REGISTRY_MODULES = [
   Modules.PROXY_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
@@ -336,10 +343,6 @@ export async function getKeysForRole(
   return keys;
 }
 
-export function getContractAddressesSdkFilepath() {
-  return path.join('../sdk/src/consts/environments');
-}
-
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
   return path.join('./config/environments/', environment);
 }
@@ -367,23 +370,42 @@ export function getModuleDirectory(
   return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
-//TODO
-export function getAddressesPath(
+export function isRegistryModule(
   environment: DeployEnvironment,
   module: Modules,
 ) {
-  const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
+  return REGISTRY_MODULES.includes(module) && environment !== 'test';
+}
 
-  return isSdkArtifact
-    ? path.join(
-        getContractAddressesSdkFilepath(),
-        `${deployEnvToSdkEnv[environment]}.json`,
-      )
-    : path.join(getModuleDirectory(environment, module), 'addresses.json');
+// Where non-registry module addresses are dumped.
+// This package must die in fire.
+function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
+  return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
 export function getAddresses(environment: DeployEnvironment, module: Modules) {
-  return readJSONAtPath(getAddressesPath(environment, module));
+  if (isRegistryModule(environment, module)) {
+    return getChainAddresses();
+  } else {
+    return readJSONAtPath(getInfraLandfillPath(environment, module));
+  }
+}
+
+export function writeAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+  addressesMap: ChainMap<Record<string, Address>>,
+) {
+  if (isRegistryModule(environment, module)) {
+    for (const [chainName, addresses] of Object.entries(addressesMap)) {
+      getRegistry().updateChain({ chainName, addresses });
+    }
+  } else {
+    writeMergedJSONAtPath(
+      getInfraLandfillPath(environment, module),
+      addressesMap,
+    );
+  }
 }
 
 export function getAgentConfigDirectory() {

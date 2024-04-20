@@ -31,7 +31,7 @@ export function setRegistry(reg: LocalRegistry) {
 export function getRegistry(): LocalRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
-    rootLogger.info('Using registry URI', registryUri);
+    rootLogger.info('Using registry URI:', registryUri);
     registry = new LocalRegistry({
       uri: registryUri,
       logger: rootLogger.child({ module: 'infra-registry' }),
