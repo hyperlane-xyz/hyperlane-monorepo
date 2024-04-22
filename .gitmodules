@@ -4,3 +4,6 @@
 [submodule "solidity/lib/eigenlayer-middleware"]
 	path = solidity/lib/eigenlayer-middleware
 	url = https://github.com/Layr-Labs/eigenlayer-middleware
+[submodule "solidity/lib/eigenlayer-contracts"]
+	path = solidity/lib/eigenlayer-contracts
+	url = https://github.com/Layr-Labs/eigenlayer-contracts
