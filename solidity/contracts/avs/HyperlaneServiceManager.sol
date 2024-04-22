@@ -6,11 +6,11 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ISignatureUtils} from "@eigenlayer/core/interfaces/ISignatureUtils.sol";
 import {IAVSDirectory} from "@eigenlayer/core/interfaces/IAVSDirectory.sol";
 
-import {IStakeRegistry} from "@eigenlayer/middleware/interfaces/IStakeRegistry.sol";
+import {ECDSAStakeRegistry} from "@eigenlayer/middleware/unaudited/ECDSAStakeRegistry.sol";
 import {IServiceManager} from "@eigenlayer/middleware/interfaces/IServiceManager.sol";
 
 contract HyperlaneServiceManager is IServiceManager, OwnableUpgradeable {
-    IStakeRegistry internal immutable stakeRegistry;
+    ECDSAStakeRegistry internal immutable stakeRegistry;
     IAVSDirectory internal immutable elAvsDirectory;
 
     /// @notice when applied to a function, only allows the ECDSAStakeRegistry to call it
@@ -22,11 +22,18 @@ contract HyperlaneServiceManager is IServiceManager, OwnableUpgradeable {
         _;
     }
 
-    constructor(IAVSDirectory _avsDirectory, IStakeRegistry _stakeRegistry) {
+    // ============ Constructor ============
+
+    constructor(
+        IAVSDirectory _avsDirectory,
+        ECDSAStakeRegistry _stakeRegistry
+    ) {
         elAvsDirectory = _avsDirectory;
         stakeRegistry = _stakeRegistry;
         _disableInitializers();
     }
+
+    // ============ Public Functions ============
 
     /**
      * @notice Updates the metadata URI for the AVS
@@ -61,6 +68,8 @@ contract HyperlaneServiceManager is IServiceManager, OwnableUpgradeable {
         elAvsDirectory.deregisterOperatorFromAVS(operator);
     }
 
+    // ============ External Functions ============
+
     /**
      * @notice Returns the list of strategies that the AVS supports for restaking
      * @dev This function is intended to be called off-chain
@@ -72,20 +81,48 @@ contract HyperlaneServiceManager is IServiceManager, OwnableUpgradeable {
         view
         returns (address[] memory)
     {
-        // TODO
-        return new address[](0);
+        return _getRestakeableStrategies();
     }
 
+    /**
+     * @notice Returns the list of strategies that the operator has potentially restaked on the AVS
+     * @param operator The address of the operator to get restaked strategies for
+     * @dev This function is intended to be called off-chain
+     * @dev Since ECDSAStakeRegistry only supports one quorum, each operator restakes into all the AVS strategies
+     * @dev No guarantee is made on uniqueness of each element in the returned array.
+     *      The off-chain service should do that validation separately
+     */
     function getOperatorRestakedStrategies(
-        address operator
+        address /* operator */
     ) external view returns (address[] memory) {
-        // TODO
-        return new address[](0);
+        return _getRestakeableStrategies();
     }
 
     /// @notice Returns the EigenLayer AVSDirectory contract.
     function avsDirectory() external view override returns (address) {
         return address(elAvsDirectory);
+    }
+
+    // ============ Internal Function ============
+
+    function _getRestakeableStrategies()
+        internal
+        view
+        returns (address[] memory)
+    {
+        uint256 strategyCount = stakeRegistry.quorum().strategies.length;
+
+        if (strategyCount == 0) {
+            return new address[](0);
+        }
+
+        address[] memory restakedStrategies = new address[](strategyCount);
+        for (uint256 i = 0; i < strategyCount; i++) {
+            restakedStrategies[i] = address(
+                stakeRegistry.quorum().strategies[i].strategy
+            );
+        }
+        return restakedStrategies;
     }
 
     // storage gap for upgradeability
