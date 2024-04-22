@@ -20,8 +20,6 @@ tracing.workspace = true
 url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
-
-[build-dependencies]
 cainome = { git = "https://github.com/cartridge-gg/cainome", tag = "v0.2.5", features = [
     "abigen-rs",
 ] }

@@ -22,7 +22,19 @@ use hyperlane_core::{
 
 use crate::bindings::Mailbox as StarknetMailboxInternal;
 use crate::trait_builder::BuildableWithProvider;
-use crate::{ConnectionConf, StarknetProvider};
+use crate::{ConnectionConf, Signer, StarknetProvider};
+
+use cainome::rs::abigen;
+
+abigen!(
+    Mailbox,
+    "abis/Mailbox.contract_class.json",
+     type_aliases {
+        openzeppelin::access::ownable::ownable::OwnableComponent::Event as OwnableCptEvent;
+        openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event as UpgradeableCptEvent;
+     },
+    output_path("src/bindings.rs")
+);
 
 impl std::fmt::Display for StarknetMailboxInternal
 where
@@ -35,17 +47,19 @@ where
 
 /// A reference to a Mailbox contract on some Starknet chain
 #[derive(Debug)]
-pub struct StarknetMailbox {
-    contract: Arc<StarknetMailboxInternal>,
+pub struct StarknetMailbox<A>
+where
+    A: starknet::accounts::ConnectedAccount + Sync,
+{
+    contract: Arc<StarknetMailboxInternal<A>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
-    signer: LocalWallet,
 }
 
 impl StarknetMailbox {
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, signer: LocalWallet) -> Self {
+    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, signer: Option<Signer>) -> Self {
         let provider = StarknetProvider::new(conn.domain.clone(), conn, signer);
         Self {
             contract: Arc::new(StarknetMailboxInternal::new(
