@@ -24,7 +24,7 @@ export interface GasPriceConfig {
   decimals: number;
 }
 
-// Overcharge by 50% to account for market making risk (when assets are unequal)
+// Overcharge by 50% to account for market making risk
 const EXCHANGE_RATE_MARGIN_PCT = 50;
 
 // Gets the StorageGasOracleConfig for a particular local chain
@@ -34,11 +34,7 @@ function getLocalStorageGasOracleConfig(
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
 ): StorageGasOracleConfig {
-  // console.log('local', local)
-  // console.log('remotes', remotes)
-  // console.log('gasPrices', gasPrices);
   return remotes.reduce((agg, remote) => {
-    // console.log('local', local, 'remote', remote);
     let exchangeRate = getTokenExchangeRate(local, remote);
     if (!gasPrices[remote]) {
       throw new Error(`No gas price found for chain ${remote}`);
@@ -54,9 +50,8 @@ function getLocalStorageGasOracleConfig(
       );
     }
 
-    // let gasPriceScalingFactor = 1;
-
-    // We have very little precision here
+    // We have very little precision here-- we scale up the gas price and
+    // scale down the exchange rate.
     if (gasPrice < 10 && gasPrice % 1 !== 0) {
       // Scale up the gas price by 1e4
       const gasPriceScalingFactor = 1e4;

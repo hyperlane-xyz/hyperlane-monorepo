@@ -15,13 +15,8 @@ import {
 } from '../../../src/config/gas-oracle.js';
 
 import { supportedChainNames } from './chains';
-import rawGasPrices from './gasPrices.json';
+import gasPrices from './gasPrices.json';
 import rawTokenPrices from './tokenPrices.json';
-
-// const gasPrices: ChainMap<GasPriceConfig> = objMap(rawGasPrices, (_, gasPrice) =>
-//   // ethers.utils.parseUnits(gasPrice, 'gwei'),
-//   gasPrice
-// );
 
 const tokenUsdPrices: ChainMap<BigNumber> = objMap(
   rawTokenPrices,
@@ -40,6 +35,6 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
-    rawGasPrices,
+    gasPrices,
     getTokenExchangeRate,
   );
