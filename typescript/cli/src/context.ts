@@ -1,53 +1,13 @@
-import { input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
-  HyperlaneContractsMap,
-  MultiProvider,
-  WarpCoreConfig,
-  chainMetadata,
-  hyperlaneEnvironments,
-} from '@hyperlane-xyz/sdk';
-import { objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { objKeys } from '@hyperlane-xyz/utils';
 
-import { runDeploymentArtifactStep } from './config/artifacts.js';
-import { readChainConfigsIfExists } from './config/chain.js';
 import { forkNetworkToMultiProvider } from './deploy/dry-run.js';
+import { MergedRegistry } from './registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from './utils/chains.js';
-import { readYamlOrJson } from './utils/files.js';
 import { getImpersonatedSigner, getSigner } from './utils/keys.js';
-
-export const sdkContractAddressesMap: HyperlaneContractsMap<any> = {
-  ...hyperlaneEnvironments.testnet,
-  ...hyperlaneEnvironments.mainnet,
-};
-
-export function getMergedContractAddresses(
-  artifacts?: HyperlaneContractsMap<any>,
-  chains?: ChainName[],
-) {
-  // if chains include non sdkContractAddressesMap chains, don't recover interchainGasPaymaster
-  let sdkContractsAddressesToRecover = sdkContractAddressesMap;
-  if (
-    chains?.some(
-      (chain) => !Object.keys(sdkContractAddressesMap).includes(chain),
-    )
-  ) {
-    sdkContractsAddressesToRecover = objMap(sdkContractAddressesMap, (_, v) =>
-      objFilter(
-        v as ChainMap<any>,
-        (key, v): v is any => key !== 'interchainGasPaymaster',
-      ),
-    );
-  }
-  return objMerge(
-    sdkContractsAddressesToRecover,
-    artifacts || {},
-  ) as HyperlaneContractsMap<any>;
-}
 
 export type KeyConfig = {
   key?: string;
@@ -55,8 +15,9 @@ export type KeyConfig = {
 };
 
 export interface ContextSettings {
-  chainConfigPath?: string;
   chains?: ChainName[];
+  registryUri?: string;
+  configOverrideUri?: string;
   coreConfig?: {
     coreArtifactsPath?: string;
     promptMessage?: string;
@@ -71,75 +32,34 @@ export interface ContextSettings {
 
 interface CommandContextBase {
   chains: ChainName[];
-  customChains: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
+  registry: IRegistry;
 }
 
 // This makes return type dynamic based on the input settings
 type CommandContext<P extends ContextSettings> = CommandContextBase &
   (P extends { keyConfig: object }
     ? { signer: ethers.Signer }
-    : { signer: undefined }) &
-  (P extends { coreConfig: object }
-    ? { coreArtifacts: HyperlaneContractsMap<any> }
-    : { coreArtifacts: undefined }) &
-  (P extends { warpConfig: object }
-    ? { warpCoreConfig: WarpCoreConfig }
-    : { warpCoreConfig: undefined });
+    : { signer: undefined });
 
 /**
  * Retrieves context for the user-selected command
  * @returns context for the current command
  */
-export async function getContext<P extends ContextSettings>({
-  chainConfigPath,
-  coreConfig,
-  keyConfig,
-  skipConfirmation,
-  warpConfig,
-}: P): Promise<CommandContext<P>> {
-  const customChains = readChainConfigsIfExists(chainConfigPath);
+export async function getContext<P extends ContextSettings>(
+  args: P,
+): Promise<CommandContext<P>> {
+  const registry = getRegistry(args.registryUri, args.configOverrideUri);
+  const chains = await registry.getChains();
 
-  const signer = await getSigner({
-    keyConfig,
-    skipConfirmation,
-  });
-
-  let coreArtifacts = undefined;
-  if (coreConfig) {
-    coreArtifacts =
-      (await runDeploymentArtifactStep({
-        artifactsPath: coreConfig.coreArtifactsPath,
-        message:
-          coreConfig.promptMessage ||
-          'Do you want to use some core deployment address artifacts? This is required for PI chains (non-core chains).',
-        skipConfirmation,
-      })) || {};
-  }
-
-  let warpCoreConfig = undefined;
-  if (warpConfig) {
-    let warpConfigPath = warpConfig.warpConfigPath;
-    if (!warpConfigPath) {
-      // prompt for path to token config
-      warpConfigPath = await input({
-        message:
-          warpConfig.promptMessage ||
-          'Please provide a path to the Warp config',
-      });
-    }
-
-    warpCoreConfig = readYamlOrJson<WarpCoreConfig>(warpConfigPath);
-  }
-
-  const multiProvider = getMultiProvider(customChains, signer);
+  const signer = await getSigner(args);
+  const multiProvider = await getMultiProvider(registry, signer);
 
   return {
-    customChains,
+    chains,
+    registry,
     signer,
     multiProvider,
-    coreArtifacts,
-    warpCoreConfig,
   } as CommandContext<P>;
 }
 
@@ -148,53 +68,46 @@ export async function getContext<P extends ContextSettings>({
  * @returns dry-run context for the current command
  */
 export async function getDryRunContext<P extends ContextSettings>({
-  chainConfigPath,
+  registryUri,
+  configOverrideUri,
   chains,
-  coreConfig,
   keyConfig,
   skipConfirmation,
 }: P): Promise<CommandContext<P>> {
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-
-  let coreArtifacts = undefined;
-  if (coreConfig) {
-    coreArtifacts =
-      (await runDeploymentArtifactStep({
-        artifactsPath: coreConfig.coreArtifactsPath,
-        message:
-          coreConfig.promptMessage ||
-          'Do you want to use some core deployment address artifacts? This is required for PI chains (non-core chains).',
-        skipConfirmation,
-      })) || {};
-  }
-
-  const multiProvider = getMultiProvider(customChains);
+  const registry = getRegistry(registryUri, configOverrideUri);
+  const chainMetadata = await registry.getMetadata();
 
   if (!chains?.length) {
     if (skipConfirmation) throw new Error('No chains provided');
     chains = [
       await runSingleChainSelectionStep(
-        customChains,
+        chainMetadata,
         'Select chain to dry-run against:',
       ),
     ];
   }
 
+  const multiProvider = await getMultiProvider(registry);
   await forkNetworkToMultiProvider(multiProvider, chains[0]);
-
   const impersonatedSigner = await getImpersonatedSigner({
     keyConfig,
     skipConfirmation,
   });
-
   if (impersonatedSigner) multiProvider.setSharedSigner(impersonatedSigner);
 
   return {
-    chains,
+    chains: chains || objKeys(chainMetadata),
+    registry,
     signer: impersonatedSigner,
-    multiProvider,
-    coreArtifacts,
+    multiProvider: multiProvider,
   } as CommandContext<P>;
+}
+
+function getRegistry(
+  primaryRegistryUri?: string,
+  overrideRegistryUri?: string,
+): IRegistry {
+  return new MergedRegistry({ primaryRegistryUri, overrideRegistryUri });
 }
 
 /**
@@ -202,12 +115,9 @@ export async function getDryRunContext<P extends ContextSettings>({
  * @param customChains Custom chains specified by the user
  * @returns a new MultiProvider
  */
-export function getMultiProvider(
-  customChains: ChainMap<ChainMetadata>,
-  signer?: ethers.Signer,
-) {
-  const chainConfigs = { ...chainMetadata, ...customChains };
-  const multiProvider = new MultiProvider(chainConfigs);
+async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
+  const chainMetadata = await registry.getMetadata();
+  const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
 }

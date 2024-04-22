@@ -1,3 +1,4 @@
+// TODO remove this whole file, replace with registry reads
 import { confirm } from '@inquirer/prompts';
 import { ZodTypeAny, z } from 'zod';
 

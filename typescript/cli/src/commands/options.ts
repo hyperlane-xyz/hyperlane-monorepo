@@ -4,6 +4,8 @@ import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../utils/env.js';
 
+/* Global options */
+
 export const logFormatCommandOption: Options = {
   type: 'string',
   description: 'Log output format',
@@ -15,6 +17,22 @@ export const logLevelCommandOption: Options = {
   description: 'Log verbosity level',
   choices: Object.values(LogLevel),
 };
+
+export const registryUriCommandOption: Options = {
+  type: 'string',
+  description: 'Registry URI, such as a Github repo URL or a local file path',
+  alias: 'r',
+};
+
+export const configOverridesUriCommandOption: Options = {
+  type: 'string',
+  description:
+    'Path to local config overrides folder with configs and artifacts',
+  default: './configs',
+  alias: 'c',
+};
+
+/* Command-specific options */
 
 export type CommandOptions = {
   chains: Options;
@@ -85,13 +103,6 @@ export const keyCommandOption: Options = {
 Dry-run: An address to simulate transaction signing on a forked network, or use the HYP_KEY env var.`,
   alias: 'k',
   default: ENV.HYP_KEY,
-};
-
-export const chainsCommandOption: Options = {
-  type: 'string',
-  description: 'A path to a JSON or YAML file with chain configs',
-  default: './configs/chains.yaml',
-  alias: 'c',
 };
 
 export const outDirCommandOption: Options = {

@@ -9,8 +9,10 @@ import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
 import {
+  configOverridesUriCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
+  registryUriCommandOption,
 } from './src/commands/options.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
@@ -30,7 +32,9 @@ try {
     .scriptName('hyperlane')
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
-    .global(['log', 'verbosity'])
+    .option('registry', registryUriCommandOption)
+    .option('configs', configOverridesUriCommandOption)
+    .global(['log', 'verbosity', 'registry', 'configs'])
     .middleware((argv) => {
       configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
     })
