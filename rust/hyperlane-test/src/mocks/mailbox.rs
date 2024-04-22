@@ -99,7 +99,7 @@ impl Mailbox for MockMailboxContract {
     }
 
     async fn process_batch(
-        &mut self,
+        &self,
         messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
     ) -> ChainResult<TxOutcome> {
         self.process_batch(messages)

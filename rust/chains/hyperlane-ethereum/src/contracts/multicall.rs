@@ -20,7 +20,7 @@ pub async fn build_multicall<M: Middleware>(
     provider: Arc<M>,
     conn: &ConnectionConf,
 ) -> Option<Multicall<M>> {
-    let Some(address) = conn.multicall3 else {
+    let Some(address) = conn.message_batch.multicall3_address else {
         return None;
     };
     let multicall = match Multicall::new(provider.clone(), Some(address.into())).await {

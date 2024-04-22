@@ -311,6 +311,7 @@ impl BaseAgent for Relayer {
                 dest_domain,
                 receive_channel,
                 mpmc_channel.receiver(),
+                // batch
             ));
 
             let metrics_updater = MetricsUpdater::new(
@@ -448,12 +449,15 @@ impl Relayer {
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<QueueOperation>,
         retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
+        // batch size
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
             receiver,
             retry_receiver_channel,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
+            // batch size
+            Some(1),
         );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();

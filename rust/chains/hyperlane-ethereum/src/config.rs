@@ -33,8 +33,8 @@ pub struct ConnectionConf {
     pub rpc_connection: RpcConnectionConf,
     /// Transaction overrides to use when sending transactions.
     pub transaction_overrides: TransactionOverrides,
-    /// Optional Multicall3 contract address
-    pub multicall3: Option<H256>,
+    /// Message batching configuration
+    pub message_batch: MessageBatchConfig,
 }
 
 /// Ethereum transaction overrides.
@@ -50,4 +50,13 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+}
+
+/// Ethereum transaction overrides.
+#[derive(Debug, Clone, Default)]
+pub struct MessageBatchConfig {
+    /// Optional Multicall3 contract address
+    pub multicall3_address: Option<H256>,
+    /// Batch size
+    pub batch_size: u32,
 }

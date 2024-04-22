@@ -365,7 +365,7 @@ where
 
     // #[instrument(skip(self, messages))]
     async fn process_batch(
-        &mut self,
+        &self,
         messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
     ) -> ChainResult<TxOutcome> {
         let multicall = build_multicall(self.provider.clone(), &self.conn).await;
@@ -489,7 +489,7 @@ mod test {
                 url: "http://127.0.0.1:8545".parse().unwrap(),
             },
             transaction_overrides: Default::default(),
-            multicall3: Default::default(),
+            message_batch: Default::default(),
         };
 
         let mailbox = EthereumMailbox::new(
