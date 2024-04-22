@@ -86,7 +86,6 @@ contract HyperlaneServiceManager is IServiceManager, OwnableUpgradeable {
 
     /**
      * @notice Returns the list of strategies that the operator has potentially restaked on the AVS
-     * @param operator The address of the operator to get restaked strategies for
      * @dev This function is intended to be called off-chain
      * @dev Since ECDSAStakeRegistry only supports one quorum, each operator restakes into all the AVS strategies
      * @dev No guarantee is made on uniqueness of each element in the returned array.
