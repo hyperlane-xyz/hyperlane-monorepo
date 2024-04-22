@@ -19,6 +19,12 @@ export type StorageGasOracleConfig = ChainMap<DestinationOracleConfig>;
 // StorageGasOracleConfigs for each local chain
 export type AllStorageGasOracleConfigs = ChainMap<StorageGasOracleConfig>;
 
+// A configuration for a gas price.
+// Some chains, e.g. Neutron, have gas prices that are
+// not integers and and are still quoted in the "wei" version
+// of the token. Therefore it's possible for the amount to be a
+// float (e.g. "0.0053") and for decimals to be 1. This is why
+// we intentionally don't deal with BigNumber here.
 export interface GasPriceConfig {
   amount: string;
   decimals: number;
@@ -27,7 +33,11 @@ export interface GasPriceConfig {
 // Overcharge by 50% to account for market making risk
 const EXCHANGE_RATE_MARGIN_PCT = 50;
 
-// Gets the StorageGasOracleConfig for a particular local chain
+const ETH_L2_GAS_PRICE_OVERHEAD = ethers.utils.parseUnits('1', 'gwei');
+
+// Gets the StorageGasOracleConfig for a particular local chain.
+// Accommodates small non-integer gas prices by scaling up the gas price
+// and scaling down the exchange rate by the same factor.
 function getLocalStorageGasOracleConfig(
   local: ChainName,
   remotes: ChainName[],
@@ -40,18 +50,21 @@ function getLocalStorageGasOracleConfig(
       throw new Error(`No gas price found for chain ${remote}`);
     }
 
-    // First parse as a number, so we have floating point precision
+    // First parse as a number, so we have floating point precision.
+    // Recall it's possible to have gas prices that are not integers, even
+    // after converting to the "wei" version of the token.
     let gasPrice =
       parseFloat(gasPrices[remote].amount) *
       Math.pow(10, gasPrices[remote].decimals);
     if (isNaN(gasPrice)) {
       throw new Error(
-        `Invalid gas price for chain ${remote}: ${gasPrices[remote].amount}`,
+        `Invalid gas price for chain ${remote}: ${gasPrices[remote]}`,
       );
     }
 
-    // We have very little precision here-- we scale up the gas price and
-    // scale down the exchange rate.
+    // We have very little precision and ultimately need an integer value for
+    // the gas price that will be set on-chain. We scale up the gas price and
+    // scale down the exchange rate by the same factor.
     if (gasPrice < 10 && gasPrice % 1 !== 0) {
       // Scale up the gas price by 1e4
       const gasPriceScalingFactor = 1e4;
@@ -62,9 +75,6 @@ function getLocalStorageGasOracleConfig(
       const recoveredExchangeRate = adjustedExchangeRate.mul(
         gasPriceScalingFactor,
       );
-      // console.log('adjustedExchangeRate', adjustedExchangeRate.toString());
-      // console.log('recoveredExchangeRate', recoveredExchangeRate.toString());
-      // console.log('exchangeRate', exchangeRate.toString());
       if (recoveredExchangeRate.mul(100).div(exchangeRate).lt(99)) {
         throw new Error('Too much underflow when downscaling exchange rate');
       }
@@ -73,9 +83,22 @@ function getLocalStorageGasOracleConfig(
       exchangeRate = adjustedExchangeRate;
       gasPrice *= gasPriceScalingFactor;
     }
+    // Our integer gas price.
+    let gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
 
-    const gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
-    // console.log('gasPriceBn', gasPriceBn.toString());
+    const ethL2s = [
+      'scroll',
+      'base',
+      'optimism',
+      'arbitrum',
+      'inevm',
+      'ancient8',
+      'mantapacific',
+      'polygonzkevm',
+    ];
+    if (ethL2s.includes(remote)) {
+      gasPriceBn = gasPriceBn.add(ETH_L2_GAS_PRICE_OVERHEAD);
+    }
 
     return {
       ...agg,

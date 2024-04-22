@@ -99,7 +99,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       return gasOracle;
     }
 
-    console.log(`Configuring gas oracle from ${chain}...`);
+    this.logger.info(`Configuring gas oracle from ${chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
     // For each remote, check if the gas oracle has the correct data
@@ -115,7 +115,9 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
-        console.log(`-> ${remote} - ${serializeDifference(actual, desired)}`);
+        this.logger.info(
+          `-> ${remote} - ${serializeDifference(actual, desired)}`,
+        );
         configsToSet.push({
           remoteDomain,
           ...desired,
@@ -127,7 +129,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         .mul(desired.gasPrice)
         .mul(exampleRemoteGas)
         .div(TOKEN_EXCHANGE_RATE_SCALE);
-      console.log(
+      this.logger.info(
         `-> ${remote} - 200k remote gas cost: ${ethers.utils.formatEther(
           exampleRemoteGasCost,
         )}`,

@@ -35,7 +35,7 @@ async function main() {
           };
         }
         case ProviderType.SolanaWeb3:
-          // TODO use or get a reasonable value
+          // TODO get a reasonable value
           return '0.001';
         default:
           throw new Error(`Unsupported provider type: ${provider.type}`);

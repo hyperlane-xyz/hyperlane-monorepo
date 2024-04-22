@@ -55,6 +55,12 @@ export const serializeDifference = (
     actual.tokenExchangeRate,
     expected.tokenExchangeRate,
   );
+
+  const productDiff = serializePercentDifference(
+    actual.tokenExchangeRate.mul(actual.gasPrice),
+    expected.tokenExchangeRate.mul(expected.gasPrice),
+  );
+
   const formatted = formatGasOracleConfig(expected);
-  return `Exchange rate: ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), Gas price: ${formatted.gasPrice} gwei (${gasPriceDiff})`;
+  return `Exchange rate: ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), Gas price: ${formatted.gasPrice} gwei (${gasPriceDiff}), Product diff: ${productDiff}`;
 };

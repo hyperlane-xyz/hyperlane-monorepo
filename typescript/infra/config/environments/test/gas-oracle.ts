@@ -18,21 +18,15 @@ const TEST_TOKEN_EXCHANGE_RATE = ethers.utils.parseUnits(
   '1',
   TOKEN_EXCHANGE_RATE_DECIMALS,
 );
-const TEST_GAS_PRICE = ethers.utils.parseUnits('2', 'gwei').toString();
+const TEST_GAS_PRICE_CONFIG: GasPriceConfig = {
+  amount: '2',
+  decimals: 9, // gwei
+};
 
 const gasPrices: ChainMap<GasPriceConfig> = {
-  test1: {
-    amount: TEST_GAS_PRICE,
-    decimals: 1,
-  },
-  test2: {
-    amount: TEST_GAS_PRICE,
-    decimals: 1,
-  },
-  test3: {
-    amount: TEST_GAS_PRICE,
-    decimals: 1,
-  },
+  test1: TEST_GAS_PRICE_CONFIG,
+  test2: TEST_GAS_PRICE_CONFIG,
+  test3: TEST_GAS_PRICE_CONFIG,
 };
 
 function getTokenExchangeRate(
