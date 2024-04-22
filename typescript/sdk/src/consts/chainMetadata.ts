@@ -176,13 +176,14 @@ export const base: ChainMetadata = {
 
 export const blast: ChainMetadata = {
   blockExplorers: [
-    {
-      apiUrl:
-        'https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api',
-      family: ExplorerFamily.Routescan,
-      name: 'Blast Explorer',
-      url: 'https://basescan.org',
-    },
+    // Commenting out because verification doesn't work and it results in errors and timeouts
+    // {
+    //   apiUrl:
+    //     'https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api',
+    //   family: ExplorerFamily.Routescan,
+    //   name: 'Blast Explorer',
+    //   url: 'https://blastexplorer.io',
+    // },
   ],
   blocks: {
     confirmations: 1,
