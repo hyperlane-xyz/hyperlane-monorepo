@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 
 import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent.js';
-import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/chains.js';
+import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import { hyperlaneContextAgentChainConfig as testnet4AgentChainConfig } from '../config/environments/testnet4/agent.js';
-import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/chains.js';
+import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import { ensureAgentChainConfigIncludesAllChainNames } from '../src/config/agent/agent.js';
 import { AgentEnvironment } from '../src/config/environment.js';

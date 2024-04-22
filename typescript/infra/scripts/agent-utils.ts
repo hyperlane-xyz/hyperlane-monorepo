@@ -37,7 +37,7 @@ import {
   AgentEnvironment,
   DeployEnvironment,
   EnvironmentConfig,
-  EnvironmentNames,
+  assertEnvironment,
 } from '../src/config/environment.js';
 import { Role } from '../src/roles.js';
 import {
@@ -158,15 +158,6 @@ export function withBuildArtifactPath<T>(args: Argv<T>) {
     .describe('buildArtifactPath', 'path to hardhat build artifact')
     .string('buildArtifactPath')
     .alias('b', 'buildArtifactPath');
-}
-
-export function assertEnvironment(env: string): DeployEnvironment {
-  if (EnvironmentNames.includes(env)) {
-    return env as DeployEnvironment;
-  }
-  throw new Error(
-    `Invalid environment ${env}, must be one of ${EnvironmentNames}`,
-  );
 }
 
 // not requiring to build coreConfig to get agentConfig

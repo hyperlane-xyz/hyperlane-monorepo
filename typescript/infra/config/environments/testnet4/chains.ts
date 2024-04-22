@@ -2,18 +2,7 @@ import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
 import { getChain } from '../../registry.js';
 
-// All supported chains for the testnet4 environment.
-// These chains may be any protocol type.
-export const supportedChainNames = [
-  'alfajores',
-  'bsctestnet',
-  'eclipsetestnet',
-  'fuji',
-  'plumetestnet',
-  'scrollsepolia',
-  'sepolia',
-  'solanatestnet',
-];
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment = 'testnet4';
 

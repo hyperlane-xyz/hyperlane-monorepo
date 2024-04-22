@@ -7,9 +7,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { ethereumChainNames, supportedChainNames } from './chains.js';
+import { ethereumChainNames } from './chains.js';
 import { storageGasOracleConfig } from './gas-oracle.js';
 import { DEPLOYER, owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 

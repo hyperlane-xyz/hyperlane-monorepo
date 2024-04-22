@@ -14,6 +14,10 @@ import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../src/config/environment.js';
 
+import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/supportedChainNames.js';
+import { testChainNames as testChains } from './environments/test/chains.js';
+import { supportedChainNames as testnet4Chains } from './environments/testnet4/supportedChainNames.js';
+
 const DEFAULT_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),
   '../../../../',
@@ -65,14 +69,10 @@ export function getChainAddresses(): ChainMap<ChainAddresses> {
 }
 
 export function getEnvChains(env: DeployEnvironment): ChainName[] {
-  return Object.values(getChainMetadata())
-    .filter((chain) => {
-      if (env === 'test') return /^test[0-9]$/.test(chain.name);
-      if (env === 'testnet4') return chain.isTestnet;
-      if (env === 'mainnet3') return !chain.isTestnet;
-      throw new Error(`Unknown environment ${env}`);
-    })
-    .map((chain) => chain.name);
+  if (env === 'mainnet3') return mainnet3Chains;
+  if (env === 'testnet4') return testnet4Chains;
+  if (env === 'test') return testChains;
+  throw Error(`Unsupported deploy environment: ${env}`);
 }
 
 export function getMainnets(): ChainName[] {
@@ -86,6 +86,7 @@ export function getTestnets(): ChainName[] {
 export function getEnvAddresses(
   env: DeployEnvironment,
 ): ChainMap<ChainAddresses> {
+  const envChains = getEnvChains(env);
   return objFilter(
     getChainAddresses(),
     (chain, addresses): addresses is ChainAddresses =>

@@ -12,16 +12,8 @@ import { DeployEnvironment } from '../src/config/environment.js';
 
 import { Contexts } from './contexts.js';
 import { environments } from './environments/index.js';
-import { ethereumChainNames as mainnet3Chains } from './environments/mainnet3/chains.js';
-import { testChainNames } from './environments/test/chains.js';
-import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains.js';
 import { multisigIsm } from './multisigIsm.js';
-
-const chains = {
-  test: testChainNames,
-  testnet4: testnet4Chains,
-  mainnet3: mainnet3Chains,
-};
+import { getEnvChains } from './registry.js';
 
 // Intended to be the "entrypoint" ISM.
 // Routing ISM => Aggregation (1/2)
@@ -34,7 +26,9 @@ export const routingIsm = (
   local: ChainName,
   context: Contexts,
 ): RoutingIsmConfig | string => {
-  const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[environment]
+  const aggregationIsms: ChainMap<AggregationIsmConfig> = getEnvChains(
+    environment,
+  )
     .filter((chain) => chain !== local)
     .reduce(
       (acc, chain) => ({

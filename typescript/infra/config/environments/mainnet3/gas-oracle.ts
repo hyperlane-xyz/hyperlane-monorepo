@@ -10,8 +10,8 @@ import {
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
 
-import { supportedChainNames } from './chains.js';
 import rawGasPrices from './gasPrices.json';
+import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json';
 
 const gasPrices: ChainMap<BigNumber> = objMap(rawGasPrices, (_, gasPrice) =>

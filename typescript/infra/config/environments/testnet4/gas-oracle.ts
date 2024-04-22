@@ -9,7 +9,7 @@ import {
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
 
-import { supportedChainNames } from './chains.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {

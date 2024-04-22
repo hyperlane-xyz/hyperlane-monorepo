@@ -13,8 +13,9 @@ import { routerMatchingList } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
-import { environment, supportedChainNames } from './chains.js';
+import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
+import { supportedChainNames } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 

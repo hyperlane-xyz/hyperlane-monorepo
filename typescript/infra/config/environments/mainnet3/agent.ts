@@ -17,8 +17,9 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment, supportedChainNames } from './chains.js';
+import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
+import { supportedChainNames } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';

@@ -20,9 +20,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains.js';
 import { igp } from './igp.js';
 import { DEPLOYER, owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(

@@ -9,6 +9,7 @@ import {
   OwnableConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { objKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
@@ -21,8 +22,6 @@ import { HelloWorldConfig } from './helloworld/types.js';
 import { InfrastructureConfig } from './infrastructure.js';
 import { LiquidityLayerRelayerConfig } from './middleware.js';
 
-// TODO: fix this?
-export const EnvironmentNames = ['test', 'testnet4', 'mainnet3'];
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof (typeof environments)[E],
@@ -63,3 +62,11 @@ export type EnvironmentConfig = {
     relayer: LiquidityLayerRelayerConfig;
   };
 };
+
+export function assertEnvironment(env: string): DeployEnvironment {
+  const envNames = objKeys(environments);
+  if (envNames.includes(env as any)) {
+    return env as DeployEnvironment;
+  }
+  throw new Error(`Invalid environment ${env}, must be one of ${envNames}`);
+}
