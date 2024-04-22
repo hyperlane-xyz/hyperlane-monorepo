@@ -2,6 +2,7 @@ use std::cmp::Reverse;
 use std::time::Duration;
 
 use derive_new::new;
+use futures::future::join_all;
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::spawn;
@@ -17,6 +18,8 @@ use crate::server::MessageRetryRequest;
 
 use super::op_queue::{OpQueue, QueueOperation};
 use super::pending_operation::*;
+
+pub const MESSAGES_PER_BATCH: usize = 1;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -168,38 +171,55 @@ async fn prepare_task(
     metrics: SerialSubmitterMetrics,
 ) {
     loop {
-        // Pick the next message to try preparing.
-        let next = prepare_queue.pop().await;
+        // Pop messages here according to the configured batch.
+        let mut batch = vec![];
+        for _ in 0..MESSAGES_PER_BATCH {
+            let next = prepare_queue.pop().await;
+            if let Some(Reverse(op)) = next {
+                batch.push(op);
+            } else {
+                break;
+            }
+        }
 
-        let Some(Reverse(mut op)) = next else {
+        if batch.is_empty() {
             // queue is empty so give some time before checking again to prevent burning CPU
             sleep(Duration::from_millis(200)).await;
             continue;
-        };
+        }
 
-        trace!(?op, "Preparing operation");
-        debug_assert_eq!(*op.destination_domain(), domain);
+        let mut task_prep_futures = vec![];
+        let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
+        for op in op_refs {
+            trace!(?op, "Preparing operation");
+            debug_assert_eq!(*op.destination_domain(), domain);
+            task_prep_futures.push(op.prepare());
+        }
 
-        match op.prepare().await {
-            PendingOperationResult::Success => {
-                debug!(?op, "Operation prepared");
-                metrics.ops_prepared.inc();
-                // this send will pause this task if the submitter is not ready to accept yet
-                if let Err(err) = tx_submit.send(op).await {
-                    tracing::error!(error=?err, "Failed to send prepared operation to submitter");
+        let res = join_all(task_prep_futures).await;
+
+        for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
+            match prepare_result {
+                PendingOperationResult::Success => {
+                    debug!(?op, "Operation prepared");
+                    metrics.ops_prepared.inc();
+                    // this send will pause this task if the submitter is not ready to accept yet
+                    if let Err(err) = tx_submit.send(op).await {
+                        tracing::error!(error=?err, "Failed to send prepared operation to submitter");
+                    }
                 }
-            }
-            PendingOperationResult::NotReady => {
-                // none of the operations are ready yet, so wait for a little bit
-                prepare_queue.push(op).await;
-                sleep(Duration::from_millis(200)).await;
-            }
-            PendingOperationResult::Reprepare => {
-                metrics.ops_failed.inc();
-                prepare_queue.push(op).await;
-            }
-            PendingOperationResult::Drop => {
-                metrics.ops_dropped.inc();
+                PendingOperationResult::NotReady => {
+                    // none of the operations are ready yet, so wait for a little bit
+                    prepare_queue.push(op).await;
+                    sleep(Duration::from_millis(200)).await;
+                }
+                PendingOperationResult::Reprepare => {
+                    metrics.ops_failed.inc();
+                    prepare_queue.push(op).await;
+                }
+                PendingOperationResult::Drop => {
+                    metrics.ops_dropped.inc();
+                }
             }
         }
     }

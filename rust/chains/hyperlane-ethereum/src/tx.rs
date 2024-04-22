@@ -5,10 +5,11 @@ use std::time::Duration;
 use ethers::{
     abi::Detokenize,
     prelude::{NameOrAddress, TransactionReceipt},
-    providers::ProviderError,
+    providers::{JsonRpcClient, PendingTransaction, ProviderError},
     types::Eip1559TransactionRequest,
 };
-use ethers_contract::builders::ContractCall;
+use ethers_contract::Multicall;
+use ethers_contract::{builders::ContractCall, MulticallVersion};
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -50,12 +51,17 @@ where
     let dispatched = dispatch_fut
         .await?
         .interval(PENDING_TRANSACTION_POLLING_INTERVAL);
+    track_pending_tx(dispatched).await
+}
 
-    let tx_hash: H256 = (*dispatched).into();
+pub(crate) async fn track_pending_tx<'a, P: JsonRpcClient>(
+    pending_tx: PendingTransaction<'a, P>,
+) -> ChainResult<TransactionReceipt> {
+    let tx_hash: H256 = (*pending_tx).into();
 
-    info!(?to, %data, ?tx_hash, "Dispatched tx");
+    info!(?tx_hash, "Dispatched tx");
 
-    match tokio::time::timeout(Duration::from_secs(150), dispatched).await {
+    match tokio::time::timeout(Duration::from_secs(150), pending_tx).await {
         // all good
         Ok(Ok(Some(receipt))) => {
             info!(?tx_hash, "confirmed transaction");

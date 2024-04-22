@@ -105,6 +105,14 @@ impl Mailbox for FuelMailbox {
         todo!()
     }
 
+    #[instrument(err, ret, skip(self))]
+    async fn process_batch(
+        &mut self,
+        _messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+    ) -> ChainResult<TxOutcome> {
+        todo!()
+    }
+
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,

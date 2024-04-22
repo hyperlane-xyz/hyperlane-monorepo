@@ -256,6 +256,9 @@ impl PendingOperation for PendingMessage {
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
+        self.ctx
+            .destination_mailbox
+            .process(&self.message, &state.metadata, Some(state.gas_limit));
         let tx_outcome = op_try!(
             self.ctx
                 .destination_mailbox

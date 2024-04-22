@@ -67,6 +67,7 @@ pub fn build_ethereum_connection_conf(
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
+        // TODO: Multicall3
     }))
 }
 

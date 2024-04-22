@@ -4,12 +4,15 @@
 use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
+use std::process;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use ethers_contract::Multicall;
+use futures_util::future::join_all;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -19,12 +22,15 @@ use hyperlane_core::{
     TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
+use crate::error::HyperlaneEthereumError;
 use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
+
+use super::multicall::{self, build_multicall};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -357,6 +363,36 @@ where
         Ok(receipt.into())
     }
 
+    // #[instrument(skip(self, messages))]
+    async fn process_batch(
+        &mut self,
+        messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+    ) -> ChainResult<TxOutcome> {
+        let multicall = build_multicall(self.provider.clone(), &self.conn).await;
+        let Some(mut multicall) = multicall else {
+            return Err(HyperlaneEthereumError::MulticallError(
+                "Multicall contract not set".to_string(),
+            )
+            .into());
+        };
+        let contract_call_futures = messages
+            .into_iter()
+            .map(|(message, metadata, tx_gas_limit)| {
+                self.process_contract_call(message, metadata, tx_gas_limit)
+            })
+            .collect::<Vec<_>>();
+        let contract_calls = join_all(contract_call_futures)
+            .await
+            .into_iter()
+            .collect::<ChainResult<Vec<_>>>()?;
+
+        let batch_result =
+            multicall::batch::<_, ()>(self.provider.clone(), &mut multicall, contract_calls)
+                .await?;
+
+        Ok(batch_result.into())
+    }
+
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
@@ -453,6 +489,7 @@ mod test {
                 url: "http://127.0.0.1:8545".parse().unwrap(),
             },
             transaction_overrides: Default::default(),
+            multicall3: Default::default(),
         };
 
         let mailbox = EthereumMailbox::new(

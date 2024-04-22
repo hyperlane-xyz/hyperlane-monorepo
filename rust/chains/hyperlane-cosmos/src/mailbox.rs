@@ -93,7 +93,6 @@ impl HyperlaneChain for CosmosMailbox {
 
 impl Debug for CosmosMailbox {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        // Debug::fmt(&(self as &dyn HyperlaneContract), f)
         todo!()
     }
 }
@@ -203,6 +202,14 @@ impl Mailbox for CosmosMailbox {
             .await?;
 
         Ok(tx_response_to_outcome(response)?)
+    }
+
+    #[instrument(err, ret, skip(self))]
+    async fn process_batch(
+        &mut self,
+        _messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+    ) -> ChainResult<TxOutcome> {
+        todo!()
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

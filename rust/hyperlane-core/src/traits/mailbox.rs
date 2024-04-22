@@ -12,7 +12,6 @@ use crate::{
 /// Interface for the Mailbox chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
-#[auto_impl(&, Box, Arc)]
 pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Return the domain hash
     fn domain_hash(&self) -> H256 {
@@ -40,6 +39,12 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
+    ) -> ChainResult<TxOutcome>;
+
+    /// Process a message with a proof against the provided signed checkpoint
+    async fn process_batch(
+        &mut self,
+        messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
     ) -> ChainResult<TxOutcome>;
 
     /// Estimate transaction costs to process a message.
