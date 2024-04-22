@@ -5,8 +5,13 @@
 #![deny(warnings)]
 
 pub use provider::*;
+pub use signers::*;
+pub use trait_builder::*;
 pub use trait_builder::*;
 
+mod bindings;
+mod error;
 mod mailbox;
 mod provider;
+mod signers;
 mod trait_builder;

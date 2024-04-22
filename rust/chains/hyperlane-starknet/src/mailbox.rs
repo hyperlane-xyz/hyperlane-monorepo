@@ -1,158 +1,181 @@
+#![allow(clippy::enum_variant_names)]
+#![allow(missing_docs)]
+
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::abi::AbiEncode;
+use ethers::prelude::Middleware;
+use ethers_contract::builders::ContractCall;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer,
+    TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
+use crate::bindings::Mailbox as StarknetMailboxInternal;
+use crate::trait_builder::BuildableWithProvider;
 use crate::{ConnectionConf, StarknetProvider};
 
-/// A reference to a Mailbox contract on some Starknet chain
-pub struct StarknetMailbox {
-    contract: StarknetMailboxInner,
-    domain: HyperlaneDomain,
-}
-
-impl StarknetMailbox {
-    /// Create a new starknet mailbox
-    pub fn new(
-        conf: &ConnectionConf,
-        locator: ContractLocator,
-        mut wallet: LocalWallet,
-    ) -> ChainResult<Self> {
-        let provider = StarknetProvider::new(locator.domain.clone(), conf);
-        wallet.set_provider(provider);
-        let address = Bech32ContractId::from_h256(&locator.address);
-
-        Ok(StarknetMailbox {
-            contract: StarknetMailboxInner::new(address, wallet),
-            domain: locator.domain.clone(),
-        })
+impl std::fmt::Display for StarknetMailboxInternal
+where
+    M: Middleware,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
     }
 }
 
-impl HyperlaneContract for StarknetMailbox {
-    fn address(&self) -> H256 {
-        self.contract.contract_id().into_h256()
+/// A reference to a Mailbox contract on some Starknet chain
+#[derive(Debug)]
+pub struct StarknetMailbox {
+    contract: Arc<StarknetMailboxInternal>,
+    provider: StarknetProvider,
+    conn: ConnectionConf,
+    signer: LocalWallet,
+}
+
+impl StarknetMailbox {
+    /// Create a reference to a mailbox at a specific Starknet address on some
+    /// chain
+    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, signer: LocalWallet) -> Self {
+        let provider = StarknetProvider::new(conn.domain.clone(), conn, signer);
+        Self {
+            contract: Arc::new(StarknetMailboxInternal::new(
+                locator.address,
+                provider.rpc_client(),
+            )),
+            domain: provider.domain(),
+            provider,
+            conn: conn.clone(),
+        }
+    }
+
+    /// Returns a ContractCall that processes the provided message.
+    /// If the provided tx_gas_limit is None, gas estimation occurs.
+    async fn process_contract_call(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+        tx_gas_estimate: Option<U256>,
+    ) -> ChainResult {
+        todo!()
     }
 }
 
 impl HyperlaneChain for StarknetMailbox {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.domain
+        &self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        todo!()
+        Box::new(StarknetProvider::new(
+            self.provider.clone(),
+            self.domain.clone(),
+            None,
+        ))
     }
 }
 
-impl Debug for StarknetMailbox {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self as &dyn HyperlaneContract)
+impl HyperlaneContract for StarknetMailbox {
+    fn address(&self) -> H256 {
+        self.contract.address().into()
     }
 }
 
 #[async_trait]
 impl Mailbox for StarknetMailbox {
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        assert!(
-            lag.is_none(),
-            "Starknet does not support querying point-in-time"
-        );
-        self.contract
-            .methods()
-            .count()
-            .simulate()
-            .await
-            .map(|r| r.value)
-            .map_err(ChainCommunicationError::from_other)
+    #[instrument(skip(self))]
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let call = call_with_lag(self.contract.nonce(), &self.provider, maybe_lag).await?;
+        let nonce = call.call().await?;
+        Ok(nonce)
     }
 
-    #[instrument(level = "debug", err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        todo!()
+        Ok(self.contract.delivered(id.into()).call().await?)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        todo!()
+        Ok(self.contract.default_ism().call().await?.into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        todo!()
+        Ok(self
+            .contract
+            .recipient_ism(recipient.into())
+            .call()
+            .await?
+            .into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        todo!()
+        let contract_call = self
+            .process_contract_call(message, metadata, tx_gas_limit)
+            .await?;
+        let receipt = report_tx(contract_call).await?;
+        Ok(receipt.into())
     }
 
-    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        todo!()
+        let contract_call = self.process_contract_call(message, metadata, None).await?;
+        let gas_limit = contract_call
+            .tx
+            .gas()
+            .copied()
+            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
+
+        let gas_price: U256 = self
+            .provider
+            .get_gas_price()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .into();
+
+        Ok(TxCostEstimate {
+            gas_limit: gas_limit.into(),
+            gas_price: gas_price.try_into()?,
+            l2_gas_limit: l2_gas_limit.map(|v| v.into()),
+        })
     }
 
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        todo!()
+        let process_call = ProcessCall {
+            message: RawHyperlaneMessage::from(message).to_vec().into(),
+            metadata: metadata.to_vec().into(),
+        };
+
+        AbiEncode::encode(process_call)
     }
 }
 
-/// Struct that retrieves event data for a Starknet Mailbox contract
-#[derive(Debug)]
-pub struct StarknetMailboxIndexer {}
-
-#[async_trait]
-impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
-    async fn fetch_logs(
-        &self,
-        range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        todo!()
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        todo!()
-    }
-}
-
-#[async_trait]
-impl Indexer<H256> for StarknetMailboxIndexer {
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
-        todo!()
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        todo!()
-    }
-}
-
-struct StarknetMailboxAbi;
+pub struct StarknetMailboxAbi;
 
 impl HyperlaneAbi for StarknetMailboxAbi {
-    const SELECTOR_SIZE_BYTES: usize = 8;
+    const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        // Can't support this without Starknets exporting it in the generated code
         todo!()
     }
 }

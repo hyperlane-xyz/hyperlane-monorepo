@@ -2,19 +2,19 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use hyperlane_core::HyperlaneDomain;
-use starknet::accounts::{Account, AccountError, Declaration, Execution, SingleOwnerAccount};
-use starknet::core::types::InvokeTransactionResult;
+use starknet::accounts::{Account, AccountError, Execution, ExecutionEncoding, SingleOwnerAccount};
+use starknet::core::chain_id::{MAINNET, SEPOLIA};
+use starknet::core::types::{FieldElement, InvokeTransactionResult};
 use starknet::providers::jsonrpc::{HttpTransport, JsonRpcClient};
+use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 
-use crate::ConnectionConf;
+use crate::{ConnectionConf, Signer};
 
-type RpcAccount<'a> = SingleOwnerAccount<&'a JsonRpcClient<HttpTransport>, LocalWallet>;
+type RpcAccount<'a> = SingleOwnerAccount<&'a AnyProvider, LocalWallet>;
 pub type TransactionExecution<'a> = Execution<'a, RpcAccount<'a>>;
-type TransactionDeclaration<'a> = Declaration<'a, RpcAccount<'a>>;
-type StarknetAccountError = AccountError<
-    <SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet> as Account>::SignError,
->;
+type StarknetAccountError =
+    AccountError<<SingleOwnerAccount<AnyProvider, LocalWallet> as Account>::SignError>;
 
 pub enum Transaction<'a> {
     Execution(TransactionExecution<'a>),
@@ -47,17 +47,46 @@ impl Transaction<'_> {
 /// A wrapper over the Starknet provider to provide a more ergonomic interface.
 pub struct StarknetProvider {
     domain: HyperlaneDomain,
-    rpc_client: Arc<JsonRpcClient<HttpTransport>>,
+    rpc_client: Arc<AnyProvider>,
+    account: Option<Arc<SingleOwnerAccount<Arc<AnyProvider>, LocalWallet>>>,
 }
 
 impl StarknetProvider {
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
-        let rpc_client = Arc::new(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
-        Self { domain, rpc_client }
+    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf, signer: Option<Signer>) -> Self {
+        let rpc_client = Arc::new(AnyProvider::JsonRpcHttp(JsonRpcClient::new(
+            HttpTransport::new(conf.url.clone()),
+        )));
+
+        let chain_id = match domain.id() {
+            23448594392895567 => SEPOLIA,
+            23448594291968334 => MAINNET,
+        };
+
+        let account = if let Some(signer) = signer {
+            Arc::new(SingleOwnerAccount::new(
+                rpc_client,
+                signer.local_wallet(),
+                signer.address,
+                chain_id,
+                ExecutionEncoding::New, // Only supports Cairo 1 accounts
+            ))
+        } else {
+            None
+        };
+
+        Self {
+            domain,
+            rpc_client,
+            account,
+        }
     }
 
-    pub fn get_starknet_client(&self) -> Arc<JsonRpcClient<HttpTransport>> {
+    pub fn rpc_client(&self) -> Arc<AnyProvider> {
         self.rpc_client
+    }
+
+    pub fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 
     pub async fn submit_txs(
