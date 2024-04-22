@@ -40,6 +40,7 @@ export type WarpCommandOptions = CommandOptions & {
   out: Options;
   key: Options;
   yes: Options;
+  'dry-run': Options;
 };
 
 export const coreTargetsCommandOption: Options = {
@@ -144,5 +145,5 @@ export const dryRunOption: Options = {
   description:
     'Simulate deployment on forked network. Please ensure an anvil node instance is running during execution via `anvil`.',
   default: false,
-  alias: 'd',
+  alias: ['d', 'dr'],
 };

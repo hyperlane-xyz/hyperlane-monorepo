@@ -1,7 +1,16 @@
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ANVIL_RPC_METHODS,
+  MultiProvider,
+  getLocalProvider,
+  resetFork,
+  setFork,
+} from '@hyperlane-xyz/sdk';
 
+import { Command } from '../commands/deploy.js';
 import { logGray, logGreen, warnYellow } from '../logger.js';
-import { ANVIL_RPC_METHODS, getLocalProvider, setFork } from '../utils/fork.js';
+import { ENV } from '../utils/env.js';
+
+import { toUpperCamelCase } from './utils.js';
 
 /**
  * Forks a provided network onto MultiProvider
@@ -23,9 +32,9 @@ export async function forkNetworkToMultiProvider(
  * Ensures an anvil node is running locally.
  */
 export async function verifyAnvil() {
-  logGray('Verifying anvil node is running...');
+  logGray('🔎 Verifying anvil node is running...');
 
-  const provider = getLocalProvider();
+  const provider = getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT);
   try {
     await provider.send(ANVIL_RPC_METHODS.NODE_INFO, []);
   } catch (error: any) {
@@ -34,7 +43,7 @@ export async function verifyAnvil() {
 \tPlease run \`anvil\` in a separate instance.`);
   }
 
-  logGreen('Successfully verified anvil node is running ✅');
+  logGreen('✅ Successfully verified anvil node is running');
 }
 
 /**
@@ -47,4 +56,10 @@ export function evaluateIfDryRunFailure(error: any, dryRun: boolean) {
     warnYellow(
       '⛔️ [dry-run] The current RPC may not support forking. Please consider using a different RPC provider.',
     );
+}
+
+export async function completeDryRun(command: Command) {
+  await resetFork();
+
+  logGreen(`✅ ${toUpperCamelCase(command)} dry-run completed successfully`);
 }

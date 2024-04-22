@@ -58,6 +58,9 @@ The warp-routes container
 - name: warp-routes
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
+  env:
+   - name: LOG_FORMAT
+     value: pretty
   command:
   - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/warp-routes/monitor-warp-routes-balances.ts

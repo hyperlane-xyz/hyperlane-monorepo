@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   HypERC20App,
@@ -13,14 +11,12 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
-  TokenType,
   resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
-import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
+import { getWarpConfig } from '../config/warp.js';
 import { deployEnvToSdkEnv } from '../src/config/environment.js';
-import { tokens } from '../src/config/warp.js';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
@@ -47,8 +43,8 @@ function getArgs() {
 
 async function check() {
   const { fork, govern, module, environment, context } = await getArgs();
-  const config = getEnvironmentConfig(environment);
-  let multiProvider = await config.getMultiProvider();
+  const envConfig = getEnvironmentConfig(environment);
+  let multiProvider = await envConfig.getMultiProvider();
 
   // must rotate to forked provider before building core contracts
   if (fork) {
@@ -62,7 +58,7 @@ async function check() {
       const owner = await resolveOrDeployAccountOwner(
         multiProvider,
         fork,
-        config.core[fork].owner,
+        envConfig.core[fork].owner,
       );
       const signer = await impersonateAccount(owner, 1e18);
 
@@ -73,7 +69,7 @@ async function check() {
   const env = deployEnvToSdkEnv[environment];
   const core = HyperlaneCore.fromEnvironment(env, multiProvider);
   const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
-  const routerConfig = core.getRouterConfig(config.owners);
+  const routerConfig = core.getRouterConfig(envConfig.owners);
   const ica = InterchainAccount.fromEnvironment(env, multiProvider);
 
   let governor: HyperlaneAppGovernor<any, any>;
@@ -81,13 +77,13 @@ async function check() {
     const checker = new HyperlaneCoreChecker(
       multiProvider,
       core,
-      config.core,
+      envConfig.core,
       ismFactory,
     );
     governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
-    const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
+    const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const checker = new InterchainAccountChecker(
@@ -106,7 +102,7 @@ async function check() {
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HELLO_WORLD) {
     const app = await getHelloWorldApp(
-      config,
+      envConfig,
       context,
       Role.Deployer,
       Contexts.Hyperlane, // Owner should always be from the hyperlane context
@@ -120,44 +116,7 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    // test config
-    const ethereum = {
-      ...routerConfig.ethereum,
-      type: TokenType.collateral,
-      token: tokens.ethereum.USDC,
-      // Really, this should be an object config from something like:
-      //   buildAggregationIsmConfigs(
-      //     'ethereum',
-      //     ['ancient8'],
-      //     defaultMultisigConfigs,
-      //   ).ancient8
-      // However ISM objects are no longer able to be passed directly to the warp route
-      // deployer. As a temporary workaround, I'm using an ISM address from a previous
-      // ethereum <> ancient8 warp route deployment:
-      //   $ cast call 0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f 'interchainSecurityModule()(address)' --rpc-url https://rpc.ankr.com/eth
-      //   0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3
-      interchainSecurityModule: '0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3',
-      // This hook was recovered from running the deploy script
-      // for the hook module. The hook configuration is the Ethereum
-      // default hook for the Ancient8 remote (no routing).
-      hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
-      owner: DEPLOYER,
-    };
-    const ancient8 = {
-      ...routerConfig.ancient8,
-      type: TokenType.synthetic,
-      name: 'USD Coin',
-      symbol: 'USDC',
-      decimals: 6,
-      // Uses the default ISM
-      interchainSecurityModule: ethers.constants.AddressZero,
-      owner: DEPLOYER,
-    };
-
-    const config = {
-      ethereum,
-      ancient8,
-    };
+    const config = await getWarpConfig(multiProvider, envConfig);
     const addresses = getAddresses(environment, Modules.WARP);
     const filteredAddresses = Object.keys(addresses) // filter out changes not in config
       .filter((key) => key in config)

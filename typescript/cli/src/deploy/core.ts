@@ -29,6 +29,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
+import { Command } from '../commands/deploy.js';
 import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -50,16 +51,17 @@ import {
 } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
-  ArtifactsFile,
+  getArtifactsFiles,
   prepNewArtifactsFiles,
   runFileSelectionStep,
   writeJson,
 } from '../utils/files.js';
-import { resetFork } from '../utils/fork.js';
 
 import {
+  completeDeploy,
   isISMConfig,
   isZODISMConfig,
+  prepareDeploy,
   runPreflightChecksForChains,
 } from './utils.js';
 
@@ -146,9 +148,25 @@ export async function runCoreDeploy({
     ...deploymentParams,
     minGas: MINIMUM_CORE_DEPLOY_GAS,
   });
+
+  const userAddress = dryRun ? key! : await signer.getAddress();
+
+  const initialBalances = await prepareDeploy(
+    multiProvider,
+    userAddress,
+    chains,
+  );
+
   await executeDeploy(deploymentParams);
 
-  if (dryRun) await resetFork();
+  await completeDeploy(
+    Command.CORE,
+    initialBalances,
+    multiProvider,
+    userAddress,
+    chains,
+    dryRun,
+  );
 }
 
 function runArtifactStep(
@@ -305,7 +323,13 @@ async function executeDeploy({
 
   const [contractsFilePath, agentFilePath] = prepNewArtifactsFiles(
     outPath,
-    getArtifactsFiles(dryRun),
+    getArtifactsFiles(
+      [
+        { filename: 'core-deployment', description: 'Contract addresses' },
+        { filename: 'agent-config', description: 'Agent configs' },
+      ],
+      dryRun,
+    ),
   );
 
   const owner = await signer.getAddress();
@@ -367,7 +391,7 @@ async function executeDeploy({
   }
   artifacts = objMerge(artifacts, isms);
   artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
-  logGreen('Core contracts deployed');
+  logGreen('✅ Core contracts deployed');
 
   log('Writing agent configs');
   await writeAgentConfig(agentFilePath, artifacts, chains, multiProvider);
@@ -376,24 +400,6 @@ async function executeDeploy({
   logBlue('Deployment is complete!');
   logBlue(`Contract address artifacts are in ${contractsFilePath}`);
   logBlue(`Agent configs are in ${agentFilePath}`);
-}
-
-/**
- * Retrieves artifacts file metadata for the current command.
- * @param dryRun whether or not the current command is being dry-run
- * @returns the artifacts files
- */
-function getArtifactsFiles(dryRun: boolean): Array<ArtifactsFile> {
-  const coreDeploymentFile = {
-    filename: dryRun ? 'dry-run_core-deployment' : 'core-deployment',
-    description: 'Contract addresses',
-  };
-  const agentConfigFile = {
-    filename: dryRun ? 'dry-run_agent-config' : 'agent-config',
-    description: 'Agent configs',
-  };
-
-  return [coreDeploymentFile, agentConfigFile];
 }
 
 function buildIsmConfig(
