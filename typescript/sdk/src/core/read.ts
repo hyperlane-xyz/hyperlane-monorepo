@@ -36,7 +36,7 @@ export class EvmCoreReader {
     const defaultHook = await mailbox.defaultHook();
     const requiredHook = await mailbox.requiredHook();
 
-    // Parallelize each property call request
+    // Parallelize each configuration request
     const results = await promiseObjAll(
       objMap(
         {
