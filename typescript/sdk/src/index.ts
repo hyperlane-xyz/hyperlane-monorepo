@@ -441,7 +441,6 @@ export {
   TestChainNames,
 } from './types.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
-export { ENV } from './utils/env.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,
