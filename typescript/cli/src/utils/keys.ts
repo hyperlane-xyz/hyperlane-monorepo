@@ -3,22 +3,28 @@ import { ethers, providers } from 'ethers';
 
 import { Address, ensure0x } from '@hyperlane-xyz/utils';
 
-import { ContextSettings, KeyConfig } from '../context.js';
-
 import { impersonateAccount } from './fork.js';
 
 const ETHEREUM_ADDRESS_LENGTH = 42;
 const DEFAULT_KEY_TYPE = 'private key';
 const IMPERSONATED_KEY_TYPE = 'address';
 
+export type KeyConfig = {
+  key?: string;
+  promptMessage?: string;
+};
+
 /**
  * Retrieves a signer for the current command-context.
  * @returns the signer
  */
-export async function getSigner<P extends ContextSettings>({
+export async function getSigner({
   keyConfig,
   skipConfirmation,
-}: P): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
+}: {
+  keyConfig?: KeyConfig;
+  skipConfirmation?: boolean;
+}): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
   if (!keyConfig) return undefined;
 
   const key = await retrieveKey(DEFAULT_KEY_TYPE, keyConfig, skipConfirmation);
@@ -30,10 +36,13 @@ export async function getSigner<P extends ContextSettings>({
  * Retrieves an impersonated signer for the current command-context.
  * @returns the impersonated signer
  */
-export async function getImpersonatedSigner<P extends ContextSettings>({
+export async function getImpersonatedSigner({
   keyConfig,
   skipConfirmation,
-}: P): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
+}: {
+  keyConfig?: KeyConfig;
+  skipConfirmation?: boolean;
+}): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
   if (!keyConfig) return undefined;
 
   const key = await retrieveKey(

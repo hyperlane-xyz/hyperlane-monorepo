@@ -7,27 +7,14 @@ import { objKeys } from '@hyperlane-xyz/utils';
 import { forkNetworkToMultiProvider } from './deploy/dry-run.js';
 import { MergedRegistry } from './registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from './utils/chains.js';
-import { getImpersonatedSigner, getSigner } from './utils/keys.js';
-
-export type KeyConfig = {
-  key?: string;
-  promptMessage?: string;
-};
+import { KeyConfig, getImpersonatedSigner, getSigner } from './utils/keys.js';
 
 export interface ContextSettings {
+  registryUri: string;
+  configOverrideUri: string;
   chains?: ChainName[];
-  registryUri?: string;
-  configOverrideUri?: string;
-  coreConfig?: {
-    coreArtifactsPath?: string;
-    promptMessage?: string;
-  };
   keyConfig?: KeyConfig;
   skipConfirmation?: boolean;
-  warpConfig?: {
-    warpConfigPath?: string;
-    promptMessage?: string;
-  };
 }
 
 interface CommandContextBase {
@@ -104,8 +91,8 @@ export async function getDryRunContext<P extends ContextSettings>({
 }
 
 function getRegistry(
-  primaryRegistryUri?: string,
-  overrideRegistryUri?: string,
+  primaryRegistryUri: string,
+  overrideRegistryUri: string,
 ): IRegistry {
   return new MergedRegistry({ primaryRegistryUri, overrideRegistryUri });
 }

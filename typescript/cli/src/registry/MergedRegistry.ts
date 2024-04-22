@@ -1,4 +1,3 @@
-import fs from 'fs';
 import { Logger } from 'pino';
 
 import {
@@ -19,26 +18,29 @@ import {
 } from '@hyperlane-xyz/utils';
 
 export interface MergedRegistryOptions {
-  primaryRegistryUri?: string;
-  overrideRegistryUri?: string;
+  primaryRegistryUri: string;
+  overrideRegistryUri: string;
+  isDryRun?: boolean;
   logger?: Logger;
 }
 
 export class MergedRegistry extends BaseRegistry implements IRegistry {
-  public type = RegistryType.Local;
+  public readonly type = RegistryType.Local;
   public readonly primaryRegistry: IRegistry;
-  public readonly overrideRegistry: IRegistry | undefined;
+  public readonly overrideRegistry: IRegistry;
+  public readonly isDryRun: boolean;
 
   constructor({
     primaryRegistryUri,
     overrideRegistryUri,
     logger,
+    isDryRun,
   }: MergedRegistryOptions) {
     logger ||= rootLogger.child({ module: 'MergedRegistry' });
     super({ logger });
 
     // If not provided, allow the GithubRegistry to use its default
-    if (!primaryRegistryUri || isHttpsUrl(primaryRegistryUri)) {
+    if (isHttpsUrl(primaryRegistryUri)) {
       this.primaryRegistry = new GithubRegistry({
         uri: primaryRegistryUri,
         logger: logger.child({ registry: 'primary-github' }),
@@ -50,14 +52,12 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
       });
     }
 
-    if (!overrideRegistryUri || !fs.existsSync(overrideRegistryUri)) {
-      this.overrideRegistry = undefined;
-    } else {
-      this.overrideRegistry = new LocalRegistry({
-        uri: overrideRegistryUri,
-        logger: logger.child({ registry: 'override-local' }),
-      });
-    }
+    this.overrideRegistry = new LocalRegistry({
+      uri: overrideRegistryUri,
+      logger: logger.child({ registry: 'override-local' }),
+    });
+
+    this.isDryRun = !!isDryRun;
   }
 
   async listRegistryContent(): Promise<RegistryContent> {
@@ -100,7 +100,12 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     metadata?: ChainMetadata;
     addresses?: ChainAddresses;
   }): Promise<void> {
-    return this.primaryRegistry.addChain(chains);
+    // TODO change this when GithubRegistry supports write methods
+    if (this.primaryRegistry.type === RegistryType.Github) {
+      return this.overrideRegistry.addChain(chains);
+    } else {
+      return this.primaryRegistry.addChain(chains);
+    }
   }
 
   async updateChain(chains: {
@@ -108,10 +113,20 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     metadata?: ChainMetadata;
     addresses?: ChainAddresses;
   }): Promise<void> {
-    return this.primaryRegistry.updateChain(chains);
+    // TODO change this when GithubRegistry supports write methods
+    if (this.primaryRegistry.type === RegistryType.Github) {
+      return this.overrideRegistry.updateChain(chains);
+    } else {
+      return this.primaryRegistry.updateChain(chains);
+    }
   }
 
   async removeChain(chains: ChainName): Promise<void> {
-    return this.primaryRegistry.removeChain(chains);
+    // TODO change this when GithubRegistry supports write methods
+    if (this.primaryRegistry.type === RegistryType.Github) {
+      return this.overrideRegistry.removeChain(chains);
+    } else {
+      return this.primaryRegistry.removeChain(chains);
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { Options } from 'yargs';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../utils/env.js';
@@ -22,13 +23,13 @@ export const registryUriCommandOption: Options = {
   type: 'string',
   description: 'Registry URI, such as a Github repo URL or a local file path',
   alias: 'r',
+  default: DEFAULT_GITHUB_REGISTRY,
 };
 
 export const configOverridesUriCommandOption: Options = {
   type: 'string',
-  description:
-    'Path to local config overrides folder with configs and artifacts',
-  default: './configs',
+  description: 'Path to local folder with configs and artifacts',
+  default: './',
   alias: 'c',
 };
 
