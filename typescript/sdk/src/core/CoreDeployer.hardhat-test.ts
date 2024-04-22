@@ -18,6 +18,7 @@ import { HyperlaneCore } from './HyperlaneCore.js';
 import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
+import { EvmCoreReader } from './read.js';
 import { CoreConfig } from './types.js';
 
 describe('core', async () => {
@@ -190,6 +191,23 @@ describe('core', async () => {
         // expect(e.message).to.include('Timed out in 1ms');
       }
     });
+  });
+
+  describe('CoreConfigReader', () => {
+    let coreConfigReader: ChainMap<EvmCoreReader>;
+    beforeEach(async () => {
+      contracts = await deployer.deploy(coreConfig);
+      coreConfigReader = objMap(
+        contracts,
+        (chainName, contract) => new EvmCoreReader(multiProvider, chainName),
+      );
+    });
+    it.only('should derive defaultIsm correctly', async () => {
+      console.log('contracts.mailbox', coreConfigReader);
+      expect(false).to.eq(true);
+    });
+    it('should derive defaultHook correctly');
+    it('should derive requiredHook correctly');
   });
 
   it('checks', async () => {
