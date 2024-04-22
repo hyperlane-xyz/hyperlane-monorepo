@@ -1,4 +1,5 @@
 import { ethers, providers } from 'ethers';
+import { stringify as yamlStringify } from 'yaml';
 
 import {
   DefaultFallbackRoutingIsm__factory,
@@ -70,8 +71,16 @@ export class EvmIsmReader implements IsmReader {
     this.provider = this.multiProvider.getProvider(chain);
   }
 
-  public static stringifyConfig(config: IsmConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberSerializer, space);
+  public static stringifyConfig(
+    config: IsmConfig,
+    space?: number,
+    format: 'json' | 'yaml' = 'yaml',
+  ): string {
+    const json = JSON.stringify(config, ethersBigNumberSerializer, space);
+    if (format === 'json') {
+      return json;
+    }
+    return yamlStringify(JSON.parse(json), null, space);
   }
 
   async deriveIsmConfig(

@@ -126,7 +126,7 @@ export const fileFormatOption: Options = {
   alias: 'f',
 };
 
-export const outputFileOption = (defaultPath: string): Options => ({
+export const outputFileOption = (defaultPath?: string): Options => ({
   type: 'string',
   description: 'Output file path',
   default: defaultPath,
@@ -145,4 +145,20 @@ export const dryRunOption: Options = {
   description:
     'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
   alias: ['d', 'dr'],
+};
+
+export const chainCommandOption: Options = {
+  type: 'string',
+  description: 'The specific chain to perform operations with.',
+};
+
+export const addressCommandOption: Options = {
+  type: 'string',
+  description: 'An onchain address.',
+};
+
+export const concurrencyCommandOption: Options = {
+  type: 'number',
+  description: 'Option to override the default concurrency level.',
+  default: 20,
 };
