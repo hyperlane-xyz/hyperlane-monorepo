@@ -1,7 +1,7 @@
+import { Provider } from '@ethersproject/providers';
 import { PopulatedTransaction } from 'ethers';
 
 import { ChainNameOrId } from '../../../types.js';
-import { MultiProvider } from '../../MultiProvider.js';
 import {
   GnosisSafeHyperlaneTx,
   GnosisSafeTxProps,
@@ -14,10 +14,10 @@ export class GnosisSafeTxTransformer
 {
   constructor(
     public readonly txTransformerType: TxTransformerType = TxTransformerType.GNOSIS_SAFE,
-    public readonly multiProvider: MultiProvider,
+    public readonly provider: Provider,
     public readonly chain: ChainNameOrId,
   ) {
-    this.multiProvider = multiProvider;
+    this.provider = provider;
     this.chain = chain;
   }
 
@@ -60,7 +60,7 @@ export class GnosisSafeTxTransformer
     }: GnosisSafeTxProps,
   ): Promise<GnosisSafeHyperlaneTx> {
     return new GnosisSafeHyperlaneTx(
-      populatedTx,
+      populatedTx, // TODO: Remove from actual tx since we only submit this offchain (use anything we can to populate gnosis type fields)
       safeAddress,
       safeTransactionData,
       safeTxHash,

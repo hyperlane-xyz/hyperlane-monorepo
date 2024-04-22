@@ -9,8 +9,9 @@ import { TxSubmitterInterface, TxSubmitterType } from './TxSubmitter.js';
 export class SignerTxSubmitter
   implements TxSubmitterInterface<SignerHyperlaneTx>
 {
+  public txSubmitterType: TxSubmitterType = TxSubmitterType.SIGNER;
+
   constructor(
-    public txSubmitterType: TxSubmitterType = TxSubmitterType.SIGNER,
     public multiProvider: MultiProvider,
     public chain: ChainNameOrId,
   ) {

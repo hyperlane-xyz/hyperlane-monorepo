@@ -1,25 +1,20 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-
-import { Address } from '@hyperlane-xyz/utils';
+import { Provider, TransactionReceipt } from '@ethersproject/providers';
 
 import { ChainNameOrId } from '../../../types.js';
-import { MultiProvider } from '../../MultiProvider.js';
 import { GnosisSafeHyperlaneTx } from '../GnosisSafeHyperlaneTx.js';
+import { InterchainAccountHyperlaneTx } from '../InterchainAccountHyperlaneTx.js';
 
 import { TxSubmitterInterface, TxSubmitterType } from './TxSubmitter.js';
 
 export class GnosisSafeTxSubmitter
-  implements TxSubmitterInterface<GnosisSafeHyperlaneTx>
+  implements
+    TxSubmitterInterface<GnosisSafeHyperlaneTx | InterchainAccountHyperlaneTx>
 {
-  constructor(
-    public txSubmitterType: TxSubmitterType = TxSubmitterType.IMPERSONATED_ACCOUNT,
-    public multiProvider: MultiProvider,
-    public chain: ChainNameOrId,
-    public userEOA: Address,
-  ) {
-    this.multiProvider = multiProvider;
+  public txSubmitterType: TxSubmitterType = TxSubmitterType.GNOSIS_SAFE;
+
+  constructor(public provider: Provider, public chain: ChainNameOrId) {
+    this.provider = provider;
     this.chain = chain;
-    this.userEOA = userEOA;
   }
 
   public async sendTxs(
@@ -39,10 +34,8 @@ export class GnosisSafeTxSubmitter
     // const safe = await this.getSafe(hyperlaneTx.safeAddress);
 
     // TODO: Delete and replace with propose call to Gnosis Safe
-    return await this.multiProvider.sendTransaction(
-      this.chain,
-      hyperlaneTx.populatedTx,
-    );
+    const txnHash = await this.provider.call(hyperlaneTx.populatedTx);
+    return await this.provider.waitForTransaction(txnHash);
   }
 
   // TODO: Implement. Currently copied from infra/src/utils/safe.ts

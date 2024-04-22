@@ -13,8 +13,10 @@ import { TxSubmitterInterface, TxSubmitterType } from './TxSubmitter.js';
 export class ImpersonatedAccountTxSubmitter
   implements TxSubmitterInterface<ImpersonatedAccountHyperlaneTx>
 {
+  public txSubmitterType: TxSubmitterType =
+    TxSubmitterType.IMPERSONATED_ACCOUNT;
+
   constructor(
-    public txSubmitterType: TxSubmitterType = TxSubmitterType.IMPERSONATED_ACCOUNT,
     public multiProvider: MultiProvider,
     public chain: ChainNameOrId,
     public userEOA: Address,
