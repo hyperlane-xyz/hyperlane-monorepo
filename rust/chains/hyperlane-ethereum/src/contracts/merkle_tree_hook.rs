@@ -14,10 +14,9 @@ use hyperlane_core::{
     MerkleTreeInsertion, SequenceAwareIndexer, H256,
 };
 
-use crate::contracts::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
-use crate::trait_builder::BuildableWithProvider;
+use crate::interfaces::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
 use crate::tx::call_with_lag;
-use crate::{ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
