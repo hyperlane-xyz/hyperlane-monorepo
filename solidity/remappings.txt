@@ -1,8 +1,10 @@
 @openzeppelin=../node_modules/@openzeppelin
 @openzeppelin/contracts-upgradeable/=../node_modules/@openzeppelin/contracts-upgradeable/
+@openzeppelin/contracts/=lib/eigenlayer-middleware/lib/openzeppelin-contracts/contracts/
 @layerzerolabs=../node_modules/@layerzerolabs
 @eth-optimism=../node_modules/@eth-optimism
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
-@eigenlayer/core/=lib/eigenlayer-contracts/src/contracts/
+@eigenlayer/core/=lib/eigenlayer-contracts/src/contracts/core/
 @eigenlayer/middleware/=lib/eigenlayer-middleware/src/
+@eigenlayer/interfaces/=lib/eigenlayer-contracts/src/contracts/interfaces/
