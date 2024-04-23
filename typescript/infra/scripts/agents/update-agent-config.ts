@@ -6,13 +6,12 @@ import { getEnvironmentConfig } from '../core-utils';
 async function main() {
   const { environment } = await getArgs().argv;
   const envConfig = getEnvironmentConfig(environment);
-  const env = deployEnvToSdkEnv[environment];
 
   let multiProvider = await envConfig.getMultiProvider();
 
   const addressesPath = getAddressesPath(environment, Modules.CORE);
 
-  await writeAgentConfig(addressesPath, multiProvider, env);
+  await writeAgentConfig(addressesPath, multiProvider, environment);
 }
 
 main()

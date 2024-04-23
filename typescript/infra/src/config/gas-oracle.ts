@@ -1,6 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AgentCosmosGasPrice,
   ChainMap,
   ChainName,
   StorageGasOracleConfig as DestinationOracleConfig,
@@ -8,11 +9,6 @@ import {
   chainMetadata,
   getCosmosRegistryChain,
 } from '@hyperlane-xyz/sdk';
-import {
-  ancient8,
-  mantapacific,
-  polygonzkevm,
-} from '@hyperlane-xyz/sdk/dist/consts/chainMetadata.js';
 import { ProtocolType, convertDecimals } from '@hyperlane-xyz/utils';
 
 import {
@@ -40,8 +36,6 @@ export interface GasPriceConfig {
 
 // Overcharge by 50% to account for market making risk
 const EXCHANGE_RATE_MARGIN_PCT = 50;
-
-const ETH_L2_GAS_PRICE_OVERHEAD = ethers.utils.parseUnits('1', 'gwei');
 
 // Gets the StorageGasOracleConfig for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
@@ -223,7 +217,7 @@ export function getTokenExchangeRateFromValues(
 
 export async function getCosmosChainGasPrice(
   chain: ChainName,
-): Promise<number> {
+): Promise<AgentCosmosGasPrice> {
   const metadata = chainMetadata[chain];
   if (!metadata) {
     throw new Error(`No metadata found for Cosmos chain ${chain}`);
@@ -245,5 +239,8 @@ export async function getCosmosChainGasPrice(
     throw new Error(`No gas price found for Cosmos chain ${chain}`);
   }
 
-  return fee.average_gas_price;
+  return {
+    denom: fee.denom,
+    amount: fee.average_gas_price.toString(),
+  };
 }

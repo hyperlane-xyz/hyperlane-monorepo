@@ -1,10 +1,6 @@
 import { ethers } from 'ethers';
 
-import {
-  MultiProtocolProvider,
-  ProviderType,
-  getCosmosRegistryChain,
-} from '@hyperlane-xyz/sdk';
+import { MultiProtocolProvider, ProviderType } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { mainnetConfigs } from '../config/environments/mainnet3/chains.js';
@@ -27,10 +23,10 @@ async function main() {
           };
         }
         case ProviderType.CosmJsWasm: {
-          const gasPrice = await getCosmosChainGasPrice(chain);
+          const { amount } = await getCosmosChainGasPrice(chain);
 
           return {
-            amount: gasPrice.toString(),
+            amount,
             decimals: 1,
           };
         }

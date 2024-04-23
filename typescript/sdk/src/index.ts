@@ -177,6 +177,7 @@ export {
   AgentChainMetadataSchema,
   AgentConfig,
   AgentConfigSchema,
+  AgentCosmosGasPrice,
   AgentLogFormat,
   AgentLogLevel,
   AgentSigner,

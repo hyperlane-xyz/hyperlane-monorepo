@@ -263,9 +263,13 @@ export function mustGetChainNativeToken(chain: ChainName): NativeToken {
   return metadata.nativeToken;
 }
 
-export function isEthereumProtocolChain(chainName: ChainName) {
+export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
   if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
+  return chainMetadata[chainName].protocol === protocol;
+}
+
+export function isEthereumProtocolChain(chainName: ChainName) {
+  return chainIsProtocol(chainName, ProtocolType.Ethereum);
 }
 
 export function getInfraPath() {
