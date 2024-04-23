@@ -3,6 +3,7 @@ import { providers } from 'ethers';
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { EvmHookReader } from '../hook/read.js';
 import { EvmIsmReader } from '../ism/read.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -10,14 +11,18 @@ import { ChainName } from '../types.js';
 
 import { CoreConfig } from './types.js';
 
-export class EvmCoreReader {
+interface CoreReader {
+  deriveCoreConfig(address: Address): Promise<CoreConfig>;
+}
+
+export class EvmCoreReader implements CoreReader {
   provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
   constructor(
     protected readonly multiProvider: MultiProvider,
     chain: ChainName,
-    protected readonly concurrency: number = 20,
+    readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
@@ -32,9 +37,11 @@ export class EvmCoreReader {
    */
   async deriveCoreConfig(address: Address): Promise<CoreConfig> {
     const mailbox = Mailbox__factory.connect(address, this.provider);
-    const defaultIsm = await mailbox.defaultIsm();
-    const defaultHook = await mailbox.defaultHook();
-    const requiredHook = await mailbox.requiredHook();
+    const [defaultIsm, defaultHook, requiredHook] = await Promise.all([
+      mailbox.defaultIsm(),
+      mailbox.defaultHook(),
+      mailbox.requiredHook(),
+    ]);
 
     // Parallelize each configuration request
     const results = await promiseObjAll(
