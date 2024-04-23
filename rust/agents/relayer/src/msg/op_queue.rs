@@ -88,7 +88,7 @@ impl OpQueue {
 mod test {
     use super::*;
     use crate::msg::pending_operation::PendingOperationResult;
-    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MpmcChannel, H256};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MpmcChannel, TxOutcome, H256};
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
@@ -147,7 +147,11 @@ mod test {
 
         /// Submit this operation to the blockchain and report if it was successful
         /// or not.
-        async fn submit(&mut self) -> PendingOperationResult {
+        async fn submit(&mut self) {
+            todo!()
+        }
+
+        fn set_submission_outcome(&mut self, _outcome: TxOutcome) {
             todo!()
         }
 

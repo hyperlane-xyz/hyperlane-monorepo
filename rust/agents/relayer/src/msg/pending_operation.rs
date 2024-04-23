@@ -1,9 +1,13 @@
-use std::{cmp::Ordering, fmt::Debug, time::Instant};
+use std::{
+    cmp::Ordering,
+    fmt::Debug,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
-use hyperlane_core::{HyperlaneDomain, H256};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxOutcome, H256};
 
-use super::op_queue::QueueOperation;
+use super::{op_queue::QueueOperation, pending_message::SubmissionData};
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
@@ -57,9 +61,11 @@ pub trait PendingOperation: Send + Sync + Debug {
     /// submit call.
     async fn prepare(&mut self) -> PendingOperationResult;
 
-    /// Submit this operation to the blockchain and report if it was successful
-    /// or not.
-    async fn submit(&mut self) -> PendingOperationResult;
+    /// Submit this operation to the blockchain
+    async fn submit(&mut self);
+
+    /// Set the outcome of the `submit` call
+    fn set_submission_outcome(&mut self, outcome: TxOutcome);
 
     /// This will be called after the operation has been submitted and is
     /// responsible for checking if the operation has reached a point at
@@ -71,6 +77,9 @@ pub trait PendingOperation: Send + Sync + Debug {
     /// This is only used for sorting, the functions are responsible for
     /// returning `NotReady` if it is too early and matters.
     fn next_attempt_after(&self) -> Option<Instant>;
+
+    /// Set the next time this operation should be attempted.
+    fn set_next_attempt_after(&mut self, delay: Duration);
 
     /// Reset the number of attempts this operation has made, causing it to be
     /// retried immediately.

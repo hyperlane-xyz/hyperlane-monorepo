@@ -235,7 +235,7 @@ async fn submit_task(
     domain: HyperlaneDomain,
     mut rx_submit: mpsc::Receiver<QueueOperation>,
     prepare_queue: OpQueue,
-    confirm_queue: OpQueue,
+    mut confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
     batch_size: Option<u32>,
 ) {
@@ -248,81 +248,73 @@ async fn submit_task(
     // which will return an error for non-PendingMessage types).
     // Otherwise, it submits them individually (op.submit()).
 
+    let mut batch = OperationBatch::new();
+
     while let Some(mut op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
         debug_assert_eq!(*op.destination_domain(), domain);
 
-        // How do we batch here?
-        match op.submit().await {
-            PendingOperationResult::Success => {
-                debug!(?op, "Operation submitted");
-                metrics.ops_submitted.inc();
-                confirm_queue.push(op).await;
+        match batch_size {
+            Some(batch_size) => {
+                batch.add(op);
+                if batch.operations.len() == batch_size as usize {
+                    batch.submit(&mut confirm_queue, &metrics).await;
+                    batch = OperationBatch::new();
+                }
             }
-            PendingOperationResult::NotReady => {
-                panic!("Pending operation was prepared and therefore must be ready")
-            }
-            PendingOperationResult::Reprepare => {
-                metrics.ops_failed.inc();
-                prepare_queue.push(op).await;
-            }
-            PendingOperationResult::Drop => {
-                metrics.ops_dropped.inc();
+            None => {
+                submit_and_confirm_op(op, &mut confirm_queue, &metrics).await;
             }
         }
     }
 }
 
+async fn submit_and_confirm_op(
+    mut op: QueueOperation,
+    confirm_queue: &mut OpQueue,
+    metrics: &SerialSubmitterMetrics,
+) {
+    op.submit().await;
+    debug!(?op, "Operation submitted");
+    confirm_queue.push(op).await;
+    metrics.ops_submitted.inc();
+}
+
+#[derive(new)]
 struct OperationBatch {
+    #[new(default)]
     operations: Vec<QueueOperation>,
-    domain: KnownHyperlaneDomain,
 }
 
 impl OperationBatch {
-    fn new() -> Self {
-        Self {
-            operations: Vec::new(),
-        }
-    }
-
     fn add(&mut self, op: QueueOperation) {
         self.operations.push(op);
     }
 
-    async fn submit(&mut self) -> Vec<PendingOperationResult> {
-        // without checking the concrete type, could have 
-        // a TryInto<(&HyperlaneMessage, &SubmissionData)> trait on `Box<dyn PendingOperation>`, which will only work for PendingMessage.
-        // 
+    async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
+        // without checking the concrete type, could have
+        // a TryInto<(&HyperlaneMessage, &SubmissionData)> supertrait on `PendingOperation`, which will only work for PendingMessage.
+        // later this may be convertible into a TryIntoBytes so it can be used universally
+        //
         // Then we can call `mailbox.process_batch` with these (returns an error on non-ethereum chains, so we fall back to individual submits).
         // We will then get a `tx_outcome` with the total gas expenditure
         // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
-        // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`, which kind of breaks the abstraction
+        // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`, and also `set_next_attempt_after(CONFIRM_DELAY);`
 
         // Then we increment `metrics.ops_submitted` by the number of operations in the batch and push them to the confirm queue
 
-        if self.domain == KnownHyperlaneDomain::Ethereum.into() {
-            self.submit_ethereum().await
-        } else {
-            self.submit_serially().await
-        }
+        // if self.domain == KnownHyperlaneDomain::Ethereum.into() {
+        //     self.submit_ethereum().await
+        // } else {
+        //     self.submit_serially().await
+        // }
+        self.submit_serially(confirm_queue, metrics).await;
     }
 
-    async fn submit_ethereum(&mut self) -> Vec<PendingOperationResult> {
-        // submit all operations in a single batch
-        let mut task_submit_futures = vec![];
-        for op in self.operations.iter_mut() {
-            task_submit_futures.push(op.submit());
+    async fn submit_serially(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
+        for op in self.operations.into_iter() {
+            submit_and_confirm_op(op, confirm_queue, metrics).await;
         }
-
-        join_all(task_submit_futures).await
-    }
-
-    async fn submit_serially(&mut self) -> Vec<PendingOperationResult> {
-        let mut results = vec![];
-        for op in self.operations.iter_mut() {
-            results.push(op.submit().await);
-        }
-        results
     }
 }
 
@@ -354,7 +346,7 @@ async fn confirm_task(
                 sleep(Duration::from_secs(5)).await;
             }
             PendingOperationResult::Reprepare => {
-                metrics.ops_reorged.inc();
+                metrics.ops_failed.inc();
                 prepare_queue.push(op).await;
             }
             PendingOperationResult::Drop => {
@@ -370,7 +362,7 @@ pub struct SerialSubmitterMetrics {
     ops_prepared: IntCounter,
     ops_submitted: IntCounter,
     ops_confirmed: IntCounter,
-    ops_reorged: IntCounter,
+    // ops_reorged: IntCounter,
     ops_failed: IntCounter,
     ops_dropped: IntCounter,
 }
@@ -389,9 +381,9 @@ impl SerialSubmitterMetrics {
             ops_confirmed: metrics
                 .operations_processed_count()
                 .with_label_values(&["confirmed", destination]),
-            ops_reorged: metrics
-                .operations_processed_count()
-                .with_label_values(&["reorged", destination]),
+            // ops_reorged: metrics
+            //     .operations_processed_count()
+            //     .with_label_values(&["reorged", destination]),
             ops_failed: metrics
                 .operations_processed_count()
                 .with_label_values(&["failed", destination]),
