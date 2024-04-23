@@ -8,20 +8,15 @@ use std::collections::HashMap;
 use ethers::abi::FunctionExt;
 use ethers::prelude::{abi, Lazy, Middleware};
 
-#[cfg(not(doctest))]
 pub use self::{config::*, contracts::*, ism::*, rpc_clients::*, signer::*};
 
-#[cfg(not(doctest))]
 mod tx;
 
-#[cfg(not(doctest))]
 mod contracts;
 
-#[cfg(not(doctest))]
 mod ism;
 
 /// Generated contract bindings.
-#[cfg(not(doctest))]
 mod interfaces;
 
 /// Ethers JSONRPC Client implementations
