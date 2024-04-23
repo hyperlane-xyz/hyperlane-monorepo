@@ -6,6 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
+use ethers::utils::hex;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
@@ -283,11 +284,6 @@ impl PendingOperation for PendingMessage {
             self.on_reprepare()
         });
 
-        let submission_outcome = self
-            .submission_outcome
-            .take()
-            .expect("Pending message must be submitted before it can be confirmed");
-
         if !self.is_ready() {
             return PendingOperationResult::NotReady;
         }
@@ -312,16 +308,18 @@ impl PendingOperation for PendingMessage {
             self.reset_attempts();
             PendingOperationResult::Success
         } else {
-            if let Err(e) = self
-                .ctx
-                .origin_gas_payment_enforcer
-                .record_tx_outcome(&self.message, submission_outcome.clone())
-            {
-                error!(error=?e, "Error when recording tx outcome");
+            if let Some(outcome) = &self.submission_outcome {
+                if let Err(e) = self
+                    .ctx
+                    .origin_gas_payment_enforcer
+                    .record_tx_outcome(&self.message, outcome.clone())
+                {
+                    error!(error=?e, "Error when recording tx outcome");
+                }
             }
             warn!(
                 tx_outcome=?self.submission_outcome,
-                message_id=self.message.id().to_string(),
+                message_id=hex::encode(self.message.id()),
                 "Transaction attempting to process message either reverted or was reorged"
             );
             self.on_reprepare()

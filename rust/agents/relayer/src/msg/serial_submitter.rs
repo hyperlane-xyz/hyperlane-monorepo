@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::time::Duration;
 
 use derive_new::new;
-use futures::future::join_all;
+use ethers::utils::hex;
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::spawn;
@@ -12,7 +12,7 @@ use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MpmcReceiver};
+use hyperlane_core::{HyperlaneDomain, MpmcReceiver};
 
 use crate::server::MessageRetryRequest;
 
@@ -176,55 +176,38 @@ async fn prepare_task(
 ) {
     let batch_size = batch_size.unwrap_or(1);
     loop {
-        // Pop messages here according to the configured batch.
-        let mut batch = vec![];
-        for _ in 0..batch_size {
-            let next = prepare_queue.pop().await;
-            if let Some(Reverse(op)) = next {
-                batch.push(op);
-            } else {
-                break;
-            }
-        }
+        // Pick the next message to try preparing.
+        let next = prepare_queue.pop().await;
 
-        if batch.is_empty() {
+        let Some(Reverse(mut op)) = next else {
             // queue is empty so give some time before checking again to prevent burning CPU
             sleep(Duration::from_millis(200)).await;
             continue;
-        }
+        };
 
-        let mut task_prep_futures = vec![];
-        let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
-        for op in op_refs {
-            trace!(?op, "Preparing operation");
-            debug_assert_eq!(*op.destination_domain(), domain);
-            task_prep_futures.push(op.prepare());
-        }
+        trace!(?op, "Preparing operation");
+        debug_assert_eq!(*op.destination_domain(), domain);
 
-        let res = join_all(task_prep_futures).await;
-
-        for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
-            match prepare_result {
-                PendingOperationResult::Success => {
-                    debug!(?op, "Operation prepared");
-                    metrics.ops_prepared.inc();
-                    // this send will pause this task if the submitter is not ready to accept yet
-                    if let Err(err) = tx_submit.send(op).await {
-                        tracing::error!(error=?err, "Failed to send prepared operation to submitter");
-                    }
+        match op.prepare().await {
+            PendingOperationResult::Success => {
+                debug!(?op, "Operation prepared");
+                metrics.ops_prepared.inc();
+                // this send will pause this task if the submitter is not ready to accept yet
+                if let Err(err) = tx_submit.send(op).await {
+                    tracing::error!(error=?err, "Failed to send prepared operation to submitter");
                 }
-                PendingOperationResult::NotReady => {
-                    // none of the operations are ready yet, so wait for a little bit
-                    prepare_queue.push(op).await;
-                    sleep(Duration::from_millis(200)).await;
-                }
-                PendingOperationResult::Reprepare => {
-                    metrics.ops_failed.inc();
-                    prepare_queue.push(op).await;
-                }
-                PendingOperationResult::Drop => {
-                    metrics.ops_dropped.inc();
-                }
+            }
+            PendingOperationResult::NotReady => {
+                // none of the operations are ready yet, so wait for a little bit
+                prepare_queue.push(op).await;
+                sleep(Duration::from_millis(200)).await;
+            }
+            PendingOperationResult::Reprepare => {
+                metrics.ops_failed.inc();
+                prepare_queue.push(op).await;
+            }
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
             }
         }
     }
@@ -234,7 +217,7 @@ async fn prepare_task(
 async fn submit_task(
     domain: HyperlaneDomain,
     mut rx_submit: mpsc::Receiver<QueueOperation>,
-    prepare_queue: OpQueue,
+    mut prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
     batch_size: Option<u32>,
@@ -258,12 +241,14 @@ async fn submit_task(
             Some(batch_size) => {
                 batch.add(op);
                 if batch.operations.len() == batch_size as usize {
-                    batch.submit(&mut confirm_queue, &metrics).await;
+                    batch
+                        .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
+                        .await;
                     batch = OperationBatch::new();
                 }
             }
             None => {
-                submit_and_confirm_op(op, &mut confirm_queue, &metrics).await;
+                submit_and_confirm_op(op, &mut prepare_queue, &mut confirm_queue, &metrics).await;
             }
         }
     }
@@ -271,6 +256,7 @@ async fn submit_task(
 
 async fn submit_and_confirm_op(
     mut op: QueueOperation,
+    prepare_queue: &mut OpQueue,
     confirm_queue: &mut OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
@@ -291,7 +277,12 @@ impl OperationBatch {
         self.operations.push(op);
     }
 
-    async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
+    async fn submit(
+        self,
+        prepare_queue: &mut OpQueue,
+        confirm_queue: &mut OpQueue,
+        metrics: &SerialSubmitterMetrics,
+    ) {
         // without checking the concrete type, could have
         // a TryInto<(&HyperlaneMessage, &SubmissionData)> supertrait on `PendingOperation`, which will only work for PendingMessage.
         // later this may be convertible into a TryIntoBytes so it can be used universally
@@ -308,12 +299,18 @@ impl OperationBatch {
         // } else {
         //     self.submit_serially().await
         // }
-        self.submit_serially(confirm_queue, metrics).await;
+        self.submit_serially(prepare_queue, confirm_queue, metrics)
+            .await;
     }
 
-    async fn submit_serially(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
+    async fn submit_serially(
+        self,
+        prepare_queue: &mut OpQueue,
+        confirm_queue: &mut OpQueue,
+        metrics: &SerialSubmitterMetrics,
+    ) {
         for op in self.operations.into_iter() {
-            submit_and_confirm_op(op, confirm_queue, metrics).await;
+            submit_and_confirm_op(op, prepare_queue, confirm_queue, metrics).await;
         }
     }
 }
