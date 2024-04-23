@@ -53,11 +53,17 @@ export const RoutingIsmConfigSchema = OwnableConfigSchema.and(
 
 export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> =
   z.lazy(() =>
-    z.object({
-      type: z.literal(IsmType.AGGREGATION),
-      modules: z.array(IsmConfigSchema),
-      threshold: z.number(),
-    }),
+    z
+      .object({
+        type: z.literal(IsmType.AGGREGATION),
+        modules: z.array(IsmConfigSchema),
+        threshold: z.number(),
+      })
+      .refine((data) => {
+        if (data.threshold > data.modules.length) return false;
+
+        return true;
+      }),
   );
 
 export const IsmConfigSchema: z.ZodSchema<IsmConfig> = z.lazy(() =>
