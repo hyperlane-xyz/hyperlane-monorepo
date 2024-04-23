@@ -1,11 +1,10 @@
 import { input } from '@inquirer/prompts';
 import { ethers, providers } from 'ethers';
 
+import { impersonateAccount } from '@hyperlane-xyz/sdk';
 import { Address, ensure0x } from '@hyperlane-xyz/utils';
 
 import { ContextSettings, KeyConfig } from '../context.js';
-
-import { impersonateAccount } from './fork.js';
 
 const ETHEREUM_ADDRESS_LENGTH = 42;
 const DEFAULT_KEY_TYPE = 'private key';
