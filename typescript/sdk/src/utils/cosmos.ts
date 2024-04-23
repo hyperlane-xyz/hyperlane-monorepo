@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+// Generated from https://github.com/cosmos/chain-registry/blob/master/chain.schema.json
+// using https://stefanterdell.github.io/json-schema-to-zod-react/
 export const CosmosChainSchema = z
   .object({
     $schema: z
