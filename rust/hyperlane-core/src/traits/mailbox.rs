@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::num::NonZeroU64;
 
 use async_trait::async_trait;
-use auto_impl::auto_impl;
 
 use crate::{
     traits::TxOutcome, utils::domain_hash, ChainResult, HyperlaneContract, HyperlaneMessage,

@@ -363,7 +363,7 @@ where
         Ok(receipt.into())
     }
 
-    // #[instrument(skip(self, messages))]
+    #[instrument(skip(self, messages))]
     async fn process_batch(
         &self,
         messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,

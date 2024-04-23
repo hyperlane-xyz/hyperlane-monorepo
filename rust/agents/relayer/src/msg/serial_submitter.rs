@@ -12,7 +12,7 @@ use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneDomain, MpmcReceiver};
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MpmcReceiver};
 
 use crate::server::MessageRetryRequest;
 
@@ -270,6 +270,59 @@ async fn submit_task(
                 metrics.ops_dropped.inc();
             }
         }
+    }
+}
+
+struct OperationBatch {
+    operations: Vec<QueueOperation>,
+    domain: KnownHyperlaneDomain,
+}
+
+impl OperationBatch {
+    fn new() -> Self {
+        Self {
+            operations: Vec::new(),
+        }
+    }
+
+    fn add(&mut self, op: QueueOperation) {
+        self.operations.push(op);
+    }
+
+    async fn submit(&mut self) -> Vec<PendingOperationResult> {
+        // without checking the concrete type, could have 
+        // a TryInto<(&HyperlaneMessage, &SubmissionData)> trait on `Box<dyn PendingOperation>`, which will only work for PendingMessage.
+        // 
+        // Then we can call `mailbox.process_batch` with these (returns an error on non-ethereum chains, so we fall back to individual submits).
+        // We will then get a `tx_outcome` with the total gas expenditure
+        // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
+        // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`, which kind of breaks the abstraction
+
+        // Then we increment `metrics.ops_submitted` by the number of operations in the batch and push them to the confirm queue
+
+        if self.domain == KnownHyperlaneDomain::Ethereum.into() {
+            self.submit_ethereum().await
+        } else {
+            self.submit_serially().await
+        }
+    }
+
+    async fn submit_ethereum(&mut self) -> Vec<PendingOperationResult> {
+        // submit all operations in a single batch
+        let mut task_submit_futures = vec![];
+        for op in self.operations.iter_mut() {
+            task_submit_futures.push(op.submit());
+        }
+
+        join_all(task_submit_futures).await
+    }
+
+    async fn submit_serially(&mut self) -> Vec<PendingOperationResult> {
+        let mut results = vec![];
+        for op in self.operations.iter_mut() {
+            results.push(op.submit().await);
+        }
+        results
     }
 }
 
