@@ -8,7 +8,7 @@
     "decimals": 9
   },
   "avalanche": {
-    "amount": "25.0",
+    "amount": "43.212830197",
     "decimals": 9
   },
   "bsc": {
@@ -20,7 +20,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "19.098476939",
+    "amount": "26.346912847",
     "decimals": 9
   },
   "mantapacific": {
@@ -52,7 +52,7 @@
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "2.86",
+    "amount": "3.95",
     "decimals": 9
   },
   "inevm": {

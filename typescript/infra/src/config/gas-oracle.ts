@@ -8,9 +8,17 @@ import {
   chainMetadata,
   getCosmosRegistryChain,
 } from '@hyperlane-xyz/sdk';
+import {
+  ancient8,
+  mantapacific,
+  polygonzkevm,
+} from '@hyperlane-xyz/sdk/dist/consts/chainMetadata.js';
 import { ProtocolType, convertDecimals } from '@hyperlane-xyz/utils';
 
-import { mustGetChainNativeToken } from '../utils/utils.js';
+import {
+  isEthereumProtocolChain,
+  mustGetChainNativeToken,
+} from '../utils/utils.js';
 
 // Gas data to configure on a single local chain. Includes DestinationOracleConfig
 // for each remote chain.
@@ -43,6 +51,8 @@ function getLocalStorageGasOracleConfig(
   remotes: ChainName[],
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
+  getTokenUsdPrice?: (chain: ChainName) => number,
+  remoteOverhead?: (remote: ChainName) => number,
 ): StorageGasOracleConfig {
   return remotes.reduce((agg, remote) => {
     let exchangeRate = getTokenExchangeRate(local, remote);
@@ -83,21 +93,30 @@ function getLocalStorageGasOracleConfig(
       exchangeRate = adjustedExchangeRate;
       gasPrice *= gasPriceScalingFactor;
     }
+
     // Our integer gas price.
     let gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
 
-    const ethL2s = [
-      'scroll',
-      'base',
-      'optimism',
-      'arbitrum',
-      'inevm',
-      'ancient8',
-      'mantapacific',
-      'polygonzkevm',
-    ];
-    if (ethL2s.includes(remote)) {
-      gasPriceBn = gasPriceBn.add(ETH_L2_GAS_PRICE_OVERHEAD);
+    if (getTokenUsdPrice && remoteOverhead) {
+      const typicalRemoteGasAmount = remoteOverhead(remote) + 50_000;
+      const typicalIgpQuoteUsd = getUsdQuote(
+        local,
+        gasPriceBn,
+        exchangeRate,
+        typicalRemoteGasAmount,
+        getTokenUsdPrice,
+      );
+
+      const minUsdCost = getMinUsdCost(local, remote);
+      if (typicalIgpQuoteUsd < minUsdCost) {
+        // Adjust the gasPrice to meet the minimum cost
+        const minIgpQuote = ethers.utils.parseEther(
+          (minUsdCost / getTokenUsdPrice(local)).toPrecision(8),
+        );
+        gasPriceBn = minIgpQuote
+          .mul(TOKEN_EXCHANGE_RATE_SCALE)
+          .div(exchangeRate.mul(typicalRemoteGasAmount));
+      }
     }
 
     return {
@@ -110,13 +129,63 @@ function getLocalStorageGasOracleConfig(
   }, {});
 }
 
+function getMinUsdCost(local: ChainName, remote: ChainName): number {
+  // By default, min cost is 5 cents
+  let minUsdCost = 0.05;
+
+  // For Ethereum local, min cost is 2 USD
+  if (local === 'ethereum') {
+    minUsdCost = Math.max(minUsdCost, 2);
+  }
+
+  const remoteMinCostOverrides: ChainMap<number> = {
+    // For Ethereum L2s, we need to account for the L1 DA costs that
+    // aren't accounted for directly in the gas price.
+    base: 0.5,
+    optimism: 0.5,
+    arbitrum: 0.5,
+    ancient8: 0.5,
+    mantapacific: 0.5,
+    polygonzkevm: 0.5,
+    // Scroll is more expensive than the rest due to higher L1 fees
+    scroll: 2,
+    // Nexus adjustment
+    neutron: 0.2,
+  };
+  const override = remoteMinCostOverrides[remote];
+  if (override !== undefined) {
+    minUsdCost = Math.max(minUsdCost, override);
+  }
+
+  return minUsdCost;
+}
+
+function getUsdQuote(
+  local: ChainName,
+  gasPrice: BigNumber,
+  exchangeRate: BigNumber,
+  remoteGasAmount: number,
+  getTokenUsdPrice: (chain: ChainName) => number,
+): number {
+  const quote = gasPrice
+    .mul(exchangeRate)
+    .mul(remoteGasAmount)
+    .div(TOKEN_EXCHANGE_RATE_SCALE);
+  const quoteUsd =
+    getTokenUsdPrice(local) * parseFloat(ethers.utils.formatEther(quote));
+
+  return quoteUsd;
+}
+
 // Gets the StorageGasOracleConfig for each local chain
 export function getAllStorageGasOracleConfigs(
   chainNames: ChainName[],
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
+  getTokenUsdPrice?: (chain: ChainName) => number,
+  remoteOverhead?: (remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {
-  return chainNames.reduce((agg, local) => {
+  return chainNames.filter(isEthereumProtocolChain).reduce((agg, local) => {
     const remotes = chainNames.filter((chain) => local !== chain);
     return {
       ...agg,
@@ -125,6 +194,8 @@ export function getAllStorageGasOracleConfigs(
         remotes,
         gasPrices,
         getTokenExchangeRate,
+        getTokenUsdPrice,
+        remoteOverhead,
       ),
     };
   }, {}) as AllStorageGasOracleConfigs;
