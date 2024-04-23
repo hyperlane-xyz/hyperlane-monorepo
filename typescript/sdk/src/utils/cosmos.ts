@@ -448,7 +448,7 @@ export async function getCosmosRegistryChain(chain: string) {
     const errorMessages = result.error.issues.map(
       (issue: any) => `${issue.path} => ${issue.message}`,
     );
-    throw new Error(`Invalid warp config:\n ${errorMessages.join('\n')}`);
+    throw new Error(`Invalid Cosmos chain:\n ${errorMessages.join('\n')}`);
   }
   return result.data;
 }
