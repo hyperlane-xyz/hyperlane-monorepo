@@ -75,8 +75,8 @@ export class EvmHookReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: ChainName,
-    readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly chain: ChainName,
+    protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
   }
