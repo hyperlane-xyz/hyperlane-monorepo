@@ -19,11 +19,12 @@ use hyperlane_core::{
     TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
-use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
-use crate::contracts::i_mailbox::{IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI};
-use crate::trait_builder::BuildableWithProvider;
+use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
+use crate::interfaces::i_mailbox::{
+    IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
+};
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
-use crate::{ConnectionConf, EthereumProvider, TransactionOverrides};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -420,7 +421,7 @@ impl HyperlaneAbi for EthereumMailboxAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IMAILBOX_ABI)
+        crate::extract_fn_map(&IMAILBOX_ABI)
     }
 }
 
@@ -438,7 +439,7 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::{ConnectionConf, EthereumMailbox, RpcConnectionConf};
+    use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
 
     /// An amount of gas to add to the estimated gas
     const GAS_ESTIMATE_BUFFER: u32 = 50000;

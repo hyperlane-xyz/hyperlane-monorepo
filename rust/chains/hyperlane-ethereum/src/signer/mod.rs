@@ -8,6 +8,9 @@ use hyperlane_core::{
     HyperlaneSigner, HyperlaneSignerError, Signature as HyperlaneSignature, H160, H256,
 };
 
+mod singleton;
+pub use singleton::*;
+
 /// Ethereum-supported signer types
 #[derive(Debug, Clone)]
 pub enum Signers {
@@ -120,7 +123,7 @@ mod test {
         Checkpoint, CheckpointWithMessageId, HyperlaneSigner, HyperlaneSignerExt, H256,
     };
 
-    use crate::signers::Signers;
+    use super::Signers;
 
     #[test]
     fn it_sign() {
