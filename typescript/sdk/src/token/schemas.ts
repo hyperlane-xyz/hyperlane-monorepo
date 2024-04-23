@@ -63,8 +63,11 @@ export const SyntheticConfigSchema = TokenMetadataSchema.partial().merge(
   }),
 );
 
-/// @dev discriminatedUnion is basically a switch statement for zod schemas
-/// It uses the 'type' key to pick from the array of schemas to validate
+/**
+ * @remarks
+ * The discriminatedUnion is basically a switch statement for zod schemas
+ * It uses the 'type' key to pick from the array of schemas to validate
+ */
 export const TokenConfigSchema = z.discriminatedUnion('type', [
   NativeConfigSchema,
   CollateralConfigSchema,

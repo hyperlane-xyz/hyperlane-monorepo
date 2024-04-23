@@ -12,7 +12,6 @@
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
     "prettier": "^2.8.8",
-    "ts-to-zod": "^3.8.2",
     "tsx": "^4.7.1"
   },
   "dependencies": {
