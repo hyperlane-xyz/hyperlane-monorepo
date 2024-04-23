@@ -3,42 +3,25 @@
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
-use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::AbiEncode;
-use ethers::prelude::Middleware;
-use ethers_contract::builders::ContractCall;
-use starknet::signers::LocalWallet;
+use starknet::accounts::Execution;
+use starknet::core::types::FieldElement;
 use tracing::instrument;
 
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H160, H256, U256,
+    HyperlaneProvider, Mailbox, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::bindings::Mailbox as StarknetMailboxInternal;
-use crate::trait_builder::BuildableWithProvider;
 use crate::{ConnectionConf, Signer, StarknetProvider};
 
-use cainome::rs::abigen;
-
-abigen!(
-    Mailbox,
-    "abis/Mailbox.contract_class.json",
-     type_aliases {
-        openzeppelin::access::ownable::ownable::OwnableComponent::Event as OwnableCptEvent;
-        openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event as UpgradeableCptEvent;
-     },
-    output_path("src/bindings.rs")
-);
-
-impl std::fmt::Display for StarknetMailboxInternal
+impl<A> std::fmt::Display for StarknetMailboxInternal<A>
 where
-    M: Middleware,
+    A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
@@ -49,24 +32,27 @@ where
 #[derive(Debug)]
 pub struct StarknetMailbox<A>
 where
-    A: starknet::accounts::ConnectedAccount + Sync,
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
 {
     contract: Arc<StarknetMailboxInternal<A>>,
-    provider: StarknetProvider,
+    provider: StarknetProvider<A>,
     conn: ConnectionConf,
 }
 
-impl StarknetMailbox {
+impl<A> StarknetMailbox<A>
+where
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+{
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
     pub fn new(conn: &ConnectionConf, locator: &ContractLocator, signer: Option<Signer>) -> Self {
-        let provider = StarknetProvider::new(conn.domain.clone(), conn, signer);
+        let provider: StarknetProvider<A> =
+            StarknetProvider::new(locator.domain.clone(), conn, signer);
         Self {
             contract: Arc::new(StarknetMailboxInternal::new(
-                locator.address,
-                provider.rpc_client(),
+                FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
+                *provider.account().unwrap(),
             )),
-            domain: provider.domain(),
             provider,
             conn: conn.clone(),
         }
@@ -79,37 +65,52 @@ impl StarknetMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
-    ) -> ChainResult {
-        todo!()
+    ) -> ChainResult<Execution<'_, A>> {
+        let tx = self.contract.process(metadata.into(), message);
+        let gas_estimate = match tx_gas_estimate {
+            Some(estimate) => FieldElement::from_dec_str(estimate.to_string().as_str())?,
+            None => tx.estimate_fee().await?.overall_fee,
+        };
+        Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
 }
 
-impl HyperlaneChain for StarknetMailbox {
+impl<A> HyperlaneChain for StarknetMailbox<A>
+where
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+{
     fn domain(&self) -> &HyperlaneDomain {
         &self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(StarknetProvider::new(
-            self.provider.clone(),
-            self.domain.clone(),
+        Box::new(StarknetProvider::<A>::new(
+            self.provider.domain().clone(),
+            &self.conn,
             None,
         ))
     }
 }
 
-impl HyperlaneContract for StarknetMailbox {
+impl<A> HyperlaneContract for StarknetMailbox<A>
+where
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+{
     fn address(&self) -> H256 {
-        self.contract.address().into()
+        self.contract.address.into()
     }
 }
 
 #[async_trait]
-impl Mailbox for StarknetMailbox {
+impl<A> Mailbox for StarknetMailbox<A>
+where
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+{
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.nonce(), &self.provider, maybe_lag).await?;
-        let nonce = call.call().await?;
+        // TODO: add lag support
+        let reader = self.contract.reader();
+        let nonce = self.contract.nonce().call().await?;
         Ok(nonce)
     }
 
@@ -120,7 +121,7 @@ impl Mailbox for StarknetMailbox {
 
     #[instrument(skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        Ok(self.contract.default_ism().call().await?.into())
+        Ok(self.contract.get_default_ism().call().await?.into())
     }
 
     #[instrument(skip(self))]
@@ -175,12 +176,7 @@ impl Mailbox for StarknetMailbox {
     }
 
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        let process_call = ProcessCall {
-            message: RawHyperlaneMessage::from(message).to_vec().into(),
-            metadata: metadata.to_vec().into(),
-        };
-
-        AbiEncode::encode(process_call)
+        todo!()
     }
 }
 
