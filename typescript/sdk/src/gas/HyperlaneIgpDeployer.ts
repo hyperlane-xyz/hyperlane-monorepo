@@ -47,7 +47,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [],
       [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
-    return igp;
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
@@ -124,13 +123,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         });
       }
 
-      const exampleRemoteGas = 200_000;
+      const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
       const exampleRemoteGasCost = desired.tokenExchangeRate
         .mul(desired.gasPrice)
         .mul(exampleRemoteGas)
         .div(TOKEN_EXCHANGE_RATE_SCALE);
       this.logger.info(
-        `-> ${remote} - 200k remote gas cost: ${ethers.utils.formatEther(
+        `-> ${remote} - ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
           exampleRemoteGasCost,
         )}`,
       );

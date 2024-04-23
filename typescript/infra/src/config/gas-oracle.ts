@@ -150,7 +150,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 2,
     // Nexus adjustment
-    neutron: 0.2,
+    neutron: 0.5,
   };
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {
