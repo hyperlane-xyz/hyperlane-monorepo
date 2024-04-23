@@ -19,8 +19,6 @@ use crate::server::MessageRetryRequest;
 use super::op_queue::{OpQueue, QueueOperation};
 use super::pending_operation::*;
 
-pub const MESSAGES_PER_BATCH: usize = 1;
-
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
 /// chain. It is designed to be used in a scenario allowing only one
@@ -78,6 +76,8 @@ pub struct SerialSubmitter {
     retry_rx: MpmcReceiver<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
+    /// Batch size for submitting messages
+    batch_size: Option<u32>,
 }
 
 impl SerialSubmitter {
@@ -92,6 +92,7 @@ impl SerialSubmitter {
             metrics,
             rx: rx_prepare,
             retry_rx,
+            batch_size,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
@@ -121,6 +122,7 @@ impl SerialSubmitter {
                 prepare_queue.clone(),
                 tx_submit,
                 metrics.clone(),
+                batch_size,
             )),
             spawn(submit_task(
                 domain.clone(),
@@ -128,6 +130,7 @@ impl SerialSubmitter {
                 prepare_queue.clone(),
                 confirm_queue.clone(),
                 metrics.clone(),
+                batch_size,
             )),
             spawn(confirm_task(
                 domain.clone(),
@@ -169,11 +172,13 @@ async fn prepare_task(
     mut prepare_queue: OpQueue,
     tx_submit: mpsc::Sender<QueueOperation>,
     metrics: SerialSubmitterMetrics,
+    batch_size: Option<u32>,
 ) {
+    let batch_size = batch_size.unwrap_or(1);
     loop {
         // Pop messages here according to the configured batch.
         let mut batch = vec![];
-        for _ in 0..MESSAGES_PER_BATCH {
+        for _ in 0..batch_size {
             let next = prepare_queue.pop().await;
             if let Some(Reverse(op)) = next {
                 batch.push(op);
@@ -232,11 +237,22 @@ async fn submit_task(
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
+    batch_size: Option<u32>,
 ) {
+    // based on the batch_size, somehow combine multiple operations into one and call
+    // `mailbox.process_batch` (if PendingMessage).
+    // Currently we only want to batch messages, so it'd make sense to mix some concrete type
+    // logic in.
+    // Alternatively, we could have a `BatchedOperation` that wraps a `PendingOperation` and
+    // when `submit` is called on it, it only batches if all operations have the same type (try_process_batch,
+    // which will return an error for non-PendingMessage types).
+    // Otherwise, it submits them individually (op.submit()).
+
     while let Some(mut op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
         debug_assert_eq!(*op.destination_domain(), domain);
 
+        // How do we batch here?
         match op.submit().await {
             PendingOperationResult::Success => {
                 debug!(?op, "Operation submitted");

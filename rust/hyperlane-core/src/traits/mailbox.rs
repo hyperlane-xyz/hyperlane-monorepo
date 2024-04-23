@@ -43,7 +43,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Process a message with a proof against the provided signed checkpoint
     async fn process_batch(
-        &mut self,
+        &self,
         messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
     ) -> ChainResult<TxOutcome>;
 

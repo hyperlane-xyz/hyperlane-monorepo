@@ -477,7 +477,7 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn process_batch(
-        &mut self,
+        &self,
         _messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
     ) -> ChainResult<TxOutcome> {
         todo!()

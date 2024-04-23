@@ -48,12 +48,14 @@ pub struct MessageContext {
 /// A message that the submitter can and should try to submit.
 #[derive(new)]
 pub struct PendingMessage {
+    // needs to be vectorized
     pub message: HyperlaneMessage,
     ctx: Arc<MessageContext>,
     app_context: Option<String>,
     #[new(default)]
     submitted: bool,
     #[new(default)]
+    // needs to be vectorized
     submission_data: Option<Box<SubmissionData>>,
     #[new(default)]
     num_retries: u32,
@@ -256,9 +258,9 @@ impl PendingOperation for PendingMessage {
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        self.ctx
-            .destination_mailbox
-            .process(&self.message, &state.metadata, Some(state.gas_limit));
+        // self.ctx
+        //     .destination_mailbox
+        //     .process_batch(vec![(&self.message, &state.metadata, Some(state.gas_limit))]);
         let tx_outcome = op_try!(
             self.ctx
                 .destination_mailbox
