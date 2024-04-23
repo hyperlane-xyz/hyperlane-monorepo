@@ -448,6 +448,14 @@ export {
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { filterByChains } from './utils/filter.js';
+export {
+  ANVIL_RPC_METHODS,
+  resetFork,
+  setFork,
+  impersonateAccount,
+  stopImpersonatingAccount,
+  getLocalProvider,
+} from './utils/fork.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';
 export {
   SealevelAccountDataWrapper,

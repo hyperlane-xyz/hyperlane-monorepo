@@ -1,13 +1,14 @@
-import { MultiProvider } from '@hyperlane-xyz/sdk';
-
-import { Command } from '../commands/deploy.js';
-import { logGray, logGreen, warnYellow } from '../logger.js';
 import {
   ANVIL_RPC_METHODS,
+  MultiProvider,
   getLocalProvider,
   resetFork,
   setFork,
-} from '../utils/fork.js';
+} from '@hyperlane-xyz/sdk';
+
+import { Command } from '../commands/deploy.js';
+import { logGray, logGreen, warnYellow } from '../logger.js';
+import { ENV } from '../utils/env.js';
 
 import { toUpperCamelCase } from './utils.js';
 
@@ -33,7 +34,7 @@ export async function forkNetworkToMultiProvider(
 export async function verifyAnvil() {
   logGray('🔎 Verifying anvil node is running...');
 
-  const provider = getLocalProvider();
+  const provider = getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT);
   try {
     await provider.send(ANVIL_RPC_METHODS.NODE_INFO, []);
   } catch (error: any) {
