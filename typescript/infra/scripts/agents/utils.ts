@@ -32,6 +32,9 @@ export class AgentCli {
       switch (role) {
         case Role.Validator:
           for (const chain of this.agentConfig.contextChainNames[role]) {
+            if (chain !== 'mode' && chain !== 'blast') {
+              continue;
+            }
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }
