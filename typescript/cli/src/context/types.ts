@@ -1,7 +1,12 @@
-import { ethers } from 'ethers';
+import type { ethers } from 'ethers';
+import type { CommandModule } from 'yargs';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
-import { ChainMap, ChainMetadata, MultiProvider } from '@hyperlane-xyz/sdk';
+import type { IRegistry } from '@hyperlane-xyz/registry';
+import type {
+  ChainMap,
+  ChainMetadata,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
   commandName: string;
@@ -18,3 +23,8 @@ export interface CommandContext {
   skipConfirmation: boolean;
   signer: ethers.Signer;
 }
+
+export type CommandModuleWithContext<Args> = CommandModule<
+  {},
+  Args & { context: CommandContext }
+>;

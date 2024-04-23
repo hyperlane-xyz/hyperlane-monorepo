@@ -113,13 +113,6 @@ export const warpConfigCommandOption: Options = {
   alias: 'w',
 };
 
-export const outDirCommandOption: Options = {
-  type: 'string',
-  description: 'A folder name output artifacts into',
-  default: './artifacts',
-  alias: 'o',
-};
-
 export const coreArtifactsOption: Options = {
   type: 'string',
   description: 'File path to core deployment output artifacts',
@@ -137,20 +130,19 @@ export const agentConfigCommandOption: Options = {
   description: 'File path to agent configuration artifacts',
 };
 
-export const fileFormatOption: Options = {
-  type: 'string',
-  description: 'Output file format',
-  choices: ['json', 'yaml'],
-  default: 'yaml',
-  alias: 'f',
-};
-
 export const outputFileOption = (defaultPath: string): Options => ({
   type: 'string',
   description: 'Output file path',
   default: defaultPath,
   alias: 'o',
 });
+
+export const inputFileOption: Options = {
+  type: 'string',
+  description: 'Input file path',
+  alias: 'i',
+  demandOption: true,
+};
 
 export const dryRunOption: Options = {
   type: 'boolean',

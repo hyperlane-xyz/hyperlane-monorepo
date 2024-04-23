@@ -1,8 +1,6 @@
 import { CommandModule } from 'yargs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
-
-import { CommandContext } from '../context/types.js';
+import { CommandModuleWithContext } from '../context/types.js';
 import { log, logBlue, logGray, logTable } from '../logger.js';
 
 const ChainTypes = ['mainnet', 'testnet'];
@@ -26,18 +24,16 @@ export const chainsCommand: CommandModule = {
 /**
  * List command
  */
-const listCommand: CommandModule = {
+const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
   command: 'list',
   describe: 'List all chains included in a registry',
-  builder: (yargs) =>
-    yargs.option('type', {
+  builder: {
+    type: {
       describe: 'Specify the type of chains',
       choices: ChainTypes,
-    }),
-  handler: async (args) => {
-    const type = args.type as ChainType | undefined;
-    const context = args.context as CommandContext;
-
+    },
+  },
+  handler: async ({ type, context }) => {
     const logChainsForType = (type: ChainType) => {
       logBlue(`\nHyperlane ${type} chains:`);
       logGray('------------------------------');
@@ -67,20 +63,17 @@ const listCommand: CommandModule = {
 /**
  * Addresses command
  */
-const addressesCommand: CommandModule = {
+const addressesCommand: CommandModuleWithContext<{ name: string }> = {
   command: 'addresses',
   describe: 'Display the addresses of core Hyperlane contracts',
-  builder: (yargs) =>
-    yargs.options({
-      name: {
-        type: 'string',
-        description: 'Chain to display addresses for',
-        alias: 'chain',
-      },
-    }),
-  handler: async (args) => {
-    const name = args.name as ChainName | undefined;
-    const context = args.context as CommandContext;
+  builder: {
+    name: {
+      type: 'string',
+      description: 'Chain to display addresses for',
+      alias: 'chain',
+    },
+  },
+  handler: async ({ name, context }) => {
     if (name) {
       const result = await context.registry.getChainAddresses(name);
       logBlue('Hyperlane contract addresses for:', name);

@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
-import { WRITE_COMMANDS } from '../commands/WriteCommands.js';
+import { WRITE_COMMANDS } from '../commands/writeCommands.js';
 import { forkNetworkToMultiProvider } from '../deploy/dry-run.js';
 import { MergedRegistry } from '../registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
