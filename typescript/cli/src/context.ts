@@ -90,11 +90,20 @@ export async function getDryRunContext<P extends ContextSettings>({
   } as CommandContext<P>;
 }
 
+/**
+ * Creates a new MergedRegistry using the provided URIs
+ * The intention of the MergedRegistry is to join the common data
+ * from a primary URI (such as the Hyperlane default Github repo)
+ * and an override one (such as a local directory)
+ * @returns a new MergedRegistry
+ */
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
 ): IRegistry {
-  return new MergedRegistry({ primaryRegistryUri, overrideRegistryUri });
+  return new MergedRegistry({
+    registryUris: [primaryRegistryUri, overrideRegistryUri],
+  });
 }
 
 /**

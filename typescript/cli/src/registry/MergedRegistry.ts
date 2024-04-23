@@ -18,53 +18,43 @@ import {
 } from '@hyperlane-xyz/utils';
 
 export interface MergedRegistryOptions {
-  primaryRegistryUri: string;
-  overrideRegistryUri: string;
+  registryUris: Array<string>;
   isDryRun?: boolean;
   logger?: Logger;
 }
 
 export class MergedRegistry extends BaseRegistry implements IRegistry {
   public readonly type = RegistryType.Local;
-  public readonly primaryRegistry: IRegistry;
-  public readonly overrideRegistry: IRegistry;
+  public readonly registries: Array<IRegistry>;
   public readonly isDryRun: boolean;
 
-  constructor({
-    primaryRegistryUri,
-    overrideRegistryUri,
-    logger,
-    isDryRun,
-  }: MergedRegistryOptions) {
+  constructor({ registryUris, logger, isDryRun }: MergedRegistryOptions) {
     logger ||= rootLogger.child({ module: 'MergedRegistry' });
     super({ logger });
 
-    // If not provided, allow the GithubRegistry to use its default
-    if (isHttpsUrl(primaryRegistryUri)) {
-      this.primaryRegistry = new GithubRegistry({
-        uri: primaryRegistryUri,
-        logger: logger.child({ registry: 'primary-github' }),
-      });
-    } else {
-      this.primaryRegistry = new LocalRegistry({
-        uri: primaryRegistryUri,
-        logger: logger.child({ registry: 'primary-local' }),
-      });
-    }
+    if (!registryUris.length)
+      throw new Error('At least one registry URI is required');
 
-    this.overrideRegistry = new LocalRegistry({
-      uri: overrideRegistryUri,
-      logger: logger.child({ registry: 'override-local' }),
+    this.registries = registryUris.map((uri, index) => {
+      // If not provided, allow the GithubRegistry to use its default
+      if (isHttpsUrl(uri)) {
+        return new GithubRegistry({ uri, logger: logger.child({ index }) });
+      } else {
+        return new LocalRegistry({ uri, logger: logger.child({ index }) });
+      }
     });
 
     this.isDryRun = !!isDryRun;
   }
 
   async listRegistryContent(): Promise<RegistryContent> {
-    const primaryContent = await this.primaryRegistry.listRegistryContent();
-    if (!this.overrideRegistry) return primaryContent;
-    const overrideContent = await this.overrideRegistry.listRegistryContent();
-    return objMerge(primaryContent, overrideContent);
+    const results = await Promise.all(
+      this.registries.map((registry) => registry.listRegistryContent()),
+    );
+    return results.reduce((acc, content) => objMerge(acc, content), {
+      chains: {},
+      deployments: {},
+    });
   }
 
   async getChains(): Promise<Array<ChainName>> {
@@ -72,10 +62,10 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }
 
   async getMetadata(): Promise<ChainMap<ChainMetadata>> {
-    const primaryMetadata = await this.primaryRegistry.getMetadata();
-    if (!this.overrideRegistry) return primaryMetadata;
-    const overrideMetadata = await this.overrideRegistry.getMetadata();
-    return objMerge(primaryMetadata, overrideMetadata);
+    const results = await Promise.all(
+      this.registries.map((registry) => registry.getMetadata()),
+    );
+    return results.reduce((acc, content) => objMerge(acc, content), {});
   }
 
   async getChainMetadata(chainName: ChainName): Promise<ChainMetadata | null> {
@@ -83,10 +73,10 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }
 
   async getAddresses(): Promise<ChainMap<ChainAddresses>> {
-    const primaryAddresses = await this.primaryRegistry.getAddresses();
-    if (!this.overrideRegistry) return primaryAddresses;
-    const overrideAddresses = await this.overrideRegistry.getAddresses();
-    return objMerge(primaryAddresses, overrideAddresses);
+    const results = await Promise.all(
+      this.registries.map((registry) => registry.getAddresses()),
+    );
+    return results.reduce((acc, content) => objMerge(acc, content), {});
   }
 
   async getChainAddresses(
@@ -95,38 +85,56 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     return (await this.getAddresses())[chainName] || null;
   }
 
-  async addChain(chains: {
+  async addChain(chain: {
     chainName: ChainName;
     metadata?: ChainMetadata;
     addresses?: ChainAddresses;
   }): Promise<void> {
-    // TODO change this when GithubRegistry supports write methods
-    if (this.primaryRegistry.type === RegistryType.Github) {
-      return this.overrideRegistry.addChain(chains);
-    } else {
-      return this.primaryRegistry.addChain(chains);
-    }
+    return this.multiRegistryWrite(
+      async (registry) => await registry.addChain(chain),
+      'adding chain',
+    );
   }
 
-  async updateChain(chains: {
+  async updateChain(chain: {
     chainName: ChainName;
     metadata?: ChainMetadata;
     addresses?: ChainAddresses;
   }): Promise<void> {
-    // TODO change this when GithubRegistry supports write methods
-    if (this.primaryRegistry.type === RegistryType.Github) {
-      return this.overrideRegistry.updateChain(chains);
-    } else {
-      return this.primaryRegistry.updateChain(chains);
-    }
+    return this.multiRegistryWrite(
+      async (registry) => await registry.updateChain(chain),
+      'updating chain',
+    );
   }
 
-  async removeChain(chains: ChainName): Promise<void> {
-    // TODO change this when GithubRegistry supports write methods
-    if (this.primaryRegistry.type === RegistryType.Github) {
-      return this.overrideRegistry.removeChain(chains);
-    } else {
-      return this.primaryRegistry.removeChain(chains);
+  async removeChain(chain: ChainName): Promise<void> {
+    return this.multiRegistryWrite(
+      async (registry) => await registry.removeChain(chain),
+      'removing chain',
+    );
+  }
+
+  protected async multiRegistryWrite(
+    writeFn: (registry: IRegistry) => Promise<void>,
+    logMsg: string,
+  ): Promise<void> {
+    for (const registry of this.registries) {
+      // TODO remove this when GithubRegistry supports write methods
+      if (registry.type === RegistryType.Github) {
+        this.logger.warn(`skipping ${logMsg} to registry ${registry.type}`);
+        continue;
+      }
+      try {
+        this.logger.info(`${logMsg} to registry ${registry.type}`);
+        await writeFn(registry);
+        this.logger.info(`done ${logMsg} to registry ${registry.type}`);
+      } catch (error) {
+        // To prevent loss of artifacts, MergedRegistry write methods are failure tolerant
+        this.logger.error(
+          `failure ${logMsg} to registry ${registry.type}`,
+          error,
+        );
+      }
     }
   }
 }
