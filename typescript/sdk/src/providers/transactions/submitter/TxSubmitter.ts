@@ -1,9 +1,7 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-
 import { HyperlaneTx } from '../HyperlaneTx.js';
+import { HyperlaneTxReceipt } from '../HyperlaneTxReceipt.js';
 
 export enum TxSubmitterType {
-  // DEFAULT /* Default submitter */,
   SIGNER /* Private key submitter */,
   IMPERSONATED_ACCOUNT /* Impersonated account submitter */,
   GNOSIS_SAFE /* Gnosis Safe submitter */,
@@ -11,7 +9,10 @@ export enum TxSubmitterType {
   // RETRY /* Retry submitter */ // TODO: Discuss
 }
 
-export interface TxSubmitterInterface<HTX extends HyperlaneTx> {
+export interface TxSubmitterInterface<
+  HTX extends HyperlaneTx,
+  HTR extends HyperlaneTxReceipt,
+> {
   /**
    * Defines the type of tx submitter
    */
@@ -20,39 +21,10 @@ export interface TxSubmitterInterface<HTX extends HyperlaneTx> {
    * Should execute all hyperlane txs and return their tx receipts
    * @param hyperlaneTxs The array of hyperlane txs to execute
    */
-  sendTxs(hyperlaneTxs: HTX[]): Promise<TransactionReceipt[]>;
+  submitTxs(hyperlaneTxs: HTX[]): Promise<HTR[]>;
   /**
    * Should execute a hyperlane tx and return its tx receipt
    * @param hyperlaneTx The hyperlane tx to execute
    */
-  sendTx(hyperlaneTx: HTX): Promise<TransactionReceipt>;
+  submitTx(hyperlaneTx: HTX): Promise<HTR>;
 }
-
-// export class TxSubmitter implements TxSubmitterInterface<HyperlaneTx> {
-//   constructor(
-//     public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.DEFAULT,
-//     public readonly multiProvider: MultiProvider,
-//     public readonly chain: ChainNameOrId,
-//   ) {
-//     this.multiProvider = multiProvider;
-//     this.chain = chain;
-//   }
-
-//   public async sendTxs(
-//     hyperlaneTxs: HyperlaneTx[],
-//   ): Promise<TransactionReceipt[]> {
-//     const txReceipts: TransactionReceipt[] = [];
-//     for (const hyperlaneTx of hyperlaneTxs) {
-//       const receipt = await this.sendTx(hyperlaneTx);;
-//       txReceipts.push(receipt);
-//     }
-//     return txReceipts;
-//   }
-
-//   public async sendTx(hyperlaneTx: HyperlaneTx): Promise<TransactionReceipt> {
-//     return await this.multiProvider.sendTransaction(
-//       this.chain,
-//       hyperlaneTx.populatedTx,
-//     );
-//   }
-// }

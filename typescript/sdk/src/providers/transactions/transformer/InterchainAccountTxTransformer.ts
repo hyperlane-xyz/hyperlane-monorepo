@@ -1,4 +1,7 @@
 import { PopulatedTransaction } from 'ethers';
+import { Logger } from 'pino';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainNameOrId } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
@@ -9,8 +12,12 @@ import { TxTransformerInterface, TxTransformerType } from './TxTransformer.js';
 export class InterchainAccountTxTransformer
   implements TxTransformerInterface<InterchainAccountHyperlaneTx>
 {
+  public readonly txTransformerType: TxTransformerType = TxTransformerType.ICA;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'transactions',
+  });
+
   constructor(
-    public readonly txTransformerType: TxTransformerType = TxTransformerType.ICA,
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainNameOrId,
   ) {
@@ -18,7 +25,6 @@ export class InterchainAccountTxTransformer
     this.chain = chain;
   }
 
-  // NOTE: We will not pass every field here– structure likely to change
   public async transformTxs(
     populatedTxs: PopulatedTransaction[],
   ): Promise<InterchainAccountHyperlaneTx[]> {
@@ -33,6 +39,8 @@ export class InterchainAccountTxTransformer
   public async transformTx(
     populatedTx: PopulatedTransaction,
   ): Promise<InterchainAccountHyperlaneTx> {
+    this.logger.debug('Transforming to InterchainAccountHyperlaneTx...');
+    // TODO: Transform to GnosisSafeHyperlaneTx w/ different 'to' set ?
     return new InterchainAccountHyperlaneTx(populatedTx);
   }
 }

@@ -1,48 +1,61 @@
-import { TransactionReceipt } from '@ethersproject/providers';
+import { ContractReceipt } from 'ethers';
+import { Logger } from 'pino';
 
 import { impersonateAccount } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainNameOrId } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
-import { HyperlaneTx } from '../HyperlaneTx.js';
+import { HyperlaneTxReceipt } from '../HyperlaneTxReceipt.js';
 import { ImpersonatedAccountHyperlaneTx } from '../ImpersonatedAccountHyperlaneTx.js';
 
 import { TxSubmitterInterface, TxSubmitterType } from './TxSubmitter.js';
 
 export class ImpersonatedAccountTxSubmitter
-  implements TxSubmitterInterface<ImpersonatedAccountHyperlaneTx>
+  implements
+    TxSubmitterInterface<ImpersonatedAccountHyperlaneTx, HyperlaneTxReceipt>
 {
-  public txSubmitterType: TxSubmitterType =
+  public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.IMPERSONATED_ACCOUNT;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'transactions',
+  });
 
   constructor(
-    public multiProvider: MultiProvider,
-    public chain: ChainNameOrId,
-    public userEOA: Address,
+    public readonly multiProvider: MultiProvider,
+    public readonly chain: ChainNameOrId,
+    public readonly userEOA: Address,
   ) {
     this.multiProvider = multiProvider;
     this.chain = chain;
     this.userEOA = userEOA;
   }
 
-  public async sendTxs(
-    hyperlaneTx: HyperlaneTx[],
-  ): Promise<TransactionReceipt[]> {
-    const txReceipts: TransactionReceipt[] = [];
-    for (const populatedTx of hyperlaneTx) {
-      const receipt = await this.sendTx(populatedTx);
-      txReceipts.push(receipt);
+  public async submitTxs(
+    hyperlaneTxs: ImpersonatedAccountHyperlaneTx[],
+  ): Promise<HyperlaneTxReceipt[]> {
+    const hyperlaneReceipts: HyperlaneTxReceipt[] = [];
+    for (const hyperlaneTx of hyperlaneTxs) {
+      const receipt = await this.submitTx(hyperlaneTx);
+      hyperlaneReceipts.push(receipt);
     }
-    return txReceipts;
+    return hyperlaneReceipts;
   }
 
-  public async sendTx(hyperlaneTx: HyperlaneTx): Promise<TransactionReceipt> {
+  public async submitTx(
+    hyperlaneTx: ImpersonatedAccountHyperlaneTx,
+  ): Promise<HyperlaneTxReceipt> {
     const signer = await impersonateAccount(this.userEOA);
     this.multiProvider.setSigner(this.chain, signer);
-    return await this.multiProvider.sendTransaction(
+    const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
       this.chain,
       hyperlaneTx.populatedTx,
     );
+
+    this.logger.debug(
+      `Submitted ImpersonatedAccountHyperlaneTx on ${this.chain}: ${receipt.transactionHash}`,
+    );
+
+    return receipt;
   }
 }

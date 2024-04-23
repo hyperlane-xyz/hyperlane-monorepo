@@ -1,50 +1,50 @@
-import { Provider, TransactionReceipt } from '@ethersproject/providers';
+import { Logger } from 'pino';
 
-import { ChainNameOrId } from '../../../types.js';
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { GnosisSafeHyperlaneTx } from '../GnosisSafeHyperlaneTx.js';
+import { HyperlaneTxReceipt } from '../HyperlaneTxReceipt.js';
 import { InterchainAccountHyperlaneTx } from '../InterchainAccountHyperlaneTx.js';
 
 import { TxSubmitterInterface, TxSubmitterType } from './TxSubmitter.js';
 
 export class GnosisSafeTxSubmitter
   implements
-    TxSubmitterInterface<GnosisSafeHyperlaneTx | InterchainAccountHyperlaneTx>
+    TxSubmitterInterface<
+      GnosisSafeHyperlaneTx | InterchainAccountHyperlaneTx,
+      HyperlaneTxReceipt
+    >
 {
-  public txSubmitterType: TxSubmitterType = TxSubmitterType.GNOSIS_SAFE;
+  public readonly txSubmitterType: TxSubmitterType =
+    TxSubmitterType.GNOSIS_SAFE;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'transactions',
+  });
 
-  constructor(public provider: Provider, public chain: ChainNameOrId) {
-    this.provider = provider;
-    this.chain = chain;
-  }
-
-  public async sendTxs(
-    hyperlaneTx: GnosisSafeHyperlaneTx[],
-  ): Promise<TransactionReceipt[]> {
-    const txReceipts: TransactionReceipt[] = [];
-    for (const populatedTx of hyperlaneTx) {
-      const receipt = await this.sendTx(populatedTx);
-      txReceipts.push(receipt);
+  public async submitTxs(
+    hyperlaneTxs: GnosisSafeHyperlaneTx[],
+  ): Promise<HyperlaneTxReceipt[]> {
+    const hyperlaneReceipts: HyperlaneTxReceipt[] = [];
+    for (const hyperlaneTx of hyperlaneTxs) {
+      const receipt = await this.submitTx(hyperlaneTx);
+      hyperlaneReceipts.push(receipt);
     }
-    return txReceipts;
+    return hyperlaneReceipts;
   }
 
-  public async sendTx(
+  public async submitTx(
     hyperlaneTx: GnosisSafeHyperlaneTx,
-  ): Promise<TransactionReceipt> {
-    // const safe = await this.getSafe(hyperlaneTx.safeAddress);
+  ): Promise<HyperlaneTxReceipt> {
+    await hyperlaneTx.safeService.proposeTransaction({
+      safeAddress: hyperlaneTx.safeAddress,
+      safeTransactionData: hyperlaneTx.safeTransactionData,
+      safeTxHash: hyperlaneTx.safeTxHash,
+      senderAddress: hyperlaneTx.senderAddress,
+      senderSignature: hyperlaneTx.senderSignature,
+    });
 
-    // TODO: Delete and replace with propose call to Gnosis Safe
-    const txnHash = await this.provider.call(hyperlaneTx.populatedTx);
-    return await this.provider.waitForTransaction(txnHash);
+    this.logger.debug(
+      `Submitted GnosisSafeHyperlaneTx to ${hyperlaneTx.safeAddress} on ${hyperlaneTx.chain}: ${hyperlaneTx.safeTxHash}`,
+    );
   }
-
-  // TODO: Implement. Currently copied from infra/src/utils/safe.ts
-  // private async getSafe(safeAddress: Address): Promise<Safe> {
-  //   const signer = this.multiProvider.getSigner(this.chain);
-  //   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
-  //   return Safe.create({
-  //     ethAdapter,
-  //     safeAddress: safeAddress,
-  //   });
-  // }
 }

@@ -1,41 +1,54 @@
-import { TransactionReceipt } from '@ethersproject/providers';
+import { ContractReceipt } from 'ethers';
+import { Logger } from 'pino';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainNameOrId } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
+import { HyperlaneTxReceipt } from '../HyperlaneTxReceipt.js';
 import { SignerHyperlaneTx } from '../SignerHyperlaneTx.js';
 
 import { TxSubmitterInterface, TxSubmitterType } from './TxSubmitter.js';
 
 export class SignerTxSubmitter
-  implements TxSubmitterInterface<SignerHyperlaneTx>
+  implements TxSubmitterInterface<SignerHyperlaneTx, HyperlaneTxReceipt>
 {
-  public txSubmitterType: TxSubmitterType = TxSubmitterType.SIGNER;
+  public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.SIGNER;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'transactions',
+  });
 
   constructor(
-    public multiProvider: MultiProvider,
-    public chain: ChainNameOrId,
+    public readonly multiProvider: MultiProvider,
+    public readonly chain: ChainNameOrId,
   ) {
     this.multiProvider = multiProvider;
     this.chain = chain;
   }
 
-  public async sendTxs(
+  public async submitTxs(
     hyperlaneTxs: SignerHyperlaneTx[],
-  ): Promise<TransactionReceipt[]> {
-    const txReceipts: TransactionReceipt[] = [];
+  ): Promise<HyperlaneTxReceipt[]> {
+    const hyperlaneReceipts: HyperlaneTxReceipt[] = [];
     for (const hyperlaneTx of hyperlaneTxs) {
-      const receipt = await this.sendTx(hyperlaneTx);
-      txReceipts.push(receipt);
+      const receipt = await this.submitTx(hyperlaneTx);
+      hyperlaneReceipts.push(receipt);
     }
-    return txReceipts;
+    return hyperlaneReceipts;
   }
 
-  public async sendTx(
+  public async submitTx(
     hyperlaneTx: SignerHyperlaneTx,
-  ): Promise<TransactionReceipt> {
-    return this.multiProvider.sendTransaction(
+  ): Promise<HyperlaneTxReceipt> {
+    const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
       this.chain,
       hyperlaneTx.populatedTx,
     );
+
+    this.logger.debug(
+      `Submitted SignerHyperlaneTx on ${this.chain}: ${receipt.transactionHash}`,
+    );
+
+    return receipt;
   }
 }

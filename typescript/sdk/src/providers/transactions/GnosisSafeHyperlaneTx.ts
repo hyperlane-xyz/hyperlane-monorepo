@@ -1,18 +1,22 @@
-import { PopulatedTransaction } from 'ethers';
+import SafeApiKit from '@safe-global/api-kit';
+
+import { Address } from '@hyperlane-xyz/utils';
+
+import { ChainName } from '../../types.js';
 
 import { HyperlaneTx } from './HyperlaneTx.js';
 
-enum OperationType {
+declare enum OperationType {
   Call = 0,
   DelegateCall = 1,
 }
-interface MetaTransactionData {
+export interface MetaTransactionData {
   to: string;
   value: string;
   data: string;
   operation?: OperationType;
 }
-interface SafeTransactionData extends MetaTransactionData {
+export interface SafeTransactionData extends MetaTransactionData {
   operation: OperationType;
   safeTxGas: string;
   baseGas: string;
@@ -21,36 +25,49 @@ interface SafeTransactionData extends MetaTransactionData {
   refundReceiver: string;
   nonce: number;
 }
-type ProposeTransactionProps = {
-  safeAddress: string;
-  safeTransactionData: SafeTransactionData;
-  safeTxHash: string;
-  senderAddress: string;
-  senderSignature: string;
-  origin?: string;
+
+export type GnosisSafeTxProps = {
+  safeAddress: Address;
 };
 
-export type GnosisSafeTxProps = ProposeTransactionProps & {};
+export type GnosisSafeHyperlaneTxProps = {
+  chain: ChainName;
+  safeAddress: Address;
+  safeTransactionData: SafeTransactionData;
+  safeTxHash: string;
+  senderAddress: Address;
+  senderSignature: string;
+  safeService: SafeApiKit.default;
+};
 
 export class GnosisSafeHyperlaneTx
   extends HyperlaneTx
   implements GnosisSafeTxProps
 {
-  constructor(
-    public populatedTx: PopulatedTransaction,
-    public safeAddress: string,
-    public safeTransactionData: SafeTransactionData,
-    public safeTxHash: string,
-    public senderAddress: string,
-    public senderSignature: string,
-    public origin?: string,
-  ) {
-    super(populatedTx);
+  public readonly chain: ChainName;
+  public readonly safeAddress: Address;
+  public readonly safeTransactionData: SafeTransactionData;
+  public readonly safeTxHash: string;
+  public readonly senderAddress: Address;
+  public readonly senderSignature: string;
+  public readonly safeService: SafeApiKit.default;
+
+  constructor({
+    chain,
+    safeAddress,
+    safeTransactionData,
+    safeTxHash,
+    senderAddress,
+    senderSignature,
+    safeService,
+  }: GnosisSafeHyperlaneTxProps) {
+    super();
+    this.chain = chain;
     this.safeAddress = safeAddress;
     this.safeTransactionData = safeTransactionData;
     this.safeTxHash = safeTxHash;
     this.senderAddress = senderAddress;
     this.senderSignature = senderSignature;
-    this.origin = origin;
+    this.safeService = safeService;
   }
 }

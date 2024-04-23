@@ -1,4 +1,7 @@
 import { PopulatedTransaction } from 'ethers';
+import { Logger } from 'pino';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainNameOrId } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
@@ -9,8 +12,13 @@ import { TxTransformerInterface, TxTransformerType } from './TxTransformer.js';
 export class SignerTxTransformer
   implements TxTransformerInterface<SignerHyperlaneTx>
 {
+  public readonly txTransformerType: TxTransformerType =
+    TxTransformerType.SIGNER;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'transactions',
+  });
+
   constructor(
-    public readonly txTransformerType: TxTransformerType = TxTransformerType.SIGNER,
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainNameOrId,
   ) {
@@ -18,7 +26,6 @@ export class SignerTxTransformer
     this.chain = chain;
   }
 
-  // NOTE: We will not pass every field here– structure likely to change
   public async transformTxs(
     populatedTxs: PopulatedTransaction[],
   ): Promise<SignerHyperlaneTx[]> {
@@ -33,6 +40,7 @@ export class SignerTxTransformer
   public async transformTx(
     populatedTx: PopulatedTransaction,
   ): Promise<SignerHyperlaneTx> {
+    this.logger.debug('Transforming to SignerHyperlaneTx...');
     return new SignerHyperlaneTx(populatedTx);
   }
 }
