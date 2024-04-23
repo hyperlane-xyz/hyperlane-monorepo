@@ -9,19 +9,20 @@ use ethers::providers::Middleware;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, RoutingIsm, H256,
+    CcipReadIsm, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, H256,
 };
 
-use crate::contracts::i_routing_ism::{IRoutingIsm as EthereumRoutingIsmInternal, IROUTINGISM_ABI};
-use crate::trait_builder::BuildableWithProvider;
-use crate::{ConnectionConf, EthereumProvider};
+pub use crate::interfaces::i_ccip_read_ism::{
+    ICcipReadIsm as EthereumCcipReadIsmInternal, OffchainLookup, ICCIPREADISM_ABI,
+};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
-pub struct RoutingIsmBuilder {}
+pub struct CcipReadIsmBuilder {}
 
 #[async_trait]
-impl BuildableWithProvider for RoutingIsmBuilder {
-    type Output = Box<dyn RoutingIsm>;
+impl BuildableWithProvider for CcipReadIsmBuilder {
+    type Output = Box<dyn CcipReadIsm>;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -29,21 +30,21 @@ impl BuildableWithProvider for RoutingIsmBuilder {
         _conn: &ConnectionConf,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumRoutingIsm::new(Arc::new(provider), locator))
+        Box::new(EthereumCcipReadIsm::new(Arc::new(provider), locator))
     }
 }
 
-/// A reference to an RoutingIsm contract on some Ethereum chain
+/// A reference to an CcipReadIsm contract on some Ethereum chain
 #[derive(Debug)]
-pub struct EthereumRoutingIsm<M>
+pub struct EthereumCcipReadIsm<M>
 where
     M: Middleware,
 {
-    contract: Arc<EthereumRoutingIsmInternal<M>>,
+    contract: Arc<EthereumCcipReadIsmInternal<M>>,
     domain: HyperlaneDomain,
 }
 
-impl<M> EthereumRoutingIsm<M>
+impl<M> EthereumCcipReadIsm<M>
 where
     M: Middleware + 'static,
 {
@@ -51,13 +52,13 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumRoutingIsmInternal::new(locator.address, provider)),
+            contract: Arc::new(EthereumCcipReadIsmInternal::new(locator.address, provider)),
             domain: locator.domain.clone(),
         }
     }
 }
 
-impl<M> HyperlaneChain for EthereumRoutingIsm<M>
+impl<M> HyperlaneChain for EthereumCcipReadIsm<M>
 where
     M: Middleware + 'static,
 {
@@ -73,7 +74,7 @@ where
     }
 }
 
-impl<M> HyperlaneContract for EthereumRoutingIsm<M>
+impl<M> HyperlaneContract for EthereumCcipReadIsm<M>
 where
     M: Middleware + 'static,
 {
@@ -83,27 +84,26 @@ where
 }
 
 #[async_trait]
-impl<M> RoutingIsm for EthereumRoutingIsm<M>
+impl<M> CcipReadIsm for EthereumCcipReadIsm<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err)]
-    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
-        let ism = self
-            .contract
-            .route(RawHyperlaneMessage::from(message).to_vec().into())
+    async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<()> {
+        self.contract
+            .get_offchain_verify_info(message.into())
             .call()
             .await?;
-        Ok(ism.into())
+        Ok(())
     }
 }
 
-pub struct EthereumRoutingIsmAbi;
+pub struct EthereumCcipReadIsmAbi;
 
-impl HyperlaneAbi for EthereumRoutingIsmAbi {
+impl HyperlaneAbi for EthereumCcipReadIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IROUTINGISM_ABI)
+        crate::extract_fn_map(&ICCIPREADISM_ABI)
     }
 }
