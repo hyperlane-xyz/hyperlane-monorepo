@@ -170,6 +170,10 @@ mod test {
             )
         }
 
+        fn set_next_attempt_after(&mut self, _delay: Duration) {
+            todo!()
+        }
+
         fn set_retries(&mut self, _retries: u32) {
             todo!()
         }

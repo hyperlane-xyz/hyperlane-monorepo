@@ -250,7 +250,7 @@ async fn submit_task(
 
     let mut batch = OperationBatch::new();
 
-    while let Some(mut op) = rx_submit.recv().await {
+    while let Some(op) = rx_submit.recv().await {
         trace!(?op, "Submitting operation");
         debug_assert_eq!(*op.destination_domain(), domain);
 
