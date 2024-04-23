@@ -1,43 +1,42 @@
-import _SafeApiKit from '@safe-global/api-kit';
-import _Safe, { EthersAdapter } from '@safe-global/protocol-kit';
+import SafeApiKit from '@safe-global/api-kit';
+import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import { getChain } from '../../config/registry.js';
 
-// Due to https://github.com/safe-global/safe-core-sdk/issues/419
+// NOTE about Safe:
+// Accessing lib through .default due to https://github.com/safe-global/safe-core-sdk/issues/419
 // See also https://github.com/safe-global/safe-core-sdk/issues/514
-const SafeApiKit = _SafeApiKit.default;
-const Safe = _Safe.default;
 
 export function getSafeService(
   chain: ChainName,
   multiProvider: MultiProvider,
-): _SafeApiKit.default {
+): SafeApiKit.default {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   const txServiceUrl = getChain(chain).gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl)
     throw new Error(`must provide tx service url for ${chain}`);
-  return new SafeApiKit({ txServiceUrl, ethAdapter });
+  return new SafeApiKit.default({ txServiceUrl, ethAdapter });
 }
 
 export function getSafe(
   chain: ChainName,
   multiProvider: MultiProvider,
   safeAddress: string,
-): Promise<_Safe.default> {
+): Promise<Safe.default> {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
-  return Safe.create({
+  return Safe.default.create({
     ethAdapter,
     safeAddress: safeAddress,
   });
 }
 
 export async function getSafeDelegates(
-  service: _SafeApiKit.default,
+  service: SafeApiKit.default,
   safeAddress: string,
 ) {
   const delegateResponse = await service.getSafeDelegates({ safeAddress });
