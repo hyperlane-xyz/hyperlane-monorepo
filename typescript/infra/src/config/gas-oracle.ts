@@ -91,6 +91,8 @@ function getLocalStorageGasOracleConfig(
     // Our integer gas price.
     let gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
 
+    // If we have access to these, let's use the USD prices to apply some minimum
+    // typical USD payment heuristics.
     if (getTokenUsdPrice && remoteOverhead) {
       const typicalRemoteGasAmount = remoteOverhead(remote) + 50_000;
       const typicalIgpQuoteUsd = getUsdQuote(
