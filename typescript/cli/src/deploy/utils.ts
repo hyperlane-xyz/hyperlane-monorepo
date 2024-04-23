@@ -6,6 +6,7 @@ import {
   IsmConfig,
   MultiProvider,
   MultisigConfig,
+  getLocalProvider,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -13,7 +14,7 @@ import { Command } from '../commands/deploy.js';
 import { parseIsmConfig } from '../config/ism.js';
 import { log, logGreen, logPink } from '../logger.js';
 import { assertGasBalances } from '../utils/balances.js';
-import { getLocalProvider } from '../utils/fork.js';
+import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
 import { completeDryRun } from './dry-run.js';
@@ -111,7 +112,7 @@ export async function prepareDeploy(
   await Promise.all(
     chains.map(async (chain: ChainName) => {
       const provider = dryRun
-        ? getLocalProvider()
+        ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
         : multiProvider.getProvider(chain);
       const currentBalance = await provider.getBalance(userAddress);
       initialBalances[chain] = currentBalance;
@@ -131,7 +132,7 @@ export async function completeDeploy(
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
     const provider = dryRun
-      ? getLocalProvider()
+      ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
       : multiProvider.getProvider(chain);
     const currentBalance = await provider.getBalance(userAddress);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
