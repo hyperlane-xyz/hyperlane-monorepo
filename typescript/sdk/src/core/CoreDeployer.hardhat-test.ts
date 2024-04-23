@@ -41,9 +41,7 @@ describe('core', async () => {
     const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  });
 
-  it('deploys', async () => {
     contracts = await deployer.deploy(coreConfig);
     core = new HyperlaneCore(contracts, multiProvider);
   });
@@ -123,6 +121,71 @@ describe('core', async () => {
     });
   });
 
+  describe('CoreConfigReader', async () => {
+    beforeEach(async () => {
+      contracts = await deployer.deploy(coreConfig);
+    });
+
+    async function deriveCoreConfig(chainName: string, mailboxAddress: string) {
+      return await new EvmCoreReader(multiProvider, chainName).deriveCoreConfig(
+        mailboxAddress,
+      );
+    }
+    it('should derive defaultIsm correctly', async () => {
+      await promiseObjAll(
+        objMap(contracts, async (chainName, contract) => {
+          const coreConfigOnChain = await deriveCoreConfig(
+            chainName,
+            contract.mailbox.address,
+          );
+
+          // Cast because we don't expect the 'string' type
+          const defaultIsmOnchain =
+            coreConfigOnChain.defaultIsm as DerivedIsmConfigWithAddress;
+          const defaultIsmTest = coreConfig[chainName]
+            .defaultIsm as DerivedIsmConfigWithAddress;
+
+          expect(defaultIsmOnchain.type).to.be.equal(defaultIsmTest.type);
+        }),
+      );
+    });
+    it('should derive defaultHook correctly', async () => {
+      await promiseObjAll(
+        objMap(contracts, async (chainName, contract) => {
+          const coreConfigOnChain = await deriveCoreConfig(
+            chainName,
+            contract.mailbox.address,
+          );
+
+          // Cast because we don't expect the 'string' type
+          const defaultHookOnchain =
+            coreConfigOnChain.defaultHook as HookConfig;
+          const defaultHookTest = coreConfig[chainName]
+            .defaultHook as HookConfig;
+
+          expect(defaultHookOnchain.type).to.be.equal(defaultHookTest.type);
+        }),
+      );
+    });
+    it('should derive requiredHook correctly', async () => {
+      await promiseObjAll(
+        objMap(contracts, async (chainName, contract) => {
+          const coreConfigOnChain = await deriveCoreConfig(
+            chainName,
+            contract.mailbox.address,
+          );
+          const requiredHookOnchain = coreConfigOnChain.requiredHook;
+          const requiredHookTest = coreConfig[chainName].requiredHook;
+
+          // Test all the fields
+          objMap(requiredHookTest, (key, value) => {
+            expect(requiredHookOnchain[key]).to.be.equal(value);
+          });
+        }),
+      );
+    });
+  });
+
   describe('failure modes', async () => {
     beforeEach(async () => {
       deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
@@ -192,71 +255,6 @@ describe('core', async () => {
         // TODO: figure out how to test specific error case
         // expect(e.message).to.include('Timed out in 1ms');
       }
-    });
-  });
-
-  describe('CoreConfigReader', async () => {
-    beforeEach(async () => {
-      contracts = await deployer.deploy(coreConfig);
-    });
-
-    async function deriveCoreConfig(chainName: string, mailboxAddress: string) {
-      return await new EvmCoreReader(multiProvider, chainName).deriveCoreConfig(
-        mailboxAddress,
-      );
-    }
-    it('should derive defaultIsm correctly', async () => {
-      await promiseObjAll(
-        objMap(contracts, async (chainName, contract) => {
-          const coreConfigOnChain = await deriveCoreConfig(
-            chainName,
-            contract.mailbox.address,
-          );
-
-          // Cast because we don't expect the 'string' type
-          const defaultIsmOnchain =
-            coreConfigOnChain.defaultIsm as DerivedIsmConfigWithAddress;
-          const defaultIsmTest = coreConfig[chainName]
-            .defaultIsm as DerivedIsmConfigWithAddress;
-
-          expect(defaultIsmOnchain.type).to.be.equal(defaultIsmTest.type);
-        }),
-      );
-    });
-    it('should derive defaultHook correctly', async () => {
-      await promiseObjAll(
-        objMap(contracts, async (chainName, contract) => {
-          const coreConfigOnChain = await deriveCoreConfig(
-            chainName,
-            contract.mailbox.address,
-          );
-
-          // Cast because we don't expect the 'string' type
-          const defaultHookOnchain =
-            coreConfigOnChain.defaultHook as HookConfig;
-          const defaultHookTest = coreConfig[chainName]
-            .defaultHook as HookConfig;
-
-          expect(defaultHookOnchain.type).to.be.equal(defaultHookTest.type);
-        }),
-      );
-    });
-    it('should derive requiredHook correctly', async () => {
-      await promiseObjAll(
-        objMap(contracts, async (chainName, contract) => {
-          const coreConfigOnChain = await deriveCoreConfig(
-            chainName,
-            contract.mailbox.address,
-          );
-          const requiredHookOnchain = coreConfigOnChain.requiredHook;
-          const requiredHookTest = coreConfig[chainName].requiredHook;
-
-          // Test all the fields
-          objMap(requiredHookTest, (key, value) => {
-            expect(requiredHookOnchain[key]).to.be.equal(value);
-          });
-        }),
-      );
     });
   });
 
