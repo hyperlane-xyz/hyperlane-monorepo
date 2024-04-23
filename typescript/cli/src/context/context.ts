@@ -2,92 +2,89 @@ import { ethers } from 'ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { objKeys } from '@hyperlane-xyz/utils';
 
-import { forkNetworkToMultiProvider } from './deploy/dry-run.js';
-import { MergedRegistry } from './registry/MergedRegistry.js';
-import { runSingleChainSelectionStep } from './utils/chains.js';
-import { KeyConfig, getImpersonatedSigner, getSigner } from './utils/keys.js';
+import { WRITE_COMMANDS } from '../commands/WriteCommands.js';
+import { forkNetworkToMultiProvider } from '../deploy/dry-run.js';
+import { MergedRegistry } from '../registry/MergedRegistry.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
-export interface ContextSettings {
-  registryUri: string;
-  configOverrideUri: string;
-  chains?: ChainName[];
-  keyConfig?: KeyConfig;
-  skipConfirmation?: boolean;
+import { CommandContext, ContextSettings } from './types.js';
+
+export async function contextMiddleware(argv: Record<string, any>) {
+  const commandName = argv._.length >= 2 ? argv._[1] : '';
+  const settings: ContextSettings = {
+    commandName,
+    registryUri: argv.registry,
+    configOverrideUri: argv.configs,
+    key: argv.key,
+    skipConfirmation: argv.yes,
+  };
+  const context = await getContext(settings);
+  argv.context = context;
 }
-
-interface CommandContextBase {
-  chains: ChainName[];
-  multiProvider: MultiProvider;
-  registry: IRegistry;
-}
-
-// This makes return type dynamic based on the input settings
-type CommandContext<P extends ContextSettings> = CommandContextBase &
-  (P extends { keyConfig: object }
-    ? { signer: ethers.Signer }
-    : { signer: undefined });
 
 /**
  * Retrieves context for the user-selected command
  * @returns context for the current command
  */
-export async function getContext<P extends ContextSettings>(
-  args: P,
-): Promise<CommandContext<P>> {
-  const registry = getRegistry(args.registryUri, args.configOverrideUri);
-  const chains = await registry.getChains();
+export async function getContext({
+  commandName,
+  registryUri,
+  configOverrideUri,
+  key,
+  skipConfirmation,
+}: ContextSettings): Promise<CommandContext> {
+  const registry = getRegistry(registryUri, configOverrideUri);
 
-  const signer = await getSigner(args);
+  const signer = WRITE_COMMANDS.includes(commandName)
+    ? await getSigner({ key, skipConfirmation })
+    : undefined;
   const multiProvider = await getMultiProvider(registry, signer);
 
   return {
-    chains,
     registry,
+    chainMetadata: multiProvider.metadata,
     signer,
     multiProvider,
-  } as CommandContext<P>;
+    skipConfirmation: !!skipConfirmation,
+  } as CommandContext;
 }
 
 /**
  * Retrieves dry-run context for the user-selected command
  * @returns dry-run context for the current command
  */
-export async function getDryRunContext<P extends ContextSettings>({
-  registryUri,
-  configOverrideUri,
-  chains,
-  keyConfig,
-  skipConfirmation,
-}: P): Promise<CommandContext<P>> {
+export async function getDryRunContext(
+  { registryUri, configOverrideUri, key, skipConfirmation }: ContextSettings,
+  chain?: ChainName,
+): Promise<CommandContext> {
   const registry = getRegistry(registryUri, configOverrideUri);
   const chainMetadata = await registry.getMetadata();
 
-  if (!chains?.length) {
+  if (!chain) {
     if (skipConfirmation) throw new Error('No chains provided');
-    chains = [
-      await runSingleChainSelectionStep(
-        chainMetadata,
-        'Select chain to dry-run against:',
-      ),
-    ];
+    chain = await runSingleChainSelectionStep(
+      chainMetadata,
+      'Select chain to dry-run against:',
+    );
   }
 
   const multiProvider = await getMultiProvider(registry);
-  await forkNetworkToMultiProvider(multiProvider, chains[0]);
+  await forkNetworkToMultiProvider(multiProvider, chain);
   const impersonatedSigner = await getImpersonatedSigner({
-    keyConfig,
+    key,
     skipConfirmation,
   });
   if (impersonatedSigner) multiProvider.setSharedSigner(impersonatedSigner);
 
   return {
-    chains: chains || objKeys(chainMetadata),
     registry,
+    chainMetadata: multiProvider.metadata,
     signer: impersonatedSigner,
     multiProvider: multiProvider,
-  } as CommandContext<P>;
+    skipConfirmation: !!skipConfirmation,
+  } as CommandContext;
 }
 
 /**

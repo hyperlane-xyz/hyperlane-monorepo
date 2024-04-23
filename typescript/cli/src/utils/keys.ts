@@ -9,26 +9,18 @@ const ETHEREUM_ADDRESS_LENGTH = 42;
 const DEFAULT_KEY_TYPE = 'private key';
 const IMPERSONATED_KEY_TYPE = 'address';
 
-export type KeyConfig = {
-  key?: string;
-  promptMessage?: string;
-};
-
 /**
  * Retrieves a signer for the current command-context.
  * @returns the signer
  */
 export async function getSigner({
-  keyConfig,
+  key,
   skipConfirmation,
 }: {
-  keyConfig?: KeyConfig;
+  key?: string;
   skipConfirmation?: boolean;
 }): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
-  if (!keyConfig) return undefined;
-
-  const key = await retrieveKey(DEFAULT_KEY_TYPE, keyConfig, skipConfirmation);
-
+  key ||= await retrieveKey(DEFAULT_KEY_TYPE, skipConfirmation);
   return privateKeyToSigner(key);
 }
 
@@ -37,20 +29,13 @@ export async function getSigner({
  * @returns the impersonated signer
  */
 export async function getImpersonatedSigner({
-  keyConfig,
+  key,
   skipConfirmation,
 }: {
-  keyConfig?: KeyConfig;
+  key?: string;
   skipConfirmation?: boolean;
 }): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
-  if (!keyConfig) return undefined;
-
-  const key = await retrieveKey(
-    IMPERSONATED_KEY_TYPE,
-    keyConfig,
-    skipConfirmation,
-  );
-
+  key ||= await retrieveKey(IMPERSONATED_KEY_TYPE, skipConfirmation);
   return await addressToImpersonatedSigner(key);
 }
 
@@ -101,15 +86,11 @@ function privateKeyToSigner(key: string): ethers.Wallet {
 
 async function retrieveKey(
   keyType: string,
-  keyConfig: KeyConfig,
   skipConfirmation: boolean | undefined,
 ): Promise<string> {
-  if (keyConfig.key) return keyConfig.key;
-  else if (skipConfirmation) throw new Error(`No ${keyType} provided`);
+  if (skipConfirmation) throw new Error(`No ${keyType} provided`);
   else
     return await input({
-      message:
-        keyConfig.promptMessage ||
-        `Please enter ${keyType} or use the HYP_KEY environment variable.`,
+      message: `Please enter ${keyType} or use the HYP_KEY environment variable.`,
     });
 }

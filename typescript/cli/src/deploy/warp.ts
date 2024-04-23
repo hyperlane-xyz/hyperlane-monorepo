@@ -32,7 +32,7 @@ import {
   getContext,
   getDryRunContext,
   getMergedContractAddresses,
-} from '../context.js';
+} from '../context/context.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import {
   getArtifactsFiles,

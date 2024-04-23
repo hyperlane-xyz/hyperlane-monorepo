@@ -1,22 +1,19 @@
 import { CommandModule } from 'yargs';
 
-import {
-  Chains,
-  CoreChainName,
-  HyperlaneEnvironment,
-  chainMetadata,
-  hyperlaneContractAddresses,
-  hyperlaneEnvironments,
-} from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
+import { CommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logTable } from '../logger.js';
+
+const ChainTypes = ['mainnet', 'testnet'];
+type ChainType = (typeof ChainTypes)[number];
 
 /**
  * Parent command
  */
 export const chainsCommand: CommandModule = {
   command: 'chains',
-  describe: 'View information about core Hyperlane chains',
+  describe: 'View information about Hyperlane chains in a registry',
   builder: (yargs) =>
     yargs
       .command(listCommand)
@@ -31,37 +28,38 @@ export const chainsCommand: CommandModule = {
  */
 const listCommand: CommandModule = {
   command: 'list',
-  describe: 'List all core chains included in the Hyperlane SDK',
+  describe: 'List all chains included in a registry',
   builder: (yargs) =>
-    yargs.option('environment', {
-      alias: 'e',
-      describe: 'Specify the environment to list chains for',
-      choices: ['mainnet', 'testnet'],
+    yargs.option('type', {
+      describe: 'Specify the type of chains',
+      choices: ChainTypes,
     }),
-  handler: (args) => {
-    const environment = args.environment as HyperlaneEnvironment | undefined;
+  handler: async (args) => {
+    const type = args.type as ChainType | undefined;
+    const context = args.context as CommandContext;
 
-    const serializer = (env: HyperlaneEnvironment) =>
-      Object.keys(hyperlaneEnvironments[env]).reduce<any>((result, chain) => {
-        const { chainId, displayName } = chainMetadata[chain];
-        result[chain] = {
+    const logChainsForType = (type: ChainType) => {
+      logBlue(`\nHyperlane ${type} chains:`);
+      logGray('------------------------------');
+      const chains = Object.values(context.chainMetadata).filter(
+        (c) => c.isTestnet === (type === 'testnet'),
+      );
+      const tableData = chains.reduce<any>((result, chain) => {
+        const { chainId, displayName } = chain;
+        result[chain.name] = {
           'Display Name': displayName,
           'Chain Id': chainId,
         };
         return result;
       }, {});
-
-    const logChainsForEnv = (env: HyperlaneEnvironment) => {
-      logBlue(`\nHyperlane core ${env} chains:`);
-      logGray('------------------------------');
-      logTable(serializer(env));
+      logTable(tableData);
     };
 
-    if (environment) {
-      logChainsForEnv(environment);
+    if (type) {
+      logChainsForType(type);
     } else {
-      logChainsForEnv('mainnet');
-      logChainsForEnv('testnet');
+      logChainsForType('mainnet');
+      logChainsForType('testnet');
     }
   },
 };
@@ -77,20 +75,22 @@ const addressesCommand: CommandModule = {
       name: {
         type: 'string',
         description: 'Chain to display addresses for',
-        choices: Object.values(Chains),
         alias: 'chain',
       },
     }),
-  handler: (args) => {
-    const name = args.name as CoreChainName | undefined;
-    if (name && hyperlaneContractAddresses[name]) {
+  handler: async (args) => {
+    const name = args.name as ChainName | undefined;
+    const context = args.context as CommandContext;
+    if (name) {
+      const result = await context.registry.getChainAddresses(name);
       logBlue('Hyperlane contract addresses for:', name);
       logGray('---------------------------------');
-      log(JSON.stringify(hyperlaneContractAddresses[name], null, 2));
+      log(JSON.stringify(result, null, 2));
     } else {
-      logBlue('Hyperlane core contract addresses:');
+      const result = await context.registry.getAddresses();
+      logBlue('Hyperlane contract addresses:');
       logGray('----------------------------------');
-      log(JSON.stringify(hyperlaneContractAddresses, null, 2));
+      log(JSON.stringify(result, null, 2));
     }
   },
 };

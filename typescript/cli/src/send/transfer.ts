@@ -15,7 +15,7 @@ import {
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { getContext, getMergedContractAddresses } from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context/context.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';

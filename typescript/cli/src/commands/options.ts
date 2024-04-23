@@ -33,6 +33,21 @@ export const configOverridesUriCommandOption: Options = {
   alias: 'c',
 };
 
+export const skipConfirmationOption: Options = {
+  type: 'boolean',
+  description: 'Skip confirmation prompts',
+  default: false,
+  alias: 'y',
+};
+
+export const keyCommandOption: Options = {
+  type: 'string',
+  description: `A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
+Dry-run: An address to simulate transaction signing on a forked network, or use the HYP_KEY env var.`,
+  alias: 'k',
+  default: ENV.HYP_KEY,
+};
+
 /* Command-specific options */
 
 export type CommandOptions = {
@@ -98,14 +113,6 @@ export const warpConfigCommandOption: Options = {
   alias: 'w',
 };
 
-export const keyCommandOption: Options = {
-  type: 'string',
-  description: `Default: A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
-Dry-run: An address to simulate transaction signing on a forked network, or use the HYP_KEY env var.`,
-  alias: 'k',
-  default: ENV.HYP_KEY,
-};
-
 export const outDirCommandOption: Options = {
   type: 'string',
   description: 'A folder name output artifacts into',
@@ -144,13 +151,6 @@ export const outputFileOption = (defaultPath: string): Options => ({
   default: defaultPath,
   alias: 'o',
 });
-
-export const skipConfirmationOption: Options = {
-  type: 'boolean',
-  description: 'Skip confirmation prompts',
-  default: false,
-  alias: 'y',
-};
 
 export const dryRunOption: Options = {
   type: 'boolean',

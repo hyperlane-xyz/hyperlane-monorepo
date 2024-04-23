@@ -40,7 +40,7 @@ import {
   getDryRunContext,
   getMergedContractAddresses,
   sdkContractAddressesMap,
-} from '../context.js';
+} from '../context/context.js';
 import {
   log,
   logBlue,

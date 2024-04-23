@@ -2,7 +2,7 @@ import { input } from '@inquirer/prompts';
 
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
-import { getContext, getMergedContractAddresses } from '../context.js';
+import { getContext, getMergedContractAddresses } from '../context/context.js';
 import { log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 

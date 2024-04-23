@@ -10,12 +10,15 @@ import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
 import {
   configOverridesUriCommandOption,
+  keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
   registryUriCommandOption,
+  skipConfirmationOption,
 } from './src/commands/options.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
+import { contextMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
@@ -34,10 +37,13 @@ try {
     .option('verbosity', logLevelCommandOption)
     .option('registry', registryUriCommandOption)
     .option('configs', configOverridesUriCommandOption)
-    .global(['log', 'verbosity', 'registry', 'configs'])
+    .option('key', keyCommandOption)
+    .option('yes', skipConfirmationOption)
+    .global(['log', 'verbosity', 'registry', 'configs', 'yes'])
     .middleware((argv) => {
       configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
     })
+    .middleware(contextMiddleware)
     .command(chainsCommand)
     .command(configCommand)
     .command(deployCommand)

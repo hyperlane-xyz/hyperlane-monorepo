@@ -9,7 +9,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
-import { sdkContractAddressesMap } from '../context.js';
+import { sdkContractAddressesMap } from '../context/context.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
