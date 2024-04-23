@@ -10,8 +10,22 @@ import {ECDSAStakeRegistry} from "@eigenlayer/middleware/unaudited/ECDSAStakeReg
 import {IServiceManager} from "@eigenlayer/middleware/interfaces/IServiceManager.sol";
 
 contract HyperlaneServiceManager is IServiceManager, OwnableUpgradeable {
+    enum EnrollmentStatus {
+        ENROLLED,
+        PENDING_UNENROLLMENT,
+        UNENROLLED
+    }
+
+    struct Enrollment {
+        EnrollmentStatus status;
+        uint256 unenrollmentStartBlock;
+    }
+
     ECDSAStakeRegistry internal immutable stakeRegistry;
     IAVSDirectory internal immutable elAvsDirectory;
+
+    mapping(address => mapping(address => Enrollment))
+        public enrolledTownCriers;
 
     /// @notice when applied to a function, only allows the ECDSAStakeRegistry to call it
     modifier onlyStakeRegistry() {
@@ -69,6 +83,54 @@ contract HyperlaneServiceManager is IServiceManager, OwnableUpgradeable {
     }
 
     // ============ External Functions ============
+
+    function enrollIntoTownCriers(ITownCrier[] memory _townCriers) external {
+        for (uint256 i = 0; i < _townCriers.length; i++) {
+            ITownCrier townCrier = _townCriers[i];
+            enrolledTownCriers[msg.sender][address(townCrier)] = Enrollment(
+                EnrollmentStatus.ENROLLED,
+                0
+            );
+        }
+    }
+
+    function queueUnenrollmentFromTownCriers(
+        ITownCrier[] memory _townCriers
+    ) external {
+        for (uint256 i = 0; i < _townCriers.length; i++) {
+            ITownCrier townCrier = _townCriers[i];
+            if (
+                enrolledTownCriers[msg.sender][address(townCrier)].status !=
+                EnrollmentStatus.UNENROLLED
+            ) {
+                enrolledTownCriers[msg.sender][address(townCrier)] = Enrollment(
+                    EnrollmentStatus.PENDING_UNENROLLMENT,
+                    block.number
+                );
+            }
+        }
+    }
+
+    function completeQueuedUnenrollmentFromTownCriers(
+        ITownCrier[] memory _townCriers
+    ) external {
+        for (uint256 i = 0; i < _townCriers.length; i++) {
+            ITownCrier townCrier = _townCriers[i];
+            if (
+                enrolledTownCriers[msg.sender][address(townCrier)].status ==
+                EnrollmentStatus.PENDING_UNENROLLMENT &&
+                block.number >=
+                enrolledTownCriers[msg.sender][address(townCrier)]
+                    .unenrollmentStartBlock +
+                    townCrier.challengeDelayBlocks()
+            ) {
+                enrolledTownCriers[msg.sender][address(townCrier)] = Enrollment(
+                    EnrollmentStatus.UNENROLLED,
+                    0
+                );
+            }
+        }
+    }
 
     /**
      * @notice Returns the list of strategies that the AVS supports for restaking
