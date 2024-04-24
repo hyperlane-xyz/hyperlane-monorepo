@@ -46,9 +46,9 @@ mock! {
             tx_gas_limit: Option<U256>,
         ) -> ChainResult<TxOutcome> {}
 
-        pub fn process_batch<'a, 'b>(
+        pub fn process_batch(
             &mut self,
-            messages: Vec<(&'a HyperlaneMessage, &'b [u8], Option<U256>)>,
+            messages: &[BatchItem<HyperlaneMessage>],
         ) -> ChainResult<TxOutcome> {}
 
         pub fn process_estimate_costs(
@@ -100,7 +100,7 @@ impl Mailbox for MockMailboxContract {
 
     async fn process_batch(
         &self,
-        messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+        messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<TxOutcome> {
         self.process_batch(messages).await
     }

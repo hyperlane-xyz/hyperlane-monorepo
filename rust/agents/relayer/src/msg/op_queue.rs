@@ -88,7 +88,10 @@ impl OpQueue {
 mod test {
     use super::*;
     use crate::msg::pending_operation::PendingOperationResult;
-    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MpmcChannel, TxOutcome, H256};
+    use hyperlane_core::{
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, MpmcChannel, TryBatchAs,
+        TxOutcome, H256,
+    };
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
@@ -110,6 +113,8 @@ mod test {
             }
         }
     }
+
+    impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
 
     #[async_trait::async_trait]
     impl PendingOperation for MockPendingOperation {

@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
+use hyperlane_core::BatchItem;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -108,7 +109,7 @@ impl Mailbox for FuelMailbox {
     #[instrument(err, ret, skip(self))]
     async fn process_batch(
         &self,
-        _messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+        messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<TxOutcome> {
         todo!()
     }

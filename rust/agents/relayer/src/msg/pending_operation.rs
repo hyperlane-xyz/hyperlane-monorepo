@@ -5,9 +5,9 @@ use std::{
 };
 
 use async_trait::async_trait;
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxOutcome, H256};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256};
 
-use super::{op_queue::QueueOperation, pending_message::SubmissionData};
+use super::op_queue::QueueOperation;
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
@@ -29,7 +29,7 @@ use super::{op_queue::QueueOperation, pending_message::SubmissionData};
 /// responsible for checking if the operation has reached a point at which we
 /// consider it safe from reorgs.
 #[async_trait]
-pub trait PendingOperation: Send + Sync + Debug {
+pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Get the unique identifier for this operation.
     fn id(&self) -> H256;
 

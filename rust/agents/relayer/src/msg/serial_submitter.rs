@@ -2,7 +2,6 @@ use std::cmp::Reverse;
 use std::time::Duration;
 
 use derive_new::new;
-use ethers::utils::hex;
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::spawn;
@@ -10,9 +9,13 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
+use tracing::{error, info, warn};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{HyperlaneDomain, MpmcReceiver};
+use hyperlane_core::{
+    BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneMessage,
+    MpmcReceiver, TxOutcome,
+};
 
 use crate::server::MessageRetryRequest;
 
@@ -127,7 +130,6 @@ impl SerialSubmitter {
             spawn(submit_task(
                 domain.clone(),
                 rx_submit,
-                prepare_queue.clone(),
                 confirm_queue.clone(),
                 metrics.clone(),
                 batch_size,
@@ -174,7 +176,6 @@ async fn prepare_task(
     metrics: SerialSubmitterMetrics,
     batch_size: Option<u32>,
 ) {
-    let batch_size = batch_size.unwrap_or(1);
     loop {
         // Pick the next message to try preparing.
         let next = prepare_queue.pop().await;
@@ -217,7 +218,6 @@ async fn prepare_task(
 async fn submit_task(
     domain: HyperlaneDomain,
     mut rx_submit: mpsc::Receiver<QueueOperation>,
-    mut prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
     batch_size: Option<u32>,
@@ -241,14 +241,12 @@ async fn submit_task(
             Some(batch_size) => {
                 batch.add(op);
                 if batch.operations.len() == batch_size as usize {
-                    batch
-                        .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
-                        .await;
+                    batch.submit(&mut confirm_queue, &metrics).await;
                     batch = OperationBatch::new();
                 }
             }
             None => {
-                submit_and_confirm_op(op, &mut prepare_queue, &mut confirm_queue, &metrics).await;
+                submit_and_confirm_op(op, &mut confirm_queue, &metrics).await;
             }
         }
     }
@@ -256,7 +254,6 @@ async fn submit_task(
 
 async fn submit_and_confirm_op(
     mut op: QueueOperation,
-    prepare_queue: &mut OpQueue,
     confirm_queue: &mut OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
@@ -277,40 +274,49 @@ impl OperationBatch {
         self.operations.push(op);
     }
 
-    async fn submit(
-        self,
-        prepare_queue: &mut OpQueue,
-        confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
-    ) {
-        // without checking the concrete type, could have
-        // a TryInto<(&HyperlaneMessage, &SubmissionData)> supertrait on `PendingOperation`, which will only work for PendingMessage.
-        // later this may be convertible into a TryIntoBytes so it can be used universally
-        //
-        // Then we can call `mailbox.process_batch` with these (returns an error on non-ethereum chains, so we fall back to individual submits).
-        // We will then get a `tx_outcome` with the total gas expenditure
-        // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
-        // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`, and also `set_next_attempt_after(CONFIRM_DELAY);`
-
-        // Then we increment `metrics.ops_submitted` by the number of operations in the batch and push them to the confirm queue
-
-        // if self.domain == KnownHyperlaneDomain::Ethereum.into() {
-        //     self.submit_ethereum().await
-        // } else {
-        //     self.submit_serially().await
-        // }
-        self.submit_serially(prepare_queue, confirm_queue, metrics)
-            .await;
+    async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
+        match self.try_submit_as_batch(metrics).await {
+            Ok(outcome) => {
+                // TODO: use the `tx_outcome` with the total gas expenditure
+                // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
+                // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`, and also `set_next_attempt_after(CONFIRM_DELAY);`
+                info!(outcome=?outcome, batch=?self.operations, "Submitted transaction batch");
+                return;
+            }
+            Err(e) => {
+                warn!(error=?e, batch=?self.operations, "Error when submitting batch. Falling back to serial submission.");
+            }
+        }
+        self.submit_serially(confirm_queue, metrics).await;
     }
 
-    async fn submit_serially(
-        self,
-        prepare_queue: &mut OpQueue,
-        confirm_queue: &mut OpQueue,
+    async fn try_submit_as_batch(
+        &self,
         metrics: &SerialSubmitterMetrics,
-    ) {
+    ) -> ChainResult<TxOutcome> {
+        let batch = self
+            .operations
+            .iter()
+            .map(|op| op.try_batch())
+            .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
+        // We already assume that the relayer submits to a single mailbox per destination.
+        // So it's fine to use the first item in the batch to get the mailbox.
+
+        let Some(first_item) = batch.first() else {
+            return Err(ChainCommunicationError::BatchIsEmpty);
+        };
+        let mailbox = first_item.mailbox.clone();
+
+        // We use the estimated gas limit from the prior call to
+        // `process_estimate_costs` to avoid a second gas estimation.
+        let outcome = mailbox.process_batch(&batch).await?;
+        metrics.ops_submitted.inc_by(self.operations.len() as u64);
+        Ok(outcome)
+    }
+
+    async fn submit_serially(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         for op in self.operations.into_iter() {
-            submit_and_confirm_op(op, prepare_queue, confirm_queue, metrics).await;
+            submit_and_confirm_op(op, confirm_queue, metrics).await;
         }
     }
 }

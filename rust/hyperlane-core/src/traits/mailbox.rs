@@ -4,8 +4,8 @@ use std::num::NonZeroU64;
 use async_trait::async_trait;
 
 use crate::{
-    traits::TxOutcome, utils::domain_hash, ChainResult, HyperlaneContract, HyperlaneMessage,
-    TxCostEstimate, H256, U256,
+    traits::TxOutcome, utils::domain_hash, BatchItem, ChainResult, HyperlaneContract,
+    HyperlaneMessage, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -43,7 +43,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Process a message with a proof against the provided signed checkpoint
     async fn process_batch(
         &self,
-        messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+        messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<TxOutcome>;
 
     /// Estimate transaction costs to process a message.

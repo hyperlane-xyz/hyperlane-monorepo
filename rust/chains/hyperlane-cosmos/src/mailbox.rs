@@ -24,9 +24,9 @@ use tendermint::abci::EventAttribute;
 
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
-    H256, U256,
+    utils::bytes_to_hex, BatchItem, ChainResult, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_core::{
     ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceAwareIndexer,
@@ -207,7 +207,7 @@ impl Mailbox for CosmosMailbox {
     #[instrument(err, ret, skip(self))]
     async fn process_batch(
         &self,
-        _messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+        messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<TxOutcome> {
         todo!()
     }

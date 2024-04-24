@@ -13,6 +13,7 @@ use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::Multicall;
 use futures_util::future::join_all;
+use hyperlane_core::BatchItem;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -366,7 +367,7 @@ where
     #[instrument(skip(self, messages))]
     async fn process_batch(
         &self,
-        messages: Vec<(&HyperlaneMessage, &[u8], Option<U256>)>,
+        messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<TxOutcome> {
         let multicall = build_multicall(self.provider.clone(), &self.conn).await;
         let Some(mut multicall) = multicall else {
@@ -377,8 +378,15 @@ where
         };
         let contract_call_futures = messages
             .into_iter()
-            .map(|(message, metadata, tx_gas_limit)| {
-                self.process_contract_call(message, metadata, tx_gas_limit)
+            .map(|batch| async {
+                // move ownership of the batch inside the closure
+                let batch = batch.clone();
+                self.process_contract_call(
+                    &batch.data,
+                    &batch.submission_data.metadata,
+                    Some(batch.submission_data.gas_limit),
+                )
+                .await
             })
             .collect::<Vec<_>>();
         let contract_calls = join_all(contract_call_futures)
