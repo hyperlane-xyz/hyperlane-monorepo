@@ -84,6 +84,10 @@ export type ProtocolTypedContract<T extends SupportedProtocolType> =
 export type ProtocolTypedReceipt<T extends SupportedProtocolType> =
   ProtocolTyped<T, 'receipt'>;
 
+export type Annotated<T> = T & {
+  annotation?: string;
+};
+
 /**
  * Providers with discriminated union of type
  */

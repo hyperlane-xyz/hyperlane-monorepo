@@ -9,6 +9,7 @@ import { IsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { WarpRouteConfig } from '../metadata/warpRouteConfig.js';
 import {
+  Annotated,
   ProtocolTypedProvider,
   ProtocolTypedTransaction,
   SupportedProtocolType,
@@ -47,7 +48,7 @@ export abstract class CrudModule<
   public abstract read(address: Address): Promise<TConfig>;
   public abstract update(
     config: TConfig,
-  ): Promise<ProtocolTypedTransaction<TProtocol>[]>;
+  ): Promise<Annotated<ProtocolTypedTransaction<TProtocol>[]>>;
 
   // /*
   //   Types and static methods can be challenging. Ensure each implementation includes a static create function.
