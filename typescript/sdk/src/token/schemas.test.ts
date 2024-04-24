@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
-import { BigNumber, constants } from 'ethers';
+import { constants } from 'ethers';
 
 import { TokenType, WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 
