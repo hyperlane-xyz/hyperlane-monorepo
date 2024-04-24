@@ -1,5 +1,5 @@
 use hyperlane_core::ChainCommunicationError;
-use starknet::core::types::FromStrError;
+use starknet::core::types::{FromByteArrayError, FromStrError};
 use std::fmt::Debug;
 
 /// Errors from the crates specific to the hyperlane-starknet
@@ -8,13 +8,16 @@ use std::fmt::Debug;
 /// in hyperlane-core using the `From` trait impl
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneStarknetError {
-    /// conversion error
     #[error(transparent)]
-    ConversionError(#[from] FromStrError),
+    StringConversionError(#[from] FromStrError),
+    #[error(transparent)]
+    BytesConversionError(#[from] FromByteArrayError),
+    #[error("Error during execution: {0}")]
+    AccountError(String),
 }
 
-impl From<HyperlaneCosmosError> for ChainCommunicationError {
-    fn from(value: HyperlaneCosmosError) -> Self {
+impl From<HyperlaneStarknetError> for ChainCommunicationError {
+    fn from(value: HyperlaneStarknetError) -> Self {
         ChainCommunicationError::from_other(value)
     }
 }

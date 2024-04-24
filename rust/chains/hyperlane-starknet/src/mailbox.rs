@@ -13,10 +13,13 @@ use tracing::instrument;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Mailbox, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::bindings::Mailbox as StarknetMailboxInternal;
+use crate::bindings::{
+    Bytes as StarknetBytes, Mailbox as StarknetMailboxInternal, Message as StarknetMessage,
+};
+use crate::error::HyperlaneStarknetError;
 use crate::{ConnectionConf, Signer, StarknetProvider};
 
 impl<A> std::fmt::Display for StarknetMailboxInternal<A>
@@ -66,10 +69,40 @@ where
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<Execution<'_, A>> {
-        let tx = self.contract.process(metadata.into(), message);
+        let tx = self.contract.process(
+            &StarknetBytes {
+                size: metadata.len() as u32,
+                data: metadata.iter().map(|b| *b as u128).collect(),
+            },
+            &StarknetMessage {
+                version: message.version,
+                nonce: message.nonce,
+                origin: message.origin,
+                sender: cainome::cairo_serde::ContractAddress(
+                    FieldElement::from_bytes_be(&message.sender.to_fixed_bytes())
+                        .map_err(Into::<HyperlaneStarknetError>::into)?,
+                ),
+                destination: message.destination,
+                recipient: cainome::cairo_serde::ContractAddress(
+                    FieldElement::from_bytes_be(&message.recipient.to_fixed_bytes())
+                        .map_err(Into::<HyperlaneStarknetError>::into)?,
+                ),
+                body: StarknetBytes {
+                    size: message.body.len() as u32,
+                    data: message.body.iter().map(|b| *b as u128).collect(),
+                },
+            },
+        );
+
         let gas_estimate = match tx_gas_estimate {
-            Some(estimate) => FieldElement::from_dec_str(estimate.to_string().as_str())?,
-            None => tx.estimate_fee().await?.overall_fee,
+            Some(estimate) => FieldElement::from_dec_str(estimate.to_string().as_str())
+                .map_err(Into::<HyperlaneStarknetError>::into)?,
+            None => {
+                tx.estimate_fee()
+                    .await
+                    .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?
+                    .overall_fee
+            }
         };
         Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
@@ -97,7 +130,7 @@ where
     A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
 {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        H256::from_slice(self.contract.address.to_bytes_be().as_slice())
     }
 }
 

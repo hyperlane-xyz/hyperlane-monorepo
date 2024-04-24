@@ -6,7 +6,7 @@ use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
     H256, U256,
 };
-use starknet::accounts::{Account, ExecutionEncoding, SingleOwnerAccount};
+use starknet::accounts::{ExecutionEncoding, SingleOwnerAccount};
 use starknet::core::chain_id::{MAINNET, SEPOLIA};
 use starknet::providers::jsonrpc::{HttpTransport, JsonRpcClient};
 use starknet::providers::AnyProvider;
@@ -80,11 +80,7 @@ where
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(StarknetProvider::new(
-            self.provider.clone(),
-            self.domain.clone(),
-            None,
-        ))
+        Box::new(*self.clone())
     }
 }
 

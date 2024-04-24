@@ -4,7 +4,7 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 
-use crate::HyperlaneStarknetError;
+use crate::error::HyperlaneStarknetError;
 
 #[derive(Clone, Debug)]
 pub struct Signer {
@@ -21,8 +21,10 @@ impl Signer {
     /// * `private_key` - private key for signer
     /// * `prefix` - prefix for signer address
     pub fn new(private_key: &str, address: &str) -> ChainResult<Self> {
-        let contract_address = FieldElement::from_hex_be(address)?;
+        let contract_address =
+            FieldElement::from_hex_be(address).map_err(Into::<HyperlaneStarknetError>::into)?;
         let signing_key = Self::build_signing_key(private_key)?;
+
         Ok(Self {
             signing_key,
             address: contract_address,
@@ -31,8 +33,8 @@ impl Signer {
 
     /// Build a SigningKey from a private key. This cannot be
     /// precompiled and stored in `Signer`, because `SigningKey` is not `Sync`.
-    pub fn signing_key(&self) -> ChainResult<SigningKey> {
-        Self::build_signing_key(&self.private_key)
+    pub fn signing_key(&self) -> SigningKey {
+        self.signing_key
     }
 
     pub fn local_wallet(&self) -> LocalWallet {
