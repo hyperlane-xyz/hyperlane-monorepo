@@ -17,6 +17,7 @@ name = "abigen"
 version = "0.1.0"
 dependencies = [
  "Inflector",
+ "cainome",
  "ethers",
  "fuels",
  "fuels-code-gen",

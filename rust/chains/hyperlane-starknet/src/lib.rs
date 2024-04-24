@@ -11,7 +11,10 @@ pub use signers::*;
 pub use trait_builder::*;
 pub use trait_builder::*;
 
-mod bindings;
+/// Generated contract bindings.
+#[cfg(not(doctest))]
+mod contracts;
+
 mod error;
 mod mailbox;
 mod provider;
@@ -25,5 +28,5 @@ abigen!(
         openzeppelin::access::ownable::ownable::OwnableComponent::Event as OwnableCptEvent;
         openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event as UpgradeableCptEvent;
      },
-    output_path("src/bindings.rs")
+    output_path("src/contracts/mailbox.rs")
 );

@@ -12,6 +12,7 @@ use inflector::Inflector;
 pub enum BuildType {
     Ethers,
     Fuels,
+    Starknet,
 }
 
 /// A `build.rs` tool for building a directory of ABIs. This will parse the
@@ -120,6 +121,10 @@ pub fn generate_bindings(
             .expect("Could not write bindings to file");
 
         fmt_file(&output_file);
+    }
+    #[cfg(feature = "starknet")]
+    if build_type == BuildType::Starknet {
+        todo!()
     }
 
     module_name

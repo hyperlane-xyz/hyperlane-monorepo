@@ -16,7 +16,7 @@ use hyperlane_core::{
     HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::bindings::{
+use crate::contracts::mailbox::{
     Bytes as StarknetBytes, Mailbox as StarknetMailboxInternal, Message as StarknetMessage,
 };
 use crate::error::HyperlaneStarknetError;
@@ -142,14 +142,21 @@ where
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         // TODO: add lag support
-        let reader = self.contract.reader();
-        let nonce = self.contract.nonce().call().await?;
+        // let nonce = self.contract.nonce().call().await?;
+        let nonce = 0;
         Ok(nonce)
     }
 
     #[instrument(skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        Ok(self.contract.delivered(id.into()).call().await?)
+        Ok(self
+            .contract
+            .delivered(
+                &FieldElement::from_bytes_be(id.as_fixed_bytes())
+                    .map_err(Into::<HyperlaneStarknetError>::into)?,
+            )
+            .call()
+            .await?)
     }
 
     #[instrument(skip(self))]
@@ -161,7 +168,10 @@ where
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         Ok(self
             .contract
-            .recipient_ism(recipient.into())
+            .recipient_ism(&cainome::cairo_serde::ContractAddress(
+                FieldElement::from_bytes_be(&recipient.to_fixed_bytes())
+                    .map_err(Into::<HyperlaneStarknetError>::into)?,
+            ))
             .call()
             .await?
             .into())
