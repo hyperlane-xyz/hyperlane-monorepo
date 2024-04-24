@@ -4,7 +4,7 @@ use ethers::{
     abi::{Detokenize, Tokenizable},
     providers::{Middleware, PendingTransaction},
 };
-use ethers_contract::{builders::ContractCall, Multicall, MulticallVersion};
+use ethers_contract::{builders::ContractCall, Multicall, MulticallResult, MulticallVersion};
 use hyperlane_core::{ChainResult, TxOutcome};
 use tracing::warn;
 
@@ -38,7 +38,7 @@ pub async fn batch<M: Middleware, D: Detokenize>(
     provider: Arc<M>,
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,
-) -> ChainResult<TxOutcome> {
+) -> ChainResult<ContractCall<M, Vec<MulticallResult>>> {
     // clear any calls that were in the multicall beforehand
     multicall.clear_calls();
 
@@ -46,12 +46,6 @@ pub async fn batch<M: Middleware, D: Detokenize>(
         multicall.add_call(call, ALLOW_BATCH_FAILURES);
     });
 
-    let tx_hash = multicall
-        .send()
-        .await
-        .map_err(|err| HyperlaneEthereumError::MulticallError(err.to_string()))?;
-    let dispatched = PendingTransaction::new(tx_hash, provider.provider());
-
-    let receipt = track_pending_tx(dispatched).await?;
-    Ok(receipt.into())
+    let res = multicall.as_aggregate_3_value();
+    Ok(res)
 }

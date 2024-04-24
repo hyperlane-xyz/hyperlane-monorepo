@@ -8,7 +8,7 @@ use std::process;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::AbiEncode;
+use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::Multicall;
@@ -279,6 +279,14 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
+        self.add_gas_overrides(tx, tx_gas_estimate).await
+    }
+
+    async fn add_gas_overrides<D: Detokenize>(
+        &self,
+        tx: ContractCall<M, D>,
+        tx_gas_estimate: Option<U256>,
+    ) -> ChainResult<ContractCall<M, D>> {
         let tx_overrides = TransactionOverrides {
             // If a gas limit is provided as a transaction override, use it instead
             // of the estimate.
@@ -394,11 +402,15 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_result =
+        let batch_call =
             multicall::batch::<_, ()>(self.provider.clone(), &mut multicall, contract_calls)
                 .await?;
+        let call = self
+            .add_gas_overrides(batch_call, Some(GAS_ESTIMATE_BUFFER.into()))
+            .await?;
 
-        Ok(batch_result.into())
+        let receipt = report_tx(call).await?;
+        Ok(receipt.into())
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
