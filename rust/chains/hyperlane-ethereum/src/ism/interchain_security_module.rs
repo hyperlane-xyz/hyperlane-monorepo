@@ -16,12 +16,11 @@ use hyperlane_core::{
 };
 use num_traits::cast::FromPrimitive;
 
-use crate::contracts::i_interchain_security_module::{
+use crate::interfaces::i_interchain_security_module::{
     IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal,
     IINTERCHAINSECURITYMODULE_ABI,
 };
-use crate::trait_builder::BuildableWithProvider;
-use crate::{ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
 pub struct InterchainSecurityModuleBuilder {}
 
@@ -135,6 +134,6 @@ impl HyperlaneAbi for EthereumInterchainSecurityModuleAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IINTERCHAINSECURITYMODULE_ABI)
+        crate::extract_fn_map(&IINTERCHAINSECURITYMODULE_ABI)
     }
 }
