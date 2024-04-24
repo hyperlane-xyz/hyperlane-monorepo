@@ -19,6 +19,7 @@ bs58.workspace = true
 bytes = { workspace = true, features = ["serde"] }
 config = { workspace = true, optional = true }
 convert_case.workspace = true
+cosmrs = { worksapce = true, optional = true }
 derive-new.workspace = true
 derive_more.workspace = true
 ethers-contract = { workspace = true, optional = true }
@@ -42,7 +43,7 @@ tokio = { workspace = true, optional = true, features = ["rt", "time"] }
 tracing.workspace = true
 primitive-types = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
-tiny-keccak = { workspace = true, features = ["keccak"]}
+tiny-keccak = { workspace = true, features = ["keccak"] }
 uint.workspace = true
 
 [dev-dependencies]
@@ -54,6 +55,12 @@ float = []
 test-utils = ["dep:config"]
 agent = ["ethers", "strum"]
 strum = ["dep:strum"]
-ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]
+ethers = [
+    "dep:ethers-core",
+    "dep:ethers-contract",
+    "dep:ethers-providers",
+    "dep:primitive-types",
+]
 solana = ["dep:solana-sdk"]
+cosmos = ["dep:cosmrs"]
 async = ["tokio", "futures"]

@@ -8,13 +8,13 @@ use std::{
     str::FromStr,
 };
 
+use crate::address::CosmosAddress;
 use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
 };
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
-use crate::{address::CosmosAddress, types::tx_response_to_outcome};
 use crate::{grpc::WasmProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
@@ -200,7 +200,7 @@ impl Mailbox for CosmosMailbox {
             .wasm_send(process_message, tx_gas_limit)
             .await?;
 
-        Ok(tx_response_to_outcome(response)?)
+        Ok(response.try_into()?)
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
