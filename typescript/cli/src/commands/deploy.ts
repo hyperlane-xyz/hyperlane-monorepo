@@ -107,7 +107,7 @@ const coreCommand: CommandModule = {
     const ismConfigPath: string = argv.ism;
     const hookConfigPath: string = argv.hook;
     const skipConfirmation: boolean = argv.yes;
-    const dryRun: boolean = argv.dryRun;
+    const dryRun: string = argv.dryRun;
 
     logGray(
       `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
@@ -159,7 +159,7 @@ const warpCommand: CommandModule = {
     const coreArtifactsPath: string | undefined = argv.core;
     const outPath: string = argv.out;
     const skipConfirmation: boolean = argv.yes;
-    const dryRun: boolean = argv.dryRun;
+    const dryRun: string = argv.dryRun;
 
     logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
     logGray('------------------------------------------------');

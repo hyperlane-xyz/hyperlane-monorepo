@@ -141,9 +141,8 @@ export const skipConfirmationOption: Options = {
 };
 
 export const dryRunOption: Options = {
-  type: 'boolean',
+  type: 'string',
   description:
-    'Simulate deployment on forked network. Please ensure an anvil node instance is running during execution via `anvil`.',
-  default: false,
+    'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
   alias: ['d', 'dr'],
 };
