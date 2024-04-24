@@ -8,7 +8,9 @@ import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import { TestChains } from '../consts/chains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HookConfig } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { DerivedIsmConfigWithAddress } from '../ism/read.js';
 import { AggregationIsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
@@ -18,6 +20,7 @@ import { HyperlaneCore } from './HyperlaneCore.js';
 import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
+import { EvmCoreReader } from './read.js';
 import { CoreConfig } from './types.js';
 
 describe('core', async () => {
@@ -38,9 +41,7 @@ describe('core', async () => {
     const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  });
 
-  it('deploys', async () => {
     contracts = await deployer.deploy(coreConfig);
     core = new HyperlaneCore(contracts, multiProvider);
   });
@@ -117,6 +118,71 @@ describe('core', async () => {
       const numTransactions = 3 * TestChains.length;
       const nonceAfter = await signer.getTransactionCount();
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
+    });
+  });
+
+  describe('CoreConfigReader', async () => {
+    beforeEach(async () => {
+      contracts = await deployer.deploy(coreConfig);
+    });
+
+    async function deriveCoreConfig(chainName: string, mailboxAddress: string) {
+      return await new EvmCoreReader(multiProvider, chainName).deriveCoreConfig(
+        mailboxAddress,
+      );
+    }
+    it('should derive defaultIsm correctly', async () => {
+      await promiseObjAll(
+        objMap(contracts, async (chainName, contract) => {
+          const coreConfigOnChain = await deriveCoreConfig(
+            chainName,
+            contract.mailbox.address,
+          );
+
+          // Cast because we don't expect the 'string' type
+          const defaultIsmOnchain =
+            coreConfigOnChain.defaultIsm as DerivedIsmConfigWithAddress;
+          const defaultIsmTest = coreConfig[chainName]
+            .defaultIsm as DerivedIsmConfigWithAddress;
+
+          expect(defaultIsmOnchain.type).to.be.equal(defaultIsmTest.type);
+        }),
+      );
+    });
+    it('should derive defaultHook correctly', async () => {
+      await promiseObjAll(
+        objMap(contracts, async (chainName, contract) => {
+          const coreConfigOnChain = await deriveCoreConfig(
+            chainName,
+            contract.mailbox.address,
+          );
+
+          // Cast because we don't expect the 'string' type
+          const defaultHookOnchain =
+            coreConfigOnChain.defaultHook as HookConfig;
+          const defaultHookTest = coreConfig[chainName]
+            .defaultHook as HookConfig;
+
+          expect(defaultHookOnchain.type).to.be.equal(defaultHookTest.type);
+        }),
+      );
+    });
+    it('should derive requiredHook correctly', async () => {
+      await promiseObjAll(
+        objMap(contracts, async (chainName, contract) => {
+          const coreConfigOnChain = await deriveCoreConfig(
+            chainName,
+            contract.mailbox.address,
+          );
+          const requiredHookOnchain = coreConfigOnChain.requiredHook;
+          const requiredHookTest = coreConfig[chainName].requiredHook;
+
+          // Test all the fields
+          objMap(requiredHookTest, (key, value) => {
+            expect(requiredHookOnchain[key]).to.be.equal(value);
+          });
+        }),
+      );
     });
   });
 
