@@ -65,7 +65,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           mailbox: SOME_ADDRESS,
           name: 'Arby Coin',
           symbol: 'ARBY',
-          totalSupply: BigNumber.from('10000'),
+          totalSupply: '10000',
         },
       };
       expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.false;
@@ -84,7 +84,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
           mailbox: SOME_ADDRESS,
           name: 'Arby Coin',
           symbol: 'ARBY',
-          totalSupply: BigNumber.from('10000'),
+          totalSupply: '10000',
         },
       };
       expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;

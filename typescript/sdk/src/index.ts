@@ -477,4 +477,5 @@ export {
   WarpRouteDeployConfigSchema,
   TokenRouterConfigSchema as tokenRouterConfigSchema,
 } from './token/schemas.js';
+export { AggregationIsmConfigSchema } from './ism/schemas.js';
 export { WarpRouteDeployConfig, TokenRouterConfig } from './token/types.js';
