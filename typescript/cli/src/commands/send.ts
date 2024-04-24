@@ -1,16 +1,12 @@
 import { ethers } from 'ethers';
 import { CommandModule, Options } from 'yargs';
 
+import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
 
-import {
-  chainsCommandOption,
-  coreArtifactsOption,
-  keyCommandOption,
-  warpConfigOption,
-} from './options.js';
+import { warpConfigOption } from './options.js';
 
 /**
  * Parent command
@@ -27,18 +23,10 @@ export const sendCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
-export const selfrelay: Options = {
-  type: 'boolean',
-  description: 'Relay message on destination chain',
-  default: false,
-  alias: ['s', 'sr'],
-};
-
 /**
  * Message command
  */
 export const messageOptions: { [k: string]: Options } = {
-  key: keyCommandOption,
   origin: {
     type: 'string',
     description: 'Origin chain to send message from',
@@ -47,53 +35,62 @@ export const messageOptions: { [k: string]: Options } = {
     type: 'string',
     description: 'Destination chain to send message to',
   },
-  chains: chainsCommandOption,
-  core: coreArtifactsOption,
   timeout: {
     type: 'number',
     description: 'Timeout in seconds',
     default: 5 * 60,
   },
-  'self-relay': selfrelay,
   quick: {
     type: 'boolean',
     description: 'Skip wait for message to be delivered',
     default: false,
   },
+  relay: {
+    type: 'boolean',
+    description: 'Handle self-relay of message on destination chain',
+    default: false,
+    alias: ['s', 'sr'],
+  },
 };
 
-const messageCommand: CommandModule = {
+export interface MessageOptionsArgTypes {
+  origin?: string;
+  destination?: string;
+  timeout: number;
+  quick: boolean;
+  relay: boolean;
+}
+
+const messageCommand: CommandModuleWithContext<
+  MessageOptionsArgTypes & { body: string }
+> = {
   command: 'message',
   describe: 'Send a test message to a remote chain',
-  builder: (yargs) =>
-    yargs.options({
-      ...messageOptions,
-      messageBody: {
-        type: 'string',
-        description: 'Optional Message body',
-        default: 'Hello!',
-      },
-    }),
-  handler: async (argv: any) => {
-    const key: string | undefined = argv.key;
-    const chainConfigPath: string = argv.chains;
-    const coreArtifactsPath: string | undefined = argv.core;
-    const origin: string | undefined = argv.origin;
-    const destination: string | undefined = argv.destination;
-    const timeoutSec: number = argv.timeout;
-    const skipWaitForDelivery: boolean = argv.quick;
-    const messageBody: string = argv.messageBody;
-    const selfRelay: boolean = argv['selfrelay'];
+  builder: {
+    ...messageOptions,
+    body: {
+      type: 'string',
+      description: 'Optional Message body',
+      default: 'Hello!',
+    },
+  },
+  handler: async ({
+    context,
+    origin,
+    destination,
+    timeout,
+    quick,
+    relay,
+    body,
+  }) => {
     await sendTestMessage({
-      key,
-      chainConfigPath,
-      coreArtifactsPath,
+      context,
       origin,
       destination,
-      messageBody: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(messageBody)),
-      timeoutSec,
-      skipWaitForDelivery,
-      selfRelay,
+      messageBody: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(body)),
+      timeoutSec: timeout,
+      skipWaitForDelivery: quick,
+      selfRelay: relay,
     });
     process.exit(0);
   },
@@ -102,53 +99,56 @@ const messageCommand: CommandModule = {
 /**
  * Transfer command
  */
-const transferCommand: CommandModule = {
+const transferCommand: CommandModuleWithContext<
+  MessageOptionsArgTypes & {
+    warp?: string;
+    router?: string;
+    wei: string;
+    recipient?: string;
+  }
+> = {
   command: 'transfer',
   describe: 'Send a test token transfer on a warp route',
-  builder: (yargs) =>
-    yargs.options({
-      ...messageOptions,
-      warp: warpConfigOption,
-      router: {
-        type: 'string',
-        description: 'The address of the token router contract',
-      },
-      wei: {
-        type: 'string',
-        description: 'Amount in wei to send',
-        default: 1,
-      },
-      recipient: {
-        type: 'string',
-        description: 'Token recipient address (defaults to sender)',
-      },
-    }),
-  handler: async (argv: any) => {
-    const key: string | undefined = argv.key;
-    const chainConfigPath: string = argv.chains;
-    const coreArtifactsPath: string | undefined = argv.core;
-    const warpConfigPath: string = argv.warp;
-    const origin: string | undefined = argv.origin;
-    const destination: string | undefined = argv.destination;
-    const timeoutSec: number = argv.timeout;
-    const routerAddress: string | undefined = argv.router;
-    const wei: string = argv.wei;
-    const recipient: string | undefined = argv.recipient;
-    const skipWaitForDelivery: boolean = argv.quick;
-    const selfRelay: boolean = argv['self-relay'];
+  builder: {
+    ...messageOptions,
+    warp: warpConfigOption,
+    router: {
+      type: 'string',
+      description: 'The address of the token router contract',
+    },
+    wei: {
+      type: 'string',
+      description: 'Amount in wei to send',
+      default: 1,
+    },
+    recipient: {
+      type: 'string',
+      description: 'Token recipient address (defaults to sender)',
+    },
+  },
+  handler: async ({
+    context,
+    origin,
+    destination,
+    timeout,
+    quick,
+    relay,
+    warp,
+    router,
+    wei,
+    recipient,
+  }) => {
     await sendTestTransfer({
-      key,
-      chainConfigPath,
-      coreArtifactsPath,
-      warpConfigPath,
+      context,
+      warpConfigPath: warp,
       origin,
       destination,
-      routerAddress,
+      routerAddress: router,
       wei,
       recipient,
-      timeoutSec,
-      skipWaitForDelivery,
-      selfRelay,
+      timeoutSec: timeout,
+      skipWaitForDelivery: quick,
+      selfRelay: relay,
     });
     process.exit(0);
   },

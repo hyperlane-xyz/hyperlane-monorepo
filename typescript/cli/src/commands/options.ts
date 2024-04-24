@@ -50,33 +50,6 @@ Dry-run: An address to simulate transaction signing on a forked network, or use 
 
 /* Command-specific options */
 
-export type CommandOptions = {
-  chains: Options;
-};
-export type AgentCommandOptions = CommandOptions & {
-  origin: Options;
-  targets: Options;
-  config: Options;
-};
-export type CoreCommandOptions = CommandOptions & {
-  targets: Options;
-  artifacts: Options;
-  ism: Options;
-  hook: Options;
-  out: Options;
-  key: Options;
-  yes: Options;
-  'dry-run': Options;
-};
-export type WarpCommandOptions = CommandOptions & {
-  config: Options;
-  core: Options;
-  out: Options;
-  key: Options;
-  yes: Options;
-  'dry-run': Options;
-};
-
 export const coreTargetsCommandOption: Options = {
   type: 'string',
   description:
@@ -111,12 +84,6 @@ export const warpConfigCommandOption: Options = {
     'A path to a JSON or YAML file with a warp route deployment config.',
   default: './configs/warp-route-deployment.yaml',
   alias: 'w',
-};
-
-export const coreArtifactsOption: Options = {
-  type: 'string',
-  description: 'File path to core deployment output artifacts',
-  alias: 'a',
 };
 
 export const warpConfigOption: Options = {
