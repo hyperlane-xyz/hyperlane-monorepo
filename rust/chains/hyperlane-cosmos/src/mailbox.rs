@@ -204,14 +204,6 @@ impl Mailbox for CosmosMailbox {
         Ok(tx_response_to_outcome(response)?)
     }
 
-    #[instrument(err, ret, skip(self))]
-    async fn process_batch(
-        &self,
-        messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<TxOutcome> {
-        todo!()
-    }
-
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,

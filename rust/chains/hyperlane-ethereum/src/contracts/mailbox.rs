@@ -28,7 +28,7 @@ use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
-use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
+use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx, GAS_ESTIMATE_BUFFER};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
 use super::multicall::{self, build_multicall};
@@ -412,7 +412,9 @@ where
             .tx
             .gas()
             .copied()
-            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
+            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?
+            .checked_add(ethers_core::types::U256::from(GAS_ESTIMATE_BUFFER))
+            .unwrap();
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {

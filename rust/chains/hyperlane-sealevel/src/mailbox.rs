@@ -477,14 +477,6 @@ impl Mailbox for SealevelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn process_batch(
-        &self,
-        messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<TxOutcome> {
-        todo!()
-    }
-
-    #[instrument(err, ret, skip(self))]
     async fn process_estimate_costs(
         &self,
         _message: &HyperlaneMessage,

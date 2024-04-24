@@ -23,7 +23,7 @@ use tracing::{error, info};
 use crate::{Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
-const GAS_ESTIMATE_BUFFER: u32 = 50000;
+pub const GAS_ESTIMATE_BUFFER: u32 = 5000000;
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 

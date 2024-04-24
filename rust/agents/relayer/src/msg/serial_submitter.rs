@@ -280,7 +280,10 @@ impl OperationBatch {
                 // TODO: use the `tx_outcome` with the total gas expenditure
                 // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
                 // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`, and also `set_next_attempt_after(CONFIRM_DELAY);`
-                info!(outcome=?outcome, batch=?self.operations, "Submitted transaction batch");
+                info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
+                for op in self.operations {
+                    confirm_queue.push(op).await;
+                }
                 return;
             }
             Err(e) => {
