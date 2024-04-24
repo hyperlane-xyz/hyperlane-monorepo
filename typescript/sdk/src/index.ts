@@ -136,6 +136,7 @@ export {
 } from './gas/types.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
 export { EvmHookReader } from './hook/read.js';
+export { EvmCoreReader } from './core/read.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
