@@ -1,24 +1,13 @@
-import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import { routerConfigSchema } from '../router/schemas.js';
 
 import { TokenType } from './config.js';
 
-/// @notice This is a recreation of the ethersjs type, BigNumberish
-/// @dev consider moving this to a higher place if other schemas depend on this
-export const bigNumberIshSchema = z.union([
-  z.instanceof(ethers.BigNumber),
-  z.array(z.number()), // Bytes
-  z.bigint(),
-  z.string(),
-  z.number(),
-]);
-
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
-  totalSupply: bigNumberIshSchema,
+  totalSupply: z.string().or(z.number()),
 });
 
 export const TokenDecimalsSchema = z.object({
