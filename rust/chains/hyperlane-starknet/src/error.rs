@@ -14,6 +14,10 @@ pub enum HyperlaneStarknetError {
     BytesConversionError(#[from] FromByteArrayError),
     #[error("Error during execution: {0}")]
     AccountError(String),
+    #[error("Invalid transaction receipt")]
+    InvalidTransactionReceipt,
+    #[error(transparent)]
+    ContractCallError(#[from] cainome::cairo_serde::Error),
 }
 
 impl From<HyperlaneStarknetError> for ChainCommunicationError {

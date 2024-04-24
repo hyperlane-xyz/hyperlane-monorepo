@@ -6,10 +6,11 @@
 
 use cainome::rs::abigen;
 
+pub use error::*;
 pub use provider::*;
 pub use signers::*;
 pub use trait_builder::*;
-pub use trait_builder::*;
+pub use utils::*;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]
@@ -20,6 +21,7 @@ mod mailbox;
 mod provider;
 mod signers;
 mod trait_builder;
+mod utils;
 
 abigen!(
     Mailbox,

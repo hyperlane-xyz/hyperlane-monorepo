@@ -7,20 +7,20 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use starknet::accounts::Execution;
-use starknet::core::types::FieldElement;
+use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+    utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::contracts::mailbox::{
     Bytes as StarknetBytes, Mailbox as StarknetMailboxInternal, Message as StarknetMessage,
 };
 use crate::error::HyperlaneStarknetError;
-use crate::{ConnectionConf, Signer, StarknetProvider};
+use crate::{get_transaction_receipt, ConnectionConf, Signer, StarknetProvider};
 
 impl<A> std::fmt::Display for StarknetMailboxInternal<A>
 where
@@ -156,12 +156,19 @@ where
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             )
             .call()
-            .await?)
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?)
     }
 
     #[instrument(skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        Ok(self.contract.get_default_ism().call().await?.into())
+        let address = self
+            .contract
+            .get_default_ism()
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        Ok(H256::from_slice(address.0.to_bytes_be().as_slice()))
     }
 
     #[instrument(skip(self))]
@@ -173,7 +180,8 @@ where
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             ))
             .call()
-            .await?
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?
             .into())
     }
 
@@ -187,8 +195,20 @@ where
         let contract_call = self
             .process_contract_call(message, metadata, tx_gas_limit)
             .await?;
-        let receipt = report_tx(contract_call).await?;
-        Ok(receipt.into())
+        let tx = contract_call
+            .send()
+            .await
+            .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
+        let invoke_tx_receipt =
+            get_transaction_receipt(&self.provider.rpc_client(), tx.transaction_hash).await;
+        match invoke_tx_receipt {
+            Ok(MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(receipt))) => {
+                return Ok(receipt.try_into()?);
+            }
+            _ => {
+                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
+            }
+        }
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
@@ -197,25 +217,9 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let contract_call = self.process_contract_call(message, metadata, None).await?;
-        let gas_limit = contract_call
-            .tx
-            .gas()
-            .copied()
-            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
+        let _contract_call = self.process_contract_call(message, metadata, None).await?;
 
-        let gas_price: U256 = self
-            .provider
-            .get_gas_price()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .into();
-
-        Ok(TxCostEstimate {
-            gas_limit: gas_limit.into(),
-            gas_price: gas_price.try_into()?,
-            l2_gas_limit: l2_gas_limit.map(|v| v.into()),
-        })
+        Ok(TxCostEstimate::default())
     }
 
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
