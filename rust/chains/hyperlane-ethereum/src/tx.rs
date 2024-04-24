@@ -93,8 +93,10 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let gas_limit = if let Some(gas_limit) = transaction_overrides.gas_limit {
+    let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
         gas_limit
+            .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
+            .into()
     } else {
         tx.estimate_gas()
             .await?
