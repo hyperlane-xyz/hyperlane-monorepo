@@ -1,7 +1,6 @@
 pub use aggregation_ism::*;
 pub use ccip_read_ism::*;
-#[cfg(feature = "cosmos")]
-use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+
 pub use cursor::*;
 pub use db::*;
 pub use deployed::*;
@@ -15,7 +14,13 @@ pub use multisig_ism::*;
 pub use provider::*;
 pub use routing_ism::*;
 pub use signing::*;
+
 pub use validator_announce::*;
+
+#[cfg(feature = "cosmos")]
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+#[cfg(feature = "starknet")]
+use starknet::core::types::{ExecutionResult, InvokeTransactionReceipt};
 
 #[cfg(feature = "cosmos")]
 use crate::{ChainCommunicationError, ChainResult, H256};
@@ -76,6 +81,20 @@ impl TryFrom<TxResponse> for TxOutcome {
             transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
             executed: response.code == 0,
             gas_used: U256::from(response.gas_used),
+            gas_price: U256::one().try_into()?,
+        })
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryFrom<InvokeTransactionReceipt> for TxOutcome {
+    type Error = ChainCommunicationError;
+
+    fn try_from(receipt: InvokeTransactionReceipt) -> ChainResult<Self> {
+        Ok(Self {
+            transaction_id: H512::from_slice(receipt.transaction_hash.to_bytes_be().as_slice()),
+            executed: receipt.execution_result == ExecutionResult::Succeeded,
+            gas_used: U256::from_big_endian(receipt.actual_fee.amount.to_bytes_be().as_slice()),
             gas_price: U256::one().try_into()?,
         })
     }

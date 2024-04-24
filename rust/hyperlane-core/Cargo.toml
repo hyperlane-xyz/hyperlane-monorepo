@@ -37,6 +37,7 @@ num-traits.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
+starknet = { workspace = true, optional = true }
 strum = { workspace = true, optional = true, features = ["derive"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, optional = true, features = ["rt", "time"] }
@@ -63,4 +64,5 @@ ethers = [
 ]
 solana = ["dep:solana-sdk"]
 cosmos = ["dep:cosmrs"]
+starknet = ["dep:starknet"]
 async = ["tokio", "futures"]

@@ -20,4 +20,7 @@ tracing.workspace = true
 url.workspace = true
 cainome.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-core = { path = "../../hyperlane-core", features = [
+    "async",
+    "starknet",
+] }
