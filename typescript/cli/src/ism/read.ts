@@ -4,7 +4,11 @@ import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 import { readChainConfigsIfExists } from '../config/chain.js';
 import { getMultiProvider } from '../context.js';
 import { log, logBlue, logRed } from '../logger.js';
-import { FileFormat, writeFileAtPath } from '../utils/files.js';
+import {
+  FileFormat,
+  resolveFileFormat,
+  writeFileAtPath,
+} from '../utils/files.js';
 
 /**
  * Read ISM config for a specified chain and address, logging or writing result to file.
@@ -25,17 +29,14 @@ export async function readIsmConfig({
   const customChains = readChainConfigsIfExists(chainConfigPath);
   const multiProvider = getMultiProvider(customChains);
 
-  // output file format overrides provided format
-  format = output?.endsWith('.json')
-    ? 'json'
-    : output?.endsWith('.yaml')
-    ? 'yaml'
-    : format;
-
   if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
     const ismReader = new EvmIsmReader(multiProvider, chain);
     const config = await ismReader.deriveIsmConfig(address);
-    const stringConfig = stringifyObject(config, format, 2);
+    const stringConfig = stringifyObject(
+      config,
+      resolveFileFormat(output, format),
+      2,
+    );
     if (!output) {
       logBlue(`ISM Config at ${address} on ${chain}:`);
       log(stringConfig);
