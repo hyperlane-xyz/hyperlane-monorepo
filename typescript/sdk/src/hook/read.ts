@@ -1,6 +1,5 @@
 import { assert } from 'console';
 import { ethers, providers } from 'ethers';
-import { stringify as yamlStringify } from 'yaml';
 
 import {
   DomainRoutingHook,
@@ -21,7 +20,6 @@ import {
   WithAddress,
   concurrentMap,
   eqAddress,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -80,18 +78,6 @@ export class EvmHookReader implements HookReader {
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(
-    config: HookConfig,
-    space?: number,
-    format: 'json' | 'yaml' = 'yaml',
-  ): string {
-    const json = JSON.stringify(config, ethersBigNumberSerializer, space);
-    if (format === 'json') {
-      return json;
-    }
-    return yamlStringify(JSON.parse(json), null, space);
   }
 
   async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {

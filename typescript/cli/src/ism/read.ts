@@ -1,5 +1,5 @@
 import { ChainName, EvmIsmReader } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, stringifyObject } from '@hyperlane-xyz/utils';
 
 import { readChainConfigsIfExists } from '../config/chain.js';
 import { getMultiProvider } from '../context.js';
@@ -13,14 +13,12 @@ export async function readIsmConfig({
   chain,
   address,
   chainConfigPath,
-  concurrency = 20,
   format,
   output,
 }: {
   chain: ChainName;
   address: Address;
   chainConfigPath: string;
-  concurrency: number;
   format: FileFormat;
   output?: string;
 }): Promise<void> {
@@ -34,12 +32,10 @@ export async function readIsmConfig({
     ? 'yaml'
     : format;
 
-  if (
-    multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum
-  ) {
-    const ismReader = new EvmIsmReader(multiProvider, chain, concurrency);
+  if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+    const ismReader = new EvmIsmReader(multiProvider, chain);
     const config = await ismReader.deriveIsmConfig(address);
-    const stringConfig = EvmIsmReader.stringifyConfig(config, 2, format);
+    const stringConfig = stringifyObject(config, format, 2);
     if (!output) {
       logBlue(`ISM Config at ${address} on ${chain}:`);
       log(stringConfig);

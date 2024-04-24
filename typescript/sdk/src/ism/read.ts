@@ -1,5 +1,4 @@
 import { ethers, providers } from 'ethers';
-import { stringify as yamlStringify } from 'yaml';
 
 import {
   DefaultFallbackRoutingIsm__factory,
@@ -16,7 +15,6 @@ import {
   WithAddress,
   assert,
   concurrentMap,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -69,18 +67,6 @@ export class EvmIsmReader implements IsmReader {
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(
-    config: IsmConfig,
-    space?: number,
-    format: 'json' | 'yaml' = 'yaml',
-  ): string {
-    const json = JSON.stringify(config, ethersBigNumberSerializer, space);
-    if (format === 'json') {
-      return json;
-    }
-    return yamlStringify(JSON.parse(json), null, space);
   }
 
   async deriveIsmConfig(

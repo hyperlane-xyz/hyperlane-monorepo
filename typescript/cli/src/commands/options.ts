@@ -152,13 +152,11 @@ export const chainCommandOption: Options = {
   description: 'The specific chain to perform operations with.',
 };
 
-export const addressCommandOption: Options = {
+export const addressCommandOption = (
+  description: string,
+  demandOption = false,
+): Options => ({
   type: 'string',
-  description: 'An onchain address.',
-};
-
-export const concurrencyCommandOption: Options = {
-  type: 'number',
-  description: 'Option to override the default concurrency level.',
-  default: 20,
-};
+  description,
+  demandOption,
+});
