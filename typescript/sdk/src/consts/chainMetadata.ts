@@ -94,7 +94,6 @@ export const arbitrum: ChainMetadata = {
   displayName: 'Arbitrum',
   domainId: 42161,
   gasCurrencyCoinGeckoId: 'ethereum',
-  // ETH is used for gas
   gnosisSafeTransactionServiceUrl:
     'https://safe-transaction-arbitrum.safe.global/',
   index: {
@@ -155,7 +154,6 @@ export const base: ChainMetadata = {
       url: 'https://basescan.org',
     },
   ],
-  // ETH is used for gas
   blocks: {
     confirmations: 1,
     estimateBlockTime: 2,
@@ -174,6 +172,32 @@ export const base: ChainMetadata = {
     { http: 'https://mainnet.base.org' },
     { http: 'https://base.blockpi.network/v1/rpc/public' },
   ],
+};
+
+export const blast: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl:
+        'https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api',
+      family: ExplorerFamily.Routescan,
+      name: 'Blast Explorer',
+      url: 'https://blastexplorer.io',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 1,
+  },
+  chainId: 81457,
+  displayName: 'Blast',
+  domainId: 81457,
+  gasCurrencyCoinGeckoId: 'ethereum',
+  name: Chains.blast,
+  nativeToken: etherToken,
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://rpc.blast.io' }],
+  technicalStack: ChainTechnicalStack.Other,
 };
 
 export const bsc: ChainMetadata = {
@@ -473,6 +497,31 @@ export const mantapacific: ChainMetadata = {
   rpcUrls: [{ http: 'https://pacific-rpc.manta.network/http' }],
 };
 
+export const mode: ChainMetadata = {
+  blockExplorers: [
+    {
+      apiUrl: 'https://explorer.mode.network/api',
+      family: ExplorerFamily.Blockscout,
+      name: 'Mode Explorer',
+      url: 'https://explorer.mode.network',
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 2,
+    reorgPeriod: 1,
+  },
+  chainId: 34443,
+  displayName: 'Mode',
+  domainId: 34443,
+  gasCurrencyCoinGeckoId: 'ethereum',
+  name: Chains.mode,
+  nativeToken: etherToken,
+  protocol: ProtocolType.Ethereum,
+  rpcUrls: [{ http: 'https://mainnet.mode.network' }],
+  technicalStack: ChainTechnicalStack.Other,
+};
+
 export const moonbeam: ChainMetadata = {
   blockExplorers: [
     {
@@ -581,7 +630,6 @@ export const optimism: ChainMetadata = {
   displayName: 'Optimism',
   domainId: 10,
   gasCurrencyCoinGeckoId: 'ethereum',
-  // ETH is used for gas
   gnosisSafeTransactionServiceUrl:
     'https://safe-transaction-optimism.safe.global/',
   name: Chains.optimism,
@@ -667,7 +715,6 @@ export const polygonzkevm: ChainMetadata = {
       url: 'https://zkevm.polygonscan.com',
     },
   ],
-  // ETH is used for gas
   blocks: {
     confirmations: 1,
     estimateBlockTime: 10,
@@ -720,7 +767,6 @@ export const scroll: ChainMetadata = {
       url: 'https://scrollscan.com/',
     },
   ],
-  // ETH is used for gas
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
@@ -979,6 +1025,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   arbitrum,
   avalanche,
   base,
+  blast,
   bsc,
   bsctestnet,
   celo,
@@ -990,6 +1037,7 @@ export const chainMetadata: ChainMap<ChainMetadata> = {
   inevm,
   injective,
   mantapacific,
+  mode,
   moonbeam,
   nautilus,
   neutron,
