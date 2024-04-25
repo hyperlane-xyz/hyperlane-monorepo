@@ -12,6 +12,9 @@ import {IServiceManager} from "@eigenlayer/middleware/interfaces/IServiceManager
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 
 contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
+    event OperatorRegisteredToAVS(address indexed operator);
+    event OperatorDeregisteredToAVS(address indexed operator);
+
     ECDSAStakeRegistry internal immutable stakeRegistry;
     IAVSDirectory internal immutable elAvsDirectory;
 
@@ -58,6 +61,7 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
         ISignatureUtils.SignatureWithSaltAndExpiry memory operatorSignature
     ) public virtual onlyStakeRegistry {
         elAvsDirectory.registerOperatorToAVS(operator, operatorSignature);
+        emit OperatorRegisteredToAVS(operator);
     }
 
     /**
@@ -68,6 +72,7 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
         address operator
     ) public virtual onlyStakeRegistry {
         elAvsDirectory.deregisterOperatorFromAVS(operator);
+        emit OperatorDeregisteredToAVS(operator);
     }
 
     // ============ External Functions ============
