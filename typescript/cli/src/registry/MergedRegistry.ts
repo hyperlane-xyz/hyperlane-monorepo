@@ -30,7 +30,7 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
 
   constructor({ registryUris, logger, isDryRun }: MergedRegistryOptions) {
     logger ||= rootLogger.child({ module: 'MergedRegistry' });
-    super({ logger });
+    super({ uri: '__merged_registry__', logger });
 
     if (!registryUris.length)
       throw new Error('At least one registry URI is required');
@@ -121,17 +121,19 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     for (const registry of this.registries) {
       // TODO remove this when GithubRegistry supports write methods
       if (registry.type === RegistryType.Github) {
-        this.logger.warn(`skipping ${logMsg} to registry ${registry.type}`);
+        this.logger.warn(`skipping ${logMsg} to ${registry.type} registry`);
         continue;
       }
       try {
-        this.logger.info(`${logMsg} to registry ${registry.type}`);
+        this.logger.info(
+          `${logMsg} to ${registry.type} registry at ${registry.uri}`,
+        );
         await writeFn(registry);
-        this.logger.info(`done ${logMsg} to registry ${registry.type}`);
+        this.logger.info(`done ${logMsg} to ${registry.type} registry`);
       } catch (error) {
         // To prevent loss of artifacts, MergedRegistry write methods are failure tolerant
         this.logger.error(
-          `failure ${logMsg} to registry ${registry.type}`,
+          `failure ${logMsg} to ${registry.type} registry`,
           error,
         );
       }

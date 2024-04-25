@@ -3,15 +3,13 @@ import { confirm, input } from '@inquirer/prompts';
 import { ChainMetadata, ChainMetadataSchema } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
-import { FileFormat, mergeYamlOrJson } from '../utils/files.js';
 
 export async function createChainConfig({
-  format,
-  outPath,
+  context,
 }: {
-  format: FileFormat;
-  outPath: string;
+  context: CommandContext;
 }) {
   logBlue('Creating a new chain config');
   const name = await input({
@@ -86,8 +84,8 @@ export async function createChainConfig({
   }
   const parseResult = ChainMetadataSchema.safeParse(metadata);
   if (parseResult.success) {
-    logGreen(`Chain config is valid, writing to file ${outPath}`);
-    mergeYamlOrJson(outPath, { [name]: metadata }, format);
+    logGreen(`Chain config is valid, writing to registry`);
+    await context.registry.updateChain({ chainName: metadata.name, metadata });
   } else {
     errorRed(
       `Chain config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
