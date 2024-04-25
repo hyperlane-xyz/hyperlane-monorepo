@@ -307,12 +307,17 @@ impl BaseAgent for Relayer {
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
 
-            tasks.push(self.run_destination_submitter(
-                dest_domain,
-                receive_channel,
-                mpmc_channel.receiver(),
-                // batch
-            ));
+            tasks.push(
+                self.run_destination_submitter(
+                    dest_domain,
+                    receive_channel,
+                    mpmc_channel.receiver(),
+                    self.core.settings.chains[dest_domain.name()]
+                        .connection
+                        .message_batch_config()
+                        .map(|c| c.batch_size),
+                ),
+            );
 
             let metrics_updater = MetricsUpdater::new(
                 dest_conf,
@@ -449,15 +454,14 @@ impl Relayer {
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<QueueOperation>,
         retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
-        // batch size
+        batch_size: Option<u32>,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
             receiver,
             retry_receiver_channel,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
-            // batch size
-            Some(1),
+            batch_size,
         );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();

@@ -125,6 +125,14 @@ impl ChainConnectionConf {
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
         }
     }
+
+    /// Get the message batch configuration for this chain.
+    pub fn message_batch_config(&self) -> Option<&h_eth::MessageBatchConfig> {
+        match self {
+            Self::Ethereum(conf) => Some(&conf.message_batch),
+            _ => None,
+        }
+    }
 }
 
 /// Addresses for mailbox chain contracts
