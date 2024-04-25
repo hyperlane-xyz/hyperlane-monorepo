@@ -5,7 +5,6 @@ use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
-use hyperlane_core::BatchItem;
 use tracing::instrument;
 
 use hyperlane_core::{

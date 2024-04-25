@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
@@ -125,7 +125,6 @@ impl SerialSubmitter {
                 prepare_queue.clone(),
                 tx_submit,
                 metrics.clone(),
-                batch_size,
             )),
             spawn(submit_task(
                 domain.clone(),
@@ -174,7 +173,6 @@ async fn prepare_task(
     mut prepare_queue: OpQueue,
     tx_submit: mpsc::Sender<QueueOperation>,
     metrics: SerialSubmitterMetrics,
-    batch_size: Option<u32>,
 ) {
     loop {
         // Pick the next message to try preparing.

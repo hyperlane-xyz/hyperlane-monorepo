@@ -8,8 +8,7 @@ use ethers::{
     providers::{JsonRpcClient, PendingTransaction, ProviderError},
     types::Eip1559TransactionRequest,
 };
-use ethers_contract::Multicall;
-use ethers_contract::{builders::ContractCall, MulticallVersion};
+use ethers_contract::builders::ContractCall;
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -54,8 +53,8 @@ where
     track_pending_tx(dispatched).await
 }
 
-pub(crate) async fn track_pending_tx<'a, P: JsonRpcClient>(
-    pending_tx: PendingTransaction<'a, P>,
+pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
+    pending_tx: PendingTransaction<'_, P>,
 ) -> ChainResult<TransactionReceipt> {
     let tx_hash: H256 = (*pending_tx).into();
 
@@ -94,9 +93,7 @@ where
     D: Detokenize,
 {
     let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
-        gas_limit
-            .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
-            .into()
+        gas_limit.saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
     } else {
         tx.estimate_gas()
             .await?

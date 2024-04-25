@@ -29,7 +29,7 @@ use tempfile::tempdir;
 
 use crate::{
     config::Config,
-    ethereum::{deploy_multicall, start_anvil},
+    ethereum::start_anvil,
     invariants::{termination_invariants_met, SOL_MESSAGES_EXPECTED},
     metrics::agent_balance_sum,
     solana::*,

@@ -1,18 +1,11 @@
 use std::sync::Arc;
 
-use ethers::{
-    abi::{Detokenize, Tokenizable},
-    providers::{Middleware, PendingTransaction},
-};
+use ethers::{abi::Detokenize, providers::Middleware};
 use ethers_contract::{builders::ContractCall, Multicall, MulticallResult, MulticallVersion};
-use hyperlane_core::{ChainResult, TxOutcome};
+use hyperlane_core::ChainResult;
 use tracing::warn;
 
-use crate::{
-    error::HyperlaneEthereumError,
-    tx::{report_tx, track_pending_tx},
-    ConnectionConf,
-};
+use crate::ConnectionConf;
 
 const ALLOW_BATCH_FAILURES: bool = true;
 
@@ -35,7 +28,6 @@ pub async fn build_multicall<M: Middleware>(
 }
 
 pub async fn batch<M: Middleware, D: Detokenize>(
-    provider: Arc<M>,
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,
 ) -> ChainResult<ContractCall<M, Vec<MulticallResult>>> {

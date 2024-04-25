@@ -4,14 +4,12 @@
 use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
-use std::process;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use ethers_contract::Multicall;
 use futures_util::future::join_all;
 use hyperlane_core::BatchItem;
 use tracing::instrument;
@@ -385,7 +383,7 @@ where
             .into());
         };
         let contract_call_futures = messages
-            .into_iter()
+            .iter()
             .map(|batch| async {
                 // move ownership of the batch inside the closure
                 let batch = batch.clone();
@@ -402,9 +400,7 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_call =
-            multicall::batch::<_, ()>(self.provider.clone(), &mut multicall, contract_calls)
-                .await?;
+        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await?;
         let call = self
             .add_gas_overrides(batch_call, Some(GAS_ESTIMATE_BUFFER.into()))
             .await?;
