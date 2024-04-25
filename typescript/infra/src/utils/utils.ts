@@ -4,7 +4,8 @@ import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import stringify from 'json-stable-stringify';
-import path from 'path';
+import path, { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
 import { ChainName, testChains } from '@hyperlane-xyz/sdk';
@@ -258,4 +259,8 @@ export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
 export function isEthereumProtocolChain(chainName: ChainName) {
   if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
   return getChain(chainName).protocol === ProtocolType.Ethereum;
+}
+
+export function getInfraPath() {
+  return join(dirname(fileURLToPath(import.meta.url)), '../../');
 }

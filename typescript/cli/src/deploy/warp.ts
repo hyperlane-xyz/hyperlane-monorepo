@@ -12,21 +12,23 @@ import {
   MinimalTokenMetadata,
   MultiProtocolProvider,
   MultiProvider,
-  RouterConfig,
   TOKEN_TYPE_TO_STANDARD,
   TokenConfig,
   TokenFactories,
+  TokenRouterConfig,
   TokenType,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
   getTokenConnectionId,
+  isCollateralConfig,
+  isNativeConfig,
+  isSyntheticConfig,
 } from '@hyperlane-xyz/sdk';
+import { RouterConfig } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Command } from '../commands/deploy.js';
-import {
-  WarpRouteDeployConfig,
-  readWarpRouteDeployConfig,
-} from '../config/warp.js';
+import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import {
   getContext,
@@ -59,7 +61,7 @@ export async function runWarpRouteDeploy({
   coreArtifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
-  dryRun: boolean;
+  dryRun: string;
 }) {
   if (
     !warpRouteDeploymentConfigPath ||
@@ -84,7 +86,7 @@ export async function runWarpRouteDeploy({
   const { multiProvider, signer, coreArtifacts } = dryRun
     ? await getDryRunContext({
         chainConfigPath,
-        chains: [warpRouteConfig.base.chainName],
+        chains: [dryRun],
         coreConfig: { coreArtifactsPath },
         keyConfig: { key },
         skipConfirmation,
@@ -156,69 +158,54 @@ async function runBuildConfigStep({
   skipConfirmation: boolean;
 }) {
   log('Assembling token configs');
-  const { base, synthetics } = warpRouteConfig;
-  const { type: baseType, chainName: baseChainName, isNft } = base;
-
   const owner = await signer.getAddress();
-  const baseMetadata = await fetchBaseTokenMetadata(base, multiProvider);
-
-  log(
-    `Using base token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
-  );
-
-  const mergedContractAddrs = getMergedContractAddresses(
-    coreArtifacts,
-    Object.keys(warpRouteConfig),
-  );
-
-  // Create configs that coalesce together values from the config file,
-  // the artifacts, and the SDK as a fallback
-  const configMap: ChainMap<TokenConfig & RouterConfig> = {
-    [baseChainName]: {
-      type: baseType,
-      token:
-        baseType === TokenType.collateral ||
-        baseType === TokenType.collateralVault
-          ? base.address!
-          : ethers.constants.AddressZero,
-      owner,
-      mailbox: base.mailbox || mergedContractAddrs[baseChainName]?.mailbox,
-      interchainSecurityModule:
-        base.interchainSecurityModule ||
-        mergedContractAddrs[baseChainName]?.interchainSecurityModule ||
-        mergedContractAddrs[baseChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[baseChainName].domainRoutingIsmFactory, // TODO fix when updating from routingIsm
-      foreignDeployment: base.foreignDeployment,
-      name: baseMetadata.name,
-      symbol: baseMetadata.symbol,
-      decimals: baseMetadata.decimals,
-    },
-  };
-
-  for (const synthetic of synthetics) {
-    const sChainName = synthetic.chainName;
-    configMap[sChainName] = {
-      type: TokenType.synthetic,
-      name: synthetic.name || baseMetadata.name,
-      symbol: synthetic.symbol || baseMetadata.symbol,
-      totalSupply: synthetic.totalSupply || 0,
-      owner,
-      mailbox: synthetic.mailbox || mergedContractAddrs[sChainName].mailbox,
-      interchainSecurityModule:
-        synthetic.interchainSecurityModule ||
-        mergedContractAddrs[sChainName]?.interchainSecurityModule ||
-        mergedContractAddrs[sChainName]?.multisigIsm,
-      // ismFactory: mergedContractAddrs[sChainName].domainRoutingIsmFactory, // TODO fix
-      foreignDeployment: synthetic.foreignDeployment,
-    };
-  }
-
-  // Request input for any address fields that are missing
   const requiredRouterFields: Array<keyof ConnectionClientConfig> = ['mailbox'];
-  let hasShownInfo = false;
-  for (const [chain, token] of Object.entries(configMap)) {
+  const remotes: string[] = [];
+
+  /// @dev This will keep track of the base collateral metadata which can get overwritten if there are multiple collaterals.
+  /// These 'base' variables are used to derive synthetic fields
+  /// @todo Remove this artifact when multi-collateral is enabled
+  let baseChainName = '';
+  let baseMetadata = {} as MinimalTokenMetadata;
+  // Create config that coalesce together values from the config file,
+  for (const [chain, config] of Object.entries(warpRouteConfig)) {
+    const mergedContractAddrs = getMergedContractAddresses(
+      coreArtifacts,
+      Object.keys(warpRouteConfig),
+    );
+    // the artifacts, and the SDK as a fallback
+    config.owner = owner;
+    config.mailbox = config.mailbox || mergedContractAddrs[chain]?.mailbox;
+    config.interchainSecurityModule =
+      config.interchainSecurityModule ||
+      mergedContractAddrs[chain]?.interchainSecurityModule ||
+      mergedContractAddrs[chain]?.multisigIsm;
+    // config.ismFactory: mergedContractAddrs[baseChainName].domainRoutingIsmFactory, // TODO fix when updating from routingIsm
+
+    if (isCollateralConfig(config) || isNativeConfig(config)) {
+      // Store the base metadata
+      baseChainName = chain;
+      baseMetadata = await fetchBaseTokenMetadata(chain, config, multiProvider);
+      log(
+        `Using token metadata: Name: ${baseMetadata.name}, Symbol: ${baseMetadata.symbol}, Decimals: ${baseMetadata.decimals}`,
+      );
+      if (isCollateralConfig(config)) {
+        config.name = baseMetadata.name;
+        config.symbol = baseMetadata.symbol;
+        config.decimals = baseMetadata.decimals;
+      }
+    } else if (isSyntheticConfig(config)) {
+      // Use the config, or baseMetadata
+      config.name = config.name || baseMetadata.name;
+      config.symbol = config.symbol || baseMetadata.symbol;
+      config.totalSupply = config.totalSupply || 0;
+      remotes.push(chain);
+    }
+
+    let hasShownInfo = false;
+    // Request input for any address fields that are missing
     for (const field of requiredRouterFields) {
-      if (token[field]) continue;
+      if (config[field]) continue;
       if (skipConfirmation)
         throw new Error(`Field ${field} for token on ${chain} required`);
       if (!hasShownInfo) {
@@ -228,26 +215,24 @@ async function runBuildConfigStep({
         hasShownInfo = true;
       }
       const value = await input({
-        message: `Enter ${field} for ${getTokenName(token)} token on ${chain}`,
+        message: `Enter ${field} for ${getTokenName(config)} token on ${chain}`,
       });
       if (!value) throw new Error(`Field ${field} required`);
-      token[field] = value.trim();
+      config[field] = value.trim();
     }
   }
 
   log('Token configs ready');
   return {
-    configMap,
-    metadata: baseMetadata,
+    configMap: warpRouteConfig,
     origin: baseChainName,
-    remotes: synthetics.map(({ chainName }) => chainName),
-    isNft: !!isNft,
+    metadata: baseMetadata,
+    remotes,
   };
 }
 
 interface DeployParams {
-  configMap: ChainMap<TokenConfig & RouterConfig>;
-  isNft: boolean;
+  configMap: WarpRouteDeployConfig;
   metadata: MinimalTokenMetadata;
   origin: ChainName;
   remotes: ChainName[];
@@ -255,12 +240,11 @@ interface DeployParams {
   multiProvider: MultiProvider;
   outPath: string;
   skipConfirmation: boolean;
-  dryRun: boolean;
+  dryRun: string;
 }
 
 async function runDeployPlanStep({
   configMap,
-  isNft,
   origin,
   remotes,
   signer,
@@ -268,6 +252,7 @@ async function runDeployPlanStep({
 }: DeployParams) {
   const address = await signer.getAddress();
   const baseToken = configMap[origin];
+
   const baseName = getTokenName(baseToken);
   logBlue('\nDeployment plan');
   logGray('===============');
@@ -275,7 +260,7 @@ async function runDeployPlanStep({
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying a warp route with a base of ${baseName} token on ${origin}`);
   log(`Connecting it to new synthetic tokens on ${remotes.join(', ')}`);
-  log(`Using token standard ${isNft ? 'ERC721' : 'ERC20'}`);
+  log(`Using token standard ${configMap.isNft ? 'ERC721' : 'ERC20'}`);
 
   if (skipConfirmation) return;
 
@@ -288,7 +273,7 @@ async function runDeployPlanStep({
 async function executeDeploy(params: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
-  const { configMap, isNft, multiProvider, outPath } = params;
+  const { configMap, multiProvider, outPath } = params;
 
   const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(
     outPath,
@@ -304,7 +289,7 @@ async function executeDeploy(params: DeployParams) {
     ),
   );
 
-  const deployer = isNft
+  const deployer = configMap.isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
 
@@ -312,7 +297,9 @@ async function executeDeploy(params: DeployParams) {
     ? { [params.origin]: configMap[params.origin] }
     : configMap;
 
-  const deployedContracts = await deployer.deploy(config);
+  const deployedContracts = await deployer.deploy(
+    config as ChainMap<TokenConfig & RouterConfig>,
+  ); /// @todo remove ChainMap once Hyperlane deployers are refactored
 
   logGreen('✅ Hyp token deployments complete');
 
@@ -326,37 +313,30 @@ async function executeDeploy(params: DeployParams) {
 }
 
 async function fetchBaseTokenMetadata(
-  base: WarpRouteDeployConfig['base'],
+  chain: string,
+  config: TokenRouterConfig,
   multiProvider: MultiProvider,
 ): Promise<MinimalTokenMetadata> {
-  const { type, name, symbol, chainName, address, decimals } = base;
-
-  // Skip fetching metadata if it's already provided in the config
-  if (name && symbol && decimals) {
-    return { name, symbol, decimals };
-  }
-
-  if (type === TokenType.native) {
+  if (config.type === TokenType.native) {
     // If it's a native token, use the chain's native token metadata
-    const chainNativeToken =
-      multiProvider.getChainMetadata(chainName).nativeToken;
+    const chainNativeToken = multiProvider.getChainMetadata(chain).nativeToken;
     if (chainNativeToken) return chainNativeToken;
-    else throw new Error(`No native token metadata for ${chainName}`);
+    else throw new Error(`No native token metadata for ${chain}`);
   } else if (
-    base.type === TokenType.collateralVault ||
-    (base.type === TokenType.collateral && address)
+    config.type === TokenType.collateralVault ||
+    config.type === TokenType.collateral
   ) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
-    log(`Fetching token metadata for ${address} on ${chainName}`);
+    log(`Fetching token metadata for ${config.token} on ${chain}`);
     const adapter = new EvmTokenAdapter(
-      chainName,
+      chain,
       MultiProtocolProvider.fromMultiProvider(multiProvider),
-      { token: address as string },
+      { token: config.token },
     );
     return adapter.getMetadata();
   } else {
     throw new Error(
-      `Unsupported token: ${base.type}. Consider setting token metadata in your deployment config.`,
+      `Unsupported token: ${config.type}. Consider setting token metadata in your deployment config.`,
     );
   }
 }

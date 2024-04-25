@@ -1,11 +1,4 @@
 {
-  "alfajores": {
-    "validators": [
-      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
-      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
-      "0x86485dcec5f7bb8478dd251676372d054dea6653"
-    ]
-  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
@@ -30,18 +23,14 @@
       "0xb144bb2f599a5af095bc30367856f27ea8a8adc7"
     ]
   },
+  "blast": {
+    "validators": ["0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"]
+  },
   "bsc": {
     "validators": [
       "0x570af9b7b36568c8877eebba6c6727aa9dab7268",
       "0x7bf928d5d262365d31d64eaa24755d48c3cae313",
       "0x03047213365800f065356b4a2fe97c3c3a52296a"
-    ]
-  },
-  "bsctestnet": {
-    "validators": [
-      "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
-      "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
-      "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
   },
   "celo": {
@@ -51,21 +40,11 @@
       "0x7bf30afcb6a7d92146d5a910ea4c154fba38d25e"
     ]
   },
-  "eclipsetestnet": {
-    "validators": ["0xf344f34abca9a444545b5295066348a0ae22dda3"]
-  },
   "ethereum": {
     "validators": [
       "0x03c842db86a6a3e524d4a6615390c1ea8e2b9541",
       "0x4346776b10f5e0d9995d884b7a1dbaee4e24c016",
       "0x749d6e7ad949e522c92181dc77f7bbc1c5d71506"
-    ]
-  },
-  "fuji": {
-    "validators": [
-      "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
-      "0x895ae30bc83ff1493b9cf7781b0b813d23659857",
-      "0x43e915573d9f1383cbf482049e4a012290759e7f"
     ]
   },
   "gnosis": {
@@ -92,6 +71,9 @@
       "0x5dda0c4cf18de3b3ab637f8df82b24921082b54c"
     ]
   },
+  "mode": {
+    "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
+  },
   "moonbeam": {
     "validators": [
       "0x2225e2f4e9221049456da93b71d2de41f3b6b2a8",
@@ -111,13 +93,6 @@
       "0x20349eadc6c72e94ce38268b96692b1a5c20de4f",
       "0x04d040cee072272789e2d1f29aef73b3ad098db5",
       "0x779a17e035018396724a6dec8a59bda1b5adf738"
-    ]
-  },
-  "plumetestnet": {
-    "validators": [
-      "0xe765a214849f3ecdf00793b97d00422f2d408ea6",
-      "0xb59998f71efc65190a85ac5e81b66bd72a192a3b",
-      "0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c"
     ]
   },
   "polygon": {
@@ -140,23 +115,6 @@
       "0xb37fe43a9f47b7024c2d5ae22526cc66b5261533",
       "0x7210fa0a6be39a75cb14d682ebfb37e2b53ecbe5"
     ]
-  },
-  "scrollsepolia": {
-    "validators": [
-      "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
-      "0x9a11ed23ae962974018ab45bc133caabff7b3271",
-      "0x7867bea3c9761fe64e6d124b171f91fd5dd79644"
-    ]
-  },
-  "sepolia": {
-    "validators": [
-      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
-      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
-      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
-    ]
-  },
-  "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]

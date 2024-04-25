@@ -10,11 +10,11 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
-  TokenType,
   resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
+import { getWarpConfig } from '../config/warp.js';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
@@ -41,8 +41,8 @@ function getArgs() {
 
 async function check() {
   const { fork, govern, module, environment, context } = await getArgs();
-  const config = getEnvironmentConfig(environment);
-  let multiProvider = await config.getMultiProvider();
+  const envConfig = getEnvironmentConfig(environment);
+  let multiProvider = await envConfig.getMultiProvider();
 
   // must rotate to forked provider before building core contracts
   if (fork) {
@@ -56,7 +56,7 @@ async function check() {
       const owner = await resolveOrDeployAccountOwner(
         multiProvider,
         fork,
-        config.core[fork].owner,
+        envConfig.core[fork].owner,
       );
       const signer = await impersonateAccount(owner, 1e18);
 
@@ -69,7 +69,7 @@ async function check() {
     chainAddresses,
     multiProvider,
   );
-  const routerConfig = core.getRouterConfig(config.owners);
+  const routerConfig = core.getRouterConfig(envConfig.owners);
   const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
 
   let governor: HyperlaneAppGovernor<any, any>;
@@ -77,13 +77,13 @@ async function check() {
     const checker = new HyperlaneCoreChecker(
       multiProvider,
       core,
-      config.core,
+      envConfig.core,
       ismFactory,
     );
     governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
-    const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
+    const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const checker = new InterchainAccountChecker(
@@ -102,7 +102,7 @@ async function check() {
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HELLO_WORLD) {
     const app = await getHelloWorldApp(
-      config,
+      envConfig,
       context,
       Role.Deployer,
       Contexts.Hyperlane, // Owner should always be from the hyperlane context
@@ -119,25 +119,7 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    // test config
-    const plumetestnet = {
-      ...routerConfig.plumetestnet,
-      type: TokenType.synthetic,
-      name: 'Wrapped Ether',
-      symbol: 'WETH',
-      decimals: 18,
-      totalSupply: '0',
-      gas: 0,
-    };
-    const sepolia = {
-      ...routerConfig.sepolia,
-      type: TokenType.native,
-      gas: 0,
-    };
-    const config = {
-      plumetestnet,
-      sepolia,
-    };
+    const config = await getWarpConfig(multiProvider, envConfig);
     const addresses = getAddresses(environment, Modules.WARP);
     const filteredAddresses = Object.keys(addresses) // filter out changes not in config
       .filter((key) => key in config)

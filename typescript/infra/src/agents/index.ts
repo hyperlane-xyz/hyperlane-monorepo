@@ -1,6 +1,5 @@
 import fs from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import { ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
@@ -24,13 +23,17 @@ import {
   buildHelmChartDependencies,
   helmifyValues,
 } from '../utils/helm.js';
-import { execCmd, isEthereumProtocolChain } from '../utils/utils.js';
+import {
+  execCmd,
+  getInfraPath,
+  isEthereumProtocolChain,
+} from '../utils/utils.js';
 
 import { AgentGCPKey } from './gcp.js';
 
 const HELM_CHART_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '/../../../../rust/helm/hyperlane-agent/',
+  getInfraPath(),
+  '/../../rust/helm/hyperlane-agent/',
 );
 
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))

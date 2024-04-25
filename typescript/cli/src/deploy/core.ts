@@ -87,12 +87,12 @@ export async function runCoreDeploy({
   artifactsPath?: string;
   outPath: string;
   skipConfirmation: boolean;
-  dryRun: boolean;
+  dryRun: string;
 }) {
   const context = dryRun
     ? await getDryRunContext({
         chainConfigPath,
-        chains,
+        chains: [dryRun],
         keyConfig: { key },
         skipConfirmation,
       })
@@ -280,7 +280,7 @@ interface DeployParams {
   hooksConfig?: ChainMap<HooksConfig>;
   outPath: string;
   skipConfirmation: boolean;
-  dryRun: boolean;
+  dryRun: string;
 }
 
 async function runDeployPlanStep({

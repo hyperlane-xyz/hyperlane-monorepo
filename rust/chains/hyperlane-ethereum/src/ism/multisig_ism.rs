@@ -13,11 +13,10 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
 
-use crate::contracts::i_multisig_ism::{
+use crate::interfaces::i_multisig_ism::{
     IMultisigIsm as EthereumMultisigIsmInternal, IMULTISIGISM_ABI,
 };
-use crate::trait_builder::BuildableWithProvider;
-use crate::{ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
 impl<M> std::fmt::Display for EthereumMultisigIsmInternal<M>
 where
@@ -119,6 +118,6 @@ impl HyperlaneAbi for EthereumMultisigIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IMULTISIGISM_ABI)
+        crate::extract_fn_map(&IMULTISIGISM_ABI)
     }
 }

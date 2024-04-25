@@ -45,10 +45,13 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     owners: Address | ChainMap<OwnableConfig>,
   ): ChainMap<RouterConfig> => {
     // get config
-    const config = objMap(this.contractsMap, (chain, contracts) => ({
-      mailbox: contracts.mailbox.address,
-      owner: typeof owners === 'string' ? owners : owners[chain].owner,
-    }));
+    const config = objMap(
+      this.contractsMap,
+      (chain, contracts): RouterConfig => ({
+        mailbox: contracts.mailbox.address,
+        owner: typeof owners === 'string' ? owners : owners[chain].owner,
+      }),
+    );
     // filter for EVM chains
     return objFilter(
       config,
