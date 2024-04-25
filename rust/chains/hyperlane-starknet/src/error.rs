@@ -16,8 +16,12 @@ pub enum HyperlaneStarknetError {
     AccountError(String),
     #[error("Invalid transaction receipt")]
     InvalidTransactionReceipt,
+    #[error("Invalid block")]
+    InvalidBlock,
     #[error(transparent)]
     ContractCallError(#[from] cainome::cairo_serde::Error),
+    #[error(transparent)]
+    ProviderError(#[from] starknet::providers::ProviderError),
 }
 
 impl From<HyperlaneStarknetError> for ChainCommunicationError {
