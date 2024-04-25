@@ -338,7 +338,7 @@ export const validatorChainConfig = (
     },
     viction: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.viction),
+      reorgPeriod: getReorgPeriod('viction'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0x1f87c368f8e05a85ef9126d984a980a20930cb9c'],
@@ -354,7 +354,7 @@ export const validatorChainConfig = (
     },
     blast: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.blast),
+      reorgPeriod: getReorgPeriod('blast'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xf20c0b09f597597c8d2430d3d72dfddaf09177d1'],
@@ -368,7 +368,7 @@ export const validatorChainConfig = (
     },
     mode: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.mode),
+      reorgPeriod: getReorgPeriod('mode'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7'],
