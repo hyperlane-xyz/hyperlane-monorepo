@@ -315,7 +315,7 @@ impl BaseAgent for Relayer {
                     self.core.settings.chains[dest_domain.name()]
                         .connection
                         .message_batch_config()
-                        .map(|c| c.batch_size),
+                        .map(|c| c.max_batch_size),
                 ),
             );
 

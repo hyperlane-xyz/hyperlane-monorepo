@@ -46,11 +46,6 @@ mock! {
             tx_gas_limit: Option<U256>,
         ) -> ChainResult<TxOutcome> {}
 
-        pub fn process_batch(
-            &mut self,
-            messages: &[BatchItem<HyperlaneMessage>],
-        ) -> ChainResult<TxOutcome> {}
-
         pub fn process_estimate_costs(
             &self,
             message: &HyperlaneMessage,

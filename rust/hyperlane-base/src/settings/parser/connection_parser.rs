@@ -72,9 +72,9 @@ pub fn build_ethereum_connection_conf(
         .end()
         .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
 
-    let batch_size = chain
+    let max_batch_size = chain
         .chain(err)
-        .get_opt_key("batchSize")
+        .get_opt_key("maxBatchSize")
         .parse_u32()
         .unwrap_or(1);
 
@@ -83,7 +83,7 @@ pub fn build_ethereum_connection_conf(
         transaction_overrides,
         message_batch: h_eth::MessageBatchConfig {
             multicall3_address: Some(multicall3_address),
-            batch_size,
+            max_batch_size,
         },
     }))
 }

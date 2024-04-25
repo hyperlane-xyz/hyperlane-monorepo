@@ -52,14 +52,12 @@ pub struct MessageContext {
 /// A message that the submitter can and should try to submit.
 #[derive(new)]
 pub struct PendingMessage {
-    // needs to be vectorized
     pub message: HyperlaneMessage,
     ctx: Arc<MessageContext>,
     app_context: Option<String>,
     #[new(default)]
     submitted: bool,
     #[new(default)]
-    // needs to be vectorized
     submission_data: Option<Box<TxSubmissionData>>,
     #[new(default)]
     num_retries: u32,

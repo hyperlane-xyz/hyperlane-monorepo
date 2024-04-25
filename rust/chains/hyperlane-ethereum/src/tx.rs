@@ -22,7 +22,7 @@ use tracing::{error, info};
 use crate::{Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
-pub const GAS_ESTIMATE_BUFFER: u32 = 5000000;
+pub const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -93,7 +93,7 @@ where
     D: Detokenize,
 {
     let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
-        gas_limit.saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
+        gas_limit
     } else {
         tx.estimate_gas()
             .await?

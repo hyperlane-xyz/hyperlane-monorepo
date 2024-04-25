@@ -402,7 +402,10 @@ where
 
         let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await?;
         let call = self
-            .add_gas_overrides(batch_call, Some(GAS_ESTIMATE_BUFFER.into()))
+            .add_gas_overrides(
+                batch_call,
+                GAS_ESTIMATE_BUFFER.checked_mul(10).map(Into::into),
+            )
             .await?;
 
         let receipt = report_tx(call).await?;
@@ -420,9 +423,7 @@ where
             .tx
             .gas()
             .copied()
-            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?
-            .checked_add(ethers_core::types::U256::from(GAS_ESTIMATE_BUFFER))
-            .unwrap();
+            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {

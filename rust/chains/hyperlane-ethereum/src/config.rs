@@ -58,5 +58,5 @@ pub struct MessageBatchConfig {
     /// Optional Multicall3 contract address
     pub multicall3_address: Option<H256>,
     /// Batch size
-    pub batch_size: u32,
+    pub max_batch_size: u32,
 }

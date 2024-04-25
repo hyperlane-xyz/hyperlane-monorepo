@@ -172,7 +172,7 @@ fn main() -> ExitCode {
             "CHAINS_TEST1_BATCHCONTRACTADDRESS",
             multicall_address_string.clone(),
         )
-        .hyp_env("CHAINS_TEST1_BATCHSIZE", "2")
+        .hyp_env("CHAINS_TEST1_MAXBATCHSIZE", "3")
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")

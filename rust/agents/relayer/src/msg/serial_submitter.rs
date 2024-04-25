@@ -2,6 +2,7 @@ use std::cmp::Reverse;
 use std::time::Duration;
 
 use derive_new::new;
+use futures::future::join_all;
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::spawn;
@@ -112,7 +113,7 @@ impl SerialSubmitter {
         // sitting ready to go at a time and this acts as a synchronization tool
         // to slow down the preparation of messages when the submitter gets
         // behind.
-        let (tx_submit, rx_submit) = mpsc::channel(1);
+        let (tx_submit, rx_submit) = mpsc::channel(batch_size.unwrap_or(1) as usize);
 
         let tasks = [
             spawn(receive_task(
@@ -125,6 +126,7 @@ impl SerialSubmitter {
                 prepare_queue.clone(),
                 tx_submit,
                 metrics.clone(),
+                batch_size,
             )),
             spawn(submit_task(
                 domain.clone(),
@@ -173,40 +175,55 @@ async fn prepare_task(
     mut prepare_queue: OpQueue,
     tx_submit: mpsc::Sender<QueueOperation>,
     metrics: SerialSubmitterMetrics,
+    batch_size: Option<u32>,
 ) {
+    let batch_size = batch_size.unwrap_or(1);
     loop {
-        // Pick the next message to try preparing.
-        let next = prepare_queue.pop().await;
-
-        let Some(Reverse(mut op)) = next else {
+        // Pop messages here according to the configured batch.
+        let mut batch = vec![];
+        for _ in 0..batch_size {
+            let next = prepare_queue.pop().await;
+            if let Some(Reverse(op)) = next {
+                batch.push(op);
+            } else {
+                break;
+            }
+        }
+        if batch.is_empty() {
             // queue is empty so give some time before checking again to prevent burning CPU
             sleep(Duration::from_millis(200)).await;
             continue;
-        };
-
-        trace!(?op, "Preparing operation");
-        debug_assert_eq!(*op.destination_domain(), domain);
-
-        match op.prepare().await {
-            PendingOperationResult::Success => {
-                debug!(?op, "Operation prepared");
-                metrics.ops_prepared.inc();
-                // this send will pause this task if the submitter is not ready to accept yet
-                if let Err(err) = tx_submit.send(op).await {
-                    tracing::error!(error=?err, "Failed to send prepared operation to submitter");
+        }
+        let mut task_prep_futures = vec![];
+        let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
+        for op in op_refs {
+            trace!(?op, "Preparing operation");
+            debug_assert_eq!(*op.destination_domain(), domain);
+            task_prep_futures.push(op.prepare());
+        }
+        let res = join_all(task_prep_futures).await;
+        for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
+            match prepare_result {
+                PendingOperationResult::Success => {
+                    debug!(?op, "Operation prepared");
+                    metrics.ops_prepared.inc();
+                    // this send will pause this task if the submitter is not ready to accept yet
+                    if let Err(err) = tx_submit.send(op).await {
+                        tracing::error!(error=?err, "Failed to send prepared operation to submitter");
+                    }
                 }
-            }
-            PendingOperationResult::NotReady => {
-                // none of the operations are ready yet, so wait for a little bit
-                prepare_queue.push(op).await;
-                sleep(Duration::from_millis(200)).await;
-            }
-            PendingOperationResult::Reprepare => {
-                metrics.ops_failed.inc();
-                prepare_queue.push(op).await;
-            }
-            PendingOperationResult::Drop => {
-                metrics.ops_dropped.inc();
+                PendingOperationResult::NotReady => {
+                    // none of the operations are ready yet, so wait for a little bit
+                    prepare_queue.push(op).await;
+                    sleep(Duration::from_millis(200)).await;
+                }
+                PendingOperationResult::Reprepare => {
+                    metrics.ops_failed.inc();
+                    prepare_queue.push(op).await;
+                }
+                PendingOperationResult::Drop => {
+                    metrics.ops_dropped.inc();
+                }
             }
         }
     }
@@ -220,31 +237,28 @@ async fn submit_task(
     metrics: SerialSubmitterMetrics,
     batch_size: Option<u32>,
 ) {
-    // based on the batch_size, somehow combine multiple operations into one and call
-    // `mailbox.process_batch` (if PendingMessage).
-    // Currently we only want to batch messages, so it'd make sense to mix some concrete type
-    // logic in.
-    // Alternatively, we could have a `BatchedOperation` that wraps a `PendingOperation` and
-    // when `submit` is called on it, it only batches if all operations have the same type (try_process_batch,
-    // which will return an error for non-PendingMessage types).
-    // Otherwise, it submits them individually (op.submit()).
+    let recv_limit = batch_size.unwrap_or(1) as usize;
+    // looping is not an issue because `recv_many` will sleep if the channel is empty
+    loop {
+        let mut recv_buffer = vec![];
+        let ops_received = rx_submit.recv_many(&mut recv_buffer, recv_limit).await;
 
-    let mut batch = OperationBatch::new();
-
-    while let Some(op) = rx_submit.recv().await {
-        trace!(?op, "Submitting operation");
-        debug_assert_eq!(*op.destination_domain(), domain);
-
-        match batch_size {
-            Some(batch_size) => {
-                batch.add(op);
-                if batch.operations.len() == batch_size as usize {
-                    batch.submit(&mut confirm_queue, &metrics).await;
-                    batch = OperationBatch::new();
-                }
+        match ops_received.cmp(&1) {
+            std::cmp::Ordering::Less => {
+                // This should never happen, but just in case
+                sleep(Duration::from_secs(5)).await;
+                continue;
             }
-            None => {
+            std::cmp::Ordering::Equal => {
+                let op = recv_buffer.pop().unwrap();
                 submit_and_confirm_op(op, &mut confirm_queue, &metrics).await;
+            }
+            std::cmp::Ordering::Greater => {
+                let mut batch = OperationBatch::new();
+                for op in recv_buffer.into_iter() {
+                    batch.add(op);
+                }
+                batch.submit(&mut confirm_queue, &metrics).await;
             }
         }
     }
@@ -259,6 +273,78 @@ async fn submit_and_confirm_op(
     debug!(?op, "Operation submitted");
     confirm_queue.push(op).await;
     metrics.ops_submitted.inc();
+}
+
+#[instrument(skip_all, fields(%domain))]
+async fn confirm_task(
+    domain: HyperlaneDomain,
+    prepare_queue: OpQueue,
+    mut confirm_queue: OpQueue,
+    metrics: SerialSubmitterMetrics,
+) {
+    loop {
+        // Pick the next message to try confirming.
+        let Some(Reverse(mut op)) = confirm_queue.pop().await else {
+            sleep(Duration::from_secs(5)).await;
+            continue;
+        };
+
+        trace!(?op, "Confirming operation");
+        debug_assert_eq!(*op.destination_domain(), domain);
+
+        match op.confirm().await {
+            PendingOperationResult::Success => {
+                debug!(?op, "Operation confirmed");
+                metrics.ops_confirmed.inc();
+            }
+            PendingOperationResult::NotReady => {
+                // none of the operations are ready yet, so wait for a little bit
+                confirm_queue.push(op).await;
+                sleep(Duration::from_secs(5)).await;
+            }
+            PendingOperationResult::Reprepare => {
+                metrics.ops_failed.inc();
+                prepare_queue.push(op).await;
+            }
+            PendingOperationResult::Drop => {
+                metrics.ops_dropped.inc();
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SerialSubmitterMetrics {
+    submitter_queue_length: IntGaugeVec,
+    ops_prepared: IntCounter,
+    ops_submitted: IntCounter,
+    ops_confirmed: IntCounter,
+    ops_failed: IntCounter,
+    ops_dropped: IntCounter,
+}
+
+impl SerialSubmitterMetrics {
+    pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
+        let destination = destination.name();
+        Self {
+            submitter_queue_length: metrics.submitter_queue_length(),
+            ops_prepared: metrics
+                .operations_processed_count()
+                .with_label_values(&["prepared", destination]),
+            ops_submitted: metrics
+                .operations_processed_count()
+                .with_label_values(&["submitted", destination]),
+            ops_confirmed: metrics
+                .operations_processed_count()
+                .with_label_values(&["confirmed", destination]),
+            ops_failed: metrics
+                .operations_processed_count()
+                .with_label_values(&["failed", destination]),
+            ops_dropped: metrics
+                .operations_processed_count()
+                .with_label_values(&["dropped", destination]),
+        }
+    }
 }
 
 #[derive(new)]
@@ -318,82 +404,6 @@ impl OperationBatch {
     async fn submit_serially(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         for op in self.operations.into_iter() {
             submit_and_confirm_op(op, confirm_queue, metrics).await;
-        }
-    }
-}
-
-#[instrument(skip_all, fields(%domain))]
-async fn confirm_task(
-    domain: HyperlaneDomain,
-    prepare_queue: OpQueue,
-    mut confirm_queue: OpQueue,
-    metrics: SerialSubmitterMetrics,
-) {
-    loop {
-        // Pick the next message to try confirming.
-        let Some(Reverse(mut op)) = confirm_queue.pop().await else {
-            sleep(Duration::from_secs(5)).await;
-            continue;
-        };
-
-        trace!(?op, "Confirming operation");
-        debug_assert_eq!(*op.destination_domain(), domain);
-
-        match op.confirm().await {
-            PendingOperationResult::Success => {
-                debug!(?op, "Operation confirmed");
-                metrics.ops_confirmed.inc();
-            }
-            PendingOperationResult::NotReady => {
-                // none of the operations are ready yet, so wait for a little bit
-                confirm_queue.push(op).await;
-                sleep(Duration::from_secs(5)).await;
-            }
-            PendingOperationResult::Reprepare => {
-                metrics.ops_failed.inc();
-                prepare_queue.push(op).await;
-            }
-            PendingOperationResult::Drop => {
-                metrics.ops_dropped.inc();
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SerialSubmitterMetrics {
-    submitter_queue_length: IntGaugeVec,
-    ops_prepared: IntCounter,
-    ops_submitted: IntCounter,
-    ops_confirmed: IntCounter,
-    // ops_reorged: IntCounter,
-    ops_failed: IntCounter,
-    ops_dropped: IntCounter,
-}
-
-impl SerialSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, destination: &HyperlaneDomain) -> Self {
-        let destination = destination.name();
-        Self {
-            submitter_queue_length: metrics.submitter_queue_length(),
-            ops_prepared: metrics
-                .operations_processed_count()
-                .with_label_values(&["prepared", destination]),
-            ops_submitted: metrics
-                .operations_processed_count()
-                .with_label_values(&["submitted", destination]),
-            ops_confirmed: metrics
-                .operations_processed_count()
-                .with_label_values(&["confirmed", destination]),
-            // ops_reorged: metrics
-            //     .operations_processed_count()
-            //     .with_label_values(&["reorged", destination]),
-            ops_failed: metrics
-                .operations_processed_count()
-                .with_label_values(&["failed", destination]),
-            ops_dropped: metrics
-                .operations_processed_count()
-                .with_label_values(&["dropped", destination]),
         }
     }
 }
