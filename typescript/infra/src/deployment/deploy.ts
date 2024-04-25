@@ -136,7 +136,6 @@ export async function writeAgentConfig(
       }
 
       const mailbox = core.getContracts(chain).mailbox;
-      console.log('mailbox', mailbox);
       try {
         const deployedBlock = await mailbox.deployedBlock();
         return deployedBlock.toNumber();
