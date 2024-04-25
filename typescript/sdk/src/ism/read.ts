@@ -15,10 +15,10 @@ import {
   WithAddress,
   assert,
   concurrentMap,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -63,14 +63,10 @@ export class EvmIsmReader implements IsmReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: ChainName,
-    protected readonly concurrency: number = 20,
+    protected readonly chain: ChainName,
+    protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(config: IsmConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
   async deriveIsmConfig(

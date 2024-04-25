@@ -6,19 +6,21 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { RouterConfig } from '../index.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
-import { ERC20RouterConfig, HypERC20Config, TokenType } from './config.js';
+import { HypERC20Config, TokenConfig, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
+import { WarpRouteDeployConfig } from './types.js';
 
 describe('TokenDeployer', async () => {
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: ChainMap<ERC20RouterConfig>;
+  let config: WarpRouteDeployConfig;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -49,6 +51,6 @@ describe('TokenDeployer', async () => {
   });
 
   it('deploys', async () => {
-    await deployer.deploy(config);
+    await deployer.deploy(config as ChainMap<TokenConfig & RouterConfig>);
   });
 });

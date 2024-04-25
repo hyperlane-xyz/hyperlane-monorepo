@@ -132,7 +132,8 @@ run_hyperlane_deploy_core_dry_run() {
     BEFORE_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
 
     echo -e "\nDry-running contract deployments to Alfajores"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core --dry-run \
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
+        --dry-run alfajores \
         --targets alfajores \
         --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
         --artifacts /tmp/empty-artifacts.json \
@@ -163,7 +164,8 @@ run_hyperlane_deploy_warp_dry_run() {
     BEFORE_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
 
     echo -e "\nDry-running warp route deployments to Alfajores"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp --dry-run \
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+        --dry-run alfajores \
         --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
         --core $CORE_ARTIFACTS_PATH \
         --config ${EXAMPLES_PATH}/dry-run/warp-route-deployment.yaml \
