@@ -8,6 +8,8 @@ import './env.js';
 import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
+import { hookCommand } from './src/commands/hook.js';
+import { ismCommand } from './src/commands/ism.js';
 import {
   logFormatCommandOption,
   logLevelCommandOption,
@@ -37,6 +39,8 @@ try {
     .command(chainsCommand)
     .command(configCommand)
     .command(deployCommand)
+    .command(hookCommand)
+    .command(ismCommand)
     .command(sendCommand)
     .command(statusCommand)
     .version(VERSION)
