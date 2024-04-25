@@ -1,8 +1,11 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
-import { z } from 'zod';
 
-import { TokenType, ZHash } from '@hyperlane-xyz/sdk';
+import {
+  TokenType,
+  WarpRouteDeployConfig,
+  WarpRouteDeployConfigSchema,
+} from '@hyperlane-xyz/sdk';
 
 import { errorRed, logBlue, logGreen } from '../logger.js';
 import {
@@ -12,63 +15,6 @@ import {
 import { FileFormat, readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import { readChainConfigsIfExists } from './chain.js';
-
-const ConnectionConfigSchema = {
-  mailbox: ZHash.optional(),
-  interchainSecurityModule: ZHash.optional(),
-  foreignDeployment: z.string().optional(),
-};
-
-export const WarpRouteDeployConfigSchema = z.object({
-  base: z
-    .object({
-      type: z
-        .literal(TokenType.native)
-        .or(z.literal(TokenType.collateral))
-        .or(z.literal(TokenType.collateralVault)),
-      chainName: z.string(),
-      address: ZHash.optional(),
-      isNft: z.boolean().optional(),
-      name: z.string().optional(),
-      symbol: z.string().optional(),
-      decimals: z.number().optional(),
-      ...ConnectionConfigSchema,
-    })
-    .refine(
-      (data) => {
-        // For collateralVault Warp Routes, address will specify the vault
-        if (
-          data.type === TokenType.collateralVault &&
-          data.address === ethers.constants.AddressZero
-        )
-          return false;
-
-        return true;
-      },
-      {
-        message: 'Vault address is required when type is collateralVault',
-        path: ['address'],
-      },
-    ),
-  synthetics: z
-    .array(
-      z.object({
-        chainName: z.string(),
-        name: z.string().optional(),
-        symbol: z.string().optional(),
-        totalSupply: z.number().optional(),
-        ...ConnectionConfigSchema,
-      }),
-    )
-    .nonempty(),
-});
-
-type InferredType = z.infer<typeof WarpRouteDeployConfigSchema>;
-// A workaround for Zod's terrible typing for nonEmpty arrays
-export type WarpRouteDeployConfig = {
-  base: InferredType['base'];
-  synthetics: Array<InferredType['synthetics'][0]>;
-};
 
 export function readWarpRouteDeployConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
@@ -133,23 +79,28 @@ export async function createWarpRouteDeployConfig({
   );
 
   // TODO add more prompts here to support customizing the token metadata
-  let baseType: TokenType;
+  let result: WarpRouteDeployConfig;
   if (isNative) {
-    baseType = TokenType.native;
+    result = {
+      [baseChain]: {
+        type: TokenType.native,
+      },
+    };
   } else {
-    baseType = isYieldBearing
-      ? TokenType.collateralVault
-      : TokenType.collateral;
+    result = {
+      [baseChain]: {
+        type: isYieldBearing ? TokenType.collateralVault : TokenType.collateral,
+        token: baseAddress,
+        isNft,
+      },
+    };
   }
-  const result: WarpRouteDeployConfig = {
-    base: {
-      chainName: baseChain,
-      type: baseType,
-      address: baseAddress,
-      isNft,
-    },
-    synthetics: syntheticChains.map((chain) => ({ chainName: chain })),
-  };
+
+  syntheticChains.map((chain) => {
+    result[chain] = {
+      type: TokenType.synthetic,
+    };
+  });
 
   if (isValidWarpRouteDeployConfig(result)) {
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);

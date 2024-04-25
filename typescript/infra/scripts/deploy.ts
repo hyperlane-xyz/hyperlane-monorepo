@@ -21,7 +21,6 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
-  TokenType,
   hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -29,8 +28,8 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
+import { getWarpConfig } from '../config/warp.js';
 import { deployEnvToSdkEnv } from '../src/config/environment.js';
-import { tokens } from '../src/config/warp.js';
 import { deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
@@ -120,48 +119,11 @@ async function main() {
       contractVerifier,
     );
   } else if (module === Modules.WARP) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
+      getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
-    const routerConfig = core.getRouterConfig(envConfig.owners);
-
-    const ethereum = {
-      ...routerConfig.ethereum,
-      type: TokenType.collateral,
-      token: tokens.ethereum.USDC,
-      // Really, this should be an object config from something like:
-      //   buildAggregationIsmConfigs(
-      //     'ethereum',
-      //     ['ancient8'],
-      //     defaultMultisigConfigs,
-      //   ).ancient8
-      // However ISM objects are no longer able to be passed directly to the warp route
-      // deployer. As a temporary workaround, I'm using an ISM address from a previous
-      // ethereum <> ancient8 warp route deployment:
-      //   $ cast call 0x9f5cF636b4F2DC6D83c9d21c8911876C235DbC9f 'interchainSecurityModule()(address)' --rpc-url https://rpc.ankr.com/eth
-      //   0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3
-      interchainSecurityModule: '0xD17B4100cC66A2F1B9a452007ff26365aaeB7EC3',
-      // This hook was recovered from running the deploy script
-      // for the hook module. The hook configuration is the Ethereum
-      // default hook for the Ancient8 remote (no routing).
-      hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
-      owner: DEPLOYER,
-    };
-
-    const ancient8 = {
-      ...routerConfig.ancient8,
-      type: TokenType.synthetic,
-      // Uses the default ISM
-      interchainSecurityModule: ethers.constants.AddressZero,
-      owner: DEPLOYER,
-    };
-
-    config = {
-      ethereum,
-      ancient8,
-    };
+    config = await getWarpConfig(multiProvider, envConfig);
     deployer = new HypERC20Deployer(
       multiProvider,
       ismFactory,

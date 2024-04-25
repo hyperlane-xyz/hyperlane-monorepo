@@ -120,6 +120,7 @@ export {
 } from './gas/types.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
 export { EvmHookReader } from './hook/read.js';
+export { EvmCoreReader } from './core/read.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -413,6 +414,8 @@ export {
   TokenMetadata,
   TokenType,
   isCollateralConfig,
+  isSyntheticConfig,
+  isNativeConfig,
   isUriConfig,
 } from './token/config.js';
 export {
@@ -424,6 +427,14 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { filterByChains } from './utils/filter.js';
+export {
+  ANVIL_RPC_METHODS,
+  resetFork,
+  setFork,
+  impersonateAccount,
+  stopImpersonatingAccount,
+  getLocalProvider,
+} from './utils/fork.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';
 export {
   SealevelAccountDataWrapper,
@@ -440,3 +451,11 @@ export {
   WarpTxCategory,
   WarpTypedTransaction,
 } from './warp/types.js';
+
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
+export {
+  WarpRouteDeployConfigSchema,
+  TokenRouterConfigSchema as tokenRouterConfigSchema,
+} from './token/schemas.js';
+export { AggregationIsmConfigSchema } from './ism/schemas.js';
+export { WarpRouteDeployConfig, TokenRouterConfig } from './token/types.js';

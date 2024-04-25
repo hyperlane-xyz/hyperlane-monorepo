@@ -15,7 +15,7 @@ pub use log_metadata::*;
 pub use merkle_tree::*;
 pub use message::*;
 
-use crate::{Decode, Encode, HyperlaneProtocolError};
+use crate::{Decode, Encode, HyperlaneProtocolError, Sequenced};
 
 mod announcement;
 mod chain_data;
@@ -129,6 +129,12 @@ pub struct InterchainGasPayment {
     pub payment: U256,
     /// Amount of destination gas paid for.
     pub gas_amount: U256,
+}
+
+impl Sequenced for InterchainGasPayment {
+    fn sequence(&self) -> u32 {
+        Default::default()
+    }
 }
 
 /// Amount of gas spent attempting to send the message.

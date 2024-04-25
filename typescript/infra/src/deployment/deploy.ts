@@ -136,8 +136,13 @@ export async function writeAgentConfig(
       }
 
       const mailbox = core.getContracts(chain).mailbox;
-      const deployedBlock = await mailbox.deployedBlock();
-      return deployedBlock.toNumber();
+      try {
+        const deployedBlock = await mailbox.deployedBlock();
+        return deployedBlock.toNumber();
+      } catch (err) {
+        console.error('Failed to get deployed block for', chain, err);
+        return 0;
+      }
     }),
   );
 

@@ -23,8 +23,8 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
 
-use crate::{signers::Signers, ConnectionConf, RetryingProvider};
-use crate::{EthereumFallbackProvider, RpcConnectionConf};
+use crate::signer::Signers;
+use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
