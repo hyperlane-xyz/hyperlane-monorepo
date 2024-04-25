@@ -25,15 +25,15 @@ import {
  *
  * Example use-cases:
  *  const builder = new TxSubmitterBuilder(mp);
- *  builder.add(
+ *  let txReceipts = builder.add(
  *    TxSubmitterType.GNOSIS_SAFE, chainA
  *  ).transform(
  *    TxSubmitterType.ICA, chainB
  *  ).submit(
  *    populatedTxs
  *  );
- *  builder.add(new ImpersonatedAccountTxSubmitter(chainA)).submit(populatedTxs);
- *  builder.add(TxSubmitterType.SIGNER, chainC).submit(populatedTxs);
+ *  txReceipts = builder.add(new ImpersonatedAccountTxSubmitter(chainA)).submit(populatedTxs);
+ *  txReceipts = builder.add(TxSubmitterType.SIGNER, chainC).submit(populatedTxs);
  */
 export class TxSubmitterBuilder<
   HTX extends HyperlaneTx,
@@ -51,7 +51,8 @@ export class TxSubmitterBuilder<
   }
 
   /**
-   * TODO:
+   * Sets the current submitter for the builder.
+   * @param txSubmitterOrType The submitter to add to the builder
    */
   public add(
     txSubmitterOrType: TxSubmitterXORType<HTX, HTR>,
@@ -92,7 +93,8 @@ export class TxSubmitterBuilder<
   }
 
   /**
-   * TODO:
+   * Sets the current transformer for the builder.
+   * @param txTransformerOrType The transformer to add to the builder
    */
   public transform(
     txTransformerOrType: TxTransformerXORType<HTX>,
@@ -122,7 +124,8 @@ export class TxSubmitterBuilder<
   }
 
   /**
-   * TODO:
+   * Submits a set of transactions to the builder.
+   * @param hyperlaneTxs The transactions to submit
    */
   public async submit(hyperlaneTxs: HTX[]): Promise<HTR[]> {
     assert(
