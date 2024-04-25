@@ -315,7 +315,6 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
-
     await this.runIfOwner(chain, routingHook, async () =>
       this.multiProvider.handleTx(
         chain,
