@@ -1,6 +1,8 @@
 #[cfg(feature = "fuels")]
 use fuels_code_gen::ProgramType;
 use std::collections::BTreeSet;
+#[cfg(feature = "starknet")]
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Write;
@@ -124,7 +126,24 @@ pub fn generate_bindings(
     }
     #[cfg(feature = "starknet")]
     if build_type == BuildType::Starknet {
-        todo!()
+        let mut aliases = HashMap::new();
+        aliases.insert(
+            String::from("openzeppelin::access::ownable::ownable::OwnableComponent::Event"),
+            String::from("OwnableCptEvent"),
+        );
+        aliases.insert(
+            String::from("openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event"),
+            String::from("UpgradeableCptEvent"),
+        );
+
+        let abigen =
+            cainome::rs::Abigen::new(contract_name, abi_source).with_types_aliases(aliases);
+
+        abigen
+            .generate()
+            .expect("Fail to generate bindings")
+            .write_to_file(&output_file.to_str().expect("valid utf8 path"))
+            .expect("Fail to write bindings to file");
     }
 
     module_name
