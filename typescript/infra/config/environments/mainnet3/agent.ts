@@ -49,16 +49,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.arbitrum]: true,
     [Chains.ancient8]: true,
     [Chains.avalanche]: true,
+    [Chains.base]: true,
+    [Chains.blast]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
     [Chains.ethereum]: true,
     [Chains.neutron]: true,
     [Chains.mantapacific]: true,
+    [Chains.mode]: true,
     [Chains.moonbeam]: true,
     [Chains.optimism]: true,
     [Chains.polygon]: true,
     [Chains.gnosis]: true,
-    [Chains.base]: true,
     [Chains.scroll]: true,
     [Chains.polygonzkevm]: true,
     [Chains.injective]: true,
@@ -69,17 +71,19 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.arbitrum]: true,
     [Chains.ancient8]: true,
     [Chains.avalanche]: true,
+    [Chains.base]: true,
+    [Chains.blast]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
     [Chains.ethereum]: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     [Chains.neutron]: false,
     [Chains.mantapacific]: false,
+    [Chains.mode]: true,
     [Chains.moonbeam]: true,
     [Chains.optimism]: true,
     [Chains.polygon]: true,
     [Chains.gnosis]: true,
-    [Chains.base]: true,
     [Chains.scroll]: true,
     [Chains.polygonzkevm]: true,
     [Chains.injective]: true,
@@ -90,17 +94,19 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.arbitrum]: true,
     [Chains.ancient8]: true,
     [Chains.avalanche]: true,
+    [Chains.base]: true,
+    [Chains.blast]: true,
     [Chains.bsc]: true,
     [Chains.celo]: true,
     [Chains.ethereum]: true,
     // Cannot scrape non-EVM chains
     [Chains.neutron]: false,
     [Chains.mantapacific]: true,
+    [Chains.mode]: true,
     [Chains.moonbeam]: true,
     [Chains.optimism]: true,
     [Chains.polygon]: true,
     [Chains.gnosis]: true,
-    [Chains.base]: true,
     [Chains.scroll]: true,
     [Chains.polygonzkevm]: true,
     // Cannot scrape non-EVM chains
@@ -198,7 +204,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'a2d6af6-20240422-164135',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -206,7 +212,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'a2d6af6-20240422-164135',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -215,7 +221,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'a2d6af6-20240422-164135',
     },
   },
 };
@@ -229,7 +235,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'a2d6af6-20240422-164135',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -240,7 +246,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'a2d6af6-20240422-164135',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -264,7 +270,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'a2d6af6-20240422-164135',
     },
     gasPaymentEnforcement: [
       {
