@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { ChainMap, ChainName, IsmType, ZHash } from '@hyperlane-xyz/sdk';
 
+import { CommandContext } from '../context/types.js';
 import {
   errorRed,
   log,
@@ -12,9 +13,7 @@ import {
   logRed,
 } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
-
-import { readChainConfigsIfExists } from './chain.js';
+import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 const MultisigIsmConfigSchema = z.object({
   type: z.union([
@@ -113,22 +112,19 @@ export function isValildIsmConfig(config: any) {
 }
 
 export async function createIsmConfigMap({
-  format,
+  context,
   outPath,
-  chainConfigPath,
 }: {
-  format: FileFormat;
+  context: CommandContext;
   outPath: string;
-  chainConfigPath: string;
 }) {
   logBlue('Creating a new advanced ISM config');
   logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
   logRed(
     'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
   );
-  const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(
-    customChains,
+    context.chainMetadata,
     'Select chains to configure ISM for',
     true,
   );
@@ -146,7 +142,7 @@ export async function createIsmConfigMap({
 
   if (isValildIsmConfig(result)) {
     logGreen(`ISM config is valid, writing to file ${outPath}`);
-    mergeYamlOrJson(outPath, result, format);
+    mergeYamlOrJson(outPath, result);
   } else {
     errorRed(
       `ISM config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/ism.yaml for an example`,

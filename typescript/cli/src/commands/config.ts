@@ -1,6 +1,6 @@
 import { CommandModule } from 'yargs';
 
-import { createChainConfig } from '../config/chain.js';
+import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { createHooksConfigMap } from '../config/hooks.js';
 import { createIsmConfigMap, readIsmConfig } from '../config/ism.js';
 import {
@@ -71,11 +71,11 @@ const createIsmConfigCommand: CommandModuleWithContext<{
       default: false,
     },
   },
-  handler: async ({ out, advanced, context }) => {
+  handler: async ({ context, out, advanced }) => {
     if (advanced) {
-      await createIsmConfigMap({ outPath: out, context });
+      await createIsmConfigMap({ context, outPath: out });
     } else {
-      await createMultisigConfig({ outPath: out, context });
+      await createMultisigConfig({ context, outPath: out });
     }
     process.exit(0);
   },
@@ -87,8 +87,8 @@ const createHookConfigCommand: CommandModuleWithContext<{ out: string }> = {
   builder: {
     out: outputFileOption('./configs/hooks.yaml'),
   },
-  handler: async ({ out, context }) => {
-    await createHooksConfigMap({ outPath: out, context });
+  handler: async ({ context, out }) => {
+    await createHooksConfigMap({ context, outPath: out });
     process.exit(0);
   },
 };
@@ -101,8 +101,8 @@ const createWarpRouteDeployConfigCommand: CommandModuleWithContext<{
   builder: {
     out: outputFileOption('./configs/warp-route-deployment.yaml'),
   },
-  handler: async ({ out, context }) => {
-    await createWarpRouteDeployConfig({ outPath: out, context });
+  handler: async ({ context, out }) => {
+    await createWarpRouteDeployConfig({ context, outPath: out });
     process.exit(0);
   },
 };
@@ -131,8 +131,8 @@ const validateChainCommand: CommandModuleWithContext<{ path: string }> = {
     path: inputFileOption,
   },
   handler: async ({ path }) => {
-    //TODO
     readChainConfigs(path);
+    logGreen(`All chain configs in ${path} are valid`);
     process.exit(0);
   },
 };

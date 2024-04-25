@@ -118,7 +118,7 @@ export function writeYamlOrJson(
 export function mergeYamlOrJson(
   filepath: string,
   obj: Record<string, any>,
-  format?: FileFormat,
+  format: FileFormat = 'yaml',
 ) {
   return resolveYamlOrJsonFn(
     filepath,

@@ -7,14 +7,13 @@ import {
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
 
+import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
-import { FileFormat, readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
-
-import { readChainConfigsIfExists } from './chain.js';
+import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 export function readWarpRouteDeployConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
@@ -35,18 +34,15 @@ export function isValidWarpRouteDeployConfig(config: any) {
 }
 
 export async function createWarpRouteDeployConfig({
-  format,
+  context,
   outPath,
-  chainConfigPath,
 }: {
-  format: FileFormat;
+  context: CommandContext;
   outPath: string;
-  chainConfigPath: string;
 }) {
   logBlue('Creating a new warp route deployment config');
-  const customChains = readChainConfigsIfExists(chainConfigPath);
   const baseChain = await runSingleChainSelectionStep(
-    customChains,
+    context.chainMetadata,
     'Select base chain with the original token to warp',
   );
 
@@ -74,7 +70,7 @@ export async function createWarpRouteDeployConfig({
     : await input({ message: addressMessage });
 
   const syntheticChains = await runMultiChainSelectionStep(
-    customChains,
+    context.chainMetadata,
     'Select chains to which the base token will be connected',
   );
 
@@ -104,7 +100,7 @@ export async function createWarpRouteDeployConfig({
 
   if (isValidWarpRouteDeployConfig(result)) {
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);
-    writeYamlOrJson(outPath, result, format);
+    writeYamlOrJson(outPath, result);
   } else {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
