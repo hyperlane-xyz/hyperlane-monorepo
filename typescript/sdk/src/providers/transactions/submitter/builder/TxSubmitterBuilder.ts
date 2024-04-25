@@ -1,64 +1,160 @@
-import { GnosisSafeHyperlaneTx } from '../../GnosisSafeHyperlaneTx.js';
+import assert from 'assert';
+import { Logger } from 'pino';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
+
+import { MultiProvider } from '../../../MultiProvider.js';
 import { HyperlaneTx } from '../../HyperlaneTx.js';
 import { HyperlaneTxReceipt } from '../../HyperlaneTxReceipt.js';
-import { ImpersonatedAccountHyperlaneTx } from '../../ImpersonatedAccountHyperlaneTx.js';
-import { InterchainAccountHyperlaneTx } from '../../InterchainAccountHyperlaneTx.js';
-import { SignerHyperlaneTx } from '../../SignerHyperlaneTx.js';
-import { TxSubmitterInterface, TxSubmitterType } from '../TxSubmitter.js';
+import { InterchainAccountTxTransformer } from '../../transformer/InterchainAccountTxTransformer.js';
+import { TxTransformerInterface } from '../../transformer/TxTransformer.js';
+import { TxTransformerType } from '../../transformer/TxTransformerTypes.js';
+import { GnosisSafeTxSubmitter } from '../GnosisSafeTxSubmitter.js';
+import { ImpersonatedAccountTxSubmitter } from '../ImpersonatedAccountTxSubmitter.js';
+import { SignerTxSubmitter } from '../SignerTxSubmitter.js';
+import { TxSubmitterInterface } from '../TxSubmitter.js';
+import { TxSubmitterType } from '../TxSubmitterTypes.js';
+
+import {
+  TxSubmitterXORType,
+  TxTransformerXORType,
+} from './TxSubmitterBuilderTypes.js';
 
 /**
- * Builds a TxSubmitter for batch transaction submission.
+ * Builds a TxSubmitterBuilder for batch transaction submission.
+ *
+ * Example use-cases:
+ *  const builder = new TxSubmitterBuilder(mp);
+ *  builder.add(
+ *    TxSubmitterType.GNOSIS_SAFE, chainA
+ *  ).transform(
+ *    TxSubmitterType.ICA, chainB
+ *  ).submit(
+ *    populatedTxs
+ *  );
+ *  builder.add(new ImpersonatedAccountTxSubmitter(chainA)).submit(populatedTxs);
+ *  builder.add(TxSubmitterType.SIGNER, chainC).submit(populatedTxs);
  */
 export class TxSubmitterBuilder<
   HTX extends HyperlaneTx,
   HTR extends HyperlaneTxReceipt,
 > {
-  private txSubmitterRecords: Record<
-    TxSubmitterType,
-    TxSubmitterInterface<HTX, HTR>
-  > = {} as Record<TxSubmitterType, TxSubmitterInterface<HTX, HTR>>;
+  protected readonly logger: Logger = rootLogger.child({
+    module: 'transactions',
+  });
 
-  /**
-   * Adds a TxSubmitter to the builder.
-   * @param txSubmitter The TxSubmitter to add
-   * @returns The TxSubmitterBuilder instance
-   */
-  public add(
-    txSubmitter: TxSubmitterInterface<HTX, HTR>,
-  ): TxSubmitterBuilder<HTX, HTR> {
-    this.txSubmitterRecords[txSubmitter.txSubmitterType] = txSubmitter;
-    return this;
+  private currentSubmitter?: TxSubmitterInterface<HTX, HTR>;
+  private currentTransformer?: TxTransformerInterface<HTX>;
+
+  constructor(private readonly multiProvider: MultiProvider) {
+    this.multiProvider = multiProvider;
   }
 
   /**
-   * Submits the Hyperlane transactions to the TxSubmitter.
-   * @param hyperlaneTxs The Hyperlane transactions to submit
-   * @returns The transaction receipts for the executed transactions
+   * TODO:
    */
-  public async submitTxs(...hyperlaneTxSets: HTX[][]): Promise<HTR[]> {
-    let hyperlaneReceipts = [];
-    for (const hyperlaneTxSet of hyperlaneTxSets) {
-      let submitter: TxSubmitterInterface<HTX, HTR>;
-      if (hyperlaneTxSet[0] instanceof SignerHyperlaneTx) {
-        submitter = this.txSubmitterRecords[TxSubmitterType.SIGNER];
-      } else if (hyperlaneTxSet[0] instanceof ImpersonatedAccountHyperlaneTx) {
-        submitter =
-          this.txSubmitterRecords[TxSubmitterType.IMPERSONATED_ACCOUNT];
-      } else if (hyperlaneTxSet[0] instanceof GnosisSafeHyperlaneTx) {
-        submitter = this.txSubmitterRecords[TxSubmitterType.GNOSIS_SAFE];
-      } else if (hyperlaneTxSet[0] instanceof InterchainAccountHyperlaneTx) {
-        submitter = this.txSubmitterRecords[TxSubmitterType.GNOSIS_SAFE];
-      } else continue;
+  public add(
+    txSubmitterOrType: TxSubmitterXORType<HTX, HTR>,
+  ): TxSubmitterBuilder<HTX, HTR> {
+    switch (txSubmitterOrType.type) {
+      case TxSubmitterType.SIGNER:
+        this.currentSubmitter = new SignerTxSubmitter<HTX, HTR>(
+          this.multiProvider,
+          txSubmitterOrType.chain,
+        );
+        return this;
+      case TxSubmitterType.IMPERSONATED_ACCOUNT:
+        assert(
+          txSubmitterOrType.impersonatedAccountTxSubmitterProps,
+          'Must provide required props for impersonated account submitter.',
+        );
+        this.currentSubmitter = new ImpersonatedAccountTxSubmitter<HTX, HTR>(
+          this.multiProvider,
+          txSubmitterOrType.chain,
+          txSubmitterOrType.impersonatedAccountTxSubmitterProps,
+        );
+        return this;
+      case TxSubmitterType.GNOSIS_SAFE:
+        assert(
+          txSubmitterOrType.gnosisSafeTxSubmitterProps,
+          'Must provide required props for Gnosis safe submitter.',
+        );
+        this.currentSubmitter = new GnosisSafeTxSubmitter<HTX, HTR>(
+          this.multiProvider,
+          txSubmitterOrType.chain,
+          txSubmitterOrType.gnosisSafeTxSubmitterProps,
+        );
+        return this;
+      default:
+        this.currentSubmitter = txSubmitterOrType.submitter;
+        return this;
+    }
+  }
 
-      if (submitter)
-        hyperlaneReceipts.push(await submitter.submitTxs(hyperlaneTxSet));
+  /**
+   * TODO:
+   */
+  public transform(
+    txTransformerOrType: TxTransformerXORType<HTX>,
+  ): TxSubmitterBuilder<HTX, HTR> {
+    assert(
+      this.currentSubmitter,
+      'No submitter specified for which to execute the transform.',
+    );
+
+    switch (txTransformerOrType.type) {
+      case TxTransformerType.ICA:
+        assert(
+          txTransformerOrType.interchainAccountTxTransformerProps,
+          'Must provide required props for interchain account submitter.',
+        );
+        this.currentTransformer = new InterchainAccountTxTransformer<HTX>(
+          this.multiProvider,
+          this.currentSubmitter.chain,
+          txTransformerOrType.chain,
+          txTransformerOrType.interchainAccountTxTransformerProps,
+        );
+        return this;
+      default:
+        this.currentTransformer = txTransformerOrType.transformer;
+        return this;
+    }
+  }
+
+  /**
+   * TODO:
+   */
+  public async submit(hyperlaneTxs: HTX[]): Promise<HTR[]> {
+    assert(
+      this.currentSubmitter,
+      'Must specify submitter to submit transactions.',
+    );
+
+    this.logger.info(
+      `Submitting ${hyperlaneTxs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter...`,
+    );
+
+    let transformedHyperlaneTxs = hyperlaneTxs;
+    if (this.currentTransformer) {
+      transformedHyperlaneTxs = await this.currentTransformer.transformTxs(
+        hyperlaneTxs,
+        this.currentSubmitter.txSubmitterType,
+      );
+      this.logger.info(
+        `🔄 Transformed ${transformedHyperlaneTxs.length} transactions with the ${this.currentTransformer.txTransformerType} transformer...`,
+      );
     }
 
-    hyperlaneReceipts = hyperlaneReceipts.flat();
-    if (hyperlaneReceipts.length > 0) return hyperlaneReceipts;
-
-    throw new Error(
-      'Failed to submit transactions to builder. HyperlaneTxs list was likely empty, or no submitters were provided.',
+    const hyperlaneTxReceipts = await this.currentSubmitter.submitTxs(
+      transformedHyperlaneTxs,
     );
+    this.logger.info(
+      `✅ Successfully submitted ${hyperlaneTxReceipts.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter.`,
+    );
+
+    this.currentSubmitter = undefined;
+    this.currentTransformer = undefined;
+
+    return hyperlaneTxReceipts;
   }
 }

@@ -1,2 +1,3 @@
-type HyperlaneTxProps = {};
-export class HyperlaneTx implements HyperlaneTxProps {}
+import { PopulatedTransaction } from 'ethers';
+
+export type HyperlaneTx = PopulatedTransaction;
