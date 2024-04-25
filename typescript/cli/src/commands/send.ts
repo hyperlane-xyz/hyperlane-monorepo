@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { CommandModule, Options } from 'yargs';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import { CommandModuleWithWriteContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
@@ -61,7 +61,7 @@ export interface MessageOptionsArgTypes {
   relay: boolean;
 }
 
-const messageCommand: CommandModuleWithContext<
+const messageCommand: CommandModuleWithWriteContext<
   MessageOptionsArgTypes & { body: string }
 > = {
   command: 'message',
@@ -99,7 +99,7 @@ const messageCommand: CommandModuleWithContext<
 /**
  * Transfer command
  */
-const transferCommand: CommandModuleWithContext<
+const transferCommand: CommandModuleWithWriteContext<
   MessageOptionsArgTypes & {
     warp: string;
     router?: string;

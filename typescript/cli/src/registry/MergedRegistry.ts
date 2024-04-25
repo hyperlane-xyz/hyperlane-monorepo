@@ -9,7 +9,12 @@ import {
   RegistryType,
 } from '@hyperlane-xyz/registry';
 import { LocalRegistry } from '@hyperlane-xyz/registry/local';
-import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainMetadata,
+  ChainName,
+  WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
 import {
   isHttpsUrl,
   objKeys,
@@ -38,9 +43,9 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     this.registries = registryUris.map((uri, index) => {
       // If not provided, allow the GithubRegistry to use its default
       if (isHttpsUrl(uri)) {
-        return new GithubRegistry({ uri, logger: logger.child({ index }) });
+        return new GithubRegistry({ uri, logger: logger!.child({ index }) });
       } else {
-        return new LocalRegistry({ uri, logger: logger.child({ index }) });
+        return new LocalRegistry({ uri, logger: logger!.child({ index }) });
       }
     });
 
@@ -111,6 +116,13 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     return this.multiRegistryWrite(
       async (registry) => await registry.removeChain(chain),
       'removing chain',
+    );
+  }
+
+  async addWarpRoute(config: WarpCoreConfig): Promise<void> {
+    return this.multiRegistryWrite(
+      async (registry) => await registry.addWarpRoute(config),
+      'adding warp route',
     );
   }
 

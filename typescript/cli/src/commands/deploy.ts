@@ -1,6 +1,9 @@
 import { CommandModule } from 'yargs';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  CommandModuleWithWriteContext,
+} from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure, verifyAnvil } from '../deploy/dry-run.js';
@@ -18,18 +21,11 @@ import {
   warpConfigCommandOption,
 } from './options.js';
 
-export enum Command {
-  DEPLOY = 'deploy',
-  KURTOSIS_AGENTS = 'kurtosis-agents',
-  CORE = 'core',
-  WARP = 'warp',
-}
-
 /**
  * Parent command
  */
 export const deployCommand: CommandModule = {
-  command: Command.DEPLOY,
+  command: 'deploy',
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
@@ -49,7 +45,7 @@ const agentCommand: CommandModuleWithContext<{
   targets?: string;
   config?: string;
 }> = {
-  command: Command.KURTOSIS_AGENTS,
+  command: 'kurtosis-agents',
   describe: 'Deploy Hyperlane agents with Kurtosis',
   builder: {
     origin: originCommandOption,
@@ -72,13 +68,13 @@ const agentCommand: CommandModuleWithContext<{
 /**
  * Core command
  */
-const coreCommand: CommandModuleWithContext<{
+const coreCommand: CommandModuleWithWriteContext<{
   targets: string;
   ism?: string;
   hook?: string;
   'dry-run': boolean;
 }> = {
-  command: Command.CORE,
+  command: 'core',
   describe: 'Deploy core Hyperlane contracts',
   builder: {
     targets: coreTargetsCommandOption,
@@ -101,7 +97,6 @@ const coreCommand: CommandModuleWithContext<{
         chains,
         ismConfigPath: ism,
         hookConfigPath: hook,
-        dryRun,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
@@ -114,11 +109,11 @@ const coreCommand: CommandModuleWithContext<{
 /**
  * Warp command
  */
-const warpCommand: CommandModuleWithContext<{
+const warpCommand: CommandModuleWithWriteContext<{
   config: string;
   'dry-run': boolean;
 }> = {
-  command: Command.WARP,
+  command: 'warp',
   describe: 'Deploy Warp Route contracts',
   builder: {
     config: warpConfigCommandOption,
@@ -134,7 +129,6 @@ const warpCommand: CommandModuleWithContext<{
       await runWarpRouteDeploy({
         context,
         warpRouteDeploymentConfigPath: config,
-        dryRun,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);

@@ -18,9 +18,10 @@ export async function getSigner({
 }: {
   key?: string;
   skipConfirmation?: boolean;
-}): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
+}) {
   key ||= await retrieveKey(DEFAULT_KEY_TYPE, skipConfirmation);
-  return privateKeyToSigner(key);
+  const signer = privateKeyToSigner(key);
+  return { key, signer };
 }
 
 /**
@@ -33,9 +34,10 @@ export async function getImpersonatedSigner({
 }: {
   key?: string;
   skipConfirmation?: boolean;
-}): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
+}) {
   key ||= await retrieveKey(IMPERSONATED_KEY_TYPE, skipConfirmation);
-  return await addressToImpersonatedSigner(key);
+  const signer = await addressToImpersonatedSigner(key);
+  return { key, signer };
 }
 
 /**

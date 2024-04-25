@@ -1,5 +1,4 @@
 import { confirm, input } from '@inquirer/prompts';
-import { ethers } from 'ethers';
 
 import {
   ChainMap,
@@ -12,6 +11,7 @@ import {
   MinimalTokenMetadata,
   MultiProtocolProvider,
   MultiProvider,
+  RouterConfig,
   TOKEN_TYPE_TO_STANDARD,
   TokenConfig,
   TokenFactories,
@@ -24,45 +24,25 @@ import {
   isNativeConfig,
   isSyntheticConfig,
 } from '@hyperlane-xyz/sdk';
-import { RouterConfig } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Command } from '../commands/deploy.js';
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import {
-  getContext,
-  getDryRunContext,
-  getMergedContractAddresses,
-} from '../context/context.js';
+import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
-import {
-  getArtifactsFiles,
-  isFile,
-  prepNewArtifactsFiles,
-  runFileSelectionStep,
-  writeJson,
-} from '../utils/files.js';
+import { isFile, runFileSelectionStep } from '../utils/files.js';
 
 import { completeDeploy, prepareDeploy, runPreflightChecks } from './utils.js';
 
 export async function runWarpRouteDeploy({
-  key,
-  chainConfigPath,
+  context,
   warpRouteDeploymentConfigPath,
-  coreArtifactsPath,
-  outPath,
-  skipConfirmation,
-  dryRun,
 }: {
-  key?: string;
-  chainConfigPath: string;
+  context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
-  coreArtifactsPath?: string;
-  outPath: string;
-  skipConfirmation: boolean;
-  dryRun: string;
 }) {
+  const { signer, skipConfirmation } = context;
+
   if (
     !warpRouteDeploymentConfigPath ||
     !isFile(warpRouteDeploymentConfigPath)
@@ -83,36 +63,14 @@ export async function runWarpRouteDeploy({
     warpRouteDeploymentConfigPath,
   );
 
-  const { multiProvider, signer, coreArtifacts } = dryRun
-    ? await getDryRunContext({
-        chainConfigPath,
-        chains: [dryRun],
-        coreConfig: { coreArtifactsPath },
-        keyConfig: { key },
-        skipConfirmation,
-      })
-    : await getContext({
-        chainConfigPath,
-        coreConfig: { coreArtifactsPath },
-        keyConfig: { key },
-        skipConfirmation,
-      });
-
   const configs = await runBuildConfigStep({
+    context,
     warpRouteConfig,
-    coreArtifacts,
-    multiProvider,
-    signer,
-    skipConfirmation,
   });
 
   const deploymentParams = {
+    context,
     ...configs,
-    signer,
-    multiProvider,
-    outPath,
-    skipConfirmation,
-    dryRun,
   };
 
   logBlue('Warp route deployment plan');
@@ -123,41 +81,26 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const userAddress = dryRun ? key! : await signer.getAddress();
+  const userAddress = await signer.getAddress();
   const chains = [deploymentParams.origin, ...configs.remotes];
 
-  const initialBalances = await prepareDeploy(
-    multiProvider,
-    userAddress,
-    chains,
-  );
+  const initialBalances = await prepareDeploy(context, userAddress, chains);
 
   await executeDeploy(deploymentParams);
 
-  await completeDeploy(
-    Command.WARP,
-    initialBalances,
-    multiProvider,
-    userAddress,
-    chains,
-    dryRun,
-  );
+  await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
 }
 
 async function runBuildConfigStep({
+  context,
   warpRouteConfig,
-  multiProvider,
-  signer,
-  coreArtifacts,
-  skipConfirmation,
 }: {
+  context: WriteCommandContext;
   warpRouteConfig: WarpRouteDeployConfig;
-  multiProvider: MultiProvider;
-  signer: ethers.Signer;
-  coreArtifacts?: HyperlaneContractsMap<any>;
-  skipConfirmation: boolean;
 }) {
+  const { registry, signer, multiProvider, skipConfirmation } = context;
   log('Assembling token configs');
+  const chainAddresses = await registry.getAddresses();
   const owner = await signer.getAddress();
   const requiredRouterFields: Array<keyof ConnectionClientConfig> = ['mailbox'];
   const remotes: string[] = [];
@@ -167,20 +110,16 @@ async function runBuildConfigStep({
   /// @todo Remove this artifact when multi-collateral is enabled
   let baseChainName = '';
   let baseMetadata = {} as MinimalTokenMetadata;
-  // Create config that coalesce together values from the config file,
+  // Define configs that coalesce together values from the config file
   for (const [chain, config] of Object.entries(warpRouteConfig)) {
-    const mergedContractAddrs = getMergedContractAddresses(
-      coreArtifacts,
-      Object.keys(warpRouteConfig),
-    );
     // the artifacts, and the SDK as a fallback
     config.owner = owner;
-    config.mailbox = config.mailbox || mergedContractAddrs[chain]?.mailbox;
+    config.mailbox = config.mailbox || chainAddresses[chain]?.mailbox;
     config.interchainSecurityModule =
       config.interchainSecurityModule ||
-      mergedContractAddrs[chain]?.interchainSecurityModule ||
-      mergedContractAddrs[chain]?.multisigIsm;
-    // config.ismFactory: mergedContractAddrs[baseChainName].domainRoutingIsmFactory, // TODO fix when updating from routingIsm
+      chainAddresses[chain]?.interchainSecurityModule ||
+      chainAddresses[chain]?.multisigIsm;
+    // config.ismFactory: chainAddresses[baseChainName].domainRoutingIsmFactory, // TODO fix when updating from routingIsm
 
     if (isCollateralConfig(config) || isNativeConfig(config)) {
       // Store the base metadata
@@ -232,24 +171,20 @@ async function runBuildConfigStep({
 }
 
 interface DeployParams {
+  context: WriteCommandContext;
   configMap: WarpRouteDeployConfig;
   metadata: MinimalTokenMetadata;
   origin: ChainName;
   remotes: ChainName[];
-  signer: ethers.Signer;
-  multiProvider: MultiProvider;
-  outPath: string;
-  skipConfirmation: boolean;
-  dryRun: string;
 }
 
 async function runDeployPlanStep({
+  context,
   configMap,
   origin,
   remotes,
-  signer,
-  skipConfirmation,
 }: DeployParams) {
+  const { signer, skipConfirmation } = context;
   const address = await signer.getAddress();
   const baseToken = configMap[origin];
 
@@ -273,27 +208,16 @@ async function runDeployPlanStep({
 async function executeDeploy(params: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
-  const { configMap, multiProvider, outPath } = params;
-
-  const [contractsFilePath, tokenConfigPath] = prepNewArtifactsFiles(
-    outPath,
-    getArtifactsFiles(
-      [
-        {
-          filename: 'warp-route-deployment',
-          description: 'Contract addresses',
-        },
-        { filename: 'warp-config', description: 'Warp config' },
-      ],
-      params.dryRun,
-    ),
-  );
+  const {
+    configMap,
+    context: { registry, multiProvider, isDryRun },
+  } = params;
 
   const deployer = configMap.isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
 
-  const config = params.dryRun
+  const config = isDryRun
     ? { [params.origin]: configMap[params.origin] }
     : configMap;
 
@@ -304,12 +228,9 @@ async function executeDeploy(params: DeployParams) {
   logGreen('✅ Hyp token deployments complete');
 
   log('Writing deployment artifacts');
-  writeTokenDeploymentArtifacts(contractsFilePath, deployedContracts, params);
-  writeWarpConfig(tokenConfigPath, deployedContracts, params);
-
+  const warpCoreConfig = getWarpCoreConfig(params, deployedContracts);
+  await registry.addWarpRoute(warpCoreConfig);
   logBlue('Deployment is complete!');
-  logBlue(`Contract address artifacts are in ${contractsFilePath}`);
-  logBlue(`Warp config is in ${tokenConfigPath}`);
 }
 
 async function fetchBaseTokenMetadata(
@@ -344,28 +265,11 @@ async function fetchBaseTokenMetadata(
 function getTokenName(token: TokenConfig) {
   return token.type === TokenType.native ? 'native' : token.name;
 }
-function writeTokenDeploymentArtifacts(
-  filePath: string,
-  contracts: HyperlaneContractsMap<TokenFactories>,
-  { configMap }: DeployParams,
-) {
-  const artifacts: ChainMap<{
-    router: Address;
-    tokenType: TokenType;
-  }> = objMap(contracts, (chain, contract) => {
-    return {
-      router: contract[configMap[chain].type as keyof TokenFactories].address,
-      tokenType: configMap[chain].type,
-    };
-  });
-  writeJson(filePath, artifacts);
-}
 
-function writeWarpConfig(
-  filePath: string,
-  contracts: HyperlaneContractsMap<TokenFactories>,
+function getWarpCoreConfig(
   { configMap, metadata }: DeployParams,
-) {
+  contracts: HyperlaneContractsMap<TokenFactories>,
+): WarpCoreConfig {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // First pass, create token configs
@@ -406,5 +310,5 @@ function writeWarpConfig(
     }
   }
 
-  writeJson(filePath, warpCoreConfig);
+  return warpCoreConfig;
 }

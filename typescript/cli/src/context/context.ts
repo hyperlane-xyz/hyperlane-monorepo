@@ -9,10 +9,15 @@ import { MergedRegistry } from '../registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
-import { CommandContext, ContextSettings } from './types.js';
+import {
+  CommandContext,
+  ContextSettings,
+  WriteCommandContext,
+} from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const commandName = argv._.length >= 2 ? argv._[1] : '';
+  const isDryRun = !!argv.dryRun;
   const settings: ContextSettings = {
     commandName,
     registryUri: argv.registry,
@@ -20,7 +25,9 @@ export async function contextMiddleware(argv: Record<string, any>) {
     key: argv.key,
     skipConfirmation: argv.yes,
   };
-  const context = await getContext(settings);
+  const context = isDryRun
+    ? await getDryRunContext(settings, argv.chain)
+    : await getContext(settings);
   argv.context = context;
 }
 
@@ -37,16 +44,18 @@ export async function getContext({
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, configOverrideUri);
 
-  const signer = WRITE_COMMANDS.includes(commandName)
-    ? await getSigner({ key, skipConfirmation })
-    : undefined;
+  let signer: ethers.Wallet | undefined = undefined;
+  if (WRITE_COMMANDS.includes(commandName)) {
+    ({ key, signer } = await getSigner({ key, skipConfirmation }));
+  }
   const multiProvider = await getMultiProvider(registry, signer);
 
   return {
     registry,
     chainMetadata: multiProvider.metadata,
-    signer,
     multiProvider,
+    key,
+    signer,
     skipConfirmation: !!skipConfirmation,
   } as CommandContext;
 }
@@ -59,7 +68,7 @@ export async function getDryRunContext(
   { registryUri, configOverrideUri, key, skipConfirmation }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, configOverrideUri);
+  const registry = getRegistry(registryUri, configOverrideUri, true);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -72,19 +81,23 @@ export async function getDryRunContext(
 
   const multiProvider = await getMultiProvider(registry);
   await forkNetworkToMultiProvider(multiProvider, chain);
-  const impersonatedSigner = await getImpersonatedSigner({
-    key,
-    skipConfirmation,
-  });
-  if (impersonatedSigner) multiProvider.setSharedSigner(impersonatedSigner);
+  const { key: impersonatedKey, signer: impersonatedSigner } =
+    await getImpersonatedSigner({
+      key,
+      skipConfirmation,
+    });
+  multiProvider.setSharedSigner(impersonatedSigner);
 
   return {
     registry,
     chainMetadata: multiProvider.metadata,
+    key: impersonatedKey,
     signer: impersonatedSigner,
     multiProvider: multiProvider,
     skipConfirmation: !!skipConfirmation,
-  } as CommandContext;
+    isDryRun: true,
+    dryRunChain: chain,
+  } as WriteCommandContext;
 }
 
 /**
@@ -97,9 +110,11 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
+  isDryRun?: boolean,
 ): IRegistry {
   return new MergedRegistry({
     registryUris: [primaryRegistryUri, overrideRegistryUri],
+    isDryRun,
   });
 }
 

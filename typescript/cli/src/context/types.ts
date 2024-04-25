@@ -21,10 +21,23 @@ export interface CommandContext {
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   skipConfirmation: boolean;
+  key?: string;
+  signer?: ethers.Signer;
+}
+
+export interface WriteCommandContext extends CommandContext {
+  key: string;
   signer: ethers.Signer;
+  isDryRun?: boolean;
+  dryRunChain?: string;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<
   {},
   Args & { context: CommandContext }
+>;
+
+export type CommandModuleWithWriteContext<Args> = CommandModule<
+  {},
+  Args & { context: WriteCommandContext }
 >;

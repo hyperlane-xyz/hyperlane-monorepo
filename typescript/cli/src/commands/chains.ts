@@ -37,9 +37,10 @@ const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
     const logChainsForType = (type: ChainType) => {
       logBlue(`\nHyperlane ${type} chains:`);
       logGray('------------------------------');
-      const chains = Object.values(context.chainMetadata).filter(
-        (c) => c.isTestnet === (type === 'testnet'),
-      );
+      const chains = Object.values(context.chainMetadata).filter((c) => {
+        if (type === 'mainnet') return !c.isTestnet;
+        else return !!c.isTestnet;
+      });
       const tableData = chains.reduce<any>((result, chain) => {
         const { chainId, displayName } = chain;
         result[chain.name] = {

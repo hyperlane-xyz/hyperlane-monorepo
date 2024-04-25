@@ -13,7 +13,7 @@ import { Address, timeout } from '@hyperlane-xyz/utils';
 
 import { readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { CommandContext } from '../context/types.js';
+import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -30,7 +30,7 @@ export async function sendTestTransfer({
   skipWaitForDelivery,
   selfRelay,
 }: {
-  context: CommandContext;
+  context: WriteCommandContext;
   warpConfigPath: string;
   origin?: ChainName;
   destination?: ChainName;
@@ -41,7 +41,7 @@ export async function sendTestTransfer({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { signer, multiProvider, chainMetadata } = context;
+  const { chainMetadata } = context;
 
   const warpCoreConfig = readWarpRouteConfig(warpConfigPath);
 
@@ -60,10 +60,9 @@ export async function sendTestTransfer({
   }
 
   await runPreflightChecks({
+    context,
     origin,
     remotes: [destination],
-    multiProvider,
-    signer,
     minGas: MINIMUM_TEST_SEND_GAS,
     chainsToGasCheck: [origin],
   });
@@ -96,7 +95,7 @@ async function executeDelivery({
   skipWaitForDelivery,
   selfRelay,
 }: {
-  context: CommandContext;
+  context: WriteCommandContext;
   origin: ChainName;
   destination: ChainName;
   warpCoreConfig: WarpCoreConfig;

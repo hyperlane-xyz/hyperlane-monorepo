@@ -6,9 +6,7 @@ import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue } from '../logger.js';
-
-import { getTimestampForFilename } from './time.js';
+import { log } from '../logger.js';
 
 export type FileFormat = 'yaml' | 'json';
 
@@ -168,38 +166,6 @@ export function resolveFileFormat(
   }
 
   return undefined;
-}
-
-export function prepNewArtifactsFiles(
-  outPath: string,
-  files: Array<ArtifactsFile>,
-) {
-  const timestamp = getTimestampForFilename();
-  const newPaths: string[] = [];
-  for (const file of files) {
-    const filePath = path.join(outPath, `${file.filename}-${timestamp}.json`);
-    // Write empty object to ensure permissions are okay
-    writeJson(filePath, {});
-    newPaths.push(filePath);
-    logBlue(`${file.description} will be written to ${filePath}`);
-  }
-  return newPaths;
-}
-
-/**
- * Retrieves artifacts file metadata for the current command.
- * @param dryRun whether or not the current command is being dry-run
- * @returns the artifacts files
- */
-export function getArtifactsFiles(
-  defaultFiles: ArtifactsFile[],
-  dryRun: string = '',
-): Array<ArtifactsFile> {
-  if (dryRun)
-    defaultFiles.map((defaultFile: ArtifactsFile) => {
-      defaultFile.filename = `dry-run_${defaultFile.filename}`;
-    });
-  return defaultFiles;
 }
 
 export async function runFileSelectionStep(

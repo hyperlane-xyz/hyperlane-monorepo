@@ -43,7 +43,7 @@ export const skipConfirmationOption: Options = {
 export const keyCommandOption: Options = {
   type: 'string',
   description: `A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
-Dry-run: An address to simulate transaction signing on a forked network, or use the HYP_KEY env var.`,
+Dry-run: An address to simulate transaction signing on a forked network`,
   alias: 'k',
   default: ENV.HYP_KEY,
 };
