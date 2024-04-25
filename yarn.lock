@@ -5224,6 +5224,7 @@ __metadata:
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
     typescript: "npm:5.3.3"
+    yaml: "npm:^2.3.1"
   languageName: unknown
   linkType: soft
 
