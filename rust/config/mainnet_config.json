@@ -222,6 +222,12 @@
     },
     "blast": {
       "blockExplorers": [
+        {
+          "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api",
+          "family": "routescan",
+          "name": "Blast Explorer",
+          "url": "https://blastexplorer.io"
+        }
       ],
       "blocks": {
         "confirmations": 1,
@@ -420,7 +426,7 @@
         "from": 18422581
       },
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-      "interchainSecurityModule": "0x43Ce4Eb4aE3585dDe9Ac6967Db5b06f7f6764C8a",
+      "interchainSecurityModule": "0xB42b88243F749F47697F01Ae1cbBCA9d4763902a",
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "merkleTreeHook": "0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA",
       "name": "ethereum",
@@ -625,7 +631,7 @@
         "from": 437300
       },
       "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
-      "interchainSecurityModule": "0xDEed16fe4b1c9b2a93483EDFf34C77A9b57D31Ff",
+      "interchainSecurityModule": "0xCB8dE5886555c139D0b2d2e4dCFC927F212AF4dE",
       "isTestnet": false,
       "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
       "merkleTreeHook": "0x149db7afD694722747035d5AEC7007ccb6F8f112",

@@ -144,6 +144,7 @@ async function executeDelivery({
       hook,
       {
         value,
+        gasLimit: 400_000,
       },
     );
     txReceipt = await multiProvider.handleTx(origin, messageTx);

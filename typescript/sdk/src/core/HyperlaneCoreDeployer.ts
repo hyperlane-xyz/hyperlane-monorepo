@@ -150,6 +150,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
           _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
       );
 
+      // @ts-ignore
+      const setDefaultHookCalldata = mailbox.interface.encodeFunctionData(
+        'setDefaultHook',
+        [defaultHook.address],
+      );
+      console.log('setDefaultHookCalldata', setDefaultHookCalldata);
+      console.log('mailbox', mailbox.address);
+
       await this.configureHook(
         chain,
         mailbox,

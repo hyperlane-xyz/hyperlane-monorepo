@@ -137,11 +137,13 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   const remoteMinCostOverrides: ChainMap<number> = {
     // For Ethereum L2s, we need to account for the L1 DA costs that
     // aren't accounted for directly in the gas price.
-    base: 0.5,
-    optimism: 0.5,
     arbitrum: 0.5,
     ancient8: 0.5,
+    base: 0.5,
+    blast: 0.5,
     mantapacific: 0.5,
+    mode: 0.5,
+    optimism: 0.5,
     polygonzkevm: 0.5,
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 2,

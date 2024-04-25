@@ -315,12 +315,30 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
-    await this.runIfOwner(chain, routingHook, async () =>
-      this.multiProvider.handleTx(
+
+    console.log(
+      'about to call runIfOwner for routing hooks',
+      chain,
+      routingHook,
+      routingConfigs,
+      overrides,
+    );
+
+    const setHooksCalldata = routingHook.interface.encodeFunctionData(
+      'setHooks',
+      [routingConfigs],
+    );
+    console.log('routingHook', routingHook.address);
+    console.log('setHooksCalldata', setHooksCalldata);
+
+    await this.runIfOwner(chain, routingHook, async () => {
+      console.log('looks like we are the owner');
+
+      return this.multiProvider.handleTx(
         chain,
         routingHook.setHooks(routingConfigs, overrides),
-      ),
-    );
+      );
+    });
 
     await this.transferOwnershipOfContracts(chain, config, {
       [config.type]: routingHook,

@@ -853,6 +853,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "PausableHook"
+    },
+    {
+      "address": "0xEA43DD51e21aEaFc017c2A949594E8a5FFBbBEF7",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x0a46B91734cDA81Eb11FC4E7F86ac6d622e6C7B8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "avalanche": [
@@ -2269,6 +2281,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "PausableHook"
+    },
+    {
+      "address": "0x3320ED7956C2407D6345b278a47D5A61638eBf8A",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x5C78772098e194734fE69171d80EdB3979dF77F8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "gnosis": [
@@ -2557,6 +2581,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "PausableHook"
+    },
+    {
+      "address": "0x2d5918c3602F17937Ff982F7Bb7110774D3A24AD",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x6Fb36672365C7c797028C400A61c58c0ECc53cD2",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "mode": [
@@ -3315,6 +3351,12 @@
       "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
       "isProxy": false,
       "name": "ValidatorAnnounce"
+    },
+    {
+      "address": "0x086eF95a2F74582Ee30E7D698518a872fb18301f",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "moonbeam": [
@@ -3655,6 +3697,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "PausableHook"
+    },
+    {
+      "address": "0xD59a200cCEc5b3b1bF544dD7439De452D718f594",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x33D3803215a32B84BFb6b1627367231EcD6F138F",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "polygon": [
