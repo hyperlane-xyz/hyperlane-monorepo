@@ -23,7 +23,7 @@ type WarpRouteBaseMetadata = Record<
 >;
 
 interface WarpRouteReader {
-  deriveWarpRouteConfig(address: Address): Promise<any>; /// @todo should this be any type? Maybe GasRoute?
+  deriveWarpRouteConfig(address: Address): Promise<Partial<ERC20RouterConfig>>;
 }
 
 export class EvmERC20WarpRouterReader implements WarpRouteReader {
@@ -80,6 +80,12 @@ export class EvmERC20WarpRouterReader implements WarpRouteReader {
     return results;
   }
 
+  /**
+   * Fetches the base metadata for a Warp Route contract.
+   *
+   * @param routerAddress - The address of the Warp Route contract.
+   * @returns The base metadata for the Warp Route contract, including the mailbox, owner, wrapped token address, hook, and interchain security module.
+   */
   async fetchBaseMetadata(
     routerAddress: Address,
   ): Promise<WarpRouteBaseMetadata> {
@@ -110,10 +116,16 @@ export class EvmERC20WarpRouterReader implements WarpRouteReader {
     };
   }
 
+  /**
+   * Fetches the metadata for a token address.
+   *
+   * @param tokenAddress - The address of the token.
+   * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
+   */
   async fetchTokenMetadata(
-    wrappedTokenAddress: Address,
+    tokenAddress: Address,
   ): Promise<Partial<ERC20Metadata>> {
-    const erc20 = ERC20__factory.connect(wrappedTokenAddress, this.provider);
+    const erc20 = ERC20__factory.connect(tokenAddress, this.provider);
     const [name, symbol, totalSupply, decimals] = await Promise.all([
       erc20.name(),
       erc20.symbol(),
