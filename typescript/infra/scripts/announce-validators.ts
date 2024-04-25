@@ -26,15 +26,11 @@ function getArgs() {
       'location, e.g. s3://hyperlane-testnet4-sepolia-validator-0/us-east-1',
     )
     .string('location')
-    .check(({ context, chain, location }) => {
-      const isSet = [!!context, !!chain, !!location];
-      if (isSet[1] == isSet[2]) {
-        return true;
-      } else {
-        throw new Error(
-          'Must set either both or neither of chain and location',
-        );
+    .check(({ chain, location }) => {
+      if (!!location && !chain) {
+        throw new Error('Must set chain when setting location');
       }
+      return true;
     }).argv;
 }
 
@@ -82,15 +78,21 @@ async function main() {
     }
     await Promise.all(
       Object.entries(agentConfig.validators.chains)
-        .filter(([chain, _]) => isEthereumProtocolChain(chain))
-        .map(async ([chain, validatorChainConfig]) => {
+        .filter(([validatorChain, _]) => {
+          // If a chain arg was specified, filter to only that chain
+          if (!!chain && chain !== validatorChain) {
+            return false;
+          }
+          return isEthereumProtocolChain(validatorChain);
+        })
+        .map(async ([validatorChain, validatorChainConfig]) => {
           for (const validatorBaseConfig of validatorChainConfig.validators) {
             if (
               validatorBaseConfig.checkpointSyncer.type ==
               CheckpointSyncerType.S3
             ) {
-              const contracts = core.getContracts(chain);
-              const localDomain = multiProvider.getDomainId(chain);
+              const contracts = core.getContracts(validatorChain);
+              const localDomain = multiProvider.getDomainId(validatorChain);
               const validator = new S3Validator(
                 validatorBaseConfig.address,
                 localDomain,
@@ -103,7 +105,7 @@ async function main() {
                 storageLocation: validator.storageLocation(),
                 announcement: await validator.getAnnouncement(),
               });
-              chains.push(chain);
+              chains.push(validatorChain);
             }
           }
         }),

@@ -1,5 +1,4 @@
-base:
-  chainName: alfajores
+alfajores:
   type: native
-synthetics:
-  - chainName: fuji
+fuji:
+  type: synthetic
