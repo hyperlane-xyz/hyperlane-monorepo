@@ -101,7 +101,7 @@ const messageCommand: CommandModuleWithContext<
  */
 const transferCommand: CommandModuleWithContext<
   MessageOptionsArgTypes & {
-    warp?: string;
+    warp: string;
     router?: string;
     wei: string;
     recipient?: string;

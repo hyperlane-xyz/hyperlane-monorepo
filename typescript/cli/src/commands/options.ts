@@ -90,6 +90,8 @@ export const warpConfigOption: Options = {
   type: 'string',
   description: 'File path to Warp config',
   alias: 'w',
+  // TODO make this optional and have the commands get it from the registry
+  demandOption: true,
 };
 
 export const agentConfigCommandOption: Options = {
@@ -97,7 +99,7 @@ export const agentConfigCommandOption: Options = {
   description: 'File path to agent configuration artifacts',
 };
 
-export const outputFileOption = (defaultPath: string): Options => ({
+export const outputFileOption = (defaultPath?: string): Options => ({
   type: 'string',
   description: 'Output file path',
   default: defaultPath,

@@ -1,12 +1,9 @@
 import { select } from '@inquirer/prompts';
-import { ethers } from 'ethers';
 
 import {
   ChainName,
-  HyperlaneContractsMap,
   HyperlaneCore,
   MultiProtocolProvider,
-  MultiProvider,
   ProviderType,
   TokenAmount,
   WarpCore,
@@ -14,16 +11,15 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, timeout } from '@hyperlane-xyz/utils';
 
+import { readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { getContext, getMergedContractAddresses } from '../context/context.js';
+import { CommandContext } from '../context/types.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function sendTestTransfer({
-  key,
-  chainConfigPath,
-  coreArtifactsPath,
+  context,
   warpConfigPath,
   origin,
   destination,
@@ -34,9 +30,7 @@ export async function sendTestTransfer({
   skipWaitForDelivery,
   selfRelay,
 }: {
-  key?: string;
-  chainConfigPath: string;
-  coreArtifactsPath?: string;
+  context: CommandContext;
   warpConfigPath: string;
   origin?: ChainName;
   destination?: ChainName;
@@ -47,24 +41,20 @@ export async function sendTestTransfer({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { signer, multiProvider, customChains, coreArtifacts, warpCoreConfig } =
-    await getContext({
-      chainConfigPath,
-      coreConfig: { coreArtifactsPath },
-      keyConfig: { key },
-      warpConfig: { warpConfigPath },
-    });
+  const { signer, multiProvider, chainMetadata } = context;
+
+  const warpCoreConfig = readWarpRouteConfig(warpConfigPath);
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the origin chain',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the destination chain',
     );
   }
@@ -80,15 +70,13 @@ export async function sendTestTransfer({
 
   await timeout(
     executeDelivery({
+      context,
       origin,
       destination,
       warpCoreConfig,
       routerAddress,
       wei,
       recipient,
-      signer,
-      multiProvider,
-      coreArtifacts,
       skipWaitForDelivery,
       selfRelay,
     }),
@@ -98,39 +86,34 @@ export async function sendTestTransfer({
 }
 
 async function executeDelivery({
+  context,
   origin,
   destination,
   warpCoreConfig,
   routerAddress,
   wei,
   recipient,
-  multiProvider,
-  signer,
-  coreArtifacts,
   skipWaitForDelivery,
   selfRelay,
 }: {
+  context: CommandContext;
   origin: ChainName;
   destination: ChainName;
   warpCoreConfig: WarpCoreConfig;
   routerAddress?: Address;
   wei: string;
   recipient?: string;
-  multiProvider: MultiProvider;
-  signer: ethers.Signer;
-  coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
+  const { signer, multiProvider, registry } = context;
+
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
 
-  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
+  const chainAddresses = await registry.getAddresses();
 
-  const core = HyperlaneCore.fromAddressesMap(
-    mergedContractAddrs,
-    multiProvider,
-  );
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
   const provider = multiProvider.getProvider(origin);
   const connectedSigner = signer.connect(provider);

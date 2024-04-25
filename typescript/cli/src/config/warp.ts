@@ -3,6 +3,8 @@ import { ethers } from 'ethers';
 
 import {
   TokenType,
+  WarpCoreConfig,
+  WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
@@ -15,18 +17,13 @@ import {
 } from '../utils/chains.js';
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-export function readWarpRouteDeployConfig(filePath: string) {
+export function readWarpRouteDeployConfig(
+  filePath: string,
+): WarpRouteDeployConfig {
   const config = readYamlOrJson(filePath);
   if (!config)
     throw new Error(`No warp route deploy config found at ${filePath}`);
-  const result = WarpRouteDeployConfigSchema.safeParse(config);
-  if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(
-      `Invalid warp config: ${firstIssue.path} => ${firstIssue.message}`,
-    );
-  }
-  return result.data;
+  return WarpRouteDeployConfigSchema.parse(config);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
@@ -107,4 +104,12 @@ export async function createWarpRouteDeployConfig({
     );
     throw new Error('Invalid multisig config');
   }
+}
+
+// Note, this is different than the function above which reads a config
+// for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
+export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
+  const config = readYamlOrJson(filePath);
+  if (!config) throw new Error(`No warp route config found at ${filePath}`);
+  return WarpCoreConfigSchema.parse(config);
 }
