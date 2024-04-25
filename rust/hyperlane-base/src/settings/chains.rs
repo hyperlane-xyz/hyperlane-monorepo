@@ -198,7 +198,8 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let provider = h_starknet::StarknetProvider::new(locator.domain.clone(), conf);
+                let provider =
+                    h_starknet::StarknetProvider::new(locator.domain.clone(), conf, None);
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -758,6 +759,10 @@ impl ChainConf {
     }
 
     async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {
+        self.signer().await
+    }
+
+    async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
         self.signer().await
     }
 
