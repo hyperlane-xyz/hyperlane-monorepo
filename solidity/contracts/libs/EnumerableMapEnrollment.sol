@@ -9,8 +9,7 @@ import {TypeCasts} from "./TypeCasts.sol";
 
 enum EnrollmentStatus {
     ENROLLED,
-    PENDING_UNENROLLMENT,
-    UNENROLLED
+    PENDING_UNENROLLMENT
 }
 
 struct Enrollment {

@@ -46,6 +46,23 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     function deregisterOperatorFromAVS(
         address operator
     ) public virtual override onlyStakeRegistry {
+        address[] memory challengers = enrolledChallengers[operator].keys();
+        for (uint256 i = 0; i < challengers.length; i++) {
+            IRemoteChallenger challenger = IRemoteChallenger(challengers[i]);
+            Enrollment memory enrollment = enrolledChallengers[operator].get(
+                challengers[i]
+            );
+            require(
+                enrollment.status != EnrollmentStatus.ENROLLED,
+                string(
+                    abi.encodePacked(
+                        "HyperlaneServiceManager: Operator still enrolled in challenger",
+                        challengers[i]
+                    )
+                )
+            );
+            enrolledChallengers[operator].remove(challengers[i]);
+        }
         elAvsDirectory.deregisterOperatorFromAVS(operator);
     }
 
