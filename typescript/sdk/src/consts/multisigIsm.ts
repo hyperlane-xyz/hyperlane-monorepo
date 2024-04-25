@@ -13,8 +13,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   ancient8: {
-    threshold: 1,
-    validators: ['0xbb5842ae0e05215b53df4787a29144efb7e67551'],
+    threshold: 2,
+    validators: [
+      '0xbb5842ae0e05215b53df4787a29144efb7e67551',
+      '0xa5a56e97fb46f0ac3a3d261e404acb998d9a6969', // coin98
+      '0x95c7bf235837cb5a609fe6c95870410b9f68bcff', // ancient8
+    ],
   },
 
   arbitrum: {
@@ -46,6 +50,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
+  },
+
+  blast: {
+    threshold: 1,
+    validators: ['0xf20c0b09f597597c8d2430d3d72dfddaf09177d1'],
   },
 
   bsc: {
@@ -151,6 +160,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
       '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
     ],
+  },
+
+  mode: {
+    threshold: 1,
+    validators: ['0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7'],
   },
 
   moonbeam: {

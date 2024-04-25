@@ -338,7 +338,7 @@ export const validatorChainConfig = (
     },
     viction: {
       interval: 5,
-      reorgPeriod: 0,
+      reorgPeriod: getReorgPeriod(chainMetadata.viction),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0x1f87c368f8e05a85ef9126d984a980a20930cb9c'],
@@ -350,6 +350,34 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'viction',
+      ),
+    },
+    blast: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.blast),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf20c0b09f597597c8d2430d3d72dfddaf09177d1'],
+          [Contexts.ReleaseCandidate]: [
+            '0x5b32f226e472da6ca19abfe1a29d5d28102a2d1a',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'blast',
+      ),
+    },
+    mode: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod(chainMetadata.mode),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7'],
+          [Contexts.ReleaseCandidate]: [
+            '0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'mode',
       ),
     },
   };

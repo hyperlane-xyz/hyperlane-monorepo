@@ -15,7 +15,6 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
-import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
@@ -48,16 +47,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     arbitrum: true,
     ancient8: true,
     avalanche: true,
+    base: true,
+    blast: true,
     bsc: true,
     celo: true,
     ethereum: true,
     neutron: true,
     mantapacific: true,
+    mode: true,
     moonbeam: true,
     optimism: true,
     polygon: true,
     gnosis: true,
-    base: true,
     scroll: true,
     polygonzkevm: true,
     injective: true,
@@ -68,17 +69,19 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     arbitrum: true,
     ancient8: true,
     avalanche: true,
+    base: true,
+    blast: true,
     bsc: true,
     celo: true,
     ethereum: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
     mantapacific: false,
+    mode: true,
     moonbeam: true,
     optimism: true,
     polygon: true,
     gnosis: true,
-    base: true,
     scroll: true,
     polygonzkevm: true,
     injective: true,
@@ -87,19 +90,21 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Scraper]: {
     arbitrum: true,
-    ancient8: false,
+    ancient8: true,
     avalanche: true,
+    base: true,
+    blast: true,
     bsc: true,
     celo: true,
     ethereum: true,
     // Cannot scrape non-EVM chains
     neutron: false,
     mantapacific: true,
+    mode: true,
     moonbeam: true,
     optimism: true,
     polygon: true,
     gnosis: true,
-    base: true,
     scroll: true,
     polygonzkevm: true,
     // Cannot scrape non-EVM chains
@@ -125,8 +130,66 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  // To cover ourselves against IGP indexing issues and to ensure Nexus
+  // users have the best possible experience, we whitelist messages between
+  // warp routes that we know are certainly paying for gas.
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: [
+      ...routerMatchingList(injectiveInevmInjAddresses),
+      ...matchingList(inevmEthereumUsdcAddresses),
+      ...matchingList(inevmEthereumUsdtAddresses),
+      ...routerMatchingList(victionEthereumEthAddresses),
+      ...routerMatchingList(victionEthereumUsdcAddresses),
+      ...routerMatchingList(victionEthereumUsdtAddresses),
+      ...routerMatchingList(ancient8EthereumUsdcAddresses),
+    ],
+  },
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: matchingList(inevmEthereumUsdcAddresses),
+  },
+  {
+    type: GasPaymentEnforcementPolicyType.None,
+    matchingList: matchingList(inevmEthereumUsdtAddresses),
+  },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+  },
+];
+
+const metricAppContexts = [
+  {
+    name: 'helloworld',
+    matchingList: routerMatchingList(helloWorld[Contexts.Hyperlane].addresses),
+  },
+  {
+    name: 'injective_inevm_inj',
+    matchingList: routerMatchingList(injectiveInevmInjAddresses),
+  },
+  {
+    name: 'inevm_ethereum_usdc',
+    matchingList: matchingList(inevmEthereumUsdcAddresses),
+  },
+  {
+    name: 'inevm_ethereum_usdt',
+    matchingList: matchingList(inevmEthereumUsdtAddresses),
+  },
+  {
+    name: 'viction_ethereum_eth',
+    matchingList: routerMatchingList(victionEthereumEthAddresses),
+  },
+  {
+    name: 'viction_ethereum_usdc',
+    matchingList: routerMatchingList(victionEthereumUsdcAddresses),
+  },
+  {
+    name: 'viction_ethereum_usdt',
+    matchingList: routerMatchingList(victionEthereumUsdtAddresses),
+  },
+  {
+    name: 'ancient8_ethereum_usdc',
+    matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
   },
 ];
 
@@ -139,66 +202,15 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2a16200-20240408-214947',
+      tag: 'a2d6af6-20240422-164135',
     },
-    gasPaymentEnforcement: [
-      // Temporary measure to ensure all inEVM warp route messages are delivered -
-      // we saw some issues with IGP indexing.
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: routerMatchingList(injectiveInevmInjAddresses),
-      },
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: matchingList(inevmEthereumUsdcAddresses),
-      },
-      {
-        type: GasPaymentEnforcementPolicyType.None,
-        matchingList: matchingList(inevmEthereumUsdtAddresses),
-      },
-      ...gasPaymentEnforcement,
-    ],
-    metricAppContexts: [
-      {
-        name: 'helloworld',
-        matchingList: routerMatchingList(
-          helloWorld[Contexts.Hyperlane].addresses,
-        ),
-      },
-      {
-        name: 'injective_inevm_inj',
-        matchingList: routerMatchingList(injectiveInevmInjAddresses),
-      },
-      {
-        name: 'inevm_ethereum_usdc',
-        matchingList: matchingList(inevmEthereumUsdcAddresses),
-      },
-      {
-        name: 'inevm_ethereum_usdt',
-        matchingList: matchingList(inevmEthereumUsdtAddresses),
-      },
-      {
-        name: 'viction_ethereum_eth',
-        matchingList: routerMatchingList(victionEthereumEthAddresses),
-      },
-      {
-        name: 'viction_ethereum_usdc',
-        matchingList: routerMatchingList(victionEthereumUsdcAddresses),
-      },
-      {
-        name: 'viction_ethereum_usdt',
-        matchingList: routerMatchingList(victionEthereumUsdtAddresses),
-      },
-      {
-        name: 'ancient8_ethereum_usdc',
-        matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
-      },
-    ],
+    gasPaymentEnforcement: gasPaymentEnforcement,
+    metricAppContexts,
   },
   validators: {
     docker: {
       repo,
-      tag: 'c1da894-20240321-175000',
+      tag: 'a2d6af6-20240422-164135',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -207,7 +219,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: 'a2d6af6-20240422-164135',
     },
   },
 };
@@ -221,19 +233,18 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a72c3cf-20240314-173418',
+      tag: 'a2d6af6-20240422-164135',
     },
-    whitelist: releaseCandidateHelloworldMatchingList,
+    // We're temporarily (ab)using the RC relayer as a way to increase
+    // message throughput.
+    // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
-    transactionGasLimit: 750000,
-    // Skipping arbitrum because the gas price estimates are inclusive of L1
-    // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: ['arbitrum'],
+    metricAppContexts,
   },
   validators: {
     docker: {
       repo,
-      tag: 'ae0990a-20240313-215426',
+      tag: 'a2d6af6-20240422-164135',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -253,24 +264,14 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a72c3cf-20240314-173418',
+      tag: 'a2d6af6-20240422-164135',
     },
     gasPaymentEnforcement: [
       {
         type: GasPaymentEnforcementPolicyType.None,
         matchingList: [
-          {
-            originDomain: getDomainId('neutron'),
-            destinationDomain: getDomainId('mantapacific'),
-            senderAddress: '*',
-            recipientAddress: '*',
-          },
-          {
-            originDomain: getDomainId('neutron'),
-            destinationDomain: getDomainId('arbitrum'),
-            senderAddress: '*',
-            recipientAddress: '*',
-          },
+          ...routerMatchingList(mantaTIAAddresses),
+          ...routerMatchingList(arbitrumTIAAddresses),
         ],
       },
       ...gasPaymentEnforcement,

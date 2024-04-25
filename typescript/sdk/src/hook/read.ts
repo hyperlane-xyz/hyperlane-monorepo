@@ -20,10 +20,10 @@ import {
   WithAddress,
   concurrentMap,
   eqAddress,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -74,14 +74,10 @@ export class EvmHookReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: ChainName,
-    protected readonly concurrency: number = 20,
+    protected readonly chain: ChainName,
+    protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(config: HookConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
   async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {

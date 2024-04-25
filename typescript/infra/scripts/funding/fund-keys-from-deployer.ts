@@ -102,6 +102,7 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 const igpClaimThresholdPerChain: ChainMap<string> = {
   celo: '5',
   alfajores: '1',
+  ancient8: '0.1',
   avalanche: '2',
   fuji: '1',
   ethereum: '0.4',
@@ -118,6 +119,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   scroll: '0.1',
   polygonzkevm: '0.1',
   plumetestnet: '0.1',
+  inevm: '20',
   // unused
   test1: '0',
   test2: '0',

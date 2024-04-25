@@ -130,35 +130,6 @@ export const validatorChainConfig = (
         'plumetestnet',
       ),
     },
-    injective: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('injective'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x10686BEe585491A0DA5bfCd5ABfbB95Ab4d6c86d'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'injective',
-      ),
-    },
-    // proteustestnet: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod('proteustestnet'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: [
-    //         '0x79fc73656abb9eeaa5ee853c4569124f5bdaf9d8',
-    //         '0x72840388d5ab57323bc4f6e6d3ddedfd5cc911f0',
-    //         '0xd4b2a50c53fc6614bb3cd3198e0fdc03f5da973f',
-    //       ],
-    //       [Contexts.ReleaseCandidate]: [
-    //         '0xc2ccc4eab0e8d441235d661e39341ae16c3bf8cd',
-    //       ],
-    //     },
-    //     'proteustestnet',
-    //   ),
-    // },
     solanatestnet: {
       interval: 1,
       reorgPeriod: getReorgPeriod('solanatestnet'),
