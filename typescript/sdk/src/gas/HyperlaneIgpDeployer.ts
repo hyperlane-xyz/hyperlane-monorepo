@@ -115,7 +115,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
         this.logger.info(
-          `-> ${remote} - ${serializeDifference(actual, desired)}`,
+          `${chain} -> ${remote}: ${serializeDifference(actual, desired)}`,
         );
         configsToSet.push({
           remoteDomain,
@@ -129,7 +129,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         .mul(exampleRemoteGas)
         .div(TOKEN_EXCHANGE_RATE_SCALE);
       this.logger.info(
-        `-> ${remote} - ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
+        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
           exampleRemoteGasCost,
         )}`,
       );
