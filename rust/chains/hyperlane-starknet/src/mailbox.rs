@@ -22,7 +22,7 @@ use crate::contracts::mailbox::{
     U256 as StarknetU256,
 };
 use crate::error::HyperlaneStarknetError;
-use crate::{get_transaction_receipt, ConnectionConf, Signer, StarknetProvider};
+use crate::{get_transaction_receipt, ConnectionConf, StarknetProvider};
 
 impl<A> std::fmt::Display for StarknetMailboxInternal<A>
 where
@@ -50,13 +50,13 @@ where
 {
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, signer: Option<Signer>) -> Self {
-        let provider: StarknetProvider<A> =
-            StarknetProvider::new(locator.domain.clone(), conn, signer);
+    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, account: Arc<A>) -> Self {
+        let provider = StarknetProvider::new(locator.domain.clone(), conn, Some(account));
+
         Self {
             contract: Arc::new(StarknetMailboxInternal::new(
                 FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
-                *provider.account().unwrap(),
+                *account,
             )),
             provider,
             conn: conn.clone(),
@@ -116,14 +116,14 @@ where
 
 impl<A> HyperlaneChain for StarknetMailbox<A>
 where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(StarknetProvider::<A>::new(
+        Box::new(&StarknetProvider::<A>::new(
             self.provider.domain().clone(),
             &self.conn,
             None,
@@ -133,7 +133,7 @@ where
 
 impl<A> HyperlaneContract for StarknetMailbox<A>
 where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
 {
     fn address(&self) -> H256 {
         H256::from_slice(self.contract.address.to_bytes_be().as_slice())
@@ -143,7 +143,7 @@ where
 #[async_trait]
 impl<A> Mailbox for StarknetMailbox<A>
 where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
 {
     #[instrument(skip(self))]
     async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {

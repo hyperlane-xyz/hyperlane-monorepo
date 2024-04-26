@@ -4,16 +4,17 @@ use hyperlane_core::{
     U256,
 };
 use starknet::core::types::{
-    BlockId, BlockTag, EventFilter, MaybePendingBlockWithTxHashes, MaybePendingBlockWithTxs,
+    BlockId, BlockTag, EventFilter, FieldElement, MaybePendingBlockWithTxHashes,
+    MaybePendingBlockWithTxs,
 };
 use starknet::core::utils::get_selector_from_name;
-use starknet::providers::Provider;
+use starknet::providers::{AnyProvider, Provider};
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use tracing::instrument;
 
-use crate::mailbox::StarknetMailbox;
+use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
 use crate::{ConnectionConf, HyperlaneStarknetError, StarknetProvider};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -44,7 +45,7 @@ pub struct StarknetMailboxIndexer<A>
 where
     A: starknet::accounts::ConnectedAccount + Sync + Send + Debug,
 {
-    contract: Arc<StarknetMailbox<A>>,
+    contract: Arc<StarknetMailboxReader<AnyProvider>>,
     provider: StarknetProvider<A>,
     reorg_period: u32,
 }
@@ -60,7 +61,11 @@ where
         reorg_period: u32,
     ) -> ChainResult<Self> {
         let provider = StarknetProvider::new(locator.domain.clone(), &conf, None);
-        let contract = StarknetMailbox::new(&conf, &locator, None);
+        let contract = StarknetMailboxReader::new(
+            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
+            *provider.rpc_client().clone().as_ref(),
+        );
+
         Ok(Self {
             contract: Arc::new(contract),
             provider,
@@ -130,7 +135,7 @@ where
         let filter = EventFilter {
             from_block: Some(BlockId::Number((*range.start()).into())),
             to_block: Some(BlockId::Number((*range.end()).into())),
-            address: Some(self.contract.contract().address),
+            address: Some(self.contract.address),
             keys: Some(vec![vec![key]]),
         };
 
@@ -181,7 +186,6 @@ where
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self
             .contract
-            .contract()
             .with_block(BlockId::Number(tip as u64))
             .nonce()
             .call()
@@ -208,7 +212,7 @@ where
         let filter = EventFilter {
             from_block: Some(BlockId::Number((*range.start()).into())),
             to_block: Some(BlockId::Number((*range.end()).into())),
-            address: Some(self.contract.contract().address),
+            address: Some(self.contract.address),
             keys: Some(vec![vec![key]]),
         };
 

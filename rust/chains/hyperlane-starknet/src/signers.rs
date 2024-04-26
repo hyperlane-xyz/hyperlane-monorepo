@@ -35,7 +35,7 @@ impl Signer {
     /// Build a SigningKey from a private key. This cannot be
     /// precompiled and stored in `Signer`, because `SigningKey` is not `Sync`.
     pub fn signing_key(&self) -> SigningKey {
-        self.signing_key
+        self.signing_key.clone()
     }
 
     pub fn local_wallet(&self) -> LocalWallet {

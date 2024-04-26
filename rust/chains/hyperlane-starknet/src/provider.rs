@@ -6,8 +6,6 @@ use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
     H256, U256,
 };
-use starknet::accounts::{ExecutionEncoding, SingleOwnerAccount};
-use starknet::core::chain_id::{MAINNET, SEPOLIA};
 use starknet::core::types::{
     BlockId, BlockTag, FieldElement, FunctionCall, MaybePendingBlockWithTxHashes,
 };
@@ -16,9 +14,9 @@ use starknet::providers::jsonrpc::{HttpTransport, JsonRpcClient};
 use starknet::providers::{AnyProvider, Provider};
 use tracing::instrument;
 
-use crate::{ConnectionConf, HyperlaneStarknetError, Signer};
+use crate::{ConnectionConf, HyperlaneStarknetError};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A wrapper over the Starknet provider to provide a more ergonomic interface.
 pub struct StarknetProvider<A>
 where
@@ -33,27 +31,10 @@ impl<A> StarknetProvider<A>
 where
     A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
 {
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf, signer: Option<Signer>) -> Self {
+    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf, account: Option<Arc<A>>) -> Self {
         let rpc_client = Arc::new(AnyProvider::JsonRpcHttp(JsonRpcClient::new(
             HttpTransport::new(conf.url.clone()),
         )));
-
-        let chain_id = match domain.id() {
-            23448594392895567 => SEPOLIA,
-            23448594291968334 => MAINNET,
-        };
-
-        let account = if let Some(signer) = signer {
-            Some(Arc::new(SingleOwnerAccount::new(
-                rpc_client,
-                signer.local_wallet(),
-                signer.address,
-                chain_id,
-                ExecutionEncoding::New, // Only supports Cairo 1 accounts
-            )))
-        } else {
-            None
-        };
 
         Self {
             domain,
@@ -63,7 +44,7 @@ where
     }
 
     pub fn rpc_client(&self) -> Arc<AnyProvider> {
-        self.rpc_client
+        self.rpc_client.clone()
     }
 
     pub fn domain(&self) -> &HyperlaneDomain {
@@ -71,27 +52,27 @@ where
     }
 
     pub fn account(&self) -> Option<Arc<A>> {
-        self.account
+        self.account.clone()
     }
 }
 
-impl<A> HyperlaneChain for StarknetProvider<A>
+impl<A> HyperlaneChain for &StarknetProvider<A>
 where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(*self.clone())
+        Box::new(self.clone())
     }
 }
 
 #[async_trait]
-impl<A> HyperlaneProvider for StarknetProvider<A>
+impl<A> HyperlaneProvider for &StarknetProvider<A>
 where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
+    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
 {
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
@@ -148,7 +129,7 @@ where
         let eth_token_address =
             felt!("0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7");
 
-        let call_result = self
+        let _call_result = self
             .rpc_client()
             .call(
                 FunctionCall {
