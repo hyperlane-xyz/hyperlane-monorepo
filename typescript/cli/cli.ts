@@ -42,10 +42,12 @@ try {
     .option('key', keyCommandOption)
     .option('yes', skipConfirmationOption)
     .global(['log', 'verbosity', 'registry', 'configs', 'yes'])
-    .middleware((argv) => {
-      configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
-    })
-    .middleware(contextMiddleware)
+    .middleware([
+      (argv) => {
+        configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
+      },
+      contextMiddleware,
+    ])
     .command(chainsCommand)
     .command(configCommand)
     .command(deployCommand)

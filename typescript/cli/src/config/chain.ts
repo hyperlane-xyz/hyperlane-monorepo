@@ -1,10 +1,6 @@
 import { confirm, input } from '@inquirer/prompts';
 
-import {
-  ChainMap,
-  ChainMetadata,
-  ChainMetadataSchema,
-} from '@hyperlane-xyz/sdk';
+import { ChainMetadata, ChainMetadataSchema } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -13,34 +9,27 @@ import { readYamlOrJson } from '../utils/files.js';
 
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
-  const chainToMetadata = readYamlOrJson<ChainMap<ChainMetadata>>(filePath);
+  const chainMetadata = readYamlOrJson<ChainMetadata>(filePath);
 
   if (
-    !chainToMetadata ||
-    typeof chainToMetadata !== 'object' ||
-    !Object.keys(chainToMetadata).length
+    !chainMetadata ||
+    typeof chainMetadata !== 'object' ||
+    !Object.keys(chainMetadata).length
   ) {
     errorRed(`No configs found in ${filePath}`);
     process.exit(1);
   }
 
   // Validate configs from file and merge in core configs as needed
-  for (const chain of Object.keys(chainToMetadata)) {
-    const parseResult = ChainMetadataSchema.safeParse(chainToMetadata[chain]);
-    if (!parseResult.success) {
-      errorRed(
-        `Chain config for ${chain} is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
-      );
-      errorRed(JSON.stringify(parseResult.error.errors));
-      process.exit(1);
-    }
-    if (chainToMetadata[chain].name !== chain) {
-      errorRed(`Chain ${chain} name does not match key`);
-      process.exit(1);
-    }
+  const parseResult = ChainMetadataSchema.safeParse(chainMetadata);
+  if (!parseResult.success) {
+    errorRed(
+      `Chain config for ${filePath} is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/chain-config.yaml for an example`,
+    );
+    errorRed(JSON.stringify(parseResult.error.errors));
+    process.exit(1);
   }
-
-  return chainToMetadata;
+  return chainMetadata;
 }
 
 export async function createChainConfig({
