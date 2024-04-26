@@ -6,5 +6,6 @@
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
 @eigenlayer/core/=lib/eigenlayer-contracts/src/contracts/core/
+@eigenlayer/ecdsa/=lib/eigenlayer-middleware/src/unaudited/
 @eigenlayer/middleware/=lib/eigenlayer-middleware/src/
 @eigenlayer/interfaces/=lib/eigenlayer-contracts/src/contracts/interfaces/

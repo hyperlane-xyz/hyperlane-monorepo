@@ -5,7 +5,7 @@ import "forge-std/console.sol";
 
 import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
 import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer/middleware/unaudited/ECDSAStakeRegistry.sol";
+import {ECDSAStakeRegistry} from "@eigenlayer/ecdsa/ECDSAStakeRegistry.sol";
 
 import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/EnumerableMapEnrollment.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
@@ -59,24 +59,13 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     function deregisterOperatorFromAVS(
         address operator
     ) public virtual override onlyStakeRegistry {
-        address[] memory challengers = getOperatorChallengers(operator);
-        for (uint256 i = 0; i < challengers.length; i++) {
-            IRemoteChallenger challenger = IRemoteChallenger(challengers[i]);
-            Enrollment memory enrollment = enrolledChallengers[operator].get(
-                challengers[i]
-            );
-            require(
-                enrollment.status != EnrollmentStatus.ENROLLED,
-                string(
-                    abi.encodePacked(
-                        "HyperlaneServiceManager: Operator still enrolled in challenger",
-                        challengers[i]
-                    )
-                )
-            );
-            enrolledChallengers[operator].remove(challengers[i]);
-        }
+        IRemoteChallenger[] memory challengers = getOperatorChallengers(
+            operator
+        );
+        completeQueuedUnenrollmentFromChallengers(challengers);
+
         elAvsDirectory.deregisterOperatorFromAVS(operator);
+        emit OperatorDeregisteredFromAVS(operator);
     }
 
     // ============ External Functions ============
@@ -102,11 +91,6 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
             (bool exists, Enrollment memory enrollment) = enrolledChallengers[
                 msg.sender
             ].tryGet(address(challenger));
-            console.log(
-                "queueUnenrollmentFromChallengers",
-                exists,
-                uint8(enrollment.status)
-            );
             if (exists && enrollment.status == EnrollmentStatus.ENROLLED) {
                 enrolledChallengers[msg.sender].set(
                     address(challenger),
@@ -127,27 +111,29 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
 
     function completeQueuedUnenrollmentFromChallengers(
         IRemoteChallenger[] memory _challengers
-    ) external {
+    ) public {
         for (uint256 i = 0; i < _challengers.length; i++) {
             IRemoteChallenger challenger = _challengers[i];
             (bool exists, Enrollment memory enrollment) = enrolledChallengers[
                 msg.sender
             ].tryGet(address(challenger));
-            if (
+
+            require(
                 exists &&
-                enrollment.status == EnrollmentStatus.PENDING_UNENROLLMENT &&
-                block.number >=
-                enrollment.unenrollmentStartBlock +
-                    challenger.challengeDelayBlocks()
-            ) {
-                enrolledChallengers[msg.sender].remove(address(challenger));
-                emit OperatorUnenrolledFromChallenger(
-                    msg.sender,
-                    challenger,
-                    block.number,
-                    challenger.challengeDelayBlocks()
-                );
-            }
+                    enrollment.status != EnrollmentStatus.ENROLLED &&
+                    block.number >=
+                    enrollment.unenrollmentStartBlock +
+                        challenger.challengeDelayBlocks(),
+                "HyperlaneServiceManager: Invalid unenrollment"
+            );
+
+            enrolledChallengers[msg.sender].remove(address(challenger));
+            emit OperatorUnenrolledFromChallenger(
+                msg.sender,
+                challenger,
+                block.number,
+                challenger.challengeDelayBlocks()
+            );
         }
     }
 
@@ -162,15 +148,19 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         IRemoteChallenger _challenger
     ) external view returns (Enrollment memory enrollment) {
         address[] memory keys = enrolledChallengers[_operator].keys();
-        for (uint256 i = 0; i < keys.length; i++) {
-            console.log("key", keys[i], address(_challenger));
-        }
         return enrolledChallengers[_operator].get(address(_challenger));
     }
 
     function getOperatorChallengers(
         address _operator
-    ) public view returns (address[] memory) {
-        return enrolledChallengers[_operator].keys();
+    ) public view returns (IRemoteChallenger[] memory) {
+        address[] memory keys = enrolledChallengers[_operator].keys();
+        IRemoteChallenger[] memory challengers = new IRemoteChallenger[](
+            keys.length
+        );
+        for (uint256 i = 0; i < keys.length; i++) {
+            challengers[i] = IRemoteChallenger(keys[i]);
+        }
+        return challengers;
     }
 }

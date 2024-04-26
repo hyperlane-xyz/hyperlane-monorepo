@@ -7,14 +7,14 @@ import {ISignatureUtils} from "@eigenlayer/interfaces/ISignatureUtils.sol";
 import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
 import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
 
-import {ECDSAStakeRegistry} from "@eigenlayer/middleware/unaudited/ECDSAStakeRegistry.sol";
+import {ECDSAStakeRegistry} from "@eigenlayer/ecdsa/ECDSAStakeRegistry.sol";
 import {IServiceManager} from "@eigenlayer/middleware/interfaces/IServiceManager.sol";
 
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 
 contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
     event OperatorRegisteredToAVS(address indexed operator);
-    event OperatorDeregisteredToAVS(address indexed operator);
+    event OperatorDeregisteredFromAVS(address indexed operator);
 
     ECDSAStakeRegistry internal immutable stakeRegistry;
     IAVSDirectory internal immutable elAvsDirectory;
@@ -76,7 +76,7 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
         address operator
     ) public virtual onlyStakeRegistry {
         elAvsDirectory.deregisterOperatorFromAVS(operator);
-        emit OperatorDeregisteredToAVS(operator);
+        emit OperatorDeregisteredFromAVS(operator);
     }
 
     function freezeOperator(address operator) public virtual onlyOwner {
