@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
-
 import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
 import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
 import {ECDSAStakeRegistry} from "@eigenlayer/ecdsa/ECDSAStakeRegistry.sol";
