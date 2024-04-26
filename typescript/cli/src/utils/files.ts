@@ -99,7 +99,7 @@ export function mergeYaml<T extends Record<string, any>>(
 }
 
 export function readYamlOrJson<T>(filepath: string, format?: FileFormat): T {
-  return resolveYamlOrJson(filepath, readJson, readYaml, format);
+  return resolveYamlOrJsonFn(filepath, readJson, readYaml, format);
 }
 
 export function writeYamlOrJson(
@@ -107,7 +107,7 @@ export function writeYamlOrJson(
   obj: Record<string, any>,
   format?: FileFormat,
 ) {
-  return resolveYamlOrJson(
+  return resolveYamlOrJsonFn(
     filepath,
     (f: string) => writeJson(f, obj),
     (f: string) => writeYaml(f, obj),
@@ -120,7 +120,7 @@ export function mergeYamlOrJson(
   obj: Record<string, any>,
   format?: FileFormat,
 ) {
-  return resolveYamlOrJson(
+  return resolveYamlOrJsonFn(
     filepath,
     (f: string) => mergeJson(f, obj),
     (f: string) => mergeYaml(f, obj),
@@ -128,23 +128,46 @@ export function mergeYamlOrJson(
   );
 }
 
-function resolveYamlOrJson(
+function resolveYamlOrJsonFn(
   filepath: string,
   jsonFn: any,
   yamlFn: any,
   format?: FileFormat,
 ) {
-  if (format === 'json' || filepath.endsWith('.json')) {
-    return jsonFn(filepath);
-  } else if (
-    format === 'yaml' ||
-    filepath.endsWith('.yaml') ||
-    filepath.endsWith('.yml')
-  ) {
-    return yamlFn(filepath);
-  } else {
+  const fileFormat = resolveFileFormat(filepath, format);
+  if (!fileFormat) {
     throw new Error(`Invalid file format for ${filepath}`);
   }
+
+  if (fileFormat === 'json') {
+    return jsonFn(filepath);
+  }
+
+  return yamlFn(filepath);
+}
+
+export function resolveFileFormat(
+  filepath?: string,
+  format?: FileFormat,
+): FileFormat | undefined {
+  // early out if filepath is undefined
+  if (!filepath) {
+    return format;
+  }
+
+  if (format === 'json' || filepath?.endsWith('.json')) {
+    return 'json';
+  }
+
+  if (
+    format === 'yaml' ||
+    filepath?.endsWith('.yaml') ||
+    filepath?.endsWith('.yml')
+  ) {
+    return 'yaml';
+  }
+
+  return undefined;
 }
 
 export function prepNewArtifactsFiles(
@@ -170,7 +193,7 @@ export function prepNewArtifactsFiles(
  */
 export function getArtifactsFiles(
   defaultFiles: ArtifactsFile[],
-  dryRun: boolean = false,
+  dryRun: string = '',
 ): Array<ArtifactsFile> {
   if (dryRun)
     defaultFiles.map((defaultFile: ArtifactsFile) => {

@@ -28,10 +28,12 @@ export const keyFunderConfig: KeyFunderConfig = {
   desiredBalancePerChain: {
     avalanche: '5',
     bsc: '5',
+    blast: '0.2',
     celo: '3',
     ethereum: '0.5',
     gnosis: '5',
     inevm: '3',
+    mode: '0.2',
     moonbeam: '5',
     polygon: '20',
     viction: '3',

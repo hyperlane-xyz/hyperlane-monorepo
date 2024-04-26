@@ -20,7 +20,6 @@ import {
   WithAddress,
   concurrentMap,
   eqAddress,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -79,10 +78,6 @@ export class EvmHookReader implements HookReader {
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(config: HookConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
   async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {
