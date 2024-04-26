@@ -133,6 +133,7 @@ async function executeDelivery({
     log(`Message: ${JSON.stringify(message)}`);
 
     if (selfRelay) {
+      log('Attempting self-relay of message');
       await core.relayMessage(message);
       logGreen('Message was self-relayed!');
       return;
