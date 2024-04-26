@@ -28,7 +28,7 @@ export const registryUriCommandOption: Options = {
 
 export const configOverridesUriCommandOption: Options = {
   type: 'string',
-  description: 'Path to local folder with configs and artifacts',
+  description: 'Path to local folder with configs',
   default: './',
   alias: 'c',
 };

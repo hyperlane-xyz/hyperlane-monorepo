@@ -41,7 +41,6 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
       throw new Error('At least one registry URI is required');
 
     this.registries = registryUris.map((uri, index) => {
-      // If not provided, allow the GithubRegistry to use its default
       if (isHttpsUrl(uri)) {
         return new GithubRegistry({ uri, logger: logger!.child({ index }) });
       } else {
@@ -53,8 +52,8 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }
 
   async listRegistryContent(): Promise<RegistryContent> {
-    const results = await Promise.all(
-      this.registries.map((registry) => registry.listRegistryContent()),
+    const results = await this.multiRegistryRead((r) =>
+      r.listRegistryContent(),
     );
     return results.reduce((acc, content) => objMerge(acc, content), {
       chains: {},
@@ -67,9 +66,7 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }
 
   async getMetadata(): Promise<ChainMap<ChainMetadata>> {
-    const results = await Promise.all(
-      this.registries.map((registry) => registry.getMetadata()),
-    );
+    const results = await this.multiRegistryRead((r) => r.getMetadata());
     return results.reduce((acc, content) => objMerge(acc, content), {});
   }
 
@@ -78,9 +75,7 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }
 
   async getAddresses(): Promise<ChainMap<ChainAddresses>> {
-    const results = await Promise.all(
-      this.registries.map((registry) => registry.getAddresses()),
-    );
+    const results = await this.multiRegistryRead((r) => r.getAddresses());
     return results.reduce((acc, content) => objMerge(acc, content), {});
   }
 
@@ -124,6 +119,12 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
       async (registry) => await registry.addWarpRoute(config),
       'adding warp route',
     );
+  }
+
+  protected multiRegistryRead<R>(
+    readFn: (registry: IRegistry) => Promise<R> | R,
+  ) {
+    return Promise.all(this.registries.map(readFn));
   }
 
   protected async multiRegistryWrite(

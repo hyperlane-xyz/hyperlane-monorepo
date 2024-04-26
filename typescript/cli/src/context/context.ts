@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
-import { WRITE_COMMANDS } from '../commands/writeCommands.js';
+import { SIGN_COMMANDS } from '../commands/signCommands.js';
 import { forkNetworkToMultiProvider } from '../deploy/dry-run.js';
 import { MergedRegistry } from '../registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -45,7 +45,7 @@ export async function getContext({
   const registry = getRegistry(registryUri, configOverrideUri);
 
   let signer: ethers.Wallet | undefined = undefined;
-  if (WRITE_COMMANDS.includes(commandName)) {
+  if (SIGN_COMMANDS.includes(commandName)) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
   const multiProvider = await getMultiProvider(registry, signer);

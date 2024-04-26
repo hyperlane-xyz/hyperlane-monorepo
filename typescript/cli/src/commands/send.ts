@@ -49,7 +49,7 @@ export const messageOptions: { [k: string]: Options } = {
     type: 'boolean',
     description: 'Handle self-relay of message on destination chain',
     default: false,
-    alias: ['s', 'sr'],
+    alias: ['r'],
   },
 };
 
