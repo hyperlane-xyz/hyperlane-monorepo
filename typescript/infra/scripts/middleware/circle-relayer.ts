@@ -1,5 +1,4 @@
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import {
   LiquidityLayerApp,
@@ -9,7 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objFilter, sleep } from '@hyperlane-xyz/utils';
 
-import { readJSON } from '../../src/utils/utils.js';
+import { getInfraPath, readJSON } from '../../src/utils/utils.js';
 import { getArgs, getEnvironmentDirectory } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -23,8 +22,7 @@ async function check() {
 
   const multiProvider = await config.getMultiProvider();
   const dir = join(
-    dirname(fileURLToPath(import.meta.url)),
-    '../../',
+    getInfraPath(),
     getEnvironmentDirectory(environment),
     'middleware/liquidity-layer',
   );

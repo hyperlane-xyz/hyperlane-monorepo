@@ -40,6 +40,7 @@ export type WarpCommandOptions = CommandOptions & {
   out: Options;
   key: Options;
   yes: Options;
+  'dry-run': Options;
 };
 
 export const coreTargetsCommandOption: Options = {
@@ -125,7 +126,7 @@ export const fileFormatOption: Options = {
   alias: 'f',
 };
 
-export const outputFileOption = (defaultPath: string): Options => ({
+export const outputFileOption = (defaultPath?: string): Options => ({
   type: 'string',
   description: 'Output file path',
   default: defaultPath,
@@ -140,9 +141,22 @@ export const skipConfirmationOption: Options = {
 };
 
 export const dryRunOption: Options = {
-  type: 'boolean',
+  type: 'string',
   description:
-    'Simulate deployment on forked network. Please ensure an anvil node instance is running during execution via `anvil`.',
-  default: false,
-  alias: 'd',
+    'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
+  alias: ['d', 'dr'],
 };
+
+export const chainCommandOption: Options = {
+  type: 'string',
+  description: 'The specific chain to perform operations with.',
+};
+
+export const addressCommandOption = (
+  description: string,
+  demandOption = false,
+): Options => ({
+  type: 'string',
+  description,
+  demandOption,
+});

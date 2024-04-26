@@ -2,9 +2,7 @@ import { Wallet, providers } from 'ethers';
 import fs from 'fs';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
-import { TokenType } from '@hyperlane-xyz/sdk';
-
-import { WarpRouteDeployConfig } from '../config/warp.js';
+import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
 async function deployERC20() {
   const [rpcUrl, chain1, chain2, privateKey, outPath] = process.argv.slice(2);
@@ -22,12 +20,12 @@ async function deployERC20() {
   console.log('Test ERC20 contract deployed', contract.address);
 
   const warpDeploymentConfig: WarpRouteDeployConfig = {
-    base: {
-      chainName: chain1,
+    [chain1]: {
       type: TokenType.collateral,
-      address: contract.address,
+      token: contract.address,
+      isNft: false,
     },
-    synthetics: [{ chainName: chain2 }],
+    [chain2]: { type: TokenType.synthetic },
   };
 
   console.log('Writing deployment config to', outPath);

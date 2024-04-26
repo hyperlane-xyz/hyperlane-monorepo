@@ -29,6 +29,7 @@ _main() {
     DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]');
 
     run_hyperlane_deploy_core_dry_run;
+    run_hyperlane_deploy_warp_dry_run;
 
     reset_anvil;
 
@@ -124,12 +125,17 @@ kill_anvil() {
 }
 
 run_hyperlane_deploy_core_dry_run() {
+    if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
+        return;
+    fi
+
     BEFORE_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
 
     echo -e "\nDry-running contract deployments to Alfajores"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core --dry-run \
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
+        --dry-run alfajores \
         --targets alfajores \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
+        --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
         --artifacts /tmp/empty-artifacts.json \
         $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
         --ism ${EXAMPLES_PATH}/ism.yaml \
@@ -148,6 +154,34 @@ run_hyperlane_deploy_core_dry_run() {
     cat $CORE_ARTIFACTS_PATH
 
     AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
+}
+
+run_hyperlane_deploy_warp_dry_run() {
+    if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
+        return;
+    fi
+
+    BEFORE_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
+
+    echo -e "\nDry-running warp route deployments to Alfajores"
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+        --dry-run alfajores \
+        --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
+        --core $CORE_ARTIFACTS_PATH \
+        --config ${EXAMPLES_PATH}/dry-run/warp-route-deployment.yaml \
+        --out /tmp \
+        --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
+        --yes
+
+    AFTER_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+    WARP_MIN_GAS=$(bc <<< "($BEFORE_WARP_DRY_RUN - $AFTER_WARP_DRY_RUN) / $GAS_PRICE")
+    echo "Gas used: $WARP_MIN_GAS"
+
+    WARP_ARTIFACTS_PATH=`find /tmp/dry-run_warp-route-deployment* -type f -exec ls -t1 {} + | head -1`
+    echo "Warp dry-run artifacts:"
+    echo $WARP_ARTIFACTS_PATH
+    cat $WARP_ARTIFACTS_PATH
 }
 
 run_hyperlane_deploy_core() {
@@ -346,4 +380,5 @@ run_hyperlane_status() {
 }
 
 _main "$@";
+
 exit;

@@ -100,14 +100,17 @@ export {
   deepCopy,
   deepEquals,
   invertKeysAndValues,
+  isObjEmpty,
   isObject,
   objFilter,
   objKeys,
+  objLength,
   objMap,
   objMapEntries,
   objMerge,
   pick,
   promiseObjAll,
+  stringifyObject,
 } from './objects.js';
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {

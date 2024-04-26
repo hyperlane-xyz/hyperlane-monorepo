@@ -13,12 +13,11 @@ use hyperlane_core::{
 use tracing::{instrument, log::trace};
 
 use crate::{
-    contracts::i_validator_announce::{
+    interfaces::i_validator_announce::{
         IValidatorAnnounce as EthereumValidatorAnnounceInternal, IVALIDATORANNOUNCE_ABI,
     },
-    trait_builder::BuildableWithProvider,
     tx::{fill_tx_gas_params, report_tx},
-    ConnectionConf, EthereumProvider,
+    BuildableWithProvider, ConnectionConf, EthereumProvider,
 };
 
 impl<M> std::fmt::Display for EthereumValidatorAnnounceInternal<M>
@@ -176,6 +175,6 @@ impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        super::extract_fn_map(&IVALIDATORANNOUNCE_ABI)
+        crate::extract_fn_map(&IVALIDATORANNOUNCE_ABI)
     }
 }
