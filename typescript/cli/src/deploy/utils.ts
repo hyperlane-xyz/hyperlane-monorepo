@@ -127,7 +127,7 @@ export async function completeDeploy(
   multiProvider: MultiProvider,
   userAddress: Address,
   chains: ChainName[],
-  dryRun: boolean = false,
+  dryRun: string,
 ) {
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {

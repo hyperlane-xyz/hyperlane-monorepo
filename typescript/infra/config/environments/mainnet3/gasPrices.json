@@ -11,6 +11,10 @@
     "amount": "43.212830197",
     "decimals": 9
   },
+  "base": {
+    "amount": "0.116871685",
+    "decimals": 9
+  },
   "blast": {
     "amount": "0.1",
     "decimals": 9
@@ -49,10 +53,6 @@
   },
   "gnosis": {
     "amount": "3.236596353",
-    "decimals": 9
-  },
-  "base": {
-    "amount": "0.116871685",
     "decimals": 9
   },
   "scroll": {

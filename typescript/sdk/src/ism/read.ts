@@ -15,7 +15,6 @@ import {
   WithAddress,
   assert,
   concurrentMap,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -68,10 +67,6 @@ export class EvmIsmReader implements IsmReader {
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(config: IsmConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberSerializer, space);
   }
 
   async deriveIsmConfig(

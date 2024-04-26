@@ -177,6 +177,12 @@ export const base: ChainMetadata = {
 export const blast: ChainMetadata = {
   blockExplorers: [
     {
+      apiUrl: 'https://api.blastscan.io/api',
+      family: ExplorerFamily.Etherscan,
+      name: 'Blast Explorer',
+      url: 'https://blastscan.io',
+    },
+    {
       apiUrl:
         'https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api',
       family: ExplorerFamily.Routescan,
