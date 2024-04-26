@@ -4903,6 +4903,7 @@ dependencies = [
  "abigen",
  "anyhow",
  "async-trait",
+ "byteorder",
  "cainome",
  "hyperlane-core",
  "serde",

@@ -12,6 +12,7 @@ version.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+byteorder.workspace = true
 cainome.workspace = true
 starknet.workspace = true
 serde.workspace = true

@@ -315,7 +315,12 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support message indexing yet")
+                let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
+                    conf.clone(),
+                    locator,
+                    self.reorg_period,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
         }
         .context(ctx)

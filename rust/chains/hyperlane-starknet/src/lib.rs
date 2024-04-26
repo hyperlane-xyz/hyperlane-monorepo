@@ -5,6 +5,7 @@
 #![deny(warnings)]
 
 pub use error::*;
+pub use indexer::*;
 pub use provider::*;
 pub use signers::*;
 pub use trait_builder::*;
@@ -15,6 +16,7 @@ pub use utils::*;
 mod contracts;
 
 mod error;
+mod indexer;
 mod mailbox;
 mod provider;
 mod signers;

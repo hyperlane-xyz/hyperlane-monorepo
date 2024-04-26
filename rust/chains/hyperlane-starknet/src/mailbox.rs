@@ -5,19 +5,21 @@ use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use starknet::accounts::Execution;
-use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
-use tracing::instrument;
+use byteorder::{BigEndian, ByteOrder};
 
+use async_trait::async_trait;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
     TxCostEstimate, TxOutcome, H256, U256,
 };
+use starknet::accounts::Execution;
+use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
+use tracing::instrument;
 
 use crate::contracts::mailbox::{
     Bytes as StarknetBytes, Mailbox as StarknetMailboxInternal, Message as StarknetMessage,
+    U256 as StarknetU256,
 };
 use crate::error::HyperlaneStarknetError;
 use crate::{get_transaction_receipt, ConnectionConf, Signer, StarknetProvider};
@@ -106,6 +108,10 @@ where
         };
         Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
+
+    pub fn contract(&self) -> &StarknetMailboxInternal<A> {
+        &self.contract
+    }
 }
 
 impl<A> HyperlaneChain for StarknetMailbox<A>
@@ -149,12 +155,13 @@ where
 
     #[instrument(skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        let bytes = id.as_bytes();
+        let (high_bytes, low_bytes) = bytes.split_at(16);
+        let high = BigEndian::read_u128(high_bytes);
+        let low = BigEndian::read_u128(low_bytes);
         Ok(self
             .contract
-            .delivered(
-                &FieldElement::from_bytes_be(id.as_fixed_bytes())
-                    .map_err(Into::<HyperlaneStarknetError>::into)?,
-            )
+            .delivered(&StarknetU256 { low, high })
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?)
@@ -173,7 +180,7 @@ where
 
     #[instrument(skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        Ok(self
+        let res = self
             .contract
             .recipient_ism(&cainome::cairo_serde::ContractAddress(
                 FieldElement::from_bytes_be(&recipient.to_fixed_bytes())
@@ -181,8 +188,8 @@ where
             ))
             .call()
             .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?
-            .into())
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        Ok(H256::from_slice(res.0.to_bytes_be().as_slice()))
     }
 
     #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
