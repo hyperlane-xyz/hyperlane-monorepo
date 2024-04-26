@@ -49,16 +49,8 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "base",
         token: "ETH",
-        domain: 81457,
-        chain_id: 81457,
-        is_test_net: false,
-        is_deprecated: false,
-    },
-    RawDomain {
-        name: "blast",
-        token: "ETH",
-        domain: 34443,
-        chain_id: 34443,
+        domain: 8453,
+        chain_id: 8453,
         is_test_net: false,
         is_deprecated: false,
     },
