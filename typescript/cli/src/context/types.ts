@@ -9,10 +9,10 @@ import type {
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
-  commandName: string;
   registryUri: string;
   configOverrideUri: string;
   key?: string;
+  requiresKey?: boolean;
   skipConfirmation?: boolean;
 }
 

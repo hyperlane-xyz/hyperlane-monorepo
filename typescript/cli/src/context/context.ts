@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
-import { SIGN_COMMANDS } from '../commands/signCommands.js';
+import { isSignCommand } from '../commands/signCommands.js';
 import { forkNetworkToMultiProvider } from '../deploy/dry-run.js';
 import { MergedRegistry } from '../registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -16,13 +16,13 @@ import {
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const commandName = argv._.length >= 2 ? argv._[1] : '';
   const isDryRun = !!argv.dryRun;
+  const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
-    commandName,
     registryUri: argv.registry,
     configOverrideUri: argv.configs,
     key: argv.key,
+    requiresKey,
     skipConfirmation: argv.yes,
   };
   const context = isDryRun
@@ -36,16 +36,16 @@ export async function contextMiddleware(argv: Record<string, any>) {
  * @returns context for the current command
  */
 export async function getContext({
-  commandName,
   registryUri,
   configOverrideUri,
   key,
+  requiresKey,
   skipConfirmation,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, configOverrideUri);
 
   let signer: ethers.Wallet | undefined = undefined;
-  if (SIGN_COMMANDS.includes(commandName)) {
+  if (requiresKey) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
   const multiProvider = await getMultiProvider(registry, signer);
