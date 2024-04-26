@@ -13,7 +13,10 @@ import {MockAVSDeployer} from "eigenlayer-middleware/test/utils/MockAVSDeployer.
 import {Quorum, StrategyParams} from "@eigenlayer/middleware/unaudited/ECDSAStakeRegistryStorage.sol";
 import {ECDSAStakeRegistry} from "@eigenlayer/middleware/unaudited/ECDSAStakeRegistry.sol";
 
+import {Enrollment, EnrollmentStatus} from "../../contracts/libs/EnumerableMapEnrollment.sol";
+import {IRemoteChallenger} from "../../contracts/interfaces/avs/IRemoteChallenger.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
+import {TestRemoteChallenger} from "../../contracts/test/TestRemoteChallenger.sol";
 
 contract HyperlaneServiceManagerTest is MockAVSDeployer {
     // TODO
@@ -39,6 +42,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
 
     bytes32 emptySalt;
     uint256 maxExpiry = type(uint256).max;
+    uint256 challengeDelayBlocks = 50400; // one week of eth L1 blocks
 
     function setUp() public {
         _deployMockEigenLayerAndAVS();
@@ -49,7 +53,11 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         ecdsaStakeRegistry = new ECDSAStakeRegistry(delegationManager);
-        hsm = new HyperlaneServiceManager(avsDirectory, ecdsaStakeRegistry);
+        hsm = new HyperlaneServiceManager(
+            avsDirectory,
+            ecdsaStakeRegistry,
+            slasher
+        );
 
         IStrategy mockStrategy = IStrategy(address(0x1234));
         Quorum memory quorum = Quorum({strategies: new StrategyParams[](1)});
@@ -60,8 +68,8 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         ecdsaStakeRegistry.initialize(address(hsm), 6667, quorum);
 
         // register operator to eigenlayer
-        operator = cheats.addr(operatorPrivateKey);
-        cheats.prank(operator);
+        operator = vm.addr(operatorPrivateKey);
+        vm.prank(operator);
         delegationManager.registerAsOperator(
             IDelegationManager.OperatorDetails({
                 earningsReceiver: operator,
@@ -75,7 +83,6 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
     }
 
     function test_registerOperator() public {
-        operator = cheats.addr(operatorPrivateKey);
         // act
         ISignatureUtils.SignatureWithSaltAndExpiry
             memory operatorSignature = _getOperatorSignature(
@@ -97,6 +104,244 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             uint8(operatorStatus),
             uint8(IAVSDirectory.OperatorAVSRegistrationStatus.REGISTERED)
         );
+    }
+
+    function test_registerOperator_revert_invalidSignature() public {
+        // act
+        ISignatureUtils.SignatureWithSaltAndExpiry
+            memory operatorSignature = _getOperatorSignature(
+                operatorPrivateKey,
+                operator,
+                address(serviceManager),
+                emptySalt,
+                maxExpiry
+            );
+
+        vm.expectRevert(
+            "EIP1271SignatureUtils.checkSignature_EIP1271: signature not from signer"
+        );
+        ecdsaStakeRegistry.registerOperatorWithSignature(
+            operator,
+            operatorSignature
+        );
+
+        // assert
+        IAVSDirectory.OperatorAVSRegistrationStatus operatorStatus = avsDirectory
+                .avsOperatorStatus(address(hsm), operator);
+        assertEq(
+            uint8(operatorStatus),
+            uint8(IAVSDirectory.OperatorAVSRegistrationStatus.UNREGISTERED)
+        );
+    }
+
+    function test_registerOperator_revert_expiredSignature() public {
+        // act
+        ISignatureUtils.SignatureWithSaltAndExpiry
+            memory operatorSignature = _getOperatorSignature(
+                operatorPrivateKey,
+                operator,
+                address(hsm),
+                emptySalt,
+                0
+            );
+
+        vm.expectRevert(
+            "AVSDirectory.registerOperatorToAVS: operator signature expired"
+        );
+        ecdsaStakeRegistry.registerOperatorWithSignature(
+            operator,
+            operatorSignature
+        );
+
+        // assert
+        IAVSDirectory.OperatorAVSRegistrationStatus operatorStatus = avsDirectory
+                .avsOperatorStatus(address(hsm), operator);
+        assertEq(
+            uint8(operatorStatus),
+            uint8(IAVSDirectory.OperatorAVSRegistrationStatus.UNREGISTERED)
+        );
+    }
+
+    function test_deregisterOperator() public {
+        // act
+        _registerOperator();
+        vm.prank(operator);
+        ecdsaStakeRegistry.deregisterOperator();
+
+        // assert
+        IAVSDirectory.OperatorAVSRegistrationStatus operatorStatus = avsDirectory
+                .avsOperatorStatus(address(hsm), operator);
+        assertEq(
+            uint8(operatorStatus),
+            uint8(IAVSDirectory.OperatorAVSRegistrationStatus.UNREGISTERED)
+        );
+    }
+
+    /// forge-config: default.fuzz.runs = 10
+    function test_enrollIntoChallengers(uint8 numOfChallengers) public {
+        _registerOperator();
+        IRemoteChallenger[] memory challengers = _deployChallengers(
+            numOfChallengers
+        );
+
+        vm.prank(operator);
+        hsm.enrollIntoChallengers(challengers);
+
+        _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
+    }
+
+    /// forge-config: default.fuzz.runs = 10
+    function test_queueUnenrollmentFromChallengers_all(
+        uint8 numOfChallengers
+    ) public {
+        _registerOperator();
+        IRemoteChallenger[] memory challengers = _deployChallengers(
+            numOfChallengers
+        );
+
+        vm.startPrank(operator);
+        hsm.enrollIntoChallengers(challengers);
+        _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
+
+        hsm.queueUnenrollmentFromChallengers(challengers);
+        _assertChallengers(
+            challengers,
+            EnrollmentStatus.PENDING_UNENROLLMENT,
+            block.number
+        );
+
+        vm.roll(block.number + challengeDelayBlocks);
+
+        hsm.completeQueuedUnenrollmentFromChallengers(challengers);
+
+        // get all operator key length assert
+        assertEq(hsm.getOperatorChallengers(operator).length, 0);
+        vm.stopPrank();
+    }
+
+    /// forge-config: default.fuzz.runs = 10
+    function test_queueUnenrollmentFromChallengers(
+        uint8 numOfChallengers,
+        uint8 numQueued
+    ) public {
+        vm.assume(numQueued <= numOfChallengers);
+
+        _registerOperator();
+        IRemoteChallenger[] memory challengers = _deployChallengers(
+            numOfChallengers
+        );
+        IRemoteChallenger[] memory queuedChallengers = new IRemoteChallenger[](
+            numQueued
+        );
+        for (uint8 i = 0; i < numQueued; i++) {
+            queuedChallengers[i] = challengers[i];
+        }
+        IRemoteChallenger[]
+            memory unqueuedChallengers = new IRemoteChallenger[](
+                numOfChallengers - numQueued
+            );
+        for (uint8 i = numQueued; i < numOfChallengers; i++) {
+            unqueuedChallengers[i - numQueued] = challengers[i];
+        }
+
+        vm.startPrank(operator);
+        hsm.enrollIntoChallengers(challengers);
+        _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
+
+        hsm.queueUnenrollmentFromChallengers(queuedChallengers);
+        _assertChallengers(
+            queuedChallengers,
+            EnrollmentStatus.PENDING_UNENROLLMENT,
+            block.number
+        );
+        _assertChallengers(unqueuedChallengers, EnrollmentStatus.ENROLLED, 0);
+
+        vm.stopPrank();
+    }
+
+    /// forge-config: default.fuzz.runs = 10
+    function test_completeQueuedUnenrollmentFromChallenger(
+        uint8 numOfChallengers,
+        uint8 numUnenrollable
+    ) public {
+        vm.assume(numUnenrollable <= numOfChallengers);
+
+        _registerOperator();
+        IRemoteChallenger[] memory challengers = _deployChallengers(
+            numOfChallengers
+        );
+        IRemoteChallenger[]
+            memory unenrollableChallengers = new IRemoteChallenger[](
+                numUnenrollable
+            );
+        for (uint8 i = 0; i < numUnenrollable; i++) {
+            unenrollableChallengers[i] = challengers[i];
+        }
+
+        vm.startPrank(operator);
+        hsm.enrollIntoChallengers(challengers);
+        hsm.queueUnenrollmentFromChallengers(challengers);
+
+        _assertChallengers(
+            challengers,
+            EnrollmentStatus.PENDING_UNENROLLMENT,
+            block.number
+        );
+
+        vm.roll(block.number + challengeDelayBlocks);
+
+        hsm.completeQueuedUnenrollmentFromChallengers(unenrollableChallengers);
+
+        assertEq(
+            hsm.getOperatorChallengers(operator).length,
+            numOfChallengers - numUnenrollable
+        );
+
+        vm.stopPrank();
+    }
+
+    function _registerOperator() internal {
+        ISignatureUtils.SignatureWithSaltAndExpiry
+            memory operatorSignature = _getOperatorSignature(
+                operatorPrivateKey,
+                operator,
+                address(hsm),
+                emptySalt,
+                maxExpiry
+            );
+
+        ecdsaStakeRegistry.registerOperatorWithSignature(
+            operator,
+            operatorSignature
+        );
+    }
+
+    function _deployChallengers(
+        uint8 numOfChallengers
+    ) internal returns (IRemoteChallenger[] memory challengers) {
+        challengers = new IRemoteChallenger[](numOfChallengers);
+        for (uint8 i = 0; i < numOfChallengers; i++) {
+            challengers[i] = new TestRemoteChallenger();
+        }
+    }
+
+    function _assertChallengers(
+        IRemoteChallenger[] memory _challengers,
+        EnrollmentStatus _expectedstatus,
+        uint256 _expectUnenrollmentBlock
+    ) internal {
+        for (uint256 i = 0; i < _challengers.length; i++) {
+            Enrollment memory enrollment = hsm.getEnrolledChallenger(
+                operator,
+                _challengers[i]
+            );
+            assertEq(uint8(enrollment.status), uint8(_expectedstatus));
+            if (_expectUnenrollmentBlock != 0)
+                assertEq(
+                    enrollment.unenrollmentStartBlock,
+                    _expectUnenrollmentBlock
+                );
+        }
     }
 
     function _getOperatorSignature(
@@ -122,7 +367,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
                     salt,
                     expiry
                 );
-            (uint8 v, bytes32 r, bytes32 s) = cheats.sign(
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(
                 _operatorPrivateKey,
                 digestHash
             );

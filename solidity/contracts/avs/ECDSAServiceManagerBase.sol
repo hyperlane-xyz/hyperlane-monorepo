@@ -5,6 +5,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 
 import {ISignatureUtils} from "@eigenlayer/interfaces/ISignatureUtils.sol";
 import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
+import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
 
 import {ECDSAStakeRegistry} from "@eigenlayer/middleware/unaudited/ECDSAStakeRegistry.sol";
 import {IServiceManager} from "@eigenlayer/middleware/interfaces/IServiceManager.sol";
@@ -17,6 +18,7 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
 
     ECDSAStakeRegistry internal immutable stakeRegistry;
     IAVSDirectory internal immutable elAvsDirectory;
+    ISlasher internal slasher;
 
     /// @notice when applied to a function, only allows the ECDSAStakeRegistry to call it
     modifier onlyStakeRegistry() {
@@ -31,10 +33,12 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
 
     constructor(
         IAVSDirectory _avsDirectory,
-        ECDSAStakeRegistry _stakeRegistry
+        ECDSAStakeRegistry _stakeRegistry,
+        ISlasher _slasher
     ) {
         elAvsDirectory = _avsDirectory;
         stakeRegistry = _stakeRegistry;
+        slasher = _slasher;
         _disableInitializers();
     }
 
@@ -73,6 +77,10 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
     ) public virtual onlyStakeRegistry {
         elAvsDirectory.deregisterOperatorFromAVS(operator);
         emit OperatorDeregisteredToAVS(operator);
+    }
+
+    function freezeOperator(address operator) public virtual onlyOwner {
+        slasher.freezeOperator(operator);
     }
 
     // ============ External Functions ============

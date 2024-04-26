@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+import "forge-std/console.sol";
+
 // ============ External Imports ============
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -8,6 +10,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {TypeCasts} from "./TypeCasts.sol";
 
 enum EnrollmentStatus {
+    UNENROLLED,
     ENROLLED,
     PENDING_UNENROLLMENT
 }
@@ -43,11 +46,10 @@ library EnumerableMapEnrollment {
             );
     }
 
-    function decode(bytes32 encoded) public pure returns (Enrollment memory) {
-        (uint8 status, uint248 unenrollmentStartBlock) = abi.decode(
-            abi.encodePacked(encoded),
-            (uint8, uint248)
-        );
+    function decode(bytes32 encoded) public view returns (Enrollment memory) {
+        uint8 status = uint8(encoded[0]);
+        uint248 unenrollmentStartBlock = uint248(uint256((encoded << 8) >> 8));
+        console.log("decode", status, unenrollmentStartBlock);
         return Enrollment(EnrollmentStatus(status), unenrollmentStartBlock);
     }
 
@@ -66,6 +68,8 @@ library EnumerableMapEnrollment {
         address key,
         Enrollment memory value
     ) internal returns (bool) {
+        console.log("set", key);
+        console.logBytes32(encode(value));
         return map._inner.set(key.addressToBytes32(), encode(value));
     }
 
@@ -73,6 +77,7 @@ library EnumerableMapEnrollment {
         AddressToEnrollmentMap storage map,
         address key
     ) internal view returns (Enrollment memory) {
+        console.logBytes32(map._inner.get(key.addressToBytes32()));
         return decode(map._inner.get(key.addressToBytes32()));
     }
 

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+
 import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
+import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
 import {ECDSAStakeRegistry} from "@eigenlayer/middleware/unaudited/ECDSAStakeRegistry.sol";
 
 import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/EnumerableMapEnrollment.sol";
@@ -30,12 +33,22 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
 
     mapping(address => EnumerableMapEnrollment.AddressToEnrollmentMap) enrolledChallengers;
 
+    modifier onlyEnrolledChallenger(address operator) {
+        (bool exists, ) = enrolledChallengers[operator].tryGet(msg.sender);
+        require(
+            exists,
+            "HyperlaneServiceManager: Operator not enrolled in challenger"
+        );
+        _;
+    }
+
     // ============ Constructor ============
 
     constructor(
         IAVSDirectory _avsDirectory,
-        ECDSAStakeRegistry _stakeRegistry
-    ) ECDSAServiceManagerBase(_avsDirectory, _stakeRegistry) {}
+        ECDSAStakeRegistry _stakeRegistry,
+        ISlasher _slasher
+    ) ECDSAServiceManagerBase(_avsDirectory, _stakeRegistry, _slasher) {}
 
     // ============ Public Functions ============
 
@@ -46,7 +59,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     function deregisterOperatorFromAVS(
         address operator
     ) public virtual override onlyStakeRegistry {
-        address[] memory challengers = enrolledChallengers[operator].keys();
+        address[] memory challengers = getOperatorChallengers(operator);
         for (uint256 i = 0; i < challengers.length; i++) {
             IRemoteChallenger challenger = IRemoteChallenger(challengers[i]);
             Enrollment memory enrollment = enrolledChallengers[operator].get(
@@ -68,7 +81,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
 
     // ============ External Functions ============
 
-    function enrollIntoChallenger(
+    function enrollIntoChallengers(
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
@@ -81,7 +94,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         }
     }
 
-    function queueUnenrollmentFromChallenger(
+    function queueUnenrollmentFromChallengers(
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
@@ -89,6 +102,11 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
             (bool exists, Enrollment memory enrollment) = enrolledChallengers[
                 msg.sender
             ].tryGet(address(challenger));
+            console.log(
+                "queueUnenrollmentFromChallengers",
+                exists,
+                uint8(enrollment.status)
+            );
             if (exists && enrollment.status == EnrollmentStatus.ENROLLED) {
                 enrolledChallengers[msg.sender].set(
                     address(challenger),
@@ -107,7 +125,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         }
     }
 
-    function completeQueuedUnenrollmentFromChallenger(
+    function completeQueuedUnenrollmentFromChallengers(
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
@@ -131,5 +149,28 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
                 );
             }
         }
+    }
+
+    function freezeOperator(
+        address operator
+    ) public virtual override onlyEnrolledChallenger(operator) {
+        slasher.freezeOperator(operator);
+    }
+
+    function getEnrolledChallenger(
+        address _operator,
+        IRemoteChallenger _challenger
+    ) external view returns (Enrollment memory enrollment) {
+        address[] memory keys = enrolledChallengers[_operator].keys();
+        for (uint256 i = 0; i < keys.length; i++) {
+            console.log("key", keys[i], address(_challenger));
+        }
+        return enrolledChallengers[_operator].get(address(_challenger));
+    }
+
+    function getOperatorChallengers(
+        address _operator
+    ) public view returns (address[] memory) {
+        return enrolledChallengers[_operator].keys();
     }
 }
