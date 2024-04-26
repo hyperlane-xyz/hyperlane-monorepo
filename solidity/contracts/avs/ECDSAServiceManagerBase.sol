@@ -117,6 +117,10 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
         return address(elAvsDirectory);
     }
 
+    function setSlasher(ISlasher _slasher) external onlyOwner {
+        slasher = _slasher;
+    }
+
     // ============ Internal Function ============
 
     function _getRestakeableStrategies()
