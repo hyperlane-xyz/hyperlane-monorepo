@@ -61,6 +61,15 @@ export const RpcUrlSchema = z.object({
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;
 
+export const NativeTokenSchema = z.object({
+  name: z.string(),
+  symbol: z.string(),
+  decimals: ZUint.lt(256),
+  denom: z.string().optional(),
+});
+
+export type NativeToken = z.infer<typeof NativeTokenSchema>;
+
 /**
  * A collection of useful properties and settings for chains using Hyperlane
  * Specified as a Zod schema
@@ -102,17 +111,9 @@ export const ChainMetadataSchemaObject = z.object({
     .describe(
       'A URI to a logo image for this chain for use in user interfaces.',
     ),
-  nativeToken: z
-    .object({
-      name: z.string(),
-      symbol: z.string(),
-      decimals: ZUint.lt(256),
-      denom: z.string().optional(),
-    })
-    .optional()
-    .describe(
-      'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
-    ),
+  nativeToken: NativeTokenSchema.optional().describe(
+    'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
+  ),
   rpcUrls: z
     .array(RpcUrlSchema)
     .nonempty()

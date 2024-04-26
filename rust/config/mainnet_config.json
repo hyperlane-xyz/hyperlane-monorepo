@@ -782,7 +782,7 @@
       "contractAddressBytes": 32,
       "domainId": "1853125230",
       "gasPrice": {
-        "amount": "0.57",
+        "amount": "0.0053",
         "denom": "untrn"
       },
       "grpcUrls": [
