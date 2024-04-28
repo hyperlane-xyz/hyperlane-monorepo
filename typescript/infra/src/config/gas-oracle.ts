@@ -126,8 +126,8 @@ function getLocalStorageGasOracleConfig(
 }
 
 function getMinUsdCost(local: ChainName, remote: ChainName): number {
-  // By default, min cost is 5 cents
-  let minUsdCost = 0.05;
+  // By default, min cost is 20 cents
+  let minUsdCost = 0.2;
 
   // For Ethereum local, min cost is 2 USD
   if (local === 'ethereum') {
