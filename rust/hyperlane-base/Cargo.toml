@@ -63,6 +63,11 @@ rusoto_core = "*"
 rusoto_kms = "*"
 rusoto_s3 = "*"
 rusoto_sts = "*"
+opentelemetry = "0.22.0"
+opentelemetry-otlp = "0.15.0"
+tracing-opentelemetry = "0.23.0"
+opentelemetry-semantic-conventions = "0.14.0"
+opentelemetry_sdk = {version = "0.22.1", features = ["rt-tokio", "rt-tokio-current-thread"]}
 
 [dev-dependencies]
 color-eyre.workspace = true

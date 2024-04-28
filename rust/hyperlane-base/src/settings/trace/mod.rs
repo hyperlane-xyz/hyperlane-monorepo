@@ -8,6 +8,24 @@ use tracing_subscriber::{
 use self::fmt::LogOutputLayer;
 use crate::{settings::trace::fmt::Style, CoreMetrics};
 
+use opentelemetry::{global, Key, KeyValue};
+use opentelemetry_sdk::{
+    metrics::{
+        reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
+        Aggregation, Instrument, MeterProviderBuilder, PeriodicReader, SdkMeterProvider, Stream,
+    },
+    runtime,
+    trace::{BatchConfig, RandomIdGenerator, Sampler, Tracer},
+    Resource,
+};
+use opentelemetry_semantic_conventions::{
+    resource::{DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, SERVICE_VERSION},
+    SCHEMA_URL,
+};
+// use tracing_core::Level;
+use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
 /// Configure a `tracing_subscriber::fmt` Layer outputting to stdout
 pub mod fmt;
 
@@ -58,6 +76,38 @@ pub struct TracingConfig {
 }
 
 impl TracingConfig {
+    // Create a Resource that captures information about the entity for which telemetry is recorded.
+    fn resource() -> Resource {
+        Resource::from_schema_url(
+            [
+                KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
+                KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
+                KeyValue::new(DEPLOYMENT_ENVIRONMENT, "develop"),
+            ],
+            SCHEMA_URL,
+        )
+    }
+
+    // Construct Tracer for OpenTelemetryLayer
+    fn init_tracer() -> Tracer {
+        opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_trace_config(
+                opentelemetry_sdk::trace::Config::default()
+                    // Customize sampling strategy
+                    .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+                        1.0,
+                    ))))
+                    // If export trace to AWS X-Ray, you can use XrayIdGenerator
+                    .with_id_generator(RandomIdGenerator::default())
+                    .with_resource(Self::resource()),
+            )
+            .with_batch_config(BatchConfig::default())
+            .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+            .install_batch(runtime::Tokio)
+            .unwrap()
+    }
+
     /// Attempt to instantiate and register a tracing subscriber setup from
     /// settings.
     pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
@@ -89,7 +139,8 @@ impl TracingConfig {
             .with(target_layer)
             .with(TimeSpanLifetime::new(metrics))
             .with(fmt_layer)
-            .with(err_layer);
+            .with(err_layer)
+            .with(OpenTelemetryLayer::new(Self::init_tracer()));
 
         subscriber.try_init()?;
         Ok(())
