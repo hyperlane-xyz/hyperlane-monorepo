@@ -24,7 +24,7 @@ import {
   TokenType,
 } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { EvmERC20WarpRouterReader } from './read.js';
+import { EvmERC20WarpRouteReader } from './read.js';
 import { WarpRouteDeployConfig } from './types.js';
 
 describe('TokenDeployer', async () => {
@@ -84,7 +84,7 @@ describe('TokenDeployer', async () => {
       );
     });
     async function deriveWarpConfig(chainName: string, address: string) {
-      return new EvmERC20WarpRouterReader(
+      return new EvmERC20WarpRouteReader(
         multiProvider,
         chainName,
       ).deriveWarpRouteConfig(address);

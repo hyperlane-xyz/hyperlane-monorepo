@@ -14,19 +14,13 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 type WarpRouteBaseMetadata = Record<
-  | 'mailbox'
-  | 'owner'
-  | 'wrappedTokenAddress'
-  | 'hook'
-  | 'interchainSecurityModule',
+  'mailbox' | 'owner' | 'token' | 'hook' | 'interchainSecurityModule',
   string
 >;
 
-interface WarpRouteReader {
-  deriveWarpRouteConfig(address: Address): Promise<Partial<ERC20RouterConfig>>;
-}
+type DerivedERC20WarpRouteConfig = Omit<ERC20RouterConfig, 'type' | 'gas'>;
 
-export class EvmERC20WarpRouterReader implements WarpRouteReader {
+export class EvmERC20WarpRouteReader {
   provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
@@ -50,13 +44,13 @@ export class EvmERC20WarpRouterReader implements WarpRouteReader {
    */
   async deriveWarpRouteConfig(
     address: Address,
-  ): Promise<Omit<ERC20RouterConfig, 'type' | 'gas'>> {
+  ): Promise<DerivedERC20WarpRouteConfig> {
     const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
     const fetchedTokenMetadata = await this.fetchTokenMetadata(
-      fetchedBaseMetadata.wrappedTokenAddress,
+      fetchedBaseMetadata.token,
     );
 
-    const results: Omit<ERC20RouterConfig, 'type' | 'gas'> = {
+    const results: DerivedERC20WarpRouteConfig = {
       ...fetchedBaseMetadata,
       ...fetchedTokenMetadata,
     };
@@ -93,24 +87,19 @@ export class EvmERC20WarpRouterReader implements WarpRouteReader {
       routerAddress,
       this.provider,
     );
-    const [
-      mailbox,
-      owner,
-      wrappedTokenAddress,
-      hook,
-      interchainSecurityModule,
-    ] = await Promise.all([
-      warpRoute.mailbox(),
-      warpRoute.owner(),
-      warpRoute.wrappedToken(),
-      warpRoute.hook(),
-      warpRoute.interchainSecurityModule(),
-    ]);
+    const [mailbox, owner, token, hook, interchainSecurityModule] =
+      await Promise.all([
+        warpRoute.mailbox(),
+        warpRoute.owner(),
+        warpRoute.wrappedToken(),
+        warpRoute.hook(),
+        warpRoute.interchainSecurityModule(),
+      ]);
 
     return {
       mailbox,
       owner,
-      wrappedTokenAddress,
+      token,
       hook,
       interchainSecurityModule,
     };
@@ -122,9 +111,7 @@ export class EvmERC20WarpRouterReader implements WarpRouteReader {
    * @param tokenAddress - The address of the token.
    * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
    */
-  async fetchTokenMetadata(
-    tokenAddress: Address,
-  ): Promise<Partial<ERC20Metadata>> {
+  async fetchTokenMetadata(tokenAddress: Address): Promise<ERC20Metadata> {
     const erc20 = ERC20__factory.connect(tokenAddress, this.provider);
     const [name, symbol, totalSupply, decimals] = await Promise.all([
       erc20.name(),

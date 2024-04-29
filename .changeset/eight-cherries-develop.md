@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Add Derive WarpConfig from TokenRouter address
+Add EvmERC20WarpRouterReader to derive WarpConfig from TokenRouter address
