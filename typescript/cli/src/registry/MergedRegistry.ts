@@ -131,22 +131,23 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     writeFn: (registry: IRegistry) => Promise<void>,
     logMsg: string,
   ): Promise<void> {
+    if (this.isDryRun) return;
     for (const registry of this.registries) {
       // TODO remove this when GithubRegistry supports write methods
       if (registry.type === RegistryType.Github) {
-        this.logger.warn(`skipping ${logMsg} to ${registry.type} registry`);
+        this.logger.warn(`skipping ${logMsg} at ${registry.type} registry`);
         continue;
       }
       try {
         this.logger.info(
-          `${logMsg} to ${registry.type} registry at ${registry.uri}`,
+          `${logMsg} at ${registry.type} registry at ${registry.uri}`,
         );
         await writeFn(registry);
-        this.logger.info(`done ${logMsg} to ${registry.type} registry`);
+        this.logger.info(`done ${logMsg} at ${registry.type} registry`);
       } catch (error) {
         // To prevent loss of artifacts, MergedRegistry write methods are failure tolerant
         this.logger.error(
-          `failure ${logMsg} to ${registry.type} registry`,
+          `failure ${logMsg} at ${registry.type} registry`,
           error,
         );
       }

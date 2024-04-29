@@ -230,6 +230,7 @@ async function executeDeploy(params: DeployParams) {
   log('Writing deployment artifacts');
   const warpCoreConfig = getWarpCoreConfig(params, deployedContracts);
   await registry.addWarpRoute(warpCoreConfig);
+  log(JSON.stringify(warpCoreConfig, null, 2));
   logBlue('Deployment is complete!');
 }
 

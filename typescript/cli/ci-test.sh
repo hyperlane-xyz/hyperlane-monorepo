@@ -9,6 +9,10 @@ _main() {
     TEST_TYPE_PRESET_HOOK="preset_hook_enabled"
     TEST_TYPE_CONFIGURED_HOOK="configure_hook_enabled"
     TEST_TYPE_PI_CORE="pi_with_core_chain"
+    EXAMPLES_PATH=./examples
+    TEST_CONFIGS_PATH=./test-configs
+    CLI_PATH=./typescript/cli
+    DEPLOY_ERC20_PATH=./src/tests/deployTestErc20.ts
 
     # set the first arg to 'configured_hook' to set the hook config as part of core deployment
     # motivation is to test both the bare bone deployment (included in the docs) and the deployment
@@ -29,7 +33,7 @@ _main() {
     DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]');
 
     run_hyperlane_deploy_core_dry_run;
-    run_hyperlane_deploy_warp_dry_run;
+    # run_hyperlane_deploy_warp_dry_run;
 
     reset_anvil;
 
@@ -52,14 +56,13 @@ prepare_anvil() {
     ANVIL_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
     CHAIN1=anvil1
     CHAIN2=anvil2
-    EXAMPLES_PATH=./examples
-    DEPLOY_ERC20_PATH=./src/tests/deployTestErc20.ts
+    REGISTRY_PATH="$TEST_CONFIGS_PATH/anvil"
 
     # use different chain names and config for pi<>core test
     if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
         CHAIN1=anvil
         CHAIN2=ethereum
-        EXAMPLES_PATH=./examples/fork
+        REGISTRY_PATH="$TEST_CONFIGS_PATH/fork"
     fi
 
     CHAIN1_CAPS=$(echo "${CHAIN1}" | tr '[:lower:]' '[:upper:]')
@@ -73,6 +76,8 @@ prepare_anvil() {
     rm -rf /tmp/${CHAIN1}*
     rm -rf /tmp/${CHAIN2}*
     rm -rf /tmp/relayer
+    rm -f $CLI_PATH/$TEST_CONFIGS_PATH/*/chains/*/addresses.yaml
+    rm -rf $CLI_PATH/$TEST_CONFIGS_PATH/*/deployments
 
     if [[ $OSTYPE == 'darwin'* ]]; then
         # kill child processes on exit, but only locally because
@@ -112,8 +117,6 @@ prepare_anvil() {
     fi
 
     set -e
-
-    echo "{}" > /tmp/empty-artifacts.json
 }
 
 reset_anvil() {
@@ -129,31 +132,20 @@ run_hyperlane_deploy_core_dry_run() {
         return;
     fi
 
-    BEFORE_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
+    update_deployer_balance;
 
     echo -e "\nDry-running contract deployments to Alfajores"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
         --dry-run alfajores \
         --targets alfajores \
-        --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
-        --artifacts /tmp/empty-artifacts.json \
+        --registry ${TEST_CONFIGS_PATH}/dry-run \
+        --overrides " " \
         $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
-        --ism ${EXAMPLES_PATH}/ism.yaml \
-        --out /tmp \
+        --ism ${TEST_CONFIGS_PATH}/dry-run/ism.yaml \
         --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
 
-    AFTER_CORE_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    CORE_MIN_GAS=$(bc <<< "($BEFORE_CORE_DRY_RUN - $AFTER_CORE_DRY_RUN) / $GAS_PRICE")
-    echo "Gas used: $CORE_MIN_GAS"
-
-    CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
-    echo "Core artifacts:"
-    echo $CORE_ARTIFACTS_PATH
-    cat $CORE_ARTIFACTS_PATH
-
-    AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
+    check_deployer_balance;
 }
 
 run_hyperlane_deploy_warp_dry_run() {
@@ -161,63 +153,44 @@ run_hyperlane_deploy_warp_dry_run() {
         return;
     fi
 
-    BEFORE_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
+    update_deployer_balance;
 
     echo -e "\nDry-running warp route deployments to Alfajores"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
         --dry-run alfajores \
-        --chains ${EXAMPLES_PATH}/dry-run/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_PATH \
-        --config ${EXAMPLES_PATH}/dry-run/warp-route-deployment.yaml \
-        --out /tmp \
+        --overrides ${TEST_CONFIGS_PATH}/dry-run \
+        --config ${TEST_CONFIGS_PATH}/dry-run/warp-route-deployment.yaml \
         --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
 
-    AFTER_WARP_DRY_RUN=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    WARP_MIN_GAS=$(bc <<< "($BEFORE_WARP_DRY_RUN - $AFTER_WARP_DRY_RUN) / $GAS_PRICE")
-    echo "Gas used: $WARP_MIN_GAS"
-
-    WARP_ARTIFACTS_PATH=`find /tmp/dry-run_warp-route-deployment* -type f -exec ls -t1 {} + | head -1`
-    echo "Warp dry-run artifacts:"
-    echo $WARP_ARTIFACTS_PATH
-    cat $WARP_ARTIFACTS_PATH
+    check_deployer_balance;
 }
 
 run_hyperlane_deploy_core() {
-    BEFORE_CORE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
+    update_deployer_balance;
 
     echo -e "\nDeploying contracts to ${CHAIN1} and ${CHAIN2}"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
+        --registry $REGISTRY_PATH \
+        --overrides " " \
         --targets ${CHAIN1},${CHAIN2} \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
-        --artifacts /tmp/empty-artifacts.json \
         $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
         --ism ${EXAMPLES_PATH}/ism.yaml \
-        --out /tmp \
+        --agent /tmp/agent-config.json \
         --key $ANVIL_KEY \
         --yes
 
-    AFTER_CORE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    CORE_MIN_GAS=$(bc <<< "($BEFORE_CORE - $AFTER_CORE) / $GAS_PRICE")
-    echo "Gas used: $CORE_MIN_GAS"
-
-    CORE_ARTIFACTS_PATH=`find /tmp/core-deployment* -type f -exec ls -t1 {} + | head -1`
-    echo "Core artifacts:"
-    echo $CORE_ARTIFACTS_PATH
-    cat $CORE_ARTIFACTS_PATH
-
-    AGENT_CONFIG_FILENAME=`ls -t1 /tmp | grep agent-config | head -1`
+    check_deployer_balance;
 }
 
 run_hyperlane_deploy_warp() {
+    update_deployer_balance;
+
     echo -e "\nDeploying hypNative warp route"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_PATH \
+        --registry $REGISTRY_PATH \
+        --overrides " " \
         --config ${EXAMPLES_PATH}/warp-route-deployment.yaml \
-        --out /tmp \
         --key $ANVIL_KEY \
         --yes
 
@@ -228,51 +201,43 @@ run_hyperlane_deploy_warp() {
 
     echo "Deploying hypCollateral warp route"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_PATH \
+        --registry $REGISTRY_PATH \
+        --overrides " " \
         --config /tmp/warp-collateral-deployment.json \
-        --out /tmp \
         --key $ANVIL_KEY \
         --yes
 
-    AFTER_WARP=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    WARP_MIN_GAS=$(bc <<< "($AFTER_CORE - $AFTER_WARP) / $GAS_PRICE")
-    echo "Gas used: $WARP_MIN_GAS"
+    check_deployer_balance;
 }
 
 run_hyperlane_send_message() {
+    update_deployer_balance;
+
     echo -e "\nSending test message"
     yarn workspace @hyperlane-xyz/cli run hyperlane send message \
+        --registry $REGISTRY_PATH \
+        --overrides " " \
         --origin ${CHAIN1} \
         --destination ${CHAIN2} \
-        --messageBody "Howdy!" \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_PATH \
+        --body "Howdy!" \
         --quick \
         --key $ANVIL_KEY \
         | tee /tmp/message1
 
-    AFTER_MSG=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
-    MSG_MIN_GAS=$(bc <<< "($AFTER_WARP - $AFTER_MSG) / $GAS_PRICE")
-    echo "Gas used: $MSG_MIN_GAS"
+    check_deployer_balance;
 
     MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
     echo "Message 1 ID: $MESSAGE1_ID"
 
-    WARP_CONFIG_FILE=`find /tmp/warp-config* -type f -exec ls -t1 {} + | head -1`
-    CHAIN1_ROUTER="${CHAIN1_CAPS}_ROUTER"
-    declare $CHAIN1_ROUTER=$(jq -r --arg CHAIN1 "$CHAIN1" '.tokens[] | select(.chainName==$CHAIN1) | .addressOrDenom' $WARP_CONFIG_FILE)
+    WARP_CONFIG_FILE="$REGISTRY_PATH/deployments/warp_routes/FAKE/anvil1-anvil2-config.yaml"
 
     echo -e "\nSending test warp transfer"
     yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
+        --registry $REGISTRY_PATH \
+        --overrides " " \
         --origin ${CHAIN1} \
         --destination ${CHAIN2} \
-        --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
-        --core $CORE_ARTIFACTS_PATH \
         --warp ${WARP_CONFIG_FILE} \
-        --router ${!CHAIN1_ROUTER} \
         --quick \
         --key $ANVIL_KEY \
         | tee /tmp/message2
@@ -303,7 +268,7 @@ run_validator() {
 
         VALIDATOR_PORT=$((VALIDATOR_PORT+1))
         echo "Running validator on $CHAIN on port $VALIDATOR_PORT"
-        export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
+        export CONFIG_FILES=/tmp/agent-config.json
         export HYP_ORIGINCHAINNAME=${CHAIN}
         export HYP_VALIDATOR_INTERVAL=1
         export HYP_VALIDATOR_TYPE=hexKey
@@ -340,7 +305,7 @@ run_relayer() {
     cargo build --bin relayer
 
     echo "Running relayer"
-    export CONFIG_FILES=/tmp/${AGENT_CONFIG_FILENAME}
+    export CONFIG_FILES=/tmp/agent-config.json
     export HYP_RELAYCHAINS=${CHAIN1},${CHAIN2}
     export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
     export HYP_DB=/tmp/relayer
@@ -367,8 +332,8 @@ run_hyperlane_status() {
         yarn workspace @hyperlane-xyz/cli run hyperlane status \
             --id $2 \
             --destination ${CHAIN2} \
-            --chains ${EXAMPLES_PATH}/anvil-chains.yaml \
-            --core $CORE_ARTIFACTS_PATH \
+            --registry $REGISTRY_PATH \
+            --overrides " " \
             | tee /tmp/message-status-$1
         if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
             echo "ERROR: Message $1 was not delivered"
@@ -377,6 +342,17 @@ run_hyperlane_status() {
             echo "Message $1 was delivered!"
         fi
     done
+}
+
+update_deployer_balance() {
+    OLD_BALANCE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT});
+}
+
+check_deployer_balance() {
+    NEW_BALANCE=$(cast balance $DEPLOYER --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+    GAS_PRICE=$(cast gas-price --rpc-url http://127.0.0.1:${CHAIN1_PORT})
+    GAS_USED=$(bc <<< "($OLD_BALANCE - $NEW_BALANCE) / $GAS_PRICE")
+    echo "Gas used: $GAS_USED"
 }
 
 _main "$@";

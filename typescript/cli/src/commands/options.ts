@@ -93,10 +93,16 @@ export const warpConfigOption: Options = {
   demandOption: true,
 };
 
-export const agentConfigCommandOption: Options = {
+export const agentConfigCommandOption = (
+  isIn: boolean,
+  defaultPath?: string,
+): Options => ({
   type: 'string',
-  description: 'File path to agent configuration artifacts',
-};
+  description: `${
+    isIn ? 'Input' : 'Output'
+  } file path for the agent configuration`,
+  default: defaultPath,
+});
 
 export const outputFileOption = (defaultPath?: string): Options => ({
   type: 'string',

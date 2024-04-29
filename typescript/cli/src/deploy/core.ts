@@ -25,7 +25,7 @@ import {
   multisigIsmVerificationCost,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
@@ -41,8 +41,7 @@ import {
   logRed,
 } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { runFileSelectionStep, writeYaml } from '../utils/files.js';
-import { getTimestampForFilename } from '../utils/time.js';
+import { runFileSelectionStep, writeJson } from '../utils/files.js';
 
 import {
   completeDeploy,
@@ -60,11 +59,13 @@ export async function runCoreDeploy({
   chains,
   ismConfigPath,
   hookConfigPath,
+  agentOutPath,
 }: {
   context: WriteCommandContext;
   chains?: ChainName[];
   ismConfigPath?: string;
   hookConfigPath?: string;
+  agentOutPath: string;
 }) {
   const { chainMetadata, signer, dryRunChain, skipConfirmation } = context;
 
@@ -93,6 +94,7 @@ export async function runCoreDeploy({
     ismConfigs,
     multisigConfigs,
     hooksConfig,
+    agentOutPath,
   };
 
   await runDeployPlanStep(deploymentParams);
@@ -200,6 +202,7 @@ interface DeployParams {
   ismConfigs?: ChainMap<IsmConfig>;
   multisigConfigs?: ChainMap<MultisigConfig>;
   hooksConfig?: ChainMap<HooksConfig>;
+  agentOutPath: string;
 }
 
 async function runDeployPlanStep({ context, chains }: DeployParams) {
@@ -227,6 +230,7 @@ async function executeDeploy({
   ismConfigs = {},
   multisigConfigs = {},
   hooksConfig = {},
+  agentOutPath,
 }: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
   const { signer, multiProvider, registry } = context;
@@ -292,10 +296,9 @@ async function executeDeploy({
   artifacts = objMerge(artifacts, isms);
   artifacts = await updateChainAddresses(registry, coreContracts, artifacts);
   logGreen('✅ Core contracts deployed');
+  log(JSON.stringify(artifacts, null, 2));
 
-  log('Writing agent configs');
-  await writeAgentConfig(context, artifacts, chains);
-  logGreen('Agent configs written');
+  await writeAgentConfig(context, artifacts, chains, agentOutPath);
 
   logBlue('Deployment is complete!');
 }
@@ -376,21 +379,34 @@ async function updateChainAddresses(
   newContracts: HyperlaneContractsMap<any>,
   otherAddresses: HyperlaneAddressesMap<any>,
 ) {
-  const newAddresses = serializeContractsMap(newContracts);
+  let newAddresses = serializeContractsMap(newContracts);
+  // The HyperlaneCoreDeployer is returning a nested object with ISM addresses
+  // from other chains, which don't need to be in the artifacts atm.
+  newAddresses = objMap(newAddresses, (_, newChainAddresses) => {
+    // For each chain in the addresses chainmap, filter the values to those that are just strings
+    return objFilter(
+      newChainAddresses,
+      (_, value): value is string => typeof value === 'string',
+    );
+  });
+  const mergedAddresses = objMerge(otherAddresses, newAddresses);
   for (const chainName of Object.keys(newContracts)) {
     await registry.updateChain({
       chainName,
-      addresses: newAddresses[chainName],
+      addresses: mergedAddresses[chainName],
     });
   }
-  return objMerge(otherAddresses, newAddresses);
+  return mergedAddresses;
 }
 
 async function writeAgentConfig(
   context: WriteCommandContext,
   artifacts: HyperlaneAddressesMap<any>,
   chains: ChainName[],
+  outPath: string,
 ) {
+  if (context.isDryRun) return;
+  log('Writing agent configs');
   const { multiProvider, registry } = context;
   const startBlocks: ChainMap<number> = {};
   const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
@@ -413,8 +429,6 @@ async function writeAgentConfig(
     chainAddresses as any,
     startBlocks,
   );
-  writeYaml(
-    `./configs/agent-config-${getTimestampForFilename()}.yaml`,
-    agentConfig,
-  );
+  writeJson(outPath, agentConfig);
+  logGreen('Agent configs written');
 }

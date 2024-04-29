@@ -50,7 +50,7 @@ const agentCommand: CommandModuleWithContext<{
   builder: {
     origin: originCommandOption,
     targets: agentTargetsCommandOption,
-    config: agentConfigCommandOption,
+    config: agentConfigCommandOption(true),
   },
   handler: async ({ context, origin, targets, config }) => {
     logGray('Hyperlane Agent Deployment with Kurtosis');
@@ -73,6 +73,7 @@ const coreCommand: CommandModuleWithWriteContext<{
   ism?: string;
   hook?: string;
   'dry-run': boolean;
+  agent: string;
 }> = {
   command: 'core',
   describe: 'Deploy core Hyperlane contracts',
@@ -80,9 +81,10 @@ const coreCommand: CommandModuleWithWriteContext<{
     targets: coreTargetsCommandOption,
     ism: ismCommandOption,
     hook: hookCommandOption,
+    agent: agentConfigCommandOption(false, './configs/agent.json'),
     'dry-run': dryRunOption,
   },
-  handler: async ({ context, targets, ism, hook, dryRun }) => {
+  handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
     logGray(
       `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
     );
@@ -97,6 +99,7 @@ const coreCommand: CommandModuleWithWriteContext<{
         chains,
         ismConfigPath: ism,
         hookConfigPath: hook,
+        agentOutPath: agent,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);

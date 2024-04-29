@@ -1,7 +1,6 @@
 # A config for a multisig Interchain Security Module (ISM)
 # Schema: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/ism/types.ts
 #
-
 ---
 anvil:
   threshold: 1 # Number: Signatures required to approve a message

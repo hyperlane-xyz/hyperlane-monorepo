@@ -115,7 +115,6 @@ function getRegistry(
   const registryUris = [primaryRegistryUri, overrideRegistryUri]
     .map((r) => r.trim())
     .filter((r) => !!r);
-  console.log('registryUris:', registryUris);
   return new MergedRegistry({
     registryUris,
     isDryRun,
