@@ -33,9 +33,7 @@ export const RpcUrlSchema = z.object({
     .int()
     .positive()
     .optional()
-    .describe(
-      'The maximum number of concurrent async executions per function mapping.',
-    ),
+    .describe('Maximum number of concurrent RPC requests.'),
   webSocket: z
     .string()
     .optional()

@@ -32,8 +32,6 @@ export enum ProviderType {
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
-  // TODO fuel provider types not yet defined below
-  Fuel = 'fuel',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -43,7 +41,6 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
-  [ProtocolType.Fuel]: ProviderType.Fuel,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -68,25 +65,28 @@ type ProtocolTypesMapping = {
     receipt: CosmJsWasmTransactionReceipt;
   };
 };
-export type SupportedProtocolType = keyof ProtocolTypesMapping;
 
 type ProtocolTyped<
-  T extends SupportedProtocolType,
+  T extends ProtocolType,
   K extends keyof ProtocolTypesMapping[T],
 > = ProtocolTypesMapping[T][K];
 
-export type ProtocolTypedTransaction<T extends SupportedProtocolType> =
-  ProtocolTyped<T, 'transaction'>;
-export type ProtocolTypedProvider<T extends SupportedProtocolType> =
-  ProtocolTyped<T, 'provider'>;
-export type ProtocolTypedContract<T extends SupportedProtocolType> =
-  ProtocolTyped<T, 'contract'>;
-export type ProtocolTypedReceipt<T extends SupportedProtocolType> =
-  ProtocolTyped<T, 'receipt'>;
-
-export type Annotated<T> = T & {
-  annotation?: string;
-};
+export type ProtocolTypedTransaction<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'transaction'
+>;
+export type ProtocolTypedProvider<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'provider'
+>;
+export type ProtocolTypedContract<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'contract'
+>;
+export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'receipt'
+>;
 
 /**
  * Providers with discriminated union of type

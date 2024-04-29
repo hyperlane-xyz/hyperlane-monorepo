@@ -1,29 +1,20 @@
 import { Logger } from 'pino';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts/types.js';
-import { CoreConfig } from '../core/types.js';
-import { HookConfig } from '../hook/types.js';
-import { IsmConfig } from '../ism/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { WarpRouteConfig } from '../metadata/warpRouteConfig.js';
 import {
-  Annotated,
   ProtocolTypedProvider,
   ProtocolTypedTransaction,
-  SupportedProtocolType,
 } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
-export type CrudConfig = CoreConfig | WarpRouteConfig | HookConfig | IsmConfig;
-
 export type CrudModuleArgs<
-  TProtocol extends SupportedProtocolType,
-  TConfig extends CrudConfig,
-  TAddress extends Record<string, any>,
+  TProtocol extends ProtocolType,
+  TConfig,
+  TAddressMap extends Record<string, Address>,
 > = {
-  addresses: Record<keyof TAddress, Address>;
+  addresses: TAddressMap;
   chain: ChainNameOrId;
   chainMetadataManager: ChainMetadataManager;
   config: TConfig;
@@ -31,18 +22,18 @@ export type CrudModuleArgs<
 };
 
 export abstract class CrudModule<
-  TProtocol extends SupportedProtocolType,
-  TConfig extends CrudConfig,
-  TFactory extends HyperlaneFactories,
+  TProtocol extends ProtocolType,
+  TConfig,
+  TAddressMap extends Record<string, Address>,
 > {
   protected abstract readonly logger: Logger;
 
   protected constructor(
-    protected readonly args: CrudModuleArgs<TProtocol, TConfig, TFactory>,
+    protected readonly args: CrudModuleArgs<TProtocol, TConfig, TAddressMap>,
   ) {}
 
-  public serialize(): string {
-    return JSON.stringify(this.args.addresses);
+  public serialize(): TAddressMap {
+    return this.args.addresses;
   }
 
   public abstract read(address: Address): Promise<TConfig>;
@@ -55,7 +46,12 @@ export abstract class CrudModule<
   //   Currently, include TConfig to maintain the structure for ISM/Hook configurations.
   //   If found to be unnecessary, we may consider revisiting and potentially removing these config requirements later.
   //   */
-  // public static create(_config: XYZConfig): Promise<PROTOCOL_XYZ_Module> {
+  // public static create<
+  //   TConfig extends CrudConfig,
+  //   TProtocol extends ProtocolType,
+  //   TAddress extends Record<string, any>,
+  //   TModule extends CrudModule<TProtocol, TConfig, TAddress>,
+  // >(_config: TConfig): Promise<TModule> {
   //   throw new Error('not implemented');
   // }
 }
