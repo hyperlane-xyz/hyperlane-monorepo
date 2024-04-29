@@ -25,7 +25,7 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import {
   AggregationHookConfig,
@@ -42,7 +42,7 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-interface HookReader {
+export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
     address: Address,
@@ -74,10 +74,12 @@ export class EvmHookReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainName,
-    protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly chain: ChainNameOrId,
+    protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
+      chain,
+    ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = this.multiProvider.getProvider(chain);
+    this.provider = multiProvider.getProvider(chain);
   }
 
   async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {

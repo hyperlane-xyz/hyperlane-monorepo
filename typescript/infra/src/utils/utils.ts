@@ -8,7 +8,7 @@ import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
-import { ChainName, testChains } from '@hyperlane-xyz/sdk';
+import { ChainName, NativeToken, testChains } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -248,17 +248,21 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
   return diagonalized;
 }
 
-export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
+export function mustGetChainNativeToken(chain: ChainName): NativeToken {
   const metadata = getChain(chain);
   if (!metadata.nativeToken) {
     throw new Error(`No native token for chain ${chain}`);
   }
-  return metadata.nativeToken.decimals;
+  return metadata.nativeToken;
+}
+
+export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
+  if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
+  return getChain(chainName).protocol === protocol;
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {
-  if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
-  return getChain(chainName).protocol === ProtocolType.Ethereum;
+  return chainIsProtocol(chainName, ProtocolType.Ethereum);
 }
 
 export function getInfraPath() {

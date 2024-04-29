@@ -228,14 +228,38 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
+   * Get the RPC details for a given chain name, chain id, or domain id.
+   * Optional index for metadata containing more than one RPC.
+   * @throws if chain's metadata has not been set
+   */
+  getRpc(
+    chainNameOrId: ChainNameOrId,
+    index = 0,
+  ): ChainMetadata['rpcUrls'][number] {
+    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
+    if (!rpcUrls?.length || !rpcUrls[index])
+      throw new Error(
+        `No RPC configured at index ${index} for ${chainNameOrId}`,
+      );
+    return rpcUrls[index];
+  }
+
+  /**
    * Get an RPC URL for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getRpcUrl(chainNameOrId: ChainNameOrId): string {
-    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
-    if (!rpcUrls?.length || !rpcUrls[0].http)
-      throw new Error(`No RPC URl configured for ${chainNameOrId}`);
-    return rpcUrls[0].http;
+  getRpcUrl(chainNameOrId: ChainNameOrId, index = 0): string {
+    const { http } = this.getRpc(chainNameOrId, index);
+    if (!http) throw new Error(`No RPC URL configured for ${chainNameOrId}`);
+    return http;
+  }
+
+  /**
+   * Get an RPC concurrency level for a given chain name, chain id, or domain id
+   */
+  tryGetRpcConcurrency(chainNameOrId: ChainNameOrId, index = 0): number | null {
+    const { concurrency } = this.getRpc(chainNameOrId, index);
+    return concurrency ?? null;
   }
 
   /**
