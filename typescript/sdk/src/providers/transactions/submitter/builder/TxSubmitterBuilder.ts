@@ -16,17 +16,17 @@ import { TxSubmitterInterface } from '../TxSubmitter.js';
  *
  * Example use-cases:
  *  const eV5builder = new TxSubmitterBuilder<EV5Transaction, EV5TransactionReceipt>();
- *  let txReceipts = eV5builder.add(
+ *  let txReceipts = eV5builder.for(
  *    new GnosisSafeTxSubmitter(chainA)
  *  ).transform(
  *    InterchainAccountTxTransformer(chainB)
  *  ).submit(
  *    txs
  *  );
- *  txReceipts = eV5builder.add(
+ *  txReceipts = eV5builder.for(
  *    new ImpersonatedAccountTxSubmitter(chainA)
  *  ).submit(txs);
- *  txReceipts = eV5builder.add(
+ *  txReceipts = eV5builder.for(
  *    new JsonRpcTxSubmitter(chainC)
  *  ).submit(txs);
  */
@@ -50,7 +50,7 @@ export class TxSubmitterBuilder<
    * Sets the current submitter for the builder.
    * @param txSubmitterOrType The submitter to add to the builder
    */
-  public add(
+  public for(
     txSubmitter: TxSubmitterInterface<TX, TR>,
   ): TxSubmitterBuilder<TX, TR> {
     this.currentSubmitter = txSubmitter;
@@ -58,7 +58,7 @@ export class TxSubmitterBuilder<
   }
 
   /**
-   * Sets the current transformer for the builder.
+   * Adds a transformer for the builder.
    * @param txTransformerOrType The transformer to add to the builder
    */
   public transform(
