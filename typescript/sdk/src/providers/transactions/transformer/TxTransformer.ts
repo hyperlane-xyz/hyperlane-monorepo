@@ -1,28 +1,22 @@
-import { PopulatedTransaction } from 'ethers';
-
-import { HyperlaneTx } from '../HyperlaneTx.js';
-import { TxSubmitterType } from '../submitter/TxSubmitterTypes.js';
+import { TypedTransaction } from '../../ProviderType.js';
 
 import { TxTransformerType } from './TxTransformerTypes.js';
 
-export interface TxTransformerInterface<HTX extends HyperlaneTx> {
+export interface TxTransformerInterface<TX extends TypedTransaction> {
   /**
    * Defines the type of tx transformer.
    */
   txTransformerType: TxTransformerType;
 
   /**
-   * Should transform all populated txs into HyperlaneTxs.
-   * @param populatedTxs The array of hyperlane txs to transform
+   * Should transform all transactions of type TX into transactions of type TX.
+   * @param txs The array of transactions to transform
    */
-  transformTxs(
-    populatedTxs: PopulatedTransaction[] /* NOTE: Will eventually extend for SL/CW via https://tinyurl.com/yx4bxfbu */,
-    txSubmitterType: TxSubmitterType,
-  ): Promise<HTX[]>;
+  transformTxs(txs: TX[]): Promise<TX[]>;
 
   /**
-   * Should transform a populated transaction into a HyperlaneTx.
-   * @param populatedTx The populated transaction to transform
+   * Should transform a transaction of type TX into a transaction of type TX.
+   * @param tx The transaction to transform
    */
-  transformTx(populatedTx: PopulatedTransaction, props?: any): Promise<HTX>;
+  transformTx?(tx: TX): Promise<TX>;
 }

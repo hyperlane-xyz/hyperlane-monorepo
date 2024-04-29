@@ -1,13 +1,15 @@
 import { ChainName } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
-import { HyperlaneTx } from '../HyperlaneTx.js';
-import { HyperlaneTxReceipt } from '../HyperlaneTxReceipt.js';
+import {
+  TypedTransaction,
+  TypedTransactionReceipt,
+} from '../../ProviderType.js';
 
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 
 export interface TxSubmitterInterface<
-  HTX extends HyperlaneTx,
-  HTR extends HyperlaneTxReceipt,
+  TX extends TypedTransaction,
+  TR extends TypedTransactionReceipt,
 > {
   /**
    * Defines the type of tx submitter.
@@ -16,13 +18,13 @@ export interface TxSubmitterInterface<
   multiProvider: MultiProvider;
   chain: ChainName;
   /**
-   * Should execute all hyperlane txs and return their tx receipts.
-   * @param hyperlaneTxs The array of hyperlane txs to execute
+   * Should execute all transactions and return their receipts.
+   * @param txs The array of transactions to execute
    */
-  submitTxs(hyperlaneTxs: HTX[]): Promise<HTR[]>;
+  submitTxs(txs: TX[]): Promise<TR[] | void>;
   /**
-   * Should execute a hyperlane transaction and return its tx receipt.
-   * @param hyperlaneTx The hyperlane transaction to execute
+   * Should execute a transaction and return its receipt.
+   * @param tx The transaction to execute
    */
-  submitTx(hyperlaneTx: HTX): Promise<HTR>;
+  submitTx?(tx: TX): Promise<TR | void>;
 }
