@@ -4,21 +4,21 @@ import {
   ERC20__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
-import { ERC20Metadata, ERC20RouterConfig } from '@hyperlane-xyz/sdk';
+import { ERC20Metadata, TokenRouterConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { EvmHookReader } from '../hook/read.js';
 import { EvmIsmReader } from '../ism/read.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 type WarpRouteBaseMetadata = Record<
   'mailbox' | 'owner' | 'token' | 'hook' | 'interchainSecurityModule',
   string
 >;
 
-type DerivedERC20WarpRouteConfig = Omit<ERC20RouterConfig, 'type' | 'gas'>;
+type DerivedERC20WarpRouteConfig = Omit<TokenRouterConfig, 'type' | 'gas'>;
 
 export class EvmERC20WarpRouteReader {
   provider: providers.Provider;
@@ -27,7 +27,7 @@ export class EvmERC20WarpRouteReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainName,
+    protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
