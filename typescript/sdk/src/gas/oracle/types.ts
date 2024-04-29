@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { StorageGasOracle } from '@hyperlane-xyz/core';
 
-import { TOKEN_EXCHANGE_RATE_EXPONENT } from '../../consts/igp.js';
+import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../consts/igp.js';
 
 export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',
@@ -22,7 +22,7 @@ export const formatGasOracleConfig = (
 } => ({
   tokenExchangeRate: ethers.utils.formatUnits(
     config.tokenExchangeRate,
-    TOKEN_EXCHANGE_RATE_EXPONENT,
+    TOKEN_EXCHANGE_RATE_DECIMALS,
   ),
   gasPrice: ethers.utils.formatUnits(config.gasPrice, 'gwei'),
 });
@@ -55,6 +55,12 @@ export const serializeDifference = (
     actual.tokenExchangeRate,
     expected.tokenExchangeRate,
   );
+
+  const productDiff = serializePercentDifference(
+    actual.tokenExchangeRate.mul(actual.gasPrice),
+    expected.tokenExchangeRate.mul(expected.gasPrice),
+  );
+
   const formatted = formatGasOracleConfig(expected);
-  return `${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), ${formatted.gasPrice} gwei (${gasPriceDiff})`;
+  return `Exchange rate: ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), Gas price: ${formatted.gasPrice} gwei (${gasPriceDiff}), Product diff: ${productDiff}`;
 };
