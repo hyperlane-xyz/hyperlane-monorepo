@@ -1,6 +1,8 @@
 {
   "ancient8": {
-    "validators": ["0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"]
+    "validators": [
+      "0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"
+    ]
   },
   "arbitrum": {
     "validators": [
@@ -24,7 +26,9 @@
     ]
   },
   "blast": {
-    "validators": ["0x5b32f226e472da6ca19abfe1a29d5d28102a2d1a"]
+    "validators": [
+      "0x5b32f226e472da6ca19abfe1a29d5d28102a2d1a"
+    ]
   },
   "bsc": {
     "validators": [
@@ -69,7 +73,9 @@
     ]
   },
   "mode": {
-    "validators": ["0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"]
+    "validators": [
+      "0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"
+    ]
   },
   "moonbeam": {
     "validators": [
