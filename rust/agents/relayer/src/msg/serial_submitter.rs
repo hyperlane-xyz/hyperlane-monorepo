@@ -113,7 +113,7 @@ impl SerialSubmitter {
         // sitting ready to go at a time and this acts as a synchronization tool
         // to slow down the preparation of messages when the submitter gets
         // behind.
-        let (tx_submit, rx_submit) = mpsc::channel(batch_size.unwrap_or(1) as usize);
+        let (tx_submit, rx_submit) = mpsc::channel(batch_size.map(|b| b * 3).unwrap_or(1) as usize);
 
         let tasks = [
             spawn(receive_task(
