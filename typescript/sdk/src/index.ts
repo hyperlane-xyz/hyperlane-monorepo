@@ -6,6 +6,10 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp.js';
+export {
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+  TOKEN_EXCHANGE_RATE_SCALE,
+} from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
 export { defaultMultisigConfigs } from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
@@ -61,6 +65,7 @@ export {
   coreFactories,
 } from './core/contracts.js';
 export { HyperlaneLifecyleEvent } from './core/events.js';
+export { EvmCoreReader } from './core/read.js';
 export {
   CoreConfig,
   CoreViolationType,
@@ -120,7 +125,6 @@ export {
 } from './gas/types.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
 export { EvmHookReader } from './hook/read.js';
-export { EvmCoreReader } from './core/read.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -162,6 +166,7 @@ export {
   AgentChainMetadataSchema,
   AgentConfig,
   AgentConfigSchema,
+  AgentCosmosGasPrice,
   AgentLogFormat,
   AgentLogLevel,
   AgentSigner,
@@ -185,6 +190,7 @@ export {
   ChainTechnicalStack,
   ExplorerFamily,
   ExplorerFamilyValue,
+  NativeToken,
   RpcUrl,
   RpcUrlSchema,
   getChainIdNumber,
@@ -414,8 +420,8 @@ export {
   TokenMetadata,
   TokenType,
   isCollateralConfig,
-  isSyntheticConfig,
   isNativeConfig,
+  isSyntheticConfig,
   isUriConfig,
 } from './token/config.js';
 export {
@@ -426,14 +432,15 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
+export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { filterByChains } from './utils/filter.js';
 export {
   ANVIL_RPC_METHODS,
+  getLocalProvider,
+  impersonateAccount,
   resetFork,
   setFork,
-  impersonateAccount,
   stopImpersonatingAccount,
-  getLocalProvider,
 } from './utils/fork.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';
 export {
@@ -452,10 +459,10 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 
+export { AggregationIsmConfigSchema } from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   WarpRouteDeployConfigSchema,
   TokenRouterConfigSchema as tokenRouterConfigSchema,
 } from './token/schemas.js';
-export { AggregationIsmConfigSchema } from './ism/schemas.js';
-export { WarpRouteDeployConfig, TokenRouterConfig } from './token/types.js';
+export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
