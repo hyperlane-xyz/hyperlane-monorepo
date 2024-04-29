@@ -52,8 +52,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   blast: {
-    threshold: 1,
-    validators: ['0xf20c0b09f597597c8d2430d3d72dfddaf09177d1'],
+    threshold: 2,
+    validators: [
+      '0xf20c0b09f597597c8d2430d3d72dfddaf09177d1',
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   bsc: {
@@ -162,8 +165,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mode: {
-    threshold: 1,
-    validators: ['0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7'],
+    threshold: 2,
+    validators: [
+      '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   moonbeam: {
