@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    SignedAnnouncement, SignedCheckpointWithMessageId, SignedOperatorRegistration,
+};
 use prometheus::IntGauge;
 
 use crate::traits::CheckpointSyncer;
@@ -39,6 +41,10 @@ impl LocalStorage {
 
     fn announcement_file_path(&self) -> PathBuf {
         self.path.join("announcement.json")
+    }
+
+    fn operator_registration_file_path(&self) -> PathBuf {
+        self.path.join("eigenlayer_operator_registration.json")
     }
 }
 
@@ -97,6 +103,19 @@ impl CheckpointSyncer for LocalStorage {
         tokio::fs::write(&path, &serialized_announcement)
             .await
             .with_context(|| format!("Writing announcement to {path:?}"))?;
+        Ok(())
+    }
+
+    async fn write_operator_registration(
+        &self,
+        signed_operator_registration: &SignedOperatorRegistration,
+    ) -> Result<()> {
+        let serialized_operator_registration =
+            serde_json::to_string_pretty(signed_operator_registration)?;
+        let path = self.operator_registration_file_path();
+        tokio::fs::write(&path, &serialized_operator_registration)
+            .await
+            .with_context(|| format!("Writing operator registration to {path:?}"))?;
         Ok(())
     }
 

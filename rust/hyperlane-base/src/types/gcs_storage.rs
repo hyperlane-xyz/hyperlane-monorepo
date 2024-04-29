@@ -2,7 +2,9 @@ use crate::CheckpointSyncer;
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    SignedAnnouncement, SignedCheckpointWithMessageId, SignedOperatorRegistration,
+};
 use std::fmt;
 use ya_gcp::{storage::StorageClient, AuthFlow, ClientBuilder, ClientBuilderConfig};
 
@@ -184,6 +186,13 @@ impl CheckpointSyncer for GcsStorageClient {
             )
             .await?;
         Ok(())
+    }
+
+    async fn write_operator_registration(
+        &self,
+        _signed_operator_registration: &SignedOperatorRegistration,
+    ) -> Result<()> {
+        unimplemented!()
     }
 
     /// Return the announcement storage location for this syncer

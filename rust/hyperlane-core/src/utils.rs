@@ -50,6 +50,27 @@ pub fn announcement_domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     )
 }
 
+/// Computes the domain separator for a given domain (for eigenlayer)
+pub fn domain_separator(domain: u32, service_manager_address: H160) -> H256 {
+    let domain_typehash =
+        Keccak256::digest(b"EIP712Domain(string name,uint256 chainId,address verifyingContract)");
+
+    let eigenlayer_digest = Keccak256::digest(b"Eigenlayer");
+    H256::from_slice(
+        Keccak256::new()
+            .chain(domain_typehash)
+            .chain(domain.to_be_bytes())
+            .chain(&service_manager_address)
+            .finalize()
+            .as_slice(),
+    )
+}
+
+/// Compute the expiry for operator registration EIP-1271 signatures
+pub fn operator_registration_signature_expiry() -> u32 {
+    60 * 60 * 24 * 7 // 1 week
+}
+
 /// Pretty print an address based on the domain it is for.
 pub fn fmt_address_for_domain(domain: u32, addr: H256) -> String {
     KnownHyperlaneDomain::try_from(domain)

@@ -3,7 +3,9 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    SignedAnnouncement, SignedCheckpointWithMessageId, SignedOperatorRegistration,
+};
 
 /// A generic trait to read/write Checkpoints offchain
 #[async_trait]
@@ -29,6 +31,11 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     ) -> Result<()>;
     /// Write the signed announcement to this syncer
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
+    /// Write the signed announcement to this syncer
+    async fn write_operator_registration(
+        &self,
+        signed_operator_registration: &SignedOperatorRegistration,
+    ) -> Result<()>;
     /// Return the announcement storage location for this syncer
     fn announcement_location(&self) -> String;
 }

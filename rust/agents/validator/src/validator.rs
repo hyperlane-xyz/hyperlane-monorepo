@@ -12,14 +12,15 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    settings::ChainConf,
+    settings::{staking_config::StakingConf, ChainConf},
     BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
 use hyperlane_core::{
-    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce,
+    utils::operator_registration_signature_expiry, Announcement, ChainResult, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
+    MerkleTreeHook, MerkleTreeInsertion, OperatorRegistrationBuilder, TxOutcome, ValidatorAnnounce,
     H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
@@ -50,6 +51,7 @@ pub struct Validator {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    staking_config: StakingConf,
 }
 
 #[async_trait]
@@ -122,6 +124,7 @@ impl BaseAgent for Validator {
             agent_metrics,
             chain_metrics,
             core_metrics: metrics,
+            staking_config: settings.staking_config,
         })
     }
 
@@ -170,6 +173,10 @@ impl BaseAgent for Validator {
 
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
+
+        self.announce_to_avs()
+            .await
+            .expect("Failed to announce to AVS");
 
         let reorg_period = NonZeroU64::new(self.reorg_period);
 
@@ -284,6 +291,39 @@ impl Validator {
                 );
             }
         }
+    }
+
+    async fn announce_to_avs(&self) -> Result<()> {
+        let address = self.signer.eth_address();
+        let announcment_location = self.checkpoint_syncer.announcement_location();
+
+        println!(
+            "Announcing to AVS, location: {:?} for validator: {:?}",
+            announcment_location, address
+        );
+
+        let avs_domain = 17000; // holesky test
+        let service_manager = self
+            .staking_config
+            .service_managers
+            .get(&avs_domain)
+            .unwrap();
+        let registration = OperatorRegistrationBuilder::default()
+            .domain(avs_domain)
+            .operator(address)
+            .service_manager_address(*service_manager) // Dereference the service_manager variable
+            .salt(H256::random()) // TODO: is this ok?
+            .expiry(operator_registration_signature_expiry())
+            .build()
+            .unwrap();
+
+        // }
+        let signed_registration = self.signer.sign(registration.clone()).await?;
+        println!("Signed announcement: {:?}", signed_registration);
+        self.checkpoint_syncer
+            .write_operator_registration(&signed_registration)
+            .await?;
+        Ok(())
     }
 
     async fn announce(&self) -> Result<()> {

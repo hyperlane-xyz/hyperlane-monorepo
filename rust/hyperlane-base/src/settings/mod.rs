@@ -92,6 +92,8 @@ mod trace;
 mod checkpoint_syncer;
 pub mod parser;
 
+pub mod staking_config;
+
 /// Declare that an agent can be constructed from settings.
 ///
 /// E.g.

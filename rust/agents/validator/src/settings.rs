@@ -12,6 +12,7 @@ use hyperlane_base::{
     impl_loadable_from_settings,
     settings::{
         parser::{RawAgentConf, RawAgentSignerConf, ValueParser},
+        staking_config::StakingConf,
         CheckpointSyncerConf, Settings, SignerConf,
     },
 };
@@ -40,6 +41,8 @@ pub struct ValidatorSettings {
     pub reorg_period: u64,
     /// How frequently to check for new checkpoints
     pub interval: Duration,
+
+    pub staking_config: StakingConf,
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,6 +146,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             checkpoint_syncer,
             reorg_period,
             interval,
+            staking_config: StakingConf::default_staking_config(),
         })
     }
 }

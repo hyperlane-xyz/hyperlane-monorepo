@@ -4175,6 +4175,7 @@ dependencies = [
  "config",
  "convert_case 0.6.0",
  "derive-new",
+ "derive_builder",
  "derive_more",
  "ethers-contract",
  "ethers-core",

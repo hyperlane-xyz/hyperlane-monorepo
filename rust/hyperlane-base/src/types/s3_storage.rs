@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    SignedAnnouncement, SignedCheckpointWithMessageId, SignedOperatorRegistration,
+};
 use prometheus::IntGauge;
 use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
@@ -193,6 +195,13 @@ impl CheckpointSyncer for S3Storage {
         self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
             .await?;
         Ok(())
+    }
+
+    async fn write_operator_registration(
+        &self,
+        _signed_operator_registration: &SignedOperatorRegistration,
+    ) -> Result<()> {
+        unimplemented!()
     }
 
     fn announcement_location(&self) -> String {
