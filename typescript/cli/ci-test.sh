@@ -9,31 +9,24 @@ _main() {
     TEST_TYPE_PRESET_HOOK="preset_hook_enabled"
     TEST_TYPE_CONFIGURED_HOOK="configure_hook_enabled"
     TEST_TYPE_PI_CORE="pi_with_core_chain"
-    EXAMPLES_PATH=./examples
-    TEST_CONFIGS_PATH=./test-configs
-    CLI_PATH=./typescript/cli
-    DEPLOY_ERC20_PATH=./src/tests/deployTestErc20.ts
 
     # set the first arg to 'configured_hook' to set the hook config as part of core deployment
     # motivation is to test both the bare bone deployment (included in the docs) and the deployment
     # with the routing over igp hook (which is closer to production deployment)
     TEST_TYPE=$1
     if [ -z "$TEST_TYPE" ]; then
-        echo "Usage: ci-test.sh <test-type>"
+        echo "Usage: ci-test.sh <$TEST_TYPE_PRESET_HOOK | $TEST_TYPE_CONFIGURED_HOOK | $TEST_TYPE_PI_CORE>"
         exit 1
     fi
 
-    HOOK_FLAG=false
-    if [ "$TEST_TYPE" == $TEST_TYPE_CONFIGURED_HOOK ]; then
-        HOOK_FLAG=true
-    fi
+    prepare_environment_vars;
 
     prepare_anvil;
 
     DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]');
 
     run_hyperlane_deploy_core_dry_run;
-    # run_hyperlane_deploy_warp_dry_run;
+    run_hyperlane_deploy_warp_dry_run;
 
     reset_anvil;
 
@@ -52,22 +45,36 @@ _main() {
     echo "Done";
 }
 
-prepare_anvil() {
+prepare_environment_vars() {
     ANVIL_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
     CHAIN1=anvil1
     CHAIN2=anvil2
+    EXAMPLES_PATH=./examples
+    TEST_CONFIGS_PATH=./test-configs
+    CLI_PATH=./typescript/cli
     REGISTRY_PATH="$TEST_CONFIGS_PATH/anvil"
+    CORE_ISM_PATH="$EXAMPLES_PATH/ism.yaml"
+    WARP_DEPLOY_CONFIG_PATH="$EXAMPLES_PATH/warp-route-deployment.yaml"
+    DEPLOY_ERC20_PATH=./src/tests/deployTestErc20.ts
 
     # use different chain names and config for pi<>core test
     if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
-        CHAIN1=anvil
         CHAIN2=ethereum
         REGISTRY_PATH="$TEST_CONFIGS_PATH/fork"
+        CORE_ISM_PATH="$REGISTRY_PATH/ism.yaml"
+        WARP_DEPLOY_CONFIG_PATH="$REGISTRY_PATH/warp-route-deployment.yaml"
     fi
 
     CHAIN1_CAPS=$(echo "${CHAIN1}" | tr '[:lower:]' '[:upper:]')
     CHAIN2_CAPS=$(echo "${CHAIN2}" | tr '[:lower:]' '[:upper:]')
 
+    HOOK_FLAG=false
+    if [ "$TEST_TYPE" == $TEST_TYPE_CONFIGURED_HOOK ]; then
+        HOOK_FLAG=true
+    fi
+}
+
+prepare_anvil() {
     CHAIN1_PORT=8545
     CHAIN2_PORT=8555
 
@@ -100,7 +107,7 @@ prepare_anvil() {
     if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
         # Fetch the RPC of chain to fork
         cd typescript/infra
-        RPC_URL=$(yarn tsx scripts/print-chain-metadatas.ts -e mainnet3 | jq -r ".${CHAIN2}.rpcUrls[0].http")
+        RPC_URL=$(LOG_LEVEL=error yarn tsx scripts/print-chain-metadatas.ts -e mainnet3 | jq -r ".${CHAIN2}.rpcUrls[0].http")
         cd ../../
 
         # run the fork chain
@@ -175,7 +182,7 @@ run_hyperlane_deploy_core() {
         --overrides " " \
         --targets ${CHAIN1},${CHAIN2} \
         $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
-        --ism ${EXAMPLES_PATH}/ism.yaml \
+        --ism $CORE_ISM_PATH \
         --agent /tmp/agent-config.json \
         --key $ANVIL_KEY \
         --yes
@@ -190,7 +197,7 @@ run_hyperlane_deploy_warp() {
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
         --registry $REGISTRY_PATH \
         --overrides " " \
-        --config ${EXAMPLES_PATH}/warp-route-deployment.yaml \
+        --config $WARP_DEPLOY_CONFIG_PATH \
         --key $ANVIL_KEY \
         --yes
 
@@ -229,7 +236,7 @@ run_hyperlane_send_message() {
     MESSAGE1_ID=`cat /tmp/message1 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
     echo "Message 1 ID: $MESSAGE1_ID"
 
-    WARP_CONFIG_FILE="$REGISTRY_PATH/deployments/warp_routes/FAKE/anvil1-anvil2-config.yaml"
+    WARP_CONFIG_FILE="$REGISTRY_PATH/deployments/warp_routes/FAKE/${CHAIN1}-${CHAIN2}-config.yaml"
 
     echo -e "\nSending test warp transfer"
     yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
