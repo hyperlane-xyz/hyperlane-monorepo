@@ -8,21 +8,26 @@ import {
   buildAgentConfig,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { objMap, objMerge, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  objMap,
+  objMerge,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
 import { getChainAddresses } from '../../config/registry.js';
 import {
   Modules,
   getAddresses,
+  getAgentConfig,
   getAgentConfigJsonPath,
   writeAddresses,
 } from '../../scripts/agent-utils.js';
+import { DeployEnvironment, envNameToAgentEnv } from '../config/environment.js';
+import { getCosmosChainGasPrice } from '../config/gas-oracle.js';
 import {
-  AgentEnvironment,
-  DeployEnvironment,
-  envNameToAgentEnv,
-} from '../config/environment.js';
-import {
+  chainIsProtocol,
   readJSONAtPath,
   writeJsonAtPath,
   writeMergedJSONAtPath,
@@ -107,16 +112,13 @@ export async function postDeploy<Config extends object>(
     writeJsonAtPath(cache.verification, inputs);
   }
   if (agentConfig) {
-    await writeAgentConfig(
-      agentConfig.multiProvider,
-      envNameToAgentEnv[agentConfig.environment],
-    );
+    await writeAgentConfig(agentConfig.multiProvider, agentConfig.environment);
   }
 }
 
 export async function writeAgentConfig(
   multiProvider: MultiProvider,
-  environment: AgentEnvironment,
+  environment: DeployEnvironment,
 ) {
   const addresses = getChainAddresses();
   const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
@@ -140,11 +142,33 @@ export async function writeAgentConfig(
     }),
   );
 
+  // Get gas prices for Cosmos chains.
+  // Instead of iterating through `addresses`, which only includes EVM chains,
+  // iterate through the environment chain names.
+  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const environmentChains = envAgentConfig.environmentChainNames;
+  const additionalConfig = Object.fromEntries(
+    await Promise.all(
+      environmentChains
+        .filter((chain) => chainIsProtocol(chain, ProtocolType.Cosmos))
+        .map(async (chain) => [
+          chain,
+          {
+            gasPrice: await getCosmosChainGasPrice(chain),
+          },
+        ]),
+    ),
+  );
+
   const agentConfig = buildAgentConfig(
-    multiProvider.getKnownChainNames(),
+    environmentChains,
     multiProvider,
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
+    additionalConfig,
   );
-  writeMergedJSONAtPath(getAgentConfigJsonPath(environment), agentConfig);
+  writeMergedJSONAtPath(
+    getAgentConfigJsonPath(envNameToAgentEnv[environment]),
+    agentConfig,
+  );
 }

@@ -124,6 +124,7 @@ export { isNullish, isNumeric } from './typeof.js';
 export {
   Address,
   AddressBytes32,
+  Annotated,
   CallData,
   ChainCaip2Id,
   ChainId,
