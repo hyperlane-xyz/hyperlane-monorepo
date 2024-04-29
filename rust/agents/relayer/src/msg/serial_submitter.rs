@@ -124,6 +124,7 @@ impl SerialSubmitter {
             spawn(prepare_task(
                 domain.clone(),
                 prepare_queue.clone(),
+                confirm_queue.clone(),
                 tx_submit,
                 metrics.clone(),
                 batch_size,
@@ -173,6 +174,7 @@ async fn receive_task(
 async fn prepare_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
+    confirm_queue: OpQueue,
     tx_submit: mpsc::Sender<QueueOperation>,
     metrics: SerialSubmitterMetrics,
     batch_size: Option<u32>,
@@ -223,6 +225,10 @@ async fn prepare_task(
                 }
                 PendingOperationResult::Drop => {
                     metrics.ops_dropped.inc();
+                }
+                PendingOperationResult::Confirm => {
+                    confirm_queue.push(op).await;
+                    // metrics.ops_submitted.inc();
                 }
             }
         }
@@ -293,7 +299,7 @@ async fn confirm_task(
         debug_assert_eq!(*op.destination_domain(), domain);
 
         match op.confirm().await {
-            PendingOperationResult::Success => {
+            PendingOperationResult::Success | PendingOperationResult::Confirm => {
                 debug!(?op, "Operation confirmed");
                 metrics.ops_confirmed.inc();
             }

@@ -134,6 +134,8 @@ pub enum PendingOperationResult {
     Reprepare,
     /// Do not attempt to run the operation again, forget about it
     Drop,
+    /// todo
+    Confirm,
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.
