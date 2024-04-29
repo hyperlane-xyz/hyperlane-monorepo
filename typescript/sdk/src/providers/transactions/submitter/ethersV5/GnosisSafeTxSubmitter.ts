@@ -1,6 +1,5 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe, { EthSafeSignature } from '@safe-global/protocol-kit';
-import EthSafeTransaction from '@safe-global/protocol-kit/dist/src/utils/transactions/SafeTransaction.js';
 import assert from 'assert';
 import { Logger } from 'pino';
 
@@ -83,11 +82,10 @@ export class GnosisSafeTxSubmitter
         return { to, data, value: value?.toString() ?? '0' };
       },
     );
-    const safeTransaction: EthSafeTransaction.default =
-      await safe.createTransaction({
-        safeTransactionData: safeTransactionBatch,
-        options: { nonce: nextNonce },
-      });
+    const safeTransaction = await safe.createTransaction({
+      safeTransactionData: safeTransactionBatch,
+      options: { nonce: nextNonce },
+    });
     const safeTransactionData: SafeTransactionData = safeTransaction.data;
     const safeTxHash: string = await safe.getTransactionHash(safeTransaction);
     let senderAddress: Address | undefined = this.props.signerAddress;
