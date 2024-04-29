@@ -92,7 +92,7 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }): Promise<void> {
     return this.multiRegistryWrite(
       async (registry) => await registry.addChain(chain),
-      'adding chain',
+      `adding chain ${chain.chainName}`,
     );
   }
 
@@ -103,14 +103,14 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }): Promise<void> {
     return this.multiRegistryWrite(
       async (registry) => await registry.updateChain(chain),
-      'updating chain',
+      `updating chain ${chain.chainName}`,
     );
   }
 
   async removeChain(chain: ChainName): Promise<void> {
     return this.multiRegistryWrite(
       async (registry) => await registry.removeChain(chain),
-      'removing chain',
+      `removing chain ${chain}`,
     );
   }
 

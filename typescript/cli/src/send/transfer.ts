@@ -1,15 +1,14 @@
-import { select } from '@inquirer/prompts';
-
 import {
   ChainName,
   HyperlaneCore,
   MultiProtocolProvider,
   ProviderType,
+  Token,
   TokenAmount,
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, timeout } from '@hyperlane-xyz/utils';
+import { timeout } from '@hyperlane-xyz/utils';
 
 import { readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
@@ -17,13 +16,13 @@ import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export async function sendTestTransfer({
   context,
   warpConfigPath,
   origin,
   destination,
-  routerAddress,
   wei,
   recipient,
   timeoutSec,
@@ -34,7 +33,6 @@ export async function sendTestTransfer({
   warpConfigPath: string;
   origin?: ChainName;
   destination?: ChainName;
-  routerAddress?: Address;
   wei: string;
   recipient?: string;
   timeoutSec: number;
@@ -73,7 +71,6 @@ export async function sendTestTransfer({
       origin,
       destination,
       warpCoreConfig,
-      routerAddress,
       wei,
       recipient,
       skipWaitForDelivery,
@@ -89,7 +86,6 @@ async function executeDelivery({
   origin,
   destination,
   warpCoreConfig,
-  routerAddress,
   wei,
   recipient,
   skipWaitForDelivery,
@@ -99,7 +95,6 @@ async function executeDelivery({
   origin: ChainName;
   destination: ChainName;
   warpCoreConfig: WarpCoreConfig;
-  routerAddress?: Address;
   wei: string;
   recipient?: string;
   skipWaitForDelivery: boolean;
@@ -122,31 +117,17 @@ async function executeDelivery({
     warpCoreConfig,
   );
 
-  if (!routerAddress) {
-    const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
-    if (tokensForRoute.length === 0) {
-      logRed(`No Warp Routes found from ${origin} to ${destination}`);
-      throw new Error('Error finding warp route');
-    }
-
-    routerAddress = (await select({
-      message: `Select router address`,
-      choices: [
-        ...tokensForRoute.map((t) => ({
-          value: t.addressOrDenom,
-          description: `${t.name} ($${t.symbol})`,
-        })),
-      ],
-      pageSize: 10,
-    })) as string;
-  }
-
-  const token = warpCore.findToken(origin, routerAddress);
-  if (!token) {
-    logRed(
-      `No Warp Routes found from ${origin} to ${destination} with router address ${routerAddress}`,
-    );
+  let token: Token;
+  const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
+  if (tokensForRoute.length === 0) {
+    logRed(`No Warp Routes found from ${origin} to ${destination}`);
     throw new Error('Error finding warp route');
+  } else if (tokensForRoute.length === 1) {
+    token = tokensForRoute[0];
+  } else {
+    logBlue(`Please select a token from the Warp config`);
+    const routerAddress = await runTokenSelectionStep(tokensForRoute);
+    token = warpCore.findToken(origin, routerAddress)!;
   }
 
   const senderAddress = await signer.getAddress();

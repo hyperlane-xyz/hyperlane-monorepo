@@ -20,13 +20,13 @@ export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
-    configOverrideUri: argv.configs,
+    registryOverrideUri: argv.overrides,
     key: argv.key,
     requiresKey,
     skipConfirmation: argv.yes,
   };
   const context = isDryRun
-    ? await getDryRunContext(settings, argv.chain)
+    ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
   argv.context = context;
 }
@@ -37,12 +37,12 @@ export async function contextMiddleware(argv: Record<string, any>) {
  */
 export async function getContext({
   registryUri,
-  configOverrideUri,
+  registryOverrideUri,
   key,
   requiresKey,
   skipConfirmation,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, configOverrideUri);
+  const registry = getRegistry(registryUri, registryOverrideUri);
 
   let signer: ethers.Wallet | undefined = undefined;
   if (requiresKey) {
@@ -65,10 +65,10 @@ export async function getContext({
  * @returns dry-run context for the current command
  */
 export async function getDryRunContext(
-  { registryUri, configOverrideUri, key, skipConfirmation }: ContextSettings,
+  { registryUri, registryOverrideUri, key, skipConfirmation }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, configOverrideUri, true);
+  const registry = getRegistry(registryUri, registryOverrideUri, true);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -112,8 +112,12 @@ function getRegistry(
   overrideRegistryUri: string,
   isDryRun?: boolean,
 ): IRegistry {
+  const registryUris = [primaryRegistryUri, overrideRegistryUri]
+    .map((r) => r.trim())
+    .filter((r) => !!r);
+  console.log('registryUris:', registryUris);
   return new MergedRegistry({
-    registryUris: [primaryRegistryUri, overrideRegistryUri],
+    registryUris,
     isDryRun,
   });
 }

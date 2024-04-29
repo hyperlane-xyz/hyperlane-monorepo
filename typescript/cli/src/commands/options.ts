@@ -26,11 +26,10 @@ export const registryUriCommandOption: Options = {
   default: DEFAULT_GITHUB_REGISTRY,
 };
 
-export const configOverridesUriCommandOption: Options = {
+export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
-  description: 'Path to local folder with configs',
+  description: 'Path to a local registry to override the default registry',
   default: './',
-  alias: 'c',
 };
 
 export const skipConfirmationOption: Options = {
@@ -88,7 +87,7 @@ export const warpConfigCommandOption: Options = {
 
 export const warpConfigOption: Options = {
   type: 'string',
-  description: 'File path to Warp config',
+  description: 'File path to Warp Route config',
   alias: 'w',
   // TODO make this optional and have the commands get it from the registry
   demandOption: true,
@@ -117,7 +116,7 @@ export const dryRunOption: Options = {
   type: 'string',
   description:
     'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
-  alias: ['d', 'dr'],
+  alias: ['d'],
 };
 
 export const chainCommandOption: Options = {

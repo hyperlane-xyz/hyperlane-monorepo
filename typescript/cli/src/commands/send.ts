@@ -111,10 +111,6 @@ const transferCommand: CommandModuleWithWriteContext<
   builder: {
     ...messageOptions,
     warp: warpConfigOption,
-    router: {
-      type: 'string',
-      description: 'The address of the token router contract',
-    },
     wei: {
       type: 'string',
       description: 'Amount in wei to send',
@@ -133,7 +129,6 @@ const transferCommand: CommandModuleWithWriteContext<
     quick,
     relay,
     warp,
-    router,
     wei,
     recipient,
   }) => {
@@ -142,7 +137,6 @@ const transferCommand: CommandModuleWithWriteContext<
       warpConfigPath: warp,
       origin,
       destination,
-      routerAddress: router,
       wei,
       recipient,
       timeoutSec: timeout,

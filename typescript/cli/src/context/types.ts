@@ -10,7 +10,7 @@ import type {
 
 export interface ContextSettings {
   registryUri: string;
-  configOverrideUri: string;
+  registryOverrideUri: string;
   key?: string;
   requiresKey?: boolean;
   skipConfirmation?: boolean;

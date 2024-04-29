@@ -11,10 +11,10 @@ import { deployCommand } from './src/commands/deploy.js';
 import { hookCommand } from './src/commands/hook.js';
 import { ismCommand } from './src/commands/ism.js';
 import {
-  configOverridesUriCommandOption,
   keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
+  overrideRegistryUriCommandOption,
   registryUriCommandOption,
   skipConfirmationOption,
 } from './src/commands/options.js';
@@ -38,10 +38,10 @@ try {
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
     .option('registry', registryUriCommandOption)
-    .option('configs', configOverridesUriCommandOption)
+    .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
     .option('yes', skipConfirmationOption)
-    .global(['log', 'verbosity', 'registry', 'configs', 'yes'])
+    .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([
       (argv) => {
         configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
