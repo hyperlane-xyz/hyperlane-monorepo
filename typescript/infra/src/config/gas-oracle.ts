@@ -6,11 +6,11 @@ import {
   ChainName,
   StorageGasOracleConfig as DestinationOracleConfig,
   TOKEN_EXCHANGE_RATE_SCALE,
-  chainMetadata,
   getCosmosRegistryChain,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, convertDecimals } from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../config/registry.js';
 import {
   isEthereumProtocolChain,
   mustGetChainNativeToken,
@@ -222,7 +222,7 @@ export function getTokenExchangeRateFromValues(
 export async function getCosmosChainGasPrice(
   chain: ChainName,
 ): Promise<AgentCosmosGasPrice> {
-  const metadata = chainMetadata[chain];
+  const metadata = getChain(chain);
   if (!metadata) {
     throw new Error(`No metadata found for Cosmos chain ${chain}`);
   }

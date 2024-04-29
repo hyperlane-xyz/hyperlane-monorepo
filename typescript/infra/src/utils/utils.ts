@@ -8,10 +8,11 @@ import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
-import { ChainName, NativeToken, testChains } from '@hyperlane-xyz/sdk';
+import { ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { testChainNames } from '../../config/environments/test/chains.js';
 import { getChain, getChains } from '../../config/registry.js';
 import { FundableRole, Role } from '../roles.js';
 
@@ -192,7 +193,7 @@ export function assertFundableRole(roleStr: string): FundableRole {
 }
 
 export function assertChain(chain: ChainName) {
-  if (!getChains().includes(chain) && !testChains.includes(chain)) {
+  if (!getChains().includes(chain) && !testChainNames.includes(chain)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
