@@ -1,6 +1,6 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { assert, eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -63,6 +63,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const actualIsm = await mailbox.defaultIsm();
 
     const config = this.configMap[chain];
+    rootLogger.debug('Checking mailbox for ism config', config.defaultIsm);
     const matches = await moduleMatchesConfig(
       chain,
       actualIsm,
