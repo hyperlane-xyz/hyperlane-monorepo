@@ -20,19 +20,9 @@ export class EvmHookModule extends CrudModule<
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    args: Omit<
-      CrudModuleArgs<
-        ProtocolType.Ethereum,
-        HookConfig,
-        HyperlaneAddresses<HookFactories>
-      >,
-      'provider'
-    >,
+    args: CrudModuleArgs<HookConfig, HyperlaneAddresses<HookFactories>>,
   ) {
-    super({
-      ...args,
-      provider: multiProvider.getProvider(args.chain),
-    });
+    super(args);
 
     this.reader = new EvmHookReader(multiProvider, args.chain);
   }

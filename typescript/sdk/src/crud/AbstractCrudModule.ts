@@ -2,34 +2,24 @@ import { Logger } from 'pino';
 
 import { Address, Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import {
-  ProtocolTypedProvider,
-  ProtocolTypedTransaction,
-} from '../providers/ProviderType.js';
+import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
-export type CrudModuleArgs<
-  TProtocol extends ProtocolType,
-  TConfig,
-  TAddressMap extends Record<string, Address>,
-> = {
+export type CrudModuleArgs<TConfig, TAddressMap extends Record<string, any>> = {
   addresses: TAddressMap;
   chain: ChainNameOrId;
-  chainMetadataManager: ChainMetadataManager;
   config: TConfig;
-  provider: ProtocolTypedProvider<TProtocol>['provider'];
 };
 
 export abstract class CrudModule<
   TProtocol extends ProtocolType,
   TConfig,
-  TAddressMap extends Record<string, Address>,
+  TAddressMap extends Record<string, any>,
 > {
   protected abstract readonly logger: Logger;
 
   protected constructor(
-    protected readonly args: CrudModuleArgs<TProtocol, TConfig, TAddressMap>,
+    protected readonly args: CrudModuleArgs<TConfig, TAddressMap>,
   ) {}
 
   public serialize(): TAddressMap {
