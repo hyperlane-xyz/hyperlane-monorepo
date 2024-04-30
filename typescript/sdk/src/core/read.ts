@@ -7,7 +7,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { EvmHookReader } from '../hook/read.js';
 import { EvmIsmReader } from '../ism/read.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import { CoreConfig } from './types.js';
 
@@ -21,8 +21,10 @@ export class EvmCoreReader implements CoreReader {
   evmIsmReader: EvmIsmReader;
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainName,
-    protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly chain: ChainNameOrId,
+    protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
+      chain,
+    ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);

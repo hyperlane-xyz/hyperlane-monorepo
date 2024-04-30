@@ -54,12 +54,13 @@ export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => [
     local,
     {
-      owner: safes[local] ?? DEPLOYER,
-      ownerOverrides: {
-        proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
-        validatorAnnounce: DEPLOYER, // unused
-        testRecipient: DEPLOYER,
-      },
+      owner: DEPLOYER,
+      // owner: safes[local] ?? DEPLOYER,
+      // ownerOverrides: {
+      //   proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
+      //   validatorAnnounce: DEPLOYER, // unused
+      //   testRecipient: DEPLOYER,
+      // },
     },
   ]),
 );
