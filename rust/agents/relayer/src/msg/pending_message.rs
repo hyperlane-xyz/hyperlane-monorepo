@@ -102,7 +102,10 @@ impl Eq for PendingMessage {}
 impl TryBatchAs<HyperlaneMessage> for PendingMessage {
     fn try_batch(&self) -> ChainResult<BatchItem<HyperlaneMessage>> {
         match self.submission_data.as_ref() {
-            None => Err(ChainCommunicationError::BatchingFailed),
+            None => {
+                warn!("Cannot batch message without submission data, returning BatchingFailed");
+                Err(ChainCommunicationError::BatchingFailed)
+            }
             Some(data) => Ok(BatchItem::new(
                 self.message.clone(),
                 data.as_ref().clone(),
@@ -157,7 +160,7 @@ impl PendingOperation for PendingMessage {
             debug!("Message has already been delivered, marking as submitted.");
             self.submitted = true;
             self.next_attempt_after = Some(Instant::now() + CONFIRM_DELAY);
-            return PendingOperationResult::Success;
+            return PendingOperationResult::Confirm;
         }
 
         let provider = self.ctx.destination_mailbox.provider();
@@ -256,9 +259,10 @@ impl PendingOperation for PendingMessage {
             return;
         }
 
+        debug!("Getting submission_data");
         let state = self
             .submission_data
-            .take()
+            .clone()
             .expect("Pending message must be prepared before it can be submitted");
 
         // We use the estimated gas limit from the prior call to

@@ -29,6 +29,7 @@ pub struct BatchItem<T> {
 pub trait TryBatchAs<T> {
     /// Try to convert the item into a batch item
     fn try_batch(&self) -> ChainResult<BatchItem<T>> {
+        tracing::warn!("In TryBatchAs<T>, returning BatchingFailed");
         Err(crate::ChainCommunicationError::BatchingFailed)
     }
 }
