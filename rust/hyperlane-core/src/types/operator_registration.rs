@@ -3,8 +3,9 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Formatter};
+use std::str::FromStr;
 
-use crate::utils::{domain_separator, fmt_domain};
+use crate::utils::fmt_domain;
 use crate::{Signable, SignedType, H160, H256};
 
 /// Eigenlayer AVSDirectory registration details
@@ -62,7 +63,7 @@ impl Signable for OperatorRegistration {
         H256::from_slice(
             Keccak256::new()
                 .chain(b"\x19\x01")
-                .chain(domain_separator(self.domain, self.service_manager_address))
+                .chain(domain_separator(self.domain))
                 .chain(&struct_hash)
                 .finalize()
                 .as_slice(),
@@ -72,3 +73,40 @@ impl Signable for OperatorRegistration {
 
 /// An OperatorRegistration signed by an operator.
 pub type SignedOperatorRegistration = SignedType<OperatorRegistration>;
+
+/// Computes the domain separator for a given domain (for eigenlayer)
+pub fn domain_separator(domain: u32) -> H256 {
+    let mut h256_value: H256 = H256::zero();
+
+    h256_value.as_bytes_mut()[12..32].copy_from_slice(
+        H160::from_str("0x055733000064333CaDDbC92763c58BF0192fFeBf")
+            .unwrap()
+            .as_bytes(),
+    );
+
+    let domain_typehash =
+        Keccak256::digest("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
+
+    let domain: H256 = H256::from_low_u64_be(domain as u64);
+
+    let eigenlayer_digest = Keccak256::digest("Eigenlayer");
+
+    let hash = H256::from_slice(
+        Keccak256::new()
+            .chain(domain_typehash)
+            .chain(eigenlayer_digest)
+            .chain(domain)
+            .chain(h256_value)
+            .finalize()
+            .as_slice(),
+    );
+    println!(
+        "DS fields: {:?}, {}, {:?} = , {}",
+        str::from_utf8(&domain_hash).unwrap_or_default(),
+        domain,
+        h256_value,
+        eigenlayer_digest,
+        hash
+    );
+    hash
+}
