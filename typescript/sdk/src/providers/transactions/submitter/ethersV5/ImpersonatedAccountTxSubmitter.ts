@@ -12,7 +12,7 @@ import {
   EthersV5TransactionReceipt,
   ProviderType,
 } from '../../../ProviderType.js';
-import { TxSubmitterInterface } from '../TxSubmitter.js';
+import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 interface ImpersonatedAccountTxSubmitterProps {
@@ -36,31 +36,24 @@ export class ImpersonatedAccountTxSubmitter
     public readonly props: ImpersonatedAccountTxSubmitterProps,
   ) {}
 
-  public async submitTxs(
-    txs: EthersV5Transaction[],
+  public async submit(
+    ...txs: EthersV5Transaction[]
   ): Promise<EthersV5TransactionReceipt[]> {
     const receipts: EthersV5TransactionReceipt[] = [];
     for (const tx of txs) {
-      const receipt = await this.submitTx(tx);
-      receipts.push(receipt);
+      const signer = await impersonateAccount(this.props.address);
+      this.multiProvider.setSigner(this.chain, signer);
+      const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
+        this.chain,
+        tx.transaction,
+      );
+
+      this.logger.debug(
+        `Submitted EthersV5Transaction on ${this.chain}: ${receipt.transactionHash}`,
+      );
+
+      receipts.push({ type: ProviderType.EthersV5, receipt });
     }
     return receipts;
-  }
-
-  public async submitTx(
-    tx: EthersV5Transaction,
-  ): Promise<EthersV5TransactionReceipt> {
-    const signer = await impersonateAccount(this.props.address);
-    this.multiProvider.setSigner(this.chain, signer);
-    const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
-      this.chain,
-      tx.transaction,
-    );
-
-    this.logger.debug(
-      `Submitted EthersV5Transaction on ${this.chain}: ${receipt.transactionHash}`,
-    );
-
-    return { type: ProviderType.EthersV5, receipt };
   }
 }

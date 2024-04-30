@@ -1,6 +1,4 @@
-import assert from 'assert';
 import { Logger } from 'pino';
-import { Stack } from 'stack-typescript';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -8,8 +6,8 @@ import {
   TypedTransaction,
   TypedTransactionReceipt,
 } from '../../../ProviderType.js';
-import { TxTransformerInterface } from '../../transformer/TxTransformer.js';
-import { TxSubmitterInterface } from '../TxSubmitter.js';
+import { TxTransformerInterface } from '../../transformer/TxTransformerInterface.js';
+import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 
 /**
  * Builds a TxSubmitterBuilder for batch transaction submission.
@@ -38,12 +36,9 @@ export class TxSubmitterBuilder<
     module: 'submitter-builder',
   });
 
-  private currentSubmitter?: TxSubmitterInterface<TX, TR>;
-
   constructor(
-    private readonly currentTransformers: Stack<
-      TxTransformerInterface<TX>
-    > = new Stack<TxTransformerInterface<TX>>(),
+    private currentSubmitter: TxSubmitterInterface<TX, TR>,
+    private readonly currentTransformers: TxTransformerInterface<TX>[] = [],
   ) {}
 
   /**
@@ -64,11 +59,6 @@ export class TxSubmitterBuilder<
   public transform(
     txTransformer: TxTransformerInterface<TX>,
   ): TxSubmitterBuilder<TX, TR> {
-    assert(
-      this.currentSubmitter,
-      'No submitter specified for which to execute the transform.',
-    );
-
     this.currentTransformers.push(txTransformer);
     return this;
   }
@@ -77,32 +67,25 @@ export class TxSubmitterBuilder<
    * Submits a set of transactions to the builder.
    * @param txs The transactions to submit
    */
-  public async submit(txs: TX[]): Promise<TR[]> {
-    assert(
-      this.currentSubmitter,
-      'Must specify submitter to submit transactions.',
-    );
-
+  public async submit(...txs: TX[]): Promise<TR[]> {
     this.logger.info(
       `Submitting ${txs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter...`,
     );
 
     let transformedTxs = txs;
-    while (this.currentTransformers.size > 0) {
+    while (this.currentTransformers.length > 0) {
       const currentTransformer: TxTransformerInterface<TX> =
-        this.currentTransformers.pop();
-      transformedTxs = await currentTransformer.transformTxs(transformedTxs);
+        this.currentTransformers.pop()!;
+      transformedTxs = await currentTransformer.transform(...transformedTxs);
       this.logger.info(
         `🔄 Transformed ${transformedTxs.length} transactions with the ${currentTransformer.txTransformerType} transformer...`,
       );
     }
 
-    const txReceipts = await this.currentSubmitter.submitTxs(transformedTxs);
+    const txReceipts = await this.currentSubmitter.submit(...transformedTxs);
     this.logger.info(
       `✅ Successfully submitted ${transformedTxs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter.`,
     );
-
-    this.currentSubmitter = undefined;
 
     return txReceipts ?? [];
   }

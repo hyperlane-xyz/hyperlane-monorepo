@@ -5172,7 +5172,6 @@ __metadata:
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
     sinon: "npm:^13.0.2"
-    stack-typescript: "npm:^1.0.4"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.7.1"
     typescript: "npm:5.3.3"
@@ -17313,13 +17312,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"linked-list-typescript@npm:^1.0.11":
-  version: 1.0.15
-  resolution: "linked-list-typescript@npm:1.0.15"
-  checksum: 91c87ab00fe4bb9850f169adc62b811ae7e91a743bac1a9fc969a815f20ddd0fb285f84a4d31e98900512234f59297f7beef6b076dd382cf879a319c7a14c68b
-  languageName: node
-  linkType: hard
-
 "lint-staged@npm:^12.4.3":
   version: 12.5.0
   resolution: "lint-staged@npm:12.5.0"
@@ -21879,15 +21871,6 @@ __metadata:
   dependencies:
     minipass: "npm:^3.1.1"
   checksum: 7638a61e91432510718e9265d48d0438a17d53065e5184f1336f234ef6aa3479663942e41e97df56cda06bb24d9d0b5ef342c10685add3cac7267a82d7fa6718
-  languageName: node
-  linkType: hard
-
-"stack-typescript@npm:^1.0.4":
-  version: 1.0.4
-  resolution: "stack-typescript@npm:1.0.4"
-  dependencies:
-    linked-list-typescript: "npm:^1.0.11"
-  checksum: a3211a70b01ab4ece788a9c0c4612a132be4019427dc1d9daa7f289b5ab495d4a30cdc947888858eb9225b4c55428530ae60526c56b141f843047db1d878114e
   languageName: node
   linkType: hard
 

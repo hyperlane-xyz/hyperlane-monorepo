@@ -1,5 +1,9 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe, { EthSafeSignature } from '@safe-global/protocol-kit';
+import {
+  MetaTransactionData,
+  SafeTransactionData,
+} from '@safe-global/safe-core-sdk-types';
 import assert from 'assert';
 import { Logger } from 'pino';
 
@@ -12,30 +16,8 @@ import {
   EthersV5Transaction,
   EthersV5TransactionReceipt,
 } from '../../../ProviderType.js';
-import { TxSubmitterInterface } from '../TxSubmitter.js';
+import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
-
-enum OperationType {
-  Call = 0,
-  DelegateCall = 1,
-}
-
-interface MetaTransactionData {
-  to: string;
-  value: string;
-  data: string;
-  operation?: OperationType;
-}
-
-interface SafeTransactionData extends MetaTransactionData {
-  operation: OperationType;
-  safeTxGas: string;
-  baseGas: string;
-  gasPrice: string;
-  gasToken: string;
-  refundReceiver: string;
-  nonce: number;
-}
 
 interface GnosisSafeTxSubmitterProps {
   safeAddress: Address;
@@ -59,7 +41,7 @@ export class GnosisSafeTxSubmitter
     public readonly props: GnosisSafeTxSubmitterProps,
   ) {}
 
-  public async submitTxs(txs: EthersV5Transaction[]): Promise<void> {
+  public async submit(...txs: EthersV5Transaction[]): Promise<void> {
     const safe: Safe.default = await getSafe(
       this.chain,
       this.multiProvider,
@@ -77,7 +59,7 @@ export class GnosisSafeTxSubmitter
         const { to, data, value } = transaction;
         assert(
           to && data,
-          'Invalid EthersV5Transaction: Missing required metadata.',
+          'Invalid EthersV5Transaction: Missing required field to or data.',
         );
         return { to, data, value: value?.toString() ?? '0' };
       },

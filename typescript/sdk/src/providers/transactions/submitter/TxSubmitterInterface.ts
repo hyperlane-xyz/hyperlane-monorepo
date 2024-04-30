@@ -21,10 +21,5 @@ export interface TxSubmitterInterface<
    * Should execute all transactions and return their receipts.
    * @param txs The array of transactions to execute
    */
-  submitTxs(txs: TX[]): Promise<TR[] | void>;
-  /**
-   * Should execute a transaction and return its receipt.
-   * @param tx The transaction to execute
-   */
-  submitTx?(tx: TX): Promise<TR | void>;
+  submit(...txs: TX[]): Promise<TR[] | void>;
 }

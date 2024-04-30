@@ -9,7 +9,7 @@ import { AccountConfig } from '../../../../middleware/account/types.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { EthersV5Transaction, ProviderType } from '../../../ProviderType.js';
-import { TxTransformerInterface } from '../TxTransformer.js';
+import { TxTransformerInterface } from '../TxTransformerInterface.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 interface InterchainAccountTxTransformerProps {
@@ -32,8 +32,8 @@ export class InterchainAccountTxTransformer
     public readonly props: InterchainAccountTxTransformerProps,
   ) {}
 
-  public async transformTxs(
-    txs: EthersV5Transaction[],
+  public async transform(
+    ...txs: EthersV5Transaction[]
   ): Promise<EthersV5Transaction[]> {
     const destinationChainId = txs[0].transaction.chainId;
     assert(
@@ -46,7 +46,7 @@ export class InterchainAccountTxTransformer
         const { to, data, value } = transaction;
         assert(
           to && data,
-          'Invalid EthersV5Transaction: Missing required metadata.',
+          'Invalid EthersV5Transaction: Missing required field to or data.',
         );
         return { to, data, value };
       },

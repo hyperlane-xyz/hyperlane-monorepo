@@ -19,7 +19,6 @@
     "cross-fetch": "^3.1.5",
     "ethers": "^5.7.2",
     "pino": "^8.19.0",
-    "stack-typescript": "^1.0.4",
     "viem": "^1.20.0",
     "zod": "^3.21.2"
   },
@@ -67,7 +66,8 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "tsc",
+    "build": "yarn build:fixSafeLib && tsc",
+    "build:fixSafeLib": "rm -rf ../../node_modules/@safe-global/protocol-kit/dist/typechain/",
     "dev": "tsc --watch",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
