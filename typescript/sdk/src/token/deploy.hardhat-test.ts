@@ -21,19 +21,23 @@ import { ChainMap } from '../types.js';
 
 import {
   // TokenRouterConfig,
-  HypERC20CollateralConfig,
+  // HypERC20CollateralConfig,
   HypERC20Config,
   TokenConfig,
   TokenType,
 } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { EvmERC20WarpRouteReader } from './read.js';
-import { TokenRouterConfig, WarpRouteDeployConfig } from './types.js';
+import { DerivedTokenType, EvmERC20WarpRouteReader } from './read.js';
+import {
+  /*TokenRouterConfig,*/
+  WarpRouteDeployConfig,
+} from './types.js';
 
-describe.only('TokenDeployer', async () => {
+describe('TokenDeployer', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
+  const GAS = 65_000;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
   let signer: SignerWithAddress;
@@ -60,9 +64,9 @@ describe.only('TokenDeployer', async () => {
         type: TokenType.synthetic,
         name: chain,
         symbol: `u${chain}`,
-        decimals: 18,
-        totalSupply: 100_000,
-        gas: 65_000,
+        decimals: TOKEN_DECIMALS,
+        totalSupply: TOKEN_SUPPLY,
+        gas: GAS,
         ...c,
       }),
     );
@@ -87,20 +91,56 @@ describe.only('TokenDeployer', async () => {
   });
 
   describe('ERC20WarpRouterReader', async () => {
-    let config: WarpRouteDeployConfig;
+    const chainName = Chains.test1;
+    // let config: WarpRouteDeployConfig;
     let mailbox: Mailbox;
-    let warpRoute: any;
+    // let warpRoute: any;
+    let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
 
     before(async () => {
       mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
-    });
-
-    async function deriveWarpConfig(chainName: string, address: string) {
-      return new EvmERC20WarpRouteReader(
+      evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
         multiProvider,
         chainName,
-      ).deriveWarpRouteConfig(address);
-    }
+      );
+    });
+
+    it.only('should derive a token type from contract', async () => {
+      const typesToDerive: DerivedTokenType[] = [
+        TokenType.collateral,
+        // TokenType.collateralVault, @todo add collateralVault by deploying a vault instead of erc20
+        TokenType.synthetic,
+        TokenType.native,
+      ];
+
+      await Promise.all(
+        typesToDerive.map(async (type) => {
+          // Create config
+          const config = {
+            [Chains.test1]: {
+              type,
+              token: token.address,
+              hook: await mailbox.defaultHook(),
+              name: TOKEN_NAME,
+              symbol: TOKEN_NAME,
+              decimals: TOKEN_DECIMALS,
+              totalSupply: TOKEN_SUPPLY,
+              gas: GAS,
+              ...baseConfig,
+            },
+          };
+          // Deploy warp route with config
+          const warpRoute = await deployer.deploy(
+            config as ChainMap<TokenConfig & RouterConfig>,
+          );
+          const derivedTokenType =
+            await evmERC20WarpRouteReader.deriveTokenType(
+              warpRoute[chainName][type].address,
+            );
+          expect(derivedTokenType).to.equal(type);
+        }),
+      );
+    });
     it('should derive TokenRouterConfig from collateral correctly', async () => {
       // Create config
       config = {
@@ -112,16 +152,15 @@ describe.only('TokenDeployer', async () => {
         },
       };
       // Deploy with config
-      warpRoute = await deployer.deploy(
+      const warpRoute = await deployer.deploy(
         config as ChainMap<TokenConfig & RouterConfig>,
       );
 
       // Derive config and check if each value matches
-      const derivedConfig: Partial<HypERC20CollateralConfig> =
-        await deriveWarpConfig(
-          Chains.test1,
-          warpRoute[Chains.test1].collateral.address,
-        );
+      const derivedConfig: TokenRouterConfig = await deriveWarpConfig(
+        Chains.test1,
+        warpRoute[Chains.test1].collateral.address,
+      );
 
       for (const [key, value] of Object.entries(derivedConfig)) {
         const deployedValue = (config[Chains.test1] as any)[key];

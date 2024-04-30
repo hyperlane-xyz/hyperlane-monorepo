@@ -142,7 +142,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
       erc20.decimals(),
     ]);
 
-    return { name, symbol, totalSupply, decimals };
+    return { name, symbol, totalSupply: totalSupply.toString(), decimals };
   }
 
   static gasOverheadDefault(config: TokenConfig): number {
@@ -348,7 +348,7 @@ export class HypERC721Deployer extends GasRouterDeployer<
       erc721.totalSupply(),
     ]);
 
-    return { name, symbol, totalSupply };
+    return { name, symbol, totalSupply: totalSupply.toString() };
   }
 
   static gasOverheadDefault(config: TokenConfig): number {

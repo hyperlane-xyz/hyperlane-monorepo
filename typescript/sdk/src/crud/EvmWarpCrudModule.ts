@@ -24,7 +24,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly args: Omit<
+    args: Omit<
       CrudModuleArgs<
         ProtocolType.Ethereum,
         TokenRouterConfig,
@@ -42,9 +42,14 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     this.deployer = new HypERC20Deployer(this.multiProvider);
   }
 
-  public async read(_: Address): Promise<TokenRouterConfig> {
-    throw new Error('Method not implemented.');
-    // return await this.reader.deriveWarpRouteConfig(address);
+  /**
+   * Retrieves the token router configuration for the specified address.
+   *
+   * @param address - The address to derive the token router configuration from.
+   * @returns A promise that resolves to the token router configuration.
+   */
+  public async read(address: Address): Promise<TokenRouterConfig> {
+    return this.reader.deriveWarpRouteConfig(address);
   }
 
   public async update(
@@ -53,6 +58,12 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     throw new Error('Method not implemented.');
   }
 
+  /**
+   * Deploys a new token router using the specified deployer and config
+   *
+   * @param config - The token router config to deploy.
+   * @returns A promise that resolves to the deployment result.
+   */
   public async create(config: TokenRouterConfig): Promise<any> {
     return this.deployer.deploy({ [this.args.chain]: config } as ChainMap<
       TokenConfig & RouterConfig

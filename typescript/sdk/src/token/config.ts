@@ -1,9 +1,13 @@
-import { ethers } from 'ethers';
+// import { ethers } from 'ethers';
 import z from 'zod';
 
 import { GasRouterConfig } from '../router/types.js';
 
-import { SyntheticConfigSchema } from './schemas.js';
+import {
+  SyntheticConfigSchema,
+  TokenDecimalsSchema,
+  TokenMetadataSchema,
+} from './schemas.js';
 
 export enum TokenType {
   synthetic = 'synthetic',
@@ -17,16 +21,9 @@ export enum TokenType {
   nativeScaled = 'nativeScaled',
 }
 
-export type TokenMetadata = {
-  name: string;
-  symbol: string;
-  totalSupply: ethers.BigNumberish;
-};
+export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 
-export type TokenDecimals = {
-  decimals: number;
-  scale?: number;
-};
+export type TokenDecimals = z.infer<typeof TokenDecimalsSchema>;
 
 export type ERC20Metadata = TokenMetadata & TokenDecimals;
 export type MinimalTokenMetadata = Omit<ERC20Metadata, 'totalSupply' | 'scale'>;
