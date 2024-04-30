@@ -78,7 +78,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     [Chains.ethereum]: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     [Chains.neutron]: false,
-    [Chains.mantapacific]: false,
+    [Chains.mantapacific]: true,
     [Chains.mode]: true,
     [Chains.moonbeam]: true,
     [Chains.optimism]: true,

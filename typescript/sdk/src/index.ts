@@ -24,6 +24,10 @@ export {
   Testnets,
 } from './consts/chains.js';
 export {
+  TOKEN_EXCHANGE_RATE_SCALE,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+} from './consts/igp.js';
+export {
   HyperlaneEnvironment,
   HyperlaneEnvironmentChain,
   hyperlaneContractAddresses,
@@ -174,6 +178,7 @@ export {
   AgentChainMetadataSchema,
   AgentConfig,
   AgentConfigSchema,
+  AgentCosmosGasPrice,
   AgentLogFormat,
   AgentLogLevel,
   AgentSigner,
@@ -197,6 +202,7 @@ export {
   ChainTechnicalStack,
   ExplorerFamily,
   ExplorerFamilyValue,
+  NativeToken,
   RpcUrl,
   RpcUrlSchema,
   getChainIdNumber,
@@ -443,6 +449,7 @@ export {
   Connection,
   TestChainNames,
 } from './types.js';
+export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { filterByChains } from './utils/filter.js';
 export {

@@ -250,7 +250,7 @@
         "from": 2496427
       },
       "interchainGasPaymaster": "0xB3fCcD379ad66CED0c91028520C64226611A48c9",
-      "interchainSecurityModule": "0xfeBe2fB33d203B43D763f119874574c33326d545",
+      "interchainSecurityModule": "0x0986f6D82A47045788b0ce8EF68f6C0D77726854",
       "mailbox": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
       "merkleTreeHook": "0xC9B8ea6230d6687a4b13fD3C0b8f0Ec607B26465",
       "name": "blast",
@@ -432,7 +432,7 @@
         "from": 18422581
       },
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-      "interchainSecurityModule": "0x43Ce4Eb4aE3585dDe9Ac6967Db5b06f7f6764C8a",
+      "interchainSecurityModule": "0xB42b88243F749F47697F01Ae1cbBCA9d4763902a",
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "merkleTreeHook": "0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA",
       "name": "ethereum",
@@ -637,7 +637,7 @@
         "from": 437300
       },
       "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
-      "interchainSecurityModule": "0xDEed16fe4b1c9b2a93483EDFf34C77A9b57D31Ff",
+      "interchainSecurityModule": "0xEda7cCD2A8CF717dc997D0002e363e4D10bF5c0d",
       "isTestnet": false,
       "mailbox": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
       "merkleTreeHook": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
@@ -782,7 +782,7 @@
       "contractAddressBytes": 32,
       "domainId": "1853125230",
       "gasPrice": {
-        "amount": "0.57",
+        "amount": "0.0053",
         "denom": "untrn"
       },
       "grpcUrls": [
