@@ -20,21 +20,24 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
 import {
-  CollateralConfig,
+  // TokenRouterConfig,
+  // HypERC20CollateralConfig,
   HypERC20Config,
   TokenConfig,
   TokenType,
 } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import { DerivedTokenType, EvmERC20WarpRouteReader } from './read.js';
-import { TokenRouterConfig, WarpRouteDeployConfig } from './types.js';
+import {
+  /*TokenRouterConfig,*/
+  WarpRouteDeployConfig,
+} from './types.js';
 
-describe.only('TokenDeployer', async () => {
+describe('TokenDeployer', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
   const GAS = 65_000;
-  const chain = Chains.test1;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
   let signer: SignerWithAddress;
@@ -64,6 +67,9 @@ describe.only('TokenDeployer', async () => {
         decimals: TOKEN_DECIMALS,
         totalSupply: TOKEN_SUPPLY,
         gas: GAS,
+        decimals: TOKEN_DECIMALS,
+        totalSupply: TOKEN_SUPPLY,
+        gas: GAS,
         ...c,
       }),
     );
@@ -88,18 +94,21 @@ describe.only('TokenDeployer', async () => {
   });
 
   describe('ERC20WarpRouterReader', async () => {
+    const chainName = Chains.test1;
+    // let config: WarpRouteDeployConfig;
     let mailbox: Mailbox;
+    // let warpRoute: any;
     let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
 
     before(async () => {
       mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
       evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
         multiProvider,
-        chain,
+        chainName,
       );
     });
 
-    it('should derive a token type from contract', async () => {
+    it.only('should derive a token type from contract', async () => {
       const typesToDerive: DerivedTokenType[] = [
         TokenType.collateral,
         // TokenType.collateralVault, @todo add collateralVault by deploying a vault instead of erc20
@@ -129,14 +138,13 @@ describe.only('TokenDeployer', async () => {
           );
           const derivedTokenType =
             await evmERC20WarpRouteReader.deriveTokenType(
-              warpRoute[chain][type].address,
+              warpRoute[chainName][type].address,
             );
           expect(derivedTokenType).to.equal(type);
         }),
       );
     });
-
-    it('should derive config from collateral correctly', async () => {
+    it('should derive TokenRouterConfig from collateral correctly', async () => {
       // Create config
       const config = {
         [Chains.test1]: {
@@ -148,14 +156,15 @@ describe.only('TokenDeployer', async () => {
       };
       // Deploy with config
       const warpRoute = await deployer.deploy(
+      const warpRoute = await deployer.deploy(
         config as ChainMap<TokenConfig & RouterConfig>,
       );
 
       // Derive config and check if each value matches
-      const derivedConfig =
-        (await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-          warpRoute[Chains.test1].collateral.address,
-        )) as CollateralConfig;
+      const derivedConfig: TokenRouterConfig = await deriveWarpConfig(
+        Chains.test1,
+        warpRoute[Chains.test1].collateral.address,
+      );
 
       for (const [key, value] of Object.entries(derivedConfig)) {
         const deployedValue = (config[Chains.test1] as any)[key];
