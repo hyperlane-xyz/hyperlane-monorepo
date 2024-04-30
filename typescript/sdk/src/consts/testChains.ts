@@ -17,8 +17,8 @@ export const testChains: Array<ChainName> = Object.values(TestChainName);
 export const test1: ChainMetadata = {
   blockExplorers: [
     {
-      apiUrl: 'https://api.etherscan.io/api',
       apiKey: 'fakekey',
+      apiUrl: 'https://api.etherscan.io/api',
       family: ExplorerFamily.Etherscan,
       name: 'Etherscan',
       url: 'https://etherscan.io',
@@ -72,6 +72,7 @@ export const testChainMetadata: ChainMap<ChainMetadata> = {
 };
 
 export const testCosmosChain: ChainMetadata = {
+  bech32Prefix: 'testcosmos',
   blockExplorers: [
     {
       apiUrl: 'https://www.mintscan.io/cosmos',
@@ -80,7 +81,6 @@ export const testCosmosChain: ChainMetadata = {
       url: 'https://www.mintscan.io/cosmos',
     },
   ],
-  bech32Prefix: 'testcosmos',
   chainId: 'testcosmos',
   domainId: 123456789,
   grpcUrls: [],

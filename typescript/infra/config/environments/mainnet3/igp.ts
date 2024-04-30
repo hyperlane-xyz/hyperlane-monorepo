@@ -16,20 +16,17 @@ import {
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
 
-import {
-  MainnetChains,
-  ethereumChainNames,
-  supportedChainNames,
-} from './chains.js';
+import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
 import { DEPLOYER, owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 
-const remoteOverhead = (remote: MainnetChains) =>
+const remoteOverhead = (remote: ChainName) =>
   ethereumChainNames.includes(remote)
     ? multisigIsmVerificationCost(
         defaultMultisigConfigs[remote].threshold,
@@ -57,7 +54,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     gasPrices,
     getTokenExchangeRate,
     (local) => parseFloat(tokenPrices[local]),
-    (local) => remoteOverhead(local as MainnetChains),
+    (local) => remoteOverhead(local),
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(owners, (local, owner) => ({
@@ -72,7 +69,7 @@ export const igp: ChainMap<IgpConfig> = objMap(owners, (local, owner) => ({
   overhead: Object.fromEntries(
     exclude(local, supportedChainNames).map((remote) => [
       remote,
-      remoteOverhead(remote as MainnetChains),
+      remoteOverhead(remote),
     ]),
   ),
   oracleConfig: storageGasOracleConfig[local],
