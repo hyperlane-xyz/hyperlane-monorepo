@@ -33,15 +33,30 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
-    pub async fn pop(&mut self) -> Option<Reverse<QueueOperation>> {
+    pub async fn pop(&mut self) -> Option<QueueOperation> {
+        let pop_attempt = self.pop_many(1).await;
+        pop_attempt.into_iter().next()
+    }
+
+    /// Pop multiple elements at once from the queue and update metrics
+    pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
         self.process_retry_requests().await;
-        let op = self.queue.lock().await.pop();
-        op.map(|op| {
+        let mut queue = self.queue.lock().await;
+        let mut popped = vec![];
+        while let Some(Reverse(op)) = queue.pop() {
             // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
             // in those cases, the queue length will decrease to zero until the operation is re-added.
-            self.get_operation_metric(op.0.as_ref()).dec();
-            op
-        })
+            self.get_operation_metric(op.as_ref()).dec();
+            popped.push(op);
+            if popped.len() >= limit {
+                break;
+            }
+        }
+        popped
+    }
+
+    pub async fn len(&self) -> usize {
+        self.queue.lock().await.len()
     }
 
     pub async fn process_retry_requests(&mut self) {
@@ -241,7 +256,7 @@ mod test {
         // Pop elements from queue 1
         let mut queue_1_popped = vec![];
         while let Some(op) = op_queue_1.pop().await {
-            queue_1_popped.push(op.0);
+            queue_1_popped.push(op);
         }
 
         // The elements sent over the channel should be the first ones popped,
@@ -253,7 +268,7 @@ mod test {
         // Pop elements from queue 2
         let mut queue_2_popped = vec![];
         while let Some(op) = op_queue_2.pop().await {
-            queue_2_popped.push(op.0);
+            queue_2_popped.push(op);
         }
 
         // The elements should be popped in the order they were pushed, because there was no retry request for them
@@ -300,7 +315,7 @@ mod test {
         // Pop elements from queue
         let mut popped = vec![];
         while let Some(op) = op_queue.pop().await {
-            popped.push(op.0.id());
+            popped.push(op.id());
         }
 
         // First messages should be those to `destination_domain_2` - their exact order depends on

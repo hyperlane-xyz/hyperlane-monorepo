@@ -312,10 +312,12 @@ impl BaseAgent for Relayer {
                     dest_domain,
                     receive_channel,
                     mpmc_channel.receiver(),
+                    // Default to submitting one message at a time if there is no batch config
                     self.core.settings.chains[dest_domain.name()]
                         .connection
                         .message_batch_config()
-                        .map(|c| c.max_batch_size),
+                        .map(|c| c.max_batch_size)
+                        .unwrap_or(1),
                 ),
             );
 
@@ -454,7 +456,7 @@ impl Relayer {
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<QueueOperation>,
         retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
-        batch_size: Option<u32>,
+        batch_size: u32,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),

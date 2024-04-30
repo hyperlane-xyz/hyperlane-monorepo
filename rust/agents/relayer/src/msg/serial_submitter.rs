@@ -80,8 +80,8 @@ pub struct SerialSubmitter {
     retry_rx: MpmcReceiver<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
-    /// Batch size for submitting messages
-    batch_size: Option<u32>,
+    /// Max batch size for submitting messages
+    max_batch_size: u32,
 }
 
 impl SerialSubmitter {
@@ -96,7 +96,7 @@ impl SerialSubmitter {
             metrics,
             rx: rx_prepare,
             retry_rx,
-            batch_size,
+            max_batch_size,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
@@ -109,11 +109,9 @@ impl SerialSubmitter {
             retry_rx,
         );
 
-        // This is a channel because we want to only have a small number of messages
-        // sitting ready to go at a time and this acts as a synchronization tool
-        // to slow down the preparation of messages when the submitter gets
-        // behind.
-        let (tx_submit, rx_submit) = mpsc::channel(batch_size.map(|b| b * 3).unwrap_or(1) as usize);
+        // This is channel acts as a buffer to avoid holding too many prepared messages in memory.
+        // Use double the max batch size to increase chances of having full batches
+        let (tx_submit, rx_submit) = mpsc::channel((max_batch_size * 2) as usize);
 
         let tasks = [
             spawn(receive_task(
@@ -127,14 +125,13 @@ impl SerialSubmitter {
                 confirm_queue.clone(),
                 tx_submit,
                 metrics.clone(),
-                batch_size,
             )),
             spawn(submit_task(
                 domain.clone(),
                 rx_submit,
                 confirm_queue.clone(),
                 metrics.clone(),
-                batch_size,
+                max_batch_size,
             )),
             spawn(confirm_task(
                 domain.clone(),
@@ -177,23 +174,15 @@ async fn prepare_task(
     confirm_queue: OpQueue,
     tx_submit: mpsc::Sender<QueueOperation>,
     metrics: SerialSubmitterMetrics,
-    batch_size: Option<u32>,
 ) {
-    let batch_size = batch_size.unwrap_or(1);
+    // Pop as many ops as we can then send to the channel
+    let ops_to_prepare = tx_submit.capacity();
     loop {
         // Pop messages here according to the configured batch.
-        let mut batch = vec![];
-        for _ in 0..batch_size {
-            let next = prepare_queue.pop().await;
-            if let Some(Reverse(op)) = next {
-                batch.push(op);
-            } else {
-                break;
-            }
-        }
+        let mut batch = prepare_queue.pop_many(ops_to_prepare).await;
         if batch.is_empty() {
             // queue is empty so give some time before checking again to prevent burning CPU
-            sleep(Duration::from_millis(200)).await;
+            sleep(Duration::from_millis(100)).await;
             continue;
         }
         let mut task_prep_futures = vec![];
@@ -204,6 +193,16 @@ async fn prepare_task(
             task_prep_futures.push(op.prepare());
         }
         let res = join_all(task_prep_futures).await;
+        let not_ready_count = res
+            .iter()
+            .filter(|r| {
+                matches!(
+                    r,
+                    PendingOperationResult::NotReady | PendingOperationResult::Reprepare
+                )
+            })
+            .count();
+        let batch_len = batch.len();
         for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
             match prepare_result {
                 PendingOperationResult::Success => {
@@ -217,7 +216,6 @@ async fn prepare_task(
                 PendingOperationResult::NotReady => {
                     // none of the operations are ready yet, so wait for a little bit
                     prepare_queue.push(op).await;
-                    sleep(Duration::from_millis(200)).await;
                 }
                 PendingOperationResult::Reprepare => {
                     metrics.ops_failed.inc();
@@ -232,6 +230,10 @@ async fn prepare_task(
                 }
             }
         }
+        if not_ready_count == batch_len {
+            // none of the operations are ready yet, so wait for a little bit
+            sleep(Duration::from_millis(500)).await;
+        }
     }
 }
 
@@ -241,9 +243,9 @@ async fn submit_task(
     mut rx_submit: mpsc::Receiver<QueueOperation>,
     mut confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
-    batch_size: Option<u32>,
+    batch_size: u32,
 ) {
-    let recv_limit = batch_size.unwrap_or(1) as usize;
+    let recv_limit = batch_size as usize;
     // looping is not an issue because `recv_many` will sleep if the channel is empty
     loop {
         let mut recv_buffer = vec![];
@@ -290,7 +292,7 @@ async fn confirm_task(
 ) {
     loop {
         // Pick the next message to try confirming.
-        let Some(Reverse(mut op)) = confirm_queue.pop().await else {
+        let Some(mut op) = confirm_queue.pop().await else {
             sleep(Duration::from_secs(5)).await;
             continue;
         };

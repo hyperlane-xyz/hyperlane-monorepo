@@ -172,7 +172,7 @@ fn main() -> ExitCode {
             "CHAINS_TEST1_BATCHCONTRACTADDRESS",
             multicall_address_string.clone(),
         )
-        .hyp_env("CHAINS_TEST1_MAXBATCHSIZE", "3")
+        .hyp_env("CHAINS_TEST1_MAXBATCHSIZE", "5")
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
@@ -180,11 +180,13 @@ fn main() -> ExitCode {
             "CHAINS_TEST2_BATCHCONTRACTADDRESS",
             multicall_address_string.clone(),
         )
+        .hyp_env("CHAINS_TEST2_MAXBATCHSIZE", "5")
         .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
         .hyp_env(
             "CHAINS_TEST3_BATCHCONTRACTADDRESS",
             multicall_address_string,
         )
+        .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
         .hyp_env("METRICSPORT", "9092")
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
