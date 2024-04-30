@@ -1,6 +1,7 @@
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -13,6 +14,7 @@ import {
 import {
   Address,
   ProtocolType,
+  objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -26,6 +28,7 @@ import {
   getChain,
   getChainAddresses,
   getChains,
+  getEnvChains,
   getRegistry,
 } from '../config/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
@@ -381,7 +384,11 @@ function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
 
 export function getAddresses(environment: DeployEnvironment, module: Modules) {
   if (isRegistryModule(environment, module)) {
-    return getChainAddresses();
+    const allAddresses = getChainAddresses();
+    const envChains = getEnvChains(environment);
+    return objFilter(allAddresses, (chain, _): _ is ChainAddresses => {
+      return envChains.includes(chain);
+    });
   } else {
     return readJSONAtPath(getInfraLandfillPath(environment, module));
   }
