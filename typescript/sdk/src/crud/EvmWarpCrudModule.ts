@@ -9,7 +9,7 @@ import { HypERC20Factories } from '../token/contracts.js';
 import { HypERC20Deployer } from '../token/deploy.js';
 import { EvmERC20WarpRouteReader } from '../token/read.js';
 import { TokenRouterConfig } from '../token/types.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, ChainNameOrId } from '../types.js';
 
 import { CrudModule, CrudModuleArgs } from './AbstractCrudModule.js';
 
@@ -20,26 +20,19 @@ export class EvmERC20WarpCrudModule extends CrudModule<
 > {
   protected logger = rootLogger.child({ module: 'EvmERC20WarpCrudModule' });
   protected reader: EvmERC20WarpRouteReader;
-  protected deployer: HypERC20Deployer;
+  // protected deployer: HypERC20Deployer;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: Omit<
-      CrudModuleArgs<
-        ProtocolType.Ethereum,
-        TokenRouterConfig,
-        HyperlaneAddresses<HypERC20Factories>
-      >,
-      'provider'
+    args: CrudModuleArgs<
+      TokenRouterConfig,
+      HyperlaneAddresses<HypERC20Factories>
     >,
   ) {
-    super({
-      ...args,
-      provider: multiProvider.getProvider(args.chain),
-    });
+    super(args);
 
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
-    this.deployer = new HypERC20Deployer(this.multiProvider);
+    // this.deployer = ;
   }
 
   /**
@@ -58,15 +51,24 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     throw new Error('Method not implemented.');
   }
 
-  /**
-   * Deploys a new token router using the specified deployer and config
-   *
-   * @param config - The token router config to deploy.
-   * @returns A promise that resolves to the deployment result.
-   */
-  public async create(config: TokenRouterConfig): Promise<any> {
-    return this.deployer.deploy({ [this.args.chain]: config } as ChainMap<
+  public static async create({
+    chain,
+    config,
+    multiProvider,
+  }: {
+    chain: ChainNameOrId;
+    config: TokenRouterConfig;
+    multiProvider: MultiProvider;
+  }): Promise<any> {
+    const deployer = new HypERC20Deployer(multiProvider);
+    const factories = await deployer.deploy({ [chain]: config } as ChainMap<
       TokenConfig & RouterConfig
     >);
+
+    return new EvmERC20WarpCrudModule(multiProvider, {
+      addresses: factories[chain] as HyperlaneAddresses<HypERC20Factories>,
+      chain,
+      config,
+    });
   }
 }
