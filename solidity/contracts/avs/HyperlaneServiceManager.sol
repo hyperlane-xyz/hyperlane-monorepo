@@ -13,8 +13,6 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import "forge-std/console.sol";
-
 // ============ Internal Imports ============
 import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/EnumerableMapEnrollment.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
