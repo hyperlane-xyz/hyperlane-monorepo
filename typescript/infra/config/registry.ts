@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment } from '../src/config/environment.js';
+import type { DeployEnvironment } from '../src/config/environment.js';
 
 import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/supportedChainNames.js';
 import { testChainNames as testChains } from './environments/test/chains.js';
