@@ -20,24 +20,21 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
 import {
-  // TokenRouterConfig,
-  // HypERC20CollateralConfig,
+  CollateralConfig,
   HypERC20Config,
   TokenConfig,
   TokenType,
 } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import { DerivedTokenType, EvmERC20WarpRouteReader } from './read.js';
-import {
-  /*TokenRouterConfig,*/
-  WarpRouteDeployConfig,
-} from './types.js';
+import { TokenRouterConfig, WarpRouteDeployConfig } from './types.js';
 
-describe('TokenDeployer', async () => {
+describe.only('TokenDeployer', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
   const GAS = 65_000;
+  const chain = Chains.test1;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
   let signer: SignerWithAddress;
@@ -91,21 +88,18 @@ describe('TokenDeployer', async () => {
   });
 
   describe('ERC20WarpRouterReader', async () => {
-    const chainName = Chains.test1;
-    // let config: WarpRouteDeployConfig;
     let mailbox: Mailbox;
-    // let warpRoute: any;
     let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
 
     before(async () => {
       mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
       evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
         multiProvider,
-        chainName,
+        chain,
       );
     });
 
-    it.only('should derive a token type from contract', async () => {
+    it('should derive a token type from contract', async () => {
       const typesToDerive: DerivedTokenType[] = [
         TokenType.collateral,
         // TokenType.collateralVault, @todo add collateralVault by deploying a vault instead of erc20
@@ -135,15 +129,16 @@ describe('TokenDeployer', async () => {
           );
           const derivedTokenType =
             await evmERC20WarpRouteReader.deriveTokenType(
-              warpRoute[chainName][type].address,
+              warpRoute[chain][type].address,
             );
           expect(derivedTokenType).to.equal(type);
         }),
       );
     });
-    it('should derive TokenRouterConfig from collateral correctly', async () => {
+
+    it('should derive config from collateral correctly', async () => {
       // Create config
-      config = {
+      const config = {
         [Chains.test1]: {
           type: TokenType.collateral,
           token: token.address,
@@ -157,10 +152,10 @@ describe('TokenDeployer', async () => {
       );
 
       // Derive config and check if each value matches
-      const derivedConfig: TokenRouterConfig = await deriveWarpConfig(
-        Chains.test1,
-        warpRoute[Chains.test1].collateral.address,
-      );
+      const derivedConfig =
+        (await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+          warpRoute[Chains.test1].collateral.address,
+        )) as CollateralConfig;
 
       for (const [key, value] of Object.entries(derivedConfig)) {
         const deployedValue = (config[Chains.test1] as any)[key];
@@ -175,27 +170,30 @@ describe('TokenDeployer', async () => {
   });
 
   describe('EvmERC20WarpRouteReader', async () => {
+    let config: TokenRouterConfig;
     let evmERC20WarpCrudModule: EvmERC20WarpCrudModule;
 
     let mailbox: Mailbox;
     before(async () => {
       mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
+
+      // Create config and WarpCrudModule
+      config = {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      };
       evmERC20WarpCrudModule = new EvmERC20WarpCrudModule(multiProvider, {
-        addresses: {},
-        chain: Chains.test1,
-        chainMetadataManager,
-        config: {},
+        addresses: {
+          [TokenType.collateral]: '0x',
+        },
+        chain,
+        config,
       });
     });
     describe('Create', async () => {
       it('should create with a config', async () => {
-        const config: TokenRouterConfig = {
-          type: TokenType.collateral,
-          token: token.address,
-          hook: await mailbox.defaultHook(),
-          ...baseConfig,
-        };
-
         await evmERC20WarpCrudModule.create(config);
 
         // Take a config, pass it into create, it should deploy

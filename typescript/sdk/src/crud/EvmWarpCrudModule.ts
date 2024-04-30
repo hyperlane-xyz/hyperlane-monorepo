@@ -24,22 +24,15 @@ export class EvmERC20WarpCrudModule extends CrudModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: Omit<
-      CrudModuleArgs<
-        ProtocolType.Ethereum,
-        TokenRouterConfig,
-        HyperlaneAddresses<HypERC20Factories>
-      >,
-      'provider'
+    args: CrudModuleArgs<
+      TokenRouterConfig,
+      HyperlaneAddresses<HypERC20Factories>
     >,
   ) {
-    super({
-      ...args,
-      provider: multiProvider.getProvider(args.chain),
-    });
+    super(args);
 
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
-    this.deployer = new HypERC20Deployer(this.multiProvider);
+    this.deployer = new HypERC20Deployer(multiProvider);
   }
 
   /**
