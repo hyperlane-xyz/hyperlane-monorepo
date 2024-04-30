@@ -55,6 +55,7 @@ describe.only('TokenDeployer', async () => {
     const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     routerConfigMap = coreApp.getRouterConfig(signer.address);
+    routerConfigMap = coreApp.getRouterConfig(signer.address);
     config = objMap(
       routerConfigMap,
       (chain, c): HypERC20Config => ({
