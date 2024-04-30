@@ -2,10 +2,16 @@ import { ethers, providers } from 'ethers';
 
 import {
   ERC20__factory,
+  HypERC20CollateralVaultDeposit__factory,
   HypERC20Collateral__factory,
+  HypERC20__factory,
 } from '@hyperlane-xyz/core';
-import { ERC20Metadata, TokenRouterConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import {
+  ERC20Metadata,
+  TokenRouterConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { EvmHookReader } from '../hook/read.js';
@@ -18,9 +24,17 @@ type WarpRouteBaseMetadata = Record<
   string
 >;
 
-type DerivedERC20WarpRouteConfig = Omit<TokenRouterConfig, 'type' | 'gas'>;
+/**
+ * @remark
+ * We only expect to support deriving a subset of these types, for now.
+ */
+export type DerivedTokenType = Extract<
+  TokenType,
+  'collateral' | 'collateralVault' | 'native' | 'synthetic'
+>;
 
 export class EvmERC20WarpRouteReader {
+  protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
   provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
@@ -42,17 +56,19 @@ export class EvmERC20WarpRouteReader {
    * @returns The configuration for the Hyperlane ERC20 router.
    *
    */
-  async deriveWarpRouteConfig(
-    address: Address,
-  ): Promise<DerivedERC20WarpRouteConfig> {
+  async deriveWarpRouteConfig(address: Address): Promise<TokenRouterConfig> {
     const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
     const fetchedTokenMetadata = await this.fetchTokenMetadata(
       fetchedBaseMetadata.token,
     );
 
-    const results: DerivedERC20WarpRouteConfig = {
+    // Derive the config type
+    const type = await this.deriveTokenType(address);
+
+    const results: TokenRouterConfig = {
       ...fetchedBaseMetadata,
       ...fetchedTokenMetadata,
+      type,
     };
 
     if (
@@ -72,6 +88,47 @@ export class EvmERC20WarpRouteReader {
     // }
 
     return results;
+  }
+
+  /**
+   * Derives the token type for a given Warp Route address using specific methods
+   *
+   * @param address - The Warp Route address to derive the token type for.
+   * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
+   */
+  async deriveTokenType(address: Address): Promise<DerivedTokenType> {
+    const contractTypes: Record<
+      Exclude<DerivedTokenType, 'native'>,
+      { factory: any; method: string }
+    > = {
+      collateral: {
+        factory: HypERC20Collateral__factory,
+        method: 'wrappedToken',
+      },
+      collateralVault: {
+        factory: HypERC20CollateralVaultDeposit__factory,
+        method: 'vault',
+      },
+      synthetic: {
+        factory: HypERC20__factory,
+        method: 'decimals',
+      },
+    };
+
+    for (const [type, { factory, method }] of Object.entries(contractTypes)) {
+      try {
+        const warpRoute = factory.connect(address, this.provider);
+        await warpRoute[method]();
+        return type as DerivedTokenType;
+      } catch (e) {
+        this.logger.debug(
+          `Error accessing token specific property, implying this is not a ${type} token. Defaulting to ${TokenType.native}.`,
+          address,
+        );
+      }
+    }
+
+    return TokenType.native;
   }
 
   /**
@@ -116,7 +173,7 @@ export class EvmERC20WarpRouteReader {
     const [name, symbol, totalSupply, decimals] = await Promise.all([
       erc20.name(),
       erc20.symbol(),
-      erc20.totalSupply(),
+      erc20.totalSupply().toString(),
       erc20.decimals(),
     ]);
 
