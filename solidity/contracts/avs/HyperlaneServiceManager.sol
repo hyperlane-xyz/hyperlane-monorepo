@@ -13,6 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/EnumerableMapEnrollment.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
@@ -21,7 +23,7 @@ import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
 // ============ External Imports ============
 import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
 import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer/ecdsa/ECDSAStakeRegistry.sol";
+import {ECDSAStakeRegistry} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistry.sol";
 
 contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Libraries ============
@@ -114,34 +116,36 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     }
 
     /**
-     * @notice Queues an operator for unenrollment from a list of challengers
+     * @notice starts an operator for unenrollment from a list of challengers
      * @param _challengers The list of challengers to unenroll from
      */
-    function queueUnenrollmentFromChallengers(
+    function startUnenrollment(
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
             IRemoteChallenger challenger = _challengers[i];
+
             (bool exists, Enrollment memory enrollment) = enrolledChallengers[
                 msg.sender
             ].tryGet(address(challenger));
-            if (exists && enrollment.status == EnrollmentStatus.ENROLLED) {
-                require(
-                    enrolledChallengers[msg.sender].set(
-                        address(challenger),
-                        Enrollment(
-                            EnrollmentStatus.PENDING_UNENROLLMENT,
-                            uint248(block.number)
-                        )
-                    )
-                );
-                emit OperatorQueuedUnenrollmentFromChallenger(
-                    msg.sender,
-                    challenger,
-                    block.number,
-                    challenger.challengeDelayBlocks()
-                );
-            }
+            require(
+                exists && enrollment.status == EnrollmentStatus.ENROLLED,
+                "HyperlaneServiceManager: challenger isn't enrolled"
+            );
+
+            enrolledChallengers[msg.sender].set(
+                address(challenger),
+                Enrollment(
+                    EnrollmentStatus.PENDING_UNENROLLMENT,
+                    uint248(block.number)
+                )
+            );
+            emit OperatorQueuedUnenrollmentFromChallenger(
+                msg.sender,
+                challenger,
+                block.number,
+                challenger.challengeDelayBlocks()
+            );
         }
     }
 
@@ -150,7 +154,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
      * @param operator The address of the operator
      * @param _challengers The list of challengers to unenroll from
      */
-    function completeQueuedUnenrollmentFromChallengers(
+    function completeUnenrollment(
         address operator,
         IRemoteChallenger[] memory _challengers
     ) public onlyStakeRegistryOrOperator(operator) {
@@ -162,7 +166,8 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
 
             require(
                 exists &&
-                    enrollment.status != EnrollmentStatus.ENROLLED &&
+                    enrollment.status ==
+                    EnrollmentStatus.PENDING_UNENROLLMENT &&
                     block.number >=
                     enrollment.unenrollmentStartBlock +
                         challenger.challengeDelayBlocks(),
@@ -185,11 +190,10 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
      * @param _operator The address of the operator
      * @param _challenger specified IRemoteChallenger contract
      */
-    function getEnrolledChallenger(
+    function getChallengerEnrollment(
         address _operator,
         IRemoteChallenger _challenger
     ) external view returns (Enrollment memory enrollment) {
-        address[] memory keys = enrolledChallengers[_operator].keys();
         return enrolledChallengers[_operator].get(address(_challenger));
     }
 
@@ -234,7 +238,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         IRemoteChallenger[] memory challengers = getOperatorChallengers(
             operator
         );
-        completeQueuedUnenrollmentFromChallengers(operator, challengers);
+        completeUnenrollment(operator, challengers);
 
         elAvsDirectory.deregisterOperatorFromAVS(operator);
         emit OperatorDeregisteredFromAVS(operator);

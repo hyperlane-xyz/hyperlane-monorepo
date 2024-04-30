@@ -9,8 +9,8 @@ import {IStrategy} from "@eigenlayer/interfaces/IStrategy.sol";
 import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
 
 import {MockAVSDeployer} from "eigenlayer-middleware/test/utils/MockAVSDeployer.sol";
-import {Quorum, StrategyParams} from "@eigenlayer/ecdsa/ECDSAStakeRegistryStorage.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer/ecdsa/ECDSAStakeRegistry.sol";
+import {Quorum, StrategyParams} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistryStorage.sol";
+import {ECDSAStakeRegistry} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistry.sol";
 
 import {Enrollment, EnrollmentStatus} from "../../contracts/libs/EnumerableMapEnrollment.sol";
 import {IRemoteChallenger} from "../../contracts/interfaces/avs/IRemoteChallenger.sol";
@@ -178,36 +178,40 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
     }
 
     /// forge-config: default.fuzz.runs = 10
-    function testFuzz_queueUnenrollmentFromChallengers_all(
-        uint8 numOfChallengers
-    ) public {
+    function testFuzz_startUnenrollment_revert(uint8 numOfChallengers) public {
+        vm.assume(numOfChallengers > 0);
+
         _registerOperator();
         IRemoteChallenger[] memory challengers = _deployChallengers(
             numOfChallengers
         );
 
         vm.startPrank(operator);
-        hsm.enrollIntoChallengers(challengers);
-        _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
 
-        hsm.queueUnenrollmentFromChallengers(challengers);
+        vm.expectRevert("HyperlaneServiceManager: challenger isn't enrolled");
+        hsm.startUnenrollment(challengers);
+
+        hsm.enrollIntoChallengers(challengers);
+        hsm.startUnenrollment(challengers);
         _assertChallengers(
             challengers,
             EnrollmentStatus.PENDING_UNENROLLMENT,
             block.number
         );
 
-        vm.roll(block.number + challengeDelayBlocks);
+        vm.expectRevert("HyperlaneServiceManager: challenger isn't enrolled");
+        hsm.startUnenrollment(challengers);
+        _assertChallengers(
+            challengers,
+            EnrollmentStatus.PENDING_UNENROLLMENT,
+            block.number
+        );
 
-        hsm.completeQueuedUnenrollmentFromChallengers(operator, challengers);
-
-        // get all operator key length assert
-        assertEq(hsm.getOperatorChallengers(operator).length, 0);
         vm.stopPrank();
     }
 
     /// forge-config: default.fuzz.runs = 10
-    function testFuzz_queueUnenrollmentFromChallengers(
+    function testFuzz_startUnenrollment(
         uint8 numOfChallengers,
         uint8 numQueued
     ) public {
@@ -235,7 +239,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         hsm.enrollIntoChallengers(challengers);
         _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
 
-        hsm.queueUnenrollmentFromChallengers(queuedChallengers);
+        hsm.startUnenrollment(queuedChallengers);
         _assertChallengers(
             queuedChallengers,
             EnrollmentStatus.PENDING_UNENROLLMENT,
@@ -259,7 +263,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
 
         vm.startPrank(operator);
         hsm.enrollIntoChallengers(challengers);
-        hsm.queueUnenrollmentFromChallengers(challengers);
+        hsm.startUnenrollment(challengers);
         vm.stopPrank();
 
         vm.roll(block.number + challengeDelayBlocks);
@@ -267,10 +271,10 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         vm.expectRevert(
             "ECDSAServiceManagerBase: caller is not the stake registry or operator"
         );
-        hsm.completeQueuedUnenrollmentFromChallengers(operator, challengers);
+        hsm.completeUnenrollment(operator, challengers);
 
         vm.prank(address(ecdsaStakeRegistry));
-        hsm.completeQueuedUnenrollmentFromChallengers(operator, challengers);
+        hsm.completeUnenrollment(operator, challengers);
 
         assertEq(hsm.getOperatorChallengers(operator).length, 0);
     }
@@ -296,7 +300,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
 
         vm.startPrank(operator);
         hsm.enrollIntoChallengers(challengers);
-        hsm.queueUnenrollmentFromChallengers(challengers);
+        hsm.startUnenrollment(challengers);
 
         _assertChallengers(
             challengers,
@@ -305,17 +309,11 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         vm.expectRevert();
-        hsm.completeQueuedUnenrollmentFromChallengers(
-            operator,
-            unenrollableChallengers
-        );
+        hsm.completeUnenrollment(operator, unenrollableChallengers);
 
         vm.roll(block.number + challengeDelayBlocks);
 
-        hsm.completeQueuedUnenrollmentFromChallengers(
-            operator,
-            unenrollableChallengers
-        );
+        hsm.completeUnenrollment(operator, unenrollableChallengers);
 
         assertEq(
             hsm.getOperatorChallengers(operator).length,
@@ -382,12 +380,9 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             challengers[i].handleChallenge(operator);
         }
 
-        hsm.queueUnenrollmentFromChallengers(challengers);
+        hsm.startUnenrollment(challengers);
         vm.roll(block.number + challengeDelayBlocks);
-        hsm.completeQueuedUnenrollmentFromChallengers(
-            operator,
-            unenrollableChallengers
-        );
+        hsm.completeUnenrollment(operator, unenrollableChallengers);
 
         for (uint256 i = 0; i < unenrollableChallengers.length; i++) {
             vm.expectRevert(
@@ -422,14 +417,14 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         vm.expectRevert("HyperlaneServiceManager: Invalid unenrollment");
         ecdsaStakeRegistry.deregisterOperator();
 
-        hsm.queueUnenrollmentFromChallengers(challengers);
+        hsm.startUnenrollment(challengers);
 
         vm.expectRevert("HyperlaneServiceManager: Invalid unenrollment");
         ecdsaStakeRegistry.deregisterOperator();
 
         vm.roll(block.number + challengeDelayBlocks);
 
-        // hsm.completeQueuedUnenrollmentFromChallengers(operator, challengers); // this works
+        // hsm.completeUnenrollment(operator, challengers); // this works
         // // TODO: just this doesn't work -> ecdsaStakeRegistry.deregisterOperator();
         ecdsaStakeRegistry.deregisterOperator();
 
@@ -470,7 +465,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         uint256 _expectUnenrollmentBlock
     ) internal {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            Enrollment memory enrollment = hsm.getEnrolledChallenger(
+            Enrollment memory enrollment = hsm.getChallengerEnrollment(
                 operator,
                 _challengers[i]
             );

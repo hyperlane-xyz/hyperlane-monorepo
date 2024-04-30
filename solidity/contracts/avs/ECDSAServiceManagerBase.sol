@@ -19,8 +19,8 @@ import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 import {ISignatureUtils} from "@eigenlayer/interfaces/ISignatureUtils.sol";
 import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
 import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer/ecdsa/ECDSAStakeRegistry.sol";
-import {IServiceManager} from "@eigenlayer/middleware/interfaces/IServiceManager.sol";
+import {ECDSAStakeRegistry} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistry.sol";
+import {IServiceManager} from "@eigenlayer-middleware/interfaces/IServiceManager.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
@@ -63,7 +63,7 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
     }
 
     /// @notice when applied to a function, only allows the ECDSAStakeRegistry or the operator to call it
-    /// for completeQueuedUnenrollmentFromChallengers access control
+    /// for completeUnenrollment access control
     modifier onlyStakeRegistryOrOperator(address operator) {
         require(
             msg.sender == address(stakeRegistry) || msg.sender == operator,
