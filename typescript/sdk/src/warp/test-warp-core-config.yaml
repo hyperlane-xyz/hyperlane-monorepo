@@ -3,7 +3,7 @@
 ---
 tokens:
   # test1 HypNative token
-  - chainName: test1 
+  - chainName: test1
     standard: EvmHypNative
     decimals: 18
     symbol: ETH
@@ -11,8 +11,12 @@ tokens:
     addressOrDenom: '0x1234567890123456789012345678901234567890'
     connections:
       - { token: ethereum|test2|0x9876543210987654321098765432109876543210 }
-      - { token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab }
-      - { token: sealevel|testsealevel|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678 }
+      - {
+          token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab,
+        }
+      - {
+          token: sealevel|testsealevel|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678,
+        }
   # test2 HypSynthetic token
   - chainName: test2
     standard: EvmHypSynthetic
@@ -22,7 +26,9 @@ tokens:
     addressOrDenom: '0x9876543210987654321098765432109876543210'
     connections:
       - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
-      - { token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab }
+      - {
+          token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab,
+        }
   # testsealevel HypSynthetic
   - chainName: testsealevel
     standard: SealevelHypSynthetic

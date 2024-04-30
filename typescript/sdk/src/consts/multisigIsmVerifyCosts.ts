@@ -1,3 +1,4 @@
+/* eslint-disable sort-keys */
 export const multisigIsmVerifyCosts = {
   '1': {
     '1': 151966,
