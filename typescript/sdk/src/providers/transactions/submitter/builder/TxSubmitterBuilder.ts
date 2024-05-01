@@ -3,12 +3,14 @@ import { Logger } from 'pino';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { ChainName } from '../../../../types.js';
 import {
   ProtocolTypedReceipt,
   ProtocolTypedTransaction,
 } from '../../../ProviderType.js';
 import { TxTransformerInterface } from '../../transformer/TxTransformerInterface.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
+import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 /**
  * Builds a TxSubmitterBuilder for batch transaction submission.
@@ -29,15 +31,23 @@ import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
  *    new EV5JsonRpcTxSubmitter(chainC)
  *  ).submit(txs);
  */
-export class TxSubmitterBuilder<TProtocol extends ProtocolType> {
+export class TxSubmitterBuilder<TProtocol extends ProtocolType>
+  implements TxSubmitterInterface<TProtocol>
+{
+  public readonly txSubmitterType: TxSubmitterType;
+  public readonly chain: ChainName;
+
   protected readonly logger: Logger = rootLogger.child({
     module: 'submitter-builder',
   });
 
   constructor(
     private currentSubmitter: TxSubmitterInterface<TProtocol>,
-    private readonly currentTransformers: TxTransformerInterface<TProtocol>[] = [],
-  ) {}
+    private currentTransformers: TxTransformerInterface<TProtocol>[] = [],
+  ) {
+    this.txSubmitterType = this.currentSubmitter.txSubmitterType;
+    this.chain = this.currentSubmitter.chain;
+  }
 
   /**
    * Sets the current submitter for the builder.
@@ -55,9 +65,9 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType> {
    * @param txTransformerOrType The transformer to add to the builder
    */
   public transform(
-    txTransformer: TxTransformerInterface<TProtocol>,
+    ...txTransformers: TxTransformerInterface<TProtocol>[]
   ): TxSubmitterBuilder<TProtocol> {
-    this.currentTransformers.push(txTransformer);
+    this.currentTransformers = txTransformers;
     return this;
   }
 
@@ -73,9 +83,7 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType> {
     );
 
     let transformedTxs = txs;
-    while (this.currentTransformers.length > 0) {
-      const currentTransformer: TxTransformerInterface<TProtocol> =
-        this.currentTransformers.pop()!;
+    for (const currentTransformer of this.currentTransformers) {
       transformedTxs = await currentTransformer.transform(...transformedTxs);
       this.logger.info(
         `🔄 Transformed ${transformedTxs.length} transactions with the ${currentTransformer.txTransformerType} transformer...`,

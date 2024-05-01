@@ -13,14 +13,12 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 import { ChainName } from '../../../../types.js';
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { EV5Tx } from '../../TransactionTypes.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
 
 interface EV5GnosisSafeTxSubmitterProps {
   safeAddress: Address;
-  signerAddress?: Address;
 }
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
@@ -37,7 +35,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     public readonly props: EV5GnosisSafeTxSubmitterProps,
   ) {}
 
-  public async submit(...txs: EV5Tx[]): Promise<void> {
+  public async submit(...txs: PopulatedTransaction[]): Promise<void> {
     const safe: Safe.default = await getSafe(
       this.chain,
       this.multiProvider,
@@ -65,10 +63,9 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     });
     const safeTransactionData: SafeTransactionData = safeTransaction.data;
     const safeTxHash: string = await safe.getTransactionHash(safeTransaction);
-    let senderAddress: Address | undefined = this.props.signerAddress;
-    if (!senderAddress) {
-      senderAddress = await this.multiProvider.getSignerAddress(this.chain);
-    }
+    const senderAddress: Address = await this.multiProvider.getSignerAddress(
+      this.chain,
+    );
     const safeSignature: EthSafeSignature = await safe.signTransactionHash(
       safeTxHash,
     );
