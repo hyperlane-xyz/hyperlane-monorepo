@@ -1,4 +1,4 @@
-use std::cmp::Reverse;
+use std::ops::Mul;
 use std::time::Duration;
 
 use derive_new::new;
@@ -111,7 +111,7 @@ impl SerialSubmitter {
 
         // This is channel acts as a buffer to avoid holding too many prepared messages in memory.
         // Use double the max batch size to increase chances of having full batches
-        let (tx_submit, rx_submit) = mpsc::channel((max_batch_size * 2) as usize);
+        let (tx_submit, rx_submit) = mpsc::channel((max_batch_size.mul(20)) as usize);
 
         let tasks = [
             spawn(receive_task(
