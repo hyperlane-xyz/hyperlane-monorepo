@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
 import { CallData, rootLogger } from '@hyperlane-xyz/utils';
@@ -8,18 +9,19 @@ import { InterchainAccount } from '../../../../middleware/account/InterchainAcco
 import { AccountConfig } from '../../../../middleware/account/types.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { EthersV5Transaction, ProviderType } from '../../../ProviderType.js';
-import { TxTransformerInterface } from '../TxTransformerInterface.js';
+import { EV5Tx } from '../../TransactionTypes.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
-interface InterchainAccountTxTransformerProps {
+import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
+
+interface EV5InterchainAccountTxTransformerProps {
   interchainAccount: InterchainAccount;
   accountConfig: AccountConfig;
   hookMetadata?: string;
 }
 
-export class InterchainAccountTxTransformer
-  implements TxTransformerInterface<EthersV5Transaction>
+export class EV5InterchainAccountTxTransformer
+  implements EV5TxTransformerInterface
 {
   public readonly txTransformerType: TxTransformerType = TxTransformerType.ICA;
   protected readonly logger: Logger = rootLogger.child({
@@ -29,21 +31,18 @@ export class InterchainAccountTxTransformer
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainName,
-    public readonly props: InterchainAccountTxTransformerProps,
+    public readonly props: EV5InterchainAccountTxTransformerProps,
   ) {}
 
-  public async transform(
-    ...txs: EthersV5Transaction[]
-  ): Promise<EthersV5Transaction[]> {
-    const destinationChainId = txs[0].transaction.chainId;
+  public async transform(...txs: EV5Tx[]): Promise<EV5Tx[]> {
+    const destinationChainId = txs[0].chainId;
     assert(
       destinationChainId,
       'Missing destination chainId in EthersV5Transaction.',
     );
 
     const innerCalls: CallData[] = txs.map(
-      ({ transaction }: EthersV5Transaction) => {
-        const { to, data, value } = transaction;
+      ({ to, data, value }: PopulatedTransaction) => {
         assert(
           to && data,
           'Invalid EthersV5Transaction: Missing required field to or data.',
@@ -52,14 +51,14 @@ export class InterchainAccountTxTransformer
       },
     );
 
-    const transaction = await this.props.interchainAccount.getCallRemote(
-      this.chain,
-      chainIdToMetadata[destinationChainId].name,
-      innerCalls,
-      this.props.accountConfig,
-      this.props.hookMetadata,
-    );
-
-    return [{ type: ProviderType.EthersV5, transaction }];
+    return [
+      await this.props.interchainAccount.getCallRemote(
+        this.chain,
+        chainIdToMetadata[destinationChainId].name,
+        innerCalls,
+        this.props.accountConfig,
+        this.props.hookMetadata,
+      ),
+    ];
   }
 }

@@ -7,21 +7,17 @@ import { Address } from '@hyperlane-xyz/utils';
 import { ChainName } from '../../../../types.js';
 import { impersonateAccount } from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import {
-  EthersV5Transaction,
-  EthersV5TransactionReceipt,
-  ProviderType,
-} from '../../../ProviderType.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
+import { EV5Receipt, EV5Tx } from '../../TransactionTypes.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-interface ImpersonatedAccountTxSubmitterProps {
+import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
+
+interface EV5ImpersonatedAccountTxSubmitterProps {
   address: Address;
 }
 
-export class ImpersonatedAccountTxSubmitter
-  implements
-    TxSubmitterInterface<EthersV5Transaction, EthersV5TransactionReceipt>
+export class EV5ImpersonatedAccountTxSubmitter
+  implements EV5TxSubmitterInterface
 {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.IMPERSONATED_ACCOUNT;
@@ -33,26 +29,24 @@ export class ImpersonatedAccountTxSubmitter
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainName,
-    public readonly props: ImpersonatedAccountTxSubmitterProps,
+    public readonly props: EV5ImpersonatedAccountTxSubmitterProps,
   ) {}
 
-  public async submit(
-    ...txs: EthersV5Transaction[]
-  ): Promise<EthersV5TransactionReceipt[]> {
-    const receipts: EthersV5TransactionReceipt[] = [];
+  public async submit(...txs: EV5Tx[]): Promise<EV5Receipt[]> {
+    const receipts: EV5Receipt[] = [];
     for (const tx of txs) {
       const signer = await impersonateAccount(this.props.address);
       this.multiProvider.setSigner(this.chain, signer);
       const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
         this.chain,
-        tx.transaction,
+        tx,
       );
 
       this.logger.debug(
         `Submitted EthersV5Transaction on ${this.chain}: ${receipt.transactionHash}`,
       );
 
-      receipts.push({ type: ProviderType.EthersV5, receipt });
+      receipts.push(receipt);
     }
     return receipts;
   }

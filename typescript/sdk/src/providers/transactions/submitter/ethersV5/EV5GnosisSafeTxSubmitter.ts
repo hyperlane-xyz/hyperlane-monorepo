@@ -5,6 +5,7 @@ import {
   SafeTransactionData,
 } from '@safe-global/safe-core-sdk-types';
 import assert from 'assert';
+import { PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
@@ -12,22 +13,17 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 import { ChainName } from '../../../../types.js';
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import {
-  EthersV5Transaction,
-  EthersV5TransactionReceipt,
-} from '../../../ProviderType.js';
-import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
+import { EV5Tx } from '../../TransactionTypes.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-interface GnosisSafeTxSubmitterProps {
+import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
+
+interface EV5GnosisSafeTxSubmitterProps {
   safeAddress: Address;
   signerAddress?: Address;
 }
 
-export class GnosisSafeTxSubmitter
-  implements
-    TxSubmitterInterface<EthersV5Transaction, EthersV5TransactionReceipt>
-{
+export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_SAFE;
 
@@ -38,10 +34,10 @@ export class GnosisSafeTxSubmitter
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainName,
-    public readonly props: GnosisSafeTxSubmitterProps,
+    public readonly props: EV5GnosisSafeTxSubmitterProps,
   ) {}
 
-  public async submit(...txs: EthersV5Transaction[]): Promise<void> {
+  public async submit(...txs: EV5Tx[]): Promise<void> {
     const safe: Safe.default = await getSafe(
       this.chain,
       this.multiProvider,
@@ -55,11 +51,10 @@ export class GnosisSafeTxSubmitter
       this.props.safeAddress,
     );
     const safeTransactionBatch: MetaTransactionData[] = txs.map(
-      ({ transaction }: EthersV5Transaction) => {
-        const { to, data, value } = transaction;
+      ({ to, data, value }: PopulatedTransaction) => {
         assert(
           to && data,
-          'Invalid EthersV5Transaction: Missing required field to or data.',
+          'Invalid PopulatedTransaction: Missing required field to or data.',
         );
         return { to, data, value: value?.toString() ?? '0' };
       },
