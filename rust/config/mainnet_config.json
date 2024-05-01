@@ -50,7 +50,8 @@
       "storageGasOracle": "0x59Bf7c7b458375b1A7c453aE70EaCb376E65CDAF",
       "technicalStack": "other",
       "testRecipient": "0x2Fa570E83009eaEef3a1cbd496a9a30F05266634",
-      "validatorAnnounce": "0x931dFCc8c1141D6F532FD023bd87DAe0080c835d"
+      "validatorAnnounce": "0x931dFCc8c1141D6F532FD023bd87DAe0080c835d",
+      "batchContractAddress": "0x4C97D35c668EE5194a13c8DE8Afc18cce40C9F28"
     },
     "arbitrum": {
       "aggregationHook": "0xe0cb37cFc47296f1c4eD77EFf92Aed478644d10c",
