@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
+import { Mailbox } from '@hyperlane-xyz/core/mailbox';
 import {
   Address,
   AddressBytes32,
@@ -26,6 +27,7 @@ import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { CoreFactories, coreFactories } from './contracts.js';
+import { DispatchEvent } from './events.js';
 import { DispatchedMessage } from './types.js';
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
@@ -132,6 +134,18 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
+  async relay(filters: ChainMap<Parameters<Mailbox['filters']['Dispatch']>>) {
+    for (const chain in filters) {
+      const filter = filters[chain];
+      const mailbox = this.getContracts(chain).mailbox;
+      mailbox.on<DispatchEvent>(
+        mailbox.filters.Dispatch(...filter),
+        async (_sender, _destination, _recipient, message) =>
+          this.relayMessage(HyperlaneCore.parseDispatchedMessage(message)),
+      );
+    }
+  }
+
   protected waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
@@ -226,6 +240,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return event.getTransactionReceipt();
   }
 
+  static parseDispatchedMessage(message: string): DispatchedMessage {
+    const parsed = parseMessage(message);
+    const id = messageId(message);
+    return { id, message, parsed };
+  }
+
   static getDispatchedMessages(
     sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
@@ -242,11 +262,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         (log): log is ethers.utils.LogDescription =>
           !!log && log.name === 'Dispatch',
       );
-    return dispatchLogs.map((log) => {
-      const message = log.args['message'];
-      const parsed = parseMessage(message);
-      const id = messageId(message);
-      return { id, message, parsed };
-    });
+    return dispatchLogs.map((log) =>
+      this.parseDispatchedMessage(log.args['message']),
+    );
   }
 }
