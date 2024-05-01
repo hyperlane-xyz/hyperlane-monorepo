@@ -1,6 +1,7 @@
-import { AllChains, IsmType } from '@hyperlane-xyz/sdk';
+import { IsmType } from '@hyperlane-xyz/sdk';
 
 import { multisigIsms } from '../config/multisigIsm.js';
+import { getChains } from '../config/registry.js';
 
 import { getArgs, withContext } from './agent-utils.js';
 
@@ -10,7 +11,7 @@ import { getArgs, withContext } from './agent-utils.js';
 async function main() {
   const args = await withContext(getArgs())
     .describe('local', 'local chain')
-    .choices('local', AllChains)
+    .choices('local', getChains())
     .demandOption('local').argv;
 
   const config = multisigIsms(

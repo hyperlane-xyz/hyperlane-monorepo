@@ -7,7 +7,6 @@ import { format } from 'util';
 import {
   ChainMap,
   ChainName,
-  Chains,
   HyperlaneIgp,
   MultiProvider,
   RpcConsensusType,
@@ -15,6 +14,7 @@ import {
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { getEnvAddresses } from '../../config/registry.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
@@ -25,10 +25,7 @@ import {
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys.js';
-import {
-  DeployEnvironment,
-  deployEnvToSdkEnv,
-} from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
 import {
   ContextAndRoles,
   ContextAndRolesMap,
@@ -59,9 +56,7 @@ const nativeBridges = {
   },
 };
 
-type L2Chain = Chains.optimism | Chains.arbitrum | Chains.base;
-
-const L2Chains: ChainName[] = [Chains.optimism, Chains.arbitrum, Chains.base];
+const L2Chains: ChainName[] = ['optimism', 'arbitrum', 'base'];
 
 const L2ToL1: ChainMap<ChainName> = {
   optimism: 'ethereum',
@@ -278,8 +273,8 @@ class ContextFunder {
       },
     );
 
-    this.igp = HyperlaneIgp.fromEnvironment(
-      deployEnvToSdkEnv[this.environment],
+    this.igp = HyperlaneIgp.fromAddressesMap(
+      getEnvAddresses(this.environment),
       multiProvider,
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
@@ -526,7 +521,7 @@ class ContextFunder {
         desiredBalanceEther.mul(5),
       );
       if (bridgeAmount.gt(0)) {
-        await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);
+        await this.bridgeToL2(chain, funderAddress, bridgeAmount);
       }
     }
   }
@@ -654,7 +649,7 @@ class ContextFunder {
     });
   }
 
-  private async bridgeToL2(l2Chain: L2Chain, to: string, amount: BigNumber) {
+  private async bridgeToL2(l2Chain: ChainName, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
     logger.info('Bridging ETH to L2', {
       amount: ethers.utils.formatEther(amount),
@@ -683,7 +678,7 @@ class ContextFunder {
   }
 
   private async bridgeToOptimism(
-    l2Chain: L2Chain,
+    l2Chain: ChainName,
     amount: BigNumber,
     to: string,
   ) {
@@ -700,7 +695,7 @@ class ContextFunder {
     });
   }
 
-  private async bridgeToArbitrum(l2Chain: L2Chain, amount: BigNumber) {
+  private async bridgeToArbitrum(l2Chain: ChainName, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
     const l2Network = await getL2Network(
       this.multiProvider.getDomainId(l2Chain),
@@ -714,7 +709,7 @@ class ContextFunder {
   }
 
   private async bridgeToScroll(
-    l2Chain: L2Chain,
+    l2Chain: ChainName,
     amount: BigNumber,
     to: Address,
   ) {

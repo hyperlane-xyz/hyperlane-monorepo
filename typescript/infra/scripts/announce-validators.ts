@@ -3,11 +3,11 @@ import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
-import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
+import { getChains } from '../config/registry.js';
 import { S3Validator } from '../src/agents/aws/validator.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
-import { deployEnvToSdkEnv } from '../src/config/environment.js';
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
 import {
@@ -15,12 +15,12 @@ import {
   getArgs as getRootArgs,
   withContext,
 } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
+import { getHyperlaneCore } from './core-utils.js';
 
 function getArgs() {
   return withContext(getRootArgs())
     .describe('chain', 'chain on which to register')
-    .choices('chain', AllChains)
+    .choices('chain', getChains())
     .describe(
       'location',
       'location, e.g. s3://hyperlane-testnet4-sepolia-validator-0/us-east-1',
@@ -36,13 +36,7 @@ function getArgs() {
 
 async function main() {
   const { environment, context, chain, location } = await getArgs();
-  const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
-  // environments union doesn't work well with typescript
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
+  const { core, multiProvider } = await getHyperlaneCore(environment);
 
   const announcements: {
     storageLocation: string;

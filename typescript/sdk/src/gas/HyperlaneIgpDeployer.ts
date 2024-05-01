@@ -7,7 +7,6 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
 import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -50,9 +49,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
-      const remoteId =
-        chainMetadata[remote]?.domainId ??
-        this.multiProvider.getDomainId(remote);
+      const remoteId = this.multiProvider.getDomainId(remote);
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
@@ -104,9 +101,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
       // check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      const remoteDomain =
-        chainMetadata[remote]?.domainId ??
-        this.multiProvider.getDomainId(remote);
+      const remoteDomain = this.multiProvider.getDomainId(remote);
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
 

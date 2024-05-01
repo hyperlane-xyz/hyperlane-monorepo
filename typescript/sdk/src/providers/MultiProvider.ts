@@ -11,8 +11,7 @@ import { Logger } from 'pino';
 
 import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
-import { CoreChainName, TestChains } from '../consts/chains.js';
+import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
@@ -47,7 +46,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * or the SDK's default metadata if not provided
    */
   constructor(
-    chainMetadata?: ChainMap<ChainMetadata<MetaExt>>,
+    chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     readonly options: MultiProviderOptions = {},
   ) {
     super(chainMetadata, options);
@@ -88,7 +87,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     if (this.providers[name]) return this.providers[name];
 
-    if (TestChains.includes(name as CoreChainName)) {
+    if (testChains.includes(name)) {
       this.providers[name] = new providers.JsonRpcProvider(
         'http://127.0.0.1:8545',
         31337,
@@ -399,11 +398,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   static createTestMultiProvider(
     params: { signer?: Signer; provider?: Provider } = {},
-    chains: ChainName[] = TestChains,
+    chains: ChainName[] = testChains,
   ): MultiProvider {
     const { signer, provider } = params;
-    const chainMetadata = pick(defaultChainMetadata, chains);
-    const mp = new MultiProvider(chainMetadata);
+    const mp = new MultiProvider(testChainMetadata);
     if (signer) {
       mp.setSharedSigner(signer);
     }
