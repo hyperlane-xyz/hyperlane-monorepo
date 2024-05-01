@@ -1,13 +1,12 @@
 import { CommandModule } from 'yargs';
 
+import { CommandModuleWithContext } from '../context/types.js';
 import { readIsmConfig } from '../ism/read.js';
 import { log } from '../logger.js';
 
 import {
   addressCommandOption,
   chainCommandOption,
-  chainsCommandOption,
-  fileFormatOption,
   outputFileOption,
 } from './options.js';
 
@@ -28,31 +27,26 @@ export const ismCommand: CommandModule = {
 //     hyperlane ism read --chain inevm --address 0x79A7c7Fe443971CBc6baD623Fdf8019C379a7178
 // Test ISM on alfajores testnet
 //     hyperlane ism read --chain alfajores --address 0xdB52E4853b6A40D2972E6797E0BDBDb3eB761966
-export const read: CommandModule = {
+export const read: CommandModuleWithContext<{
+  chain: string;
+  address: string;
+  out: string;
+}> = {
   command: 'read',
   describe: 'Reads onchain ISM configuration for a given address',
-  builder: (yargs) =>
-    yargs.options({
-      chains: chainsCommandOption,
-      chain: {
-        ...chainCommandOption,
-        demandOption: true,
-      },
-      address: addressCommandOption(
-        'Address of the Interchain Security Module to read.',
-        true,
-      ),
-      format: fileFormatOption,
-      output: outputFileOption(),
-    }),
-  handler: async (argv: any) => {
-    await readIsmConfig({
-      chain: argv.chain,
-      address: argv.address,
-      chainConfigPath: argv.chains,
-      format: argv.format,
-      output: argv.output,
-    });
+  builder: {
+    chain: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    address: addressCommandOption(
+      'Address of the Interchain Security Module to read.',
+      true,
+    ),
+    out: outputFileOption(),
+  },
+  handler: async (argv) => {
+    await readIsmConfig(argv);
     process.exit(0);
   },
 };

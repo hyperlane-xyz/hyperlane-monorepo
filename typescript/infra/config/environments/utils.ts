@@ -1,4 +1,4 @@
-import { CoreChainName } from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import {
   CheckpointSyncerType,
@@ -16,7 +16,7 @@ export const s3BucketRegion = 'us-east-1';
 export const s3BucketName = (
   context: Contexts,
   environment: string,
-  chainName: CoreChainName,
+  chainName: ChainName,
   index: number,
 ) => `${context}-${environment}-${chainName}-validator-${index}`;
 
@@ -35,7 +35,7 @@ export const validatorBaseConfigsFn = (
   context: Contexts,
 ): ((
   addresses: Record<Contexts, string[]>,
-  chain: CoreChainName,
+  chain: ChainName,
 ) => ValidatorBaseConfig[]) => {
   return (addresses, chain) => {
     return addresses[context].map((address, index) => {

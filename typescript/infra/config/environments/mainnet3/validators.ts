@@ -1,7 +1,6 @@
-import { chainMetadata, getReorgPeriod } from '@hyperlane-xyz/sdk';
-
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
+import { getReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
@@ -13,7 +12,7 @@ export const validatorChainConfig = (
   return {
     ancient8: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.ancient8),
+      reorgPeriod: getReorgPeriod('ancient8'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xbb5842ae0e05215b53df4787a29144efb7e67551'],
@@ -27,7 +26,7 @@ export const validatorChainConfig = (
     },
     celo: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.celo),
+      reorgPeriod: getReorgPeriod('celo'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -47,7 +46,7 @@ export const validatorChainConfig = (
     },
     ethereum: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.ethereum),
+      reorgPeriod: getReorgPeriod('ethereum'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -67,7 +66,7 @@ export const validatorChainConfig = (
     },
     avalanche: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.avalanche),
+      reorgPeriod: getReorgPeriod('avalanche'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -87,7 +86,7 @@ export const validatorChainConfig = (
     },
     polygon: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.polygon),
+      reorgPeriod: getReorgPeriod('polygon'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -107,7 +106,7 @@ export const validatorChainConfig = (
     },
     bsc: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.bsc),
+      reorgPeriod: getReorgPeriod('bsc'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -127,7 +126,7 @@ export const validatorChainConfig = (
     },
     arbitrum: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.arbitrum),
+      reorgPeriod: getReorgPeriod('arbitrum'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -147,7 +146,7 @@ export const validatorChainConfig = (
     },
     optimism: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.optimism),
+      reorgPeriod: getReorgPeriod('optimism'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -167,7 +166,7 @@ export const validatorChainConfig = (
     },
     moonbeam: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.moonbeam),
+      reorgPeriod: getReorgPeriod('moonbeam'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -187,7 +186,7 @@ export const validatorChainConfig = (
     },
     gnosis: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.gnosis),
+      reorgPeriod: getReorgPeriod('gnosis'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -207,7 +206,7 @@ export const validatorChainConfig = (
     },
     base: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.base),
+      reorgPeriod: getReorgPeriod('base'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -227,7 +226,7 @@ export const validatorChainConfig = (
     },
     injective: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.injective),
+      reorgPeriod: getReorgPeriod('injective'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xbfb8911b72cfb138c7ce517c57d9c691535dc517'],
@@ -239,7 +238,7 @@ export const validatorChainConfig = (
     },
     inevm: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.inevm),
+      reorgPeriod: getReorgPeriod('inevm'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -259,7 +258,7 @@ export const validatorChainConfig = (
     },
     scroll: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.scroll),
+      reorgPeriod: getReorgPeriod('scroll'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -279,7 +278,7 @@ export const validatorChainConfig = (
     },
     polygonzkevm: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.polygonzkevm),
+      reorgPeriod: getReorgPeriod('polygonzkevm'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -299,7 +298,7 @@ export const validatorChainConfig = (
     },
     neutron: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.neutron),
+      reorgPeriod: getReorgPeriod('neutron'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -319,7 +318,7 @@ export const validatorChainConfig = (
     },
     mantapacific: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.mantapacific),
+      reorgPeriod: getReorgPeriod('mantapacific'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -339,7 +338,7 @@ export const validatorChainConfig = (
     },
     viction: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.viction),
+      reorgPeriod: getReorgPeriod('viction'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0x1f87c368f8e05a85ef9126d984a980a20930cb9c'],
@@ -355,7 +354,7 @@ export const validatorChainConfig = (
     },
     blast: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.blast),
+      reorgPeriod: getReorgPeriod('blast'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xf20c0b09f597597c8d2430d3d72dfddaf09177d1'],
@@ -369,7 +368,7 @@ export const validatorChainConfig = (
     },
     mode: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.mode),
+      reorgPeriod: getReorgPeriod('mode'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7'],

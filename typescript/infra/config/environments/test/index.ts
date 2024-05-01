@@ -1,11 +1,10 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { MultiProvider, testChainMetadata } from '@hyperlane-xyz/sdk';
 
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 
 import { agents } from './agent.js';
-import { testConfigs } from './chains.js';
 import { core } from './core.js';
 import { igp } from './igp.js';
 import { infra } from './infra.js';
@@ -13,7 +12,7 @@ import { owners } from './owners.js';
 
 export const environment: EnvironmentConfig = {
   environment: 'test',
-  chainMetadataConfigs: testConfigs,
+  chainMetadataConfigs: testChainMetadata,
   agents,
   core,
   igp,

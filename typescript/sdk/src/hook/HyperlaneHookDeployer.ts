@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, addressToBytes32, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -294,8 +293,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
     for (const [dest, hookConfig] of Object.entries(config.domains)) {
-      const destDomain =
-        chainMetadata[dest]?.domainId ?? this.multiProvider.getDomainId(dest);
+      const destDomain = this.multiProvider.getDomainId(dest);
       if (typeof hookConfig === 'string') {
         routingConfigs.push({
           destination: destDomain,

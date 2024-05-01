@@ -7,7 +7,7 @@ import {
   ERC20Test__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import { Chains, RouterConfig } from '@hyperlane-xyz/sdk';
+import { RouterConfig, TestChainName } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
@@ -90,12 +90,12 @@ describe('TokenDeployer', async () => {
       ).deriveWarpRouteConfig(address);
     }
     it('should derive ERC20RouterConfig from collateral correctly', async () => {
-      const baseConfig = routerConfigMap[Chains.test1];
+      const baseConfig = routerConfigMap[TestChainName.test1];
       const mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
 
       // Create config
       const config: { [key: string]: any } = {
-        [Chains.test1]: {
+        [TestChainName.test1]: {
           type: TokenType.collateral,
           token: token.address,
           hook: await mailbox.defaultHook(),
@@ -111,12 +111,12 @@ describe('TokenDeployer', async () => {
       // Derive config and check if each value matches
       const derivedConfig: Partial<HypERC20CollateralConfig> =
         await deriveWarpConfig(
-          Chains.test1,
-          warpRoute[Chains.test1].collateral.address,
+          TestChainName.test1,
+          warpRoute[TestChainName.test1].collateral.address,
         );
 
       for (const [key, value] of Object.entries(derivedConfig)) {
-        const deployedValue = config[Chains.test1][key];
+        const deployedValue = config[TestChainName.test1][key];
         if (deployedValue) expect(deployedValue).to.equal(value);
       }
 

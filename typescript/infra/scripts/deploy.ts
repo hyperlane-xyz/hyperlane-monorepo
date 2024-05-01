@@ -9,7 +9,6 @@ import {
   ExplorerLicenseType,
   FallbackRoutingHookConfig,
   HypERC20Deployer,
-  HyperlaneCore,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -21,15 +20,14 @@ import {
   InterchainQueryDeployer,
   LiquidityLayerDeployer,
   TestRecipientDeployer,
-  hyperlaneEnvironments,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
+import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
-import { deployEnvToSdkEnv } from '../src/config/environment.js';
 import { deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
@@ -41,7 +39,6 @@ import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
 import {
   Modules,
   getAddresses,
-  getAddressesPath,
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
@@ -49,7 +46,7 @@ import {
   withModuleAndFork,
   withNetwork,
 } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 async function main() {
   const {
@@ -63,7 +60,6 @@ async function main() {
     withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
-  const env = deployEnvToSdkEnv[environment];
 
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -133,17 +129,17 @@ async function main() {
     config = envConfig.igp;
     deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
     const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
     InterchainAccount.fromAddressesMap(addresses, multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new InterchainQueryDeployer(multiProvider, contractVerifier);
   } else if (module === Modules.LIQUIDITY_LAYER) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const { core } = await getHyperlaneCore(environment, multiProvider);
     const routerConfig = core.getRouterConfig(envConfig.owners);
     if (!envConfig.liquidityLayerConfig) {
       throw new Error(`No liquidity layer config for ${environment}`);
@@ -178,7 +174,7 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(multiProvider, contractVerifier);
   } else if (module === Modules.HELLO_WORLD) {
-    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
     deployer = new HelloWorldDeployer(
       multiProvider,
@@ -192,7 +188,7 @@ async function main() {
     );
     deployer = new HyperlaneHookDeployer(
       multiProvider,
-      hyperlaneEnvironments[env],
+      getEnvAddresses(environment),
       ismFactory,
     );
     // Config is intended to be changed for ad-hoc use cases:
@@ -212,20 +208,19 @@ async function main() {
 
   console.log(`Deploying to ${modulePath}`);
 
-  const addresses = getAddressesPath(environment, module);
   const verification = path.join(modulePath, 'verification.json');
 
   const cache = {
-    addresses,
     verification,
     read: environment !== 'test',
     write: !fork,
+    environment,
+    module,
   };
   // Don't write agent config in fork tests
   const agentConfig =
     module === Modules.CORE && !fork
       ? {
-          addresses,
           environment,
           multiProvider,
         }
