@@ -128,6 +128,18 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const destinationChain = this.getDestination(message);
     const mailbox = this.contractsMap[destinationChain].mailbox;
 
+    const isDelivered = await mailbox.delivered(message.id);
+    if (isDelivered) {
+      const processedBlock = await mailbox.processedAt(message.id);
+      const events = await mailbox.queryFilter(
+        mailbox.filters.ProcessId(message.id),
+        processedBlock,
+        processedBlock,
+      );
+      const processedEvent = events[0];
+      return processedEvent.getTransactionReceipt();
+    }
+
     return this.multiProvider.handleTx(
       destinationChain,
       mailbox.process(metadata, message.message),
