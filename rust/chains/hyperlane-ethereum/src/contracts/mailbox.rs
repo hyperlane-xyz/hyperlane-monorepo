@@ -404,7 +404,7 @@ where
         let call = self
             .add_gas_overrides(
                 batch_call,
-                GAS_ESTIMATE_BUFFER.checked_mul(50).map(Into::into),
+                GAS_ESTIMATE_BUFFER.checked_mul(150).map(Into::into),
             )
             .await?;
 
