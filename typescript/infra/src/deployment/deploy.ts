@@ -18,7 +18,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { getChainAddresses } from '../../config/registry.js';
 import {
   Modules,
   getAddresses,
@@ -122,11 +121,12 @@ export async function writeAgentConfig(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
-  const addresses = getChainAddresses();
+  const addresses = getAddresses(environment, Modules.CORE);
   const addressesForEnv = objFilter(
     addresses,
     (chain, _): _ is ChainAddresses => multiProvider.hasChain(chain),
   );
+
   const core = HyperlaneCore.fromAddressesMap(addressesForEnv, multiProvider);
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
   const startBlocks = await promiseObjAll(
