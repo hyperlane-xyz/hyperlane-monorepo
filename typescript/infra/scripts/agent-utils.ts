@@ -1,22 +1,20 @@
-import path, { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  AllChains,
   ChainMap,
   ChainMetadata,
   ChainName,
-  Chains,
   CoreConfig,
-  HyperlaneEnvironment,
   MultiProvider,
   RpcConsensusType,
-  chainMetadata,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   ProtocolType,
+  objFilter,
   objMap,
   promiseObjAll,
   rootLogger,
@@ -26,24 +24,31 @@ import {
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
+import {
+  getChain,
+  getChainAddresses,
+  getChains,
+  getEnvChains,
+  getRegistry,
+} from '../config/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';
 import { RootAgentConfig } from '../src/config/agent/agent.js';
 import { fetchProvider } from '../src/config/chain.js';
 import {
+  AgentEnvironment,
   DeployEnvironment,
   EnvironmentConfig,
-  EnvironmentNames,
-  deployEnvToSdkEnv,
+  assertEnvironment,
 } from '../src/config/environment.js';
 import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
   getInfraPath,
-  readJSON,
   readJSONAtPath,
+  writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
 const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
@@ -63,7 +68,7 @@ export enum Modules {
   WARP = 'warp',
 }
 
-export const SDK_MODULES = [
+export const REGISTRY_MODULES = [
   Modules.PROXY_FACTORY,
   Modules.CORE,
   Modules.INTERCHAIN_GAS_PAYMASTER,
@@ -87,14 +92,14 @@ export function withModuleAndFork<T>(args: Argv<T>) {
     .demandOption('module', 'hyperlane module to deploy')
     .alias('m', 'module')
     .describe('fork', 'network to fork')
-    .choices('fork', Object.values(Chains))
+    .choices('fork', getChains())
     .alias('f', 'fork');
 }
 
 export function withNetwork<T>(args: Argv<T>) {
   return args
     .describe('network', 'network to target')
-    .choices('network', Object.values(Chains))
+    .choices('network', getChains())
     .alias('n', 'network');
 }
 
@@ -132,7 +137,7 @@ export function withKeyRoleAndChain<T>(args: Argv<T>) {
     .alias('r', 'role')
 
     .describe('chain', 'chain name')
-    .choices('chain', AllChains)
+    .choices('chain', getChains())
     .demandOption('chain')
     .alias('c', 'chain')
 
@@ -157,15 +162,6 @@ export function withBuildArtifactPath<T>(args: Argv<T>) {
     .describe('buildArtifactPath', 'path to hardhat build artifact')
     .string('buildArtifactPath')
     .alias('b', 'buildArtifactPath');
-}
-
-export function assertEnvironment(env: string): DeployEnvironment {
-  if (EnvironmentNames.includes(env)) {
-    return env as DeployEnvironment;
-  }
-  throw new Error(
-    `Invalid environment ${env}, must be one of ${EnvironmentNames}`,
-  );
 }
 
 // not requiring to build coreConfig to get agentConfig
@@ -205,7 +201,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
         ...baseConfig,
         [context]: Array(validatorCount).fill('0x0'),
       },
-      chain as Chains,
+      chain,
     );
     // the hardcoded fields are not strictly necessary to be accurate for create-keys.ts
     // ideally would still get them from the chainMetadata
@@ -214,8 +210,8 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
     }
 
     agentConfig.validators.chains[chain] = {
-      interval: chainMetadata[chain].blocks?.estimateBlockTime ?? 1, // dummy value
-      reorgPeriod: chainMetadata[chain].blocks?.reorgPeriod ?? 0, // dummy value
+      interval: getChain(chain).blocks?.estimateBlockTime ?? 1, // dummy value
+      reorgPeriod: getChain(chain).blocks?.reorgPeriod ?? 0, // dummy value
       validators,
     };
 
@@ -346,10 +342,6 @@ export async function getKeysForRole(
   return keys;
 }
 
-export function getContractAddressesSdkFilepath() {
-  return path.join('../sdk/src/consts/environments');
-}
-
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
   return path.join('./config/environments/', environment);
 }
@@ -377,29 +369,53 @@ export function getModuleDirectory(
   return path.join(getEnvironmentDirectory(environment), suffixFn());
 }
 
-export function getAddressesPath(
+export function isRegistryModule(
   environment: DeployEnvironment,
   module: Modules,
 ) {
-  const isSdkArtifact = SDK_MODULES.includes(module) && environment !== 'test';
+  return REGISTRY_MODULES.includes(module) && environment !== 'test';
+}
 
-  return isSdkArtifact
-    ? path.join(
-        getContractAddressesSdkFilepath(),
-        `${deployEnvToSdkEnv[environment]}.json`,
-      )
-    : path.join(getModuleDirectory(environment, module), 'addresses.json');
+// Where non-registry module addresses are dumped.
+// This package must die in fire.
+function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
+  return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
 export function getAddresses(environment: DeployEnvironment, module: Modules) {
-  return readJSONAtPath(getAddressesPath(environment, module));
+  if (isRegistryModule(environment, module)) {
+    const allAddresses = getChainAddresses();
+    const envChains = getEnvChains(environment);
+    return objFilter(allAddresses, (chain, _): _ is ChainAddresses => {
+      return envChains.includes(chain);
+    });
+  } else {
+    return readJSONAtPath(getInfraLandfillPath(environment, module));
+  }
+}
+
+export function writeAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+  addressesMap: ChainMap<Record<string, Address>>,
+) {
+  if (isRegistryModule(environment, module)) {
+    for (const [chainName, addresses] of Object.entries(addressesMap)) {
+      getRegistry().updateChain({ chainName, addresses });
+    }
+  } else {
+    writeMergedJSONAtPath(
+      getInfraLandfillPath(environment, module),
+      addressesMap,
+    );
+  }
 }
 
 export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
 
-export function getAgentConfigJsonPath(environment: HyperlaneEnvironment) {
+export function getAgentConfigJsonPath(environment: AgentEnvironment) {
   return path.join(getAgentConfigDirectory(), `${environment}_config.json`);
 }
 

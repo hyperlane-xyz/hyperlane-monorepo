@@ -602,6 +602,8 @@ export class WarpCore {
     if (amount > senderBalance) return { amount: 'Insufficient balance' };
 
     // Next, ensure balances can cover the COMBINED amount and fees
+    // The combined will be more than originTokenAmount if the transfer
+    // fee token == the either of the fee tokens
     const feeEstimate = await this.estimateTransferRemoteFees({
       originToken: token,
       destination,
@@ -619,15 +621,17 @@ export class WarpCore {
       return { amount: 'Insufficient balance for gas and transfer' };
     }
 
-    // Finally, ensure there's sufficient balance for the IGP fee, which may
-    // be a different token than the transfer token
+    // Finally, if the IGP fee token differs from the transfer token,
+    // ensure there's sufficient balance for the IGP fee
     const igpQuote = feeEstimate.interchainQuote;
-    const igpTokenBalance = await igpQuote.token.getBalance(
-      this.multiProvider,
-      sender,
-    );
-    if (igpTokenBalance.amount < igpQuote.amount) {
-      return { amount: `Insufficient ${igpQuote.token.symbol} for gas` };
+    if (!token.isFungibleWith(igpQuote.token)) {
+      const igpTokenBalance = await igpQuote.token.getBalance(
+        this.multiProvider,
+        sender,
+      );
+      if (igpTokenBalance.amount < igpQuote.amount) {
+        return { amount: `Insufficient ${igpQuote.token.symbol} for gas` };
+      }
     }
 
     return null;

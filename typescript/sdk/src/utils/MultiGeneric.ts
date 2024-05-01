@@ -1,4 +1,3 @@
-import { AllDeprecatedChains } from '../consts/chains.js';
 import { ChainMap, ChainName } from '../types.js';
 
 // Generalized map container for chain name to some value
@@ -35,9 +34,7 @@ export class MultiGeneric<Value> {
   }
 
   chains(): ChainName[] {
-    return Object.keys(this.chainMap).filter(
-      (chain) => !AllDeprecatedChains.includes(chain),
-    );
+    return Object.keys(this.chainMap);
   }
 
   forEach(fn: (n: ChainName, dc: Value) => void): void {

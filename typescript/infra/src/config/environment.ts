@@ -4,12 +4,12 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
-  HyperlaneEnvironment,
   IgpConfig,
   MultiProvider,
   OwnableConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { objKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
@@ -22,13 +22,20 @@ import { HelloWorldConfig } from './helloworld/types.js';
 import { InfrastructureConfig } from './infrastructure.js';
 import { LiquidityLayerRelayerConfig } from './middleware.js';
 
-// TODO: fix this?
-export const EnvironmentNames = ['test', 'testnet4', 'mainnet3'];
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof (typeof environments)[E],
   ChainName
 >;
+export enum AgentEnvironment {
+  Testnet = 'testnet',
+  Mainnet = 'mainnet',
+}
+export const envNameToAgentEnv: Record<DeployEnvironment, AgentEnvironment> = {
+  test: AgentEnvironment.Testnet,
+  testnet4: AgentEnvironment.Testnet,
+  mainnet3: AgentEnvironment.Mainnet,
+};
 
 export type EnvironmentConfig = {
   environment: DeployEnvironment;
@@ -56,11 +63,10 @@ export type EnvironmentConfig = {
   };
 };
 
-export const deployEnvToSdkEnv: Record<
-  DeployEnvironment,
-  HyperlaneEnvironment
-> = {
-  test: 'testnet', // TODO: remove this
-  mainnet3: 'mainnet',
-  testnet4: 'testnet',
-};
+export function assertEnvironment(env: string): DeployEnvironment {
+  const envNames = objKeys(environments);
+  if (envNames.includes(env as any)) {
+    return env as DeployEnvironment;
+  }
+  throw new Error(`Invalid environment ${env}, must be one of ${envNames}`);
+}

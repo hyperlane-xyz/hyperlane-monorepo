@@ -39,7 +39,7 @@
     "ts-node": "^10.8.0",
     "tsx": "^4.7.1",
     "typescript": "5.3.3",
-    "yaml": "^2.3.1"
+    "yaml": "^2.4.1"
   },
   "type": "module",
   "exports": {
@@ -75,7 +75,6 @@
     "test:ci": "yarn test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
-    "test:metadata": "tsx ./src/test/metadata-check.ts",
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "peerDependencies": {

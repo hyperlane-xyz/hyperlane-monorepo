@@ -8,7 +8,7 @@ import {
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import { Chains, IsmType, RouterConfig } from '@hyperlane-xyz/sdk';
+import { RouterConfig, TestChainName } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
@@ -106,49 +106,15 @@ describe('TokenDeployer', async () => {
       evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
         multiProvider,
         chainName,
-      );
-    });
+      ).deriveWarpRouteConfig(address);
+    }
+    it('should derive ERC20RouterConfig from collateral correctly', async () => {
+      const baseConfig = routerConfigMap[TestChainName.test1];
+      const mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
 
-    it.only('should derive a token type from contract', async () => {
-      const typesToDerive: DerivedTokenType[] = [
-        TokenType.collateral,
-        // TokenType.collateralVault, @todo add collateralVault by deploying a vault instead of erc20
-        TokenType.synthetic,
-        TokenType.native,
-      ];
-
-      await Promise.all(
-        typesToDerive.map(async (type) => {
-          // Create config
-          const config = {
-            [Chains.test1]: {
-              type,
-              token: token.address,
-              hook: await mailbox.defaultHook(),
-              name: TOKEN_NAME,
-              symbol: TOKEN_NAME,
-              decimals: TOKEN_DECIMALS,
-              totalSupply: TOKEN_SUPPLY,
-              gas: GAS,
-              ...baseConfig,
-            },
-          };
-          // Deploy warp route with config
-          const warpRoute = await deployer.deploy(
-            config as ChainMap<TokenConfig & RouterConfig>,
-          );
-          const derivedTokenType =
-            await evmERC20WarpRouteReader.deriveTokenType(
-              warpRoute[chainName][type].address,
-            );
-          expect(derivedTokenType).to.equal(type);
-        }),
-      );
-    });
-    it('should derive TokenRouterConfig from collateral correctly', async () => {
       // Create config
-      const config = {
-        [Chains.test1]: {
+      const config: { [key: string]: any } = {
+        [TestChainName.test1]: {
           type: TokenType.collateral,
           token: token.address,
           hook: await mailbox.defaultHook(),
@@ -162,13 +128,14 @@ describe('TokenDeployer', async () => {
       );
 
       // Derive config and check if each value matches
-      const derivedConfig: TokenRouterConfig = await deriveWarpConfig(
-        Chains.test1,
-        warpRoute[Chains.test1].collateral.address,
-      );
+      const derivedConfig: Partial<HypERC20CollateralConfig> =
+        await deriveWarpConfig(
+          TestChainName.test1,
+          warpRoute[TestChainName.test1].collateral.address,
+        );
 
       for (const [key, value] of Object.entries(derivedConfig)) {
-        const deployedValue = (config[Chains.test1] as any)[key];
+        const deployedValue = config[TestChainName.test1][key];
         if (deployedValue) expect(deployedValue).to.equal(value);
       }
 

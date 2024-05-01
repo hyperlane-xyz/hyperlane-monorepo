@@ -8,17 +8,12 @@ import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
-import {
-  AllChains,
-  ChainMetadata,
-  ChainName,
-  CoreChainName,
-  NativeToken,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { testChainNames } from '../../config/environments/test/chains.js';
+import { getChain, getChains } from '../../config/registry.js';
 import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {
@@ -197,9 +192,8 @@ export function assertFundableRole(roleStr: string): FundableRole {
   return role;
 }
 
-export function assertChain(chainStr: string) {
-  const chain = chainStr as ChainName;
-  if (!AllChains.includes(chain as CoreChainName)) {
+export function assertChain(chain: ChainName) {
+  if (!getChains().includes(chain) && !testChainNames.includes(chain)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
@@ -256,7 +250,7 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
 }
 
 export function mustGetChainNativeToken(chain: ChainName): NativeToken {
-  const metadata = chainMetadata[chain];
+  const metadata = getChain(chain);
   if (!metadata.nativeToken) {
     throw new Error(`No native token for chain ${chain}`);
   }
@@ -264,8 +258,8 @@ export function mustGetChainNativeToken(chain: ChainName): NativeToken {
 }
 
 export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
-  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol === protocol;
+  if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
+  return getChain(chainName).protocol === protocol;
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {
