@@ -7,7 +7,7 @@ import { RouterConfig } from '../router/types.js';
 import { TokenConfig } from '../token/config.js';
 import { HypERC20Factories } from '../token/contracts.js';
 import { HypERC20Deployer } from '../token/deploy.js';
-import { EvmERC20WarpRouteReader } from '../token/read.js';
+import { DerivedTokenRouter, EvmERC20WarpRouteReader } from '../token/read.js';
 import { TokenRouterConfig } from '../token/types.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 
@@ -19,7 +19,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
   HyperlaneContracts<HypERC20Factories>
 > {
   protected logger = rootLogger.child({ module: 'EvmERC20WarpCrudModule' });
-  protected reader: EvmERC20WarpRouteReader;
+  reader: EvmERC20WarpRouteReader;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -39,14 +39,33 @@ export class EvmERC20WarpCrudModule extends CrudModule<
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  public async read(address: Address): Promise<TokenRouterConfig> {
+  public async read(address: Address): Promise<DerivedTokenRouter> {
     return this.reader.deriveWarpRouteConfig(address);
   }
 
+  // Update only supports updating ISM or hook
   public async update(
-    _config: TokenRouterConfig,
-  ): Promise<EthersV5Transaction[]> {
-    throw new Error('Method not implemented.');
+    config: TokenRouterConfig,
+  ): Promise<EthersV5Transaction[] | any> {
+    const contractToUpdate = await this.args.addresses[
+      config.type as 'collateral' // We need to cast because HypERC20Factories is a subset of TokenRouterConfig.type
+    ].deployed();
+
+    // If new config ISM is a string, try to derive it
+    if (typeof config.interchainSecurityModule === 'string') {
+      const ism = await this.reader.evmIsmReader.deriveIsmConfig(
+        config.interchainSecurityModule as string,
+      );
+      return contractToUpdate.setInterchainSecurityModule(ism.address);
+    } else if (typeof config.interchainSecurityModule === 'object') {
+      const onchainConfig = await this.read(contractToUpdate.address);
+      if (
+        config.interchainSecurityModule.type !==
+        onchainConfig.interchainSecurityModule?.type
+      ) {
+        // Deploy ISM
+      }
+    }
   }
 
   /**
@@ -65,7 +84,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     chain: ChainNameOrId;
     config: TokenRouterConfig;
     multiProvider: MultiProvider;
-  }): Promise<any> {
+  }): Promise<EvmERC20WarpCrudModule> {
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deploy({
       [chain]: config,

@@ -17,6 +17,7 @@ import { EvmERC20WarpCrudModule } from '../crud/EvmWarpCrudModule.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+// import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
 import {
@@ -29,7 +30,7 @@ import { HypERC20Deployer } from './deploy.js';
 import { DerivedTokenType, EvmERC20WarpRouteReader } from './read.js';
 import { TokenRouterConfig, WarpRouteDeployConfig } from './types.js';
 
-describe.only('TokenDeployer', async () => {
+describe('TokenDeployer', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
@@ -54,7 +55,6 @@ describe.only('TokenDeployer', async () => {
     );
     const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
-    routerConfigMap = coreApp.getRouterConfig(signer.address);
     routerConfigMap = coreApp.getRouterConfig(signer.address);
     config = objMap(
       routerConfigMap,
@@ -176,16 +176,16 @@ describe.only('TokenDeployer', async () => {
 
     before(async () => {
       mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
+      config = {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      };
     });
     describe('Create', async () => {
       it('should create with a config', async () => {
-        // Create config and deploy using WarpCrudModule
-        config = {
-          type: TokenType.collateral,
-          token: token.address,
-          hook: await mailbox.defaultHook(),
-          ...baseConfig,
-        };
+        // Deploy using WarpCrudModule
         const evmERC20WarpCrudModule = await EvmERC20WarpCrudModule.create({
           chain,
           config,
@@ -200,19 +200,39 @@ describe.only('TokenDeployer', async () => {
           );
         expect(tokenType).to.equal(TokenType.collateral);
       });
-      // it('should create with an ISM string', async () => {
-      // });
+      // it('should create with an ISM string'});
       // it('should create with an hook config');
       // it('should create with an hook string');
     });
 
     // describe('Read', async () => {});
 
-    // describe('Update', async () => {
-    //   it('should update with an ISM string');
-    //   it('should update with an ISM object');
-    //   it('should update with an hook string');
-    //   // it('should update with an hook object');
-    // });
+    describe('Update', async () => {
+      it.only('should update existing ISM when provided an ISM string', async () => {
+        // Deploy using WarpCrudModule
+        const evmERC20WarpCrudModule = await EvmERC20WarpCrudModule.create({
+          chain,
+          config,
+          multiProvider,
+        });
+        const warpRouteAddress =
+          evmERC20WarpCrudModule.serialize()[TokenType.collateral];
+
+        // Update ISM and compare onchain values
+        const ismToUpdate = await mailbox.defaultIsm();
+        const tx = await evmERC20WarpCrudModule.update({
+          ...config,
+          interchainSecurityModule: ismToUpdate,
+        });
+        await multiProvider.handleTx(chain, tx);
+        const updatedIsm = (
+          await evmERC20WarpCrudModule.read(warpRouteAddress.address)
+        ).interchainSecurityModule;
+        expect(updatedIsm.address).to.equal(ismToUpdate);
+      });
+      it('should deploy given with an ISM object with a different type', async () => {});
+      //   it('should update with an hook string');
+      //   // it('should update with an hook object');
+    });
   });
 });

@@ -15,7 +15,7 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { EvmHookReader } from '../hook/read.js';
-import { EvmIsmReader } from '../ism/read.js';
+import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
@@ -32,6 +32,14 @@ export type DerivedTokenType = Extract<
   TokenType,
   'collateral' | 'collateralVault' | 'native' | 'synthetic'
 >;
+
+export type DerivedTokenRouter = Exclude<
+  TokenRouterConfig,
+  'interchainSecurityModule' | 'type'
+> & {
+  type: DerivedTokenType;
+  interchainSecurityModule: DerivedIsmConfigWithAddress;
+}; // ISM is not optional because address(0) is always returned
 
 export class EvmERC20WarpRouteReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
@@ -56,7 +64,7 @@ export class EvmERC20WarpRouteReader {
    * @returns The configuration for the Hyperlane ERC20 router.
    *
    */
-  async deriveWarpRouteConfig(address: Address): Promise<TokenRouterConfig> {
+  async deriveWarpRouteConfig(address: Address): Promise<DerivedTokenRouter> {
     const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
     const fetchedTokenMetadata = await this.fetchTokenMetadata(
       fetchedBaseMetadata.token,
@@ -65,7 +73,8 @@ export class EvmERC20WarpRouteReader {
     // Derive the config type
     const type = await this.deriveTokenType(address);
 
-    const results: TokenRouterConfig = {
+    // @TODO figure out why this typing doesn't work
+    const results: DerivedTokenRouter = {
       ...fetchedBaseMetadata,
       ...fetchedTokenMetadata,
       type,
