@@ -4,7 +4,6 @@ import { Logger } from 'pino';
 
 import { CallData, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainIdToMetadata } from '../../../../consts/chainMetadata.js';
 import { InterchainAccount } from '../../../../middleware/account/InterchainAccount.js';
 import { AccountConfig } from '../../../../middleware/account/types.js';
 import { ChainName } from '../../../../types.js';
@@ -55,7 +54,7 @@ export class EV5InterchainAccountTxTransformer
     return [
       await this.props.interchainAccount.getCallRemote(
         this.chain,
-        chainIdToMetadata[destinationChainId].name,
+        this.multiProvider.getChainName(this.chain), //chainIdToMetadata[destinationChainId].name,
         innerCalls,
         this.props.accountConfig,
         this.props.hookMetadata,

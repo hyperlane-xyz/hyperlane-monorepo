@@ -2,7 +2,6 @@ import SafeApiKit from '@safe-global/api-kit';
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -12,7 +11,8 @@ export function getSafeService(
 ): SafeApiKit.default {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
-  const txServiceUrl = chainMetadata[chain].gnosisSafeTransactionServiceUrl;
+  const txServiceUrl =
+    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl)
     throw new Error(`must provide tx service url for ${chain}`);
   return new SafeApiKit.default({ txServiceUrl, ethAdapter });
