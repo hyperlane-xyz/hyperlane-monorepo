@@ -15,19 +15,19 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
+import {IAVSDirectory} from "../interfaces/avs/IAVSDirectory.sol";
+import {ISignatureUtils} from "../interfaces/avs/ISignatureUtils.sol";
+import {ISlasher} from "../interfaces/avs/ISlasher.sol";
+import {IECDSAStakeRegistry} from "../interfaces/avs/IECDSAStakeRegistry.sol";
+import {IServiceManager} from "../interfaces/avs/IServiceManager.sol";
 
-import {ISignatureUtils} from "@eigenlayer/interfaces/ISignatureUtils.sol";
-import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
-import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistry.sol";
-import {IServiceManager} from "@eigenlayer-middleware/interfaces/IServiceManager.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
     // ============ Constants ============
 
     // Stake registry responsible for maintaining operator stakes
-    ECDSAStakeRegistry internal immutable stakeRegistry;
+    IECDSAStakeRegistry internal immutable stakeRegistry;
     // Eigenlayer's AVS directory for interactions between AVS and operators
     IAVSDirectory internal immutable elAvsDirectory;
 
@@ -76,7 +76,7 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
 
     constructor(
         IAVSDirectory _avsDirectory,
-        ECDSAStakeRegistry _stakeRegistry,
+        IECDSAStakeRegistry _stakeRegistry,
         ISlasher _slasher
     ) {
         elAvsDirectory = _avsDirectory;

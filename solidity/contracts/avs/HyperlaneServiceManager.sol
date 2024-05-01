@@ -17,13 +17,13 @@ import "forge-std/console.sol";
 
 // ============ Internal Imports ============
 import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/EnumerableMapEnrollment.sol";
+import {IAVSDirectory} from "../interfaces/avs/IAVSDirectory.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
 
 // ============ External Imports ============
-import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
-import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistry.sol";
+import {ISlasher} from "../interfaces/avs/ISlasher.sol";
+import {IECDSAStakeRegistry} from "../interfaces/avs/IECDSAStakeRegistry.sol";
 
 contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Libraries ============
@@ -90,7 +90,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
 
     constructor(
         IAVSDirectory _avsDirectory,
-        ECDSAStakeRegistry _stakeRegistry,
+        IECDSAStakeRegistry _stakeRegistry,
         ISlasher _slasher
     ) ECDSAServiceManagerBase(_avsDirectory, _stakeRegistry, _slasher) {}
 

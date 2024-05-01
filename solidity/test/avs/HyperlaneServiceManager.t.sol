@@ -2,8 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {DelegationManager} from "@eigenlayer/core/DelegationManager.sol";
-import {ISignatureUtils} from "@eigenlayer/interfaces/ISignatureUtils.sol";
-import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
+
 import {IDelegationManager} from "@eigenlayer/interfaces/IDelegationManager.sol";
 import {IStrategy} from "@eigenlayer/interfaces/IStrategy.sol";
 import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
@@ -12,8 +11,10 @@ import {MockAVSDeployer} from "eigenlayer-middleware/test/utils/MockAVSDeployer.
 import {Quorum, StrategyParams} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistryStorage.sol";
 import {ECDSAStakeRegistry} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistry.sol";
 
+import {ISignatureUtils} from "../../contracts/interfaces/avs/ISignatureUtils.sol";
 import {Enrollment, EnrollmentStatus} from "../../contracts/libs/EnumerableMapEnrollment.sol";
 import {IRemoteChallenger} from "../../contracts/interfaces/avs/IRemoteChallenger.sol";
+import {IAVSDirectory} from "../../contracts/interfaces/avs/IAVSDirectory.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
 import {TestRemoteChallenger} from "../../contracts/test/TestRemoteChallenger.sol";
 
