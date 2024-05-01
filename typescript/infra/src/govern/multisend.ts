@@ -1,7 +1,10 @@
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  MultiProvider,
+  getSafe,
+  getSafeService,
+} from '@hyperlane-xyz/sdk';
 import { CallData } from '@hyperlane-xyz/utils';
-
-import { getSafe, getSafeService } from '../utils/safe.js';
 
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<void>;
