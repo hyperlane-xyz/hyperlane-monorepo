@@ -120,6 +120,22 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     }
   }
 
+  async getProcessedReceipt(
+    message: DispatchedMessage,
+  ): Promise<ethers.ContractReceipt> {
+    const destinationChain = this.getDestination(message);
+    const mailbox = this.contractsMap[destinationChain].mailbox;
+
+    const processedBlock = await mailbox.processedAt(message.id);
+    const events = await mailbox.queryFilter(
+      mailbox.filters.ProcessId(message.id),
+      processedBlock,
+      processedBlock,
+    );
+    const processedEvent = events[0];
+    return processedEvent.getTransactionReceipt();
+  }
+
   async relayMessage(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
@@ -130,14 +146,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
     const isDelivered = await mailbox.delivered(message.id);
     if (isDelivered) {
-      const processedBlock = await mailbox.processedAt(message.id);
-      const events = await mailbox.queryFilter(
-        mailbox.filters.ProcessId(message.id),
-        processedBlock,
-        processedBlock,
-      );
-      const processedEvent = events[0];
-      return processedEvent.getTransactionReceipt();
+      this.logger.debug(`Message ${message.id} already delivered`);
+      return this.getProcessedReceipt(message);
     }
 
     return this.multiProvider.handleTx(
