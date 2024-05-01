@@ -4,19 +4,17 @@ import {
   ChainMap,
   ChainName,
   IgpConfig,
-  OwnableConfig,
   TOKEN_EXCHANGE_RATE_DECIMALS,
   defaultMultisigConfigs,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
-import { getChain } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
@@ -59,13 +57,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     (local) => remoteOverhead(local),
   );
 
-const evmOwners = objFilter(
-  owners,
-  (chain, _): _ is OwnableConfig =>
-    getChain(chain).protocol === ProtocolType.Ethereum,
-);
-
-export const igp: ChainMap<IgpConfig> = objMap(evmOwners, (local, owner) => ({
+export const igp: ChainMap<IgpConfig> = objMap(owners, (local, owner) => ({
   ...owner,
   ownerOverrides: {
     ...owner.ownerOverrides,

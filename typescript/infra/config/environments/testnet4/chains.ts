@@ -1,15 +1,20 @@
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { objKeys } from '@hyperlane-xyz/utils';
 
+import { getChainMetadatas } from '../../../src/config/chain.js';
 import { getChain } from '../../registry.js';
 
 import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment = 'testnet4';
 
+const {
+  ethereumMetadatas: defaultEthereumMainnetConfigs,
+  nonEthereumMetadatas: nonEthereumMainnetConfigs,
+} = getChainMetadatas(supportedChainNames);
+
 export const testnetConfigs: ChainMap<ChainMetadata> = {
-  ...Object.fromEntries(
-    supportedChainNames.map((chain) => [chain, getChain(chain)]),
-  ),
+  ...defaultEthereumMainnetConfigs,
   bsctestnet: {
     ...getChain('bsctestnet'),
     transactionOverrides: {
@@ -17,3 +22,5 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
 };
+
+export const ethereumChainNames = objKeys(defaultEthereumMainnetConfigs);

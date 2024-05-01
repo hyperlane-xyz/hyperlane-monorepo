@@ -1,4 +1,5 @@
-import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { objKeys } from '@hyperlane-xyz/utils';
 
 import { getChainMetadatas } from '../../../src/config/chain.js';
 import { getChain } from '../../registry.js';
@@ -67,6 +68,4 @@ export const mainnetConfigs: ChainMap<ChainMetadata> = {
   ...nonEthereumMainnetConfigs,
 };
 
-export const ethereumChainNames = Object.keys(
-  ethereumMainnetConfigs,
-) as ChainName[];
+export const ethereumChainNames = objKeys(ethereumMainnetConfigs);
