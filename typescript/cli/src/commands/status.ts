@@ -1,37 +1,27 @@
-import { CommandModule } from 'yargs';
-
+import { CommandModuleWithContext } from '../context/types.js';
 import { checkMessageStatus } from '../status/message.js';
 
-import { messageOptions } from './send.js';
+import { MessageOptionsArgTypes, messageOptions } from './send.js';
 
-export const statusCommand: CommandModule = {
+export const statusCommand: CommandModuleWithContext<
+  MessageOptionsArgTypes & { id?: string }
+> = {
   command: 'status',
   describe: 'Check status of a message',
-  builder: (yargs) =>
-    yargs.options({
-      ...messageOptions,
-      id: {
-        type: 'string',
-        description: 'Message ID',
-      },
-    }),
-  handler: async (argv: any) => {
-    const chainConfigPath: string = argv.chains;
-    const coreArtifactsPath: string | undefined = argv.core;
-    const messageId: string | undefined = argv.id;
-    const destination: string | undefined = argv.destination;
-    const origin: string | undefined = argv.origin;
-    const selfRelay: boolean = argv['self-relay'];
-    const key: string | undefined = argv.key;
-
+  builder: {
+    ...messageOptions,
+    id: {
+      type: 'string',
+      description: 'Message ID',
+    },
+  },
+  handler: async ({ context, origin, destination, id, relay }) => {
     await checkMessageStatus({
-      chainConfigPath,
-      coreArtifactsPath,
-      messageId,
+      context,
+      messageId: id,
       destination,
       origin,
-      selfRelay,
-      key,
+      selfRelay: relay,
     });
     process.exit(0);
   },

@@ -6,11 +6,11 @@ import {
   ChainName,
   StorageGasOracleConfig as DestinationOracleConfig,
   TOKEN_EXCHANGE_RATE_SCALE,
-  chainMetadata,
   getCosmosRegistryChain,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, convertDecimals } from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../config/registry.js';
 import {
   isEthereumProtocolChain,
   mustGetChainNativeToken,
@@ -126,8 +126,8 @@ function getLocalStorageGasOracleConfig(
 }
 
 function getMinUsdCost(local: ChainName, remote: ChainName): number {
-  // By default, min cost is 5 cents
-  let minUsdCost = 0.05;
+  // By default, min cost is 20 cents
+  let minUsdCost = 0.2;
 
   // For Ethereum local, min cost is 2 USD
   if (local === 'ethereum') {
@@ -137,11 +137,13 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   const remoteMinCostOverrides: ChainMap<number> = {
     // For Ethereum L2s, we need to account for the L1 DA costs that
     // aren't accounted for directly in the gas price.
-    base: 0.5,
-    optimism: 0.5,
     arbitrum: 0.5,
     ancient8: 0.5,
+    base: 0.5,
+    blast: 0.5,
     mantapacific: 0.5,
+    mode: 0.5,
+    optimism: 0.5,
     polygonzkevm: 0.5,
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 2,
@@ -220,7 +222,7 @@ export function getTokenExchangeRateFromValues(
 export async function getCosmosChainGasPrice(
   chain: ChainName,
 ): Promise<AgentCosmosGasPrice> {
-  const metadata = chainMetadata[chain];
+  const metadata = getChain(chain);
   if (!metadata) {
     throw new Error(`No metadata found for Cosmos chain ${chain}`);
   }

@@ -190,12 +190,6 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         }
         break;
 
-      case ProtocolType.Fuel:
-        if (![AgentSignerKeyType.Hex].includes(signerType)) {
-          return false;
-        }
-        break;
-
       default:
       // Just accept it if we don't know the protocol
     }

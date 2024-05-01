@@ -31,7 +31,7 @@ jobs:
           node-version: 18.x
 
       - name: Install Dependencies
-        run: yarn
+        run: yarn install --immutable
 
       - name: Create Release PR or Publish to NPM
         id: changesets

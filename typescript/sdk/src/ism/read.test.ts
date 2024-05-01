@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { WithAddress } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains.js';
+import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmIsmReader } from './read.js';
@@ -39,9 +39,8 @@ describe('EvmIsmReader', () => {
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    multiProvider = new MultiProvider();
-    multiProvider.setProvider(Chains.ethereum, ethers.getDefaultProvider());
-    evmIsmReader = new EvmIsmReader(multiProvider, Chains.ethereum);
+    multiProvider = MultiProvider.createTestMultiProvider();
+    evmIsmReader = new EvmIsmReader(multiProvider, TestChainName.test1);
   });
 
   afterEach(() => {

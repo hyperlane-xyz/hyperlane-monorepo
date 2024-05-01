@@ -1,8 +1,11 @@
 import { Options } from 'yargs';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../utils/env.js';
+
+/* Global options */
 
 export const logFormatCommandOption: Options = {
   type: 'string',
@@ -16,32 +19,35 @@ export const logLevelCommandOption: Options = {
   choices: Object.values(LogLevel),
 };
 
-export type CommandOptions = {
-  chains: Options;
+export const registryUriCommandOption: Options = {
+  type: 'string',
+  description: 'Registry URI, such as a Github repo URL or a local file path',
+  alias: 'r',
+  default: DEFAULT_GITHUB_REGISTRY,
 };
-export type AgentCommandOptions = CommandOptions & {
-  origin: Options;
-  targets: Options;
-  config: Options;
+
+export const overrideRegistryUriCommandOption: Options = {
+  type: 'string',
+  description: 'Path to a local registry to override the default registry',
+  default: './',
 };
-export type CoreCommandOptions = CommandOptions & {
-  targets: Options;
-  artifacts: Options;
-  ism: Options;
-  hook: Options;
-  out: Options;
-  key: Options;
-  yes: Options;
-  'dry-run': Options;
+
+export const skipConfirmationOption: Options = {
+  type: 'boolean',
+  description: 'Skip confirmation prompts',
+  default: false,
+  alias: 'y',
 };
-export type WarpCommandOptions = CommandOptions & {
-  config: Options;
-  core: Options;
-  out: Options;
-  key: Options;
-  yes: Options;
-  'dry-run': Options;
+
+export const keyCommandOption: Options = {
+  type: 'string',
+  description: `A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
+Dry-run: An address to simulate transaction signing on a forked network`,
+  alias: 'k',
+  default: ENV.HYP_KEY,
 };
+
+/* Command-specific options */
 
 export const coreTargetsCommandOption: Options = {
   type: 'string',
@@ -79,52 +85,24 @@ export const warpConfigCommandOption: Options = {
   alias: 'w',
 };
 
-export const keyCommandOption: Options = {
-  type: 'string',
-  description: `Default: A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
-Dry-run: An address to simulate transaction signing on a forked network, or use the HYP_KEY env var.`,
-  alias: 'k',
-  default: ENV.HYP_KEY,
-};
-
-export const chainsCommandOption: Options = {
-  type: 'string',
-  description: 'A path to a JSON or YAML file with chain configs',
-  default: './configs/chains.yaml',
-  alias: 'c',
-};
-
-export const outDirCommandOption: Options = {
-  type: 'string',
-  description: 'A folder name output artifacts into',
-  default: './artifacts',
-  alias: 'o',
-};
-
-export const coreArtifactsOption: Options = {
-  type: 'string',
-  description: 'File path to core deployment output artifacts',
-  alias: 'a',
-};
-
 export const warpConfigOption: Options = {
   type: 'string',
-  description: 'File path to Warp config',
+  description: 'File path to Warp Route config',
   alias: 'w',
+  // TODO make this optional and have the commands get it from the registry
+  demandOption: true,
 };
 
-export const agentConfigCommandOption: Options = {
+export const agentConfigCommandOption = (
+  isIn: boolean,
+  defaultPath?: string,
+): Options => ({
   type: 'string',
-  description: 'File path to agent configuration artifacts',
-};
-
-export const fileFormatOption: Options = {
-  type: 'string',
-  description: 'Output file format',
-  choices: ['json', 'yaml'],
-  default: 'yaml',
-  alias: 'f',
-};
+  description: `${
+    isIn ? 'Input' : 'Output'
+  } file path for the agent configuration`,
+  default: defaultPath,
+});
 
 export const outputFileOption = (defaultPath?: string): Options => ({
   type: 'string',
@@ -133,18 +111,18 @@ export const outputFileOption = (defaultPath?: string): Options => ({
   alias: 'o',
 });
 
-export const skipConfirmationOption: Options = {
-  type: 'boolean',
-  description: 'Skip confirmation prompts',
-  default: false,
-  alias: 'y',
+export const inputFileOption: Options = {
+  type: 'string',
+  description: 'Input file path',
+  alias: 'i',
+  demandOption: true,
 };
 
 export const dryRunOption: Options = {
   type: 'string',
   description:
     'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
-  alias: ['d', 'dr'],
+  alias: ['d'],
 };
 
 export const chainCommandOption: Options = {

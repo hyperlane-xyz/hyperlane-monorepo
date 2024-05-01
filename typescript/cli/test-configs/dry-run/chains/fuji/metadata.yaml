@@ -1,0 +1,6 @@
+chainId: 43113
+domainId: 43113
+name: fuji
+protocol: ethereum
+rpcUrls:
+  - http: https://api.avax-test.network/ext/bc/C/rpc

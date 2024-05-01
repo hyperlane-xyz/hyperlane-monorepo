@@ -1,23 +1,16 @@
 import { ethers } from 'ethers';
 
-import {
-  ChainName,
-  HyperlaneContractsMap,
-  HyperlaneCore,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { getContext, getMergedContractAddresses } from '../context.js';
+import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecks } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function sendTestMessage({
-  key,
-  chainConfigPath,
-  coreArtifactsPath,
+  context,
   origin,
   destination,
   messageBody,
@@ -25,9 +18,7 @@ export async function sendTestMessage({
   skipWaitForDelivery,
   selfRelay,
 }: {
-  key?: string;
-  chainConfigPath: string;
-  coreArtifactsPath?: string;
+  context: WriteCommandContext;
   origin?: ChainName;
   destination?: ChainName;
   messageBody: string;
@@ -35,43 +26,36 @@ export async function sendTestMessage({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { signer, multiProvider, customChains, coreArtifacts } =
-    await getContext({
-      chainConfigPath,
-      coreConfig: { coreArtifactsPath },
-      keyConfig: { key },
-    });
+  const { chainMetadata } = context;
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the origin chain',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the destination chain',
     );
   }
 
   await runPreflightChecks({
+    context,
     origin,
     remotes: [destination],
-    multiProvider,
-    signer,
     minGas: MINIMUM_TEST_SEND_GAS,
     chainsToGasCheck: [origin],
   });
 
   await timeout(
     executeDelivery({
+      context,
       origin,
       destination,
       messageBody,
-      multiProvider,
-      coreArtifacts,
       skipWaitForDelivery,
       selfRelay,
     }),
@@ -81,30 +65,26 @@ export async function sendTestMessage({
 }
 
 async function executeDelivery({
+  context,
   origin,
   destination,
   messageBody,
-  multiProvider,
-  coreArtifacts,
   skipWaitForDelivery,
   selfRelay,
 }: {
+  context: CommandContext;
   origin: ChainName;
   destination: ChainName;
   messageBody: string;
-  multiProvider: MultiProvider;
-  coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
-  const core = HyperlaneCore.fromAddressesMap(
-    mergedContractAddrs,
-    multiProvider,
-  );
+  const { registry, multiProvider } = context;
+  const chainAddresses = await registry.getAddresses();
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const mailbox = core.getContracts(origin).mailbox;
 
-  let hook = mergedContractAddrs[origin]?.customHook;
+  let hook = chainAddresses[origin]?.customHook;
   if (hook) {
     logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
   } else {
@@ -115,7 +95,7 @@ async function executeDelivery({
   const destinationDomain = multiProvider.getDomainId(destination);
   let txReceipt: ethers.ContractReceipt;
   try {
-    const recipient = mergedContractAddrs[destination].testRecipient;
+    const recipient = chainAddresses[destination].testRecipient;
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
@@ -153,6 +133,7 @@ async function executeDelivery({
     log(`Message: ${JSON.stringify(message)}`);
 
     if (selfRelay) {
+      log('Attempting self-relay of message');
       await core.relayMessage(message);
       logGreen('Message was self-relayed!');
       return;

@@ -2,8 +2,6 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  ERC20RouterConfig,
-  HyperlaneCore,
   HyperlaneIsmFactory,
   MultiProvider,
   RouterConfig,
@@ -13,23 +11,18 @@ import {
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { Modules, getAddresses } from '../scripts/agent-utils';
-import {
-  EnvironmentConfig,
-  deployEnvToSdkEnv,
-} from '../src/config/environment';
-import { tokens } from '../src/config/warp';
+import { Modules, getAddresses } from '../scripts/agent-utils.js';
+import { getHyperlaneCore } from '../scripts/core-utils.js';
+import { EnvironmentConfig } from '../src/config/environment.js';
+import { tokens } from '../src/config/warp.js';
 
-import { DEPLOYER } from './environments/mainnet3/owners';
+import { DEPLOYER } from './environments/mainnet3/owners.js';
 
 export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
 ): Promise<ChainMap<TokenConfig & RouterConfig>> {
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[envConfig.environment],
-    multiProvider,
-  );
+  const { core } = await getHyperlaneCore(envConfig.environment, multiProvider);
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
     getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
     multiProvider,
