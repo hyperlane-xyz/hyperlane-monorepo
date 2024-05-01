@@ -15,7 +15,10 @@ import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
 import type { DeployEnvironment } from '../src/config/environment.js';
 
 import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/supportedChainNames.js';
-import { testChainNames as testChains } from './environments/test/chains.js';
+import {
+  testChainMetadata,
+  testChainNames as testChains,
+} from './environments/test/chains.js';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/supportedChainNames.js';
 
 const DEFAULT_REGISTRY_URI = join(
@@ -49,6 +52,9 @@ export function getChains(): ChainName[] {
 }
 
 export function getChain(chainName: ChainName): ChainMetadata {
+  if (testChains.includes(chainName)) {
+    return testChainMetadata[chainName];
+  }
   return getRegistry().getChainMetadata(chainName);
 }
 
