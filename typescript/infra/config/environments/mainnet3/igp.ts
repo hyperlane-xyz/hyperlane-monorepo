@@ -50,7 +50,7 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 
 const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
-    supportedChainNames,
+    ethereumChainNames,
     gasPrices,
     getTokenExchangeRate,
     (local) => parseFloat(tokenPrices[local]),

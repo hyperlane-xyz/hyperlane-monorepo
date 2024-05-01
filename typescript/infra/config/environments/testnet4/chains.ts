@@ -8,10 +8,8 @@ import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment = 'testnet4';
 
-const {
-  ethereumMetadatas: defaultEthereumMainnetConfigs,
-  nonEthereumMetadatas: nonEthereumMainnetConfigs,
-} = getChainMetadatas(supportedChainNames);
+const { ethereumMetadatas: defaultEthereumMainnetConfigs } =
+  getChainMetadatas(supportedChainNames);
 
 export const testnetConfigs: ChainMap<ChainMetadata> = {
   ...defaultEthereumMainnetConfigs,
