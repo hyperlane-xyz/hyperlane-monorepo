@@ -11,7 +11,7 @@ import {
   testSealevelChain,
 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { stubMultiProtocolProvider } from '../test/testUtils.js';
+import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
