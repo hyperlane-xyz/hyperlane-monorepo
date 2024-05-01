@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -50,6 +50,8 @@ import {
   prepareDeploy,
   runPreflightChecksForChains,
 } from './utils.js';
+
+const CONTRACT_CACHE_EXCLUSIONS = ['interchainGasPaymaster'];
 
 /**
  * Executes the core deploy command.
@@ -235,7 +237,8 @@ async function executeDeploy({
   logBlue('All systems ready, captain! Beginning deployment...');
   const { signer, multiProvider, registry } = context;
 
-  const chainAddresses = await registry.getAddresses();
+  let chainAddresses = await registry.getAddresses();
+  chainAddresses = filterAddressesToCache(chainAddresses);
 
   const owner = await signer.getAddress();
   let artifacts: HyperlaneAddressesMap<any> = {};
@@ -301,6 +304,20 @@ async function executeDeploy({
   await writeAgentConfig(context, artifacts, chains, agentOutPath);
 
   logBlue('Deployment is complete!');
+}
+
+function filterAddressesToCache(addressesMap: ChainMap<ChainAddresses>) {
+  // Filter out the certain addresses that must always be
+  // deployed when deploying to a PI chain.
+  // See https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/2983
+  // And https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3183
+  return objMap(addressesMap, (_chain, addresses) =>
+    objFilter(
+      addresses,
+      (contract, _address): _address is string =>
+        !CONTRACT_CACHE_EXCLUSIONS.includes(contract),
+    ),
+  );
 }
 
 function buildIsmConfig(
