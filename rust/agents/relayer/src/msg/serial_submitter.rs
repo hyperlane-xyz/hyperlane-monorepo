@@ -111,7 +111,7 @@ impl SerialSubmitter {
 
         // This is channel acts as a buffer to avoid holding too many prepared messages in memory.
         // Use double the max batch size to increase chances of having full batches
-        let (tx_submit, rx_submit) = mpsc::channel((max_batch_size.mul(20)) as usize);
+        let (tx_submit, rx_submit) = mpsc::channel((max_batch_size.mul(10)) as usize);
 
         let tasks = [
             spawn(receive_task(
@@ -188,7 +188,7 @@ async fn prepare_task(
         let mut task_prep_futures = vec![];
         let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
         for op in op_refs {
-            trace!(?op, "Preparing operation");
+            debug!(?op, "Preparing operation");
             debug_assert_eq!(*op.destination_domain(), domain);
             task_prep_futures.push(op.prepare());
         }
