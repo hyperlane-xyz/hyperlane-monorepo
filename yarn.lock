@@ -5092,8 +5092,6 @@ __metadata:
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
-    "@safe-global/api-kit": "npm:^1.3.0"
-    "@safe-global/protocol-kit": "npm:^1.2.0"
     "@solana/web3.js": "npm:^1.78.0"
     "@types/chai": "npm:^4.2.21"
     "@types/json-stable-stringify": "npm:^1.0.36"
@@ -7235,7 +7233,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@safe-global/api-kit@npm:1.3.0, @safe-global/api-kit@npm:^1.3.0":
+"@safe-global/api-kit@npm:1.3.0":
   version: 1.3.0
   resolution: "@safe-global/api-kit@npm:1.3.0"
   dependencies:
@@ -7261,23 +7259,6 @@ __metadata:
     web3-utils: "npm:^1.8.1"
     zksync-web3: "npm:^0.14.3"
   checksum: e562f437c3682ddf395e13b26adb9f4e4d2970c66b78e8f8f4895862864ac5bdfac3bdcfda234a171a3eb79d262b75d48cac3ff248f4587654b7b8da9a1ba7f6
-  languageName: node
-  linkType: hard
-
-"@safe-global/protocol-kit@npm:^1.2.0":
-  version: 1.2.0
-  resolution: "@safe-global/protocol-kit@npm:1.2.0"
-  dependencies:
-    "@ethersproject/address": "npm:^5.7.0"
-    "@ethersproject/bignumber": "npm:^5.7.0"
-    "@ethersproject/solidity": "npm:^5.7.0"
-    "@safe-global/safe-deployments": "npm:^1.26.0"
-    ethereumjs-util: "npm:^7.1.5"
-    semver: "npm:^7.5.4"
-    web3: "npm:^1.8.1"
-    web3-core: "npm:^1.8.1"
-    web3-utils: "npm:^1.8.1"
-  checksum: f6c6969ee5638fc1af1bf56f7848915bb9cb1e6a3f57f4e9b235f3f251c3a5f8cde6bad13bd8b9a321424cdecdad34e02ad13de3b4fe8fae32acc9000e52b4dc
   languageName: node
   linkType: hard
 

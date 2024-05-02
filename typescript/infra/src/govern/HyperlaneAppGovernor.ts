@@ -11,6 +11,7 @@ import {
   InterchainAccount,
   OwnableConfig,
   OwnerViolation,
+  canProposeSafeTransactions,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -19,8 +20,6 @@ import {
   eqAddress,
   objMap,
 } from '@hyperlane-xyz/utils';
-
-import { canProposeSafeTransactions } from '../utils/safe.js';
 
 import {
   ManualMultiSend,

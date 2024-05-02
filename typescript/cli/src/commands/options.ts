@@ -45,6 +45,7 @@ export const keyCommandOption: Options = {
 Dry-run: An address to simulate transaction signing on a forked network`,
   alias: 'k',
   default: ENV.HYP_KEY,
+  defaultDescription: 'process.env.HYP_KEY',
 };
 
 /* Command-specific options */

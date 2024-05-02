@@ -3,6 +3,8 @@
 
 yarn lint-staged
 
+echo "📝 If you haven't yet, please add a changeset for your changes via 'yarn changeset'"
+
 # if any *.rs files have changed
 if git diff --staged --exit-code --name-only | grep -q -E ".*\.rs$"; then
     echo "Running cargo fmt pre-commit hook"
