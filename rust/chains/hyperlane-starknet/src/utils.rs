@@ -1,4 +1,4 @@
-use std::{future::Future, sync::Arc};
+use std::future::Future;
 
 use starknet::{
     accounts::SingleOwnerAccount,
@@ -60,7 +60,7 @@ pub fn build_single_owner_account(
     account_address: &FieldElement,
     is_legacy: bool,
     domain_id: u32,
-) -> Arc<SingleOwnerAccount<AnyProvider, LocalWallet>> {
+) -> SingleOwnerAccount<AnyProvider, LocalWallet> {
     let rpc_client =
         AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(rpc_url.clone())));
 
@@ -72,11 +72,11 @@ pub fn build_single_owner_account(
 
     let chain_id = get_chain_id_from_domain_id(domain_id);
 
-    Arc::new(SingleOwnerAccount::new(
+    SingleOwnerAccount::new(
         rpc_client,
         signer,
         *account_address,
         chain_id,
         execution_encoding,
-    ))
+    )
 }

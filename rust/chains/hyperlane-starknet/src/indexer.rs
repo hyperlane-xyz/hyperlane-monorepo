@@ -8,14 +8,15 @@ use starknet::core::types::{
     MaybePendingBlockWithTxs,
 };
 use starknet::core::utils::get_selector_from_name;
-use starknet::providers::{AnyProvider, Provider};
+use starknet::providers::jsonrpc::HttpTransport;
+use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use tracing::instrument;
 
 use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
-use crate::{ConnectionConf, HyperlaneStarknetError, StarknetProvider};
+use crate::{ConnectionConf, HyperlaneStarknetError};
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
@@ -41,42 +42,35 @@ impl<T: PartialEq> ParsedEvent<T> {
 
 #[derive(Debug)]
 /// Starknet RPC Provider
-pub struct StarknetMailboxIndexer<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + Debug,
-{
+pub struct StarknetMailboxIndexer {
     contract: Arc<StarknetMailboxReader<AnyProvider>>,
-    provider: StarknetProvider<A>,
     reorg_period: u32,
 }
 
-impl<A> StarknetMailboxIndexer<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + Debug,
-{
+impl StarknetMailboxIndexer {
     /// create new Starknet Mailbox Indexer
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let provider = StarknetProvider::new(locator.domain.clone(), &conf, None);
+        let rpc_client =
+            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
         let contract = StarknetMailboxReader::new(
             FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
-            *provider.rpc_client().clone().as_ref(),
+            rpc_client,
         );
 
         Ok(Self {
             contract: Arc::new(contract),
-            provider,
             reorg_period,
         })
     }
 
     async fn get_block(&self, block_number: u32) -> ChainResult<MaybePendingBlockWithTxHashes> {
         Ok(self
+            .contract
             .provider
-            .rpc_client()
             .get_block_with_tx_hashes(BlockId::Number(block_number as u64))
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?)
@@ -84,8 +78,8 @@ where
 
     async fn get_block_results(&self, block_number: u32) -> ChainResult<MaybePendingBlockWithTxs> {
         Ok(self
+            .contract
             .provider
-            .rpc_client()
             .get_block_with_txs(BlockId::Number(block_number as u64))
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?)
@@ -93,8 +87,8 @@ where
 
     async fn get_latest_block(&self) -> ChainResult<MaybePendingBlockWithTxHashes> {
         Ok(self
+            .contract
             .provider
-            .rpc_client()
             .get_block_with_tx_hashes(BlockId::Tag(BlockTag::Latest))
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?)
@@ -103,8 +97,8 @@ where
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(
-            self.provider
-                .rpc_client()
+            self.contract
+                .provider
                 .block_number()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?
@@ -116,10 +110,7 @@ where
 }
 
 #[async_trait]
-impl<A> Indexer<HyperlaneMessage> for StarknetMailboxIndexer<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + Debug,
-{
+impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
     }
@@ -142,8 +133,8 @@ where
         let chunk_size = range.end() - range.start() + 1;
 
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
+            .contract
             .provider
-            .rpc_client()
             .get_events(filter, None, chunk_size.into())
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?
@@ -177,16 +168,15 @@ where
 }
 
 #[async_trait]
-impl<A> SequenceAwareIndexer<HyperlaneMessage> for StarknetMailboxIndexer<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + Debug,
-{
+impl SequenceAwareIndexer<HyperlaneMessage> for StarknetMailboxIndexer {
     #[instrument(err, skip(self))]
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
+
+        // TODO: fix this
         let sequence = self
             .contract
-            .with_block(BlockId::Number(tip as u64))
+            // .with_block(BlockId::Number(tip as u64))
             .nonce()
             .call()
             .await
@@ -196,10 +186,7 @@ where
 }
 
 #[async_trait]
-impl<A> Indexer<H256> for StarknetMailboxIndexer<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + Debug,
-{
+impl Indexer<H256> for StarknetMailboxIndexer {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.get_finalized_block_number().await
     }
@@ -219,8 +206,8 @@ where
         let chunk_size = range.end() - range.start() + 1;
 
         let events: Vec<(H256, LogMeta)> = self
+            .contract
             .provider
-            .rpc_client()
             .get_events(filter, None, chunk_size.into())
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?
@@ -250,10 +237,7 @@ where
 }
 
 #[async_trait]
-impl<A> SequenceAwareIndexer<H256> for StarknetMailboxIndexer<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + Debug,
-{
+impl SequenceAwareIndexer<H256> for StarknetMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // A blanket implementation for this trait is fine for the EVM.
         // TODO: Consider removing `Indexer` as a supertrait of `SequenceAwareIndexer`

@@ -4,43 +4,28 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
-    H256, U256,
+    TxnReceiptInfo, H256, U256,
 };
 use starknet::core::types::{
     BlockId, BlockTag, FieldElement, FunctionCall, MaybePendingBlockWithTxHashes,
+    MaybePendingTransactionReceipt, TransactionReceipt,
 };
 use starknet::macros::{felt, selector};
-use starknet::providers::jsonrpc::{HttpTransport, JsonRpcClient};
 use starknet::providers::{AnyProvider, Provider};
 use tracing::instrument;
 
-use crate::{ConnectionConf, HyperlaneStarknetError};
+use crate::HyperlaneStarknetError;
 
 #[derive(Debug, Clone)]
 /// A wrapper over the Starknet provider to provide a more ergonomic interface.
-pub struct StarknetProvider<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
-{
-    domain: HyperlaneDomain,
+pub struct StarknetProvider {
     rpc_client: Arc<AnyProvider>,
-    account: Option<Arc<A>>,
+    domain: HyperlaneDomain,
 }
 
-impl<A> StarknetProvider<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
-{
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf, account: Option<Arc<A>>) -> Self {
-        let rpc_client = Arc::new(AnyProvider::JsonRpcHttp(JsonRpcClient::new(
-            HttpTransport::new(conf.url.clone()),
-        )));
-
-        Self {
-            domain,
-            rpc_client,
-            account,
-        }
+impl StarknetProvider {
+    pub fn new(rpc_client: Arc<AnyProvider>, domain: HyperlaneDomain) -> Self {
+        Self { domain, rpc_client }
     }
 
     pub fn rpc_client(&self) -> Arc<AnyProvider> {
@@ -50,16 +35,9 @@ where
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
-
-    pub fn account(&self) -> Option<Arc<A>> {
-        self.account.clone()
-    }
 }
 
-impl<A> HyperlaneChain for &StarknetProvider<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
-{
+impl HyperlaneChain for &StarknetProvider {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
@@ -70,10 +48,7 @@ where
 }
 
 #[async_trait]
-impl<A> HyperlaneProvider for &StarknetProvider<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
-{
+impl HyperlaneProvider for &StarknetProvider {
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         let block = self
@@ -105,23 +80,40 @@ where
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        // TODO: fill with real values
-        Ok(TxnInfo {
-            hash: H256::from_slice(tx.transaction_hash().to_bytes_be().as_slice()),
-            gas_limit: U256::one(),
-            max_priority_fee_per_gas: None,
-            max_fee_per_gas: None,
-            gas_price: None,
-            nonce: 0,
-            sender: H256::zero(),
-            recipient: None,
-            receipt: None,
-        })
+        let receipt = self
+            .rpc_client()
+            .get_transaction_receipt(tx.transaction_hash())
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+
+        match receipt {
+            MaybePendingTransactionReceipt::Receipt(tx_receipt) => match tx_receipt {
+                TransactionReceipt::Invoke(invoke_receipt) => Ok(TxnInfo {
+                    hash: H256::from_slice(tx.transaction_hash().to_bytes_be().as_slice()),
+                    gas_limit: U256::one(),
+                    max_priority_fee_per_gas: None,
+                    max_fee_per_gas: None,
+                    gas_price: None,
+                    nonce: 0,
+                    sender: H256::zero(),
+                    recipient: None,
+                    receipt: Some(TxnReceiptInfo {
+                        gas_used: U256::from_big_endian(
+                            invoke_receipt.actual_fee.amount.to_bytes_be().as_slice(),
+                        ),
+                        cumulative_gas_used: U256::zero(),
+                        effective_gas_price: None,
+                    }),
+                }),
+                _ => Err(HyperlaneStarknetError::InvalidBlock.into()),
+            },
+            _ => Err(HyperlaneStarknetError::InvalidBlock.into()),
+        }
     }
 
     #[instrument(err, skip(self))]
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
-        todo!()
+        Ok(true)
     }
 
     #[instrument(err, skip(self))]

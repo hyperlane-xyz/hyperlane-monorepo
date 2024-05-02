@@ -13,8 +13,10 @@ use hyperlane_core::{
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
     TxCostEstimate, TxOutcome, H256, U256,
 };
-use starknet::accounts::Execution;
+use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
+use starknet::providers::AnyProvider;
+use starknet::signers::LocalWallet;
 use tracing::instrument;
 
 use crate::contracts::mailbox::{
@@ -22,43 +24,50 @@ use crate::contracts::mailbox::{
     U256 as StarknetU256,
 };
 use crate::error::HyperlaneStarknetError;
-use crate::{get_transaction_receipt, ConnectionConf, StarknetProvider};
+use crate::{
+    build_single_owner_account, get_transaction_receipt, ConnectionConf, Signer, StarknetProvider,
+};
 
 impl<A> std::fmt::Display for StarknetMailboxInternal<A>
 where
     A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
 }
 
 /// A reference to a Mailbox contract on some Starknet chain
 #[derive(Debug)]
-pub struct StarknetMailbox<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
-{
-    contract: Arc<StarknetMailboxInternal<A>>,
-    provider: StarknetProvider<A>,
+pub struct StarknetMailbox {
+    contract: Arc<StarknetMailboxInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+    provider: StarknetProvider,
     conn: ConnectionConf,
 }
 
-impl<A> StarknetMailbox<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug,
-{
+impl StarknetMailbox {
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, account: Arc<A>) -> Self {
-        let provider = StarknetProvider::new(locator.domain.clone(), conn, Some(account));
+    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, signer: Signer) -> Self {
+        let account = build_single_owner_account(
+            &conn.url,
+            signer.local_wallet(),
+            &signer.address,
+            false,
+            locator.domain.id(),
+        );
+
+        let contract = StarknetMailboxInternal::new(
+            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
+            account,
+        );
 
         Self {
-            contract: Arc::new(StarknetMailboxInternal::new(
-                FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
-                *account,
-            )),
-            provider,
+            contract: Arc::new(contract),
+            provider: StarknetProvider::new(
+                Arc::new(contract.provider().clone()),
+                locator.domain.clone(),
+            ),
             conn: conn.clone(),
         }
     }
@@ -70,7 +79,7 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
-    ) -> ChainResult<Execution<'_, A>> {
+    ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
         let tx = self.contract.process(
             &StarknetBytes {
                 size: metadata.len() as u32,
@@ -109,47 +118,40 @@ where
         Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
 
-    pub fn contract(&self) -> &StarknetMailboxInternal<A> {
+    pub fn contract(
+        &self,
+    ) -> &StarknetMailboxInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
         &self.contract
     }
 }
 
-impl<A> HyperlaneChain for StarknetMailbox<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
-{
+impl HyperlaneChain for StarknetMailbox {
     fn domain(&self) -> &HyperlaneDomain {
         &self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(&StarknetProvider::<A>::new(
-            self.provider.domain().clone(),
-            &self.conn,
-            None,
-        ))
+        Box::new(&self.provider)
     }
 }
 
-impl<A> HyperlaneContract for StarknetMailbox<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
-{
+impl HyperlaneContract for StarknetMailbox {
     fn address(&self) -> H256 {
         H256::from_slice(self.contract.address.to_bytes_be().as_slice())
     }
 }
 
 #[async_trait]
-impl<A> Mailbox for StarknetMailbox<A>
-where
-    A: starknet::accounts::ConnectedAccount + Sync + Send + std::fmt::Debug + 'static,
-{
+impl Mailbox for StarknetMailbox {
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         // TODO: add lag support
-        // let nonce = self.contract.nonce().call().await?;
-        let nonce = 0;
+        let nonce = self
+            .contract
+            .nonce()
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
         Ok(nonce)
     }
 
@@ -229,7 +231,7 @@ where
         Ok(TxCostEstimate::default())
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
+    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
         todo!()
     }
 }
