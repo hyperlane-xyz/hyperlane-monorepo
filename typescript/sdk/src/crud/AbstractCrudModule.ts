@@ -1,6 +1,6 @@
 import { Logger } from 'pino';
 
-import { Address, Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
@@ -26,7 +26,7 @@ export abstract class CrudModule<
     return this.args.addresses;
   }
 
-  public abstract read(address: Address): Promise<TConfig>;
+  public abstract read(): Promise<TConfig>;
   public abstract update(
     config: TConfig,
   ): Promise<Annotated<ProtocolTypedTransaction<TProtocol>[]>>;
