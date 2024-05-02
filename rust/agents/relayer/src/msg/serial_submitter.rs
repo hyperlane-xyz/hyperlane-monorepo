@@ -188,7 +188,7 @@ async fn prepare_task(
         let mut task_prep_futures = vec![];
         let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
         for op in op_refs {
-            debug!(?op, "Preparing operation");
+            trace!(?op, "Preparing operation");
             debug_assert_eq!(*op.destination_domain(), domain);
             task_prep_futures.push(op.prepare());
         }
