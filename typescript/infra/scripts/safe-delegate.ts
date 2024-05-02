@@ -4,8 +4,9 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 import '@ethersproject/hardware-wallets/thirdparty';
 import { AddSafeDelegateProps } from '@safe-global/api-kit';
 
+import { getSafeDelegates, getSafeService } from '@hyperlane-xyz/sdk';
+
 import { getChains } from '../config/registry.js';
-import { getSafeDelegates, getSafeService } from '../src/utils/safe.js';
 
 import { getArgs as getRootArgs } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
