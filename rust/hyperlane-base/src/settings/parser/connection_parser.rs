@@ -1,7 +1,6 @@
 use eyre::eyre;
 use h_eth::TransactionOverrides;
 use hyperlane_core::config::ConfigErrResultExt;
-use hyperlane_core::utils::hex_or_base58_to_h256;
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
 use url::Url;
 
@@ -69,8 +68,7 @@ pub fn build_ethereum_connection_conf(
         .chain(err)
         .get_opt_key("batchContractAddress")
         .parse_address_hash()
-        .end()
-        .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
+        .end();
 
     let max_batch_size = chain
         .chain(err)
@@ -82,7 +80,7 @@ pub fn build_ethereum_connection_conf(
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         message_batch: h_eth::MessageBatchConfig {
-            multicall3_address: Some(multicall3_address),
+            multicall3_address,
             max_batch_size,
         },
     }))

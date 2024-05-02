@@ -4,7 +4,7 @@ use derive_new::new;
 use hyperlane_core::MpmcReceiver;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{info, instrument};
 
 use crate::server::MessageRetryRequest;
 
@@ -25,6 +25,7 @@ pub struct OpQueue {
 
 impl OpQueue {
     /// Push an element onto the queue and update metrics
+    #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label))]
     pub async fn push(&self, op: QueueOperation) {
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(op.as_ref()).inc();
@@ -33,12 +34,14 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label))]
     pub async fn pop(&mut self) -> Option<QueueOperation> {
         let pop_attempt = self.pop_many(1).await;
         pop_attempt.into_iter().next()
     }
 
     /// Pop multiple elements at once from the queue and update metrics
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label))]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
@@ -53,10 +56,6 @@ impl OpQueue {
             }
         }
         popped
-    }
-
-    pub async fn len(&self) -> usize {
-        self.queue.lock().await.len()
     }
 
     pub async fn process_retry_requests(&mut self) {
@@ -74,18 +73,18 @@ impl OpQueue {
         let mut queue = self.queue.lock().await;
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
-            .map(|Reverse(mut e)| {
+            .map(|Reverse(mut op)| {
                 // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
                 // but can't use `contains` because the types are different
-                if message_retry_requests.iter().any(|r| r == e) {
-                    let destination_domain = e.destination_domain().to_string();
+                if message_retry_requests.iter().any(|r| r == op) {
                     info!(
-                        id = ?e.id(),
-                        destination_domain, "Retrying OpQueue operation"
+                        operation = %op,
+                        queue_label = %self.queue_metrics_label,
+                        "Retrying OpQueue operation"
                     );
-                    e.reset_attempts()
+                    op.reset_attempts()
                 }
-                Reverse(e)
+                Reverse(op)
             })
             .collect();
         queue.append(&mut reprioritized_queue);

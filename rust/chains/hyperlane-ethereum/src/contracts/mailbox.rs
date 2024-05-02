@@ -375,13 +375,9 @@ where
         &self,
         messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<TxOutcome> {
-        let multicall = build_multicall(self.provider.clone(), &self.conn).await;
-        let Some(mut multicall) = multicall else {
-            return Err(HyperlaneEthereumError::MulticallError(
-                "Multicall contract not set".to_string(),
-            )
-            .into());
-        };
+        let mut multicall = build_multicall(self.provider.clone(), &self.conn, self.domain.clone())
+            .await
+            .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
         let contract_call_futures = messages
             .iter()
             .map(|batch| async {

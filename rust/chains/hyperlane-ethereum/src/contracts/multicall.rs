@@ -2,29 +2,38 @@ use std::sync::Arc;
 
 use ethers::{abi::Detokenize, providers::Middleware};
 use ethers_contract::{builders::ContractCall, Multicall, MulticallResult, MulticallVersion};
-use hyperlane_core::ChainResult;
-use tracing::warn;
+use hyperlane_core::{
+    utils::hex_or_base58_to_h256, ChainResult, HyperlaneDomain, HyperlaneProvider,
+};
 
-use crate::ConnectionConf;
+use crate::{ConnectionConf, EthereumProvider};
 
 const ALLOW_BATCH_FAILURES: bool = true;
 
-pub async fn build_multicall<M: Middleware>(
+pub async fn build_multicall<M: Middleware + 'static>(
     provider: Arc<M>,
     conn: &ConnectionConf,
-) -> Option<Multicall<M>> {
-    let Some(address) = conn.message_batch.multicall3_address else {
-        return None;
-    };
+    domain: HyperlaneDomain,
+) -> eyre::Result<Multicall<M>> {
+    let address = conn
+        .message_batch
+        .multicall3_address
+        .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
+    let ethereum_provider = EthereumProvider::new(provider.clone(), domain);
+    if !ethereum_provider.is_contract(&address).await? {
+        return Err(eyre::eyre!("Multicall contract not found at address"));
+    }
     let multicall = match Multicall::new(provider.clone(), Some(address.into())).await {
         Ok(multicall) => multicall.version(MulticallVersion::Multicall3),
         Err(err) => {
-            warn!("Unable to build multicall contract: {}", err);
-            return None;
+            return Err(eyre::eyre!(
+                "Unable to build multicall contract: {}",
+                err.to_string()
+            ))
         }
     };
 
-    Some(multicall)
+    Ok(multicall)
 }
 
 pub async fn batch<M: Middleware, D: Detokenize>(

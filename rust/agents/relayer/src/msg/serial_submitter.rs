@@ -1,4 +1,3 @@
-use std::ops::Mul;
 use std::time::Duration;
 
 use derive_new::new;
@@ -103,15 +102,16 @@ impl SerialSubmitter {
             "prepare_queue".to_string(),
             retry_rx.clone(),
         );
+        let submit_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "submit_queue".to_string(),
+            retry_rx.clone(),
+        );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
             retry_rx,
         );
-
-        // This is channel acts as a buffer to avoid holding too many prepared messages in memory.
-        // Use double the max batch size to increase chances of having full batches
-        let (tx_submit, rx_submit) = mpsc::channel((max_batch_size.mul(10)) as usize);
 
         let tasks = [
             spawn(receive_task(
@@ -122,16 +122,17 @@ impl SerialSubmitter {
             spawn(prepare_task(
                 domain.clone(),
                 prepare_queue.clone(),
+                submit_queue.clone(),
                 confirm_queue.clone(),
-                tx_submit,
+                max_batch_size,
                 metrics.clone(),
             )),
             spawn(submit_task(
                 domain.clone(),
-                rx_submit,
+                submit_queue,
                 confirm_queue.clone(),
-                metrics.clone(),
                 max_batch_size,
+                metrics.clone(),
             )),
             spawn(confirm_task(
                 domain.clone(),
@@ -171,12 +172,13 @@ async fn receive_task(
 async fn prepare_task(
     domain: HyperlaneDomain,
     mut prepare_queue: OpQueue,
+    submit_queue: OpQueue,
     confirm_queue: OpQueue,
-    tx_submit: mpsc::Sender<QueueOperation>,
+    max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
 ) {
-    // Pop as many ops as we can then send to the channel
-    let ops_to_prepare = tx_submit.capacity();
+    // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
+    let ops_to_prepare = max_batch_size as usize;
     loop {
         // Pop messages here according to the configured batch.
         let mut batch = prepare_queue.pop_many(ops_to_prepare).await;
@@ -209,9 +211,7 @@ async fn prepare_task(
                     debug!(?op, "Operation prepared");
                     metrics.ops_prepared.inc();
                     // this send will pause this task if the submitter is not ready to accept yet
-                    if let Err(err) = tx_submit.send(op).await {
-                        tracing::error!(error=?err, "Failed to send prepared operation to submitter");
-                    }
+                    submit_queue.push(op).await;
                 }
                 PendingOperationResult::NotReady => {
                     // none of the operations are ready yet, so wait for a little bit
@@ -226,7 +226,6 @@ async fn prepare_task(
                 }
                 PendingOperationResult::Confirm => {
                     confirm_queue.push(op).await;
-                    // metrics.ops_submitted.inc();
                 }
             }
         }
@@ -240,33 +239,30 @@ async fn prepare_task(
 #[instrument(skip_all, fields(%domain))]
 async fn submit_task(
     domain: HyperlaneDomain,
-    mut rx_submit: mpsc::Receiver<QueueOperation>,
+    mut submit_queue: OpQueue,
     mut confirm_queue: OpQueue,
+    max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
-    batch_size: u32,
 ) {
-    let recv_limit = batch_size as usize;
+    let recv_limit = max_batch_size as usize;
     // looping is not an issue because `recv_many` will sleep if the channel is empty
     loop {
-        let mut recv_buffer = vec![];
-        let ops_received = rx_submit.recv_many(&mut recv_buffer, recv_limit).await;
+        let mut batch = submit_queue.pop_many(recv_limit).await;
 
-        match ops_received.cmp(&1) {
+        match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
                 // This should never happen, but just in case
                 sleep(Duration::from_secs(5)).await;
                 continue;
             }
             std::cmp::Ordering::Equal => {
-                let op = recv_buffer.pop().unwrap();
+                let op = batch.pop().unwrap();
                 submit_and_confirm_op(op, &mut confirm_queue, &metrics).await;
             }
             std::cmp::Ordering::Greater => {
-                let mut batch = OperationBatch::new();
-                for op in recv_buffer.into_iter() {
-                    batch.add(op);
-                }
-                batch.submit(&mut confirm_queue, &metrics).await;
+                OperationBatch::new(batch)
+                    .submit(&mut confirm_queue, &metrics)
+                    .await;
             }
         }
     }
@@ -357,15 +353,10 @@ impl SerialSubmitterMetrics {
 
 #[derive(new)]
 struct OperationBatch {
-    #[new(default)]
     operations: Vec<QueueOperation>,
 }
 
 impl OperationBatch {
-    fn add(&mut self, op: QueueOperation) {
-        self.operations.push(op);
-    }
-
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         match self.try_submit_as_batch(metrics).await {
             Ok(outcome) => {

@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    fmt::Debug,
+    fmt::{Debug, Display},
     time::{Duration, Instant},
 };
 
@@ -88,6 +88,19 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     #[cfg(test)]
     /// Set the number of times this operation has been retried.
     fn set_retries(&mut self, retries: u32);
+}
+
+impl Display for QueueOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "QueueOperation(id: {}, origin: {}, destination: {}, priority: {})",
+            self.id(),
+            self.origin_domain_id(),
+            self.destination_domain(),
+            self.priority()
+        )
+    }
 }
 
 impl PartialOrd for QueueOperation {
