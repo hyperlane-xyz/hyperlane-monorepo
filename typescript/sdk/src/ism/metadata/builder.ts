@@ -1,4 +1,4 @@
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { WithAddress, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
@@ -30,6 +30,17 @@ export class BaseMetadataBuilder
   ): Promise<string> {
     if (!ismConfig) {
       ismConfig = await this.core.getRecipientIsmConfig(message);
+    }
+
+    if (ismConfig.type === IsmType.TRUSTED_RELAYER) {
+      const destinationSigner = await this.core.multiProvider.getSignerAddress(
+        message.parsed.destination,
+      );
+      if (!eqAddress(destinationSigner, ismConfig.relayer)) {
+        throw new Error(
+          `${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
+        );
+      }
     }
 
     switch (ismConfig.type) {
