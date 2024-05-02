@@ -141,18 +141,32 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
     const metadata = await pollAsync(
       async () => {
+        this.logger.debug({ message }, `Simulating recipient message handling`);
         await recipient.callStatic.handle(
           message.parsed.origin,
           message.parsed.sender,
           message.parsed.body,
         );
+        this.logger.debug(
+          { message, recipientIsm },
+          `Building recipient ISM ${recipientIsm} metadata`,
+        );
         const metadata = await this.buildMetadata(message);
+        this.logger.debug(
+          { message, metadata },
+          `Simulating recipient ISM ${recipientIsm} verification`,
+        );
         const verified = await ism.callStatic.verify(metadata, message.message);
         assert(verified, 'ISM verification failed');
         return metadata;
       },
       5 * 1000, // every 5 seconds
       12, // 12 attempts (1 minute total)
+    );
+
+    this.logger.info(
+      { message, metadata },
+      `Relaying message ${message.id} to ${destinationChain}`,
     );
 
     return this.multiProvider.handleTx(
@@ -166,8 +180,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       const mailbox = this.getContracts(chain).mailbox;
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(...filter),
-        async (_sender, _destination, _recipient, message) =>
-          this.relayMessage(HyperlaneCore.parseDispatchedMessage(message)),
+        async (_sender, _destination, _recipient, message) => {
+          this.logger.info(
+            { chain, message },
+            `Observed message from ${chain}, attempting to relay`,
+          );
+          await this.relayMessage(
+            HyperlaneCore.parseDispatchedMessage(message),
+          );
+        },
       );
     }
   }
