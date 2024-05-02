@@ -6,6 +6,7 @@
 
 pub use error::*;
 pub use indexer::*;
+pub use mailbox::*;
 pub use provider::*;
 pub use signers::*;
 pub use trait_builder::*;

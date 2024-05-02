@@ -15,8 +15,7 @@ use hyperlane_core::{
 };
 use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
-use starknet::providers::jsonrpc::HttpTransport;
-use starknet::providers::{AnyProvider, JsonRpcClient};
+use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
@@ -40,6 +39,7 @@ where
 
 /// A reference to a Mailbox contract on some Starknet chain
 #[derive(Debug)]
+#[allow(unused)]
 pub struct StarknetMailbox {
     contract: Arc<StarknetMailboxInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
     provider: StarknetProvider,
@@ -49,7 +49,11 @@ pub struct StarknetMailbox {
 impl StarknetMailbox {
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
-    pub fn new(conn: &ConnectionConf, locator: &ContractLocator, signer: Signer) -> Self {
+    pub fn new(
+        conn: &ConnectionConf,
+        locator: &ContractLocator,
+        signer: Signer,
+    ) -> ChainResult<Self> {
         let account = build_single_owner_account(
             &conn.url,
             signer.local_wallet(),
@@ -59,18 +63,16 @@ impl StarknetMailbox {
         );
 
         let contract = StarknetMailboxInternal::new(
-            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
+            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes())
+                .map_err(HyperlaneStarknetError::BytesConversionError)?,
             account,
         );
 
-        let provider =
-            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conn.url.clone())));
-
-        Self {
+        Ok(Self {
             contract: Arc::new(contract),
-            provider: StarknetProvider::new(Arc::new(provider), locator.domain.clone()),
+            provider: StarknetProvider::new(locator.domain.clone(), conn),
             conn: conn.clone(),
-        }
+        })
     }
 
     /// Returns a ContractCall that processes the provided message.
@@ -119,6 +121,7 @@ impl StarknetMailbox {
         Ok(tx.max_fee(gas_estimate * FieldElement::TWO))
     }
 
+    #[allow(unused)]
     pub fn contract(
         &self,
     ) -> &StarknetMailboxInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {

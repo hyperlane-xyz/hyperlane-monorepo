@@ -11,10 +11,11 @@ use starknet::core::types::{
     MaybePendingTransactionReceipt, TransactionReceipt,
 };
 use starknet::macros::{felt, selector};
-use starknet::providers::{AnyProvider, Provider};
+use starknet::providers::jsonrpc::HttpTransport;
+use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
 use tracing::instrument;
 
-use crate::HyperlaneStarknetError;
+use crate::{ConnectionConf, HyperlaneStarknetError};
 
 #[derive(Debug, Clone)]
 /// A wrapper over the Starknet provider to provide a more ergonomic interface.
@@ -25,10 +26,13 @@ pub struct StarknetProvider {
 
 impl StarknetProvider {
     /// Create a new Starknet provider.
-    pub fn new(provider: Arc<AnyProvider>, domain: HyperlaneDomain) -> Self {
+    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
+        let provider =
+            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
+
         Self {
             domain,
-            rpc_client: Arc::clone(&provider),
+            rpc_client: Arc::new(provider),
         }
     }
 

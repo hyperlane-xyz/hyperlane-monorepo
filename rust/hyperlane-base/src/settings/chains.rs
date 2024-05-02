@@ -198,8 +198,7 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Starknet(conf) => {
-                let provider =
-                    h_starknet::StarknetProvider::new(locator.domain.clone(), conf, None);
+                let provider = h_starknet::StarknetProvider::new(locator.domain.clone(), conf);
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
         }
@@ -236,7 +235,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Starknet(conf) => {
                 let signer = self.starknet_signer().await.context(ctx)?;
-                h_starknet::StarknetMailbox::new(conf.clone(), locator.clone(), signer.clone())
+                h_starknet::StarknetMailbox::new(conf, &locator, signer.unwrap())
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
@@ -272,7 +271,7 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
-            ChainConnectionConf::Starknet(conf) => {
+            ChainConnectionConf::Starknet(_conf) => {
                 todo!("Starknet does not support merkle tree hooks yet")
             }
         }
@@ -314,7 +313,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
-            ChainConnectionConf::Starknet(_) => {
+            ChainConnectionConf::Starknet(conf) => {
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
                     conf.clone(),
                     locator,
