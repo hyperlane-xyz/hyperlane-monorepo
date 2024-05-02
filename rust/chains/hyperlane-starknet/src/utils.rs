@@ -11,6 +11,7 @@ use starknet::{
 };
 use url::Url;
 
+/// Polls a function until it returns true or the max poll count is exceeded.
 pub async fn assert_poll<F, Fut>(f: F, polling_time_ms: u64, max_poll_count: u32)
 where
     F: Fn() -> Fut,
@@ -29,6 +30,7 @@ where
 
 type TransactionReceiptResult = Result<MaybePendingTransactionReceipt, ProviderError>;
 
+/// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
     rpc: &AnyProvider,
     transaction_hash: FieldElement,
@@ -48,12 +50,21 @@ pub async fn get_transaction_receipt(
 /// Returns the starknet chain id from the hyperlane domain id.
 pub fn get_chain_id_from_domain_id(domain_id: u32) -> FieldElement {
     match domain_id {
-        23448594392895567 => SEPOLIA,
-        23448594291968334 => MAINNET,
+        23448591 => SEPOLIA,
+        23448592 => MAINNET,
         _ => panic!("Unsupported domain id"),
     }
 }
 
+/// Creates a single owner account for a given signer and account address.
+///
+/// # Arguments
+///
+/// * `rpc_url` - The rpc url of the chain.
+/// * `signer` - The signer of the account.
+/// * `account_address` - The address of the account.
+/// * `is_legacy` - Whether the account is legacy (Cairo 0) or not.
+/// * `domain_id` - The hyperlane domain id of the chain.
 pub fn build_single_owner_account(
     rpc_url: &Url,
     signer: LocalWallet,

@@ -15,7 +15,8 @@ use hyperlane_core::{
 };
 use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
-use starknet::providers::AnyProvider;
+use starknet::providers::jsonrpc::HttpTransport;
+use starknet::providers::{AnyProvider, JsonRpcClient};
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
@@ -62,12 +63,12 @@ impl StarknetMailbox {
             account,
         );
 
+        let provider =
+            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conn.url.clone())));
+
         Self {
             contract: Arc::new(contract),
-            provider: StarknetProvider::new(
-                Arc::new(contract.provider().clone()),
-                locator.domain.clone(),
-            ),
+            provider: StarknetProvider::new(Arc::new(provider), locator.domain.clone()),
             conn: conn.clone(),
         }
     }
@@ -131,7 +132,7 @@ impl HyperlaneChain for StarknetMailbox {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        Box::new(&self.provider)
+        Box::new(self.provider.clone())
     }
 }
 

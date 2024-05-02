@@ -67,6 +67,7 @@ impl StarknetMailboxIndexer {
         })
     }
 
+    #[allow(unused)]
     async fn get_block(&self, block_number: u32) -> ChainResult<MaybePendingBlockWithTxHashes> {
         Ok(self
             .contract
@@ -76,6 +77,7 @@ impl StarknetMailboxIndexer {
             .map_err(Into::<HyperlaneStarknetError>::into)?)
     }
 
+    #[allow(unused)]
     async fn get_block_results(&self, block_number: u32) -> ChainResult<MaybePendingBlockWithTxs> {
         Ok(self
             .contract
@@ -85,6 +87,7 @@ impl StarknetMailboxIndexer {
             .map_err(Into::<HyperlaneStarknetError>::into)?)
     }
 
+    #[allow(unused)]
     async fn get_latest_block(&self) -> ChainResult<MaybePendingBlockWithTxHashes> {
         Ok(self
             .contract

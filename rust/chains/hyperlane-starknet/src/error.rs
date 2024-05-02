@@ -8,18 +8,25 @@ use std::fmt::Debug;
 /// in hyperlane-core using the `From` trait impl
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneStarknetError {
+    /// Error during string conversion
     #[error(transparent)]
     StringConversionError(#[from] FromStrError),
+    /// Error during bytes conversion
     #[error(transparent)]
     BytesConversionError(#[from] FromByteArrayError),
+    /// Error during execution of a transaction
     #[error("Error during execution: {0}")]
     AccountError(String),
+    /// Transaction receipt is invalid
     #[error("Invalid transaction receipt")]
     InvalidTransactionReceipt,
+    /// Block is invalid
     #[error("Invalid block")]
     InvalidBlock,
+    /// Error during contract call
     #[error(transparent)]
     ContractCallError(#[from] cainome::cairo_serde::Error),
+    /// Error during a Starknet RPC call
     #[error(transparent)]
     ProviderError(#[from] starknet::providers::ProviderError),
 }

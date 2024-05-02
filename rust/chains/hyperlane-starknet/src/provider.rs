@@ -24,20 +24,26 @@ pub struct StarknetProvider {
 }
 
 impl StarknetProvider {
-    pub fn new(rpc_client: Arc<AnyProvider>, domain: HyperlaneDomain) -> Self {
-        Self { domain, rpc_client }
+    /// Create a new Starknet provider.
+    pub fn new(provider: Arc<AnyProvider>, domain: HyperlaneDomain) -> Self {
+        Self {
+            domain,
+            rpc_client: Arc::clone(&provider),
+        }
     }
 
+    /// Get the RPC client.
     pub fn rpc_client(&self) -> Arc<AnyProvider> {
         self.rpc_client.clone()
     }
 
+    /// Get the hyperlane domain.
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 }
 
-impl HyperlaneChain for &StarknetProvider {
+impl HyperlaneChain for StarknetProvider {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
@@ -48,7 +54,7 @@ impl HyperlaneChain for &StarknetProvider {
 }
 
 #[async_trait]
-impl HyperlaneProvider for &StarknetProvider {
+impl HyperlaneProvider for StarknetProvider {
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         let block = self

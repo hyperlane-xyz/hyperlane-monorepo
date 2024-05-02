@@ -108,8 +108,8 @@ pub enum KnownHyperlaneDomain {
     CosmosTest99991 = 99991,
 
     /// Starknet
-    StarknetSepolia = 23448594392895567,
-    StarknetMainnet = 23448594291968334,
+    StarknetSepolia = 23448591,
+    StarknetMainnet = 23448592,
 }
 
 #[derive(Clone)]
