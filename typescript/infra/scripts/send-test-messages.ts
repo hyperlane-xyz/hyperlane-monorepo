@@ -5,10 +5,10 @@ import yargs from 'yargs';
 import { Mailbox, TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
-  Chains,
   HookType,
   HyperlaneCore,
   MultiProvider,
+  TestChainName,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
 
@@ -102,7 +102,7 @@ async function main() {
 
   const signer = new Wallet(ANVIL_KEY);
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-  const provider = multiProvider.getProvider(Chains.test1);
+  const provider = multiProvider.getProvider(TestChainName.test1);
 
   const addresses = JSON.parse(
     fs.readFileSync('./config/environments/test/core/addresses.json', 'utf8'),

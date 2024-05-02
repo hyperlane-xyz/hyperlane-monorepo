@@ -1,87 +1,29 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
-import { z } from 'zod';
 
-import { TokenType, ZHash } from '@hyperlane-xyz/sdk';
+import {
+  TokenType,
+  WarpCoreConfig,
+  WarpCoreConfigSchema,
+  WarpRouteDeployConfig,
+  WarpRouteDeployConfigSchema,
+} from '@hyperlane-xyz/sdk';
 
+import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
-import { FileFormat, readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-import { readChainConfigsIfExists } from './chain.js';
-
-const ConnectionConfigSchema = {
-  mailbox: ZHash.optional(),
-  interchainSecurityModule: ZHash.optional(),
-  foreignDeployment: z.string().optional(),
-};
-
-export const WarpRouteDeployConfigSchema = z.object({
-  base: z
-    .object({
-      type: z
-        .literal(TokenType.native)
-        .or(z.literal(TokenType.collateral))
-        .or(z.literal(TokenType.collateralVault)),
-      chainName: z.string(),
-      address: ZHash.optional(),
-      isNft: z.boolean().optional(),
-      name: z.string().optional(),
-      symbol: z.string().optional(),
-      decimals: z.number().optional(),
-      ...ConnectionConfigSchema,
-    })
-    .refine(
-      (data) => {
-        // For collateralVault Warp Routes, address will specify the vault
-        if (
-          data.type === TokenType.collateralVault &&
-          data.address === ethers.constants.AddressZero
-        )
-          return false;
-
-        return true;
-      },
-      {
-        message: 'Vault address is required when type is collateralVault',
-        path: ['address'],
-      },
-    ),
-  synthetics: z
-    .array(
-      z.object({
-        chainName: z.string(),
-        name: z.string().optional(),
-        symbol: z.string().optional(),
-        totalSupply: z.number().optional(),
-        ...ConnectionConfigSchema,
-      }),
-    )
-    .nonempty(),
-});
-
-type InferredType = z.infer<typeof WarpRouteDeployConfigSchema>;
-// A workaround for Zod's terrible typing for nonEmpty arrays
-export type WarpRouteDeployConfig = {
-  base: InferredType['base'];
-  synthetics: Array<InferredType['synthetics'][0]>;
-};
-
-export function readWarpRouteDeployConfig(filePath: string) {
+export function readWarpRouteDeployConfig(
+  filePath: string,
+): WarpRouteDeployConfig {
   const config = readYamlOrJson(filePath);
   if (!config)
     throw new Error(`No warp route deploy config found at ${filePath}`);
-  const result = WarpRouteDeployConfigSchema.safeParse(config);
-  if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(
-      `Invalid warp config: ${firstIssue.path} => ${firstIssue.message}`,
-    );
-  }
-  return result.data;
+  return WarpRouteDeployConfigSchema.parse(config);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
@@ -89,18 +31,15 @@ export function isValidWarpRouteDeployConfig(config: any) {
 }
 
 export async function createWarpRouteDeployConfig({
-  format,
+  context,
   outPath,
-  chainConfigPath,
 }: {
-  format: FileFormat;
+  context: CommandContext;
   outPath: string;
-  chainConfigPath: string;
 }) {
   logBlue('Creating a new warp route deployment config');
-  const customChains = readChainConfigsIfExists(chainConfigPath);
   const baseChain = await runSingleChainSelectionStep(
-    customChains,
+    context.chainMetadata,
     'Select base chain with the original token to warp',
   );
 
@@ -128,36 +67,49 @@ export async function createWarpRouteDeployConfig({
     : await input({ message: addressMessage });
 
   const syntheticChains = await runMultiChainSelectionStep(
-    customChains,
+    context.chainMetadata,
     'Select chains to which the base token will be connected',
   );
 
   // TODO add more prompts here to support customizing the token metadata
-  let baseType: TokenType;
+  let result: WarpRouteDeployConfig;
   if (isNative) {
-    baseType = TokenType.native;
+    result = {
+      [baseChain]: {
+        type: TokenType.native,
+      },
+    };
   } else {
-    baseType = isYieldBearing
-      ? TokenType.collateralVault
-      : TokenType.collateral;
+    result = {
+      [baseChain]: {
+        type: isYieldBearing ? TokenType.collateralVault : TokenType.collateral,
+        token: baseAddress,
+        isNft,
+      },
+    };
   }
-  const result: WarpRouteDeployConfig = {
-    base: {
-      chainName: baseChain,
-      type: baseType,
-      address: baseAddress,
-      isNft,
-    },
-    synthetics: syntheticChains.map((chain) => ({ chainName: chain })),
-  };
+
+  syntheticChains.map((chain) => {
+    result[chain] = {
+      type: TokenType.synthetic,
+    };
+  });
 
   if (isValidWarpRouteDeployConfig(result)) {
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);
-    writeYamlOrJson(outPath, result, format);
+    writeYamlOrJson(outPath, result);
   } else {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
     );
     throw new Error('Invalid multisig config');
   }
+}
+
+// Note, this is different than the function above which reads a config
+// for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
+export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
+  const config = readYamlOrJson(filePath);
+  if (!config) throw new Error(`No warp route config found at ${filePath}`);
+  return WarpCoreConfigSchema.parse(config);
 }

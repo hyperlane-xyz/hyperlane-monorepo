@@ -1,18 +1,19 @@
 import {
   ChainMap,
+  ChainName,
   GasOracleContractType,
   IgpConfig,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { TestChains, chainNames } from './chains.js';
+import { testChainNames } from './chains.js';
 import { multisigIsm } from './multisigIsm.js';
 import { owners } from './owners.js';
 
-function getGasOracles(local: TestChains) {
+function getGasOracles(local: ChainName) {
   return Object.fromEntries(
-    exclude(local, chainNames).map((name) => [
+    exclude(local, testChainNames).map((name) => [
       name,
       GasOracleContractType.StorageGasOracle,
     ]),
@@ -21,7 +22,7 @@ function getGasOracles(local: TestChains) {
 
 export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, ownerConfig) => {
   const overhead = Object.fromEntries(
-    exclude(chain, chainNames).map((remote) => [
+    exclude(chain, testChainNames).map((remote) => [
       remote,
       multisigIsmVerificationCost(
         multisigIsm[remote].threshold,

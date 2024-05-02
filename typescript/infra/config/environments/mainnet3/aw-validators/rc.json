@@ -23,6 +23,9 @@
       "0xed7703e06572768bb09e03d88e6b788d8800b9fb"
     ]
   },
+  "blast": {
+    "validators": ["0x5b32f226e472da6ca19abfe1a29d5d28102a2d1a"]
+  },
   "bsc": {
     "validators": [
       "0x911dfcc19dd5b723e84be452f6af52adef020bc8",
@@ -64,6 +67,9 @@
       "0x45f3e2655a08feda821ee7b495cf2595401e1569",
       "0x4cfccfd66dbb702b643b56f6986a928ed1b50c7e"
     ]
+  },
+  "mode": {
+    "validators": ["0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"]
   },
   "moonbeam": {
     "validators": [
