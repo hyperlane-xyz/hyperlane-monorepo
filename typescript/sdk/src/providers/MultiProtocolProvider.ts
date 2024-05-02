@@ -3,13 +3,14 @@ import { Logger } from 'pino';
 import {
   Address,
   HexString,
+  ProtocolType,
   objFilter,
   objMap,
   pick,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata.js';
+import { multiProtocolTestChainMetadata } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
@@ -63,9 +64,7 @@ export class MultiProtocolProvider<
   public readonly logger: Logger;
 
   constructor(
-    chainMetadata: ChainMap<
-      ChainMetadata<MetaExt>
-    > = defaultChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
+    chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     protected readonly options: MultiProtocolProviderOptions = {},
   ) {
     super(chainMetadata, options);
@@ -257,5 +256,24 @@ export class MultiProtocolProvider<
       providers: pick(this.providers, intersection),
     });
     return { intersection, result: multiProvider };
+  }
+
+  /**
+   * Creates a MultiProvider for test networks
+   */
+  static createTestMultiProtocolProvider<MetaExt = {}>(
+    metadata = multiProtocolTestChainMetadata,
+    providers: Partial<Record<ProtocolType, TypedProvider>> = {},
+  ): MultiProtocolProvider<MetaExt> {
+    const mp = new MultiProtocolProvider(metadata);
+    const providerMap: ChainMap<TypedProvider> = {};
+    for (const [protocol, provider] of Object.entries(providers)) {
+      const chains = Object.values(metadata).filter(
+        (m) => m.protocol === protocol,
+      );
+      chains.forEach((c) => (providerMap[c.name] = provider));
+    }
+    mp.setProviders(providerMap);
+    return mp as MultiProtocolProvider<MetaExt>;
   }
 }

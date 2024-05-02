@@ -1,10 +1,7 @@
-import {
-  AddressesMap,
-  ChainMap,
-  OwnableConfig,
-  hyperlaneEnvironments,
-} from '@hyperlane-xyz/sdk';
+import { AddressesMap, ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
+
+import { getMainnetAddresses } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 
@@ -13,8 +10,7 @@ export const timelocks: ChainMap<Address | undefined> = {
 };
 
 export function localAccountRouters(): ChainMap<Address> {
-  const coreAddresses: ChainMap<AddressesMap> =
-    hyperlaneEnvironments['mainnet'];
+  const coreAddresses: ChainMap<AddressesMap> = getMainnetAddresses();
   const filteredAddresses = objFilter(
     coreAddresses,
     (local, addressMap): addressMap is AddressesMap =>
@@ -54,13 +50,12 @@ export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => [
     local,
     {
-      owner: DEPLOYER,
-      // owner: safes[local] ?? DEPLOYER,
-      // ownerOverrides: {
-      //   proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
-      //   validatorAnnounce: DEPLOYER, // unused
-      //   testRecipient: DEPLOYER,
-      // },
+      owner: safes[local] ?? DEPLOYER,
+      ownerOverrides: {
+        proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
+        validatorAnnounce: DEPLOYER, // unused
+        testRecipient: DEPLOYER,
+      },
     },
   ]),
 );

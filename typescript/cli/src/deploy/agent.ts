@@ -2,7 +2,7 @@ import terminalLink from 'terminal-link';
 
 import { toBase64 } from '@hyperlane-xyz/utils';
 
-import { getContext } from '../context.js';
+import { CommandContext } from '../context/types.js';
 import { logBlue, logGreen } from '../logger.js';
 import {
   runMultiChainSelectionStep,
@@ -11,27 +11,25 @@ import {
 import { readJson, runFileSelectionStep } from '../utils/files.js';
 
 export async function runKurtosisAgentDeploy({
+  context,
   originChain,
   relayChains,
-  chainConfigPath,
   agentConfigurationPath,
 }: {
-  originChain: string;
-  relayChains: string;
-  chainConfigPath: string;
-  agentConfigurationPath: string;
+  context: CommandContext;
+  originChain?: string;
+  relayChains?: string;
+  agentConfigurationPath?: string;
 }) {
-  const { customChains } = await getContext({ chainConfigPath });
-
   if (!originChain) {
     originChain = await runSingleChainSelectionStep(
-      customChains,
+      context.chainMetadata,
       'Select the origin chain',
     );
   }
   if (!relayChains) {
     const selectedRelayChains = await runMultiChainSelectionStep(
-      customChains,
+      context.chainMetadata,
       'Select chains to relay between',
       true,
     );
@@ -44,7 +42,7 @@ export async function runKurtosisAgentDeploy({
       'No agent config json was provided. Please specify the agent config json filepath.',
     );
     agentConfigurationPath = await runFileSelectionStep(
-      './artifacts',
+      './configs',
       'agent config json',
       'agent-config',
     );
