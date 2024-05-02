@@ -138,6 +138,7 @@ impl SerialSubmitter {
                 domain.clone(),
                 prepare_queue,
                 confirm_queue,
+                max_batch_size,
                 metrics,
             )),
         ];
@@ -251,8 +252,8 @@ async fn submit_task(
 
         match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
-                // This should never happen, but just in case
-                sleep(Duration::from_secs(5)).await;
+                // The queue is empty, so give some time before checking again to prevent burning CPU
+                sleep(Duration::from_millis(100)).await;
                 continue;
             }
             std::cmp::Ordering::Equal => {
@@ -260,7 +261,7 @@ async fn submit_task(
                 submit_and_confirm_op(op, &mut confirm_queue, &metrics).await;
             }
             std::cmp::Ordering::Greater => {
-                OperationBatch::new(batch)
+                OperationBatch::new(batch, domain.clone())
                     .submit(&mut confirm_queue, &metrics)
                     .await;
             }
@@ -268,6 +269,7 @@ async fn submit_task(
     }
 }
 
+#[instrument(skip(confirm_queue, metrics), ret, level = "debug")]
 async fn submit_and_confirm_op(
     mut op: QueueOperation,
     confirm_queue: &mut OpQueue,
@@ -284,35 +286,59 @@ async fn confirm_task(
     domain: HyperlaneDomain,
     prepare_queue: OpQueue,
     mut confirm_queue: OpQueue,
+    max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
 ) {
+    let recv_limit = max_batch_size as usize;
     loop {
         // Pick the next message to try confirming.
-        let Some(mut op) = confirm_queue.pop().await else {
-            sleep(Duration::from_secs(5)).await;
+        let batch = confirm_queue.pop_many(recv_limit).await;
+
+        if batch.is_empty() {
+            // queue is empty so give some time before checking again to prevent burning CPU
+            sleep(Duration::from_millis(200)).await;
             continue;
-        };
+        }
 
-        trace!(?op, "Confirming operation");
-        debug_assert_eq!(*op.destination_domain(), domain);
+        let futures = batch.into_iter().map(|op| {
+            confirm_operation(
+                op,
+                domain.clone(),
+                prepare_queue.clone(),
+                confirm_queue.clone(),
+                metrics.clone(),
+            )
+        });
+        join_all(futures).await;
+    }
+}
 
-        match op.confirm().await {
-            PendingOperationResult::Success | PendingOperationResult::Confirm => {
-                debug!(?op, "Operation confirmed");
-                metrics.ops_confirmed.inc();
-            }
-            PendingOperationResult::NotReady => {
-                // none of the operations are ready yet, so wait for a little bit
-                confirm_queue.push(op).await;
-                sleep(Duration::from_secs(5)).await;
-            }
-            PendingOperationResult::Reprepare => {
-                metrics.ops_failed.inc();
-                prepare_queue.push(op).await;
-            }
-            PendingOperationResult::Drop => {
-                metrics.ops_dropped.inc();
-            }
+async fn confirm_operation(
+    mut op: QueueOperation,
+    domain: HyperlaneDomain,
+    prepare_queue: OpQueue,
+    confirm_queue: OpQueue,
+    metrics: SerialSubmitterMetrics,
+) {
+    trace!(?op, "Confirming operation");
+    debug_assert_eq!(*op.destination_domain(), domain);
+
+    match op.confirm().await {
+        PendingOperationResult::Success | PendingOperationResult::Confirm => {
+            debug!(?op, "Operation confirmed");
+            metrics.ops_confirmed.inc();
+        }
+        PendingOperationResult::NotReady => {
+            // none of the operations are ready yet, so wait for a little bit
+            confirm_queue.push(op).await;
+            sleep(Duration::from_secs(5)).await;
+        }
+        PendingOperationResult::Reprepare => {
+            metrics.ops_failed.inc();
+            prepare_queue.push(op).await;
+        }
+        PendingOperationResult::Drop => {
+            metrics.ops_dropped.inc();
         }
     }
 }
@@ -351,9 +377,11 @@ impl SerialSubmitterMetrics {
     }
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 struct OperationBatch {
     operations: Vec<QueueOperation>,
+    #[allow(dead_code)]
+    domain: HyperlaneDomain,
 }
 
 impl OperationBatch {
@@ -376,6 +404,7 @@ impl OperationBatch {
         self.submit_serially(confirm_queue, metrics).await;
     }
 
+    #[instrument(skip(metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
         &self,
         metrics: &SerialSubmitterMetrics,

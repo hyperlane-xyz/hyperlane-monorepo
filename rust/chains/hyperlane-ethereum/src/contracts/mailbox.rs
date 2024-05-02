@@ -370,7 +370,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(skip(self, messages))]
+    #[instrument(skip(self, messages), fields(size=%messages.len()))]
     async fn process_batch(
         &self,
         messages: &[BatchItem<HyperlaneMessage>],
@@ -400,7 +400,7 @@ where
         let call = self
             .add_gas_overrides(
                 batch_call,
-                GAS_ESTIMATE_BUFFER.checked_mul(150).map(Into::into),
+                GAS_ESTIMATE_BUFFER.checked_mul(80).map(Into::into),
             )
             .await?;
 

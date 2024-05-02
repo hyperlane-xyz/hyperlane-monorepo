@@ -138,6 +138,7 @@ impl Ord for QueueOperation {
     }
 }
 
+#[derive(Debug)]
 pub enum PendingOperationResult {
     /// Promote to the next step
     Success,

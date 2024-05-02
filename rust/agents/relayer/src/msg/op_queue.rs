@@ -25,7 +25,7 @@ pub struct OpQueue {
 
 impl OpQueue {
     /// Push an element onto the queue and update metrics
-    #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label))]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn push(&self, op: QueueOperation) {
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(op.as_ref()).inc();
@@ -34,21 +34,21 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label))]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop(&mut self) -> Option<QueueOperation> {
         let pop_attempt = self.pop_many(1).await;
         pop_attempt.into_iter().next()
     }
 
     /// Pop multiple elements at once from the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label))]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
         while let Some(Reverse(op)) = queue.pop() {
             // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
-            // in those cases, the queue length will decrease to zero until the operation is re-added.
+            // in those cases, the queue length will look like it has spikes whose sizes are at most `limit`
             self.get_operation_metric(op.as_ref()).dec();
             popped.push(op);
             if popped.len() >= limit {
