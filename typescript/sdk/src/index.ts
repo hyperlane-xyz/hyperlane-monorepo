@@ -6,6 +6,8 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp.js';
+export { S3Receipt, S3Wrapper } from './aws/s3.js';
+export { S3Validator } from './aws/validator.js';
 export {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,

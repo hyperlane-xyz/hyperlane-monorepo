@@ -18,7 +18,7 @@ const LOCATION_PREFIX = 's3://';
  * Extension of BaseValidator that includes AWS S3 utilities.
  */
 export class S3Validator extends BaseValidator {
-  s3Bucket: S3Wrapper;
+  public s3Bucket: S3Wrapper;
 
   constructor(
     address: string,
