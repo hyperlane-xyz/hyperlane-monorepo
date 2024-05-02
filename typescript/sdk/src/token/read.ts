@@ -20,9 +20,9 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
 type WarpRouteBaseMetadata = Record<
-  'mailbox' | 'owner' | 'token' | 'hook' | 'interchainSecurityModule',
+  'mailbox' | 'owner' | 'token' | 'hook',
   string
->;
+> & { interchainSecurityModule?: DerivedIsmConfigWithAddress };
 
 /**
  * @remark
@@ -33,13 +33,13 @@ export type DerivedTokenType = Extract<
   'collateral' | 'collateralVault' | 'native' | 'synthetic'
 >;
 
-export type DerivedTokenRouter = Exclude<
+export type DerivedTokenRouterConfig = Exclude<
   TokenRouterConfig,
-  'interchainSecurityModule' | 'type'
+  'type' | 'interchainSecurityModule'
 > & {
   type: DerivedTokenType;
-  interchainSecurityModule: DerivedIsmConfigWithAddress;
-}; // ISM is not optional because address(0) is always returned
+  interchainSecurityModule?: DerivedIsmConfigWithAddress;
+};
 
 export class EvmERC20WarpRouteReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
@@ -64,7 +64,9 @@ export class EvmERC20WarpRouteReader {
    * @returns The configuration for the Hyperlane ERC20 router.
    *
    */
-  async deriveWarpRouteConfig(address: Address): Promise<DerivedTokenRouter> {
+  async deriveWarpRouteConfig(
+    address: Address,
+  ): Promise<DerivedTokenRouterConfig> {
     const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
     const fetchedTokenMetadata = await this.fetchTokenMetadata(
       fetchedBaseMetadata.token,
@@ -73,30 +75,13 @@ export class EvmERC20WarpRouteReader {
     // Derive the config type
     const type = await this.deriveTokenType(address);
 
-    // @TODO figure out why this typing doesn't work
-    const results: DerivedTokenRouter = {
+    const derivedTokenRouter: DerivedTokenRouterConfig = {
       ...fetchedBaseMetadata,
       ...fetchedTokenMetadata,
       type,
     };
 
-    if (
-      fetchedBaseMetadata.interchainSecurityModule !==
-      ethers.constants.AddressZero
-    ) {
-      results.interchainSecurityModule =
-        await this.evmIsmReader.deriveIsmConfig(
-          fetchedBaseMetadata.interchainSecurityModule,
-        );
-    }
-    // @todo add after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
-    // if (fetchedBaseMetadata.hook !== ethers.constants.AddressZero) {
-    //   results.hook = await this.evmHookReader.deriveHookConfig(
-    //     fetchedBaseMetadata.hook,
-    //   );
-    // }
-
-    return results;
+    return derivedTokenRouter;
   }
 
   /**
@@ -162,13 +147,26 @@ export class EvmERC20WarpRouteReader {
         warpRoute.interchainSecurityModule(),
       ]);
 
-    return {
+    const metadata: WarpRouteBaseMetadata = {
       mailbox,
       owner,
       token,
       hook,
-      interchainSecurityModule,
     };
+
+    if (interchainSecurityModule !== ethers.constants.AddressZero) {
+      metadata.interchainSecurityModule =
+        await this.evmIsmReader.deriveIsmConfig(interchainSecurityModule);
+    }
+
+    // @todo add after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
+    // if (fetchedBaseMetadata.hook !== ethers.constants.AddressZero) {
+    //   results.hook = await this.evmHookReader.deriveHookConfig(
+    //     fetchedBaseMetadata.hook,
+    //   );
+    // }
+
+    return metadata;
   }
 
   /**
