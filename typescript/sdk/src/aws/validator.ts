@@ -90,8 +90,11 @@ export class S3Validator extends BaseValidator {
   async findCheckpoint(messageId: string, limit = 50) {
     const latestCheckpointIndex = await this.getLatestCheckpointIndex();
     // TODO: parallelize?
-    for (let i = 0; i <= limit; i--) {
-      const index = latestCheckpointIndex - i;
+    for (
+      let index = latestCheckpointIndex;
+      index >= latestCheckpointIndex - limit;
+      index--
+    ) {
       const s3checkpoint = await this.getCheckpoint(index);
       if (s3checkpoint?.value.message_id === messageId) {
         return s3checkpoint;

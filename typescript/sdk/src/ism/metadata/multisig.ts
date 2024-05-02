@@ -136,7 +136,7 @@ export class MultisigMetadataBuilder
       index: parseInt(metadata.slice(64, 68)),
     };
 
-    let signatures: SignatureLike[] = [];
+    const signatures: SignatureLike[] = [];
     for (let i = 0; this.hasSignature(metadata, i); i++) {
       signatures.push(this.signatureAt(metadata, i));
     }

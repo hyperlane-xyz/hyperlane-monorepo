@@ -162,8 +162,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   async relay(filters: ChainMap<Parameters<Mailbox['filters']['Dispatch']>>) {
-    for (const chain in filters) {
-      const filter = filters[chain];
+    for (const [chain, filter] of Object.entries(filters)) {
       const mailbox = this.getContracts(chain).mailbox;
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(...filter),

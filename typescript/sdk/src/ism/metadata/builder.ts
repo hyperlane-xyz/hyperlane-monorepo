@@ -43,6 +43,7 @@ export class BaseMetadataBuilder
       }
     }
 
+    /* eslint-disable no-case-declarations */
     switch (ismConfig.type) {
       case IsmType.TRUSTED_RELAYER:
       case IsmType.PAUSABLE:
@@ -69,5 +70,6 @@ export class BaseMetadataBuilder
       default:
         throw new Error(`Unknown ISM config: ${ismConfig}`);
     }
+    /* eslint-enable no-case-declarations */
   }
 }
