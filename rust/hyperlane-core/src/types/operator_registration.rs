@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 
@@ -50,13 +51,17 @@ impl Debug for OperatorRegistration {
 #[async_trait]
 impl Signable for OperatorRegistration {
     fn signing_hash(&self) -> H256 {
+        let operator_h256: H256 = self.operator.into();
+        let service_manager_h256: H256 = self.service_manager_address.into();
+        let expiry_h256 = H256::from_low_u64_be(self.expiry as u64);
+
         let struct_hash = H256::from_slice(
             Keccak256::new()
                 .chain(&self.operator_avs_registration_typehash)
-                .chain(&self.operator)
-                .chain(&self.service_manager_address)
+                .chain(&operator_h256)
+                .chain(&service_manager_h256)
                 .chain(&self.salt)
-                .chain(self.expiry.to_be_bytes())
+                .chain(&expiry_h256)
                 .finalize()
                 .as_slice(),
         );
@@ -76,37 +81,29 @@ pub type SignedOperatorRegistration = SignedType<OperatorRegistration>;
 
 /// Computes the domain separator for a given domain (for eigenlayer)
 pub fn domain_separator(domain: u32) -> H256 {
-    let mut h256_value: H256 = H256::zero();
+    let domain_addresses: HashMap<u32, &str> = [
+        (1, "0x135DDa560e946695d6f155dACaFC6f1F25C1F5AF"), // mainnet AVSDirectory address
+        (17000, "0x055733000064333CaDDbC92763c58BF0192fFeBf"), // holesky AVSDirectory address
+    ]
+    .iter()
+    .cloned()
+    .collect();
 
-    h256_value.as_bytes_mut()[12..32].copy_from_slice(
-        H160::from_str("0x055733000064333CaDDbC92763c58BF0192fFeBf")
-            .unwrap()
-            .as_bytes(),
-    );
+    let address: H256 = H160::from_str(domain_addresses.get(&domain)
+      .expect("Invalid domain for operator to the AVS, currently only Ethereum Mainnet and Holesky are supported.")).unwrap().into();
 
     let domain_typehash =
         Keccak256::digest("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
-
     let domain: H256 = H256::from_low_u64_be(domain as u64);
+    let eigenlayer_digest = Keccak256::digest("EigenLayer");
 
-    let eigenlayer_digest = Keccak256::digest("Eigenlayer");
-
-    let hash = H256::from_slice(
+    H256::from_slice(
         Keccak256::new()
-            .chain(domain_typehash)
-            .chain(eigenlayer_digest)
-            .chain(domain)
-            .chain(h256_value)
+            .chain(&domain_typehash)
+            .chain(&eigenlayer_digest)
+            .chain(&domain.as_bytes())
+            .chain(address.as_bytes())
             .finalize()
             .as_slice(),
-    );
-    println!(
-        "DS fields: {:?}, {}, {:?} = , {}",
-        str::from_utf8(&domain_hash).unwrap_or_default(),
-        domain,
-        h256_value,
-        eigenlayer_digest,
-        hash
-    );
-    hash
+    )
 }

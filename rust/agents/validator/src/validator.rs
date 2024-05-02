@@ -302,7 +302,7 @@ impl Validator {
             announcment_location, address
         );
 
-        let avs_domain = 17000; // holesky test
+        let avs_domain = 1; // holesky test
         let service_manager = self
             .staking_config
             .service_managers
@@ -312,14 +312,12 @@ impl Validator {
             .domain(avs_domain)
             .operator(address)
             .service_manager_address(*service_manager) // Dereference the service_manager variable
-            .salt(H256::random()) // TODO: is this ok?
+            .salt(H256::zero()) // TODO: is this ok?
             .expiry(operator_registration_signature_expiry())
             .build()
             .unwrap();
 
-        // }
         let signed_registration = self.signer.sign(registration.clone()).await?;
-        println!("Signed announcement: {:?}", signed_registration);
         self.checkpoint_syncer
             .write_operator_registration(&signed_registration)
             .await?;
