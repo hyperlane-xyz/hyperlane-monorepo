@@ -8,7 +8,7 @@ import {
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import { Chains, IsmType, RouterConfig } from '@hyperlane-xyz/sdk';
+import { IsmType, RouterConfig, TestChainName } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
@@ -35,7 +35,7 @@ describe('TokenDeployer', async () => {
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
   const GAS = 65_000;
-  const chain = Chains.test1;
+  const chain = TestChainName.test1;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
   let signer: SignerWithAddress;
@@ -77,7 +77,7 @@ describe('TokenDeployer', async () => {
       TOKEN_DECIMALS,
     );
 
-    baseConfig = routerConfigMap[Chains.test1];
+    baseConfig = routerConfigMap[TestChainName.test1];
   });
 
   beforeEach(async () => {
@@ -112,7 +112,7 @@ describe('TokenDeployer', async () => {
         typesToDerive.map(async (type) => {
           // Create config
           const config = {
-            [Chains.test1]: {
+            [TestChainName.test1]: {
               type,
               token: token.address,
               hook: await mailbox.defaultHook(),
@@ -140,7 +140,7 @@ describe('TokenDeployer', async () => {
     it('should derive config from collateral correctly', async () => {
       // Create config
       const config = {
-        [Chains.test1]: {
+        [TestChainName.test1]: {
           type: TokenType.collateral,
           token: token.address,
           hook: await mailbox.defaultHook(),
@@ -155,11 +155,11 @@ describe('TokenDeployer', async () => {
       // Derive config and check if each value matches
       const derivedConfig =
         (await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-          warpRoute[Chains.test1].collateral.address,
+          warpRoute[TestChainName.test1].collateral.address,
         )) as CollateralConfig;
 
       for (const [key, value] of Object.entries(derivedConfig)) {
-        const deployedValue = (config[Chains.test1] as any)[key];
+        const deployedValue = (config[TestChainName.test1] as any)[key];
         if (deployedValue) expect(deployedValue).to.equal(value);
       }
 
