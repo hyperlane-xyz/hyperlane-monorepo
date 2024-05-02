@@ -1,14 +1,18 @@
 import { ethers } from 'ethers';
 import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
-import { Mailbox__factory } from '@hyperlane-xyz/core';
+import {
+  IInterchainSecurityModule__factory,
+  IMessageRecipient__factory,
+  Mailbox__factory,
+} from '@hyperlane-xyz/core';
 import { Mailbox } from '@hyperlane-xyz/core/mailbox';
 import {
   Address,
   AddressBytes32,
   ProtocolType,
+  assert,
   bytes32ToAddress,
-  eqAddress,
   messageId,
   objFilter,
   objMap,
@@ -20,8 +24,8 @@ import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
+import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
-import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -94,30 +98,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   async buildMetadata(message: DispatchedMessage): Promise<string> {
-    const ismConfig = await this.getRecipientIsmConfig(message);
-    const destinationChain = this.getDestination(message);
-
-    switch (ismConfig.type) {
-      case IsmType.TRUSTED_RELAYER:
-        // eslint-disable-next-line no-case-declarations
-        const destinationSigner = await this.multiProvider.getSignerAddress(
-          destinationChain,
-        );
-        if (!eqAddress(destinationSigner, ismConfig.relayer)) {
-          this.logger.warn(
-            `${destinationChain} signer ${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
-          );
-        }
-    }
-
-    // TODO: implement metadata builders for other module types
-    const moduleType = ismTypeToModuleType(ismConfig.type);
-    switch (moduleType) {
-      case ModuleType.NULL:
-        return '0x';
-      default:
-        throw new Error(`Unsupported module type ${moduleType}`);
-    }
+    return new BaseMetadataBuilder(this).build(message);
   }
 
   async getProcessedReceipt(
@@ -139,8 +120,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   async relayMessage(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
-    const metadata = await this.buildMetadata(message);
-
     const destinationChain = this.getDestination(message);
     const mailbox = this.contractsMap[destinationChain].mailbox;
 
@@ -149,6 +128,32 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       this.logger.debug(`Message ${message.id} already delivered`);
       return this.getProcessedReceipt(message);
     }
+
+    const recipient = IMessageRecipient__factory.connect(
+      message.parsed.recipient,
+      mailbox.provider,
+    );
+    const recipientIsm = await this.getRecipientIsmAddress(message);
+    const ism = IInterchainSecurityModule__factory.connect(
+      recipientIsm,
+      mailbox.provider,
+    );
+
+    const metadata = await pollAsync(
+      async () => {
+        await recipient.callStatic.handle(
+          message.parsed.origin,
+          message.parsed.sender,
+          message.parsed.body,
+        );
+        const metadata = await this.buildMetadata(message);
+        const verified = await ism.callStatic.verify(metadata, message.message);
+        assert(verified, 'ISM verification failed');
+        return metadata;
+      },
+      5 * 1000, // every 5 seconds
+      12, // 12 attempts (1 minute total)
+    );
 
     return this.multiProvider.handleTx(
       destinationChain,
