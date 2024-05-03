@@ -45,7 +45,12 @@ export type MultisigMetadata =
 export class MultisigMetadataBuilder
   implements MetadataBuilder<WithAddress<MultisigIsmConfig>>
 {
-  constructor(protected readonly core: HyperlaneCore) {}
+  constructor(
+    protected readonly core: HyperlaneCore,
+    protected readonly logger = core.logger.child({
+      module: 'MultisigMetadataBuilder',
+    }),
+  ) {}
 
   async s3Validators(
     originChain: ChainName,
@@ -82,32 +87,56 @@ export class MultisigMetadataBuilder
       ismConfig.validators,
     );
 
+    this.logger.debug(
+      {
+        originChain,
+        validators,
+      },
+      `Connected to ${validators.length} ${originChain} validator S3 buckets`,
+    );
+
     const matching = await Promise.any(
       validators.map((v) => v.findCheckpoint(message.id)),
+    );
+    this.logger.debug(
+      { matching, message },
+      `Found matching checkpoint for message ${message.id}`,
     );
     const checkpointPromises = await Promise.allSettled(
       validators.map((v) => v.getCheckpoint(matching.value.checkpoint.index)),
     );
 
-    const signatures = checkpointPromises
+    const checkpoints = checkpointPromises
       .filter(
         (p): p is PromiseFulfilledResult<S3CheckpointWithId | undefined> =>
           p.status === 'fulfilled',
       )
       .map((p) => p.value)
-      .filter((v): v is S3CheckpointWithId => v !== undefined)
-      .map((v) => v.signature);
+      .filter((v): v is S3CheckpointWithId => v !== undefined);
 
-    if (signatures.length < ismConfig.threshold) {
+    this.logger.debug(
+      { matching, message, checkpoints },
+      `Found ${checkpoints.length} checkpoints for message ${message.id}`,
+    );
+
+    if (checkpoints.length < ismConfig.threshold) {
       throw new Error(
-        `Only ${signatures.length} of ${ismConfig.threshold} required signatures found`,
+        `Only ${checkpoints.length} of ${ismConfig.threshold} required signatures found`,
       );
     }
+
+    const signatures = checkpoints
+      .map((c) => c.signature)
+      .slice(0, ismConfig.threshold);
+    this.logger.debug(
+      { signatures, message },
+      `Taking ${signatures.length} (threshold) signatures for message ${message.id}`,
+    );
 
     const metadata: MessageIdMultisigMetadata = {
       type: ModuleType.MESSAGE_ID_MULTISIG,
       checkpoint: matching.value.checkpoint,
-      signatures: signatures.slice(0, ismConfig.threshold),
+      signatures,
     };
 
     return MultisigMetadataBuilder.encode(metadata);
