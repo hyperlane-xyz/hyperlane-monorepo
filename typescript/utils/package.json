@@ -11,6 +11,7 @@
     "yaml": "^2.4.1"
   },
   "devDependencies": {
+    "@ethersproject/bytes": "^5.7.0",
     "@types/mocha": "^10.0.1",
     "chai": "^4.3.6",
     "mocha": "^10.2.0",
