@@ -205,7 +205,12 @@ export class Token implements IToken {
       return new EvmHypNativeAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (standard === TokenStandard.EvmHypCollateral) {
+    } else if (
+      standard === TokenStandard.EvmHypCollateral ||
+      standard === TokenStandard.EvmHypcollateralVault ||
+      standard === TokenStandard.EvmHypXERC20Collateral ||
+      standard === TokenStandard.EvmHypFiatCollateral
+    ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
