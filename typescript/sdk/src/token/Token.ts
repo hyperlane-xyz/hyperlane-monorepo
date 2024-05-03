@@ -207,7 +207,7 @@ export class Token implements IToken {
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypcollateralVault ||
+      standard === TokenStandard.EvmHypCollateralVault ||
       standard === TokenStandard.EvmHypXERC20Collateral ||
       standard === TokenStandard.EvmHypFiatCollateral
     ) {
