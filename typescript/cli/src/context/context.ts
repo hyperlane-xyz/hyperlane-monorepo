@@ -2,9 +2,11 @@ import { ethers } from 'ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { forkNetworkToMultiProvider } from '../deploy/dry-run.js';
+import { logBlue } from '../logger.js';
 import { MergedRegistry } from '../registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
@@ -16,7 +18,7 @@ import {
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !!argv.dryRun;
+  const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
@@ -78,6 +80,8 @@ export async function getDryRunContext(
       'Select chain to dry-run against:',
     );
   }
+
+  logBlue(`Dry-running against chain: ${chain}`);
 
   const multiProvider = await getMultiProvider(registry);
   await forkNetworkToMultiProvider(multiProvider, chain);

@@ -123,7 +123,7 @@ export const dryRunOption: Options = {
   type: 'string',
   description:
     'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
-  alias: ['d'],
+  alias: 'd',
 };
 
 export const chainCommandOption: Options = {
