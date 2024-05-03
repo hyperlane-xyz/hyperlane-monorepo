@@ -209,7 +209,9 @@ contract PolygonPosIsmTest is Test {
             .overrideMsgValue(uint256(2 ** 255));
 
         l1Mailbox.updateLatestDispatchedId(messageId);
-        vm.expectRevert("PolygonPosHook: does not support msgValue");
+        vm.expectRevert(
+            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
+        );
         polygonPosHook.postDispatch(excessValueMetadata, encodedMessage);
     }
 

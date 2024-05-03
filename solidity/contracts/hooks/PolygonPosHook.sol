@@ -21,7 +21,7 @@ import {Message} from "../libs/Message.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
-import {FxBaseRootTunnel} from "fx-portal/tunnel/FxBaseRootTunnel.sol";
+import {FxBaseRootTunnel} from "fx-portal/contracts/tunnel/FxBaseRootTunnel.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**

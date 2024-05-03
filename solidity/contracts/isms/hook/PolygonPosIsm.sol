@@ -48,14 +48,6 @@ contract PolygonPosIsm is
 
     // ============ Internal function ============
 
-    uint256 public latestStateId;
-    address public latestRootMessageSender;
-    bytes public latestData;
-
-    /* function sendMessageToRoot(bytes memory message) public {
-        _sendMessageToRoot(message);
-    } */
-
     /**
      * @notice Check if sender is authorized to message `verifyMessageId`.
      */
