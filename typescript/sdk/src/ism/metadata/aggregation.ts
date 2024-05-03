@@ -1,4 +1,4 @@
-import { WithAddress } from '@hyperlane-xyz/utils';
+import { WithAddress, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedIsmConfigWithAddress } from '../read.js';
@@ -12,6 +12,7 @@ export interface AggregationIsmMetadata {
 
 const RANGE_SIZE = 4;
 
+// adapted from rust/agents/relayer/src/msg/metadata/aggregation.rs
 export class AggregationIsmMetadataBuilder
   implements MetadataBuilder<WithAddress<AggregationIsmConfig>>
 {
@@ -31,12 +32,16 @@ export class AggregationIsmMetadataBuilder
     });
   }
 
+  static rangeIndex(index: number): number {
+    return index * 2 * RANGE_SIZE;
+  }
+
   static encode(metadata: AggregationIsmMetadata): string {
-    const rangeSize = 2 * RANGE_SIZE * metadata.submoduleMetadata.length;
+    const rangeSize = this.rangeIndex(metadata.submoduleMetadata.length);
 
     let encoded = Buffer.alloc(rangeSize, 0);
     metadata.submoduleMetadata.forEach((meta, index) => {
-      if (meta.length === 0) {
+      if (strip0x(meta).length === 0) {
         return;
       }
 
@@ -44,20 +49,20 @@ export class AggregationIsmMetadataBuilder
       encoded = Buffer.concat([encoded, Buffer.from(meta, 'hex')]);
       const end = encoded.length;
 
-      const rangeStart = 2 * RANGE_SIZE * index;
+      const rangeStart = this.rangeIndex(index);
       encoded.writeUint32BE(start, rangeStart);
       encoded.writeUint32BE(end, rangeStart + RANGE_SIZE);
     });
 
-    return encoded.toString('hex');
+    return ensure0x(encoded.toString('hex'));
   }
 
   static metadataRange(metadata: string, index: number): string {
-    const rangeStart = index * 2 * RANGE_SIZE;
+    const rangeStart = this.rangeIndex(index);
     const encoded = Buffer.from(metadata, 'hex');
     const start = encoded.readUint32BE(rangeStart);
     const end = encoded.readUint32BE(rangeStart + RANGE_SIZE);
-    return encoded.subarray(start, end).toString('hex');
+    return ensure0x(encoded.subarray(start, end).toString('hex'));
   }
 
   static hasMetadata(metadata: string, index: number): boolean {

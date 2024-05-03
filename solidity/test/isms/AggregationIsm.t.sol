@@ -3,12 +3,17 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {AggregationIsmMetadata} from "../../contracts/isms/libs/AggregationIsmMetadata.sol";
 import {TestIsm, ThresholdTestUtils} from "./IsmTestUtils.sol";
 
 contract AggregationIsmTest is Test {
+    using Strings for uint256;
+    using Strings for uint8;
+
     StaticAggregationIsmFactory factory;
     IAggregationIsm ism;
 
@@ -32,34 +37,41 @@ contract AggregationIsmTest is Test {
         return isms;
     }
 
-    function getMetadata(
-        uint8 m,
-        bytes32 seed
-    ) private view returns (bytes memory) {
+    function getMetadata(uint8 m, bytes32 seed) private returns (bytes memory) {
         (address[] memory choices, ) = ism.modulesAndThreshold("");
         address[] memory chosen = ThresholdTestUtils.choose(m, choices, seed);
         bytes memory offsets;
         uint32 start = 8 * uint32(choices.length);
         bytes memory metametadata;
+
+        string memory structured = "structured";
         for (uint256 i = 0; i < choices.length; i++) {
             bool included = false;
             for (uint256 j = 0; j < chosen.length; j++) {
                 included = included || choices[i] == chosen[j];
             }
+            bytes memory metadata = "";
             if (included) {
-                bytes memory requiredMetadata = TestIsm(choices[i])
-                    .requiredMetadata();
-                uint32 end = start + uint32(requiredMetadata.length);
+                metadata = TestIsm(choices[i]).requiredMetadata();
+                uint32 end = start + uint32(metadata.length);
                 uint64 offset = (uint64(start) << 32) | uint64(end);
                 offsets = bytes.concat(offsets, abi.encodePacked(offset));
                 start = end;
-                metametadata = abi.encodePacked(metametadata, requiredMetadata);
+                metametadata = abi.encodePacked(metametadata, metadata);
             } else {
-                uint64 offset = 0;
-                offsets = bytes.concat(offsets, abi.encodePacked(offset));
+                offsets = bytes.concat(offsets, abi.encodePacked(uint64(0)));
             }
+            vm.serializeBytes(structured, i.toString(), metadata);
         }
-        return abi.encodePacked(offsets, metametadata);
+
+        string memory path = string(
+            abi.encodePacked("./fixtures/aggregation/", m.toString(), ".json")
+        );
+        bytes memory encoded = abi.encodePacked(offsets, metametadata);
+
+        vm.writeJson(vm.serializeBytes(structured, "encoded", encoded), path);
+
+        return encoded;
     }
 
     function testVerify(uint8 m, uint8 n, bytes32 seed) public {

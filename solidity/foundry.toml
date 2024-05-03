@@ -9,6 +9,7 @@ solc_version = '0.8.22'
 evm_version= 'paris'
 optimizer = true
 optimizer_runs = 999_999
+fs_permissions = [{ access = "write", path = "fixtures"}]
 
 [profile.ci]
 verbosity = 4
