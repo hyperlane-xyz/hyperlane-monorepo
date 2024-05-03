@@ -45,7 +45,12 @@ export type MultisigMetadata =
 export class MultisigMetadataBuilder
   implements MetadataBuilder<WithAddress<MultisigIsmConfig>>
 {
-  constructor(protected readonly core: HyperlaneCore) {}
+  constructor(
+    protected readonly core: HyperlaneCore,
+    protected readonly logger = core.logger.child({
+      module: 'MultisigMetadataBuilder',
+    }),
+  ) {}
 
   async s3Validators(
     originChain: ChainName,
@@ -82,16 +87,51 @@ export class MultisigMetadataBuilder
       ismConfig.validators,
     );
 
-    const matching = await Promise.race(
+    this.logger.debug(
+      {
+        originChain,
+        validators,
+      },
+      `Connected to ${validators.length} ${originChain} validator S3 buckets`,
+    );
+
+    const matching = await Promise.any(
       validators.map((v) => v.findCheckpoint(message.id)),
     );
-    const checkpoints = await Promise.all(
+    this.logger.debug(
+      { matching, message },
+      `Found matching checkpoint for message ${message.id}`,
+    );
+    const checkpointPromises = await Promise.allSettled(
       validators.map((v) => v.getCheckpoint(matching.value.checkpoint.index)),
     );
 
+    const checkpoints = checkpointPromises
+      .filter(
+        (p): p is PromiseFulfilledResult<S3CheckpointWithId | undefined> =>
+          p.status === 'fulfilled',
+      )
+      .map((p) => p.value)
+      .filter((v): v is S3CheckpointWithId => v !== undefined);
+
+    this.logger.debug(
+      { matching, message, checkpoints },
+      `Found ${checkpoints.length} checkpoints for message ${message.id}`,
+    );
+
+    if (checkpoints.length < ismConfig.threshold) {
+      throw new Error(
+        `Only ${checkpoints.length} of ${ismConfig.threshold} required signatures found`,
+      );
+    }
+
     const signatures = checkpoints
-      .filter((c): c is S3CheckpointWithId => c !== undefined)
-      .map((c) => c.signature);
+      .map((c) => c.signature)
+      .slice(0, ismConfig.threshold);
+    this.logger.debug(
+      { signatures, message },
+      `Taking ${signatures.length} (threshold) signatures for message ${message.id}`,
+    );
 
     const metadata: MessageIdMultisigMetadata = {
       type: ModuleType.MESSAGE_ID_MULTISIG,

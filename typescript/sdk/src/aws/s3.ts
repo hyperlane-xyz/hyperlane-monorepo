@@ -50,4 +50,9 @@ export class S3Wrapper {
       throw e;
     }
   }
+
+  url(key: string): string {
+    const Key = this.folder ? `${this.folder}/${key}` : key;
+    return `https://${this.bucket}.${this.region}.s3.amazonaws.com/${Key}`;
+  }
 }

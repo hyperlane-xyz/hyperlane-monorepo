@@ -1,9 +1,12 @@
+import { Logger } from 'pino';
+
 import {
   Announcement,
   BaseValidator,
   S3Announcement,
   S3CheckpointWithId,
   isS3CheckpointWithId,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { S3Wrapper } from './s3.js';
@@ -18,7 +21,8 @@ const LOCATION_PREFIX = 's3://';
  * Extension of BaseValidator that includes AWS S3 utilities.
  */
 export class S3Validator extends BaseValidator {
-  s3Bucket: S3Wrapper;
+  public s3Bucket: S3Wrapper;
+  protected readonly logger: Logger;
 
   constructor(
     address: string,
@@ -29,7 +33,12 @@ export class S3Validator extends BaseValidator {
     s3Folder: string | undefined,
   ) {
     super(address, localDomain, mailbox);
+    this.logger = rootLogger.child({ module: `S3Validator${address}` });
     this.s3Bucket = new S3Wrapper(s3Bucket, s3Region, s3Folder);
+    this.logger.debug(
+      { s3Bucket, s3Region, s3Folder },
+      `Loaded validator ${address} from S3`,
+    );
   }
 
   static async fromStorageLocation(
@@ -89,10 +98,13 @@ export class S3Validator extends BaseValidator {
 
   async findCheckpoint(messageId: string, limit = 50) {
     const latestCheckpointIndex = await this.getLatestCheckpointIndex();
-    // TODO: parallelize?
-    for (let i = 0; i <= limit; i--) {
+    for (let i = 0; i < limit; i++) {
       const index = latestCheckpointIndex - i;
-      const s3checkpoint = await this.getCheckpoint(index);
+      this.logger.trace(
+        { index, messageId },
+        `Scanning checkpoint ${index} for message ${messageId}`,
+      );
+      const s3checkpoint = await this.getCheckpoint(i);
       if (s3checkpoint?.value.message_id === messageId) {
         return s3checkpoint;
       }
@@ -109,6 +121,11 @@ export class S3Validator extends BaseValidator {
     );
 
     if (!latestCheckpointIndex) return -1;
+
+    this.logger.trace(
+      { latestCheckpointIndex },
+      `Checkpoint ${latestCheckpointIndex.data} is latest`,
+    );
 
     return latestCheckpointIndex.data;
   }
