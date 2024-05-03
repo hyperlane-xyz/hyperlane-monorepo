@@ -176,14 +176,14 @@ impl SequenceAwareIndexer<HyperlaneMessage> for StarknetMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
 
-        // TODO: fix this
         let sequence = self
             .contract
-            // .with_block(BlockId::Number(tip as u64))
             .nonce()
+            .block_id(BlockId::Number(tip as u64))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
+
         Ok((Some(sequence), tip))
     }
 }

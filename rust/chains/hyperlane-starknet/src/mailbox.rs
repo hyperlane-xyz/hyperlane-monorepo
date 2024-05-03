@@ -15,18 +15,18 @@ use hyperlane_core::{
 };
 use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
-use starknet::providers::AnyProvider;
+use starknet::providers::{AnyProvider, Provider};
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
 use crate::contracts::mailbox::{
     Bytes as StarknetBytes, Mailbox as StarknetMailboxInternal, Message as StarknetMessage,
-    U256 as StarknetU256,
 };
 use crate::error::HyperlaneStarknetError;
 use crate::{
     build_single_owner_account, get_transaction_receipt, ConnectionConf, Signer, StarknetProvider,
 };
+use cainome::cairo_serde::U256 as StarknetU256;
 
 impl<A> std::fmt::Display for StarknetMailboxInternal<A>
 where
@@ -148,14 +148,32 @@ impl HyperlaneContract for StarknetMailbox {
 #[async_trait]
 impl Mailbox for StarknetMailbox {
     #[instrument(skip(self))]
-    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        // TODO: add lag support
-        let nonce = self
-            .contract
-            .nonce()
-            .call()
+    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+        let current_block = self
+            .provider
+            .rpc_client()
+            .block_number()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
+
+        let nonce = match maybe_lag {
+            Some(lag) => self
+                .contract
+                .nonce()
+                .block_id(starknet::core::types::BlockId::Number(
+                    current_block - lag.get(),
+                ))
+                .call()
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?,
+            None => self
+                .contract
+                .nonce()
+                .call()
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?,
+        };
+
         Ok(nonce)
     }
 

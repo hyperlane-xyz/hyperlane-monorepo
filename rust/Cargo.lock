@@ -1064,7 +1064,7 @@ dependencies = [
 [[package]]
 name = "cainome"
 version = "0.2.3"
-source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.7#bed53f7547f607a899715d50298081775fbd2f2f"
+source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.9#33f054dadad4df7e7cd16a73bb75a2f90620d5ea"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1088,7 +1088,7 @@ dependencies = [
 [[package]]
 name = "cainome-cairo-serde"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.7#bed53f7547f607a899715d50298081775fbd2f2f"
+source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.9#33f054dadad4df7e7cd16a73bb75a2f90620d5ea"
 dependencies = [
  "starknet",
  "thiserror",
@@ -1097,7 +1097,7 @@ dependencies = [
 [[package]]
 name = "cainome-parser"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.7#bed53f7547f607a899715d50298081775fbd2f2f"
+source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.9#33f054dadad4df7e7cd16a73bb75a2f90620d5ea"
 dependencies = [
  "convert_case 0.6.0",
  "quote 1.0.35",
@@ -1110,7 +1110,7 @@ dependencies = [
 [[package]]
 name = "cainome-rs"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.7#bed53f7547f607a899715d50298081775fbd2f2f"
+source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.9#33f054dadad4df7e7cd16a73bb75a2f90620d5ea"
 dependencies = [
  "anyhow",
  "cainome-cairo-serde",
@@ -1128,7 +1128,7 @@ dependencies = [
 [[package]]
 name = "cainome-rs-macro"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.7#bed53f7547f607a899715d50298081775fbd2f2f"
+source = "git+https://github.com/cartridge-gg/cainome?tag=v0.2.9#33f054dadad4df7e7cd16a73bb75a2f90620d5ea"
 dependencies = [
  "anyhow",
  "cainome-cairo-serde",
