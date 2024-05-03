@@ -1,13 +1,13 @@
-import { MultiProvider } from '@hyperlane-xyz/sdk';
-
-import { Command } from '../commands/deploy.js';
-import { logGray, logGreen, warnYellow } from '../logger.js';
 import {
   ANVIL_RPC_METHODS,
+  MultiProvider,
   getLocalProvider,
   resetFork,
   setFork,
-} from '../utils/fork.js';
+} from '@hyperlane-xyz/sdk';
+
+import { logGray, logGreen, warnYellow } from '../logger.js';
+import { ENV } from '../utils/env.js';
 
 import { toUpperCamelCase } from './utils.js';
 
@@ -33,7 +33,7 @@ export async function forkNetworkToMultiProvider(
 export async function verifyAnvil() {
   logGray('🔎 Verifying anvil node is running...');
 
-  const provider = getLocalProvider();
+  const provider = getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT);
   try {
     await provider.send(ANVIL_RPC_METHODS.NODE_INFO, []);
   } catch (error: any) {
@@ -48,7 +48,7 @@ export async function verifyAnvil() {
 /**
  * Evaluates if an error is related to the current dry-run.
  * @param error the thrown error
- * @param dryRun whether or not the current command is being dry-run
+ * @param dryRun the chain name to execute the dry-run on
  */
 export function evaluateIfDryRunFailure(error: any, dryRun: boolean) {
   if (dryRun && error.message.includes('call revert exception'))
@@ -57,7 +57,7 @@ export function evaluateIfDryRunFailure(error: any, dryRun: boolean) {
     );
 }
 
-export async function completeDryRun(command: Command) {
+export async function completeDryRun(command: string) {
   await resetFork();
 
   logGreen(`✅ ${toUpperCamelCase(command)} dry-run completed successfully`);

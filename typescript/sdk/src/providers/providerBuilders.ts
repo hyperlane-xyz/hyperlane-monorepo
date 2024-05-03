@@ -127,7 +127,6 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
-  [ProtocolType.Fuel]: defaultFuelProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -136,6 +135,5 @@ export const protocolToDefaultProviderBuilder: Record<
 > = {
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
-  [ProtocolType.Fuel]: defaultFuelProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
 };

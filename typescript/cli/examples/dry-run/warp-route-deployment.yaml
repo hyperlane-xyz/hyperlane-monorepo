@@ -1,5 +1,0 @@
-base:
-  chainName: alfajores
-  type: native
-synthetics:
-  - chainName: fuji

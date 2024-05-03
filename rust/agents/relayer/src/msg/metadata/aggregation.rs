@@ -117,7 +117,7 @@ impl AggregationIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
-    #[instrument(err, skip(self))]
+    #[instrument(err, skip(self), ret)]
     async fn build(
         &self,
         ism_address: H256,

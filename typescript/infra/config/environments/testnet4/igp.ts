@@ -6,9 +6,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains.js';
 import { storageGasOracleConfig } from './gas-oracle.js';
 import { owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, ownerConfig) => {
   return {
