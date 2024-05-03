@@ -8,7 +8,6 @@ import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
 
 export interface AggregationIsmMetadata {
   submoduleMetadata: string[];
-  count: number;
 }
 
 const RANGE_SIZE = 4;
@@ -29,12 +28,11 @@ export class AggregationIsmMetadataBuilder
     );
     return AggregationIsmMetadataBuilder.encode({
       submoduleMetadata: metadatas,
-      count: ismConfig.threshold,
     });
   }
 
   static encode(metadata: AggregationIsmMetadata): string {
-    const rangeSize = 2 * RANGE_SIZE * metadata.count;
+    const rangeSize = 2 * RANGE_SIZE * metadata.submoduleMetadata.length;
 
     let encoded = Buffer.alloc(rangeSize, 0);
     metadata.submoduleMetadata.forEach((meta, index) => {
@@ -43,8 +41,7 @@ export class AggregationIsmMetadataBuilder
       }
 
       const start = encoded.length;
-      encoded = Buffer.concat([encoded, Buffer.from(meta)]);
-      // TODO: FIX THIS, IDK WHY ITS NOT WORKING
+      encoded = Buffer.concat([encoded, Buffer.from(meta, 'hex')]);
       const end = encoded.length;
 
       const rangeStart = 2 * RANGE_SIZE * index;
@@ -59,7 +56,7 @@ export class AggregationIsmMetadataBuilder
     const rangeStart = index * 2 * RANGE_SIZE;
     const encoded = Buffer.from(metadata, 'hex');
     const start = encoded.readUint32BE(rangeStart);
-    const end = encoded.readUint32BE(rangeStart + 1);
+    const end = encoded.readUint32BE(rangeStart + RANGE_SIZE);
     return encoded.subarray(start, end).toString('hex');
   }
 
@@ -72,6 +69,6 @@ export class AggregationIsmMetadataBuilder
     for (let i = 0; i < count; i++) {
       submoduleMetadata.push(this.metadataRange(metadata, i));
     }
-    return { submoduleMetadata, count };
+    return { submoduleMetadata };
   }
 }
