@@ -19,12 +19,12 @@ const fixtures: Fixture[] = files
   .map((contents) => {
     const type = contents.type as MultisigMetadata['type'];
 
-    const { dummy, ...signatureValues } = contents.signatures;
+    const { dummy: _dummy, ...signatureValues } = contents.signatures;
     const signatures = Object.values<SignatureLike>(signatureValues);
 
     let decoded: MultisigMetadata;
     if (type === ModuleType.MERKLE_ROOT_MULTISIG) {
-      const { dummy, ...branchValues } = contents.prefix.proof;
+      const { dummy: _dummy, ...branchValues } = contents.prefix.proof;
       const branch = Object.values<string>(branchValues);
       decoded = {
         type,

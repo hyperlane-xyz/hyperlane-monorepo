@@ -202,7 +202,7 @@ export class MultisigMetadataBuilder
     metadata: string,
     type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG,
   ): MultisigMetadata {
-    const prefix =
+    const prefix: any =
       type === ModuleType.MERKLE_ROOT_MULTISIG
         ? this.decodeProofPrefix(metadata)
         : this.decodeSimplePrefix(metadata);
