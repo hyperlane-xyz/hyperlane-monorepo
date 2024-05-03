@@ -6,7 +6,8 @@ import {
   AggregationIsmMetadataBuilder,
 } from './aggregation.js';
 
-type Fixture = AggregationIsmMetadata & {
+type Fixture = {
+  decoded: AggregationIsmMetadata;
   encoded: string;
 };
 
@@ -18,14 +19,16 @@ const fixtures: Fixture[] = files
     const { encoded, ...values } = contents;
     return {
       encoded,
-      submoduleMetadata: Object.values(values),
+      decoded: {
+        submoduleMetadata: Object.values(values),
+      },
     };
   });
 
 describe('AggregationMetadataBuilder', () => {
   fixtures.forEach((fixture, i) => {
     it(`should encode fixture ${i}`, () => {
-      expect(AggregationIsmMetadataBuilder.encode(fixture)).to.equal(
+      expect(AggregationIsmMetadataBuilder.encode(fixture.decoded)).to.equal(
         fixture.encoded,
       );
     });
@@ -34,9 +37,9 @@ describe('AggregationMetadataBuilder', () => {
       expect(
         AggregationIsmMetadataBuilder.decode(
           fixture.encoded,
-          fixture.submoduleMetadata.length,
-        ).submoduleMetadata,
-      ).to.deep.equal(fixture.submoduleMetadata);
+          fixture.decoded.submoduleMetadata.length,
+        ),
+      ).to.deep.equal(fixture.decoded);
     });
   });
 });
