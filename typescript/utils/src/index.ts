@@ -13,6 +13,8 @@ export {
   capitalizeAddress,
   convertToProtocolAddress,
   ensure0x,
+  fromHexString,
+  toHexString,
   eqAddress,
   eqAddressCosmos,
   eqAddressEvm,

@@ -372,3 +372,8 @@ export function ensure0x(hexstr: string) {
 export function strip0x(hexstr: string) {
   return hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 }
+
+export const fromHexString = (hexstr: string) =>
+  Buffer.from(strip0x(hexstr), 'hex');
+
+export const toHexString = (buf: Buffer) => ensure0x(buf.toString('hex'));

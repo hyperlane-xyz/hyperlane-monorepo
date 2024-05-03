@@ -58,10 +58,11 @@ contract AggregationIsmTest is Test {
                 offsets = bytes.concat(offsets, abi.encodePacked(offset));
                 start = end;
                 metametadata = abi.encodePacked(metametadata, metadata);
+                vm.serializeBytes(structured, i.toString(), metadata);
             } else {
                 offsets = bytes.concat(offsets, abi.encodePacked(uint64(0)));
+                vm.serializeString(structured, i.toString(), "null");
             }
-            vm.serializeBytes(structured, i.toString(), metadata);
         }
 
         string memory path = string(

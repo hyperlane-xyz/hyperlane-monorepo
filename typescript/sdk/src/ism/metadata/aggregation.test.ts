@@ -14,10 +14,13 @@ const path = '../../solidity/fixtures/aggregation';
 const files = readdirSync(path);
 const fixtures: Fixture[] = files
   .map((f) => JSON.parse(readFileSync(`${path}/${f}`, 'utf8')))
-  .map((contents) => ({
-    ...contents,
-    submoduleMetadata: Object.values(contents),
-  }));
+  .map((contents) => {
+    const { encoded, ...values } = contents;
+    return {
+      encoded,
+      submoduleMetadata: Object.values(values),
+    };
+  });
 
 describe('AggregationMetadataBuilder', () => {
   fixtures.forEach((fixture, i) => {
