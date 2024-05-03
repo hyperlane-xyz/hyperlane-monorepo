@@ -22,9 +22,11 @@ export class EvmIsmModule extends CrudModule<
 > {
   protected logger = rootLogger.child({ module: 'EvmIsmModule' });
   protected reader: EvmIsmReader;
+  protected creator: EvmIsmCreator;
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
+    protected readonly deployer: HyperlaneDeployer<any, any>,
     args: CrudModuleArgs<
       IsmConfig,
       HyperlaneContracts<ProxyFactoryFactories> & {
@@ -33,16 +35,26 @@ export class EvmIsmModule extends CrudModule<
     >,
   ) {
     super(args);
-
     this.reader = new EvmIsmReader(multiProvider, args.chain);
+    this.creator = new EvmIsmCreator(deployer, multiProvider, args.addresses);
   }
 
   public async read(): Promise<IsmConfig> {
     return await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 
-  public async update(_config: IsmConfig): Promise<EthersV5Transaction[]> {
+  public async update(config: IsmConfig): Promise<EthersV5Transaction[]> {
     throw new Error('Method not implemented.');
+
+    const destination = this.multiProvider.getChainName(this.args.chain);
+    await this.creator.update({
+      destination,
+      config,
+      // origin?: string | undefined;
+      // mailbox?: string | undefined;
+      existingIsmAddress: this.args.addresses.deployedIsm,
+    });
+    return [];
   }
 
   // manually write static create function
@@ -65,7 +77,7 @@ export class EvmIsmModule extends CrudModule<
       config,
       destination,
     });
-    return new EvmIsmModule(multiProvider, {
+    return new EvmIsmModule(multiProvider, deployer, {
       addresses: {
         ...factories,
         deployedIsm: deployedIsm.address,

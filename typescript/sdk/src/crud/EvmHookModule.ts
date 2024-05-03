@@ -1,6 +1,7 @@
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAddresses } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmHookReader } from '../hook/read.js';
 import { HookConfig } from '../hook/types.js';
@@ -13,22 +14,29 @@ import { CrudModule, CrudModuleArgs } from './AbstractCrudModule.js';
 export class EvmHookModule extends CrudModule<
   ProtocolType.Ethereum,
   HookConfig,
-  HyperlaneAddresses<HookFactories>
+  HyperlaneAddresses<HookFactories> & {
+    deployedHook: Address;
+  }
 > {
   protected logger = rootLogger.child({ module: 'EvmHookModule' });
   protected reader: EvmHookReader;
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    args: CrudModuleArgs<HookConfig, HyperlaneAddresses<HookFactories>>,
+    protected readonly deployer: HyperlaneDeployer<any, any>,
+    args: CrudModuleArgs<
+      HookConfig,
+      HyperlaneAddresses<HookFactories> & {
+        deployedHook: Address;
+      }
+    >,
   ) {
     super(args);
-
     this.reader = new EvmHookReader(multiProvider, args.chain);
   }
 
-  public async read(address: Address): Promise<HookConfig> {
-    return await this.reader.deriveHookConfig(address);
+  public async read(): Promise<HookConfig> {
+    return await this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
   public async update(_config: HookConfig): Promise<EthersV5Transaction[]> {
