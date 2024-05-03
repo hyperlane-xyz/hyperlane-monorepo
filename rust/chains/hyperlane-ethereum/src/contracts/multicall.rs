@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use ethers::{abi::Detokenize, providers::Middleware};
 use ethers_contract::{builders::ContractCall, Multicall, MulticallResult, MulticallVersion};
-use hyperlane_core::{
-    utils::hex_or_base58_to_h256, ChainResult, HyperlaneDomain, HyperlaneProvider,
-};
+use hyperlane_core::{utils::hex_or_base58_to_h256, HyperlaneDomain, HyperlaneProvider};
 
 use crate::{ConnectionConf, EthereumProvider};
 
@@ -36,10 +34,10 @@ pub async fn build_multicall<M: Middleware + 'static>(
     Ok(multicall)
 }
 
-pub async fn batch<M: Middleware, D: Detokenize>(
+pub fn batch<M: Middleware, D: Detokenize>(
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,
-) -> ChainResult<ContractCall<M, Vec<MulticallResult>>> {
+) -> ContractCall<M, Vec<MulticallResult>> {
     // clear any calls that were in the multicall beforehand
     multicall.clear_calls();
 
@@ -47,6 +45,5 @@ pub async fn batch<M: Middleware, D: Detokenize>(
         multicall.add_call(call, ALLOW_BATCH_FAILURES);
     });
 
-    let res = multicall.as_aggregate_3_value();
-    Ok(res)
+    multicall.as_aggregate_3_value()
 }

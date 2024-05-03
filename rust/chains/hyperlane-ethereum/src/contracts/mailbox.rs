@@ -26,7 +26,7 @@ use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
-use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx, GAS_ESTIMATE_BUFFER};
+use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx, BATCH_GAS_LIMIT};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
 use super::multicall::{self, build_multicall};
@@ -380,13 +380,12 @@ where
             .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
         let contract_call_futures = messages
             .iter()
-            .map(|batch| async {
+            .map(|batch_item| async {
                 // move ownership of the batch inside the closure
-                let batch = batch.clone();
                 self.process_contract_call(
-                    &batch.data,
-                    &batch.submission_data.metadata,
-                    Some(batch.submission_data.gas_limit),
+                    &batch_item.data,
+                    &batch_item.submission_data.metadata,
+                    Some(batch_item.submission_data.gas_limit),
                 )
                 .await
             })
@@ -396,12 +395,9 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await?;
+        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls);
         let call = self
-            .add_gas_overrides(
-                batch_call,
-                GAS_ESTIMATE_BUFFER.checked_mul(80).map(Into::into),
-            )
+            .add_gas_overrides(batch_call, Some(BATCH_GAS_LIMIT.into()))
             .await?;
 
         let receipt = report_tx(call).await?;

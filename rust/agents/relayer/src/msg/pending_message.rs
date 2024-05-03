@@ -6,12 +6,11 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers::utils::hex;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
     BatchItem, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneMessage, Mailbox, TryBatchAs, TxOutcome, TxSubmissionData, H256, U256,
+    HyperlaneMessage, Mailbox, MessageSubmissionData, TryBatchAs, TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -22,7 +21,7 @@ use super::{
     pending_operation::*,
 };
 
-const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
+pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
 } else {
@@ -58,7 +57,7 @@ pub struct PendingMessage {
     #[new(default)]
     submitted: bool,
     #[new(default)]
-    submission_data: Option<Box<TxSubmissionData>>,
+    submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]
@@ -159,7 +158,7 @@ impl PendingOperation for PendingMessage {
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
             self.submitted = true;
-            self.next_attempt_after = Some(Instant::now() + CONFIRM_DELAY);
+            self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm;
         }
 
@@ -245,7 +244,7 @@ impl PendingOperation for PendingMessage {
             }
         }
 
-        self.submission_data = Some(Box::new(TxSubmissionData {
+        self.submission_data = Some(Box::new(MessageSubmissionData {
             metadata,
             gas_limit,
         }));
@@ -259,7 +258,6 @@ impl PendingOperation for PendingMessage {
             return;
         }
 
-        debug!("Getting submission_data");
         let state = self
             .submission_data
             .take()
@@ -291,7 +289,7 @@ impl PendingOperation for PendingMessage {
             // Provider error; just try again later
             // Note: this means that we are using `NotReady` for a retryable error case
             self.inc_attempts();
-            self.on_reprepare()
+            PendingOperationResult::NotReady
         });
 
         if !self.is_ready() {
@@ -314,8 +312,6 @@ impl PendingOperation for PendingMessage {
                 submission=?self.submission_outcome,
                 "Message successfully processed"
             );
-            self.submitted = true;
-            self.reset_attempts();
             PendingOperationResult::Success
         } else {
             if let Some(outcome) = &self.submission_outcome {
@@ -329,7 +325,7 @@ impl PendingOperation for PendingMessage {
             }
             warn!(
                 tx_outcome=?self.submission_outcome,
-                message_id=hex::encode(self.message.id()),
+                message_id=?self.message.id(),
                 "Transaction attempting to process message either reverted or was reorged"
             );
             self.on_reprepare()

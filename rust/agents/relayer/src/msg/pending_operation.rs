@@ -148,7 +148,7 @@ pub enum PendingOperationResult {
     Reprepare,
     /// Do not attempt to run the operation again, forget about it
     Drop,
-    /// todo
+    /// Send this message straight to the confirm queue
     Confirm,
 }
 

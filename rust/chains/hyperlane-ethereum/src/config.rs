@@ -52,7 +52,7 @@ pub struct TransactionOverrides {
     pub max_priority_fee_per_gas: Option<U256>,
 }
 
-/// Ethereum transaction overrides.
+/// Config for batching messages
 #[derive(Debug, Clone, Default)]
 pub struct MessageBatchConfig {
     /// Optional Multicall3 contract address

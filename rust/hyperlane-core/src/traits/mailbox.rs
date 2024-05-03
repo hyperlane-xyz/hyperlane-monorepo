@@ -45,7 +45,6 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         &self,
         _messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<TxOutcome> {
-        tracing::warn!("In Mailbox process_batch, returning BatchingFailed");
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }

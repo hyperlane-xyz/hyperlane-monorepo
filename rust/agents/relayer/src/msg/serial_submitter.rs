@@ -17,6 +17,7 @@ use hyperlane_core::{
     MpmcReceiver, TxOutcome,
 };
 
+use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
 
 use super::op_queue::{OpQueue, QueueOperation};
@@ -211,11 +212,10 @@ async fn prepare_task(
                 PendingOperationResult::Success => {
                     debug!(?op, "Operation prepared");
                     metrics.ops_prepared.inc();
-                    // this send will pause this task if the submitter is not ready to accept yet
+                    // TODO: push multiple messages at once
                     submit_queue.push(op).await;
                 }
                 PendingOperationResult::NotReady => {
-                    // none of the operations are ready yet, so wait for a little bit
                     prepare_queue.push(op).await;
                 }
                 PendingOperationResult::Reprepare => {
@@ -246,7 +246,6 @@ async fn submit_task(
     metrics: SerialSubmitterMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
-    // looping is not an issue because `recv_many` will sleep if the channel is empty
     loop {
         let mut batch = submit_queue.pop_many(recv_limit).await;
 
@@ -258,7 +257,7 @@ async fn submit_task(
             }
             std::cmp::Ordering::Equal => {
                 let op = batch.pop().unwrap();
-                submit_and_confirm_op(op, &mut confirm_queue, &metrics).await;
+                submit_single_operation(op, &mut confirm_queue, &metrics).await;
             }
             std::cmp::Ordering::Greater => {
                 OperationBatch::new(batch, domain.clone())
@@ -270,7 +269,7 @@ async fn submit_task(
 }
 
 #[instrument(skip(confirm_queue, metrics), ret, level = "debug")]
-async fn submit_and_confirm_op(
+async fn submit_single_operation(
     mut op: QueueOperation,
     confirm_queue: &mut OpQueue,
     metrics: &SerialSubmitterMetrics,
@@ -309,7 +308,17 @@ async fn confirm_task(
                 metrics.clone(),
             )
         });
-        join_all(futures).await;
+        let op_results = join_all(futures).await;
+        if op_results.iter().all(|op| {
+            matches!(
+                op,
+                PendingOperationResult::NotReady | PendingOperationResult::Confirm
+            )
+        }) {
+            // None of the operations are ready, so wait for a little bit
+            // before checking again to prevent burning CPU
+            sleep(Duration::from_millis(500)).await;
+        }
     }
 }
 
@@ -319,19 +328,19 @@ async fn confirm_operation(
     prepare_queue: OpQueue,
     confirm_queue: OpQueue,
     metrics: SerialSubmitterMetrics,
-) {
+) -> PendingOperationResult {
     trace!(?op, "Confirming operation");
     debug_assert_eq!(*op.destination_domain(), domain);
 
-    match op.confirm().await {
-        PendingOperationResult::Success | PendingOperationResult::Confirm => {
+    let operation_result = op.confirm().await;
+    match operation_result {
+        PendingOperationResult::Success => {
             debug!(?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
         }
-        PendingOperationResult::NotReady => {
-            // none of the operations are ready yet, so wait for a little bit
+        PendingOperationResult::NotReady | PendingOperationResult::Confirm => {
+            // TODO: push multiple messages at once
             confirm_queue.push(op).await;
-            sleep(Duration::from_secs(5)).await;
         }
         PendingOperationResult::Reprepare => {
             metrics.ops_failed.inc();
@@ -341,6 +350,7 @@ async fn confirm_operation(
             metrics.ops_dropped.inc();
         }
     }
+    operation_result
 }
 
 #[derive(Debug, Clone)]
@@ -390,9 +400,10 @@ impl OperationBatch {
             Ok(outcome) => {
                 // TODO: use the `tx_outcome` with the total gas expenditure
                 // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
-                // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`, and maybe also `set_next_attempt_after(CONFIRM_DELAY);`
+                // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
-                for op in self.operations {
+                for mut op in self.operations {
+                    op.set_next_attempt_after(CONFIRM_DELAY);
                     confirm_queue.push(op).await;
                 }
                 return;
@@ -414,24 +425,23 @@ impl OperationBatch {
             .iter()
             .map(|op| op.try_batch())
             .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
+
         // We already assume that the relayer submits to a single mailbox per destination.
         // So it's fine to use the first item in the batch to get the mailbox.
-
         let Some(first_item) = batch.first() else {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
-        let mailbox = first_item.mailbox.clone();
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let outcome = mailbox.process_batch(&batch).await?;
+        let outcome = first_item.mailbox.process_batch(&batch).await?;
         metrics.ops_submitted.inc_by(self.operations.len() as u64);
         Ok(outcome)
     }
 
     async fn submit_serially(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         for op in self.operations.into_iter() {
-            submit_and_confirm_op(op, confirm_queue, metrics).await;
+            submit_single_operation(op, confirm_queue, metrics).await;
         }
     }
 }
