@@ -21,11 +21,14 @@ import { IsmType, MultisigIsmConfig } from '../types.js';
 import { MetadataBuilder } from './builder.js';
 
 interface MessageIdMultisigMetadata {
+  type: IsmType.MESSAGE_ID_MULTISIG;
   checkpoint: Omit<Checkpoint, 'mailbox_domain'>;
   signatures: SignatureLike[];
 }
 
-interface MerkleRootMultisigMetadata extends MessageIdMultisigMetadata {
+interface MerkleRootMultisigMetadata
+  extends Omit<MessageIdMultisigMetadata, 'type'> {
+  type: IsmType.MERKLE_ROOT_MULTISIG;
   proof: MerkleProof;
 }
 
@@ -34,7 +37,7 @@ export type MultisigMetadata =
   | MerkleRootMultisigMetadata;
 
 export class MultisigMetadataBuilder
-  implements MetadataBuilder<MultisigIsmConfig, MultisigMetadata>
+  implements MetadataBuilder<WithAddress<MultisigIsmConfig>>
 {
   constructor(protected readonly core: HyperlaneCore) {}
 
@@ -81,19 +84,21 @@ export class MultisigMetadataBuilder
     );
 
     const metadata: MessageIdMultisigMetadata = {
+      type: IsmType.MESSAGE_ID_MULTISIG,
       checkpoint: matching.value.checkpoint,
       signatures: checkpoints
         .filter((c): c is S3CheckpointWithId => c !== undefined)
         .map((c) => c.signature),
     };
 
-    return this.encode(metadata);
+    return MultisigMetadataBuilder.encode(metadata);
   }
 
-  encode(metadata: MultisigMetadata): string {
-    if ('proof' in metadata) {
-      throw new Error('Merkle proofs are not yet supported');
-    }
+  static encode(metadata: MultisigMetadata): string {
+    assert(
+      metadata.type === IsmType.MESSAGE_ID_MULTISIG,
+      'Merkle proofs are not yet supported',
+    );
 
     let encoded = defaultAbiCoder.encode(
       ['bytes32', 'bytes32', 'uint32'],
@@ -114,13 +119,13 @@ export class MultisigMetadataBuilder
     return encoded;
   }
 
-  signatureAt(metadata: string, index: number): SignatureLike {
+  static signatureAt(metadata: string, index: number): SignatureLike {
     const start = 68 + index * 65;
     const end = start + 65;
     return metadata.slice(start, end);
   }
 
-  hasSignature(metadata: string, index: number): boolean {
+  static hasSignature(metadata: string, index: number): boolean {
     try {
       this.signatureAt(metadata, index);
       return true;
@@ -129,7 +134,7 @@ export class MultisigMetadataBuilder
     }
   }
 
-  decode(metadata: string): MessageIdMultisigMetadata {
+  static decode(metadata: string): MessageIdMultisigMetadata {
     const checkpoint = {
       merkle_tree_hook_address: metadata.slice(0, 32),
       root: metadata.slice(32, 64),
@@ -141,6 +146,6 @@ export class MultisigMetadataBuilder
       signatures.push(this.signatureAt(metadata, i));
     }
 
-    return { checkpoint, signatures };
+    return { type: IsmType.MESSAGE_ID_MULTISIG, checkpoint, signatures };
   }
 }

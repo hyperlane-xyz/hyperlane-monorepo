@@ -1,9 +1,9 @@
-import { WithAddress, eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedIsmConfigWithAddress } from '../read.js';
-import { IsmConfig, IsmType } from '../types.js';
+import { IsmType } from '../types.js';
 
 import {
   AggregationIsmMetadata,
@@ -11,16 +11,25 @@ import {
 } from './aggregation.js';
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 
-export interface MetadataBuilder<T extends IsmConfig, M> {
-  build(message: DispatchedMessage, ismConfig: WithAddress<T>): Promise<string>;
-  encode?(metadata: M): string;
-  decode?(metadata: string): M;
+type NullMetadata = {
+  type:
+    | IsmType.PAUSABLE
+    | IsmType.TEST_ISM
+    | IsmType.OP_STACK
+    | IsmType.TRUSTED_RELAYER;
+};
+
+export type StructuredMetadata =
+  | AggregationIsmMetadata
+  | MultisigMetadata
+  | NullMetadata;
+
+export interface MetadataBuilder<T extends DerivedIsmConfigWithAddress> {
+  build(message: DispatchedMessage, ismConfig: T): Promise<string>;
 }
 
-type StructuredMetadata = AggregationIsmMetadata | MultisigMetadata;
-
 export class BaseMetadataBuilder
-  implements MetadataBuilder<DerivedIsmConfigWithAddress, StructuredMetadata>
+  implements MetadataBuilder<DerivedIsmConfigWithAddress>
 {
   constructor(protected readonly core: HyperlaneCore) {}
 
