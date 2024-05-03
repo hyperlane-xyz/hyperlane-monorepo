@@ -82,21 +82,32 @@ export class MultisigMetadataBuilder
       ismConfig.validators,
     );
 
-    const matching = await Promise.race(
+    const matching = await Promise.any(
       validators.map((v) => v.findCheckpoint(message.id)),
     );
-    const checkpoints = await Promise.all(
+    const checkpointPromises = await Promise.allSettled(
       validators.map((v) => v.getCheckpoint(matching.value.checkpoint.index)),
     );
 
-    const signatures = checkpoints
-      .filter((c): c is S3CheckpointWithId => c !== undefined)
-      .map((c) => c.signature);
+    const signatures = checkpointPromises
+      .filter(
+        (p): p is PromiseFulfilledResult<S3CheckpointWithId | undefined> =>
+          p.status === 'fulfilled',
+      )
+      .map((p) => p.value)
+      .filter((v): v is S3CheckpointWithId => v !== undefined)
+      .map((v) => v.signature);
+
+    if (signatures.length < ismConfig.threshold) {
+      throw new Error(
+        `Only ${signatures.length} of ${ismConfig.threshold} required signatures found`,
+      );
+    }
 
     const metadata: MessageIdMultisigMetadata = {
       type: ModuleType.MESSAGE_ID_MULTISIG,
       checkpoint: matching.value.checkpoint,
-      signatures,
+      signatures: signatures.slice(0, ismConfig.threshold),
     };
 
     return MultisigMetadataBuilder.encode(metadata);

@@ -24,12 +24,12 @@ export class AggregationIsmMetadataBuilder
     message: DispatchedMessage,
     config: WithAddress<AggregationIsmConfig>,
   ): Promise<string> {
-    const results = await Promise.allSettled(
+    const promises = await Promise.allSettled(
       config.modules.map((module) =>
         this.base.build(message, module as DerivedIsmConfigWithAddress),
       ),
     );
-    const submoduleMetadata = results.map((r) =>
+    const submoduleMetadata = promises.map((r) =>
       r.status === 'fulfilled' ? r.value : null,
     );
     const included = submoduleMetadata.filter((m) => m !== null).length;
