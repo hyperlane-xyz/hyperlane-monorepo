@@ -7437,6 +7437,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-starknet",
  "jobserver",
  "k256 0.13.3",
  "macro_rules_attribute",

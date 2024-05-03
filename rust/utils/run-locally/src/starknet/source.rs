@@ -1,0 +1,157 @@
+use std::{collections::BTreeMap, fs, path::PathBuf};
+
+use tempfile::tempdir;
+
+use crate::{
+    logging::log,
+    starknet::{
+        make_target,
+        utils::{download, untar},
+    },
+    utils::concat_path,
+};
+
+use super::{CAIRO_HYPERLANE_GIT, CAIRO_HYPERLANE_VERSION, KATANA_CLI_GIT, KATANA_CLI_VERSION};
+
+pub enum CodeSource {
+    Local { path: String },
+    Remote { url: String, version: String },
+}
+
+impl Default for CodeSource {
+    fn default() -> Self {
+        Self::remote(CAIRO_HYPERLANE_GIT, CAIRO_HYPERLANE_VERSION)
+    }
+}
+
+impl CodeSource {
+    pub fn local(path: &str) -> Self {
+        Self::Local {
+            path: path.to_string(),
+        }
+    }
+
+    pub fn remote(url: &str, version: &str) -> Self {
+        Self::Remote {
+            url: url.to_string(),
+            version: version.to_string(),
+        }
+    }
+}
+
+impl CodeSource {
+    fn install_local(src: String) -> BTreeMap<String, PathBuf> {
+        // make contract_name => path map
+        fs::read_dir(src)
+            .unwrap()
+            .map(|v| {
+                let entry = v.unwrap();
+                (entry.file_name().into_string().unwrap(), entry.path())
+            })
+            .filter(|(filename, _)| filename.ends_with(".cairo"))
+            .map(|v| (v.0.replace(".cairo", ""), v.1))
+            .collect()
+    }
+
+    fn install_remote(
+        dir: Option<PathBuf>,
+        git: String,
+        version: String,
+    ) -> BTreeMap<String, PathBuf> {
+        let dir_path = match dir {
+            Some(path) => path,
+            None => tempdir().unwrap().into_path(),
+        };
+        let dir_path = dir_path.to_str().unwrap();
+
+        let release_name = format!("hyperlane-starknet -v{version}");
+        let release_comp = format!("{release_name}.tar.gz");
+
+        log!("Downloading hyperlane-starknet v{}", version);
+        let uri = format!("{git}/releases/download/v{version}/{release_comp}");
+        download(&release_comp, &uri, dir_path);
+
+        log!("Uncompressing hyperlane-starknet release");
+        untar(&release_comp, dir_path);
+
+        // make contract_name => path map
+        fs::read_dir(concat_path(dir_path, release_name))
+            .unwrap()
+            .map(|v| {
+                let entry = v.unwrap();
+                (entry.file_name().into_string().unwrap(), entry.path())
+            })
+            .filter(|(filename, _)| filename.ends_with(".cairo"))
+            .map(|v| (v.0.replace(".cairo", ""), v.1))
+            .collect()
+    }
+
+    #[allow(dead_code)]
+    pub fn install(self, dir: Option<PathBuf>) -> BTreeMap<String, PathBuf> {
+        match self {
+            CodeSource::Local { path } => Self::install_local(path),
+            CodeSource::Remote { url, version } => Self::install_remote(dir, url, version),
+        }
+    }
+}
+
+pub enum CLISource {
+    Local { path: String },
+    Remote { url: String, version: String },
+}
+
+impl Default for CLISource {
+    fn default() -> Self {
+        if make_target().starts_with("darwin") {
+            Self::remote("https://github.com/dojoengine/dojo", "0.6.1-alpha.4")
+        } else {
+            Self::remote(KATANA_CLI_GIT, KATANA_CLI_VERSION)
+        }
+    }
+}
+
+impl CLISource {
+    pub fn local(path: &str) -> Self {
+        Self::Local {
+            path: path.to_string(),
+        }
+    }
+
+    pub fn remote(url: &str, version: &str) -> Self {
+        Self::Remote {
+            url: url.to_string(),
+            version: version.to_string(),
+        }
+    }
+}
+
+impl CLISource {
+    fn install_remote(dir: Option<PathBuf>, git: String, version: String) -> PathBuf {
+        let target = make_target();
+
+        let dir_path = match dir {
+            Some(path) => path,
+            None => tempdir().unwrap().into_path(),
+        };
+        let dir_path = dir_path.to_str().unwrap();
+
+        let release_name = format!("dojo_v{version}_{target}");
+        let release_comp = format!("{release_name}.tar.gz");
+
+        log!("Downloading Dojo CLI v{}", version);
+        let uri = format!("{git}/releases/download/v{version}/{release_comp}");
+        download(&release_comp, &uri, dir_path);
+
+        log!("Uncompressing Dojo release");
+        untar(&release_comp, dir_path);
+
+        concat_path(dir_path, "katana")
+    }
+
+    pub fn install(self, dir: Option<PathBuf>) -> PathBuf {
+        match self {
+            CLISource::Local { path } => path.into(),
+            CLISource::Remote { url, version } => Self::install_remote(dir, url, version),
+        }
+    }
+}

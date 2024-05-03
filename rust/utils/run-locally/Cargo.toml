@@ -10,8 +10,9 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-hyperlane-core = { path = "../../hyperlane-core", features = ["float"]}
-hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos"}
+hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+hyperlane-starknet = { path = "../../chains/hyperlane-starknet" }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true

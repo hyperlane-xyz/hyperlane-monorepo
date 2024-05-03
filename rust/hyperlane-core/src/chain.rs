@@ -110,6 +110,8 @@ pub enum KnownHyperlaneDomain {
     /// Starknet
     StarknetSepolia = 23448591,
     StarknetMainnet = 23448592,
+    StarknetTest0 = 23448593,
+    StarknetTest1 = 23448594,
 }
 
 #[derive(Clone)]
@@ -228,7 +230,7 @@ impl KnownHyperlaneDomain {
             Testnet: [
                 Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet, Fuji, BinanceSmartChainTestnet, StarknetSepolia
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991, StarknetTest0, StarknetTest1],
         })
     }
 
@@ -245,7 +247,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
             HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [CosmosTest99990, CosmosTest99991, Neutron, Injective],
-            HyperlaneDomainProtocol::Starknet: [StarknetSepolia, StarknetMainnet],
+            HyperlaneDomainProtocol::Starknet: [StarknetSepolia, StarknetMainnet, StarknetTest0, StarknetTest1],
         })
     }
 
@@ -260,7 +262,7 @@ impl KnownHyperlaneDomain {
                 ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm,
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991
             ],
-            HyperlaneDomainTechnicalStack::Starknet: [StarknetSepolia, StarknetMainnet],
+            HyperlaneDomainTechnicalStack::Starknet: [StarknetSepolia, StarknetMainnet, StarknetTest0, StarknetTest1],
         })
     }
 }

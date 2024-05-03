@@ -47,11 +47,20 @@ pub async fn get_transaction_receipt(
     rpc.get_transaction_receipt(transaction_hash).await
 }
 
+const KATANA: FieldElement = FieldElement::from_mont([
+    18444096267036800993,
+    18446744073709551615,
+    18446744073709551615,
+    531448038866662896,
+]);
+
 /// Returns the starknet chain id from the hyperlane domain id.
 pub fn get_chain_id_from_domain_id(domain_id: u32) -> FieldElement {
     match domain_id {
         23448591 => SEPOLIA,
         23448592 => MAINNET,
+        23448593 => KATANA,
+        23448594 => KATANA,
         _ => panic!("Unsupported domain id"),
     }
 }

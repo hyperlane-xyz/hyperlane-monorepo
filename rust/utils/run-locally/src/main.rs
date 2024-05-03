@@ -44,6 +44,7 @@ mod logging;
 mod metrics;
 mod program;
 mod solana;
+mod starknet;
 mod utils;
 
 /// These private keys are from hardhat/anvil's testing accounts.
