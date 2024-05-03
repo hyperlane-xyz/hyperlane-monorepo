@@ -6,7 +6,6 @@ import {
   ERC20Test,
   ERC20Test__factory,
   Mailbox,
-  Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import { IsmType, RouterConfig, TestChainName } from '@hyperlane-xyz/sdk';
@@ -15,11 +14,9 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { EvmERC20WarpCrudModule } from '../crud/EvmWarpCrudModule.js';
-import { EvmERC20WarpCrudModule } from '../crud/EvmWarpCrudModule.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { randomAddress } from '../test/testUtils.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
@@ -47,7 +44,6 @@ describe('TokenDeployer', async () => {
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
   let config: WarpRouteDeployConfig;
-  let baseConfig: RouterConfig;
   let baseConfig: RouterConfig;
 
   before(async () => {
@@ -152,7 +148,6 @@ describe('TokenDeployer', async () => {
         },
       };
       // Deploy with config
-      const warpRoute = await deployer.deploy(
       const warpRoute = await deployer.deploy(
         config as ChainMap<TokenConfig & RouterConfig>,
       );

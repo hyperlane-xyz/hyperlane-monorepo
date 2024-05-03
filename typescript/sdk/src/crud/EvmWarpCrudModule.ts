@@ -40,7 +40,6 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     >,
   ) {
     super(args);
-    super(args);
 
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
   }
