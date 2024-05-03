@@ -2,12 +2,14 @@ import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
+  ChainMetadata,
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
+import { objFilter } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
@@ -66,8 +68,12 @@ export async function createWarpRouteDeployConfig({
     ? ethers.constants.AddressZero
     : await input({ message: addressMessage });
 
-  const syntheticChains = await runMultiChainSelectionStep(
+  const metadataWithoutBase = objFilter(
     context.chainMetadata,
+    (chain, _): _ is ChainMetadata => chain !== baseChain,
+  );
+  const syntheticChains = await runMultiChainSelectionStep(
+    metadataWithoutBase,
     'Select chains to which the base token will be connected',
   );
 
