@@ -119,11 +119,10 @@ export class MultisigMetadataBuilder
       `Found ${checkpoints.length} checkpoints for message ${message.id}`,
     );
 
-    if (checkpoints.length < ismConfig.threshold) {
-      throw new Error(
-        `Only ${checkpoints.length} of ${ismConfig.threshold} required signatures found`,
-      );
-    }
+    assert(
+      checkpoints.length >= ismConfig.threshold,
+      `Only ${checkpoints.length} of ${ismConfig.threshold} required signatures found`,
+    );
 
     const signatures = checkpoints
       .map((c) => c.signature)
