@@ -64,9 +64,25 @@ pub fn build_ethereum_connection_conf(
         })
         .unwrap_or_default();
 
+    let multicall3_address = chain
+        .chain(err)
+        .get_opt_key("batchContractAddress")
+        .parse_address_hash()
+        .end();
+
+    let max_batch_size = chain
+        .chain(err)
+        .get_opt_key("maxBatchSize")
+        .parse_u32()
+        .unwrap_or(1);
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
+        message_batch: h_eth::MessageBatchConfig {
+            multicall3_address,
+            max_batch_size,
+        },
     }))
 }
 
