@@ -6,6 +6,8 @@ import { AggregationIsmConfig } from '../types.js';
 
 import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
 
+// null indicates that metadata is NOT INCLUDED for this submodule
+// empty or 0x string indicates that metadata is INCLUDED but NULL
 export interface AggregationIsmMetadata {
   submoduleMetadata: Array<string | null>;
 }
@@ -20,16 +22,24 @@ export class AggregationIsmMetadataBuilder
 
   async build(
     message: DispatchedMessage,
-    ismConfig: WithAddress<AggregationIsmConfig>,
+    config: WithAddress<AggregationIsmConfig>,
   ): Promise<string> {
-    const metadatas = await Promise.all(
-      ismConfig.modules.map((module) =>
+    const results = await Promise.allSettled(
+      config.modules.map((module) =>
         this.base.build(message, module as DerivedIsmConfigWithAddress),
       ),
     );
-    return AggregationIsmMetadataBuilder.encode({
-      submoduleMetadata: metadatas,
-    });
+    const submoduleMetadata = results.map((r) =>
+      r.status === 'fulfilled' ? r.value : null,
+    );
+    const included = submoduleMetadata.filter((m) => m !== null).length;
+    if (included < config.threshold) {
+      throw new Error(
+        `Only built ${included} of ${config.threshold} required modules`,
+      );
+    }
+
+    return AggregationIsmMetadataBuilder.encode({ submoduleMetadata });
   }
 
   static rangeIndex(index: number): number {
