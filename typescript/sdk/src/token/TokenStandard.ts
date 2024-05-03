@@ -14,7 +14,7 @@ export enum TokenStandard {
   EvmNative = 'EvmNative',
   EvmHypNative = 'EvmHypNative',
   EvmHypCollateral = 'EvmHypCollateral',
-  EvmHypcollateralVault = 'EvmHypcollateralVault',
+  EvmHypCollateralVault = 'EvmHypCollateralVault',
   EvmHypSynthetic = 'EvmHypSynthetic',
 
   // Sealevel (Solana)
@@ -48,7 +48,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmNative: ProtocolType.Ethereum,
   EvmHypNative: ProtocolType.Ethereum,
   EvmHypCollateral: ProtocolType.Ethereum,
-  EvmHypcollateralVault: ProtocolType.Ethereum,
+  EvmHypCollateralVault: ProtocolType.Ethereum,
   EvmHypSynthetic: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
@@ -129,7 +129,7 @@ export const TOKEN_COSMWASM_STANDARDS = [
 export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
-  [TokenType.collateralVault]: TokenStandard.EvmHypcollateralVault,
+  [TokenType.collateralVault]: TokenStandard.EvmHypCollateralVault,
   [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
   [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,
   [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,

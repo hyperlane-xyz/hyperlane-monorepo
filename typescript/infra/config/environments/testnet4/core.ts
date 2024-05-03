@@ -18,17 +18,20 @@ import {
   RoutingIsmConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains.js';
+import { getChain } from '../../registry.js';
+
 import { igp } from './igp.js';
 import { owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const core: ChainMap<CoreConfig> = objMap(
   owners,
   (local, ownerConfig) => {
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
       supportedChainNames
+        .filter((chain) => getChain(chain).protocol === ProtocolType.Ethereum)
         .filter((chain) => chain !== local)
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );

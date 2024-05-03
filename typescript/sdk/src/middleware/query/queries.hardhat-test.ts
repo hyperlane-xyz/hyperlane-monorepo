@@ -9,8 +9,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata.js';
-import { Chains } from '../../consts/chains.js';
+import { TestChainName, test1, test2 } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
@@ -26,10 +25,10 @@ import { InterchainQueryDeployer } from './InterchainQueryDeployer.js';
 import { InterchainQueryFactories } from './contracts.js';
 
 describe.skip('InterchainQueryRouter', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
-  const localDomain = chainMetadata[localChain].chainId;
-  const remoteDomain = chainMetadata[remoteChain].chainId;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
+  const localDomain = test1.domainId!;
+  const remoteDomain = test2.domainId!;
 
   let contracts: HyperlaneContractsMap<InterchainQueryFactories>;
   let signer: SignerWithAddress;
