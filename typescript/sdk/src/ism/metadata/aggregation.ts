@@ -1,4 +1,4 @@
-import { WithAddress, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import { WithAddress, fromHexString, toHexString } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedIsmConfigWithAddress } from '../read.js';
@@ -7,7 +7,7 @@ import { AggregationIsmConfig } from '../types.js';
 import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
 
 export interface AggregationIsmMetadata {
-  submoduleMetadata: string[];
+  submoduleMetadata: Array<string | null>;
 }
 
 const RANGE_SIZE = 4;
@@ -41,12 +41,12 @@ export class AggregationIsmMetadataBuilder
 
     let encoded = Buffer.alloc(rangeSize, 0);
     metadata.submoduleMetadata.forEach((meta, index) => {
-      if (strip0x(meta).length === 0) {
+      if (meta === null) {
         return;
       }
 
       const start = encoded.length;
-      encoded = Buffer.concat([encoded, Buffer.from(meta, 'hex')]);
+      encoded = Buffer.concat([encoded, fromHexString(meta)]);
       const end = encoded.length;
 
       const rangeStart = this.rangeIndex(index);
@@ -54,25 +54,30 @@ export class AggregationIsmMetadataBuilder
       encoded.writeUint32BE(end, rangeStart + RANGE_SIZE);
     });
 
-    return ensure0x(encoded.toString('hex'));
+    return toHexString(encoded);
   }
 
-  static metadataRange(metadata: string, index: number): string {
+  static metadataRange(
+    metadata: string,
+    index: number,
+  ): { start: number; end: number; encoded: string } {
     const rangeStart = this.rangeIndex(index);
-    const encoded = Buffer.from(metadata, 'hex');
+    const encoded = fromHexString(metadata);
     const start = encoded.readUint32BE(rangeStart);
     const end = encoded.readUint32BE(rangeStart + RANGE_SIZE);
-    return ensure0x(encoded.subarray(start, end).toString('hex'));
-  }
-
-  static hasMetadata(metadata: string, index: number): boolean {
-    return this.metadataRange(metadata, index).length > 0;
+    return {
+      start,
+      end,
+      encoded: toHexString(encoded.subarray(start, end)),
+    };
   }
 
   static decode(metadata: string, count: number): AggregationIsmMetadata {
     const submoduleMetadata = [];
     for (let i = 0; i < count; i++) {
-      submoduleMetadata.push(this.metadataRange(metadata, i));
+      const range = this.metadataRange(metadata, i);
+      const submeta = range.start > 0 ? range.encoded : null;
+      submoduleMetadata.push(submeta);
     }
     return { submoduleMetadata };
   }
