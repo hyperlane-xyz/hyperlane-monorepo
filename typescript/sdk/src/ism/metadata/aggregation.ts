@@ -1,6 +1,4 @@
-import { defaultAbiCoder } from '@ethersproject/abi';
-
-import { WithAddress, assert } from '@hyperlane-xyz/utils';
+import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedIsmConfigWithAddress } from '../read.js';
@@ -10,17 +8,13 @@ import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
 
 export interface AggregationIsmMetadata {
   submoduleMetadata: string[];
-}
-
-interface Range {
-  start: number;
-  end: number;
+  count: number;
 }
 
 const RANGE_SIZE = 4;
 
 export class AggregationIsmMetadataBuilder
-  implements MetadataBuilder<AggregationIsmConfig, AggregationIsmMetadata>
+  implements MetadataBuilder<WithAddress<AggregationIsmConfig>>
 {
   constructor(protected readonly base: BaseMetadataBuilder) {}
 
@@ -33,57 +27,51 @@ export class AggregationIsmMetadataBuilder
         this.base.build(message, module as DerivedIsmConfigWithAddress),
       ),
     );
-    return this.encode({ submoduleMetadata: metadatas });
+    return AggregationIsmMetadataBuilder.encode({
+      submoduleMetadata: metadatas,
+      count: ismConfig.threshold,
+    });
   }
 
-  encode(metadata: AggregationIsmMetadata): string {
-    const lengths = metadata.submoduleMetadata.map((m) => m.length / 2);
-    const ranges: Range[] = [];
+  static encode(metadata: AggregationIsmMetadata): string {
+    const rangeSize = 2 * RANGE_SIZE * metadata.count;
 
-    let offset = 0;
-    for (const length of lengths) {
-      ranges.push({ start: offset, end: offset + length });
-      offset += length;
-    }
+    let encoded = Buffer.alloc(rangeSize, 0);
+    metadata.submoduleMetadata.forEach((meta, index) => {
+      if (meta.length === 0) {
+        return;
+      }
 
-    let encoded = '';
-    for (const range of ranges) {
-      const encodedRange = defaultAbiCoder.encode(
-        ['uint32', 'uint32'],
-        [range.start, range.end],
-      );
-      assert(encodedRange.length === RANGE_SIZE * 2);
-      encoded += encodedRange;
-    }
+      const start = encoded.length;
+      encoded = Buffer.concat([encoded, Buffer.from(meta)]);
+      // TODO: FIX THIS, IDK WHY ITS NOT WORKING
+      const end = encoded.length;
 
-    for (const m of metadata.submoduleMetadata) {
-      encoded += m;
-    }
+      const rangeStart = 2 * RANGE_SIZE * index;
+      encoded.writeUint32BE(start, rangeStart);
+      encoded.writeUint32BE(end, rangeStart + RANGE_SIZE);
+    });
 
-    return encoded;
+    return encoded.toString('hex');
   }
 
-  metadataRange(metadata: string, index: number): Range {
-    const start = index * RANGE_SIZE * 2;
-    const mid = start + RANGE_SIZE;
-    const end = mid + RANGE_SIZE;
-    return {
-      start: parseInt(metadata.slice(start, mid)),
-      end: parseInt(metadata.slice(mid, end)),
-    };
+  static metadataRange(metadata: string, index: number): string {
+    const rangeStart = index * 2 * RANGE_SIZE;
+    const encoded = Buffer.from(metadata, 'hex');
+    const start = encoded.readUint32BE(rangeStart);
+    const end = encoded.readUint32BE(rangeStart + 1);
+    return encoded.subarray(start, end).toString('hex');
   }
 
-  hasMetadata(metadata: string, index: number): boolean {
-    const { start } = this.metadataRange(metadata, index);
-    return start > 0;
+  static hasMetadata(metadata: string, index: number): boolean {
+    return this.metadataRange(metadata, index).length > 0;
   }
 
-  decode(metadata: string): AggregationIsmMetadata {
+  static decode(metadata: string, count: number): AggregationIsmMetadata {
     const submoduleMetadata = [];
-    for (let i = 0; this.hasMetadata(metadata, i); i++) {
-      const { start, end } = this.metadataRange(metadata, i);
-      submoduleMetadata.push(metadata.slice(start, end));
+    for (let i = 0; i < count; i++) {
+      submoduleMetadata.push(this.metadataRange(metadata, i));
     }
-    return { submoduleMetadata };
+    return { submoduleMetadata, count };
   }
 }
