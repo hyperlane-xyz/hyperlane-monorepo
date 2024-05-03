@@ -1,4 +1,4 @@
-import { SignatureLike } from '@ethersproject/bytes';
+import type { SignatureLike } from '@ethersproject/bytes';
 import type { BigNumber, ethers } from 'ethers';
 
 export enum ProtocolType {
