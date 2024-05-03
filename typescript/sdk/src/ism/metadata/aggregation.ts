@@ -1,4 +1,9 @@
-import { WithAddress, fromHexString, toHexString } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  assert,
+  fromHexString,
+  toHexString,
+} from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedIsmConfigWithAddress } from '../read.js';
@@ -23,10 +28,17 @@ export class AggregationIsmMetadataBuilder
   async build(
     message: DispatchedMessage,
     config: WithAddress<AggregationIsmConfig>,
+    maxDepth = 10,
   ): Promise<string> {
+    assert(maxDepth > 0, 'Max depth reached');
+
     const promises = await Promise.allSettled(
       config.modules.map((module) =>
-        this.base.build(message, module as DerivedIsmConfigWithAddress),
+        this.base.build(
+          message,
+          module as DerivedIsmConfigWithAddress,
+          maxDepth - 1,
+        ),
       ),
     );
     const submoduleMetadata = promises.map((r) =>

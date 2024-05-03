@@ -1,4 +1,4 @@
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
@@ -36,7 +36,10 @@ export class BaseMetadataBuilder
   async build(
     message: DispatchedMessage,
     ismConfig?: DerivedIsmConfigWithAddress,
+    maxDepth = 10,
   ): Promise<string> {
+    assert(maxDepth > 0, 'Max depth reached');
+
     if (!ismConfig) {
       ismConfig = await this.core.getRecipientIsmConfig(message);
     }
@@ -45,28 +48,27 @@ export class BaseMetadataBuilder
       const destinationSigner = await this.core.multiProvider.getSignerAddress(
         message.parsed.destination,
       );
-      if (!eqAddress(destinationSigner, ismConfig.relayer)) {
-        throw new Error(
-          `${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
-        );
-      }
+      assert(
+        eqAddress(destinationSigner, ismConfig.relayer),
+        `Destination signer ${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
+      );
     }
 
     /* eslint-disable no-case-declarations */
     switch (ismConfig.type) {
+      // Null
       case IsmType.TRUSTED_RELAYER:
       case IsmType.PAUSABLE:
       case IsmType.TEST_ISM:
       case IsmType.OP_STACK:
-        return '0x'; // NULL metadata
-      case IsmType.AGGREGATION:
-        return new AggregationIsmMetadataBuilder(this).build(
-          message,
-          ismConfig,
-        );
+        return '0x';
+
+      // Multisig
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
         return new MultisigMetadataBuilder(this.core).build(message, ismConfig);
+
+      // Routing
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
         const originChain = this.core.multiProvider.getChainName(
@@ -75,9 +77,16 @@ export class BaseMetadataBuilder
         return this.build(
           message,
           ismConfig.domains[originChain] as DerivedIsmConfigWithAddress,
+          maxDepth - 1,
         );
-      default:
-        throw new Error(`Unknown ISM config: ${ismConfig}`);
+
+      // Aggregation
+      case IsmType.AGGREGATION:
+        return new AggregationIsmMetadataBuilder(this).build(
+          message,
+          ismConfig,
+          maxDepth - 1,
+        );
     }
     /* eslint-enable no-case-declarations */
   }
