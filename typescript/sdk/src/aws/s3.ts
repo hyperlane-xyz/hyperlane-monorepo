@@ -17,21 +17,35 @@ export class S3Wrapper {
   readonly region: string;
   readonly folder: string | undefined;
 
+  private cache: Record<string, S3Receipt<any>> | undefined;
+
   static fromBucketUrl(bucketUrl: string): S3Wrapper {
     const match = bucketUrl.match(S3_BUCKET_REGEX);
     if (!match) throw new Error('Could not parse bucket url');
     return new S3Wrapper(match[1], match[2], undefined);
   }
 
-  constructor(bucket: string, region: string, folder: string | undefined) {
+  constructor(
+    bucket: string,
+    region: string,
+    folder: string | undefined,
+    caching = false,
+  ) {
     this.bucket = bucket;
     this.region = region;
     this.folder = folder;
     this.client = new S3Client({ region });
+    if (caching) {
+      this.cache = {};
+    }
   }
 
   async getS3Obj<T>(key: string): Promise<S3Receipt<T> | undefined> {
     const Key = this.folder ? `${this.folder}/${key}` : key;
+    if (this.cache?.[Key]) {
+      return this.cache![Key];
+    }
+
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key,
@@ -39,10 +53,14 @@ export class S3Wrapper {
     try {
       const response = await this.client.send(command);
       const body: string = await streamToString(response.Body as Readable);
-      return {
+      const result = {
         data: JSON.parse(body),
         modified: response.LastModified!,
       };
+      if (this.cache) {
+        this.cache[Key] = result;
+      }
+      return result;
     } catch (e: any) {
       if (e.message.includes('The specified key does not exist.')) {
         return;
