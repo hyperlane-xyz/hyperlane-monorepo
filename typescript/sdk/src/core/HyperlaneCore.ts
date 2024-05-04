@@ -261,13 +261,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       const mailbox = this.getContracts(chain).mailbox;
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(...filter),
-        async (_sender, _destination, _recipient, message) => {
+        async (sender, destination, recipient, message, event) => {
           this.logger.info(
-            { chain, message },
+            { chain, sender, destination, recipient, message, event },
             `Observed message from ${chain}, attempting to relay`,
           );
+          const receipt = await event.getTransactionReceipt();
           await this.relayMessage(
             HyperlaneCore.parseDispatchedMessage(message),
+            receipt,
           );
         },
       );
