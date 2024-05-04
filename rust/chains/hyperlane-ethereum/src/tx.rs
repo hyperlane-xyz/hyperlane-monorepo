@@ -5,7 +5,7 @@ use std::time::Duration;
 use ethers::{
     abi::Detokenize,
     prelude::{NameOrAddress, TransactionReceipt},
-    providers::ProviderError,
+    providers::{JsonRpcClient, PendingTransaction, ProviderError},
     types::Eip1559TransactionRequest,
 };
 use ethers_contract::builders::ContractCall;
@@ -22,7 +22,10 @@ use tracing::{error, info};
 use crate::{Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
-const GAS_ESTIMATE_BUFFER: u32 = 50000;
+pub const GAS_ESTIMATE_BUFFER: u32 = 50_000;
+
+/// The gas limit to temporarily hardcode when sending multicall operations
+pub const BATCH_GAS_LIMIT: u32 = 4_000_000;
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -50,12 +53,17 @@ where
     let dispatched = dispatch_fut
         .await?
         .interval(PENDING_TRANSACTION_POLLING_INTERVAL);
+    track_pending_tx(dispatched).await
+}
 
-    let tx_hash: H256 = (*dispatched).into();
+pub(crate) async fn track_pending_tx<P: JsonRpcClient>(
+    pending_tx: PendingTransaction<'_, P>,
+) -> ChainResult<TransactionReceipt> {
+    let tx_hash: H256 = (*pending_tx).into();
 
-    info!(?to, %data, ?tx_hash, "Dispatched tx");
+    info!(?tx_hash, "Dispatched tx");
 
-    match tokio::time::timeout(Duration::from_secs(150), dispatched).await {
+    match tokio::time::timeout(Duration::from_secs(150), pending_tx).await {
         // all good
         Ok(Ok(Some(receipt))) => {
             info!(?tx_hash, "confirmed transaction");
@@ -87,7 +95,7 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let gas_limit = if let Some(gas_limit) = transaction_overrides.gas_limit {
+    let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
         gas_limit
     } else {
         tx.estimate_gas()

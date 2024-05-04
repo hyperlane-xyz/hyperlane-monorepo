@@ -2,13 +2,18 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
+use ethers::providers::{Http, Provider};
+use ethers::types::{H160, H256, U256};
 use macro_rules_attribute::apply;
 
 use crate::config::Config;
+use crate::ethereum::multicall::{DEPLOYER_ADDRESS, SIGNED_DEPLOY_MULTICALL_TX};
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, AgentHandles, TaskHandle};
 use crate::{INFRA_PATH, MONOREPO_ROOT_PATH};
+
+mod multicall;
 
 #[apply(as_task)]
 pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
@@ -43,5 +48,38 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     log!("Deploying hyperlane core contracts...");
     yarn_infra.clone().cmd("deploy-core").run().join();
 
+    log!("Deploying multicall contract...");
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(deploy_multicall());
+
     anvil
+}
+
+pub async fn deploy_multicall() {
+    let anvil_rpc_url = "http://127.0.0.1:8545";
+    let provider = Provider::<Http>::try_from(anvil_rpc_url)
+        .unwrap()
+        .interval(Duration::from_millis(50u64));
+
+    // fund the deployer address
+    provider
+        .request::<(H160, U256), ()>(
+            "anvil_setBalance",
+            (DEPLOYER_ADDRESS, U256::from(1_000_000_000_000_000_000u64)),
+        )
+        .await
+        .unwrap();
+
+    // deploy multicall
+    provider
+        .request::<[serde_json::Value; 1], H256>(
+            "eth_sendRawTransaction",
+            [SIGNED_DEPLOY_MULTICALL_TX.into()],
+        )
+        .await
+        .unwrap();
+    log!("Successfully deployed multicall contract...");
 }
