@@ -90,6 +90,7 @@ export class BaseMetadataBuilder
       // Multisig
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
+        // eslint-disable-next-line no-case-declarations
         const merkleTreeHook = deepFind(
           hook,
           (v): v is WithAddress<MerkleTreeHookConfig> =>
