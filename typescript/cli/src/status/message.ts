@@ -12,8 +12,10 @@ export async function checkMessageStatus({
   destination,
   origin,
   selfRelay,
+  dispatchTx,
 }: {
   context: CommandContext;
+  dispatchTx?: string;
   messageId?: string;
   destination?: ChainName;
   origin?: ChainName;
@@ -47,7 +49,6 @@ export async function checkMessageStatus({
   logBlue(`Message ${messageId} was not yet delivered`);
 
   if (selfRelay) {
-    // TODO: implement option for tx receipt input
     if (!origin) {
       origin = await runSingleChainSelectionStep(
         context.chainMetadata,
@@ -55,9 +56,22 @@ export async function checkMessageStatus({
       );
     }
 
-    const receipt = await core.getDispatchTx(origin, messageId);
-    const messages = core.getDispatchedMessages(receipt);
-    await core.relayMessage(messages[0], receipt);
-    logGreen(`Message ${messageId} was self-relayed!`);
+    if (!dispatchTx) {
+      dispatchTx = await input({
+        message: 'Provide the dispatch transaction hash',
+      });
+    }
+    const dispatchTxReceipt = await context.multiProvider
+      .getProvider(origin)
+      .getTransactionReceipt(dispatchTx);
+
+    const messages = core.getDispatchedMessages(dispatchTxReceipt);
+    const tx = await core.relayMessage(messages[0], dispatchTxReceipt);
+    logGreen(
+      `Message ${messageId} was relayed in ${context.multiProvider.getExplorerTxUrl(
+        destination,
+        { hash: tx.transactionHash },
+      )}`,
+    );
   }
 }
