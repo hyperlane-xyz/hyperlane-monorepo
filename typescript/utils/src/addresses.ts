@@ -252,7 +252,7 @@ export function bytes32ToAddress(bytes32: HexString): Address {
 
 export function addressToBytesEvm(address: Address): Uint8Array {
   const addrBytes32 = addressToBytes32Evm(address);
-  return Buffer.from(strip0x(addrBytes32), 'hex');
+  return fromHexString(addrBytes32);
 }
 
 export function addressToBytesSol(address: Address): Uint8Array {
@@ -288,9 +288,7 @@ export function addressToByteHexString(
   address: string,
   protocol?: ProtocolType,
 ) {
-  return ensure0x(
-    Buffer.from(addressToBytes(address, protocol)).toString('hex'),
-  );
+  return toHexString(addressToBytes(address, protocol));
 }
 
 export function addressToBytes32(
@@ -310,10 +308,7 @@ export function bytesToBytes32(bytes: Uint8Array): string {
     throw new Error('bytes must be 32 bytes or less');
   }
   // This 0x-prefixes the hex string
-  return ethersUtils.hexZeroPad(
-    ensure0x(Buffer.from(bytes).toString('hex')),
-    32,
-  );
+  return ethersUtils.hexZeroPad(toHexString(bytes), 32);
 }
 
 export function bytesToAddressEvm(bytes: Uint8Array): Address {
@@ -376,4 +371,5 @@ export function strip0x(hexstr: string) {
 export const fromHexString = (hexstr: string) =>
   Buffer.from(strip0x(hexstr), 'hex');
 
-export const toHexString = (buf: Buffer) => ensure0x(buf.toString('hex'));
+export const toHexString = (buf: Buffer | Uint8Array) =>
+  ensure0x(buf.toString('hex'));
