@@ -3,10 +3,9 @@ pragma solidity >=0.5.0;
 
 import {ISignatureUtils} from "./ISignatureUtils.sol";
 
-/**
- * @title Minimal interface for a ServiceManager-type contract that forms the single point for an AVS to push updates to EigenLayer
- * @author Layr Labs, Inc.
- */
+/// part of mock interfaces for vendoring necessary Eigenlayer contracts for the hyperlane AVS
+/// @author Layr Labs, Inc.
+
 interface IServiceManager {
     /**
      * @notice Updates the metadata URI for the AVS

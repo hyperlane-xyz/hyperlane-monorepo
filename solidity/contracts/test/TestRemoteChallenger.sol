@@ -11,7 +11,7 @@ contract TestRemoteChallenger is IRemoteChallenger {
         hsm = _hsm;
     }
 
-    function challengeDelayBlocks() external view returns (uint256) {
+    function challengeDelayBlocks() external pure returns (uint256) {
         return 50400; // one week of eth L1 blocks
     }
 

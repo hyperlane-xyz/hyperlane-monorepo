@@ -82,7 +82,14 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
         elAvsDirectory = _avsDirectory;
         stakeRegistry = _stakeRegistry;
         slasher = _slasher;
-        _disableInitializers();
+        // _transferOwnership(msg.sender);
+        // _disableInitializers();
+    }
+
+    function __ServiceManagerBase_init(
+        address initialOwner
+    ) internal virtual initializer {
+        _transferOwnership(initialOwner);
     }
 
     // ============ External Functions ============

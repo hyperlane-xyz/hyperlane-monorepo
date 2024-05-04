@@ -92,7 +92,14 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         IAVSDirectory _avsDirectory,
         IECDSAStakeRegistry _stakeRegistry,
         ISlasher _slasher
-    ) ECDSAServiceManagerBase(_avsDirectory, _stakeRegistry, _slasher) {}
+    ) ECDSAServiceManagerBase(_avsDirectory, _stakeRegistry, _slasher) {
+        __ServiceManagerBase_init(msg.sender);
+        _disableInitializers();
+    }
+
+    function initialize() external initializer {
+        __ServiceManagerBase_init(msg.sender);
+    }
 
     // ============ External Functions ============
 

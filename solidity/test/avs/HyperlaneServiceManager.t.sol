@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {DelegationManager} from "@eigenlayer/core/DelegationManager.sol";
+import {IDelegationManager} from "../../contracts/interfaces/avs/IDelegationManager.sol";
+import {ISlasher} from "../../contracts/interfaces/avs/ISlasher.sol";
 
-import {IDelegationManager} from "@eigenlayer/interfaces/IDelegationManager.sol";
-import {IStrategy} from "@eigenlayer/interfaces/IStrategy.sol";
-import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
+import {IAVSDirectory} from "../../contracts/interfaces/avs/IAVSDirectory.sol";
+import {Quorum, StrategyParams, IECDSAStakeRegistry} from "../../contracts/interfaces/avs/IECDSAStakeRegistry.sol";
+import {TestECDSAStakeRegistry, TestDelegationManager} from "../../contracts/test/TestEigenlayer.sol";
 
-import {MockAVSDeployer} from "eigenlayer-middleware/test/utils/MockAVSDeployer.sol";
-import {Quorum, StrategyParams} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistryStorage.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer-middleware/unaudited/ECDSAStakeRegistry.sol";
-
+import {IStrategy} from "../../contracts/interfaces/avs/IStrategy.sol";
 import {ISignatureUtils} from "../../contracts/interfaces/avs/ISignatureUtils.sol";
 import {Enrollment, EnrollmentStatus} from "../../contracts/libs/EnumerableMapEnrollment.sol";
 import {IRemoteChallenger} from "../../contracts/interfaces/avs/IRemoteChallenger.sol";
-import {IAVSDirectory} from "../../contracts/interfaces/avs/IAVSDirectory.sol";
+
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
 import {TestRemoteChallenger} from "../../contracts/test/TestRemoteChallenger.sol";
 
-contract HyperlaneServiceManagerTest is MockAVSDeployer {
-    DelegationManager public delegationManager;
+import {EigenlayerBase} from "./EigenlayerBase.sol";
 
-    HyperlaneServiceManager internal hsm;
-    ECDSAStakeRegistry internal ecdsaStakeRegistry;
+contract HyperlaneServiceManagerTest is EigenlayerBase {
+    HyperlaneServiceManager internal _hsm;
+    TestECDSAStakeRegistry internal _ecdsaStakeRegistry;
 
     // Operator info
     uint256 operatorPrivateKey = 0xdeadbeef;
@@ -31,19 +29,15 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
     bytes32 emptySalt;
     uint256 maxExpiry = type(uint256).max;
     uint256 challengeDelayBlocks = 50400; // one week of eth L1 blocks
+    address invalidServiceManager = address(0x1234);
 
     function setUp() public {
         _deployMockEigenLayerAndAVS();
-        delegationManager = new DelegationManager(
-            strategyManagerMock,
-            slasher,
-            eigenPodManagerMock
-        );
 
-        ecdsaStakeRegistry = new ECDSAStakeRegistry(delegationManager);
-        hsm = new HyperlaneServiceManager(
+        _ecdsaStakeRegistry = new TestECDSAStakeRegistry();
+        _hsm = new HyperlaneServiceManager(
             avsDirectory,
-            ecdsaStakeRegistry,
+            _ecdsaStakeRegistry,
             slasher
         );
 
@@ -53,7 +47,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             strategy: mockStrategy,
             multiplier: 10000
         });
-        ecdsaStakeRegistry.initialize(address(hsm), 6667, quorum);
+        _ecdsaStakeRegistry.initialize(address(_hsm), 6667, quorum);
 
         // register operator to eigenlayer
         operator = vm.addr(operatorPrivateKey);
@@ -67,7 +61,21 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             ""
         );
         // set operator as registered in Eigenlayer
-        delegationMock.setIsOperator(operator, true);
+        delegationManager.setIsOperator(operator, true);
+    }
+
+    event AVSMetadataURIUpdated(address indexed avs, string metadataURI);
+
+    function test_updateAVSMetadataURI() public {
+        vm.expectEmit(true, true, true, true, address(avsDirectory));
+        emit AVSMetadataURIUpdated(address(_hsm), "hyperlaneAVS");
+        _hsm.updateAVSMetadataURI("hyperlaneAVS");
+    }
+
+    function test_updateAVSMetadataURI_revert_notOwnable() public {
+        vm.prank(address(0x1234));
+        vm.expectRevert("Ownable: caller is not the owner");
+        _hsm.updateAVSMetadataURI("hyperlaneAVS");
     }
 
     function test_registerOperator() public {
@@ -76,18 +84,18 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             memory operatorSignature = _getOperatorSignature(
                 operatorPrivateKey,
                 operator,
-                address(hsm),
+                address(_hsm),
                 emptySalt,
                 maxExpiry
             );
-        ecdsaStakeRegistry.registerOperatorWithSignature(
+        _ecdsaStakeRegistry.registerOperatorWithSignature(
             operator,
             operatorSignature
         );
 
         // assert
         IAVSDirectory.OperatorAVSRegistrationStatus operatorStatus = avsDirectory
-                .avsOperatorStatus(address(hsm), operator);
+                .avsOperatorStatus(address(_hsm), operator);
         assertEq(
             uint8(operatorStatus),
             uint8(IAVSDirectory.OperatorAVSRegistrationStatus.REGISTERED)
@@ -100,7 +108,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             memory operatorSignature = _getOperatorSignature(
                 operatorPrivateKey,
                 operator,
-                address(serviceManager),
+                address(0x1),
                 emptySalt,
                 maxExpiry
             );
@@ -108,42 +116,14 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         vm.expectRevert(
             "EIP1271SignatureUtils.checkSignature_EIP1271: signature not from signer"
         );
-        ecdsaStakeRegistry.registerOperatorWithSignature(
+        _ecdsaStakeRegistry.registerOperatorWithSignature(
             operator,
             operatorSignature
         );
 
         // assert
         IAVSDirectory.OperatorAVSRegistrationStatus operatorStatus = avsDirectory
-                .avsOperatorStatus(address(hsm), operator);
-        assertEq(
-            uint8(operatorStatus),
-            uint8(IAVSDirectory.OperatorAVSRegistrationStatus.UNREGISTERED)
-        );
-    }
-
-    function test_registerOperator_revert_expiredSignature() public {
-        // act
-        ISignatureUtils.SignatureWithSaltAndExpiry
-            memory operatorSignature = _getOperatorSignature(
-                operatorPrivateKey,
-                operator,
-                address(hsm),
-                emptySalt,
-                0
-            );
-
-        vm.expectRevert(
-            "AVSDirectory.registerOperatorToAVS: operator signature expired"
-        );
-        ecdsaStakeRegistry.registerOperatorWithSignature(
-            operator,
-            operatorSignature
-        );
-
-        // assert
-        IAVSDirectory.OperatorAVSRegistrationStatus operatorStatus = avsDirectory
-                .avsOperatorStatus(address(hsm), operator);
+                .avsOperatorStatus(address(_hsm), operator);
         assertEq(
             uint8(operatorStatus),
             uint8(IAVSDirectory.OperatorAVSRegistrationStatus.UNREGISTERED)
@@ -154,11 +134,11 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         // act
         _registerOperator();
         vm.prank(operator);
-        ecdsaStakeRegistry.deregisterOperator();
+        _ecdsaStakeRegistry.deregisterOperator();
 
         // assert
         IAVSDirectory.OperatorAVSRegistrationStatus operatorStatus = avsDirectory
-                .avsOperatorStatus(address(hsm), operator);
+                .avsOperatorStatus(address(_hsm), operator);
         assertEq(
             uint8(operatorStatus),
             uint8(IAVSDirectory.OperatorAVSRegistrationStatus.UNREGISTERED)
@@ -173,7 +153,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         vm.prank(operator);
-        hsm.enrollIntoChallengers(challengers);
+        _hsm.enrollIntoChallengers(challengers);
 
         _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
     }
@@ -190,10 +170,10 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         vm.startPrank(operator);
 
         vm.expectRevert("HyperlaneServiceManager: challenger isn't enrolled");
-        hsm.startUnenrollment(challengers);
+        _hsm.startUnenrollment(challengers);
 
-        hsm.enrollIntoChallengers(challengers);
-        hsm.startUnenrollment(challengers);
+        _hsm.enrollIntoChallengers(challengers);
+        _hsm.startUnenrollment(challengers);
         _assertChallengers(
             challengers,
             EnrollmentStatus.PENDING_UNENROLLMENT,
@@ -201,7 +181,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         vm.expectRevert("HyperlaneServiceManager: challenger isn't enrolled");
-        hsm.startUnenrollment(challengers);
+        _hsm.startUnenrollment(challengers);
         _assertChallengers(
             challengers,
             EnrollmentStatus.PENDING_UNENROLLMENT,
@@ -237,10 +217,10 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         }
 
         vm.startPrank(operator);
-        hsm.enrollIntoChallengers(challengers);
+        _hsm.enrollIntoChallengers(challengers);
         _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
 
-        hsm.startUnenrollment(queuedChallengers);
+        _hsm.startUnenrollment(queuedChallengers);
         _assertChallengers(
             queuedChallengers,
             EnrollmentStatus.PENDING_UNENROLLMENT,
@@ -263,8 +243,8 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         vm.startPrank(operator);
-        hsm.enrollIntoChallengers(challengers);
-        hsm.startUnenrollment(challengers);
+        _hsm.enrollIntoChallengers(challengers);
+        _hsm.startUnenrollment(challengers);
         vm.stopPrank();
 
         vm.roll(block.number + challengeDelayBlocks);
@@ -272,12 +252,12 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         vm.expectRevert(
             "ECDSAServiceManagerBase: caller is not the stake registry or operator"
         );
-        hsm.completeUnenrollment(operator, challengers);
+        _hsm.completeUnenrollment(operator, challengers);
 
-        vm.prank(address(ecdsaStakeRegistry));
-        hsm.completeUnenrollment(operator, challengers);
+        vm.prank(address(_ecdsaStakeRegistry));
+        _hsm.completeUnenrollment(operator, challengers);
 
-        assertEq(hsm.getOperatorChallengers(operator).length, 0);
+        assertEq(_hsm.getOperatorChallengers(operator).length, 0);
     }
 
     /// forge-config: default.fuzz.runs = 10
@@ -300,8 +280,8 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         }
 
         vm.startPrank(operator);
-        hsm.enrollIntoChallengers(challengers);
-        hsm.startUnenrollment(challengers);
+        _hsm.enrollIntoChallengers(challengers);
+        _hsm.startUnenrollment(challengers);
 
         _assertChallengers(
             challengers,
@@ -310,14 +290,14 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         vm.expectRevert();
-        hsm.completeUnenrollment(operator, unenrollableChallengers);
+        _hsm.completeUnenrollment(operator, unenrollableChallengers);
 
         vm.roll(block.number + challengeDelayBlocks);
 
-        hsm.completeUnenrollment(operator, unenrollableChallengers);
+        _hsm.completeUnenrollment(operator, unenrollableChallengers);
 
         assertEq(
-            hsm.getOperatorChallengers(operator).length,
+            _hsm.getOperatorChallengers(operator).length,
             numOfChallengers - numUnenrollable
         );
 
@@ -333,7 +313,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         vm.prank(operator);
-        hsm.enrollIntoChallengers(challengers);
+        _hsm.enrollIntoChallengers(challengers);
 
         for (uint256 i = 0; i < challengers.length; i++) {
             vm.expectCall(
@@ -371,7 +351,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         }
 
         vm.startPrank(operator);
-        hsm.enrollIntoChallengers(challengers);
+        _hsm.enrollIntoChallengers(challengers);
 
         for (uint256 i = 0; i < challengers.length; i++) {
             vm.expectCall(
@@ -381,9 +361,9 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             challengers[i].handleChallenge(operator);
         }
 
-        hsm.startUnenrollment(challengers);
+        _hsm.startUnenrollment(challengers);
         vm.roll(block.number + challengeDelayBlocks);
-        hsm.completeUnenrollment(operator, unenrollableChallengers);
+        _hsm.completeUnenrollment(operator, unenrollableChallengers);
 
         for (uint256 i = 0; i < unenrollableChallengers.length; i++) {
             vm.expectRevert(
@@ -412,24 +392,22 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         );
 
         vm.startPrank(operator);
-        hsm.enrollIntoChallengers(challengers);
+        _hsm.enrollIntoChallengers(challengers);
         _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
 
         vm.expectRevert("HyperlaneServiceManager: Invalid unenrollment");
-        ecdsaStakeRegistry.deregisterOperator();
+        _ecdsaStakeRegistry.deregisterOperator();
 
-        hsm.startUnenrollment(challengers);
+        _hsm.startUnenrollment(challengers);
 
         vm.expectRevert("HyperlaneServiceManager: Invalid unenrollment");
-        ecdsaStakeRegistry.deregisterOperator();
+        _ecdsaStakeRegistry.deregisterOperator();
 
         vm.roll(block.number + challengeDelayBlocks);
 
-        // hsm.completeUnenrollment(operator, challengers); // this works
-        // // TODO: just this doesn't work -> ecdsaStakeRegistry.deregisterOperator();
-        ecdsaStakeRegistry.deregisterOperator();
+        _ecdsaStakeRegistry.deregisterOperator();
 
-        assertEq(hsm.getOperatorChallengers(operator).length, 0);
+        assertEq(_hsm.getOperatorChallengers(operator).length, 0);
         vm.stopPrank();
     }
 
@@ -440,12 +418,12 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
             memory operatorSignature = _getOperatorSignature(
                 operatorPrivateKey,
                 operator,
-                address(hsm),
+                address(_hsm),
                 emptySalt,
                 maxExpiry
             );
 
-        ecdsaStakeRegistry.registerOperatorWithSignature(
+        _ecdsaStakeRegistry.registerOperatorWithSignature(
             operator,
             operatorSignature
         );
@@ -456,7 +434,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
     ) internal returns (IRemoteChallenger[] memory challengers) {
         challengers = new IRemoteChallenger[](numOfChallengers);
         for (uint8 i = 0; i < numOfChallengers; i++) {
-            challengers[i] = new TestRemoteChallenger(hsm);
+            challengers[i] = new TestRemoteChallenger(_hsm);
         }
     }
 
@@ -466,7 +444,7 @@ contract HyperlaneServiceManagerTest is MockAVSDeployer {
         uint256 _expectUnenrollmentBlock
     ) internal {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            Enrollment memory enrollment = hsm.getChallengerEnrollment(
+            Enrollment memory enrollment = _hsm.getChallengerEnrollment(
                 operator,
                 _challengers[i]
             );

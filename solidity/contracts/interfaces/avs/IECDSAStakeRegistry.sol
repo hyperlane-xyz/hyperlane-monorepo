@@ -3,6 +3,9 @@ pragma solidity >=0.5.0;
 
 import {IStrategy} from "./IStrategy.sol";
 
+/// part of mock interfaces for vendoring necessary Eigenlayer contracts for the hyperlane AVS
+/// @author Layr Labs, Inc.
+
 struct StrategyParams {
     IStrategy strategy; // The strategy contract reference
     uint96 multiplier; // The multiplier applied to the strategy
