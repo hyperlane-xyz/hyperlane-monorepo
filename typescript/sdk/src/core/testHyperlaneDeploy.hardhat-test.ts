@@ -7,7 +7,7 @@ import hre from 'hardhat';
 import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains.js';
+import { TestChainName } from '../consts/testChains.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -15,8 +15,8 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { TestCoreApp } from './TestCoreApp.js';
 import { TestCoreDeployer } from './TestCoreDeployer.js';
 
-const localChain = Chains.test1;
-const remoteChain = Chains.test2;
+const localChain = TestChainName.test1;
+const remoteChain = TestChainName.test2;
 const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {

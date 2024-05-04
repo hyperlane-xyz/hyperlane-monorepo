@@ -146,5 +146,6 @@ export {
   TokenCaip19Id,
   WithAddress,
 } from './types.js';
+export { isHttpsUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator } from './validator.js';

@@ -3,7 +3,7 @@ import { BigNumber } from 'ethers';
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../../src/config/environment.js';
+import { getEnvAddresses } from '../../config/registry.js';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -14,8 +14,8 @@ async function main() {
   const { environment } = await getArgs().argv;
   const environmentConfig = getEnvironmentConfig(environment);
   const multiProvider = await environmentConfig.getMultiProvider();
-  const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[environment],
+  const igp = HyperlaneIgp.fromAddressesMap(
+    getEnvAddresses(environment),
     multiProvider,
   );
 

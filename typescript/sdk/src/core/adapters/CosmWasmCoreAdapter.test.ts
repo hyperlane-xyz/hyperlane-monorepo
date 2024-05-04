@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 
-import { Chains } from '../../consts/chains.js';
+import {
+  multiProtocolTestChainMetadata,
+  test1,
+  testCosmosChain,
+} from '../../consts/testChains.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../../providers/ProviderType.js';
 
@@ -15,8 +19,16 @@ describe('CosmWasmCoreAdapter', () => {
 
   it('constructs', () => {
     adapter = new CosmWasmCoreAdapter(
-      Chains.injective,
-      new MultiProtocolProvider(),
+      testCosmosChain.name,
+      MultiProtocolProvider.createTestMultiProtocolProvider({
+        ...multiProtocolTestChainMetadata,
+        inevm: {
+          ...test1,
+          name: 'inevm',
+          chainId: 2525,
+          domainId: 2525,
+        },
+      }),
       { mailbox: '' },
     );
     expect(adapter).to.be.instanceOf(CosmWasmCoreAdapter);
