@@ -1,3 +1,5 @@
+import { TransactionReceipt } from '@ethersproject/providers';
+
 import {
   WithAddress,
   assert,
@@ -6,6 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../../core/types.js';
+import { DerivedHookConfigWithAddress } from '../../hook/read.js';
 import { DerivedIsmConfigWithAddress } from '../read.js';
 import { AggregationIsmConfig } from '../types.js';
 
@@ -21,22 +24,33 @@ const RANGE_SIZE = 4;
 
 // adapted from rust/agents/relayer/src/msg/metadata/aggregation.rs
 export class AggregationIsmMetadataBuilder
-  implements MetadataBuilder<WithAddress<AggregationIsmConfig>>
+  implements
+    MetadataBuilder<
+      WithAddress<AggregationIsmConfig>,
+      DerivedHookConfigWithAddress
+    >
 {
   constructor(protected readonly base: BaseMetadataBuilder) {}
 
   async build(
     message: DispatchedMessage,
-    config: WithAddress<AggregationIsmConfig>,
+    context: {
+      ism: WithAddress<AggregationIsmConfig>;
+      hook: DerivedHookConfigWithAddress;
+      dispatchTx: TransactionReceipt;
+    },
     maxDepth = 10,
   ): Promise<string> {
     assert(maxDepth > 0, 'Max depth reached');
 
     const promises = await Promise.allSettled(
-      config.modules.map((module) =>
+      context.ism.modules.map((module) =>
         this.base.build(
           message,
-          module as DerivedIsmConfigWithAddress,
+          {
+            ...context,
+            ism: module as DerivedIsmConfigWithAddress,
+          },
           maxDepth - 1,
         ),
       ),
@@ -45,9 +59,9 @@ export class AggregationIsmMetadataBuilder
       r.status === 'fulfilled' ? r.value : null,
     );
     const included = submoduleMetadata.filter((m) => m !== null).length;
-    if (included < config.threshold) {
+    if (included < context.ism.threshold) {
       throw new Error(
-        `Only built ${included} of ${config.threshold} required modules`,
+        `Only built ${included} of ${context.ism.threshold} required modules`,
       );
     }
 

@@ -1,7 +1,12 @@
-import { assert, eqAddress } from '@hyperlane-xyz/utils';
+import { TransactionReceipt } from '@ethersproject/providers';
 
+import { WithAddress, assert, eqAddress } from '@hyperlane-xyz/utils';
+
+import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
+import { DerivedHookConfigWithAddress } from '../../hook/read.js';
+import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
 import { DerivedIsmConfigWithAddress } from '../read.js';
 import { IsmType } from '../types.js';
 
@@ -24,38 +29,57 @@ export type StructuredMetadata =
   | MultisigMetadata
   | NullMetadata;
 
-export interface MetadataBuilder<T extends DerivedIsmConfigWithAddress> {
-  build(message: DispatchedMessage, ismConfig: T): Promise<string>;
+export interface MetadataBuilder<
+  I extends DerivedIsmConfigWithAddress,
+  H extends DerivedHookConfigWithAddress,
+> {
+  build(
+    message: DispatchedMessage,
+    context: {
+      dispatchTx: TransactionReceipt;
+      hook: H;
+      ism: I;
+    },
+  ): Promise<string>;
 }
 
 export class BaseMetadataBuilder
-  implements MetadataBuilder<DerivedIsmConfigWithAddress>
+  implements
+    MetadataBuilder<DerivedIsmConfigWithAddress, DerivedHookConfigWithAddress>
 {
-  constructor(protected readonly core: HyperlaneCore) {}
+  private multisigMetadataBuilder: MultisigMetadataBuilder;
+  private aggregationIsmMetadataBuilder: AggregationIsmMetadataBuilder;
+
+  constructor(protected readonly core: HyperlaneCore) {
+    this.multisigMetadataBuilder = new MultisigMetadataBuilder(core);
+    this.aggregationIsmMetadataBuilder = new AggregationIsmMetadataBuilder(
+      this,
+    );
+  }
 
   async build(
     message: DispatchedMessage,
-    ismConfig?: DerivedIsmConfigWithAddress,
+    context: {
+      dispatchTx: TransactionReceipt;
+      hook: DerivedHookConfigWithAddress;
+      ism: DerivedIsmConfigWithAddress;
+    },
     maxDepth = 10,
   ): Promise<string> {
     assert(maxDepth > 0, 'Max depth reached');
 
-    if (!ismConfig) {
-      ismConfig = await this.core.getRecipientIsmConfig(message);
-    }
-
-    if (ismConfig.type === IsmType.TRUSTED_RELAYER) {
+    if (context.ism.type === IsmType.TRUSTED_RELAYER) {
       const destinationSigner = await this.core.multiProvider.getSignerAddress(
         message.parsed.destination,
       );
       assert(
-        eqAddress(destinationSigner, ismConfig.relayer),
-        `Destination signer ${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
+        eqAddress(destinationSigner, context.ism.relayer),
+        `Destination signer ${destinationSigner} does not match trusted relayer ${context.ism.relayer}`,
       );
     }
 
-    /* eslint-disable no-case-declarations */
-    switch (ismConfig.type) {
+    const { ism, hook, dispatchTx } = context;
+    switch (ism.type) {
       // Null
       case IsmType.TRUSTED_RELAYER:
       case IsmType.PAUSABLE:
@@ -66,28 +90,39 @@ export class BaseMetadataBuilder
       // Multisig
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
-        return new MultisigMetadataBuilder(this.core).build(message, ismConfig);
+        const merkleTreeHook = deepFind(
+          hook,
+          (v): v is WithAddress<MerkleTreeHookConfig> =>
+            v.type === HookType.MERKLE_TREE && v.address !== undefined,
+        );
+        assert(merkleTreeHook, 'Merkle tree hook context not found');
+        return this.multisigMetadataBuilder.build(message, {
+          ism,
+          hook: merkleTreeHook,
+          dispatchTx,
+        });
 
       // Routing
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
-        const originChain = this.core.multiProvider.getChainName(
-          message.parsed.origin,
-        );
         return this.build(
           message,
-          ismConfig.domains[originChain] as DerivedIsmConfigWithAddress,
+          {
+            ...context,
+            ism: ism.domains[
+              this.core.multiProvider.getChainName(message.parsed.origin)
+            ] as DerivedIsmConfigWithAddress,
+          },
           maxDepth - 1,
         );
 
       // Aggregation
       case IsmType.AGGREGATION:
-        return new AggregationIsmMetadataBuilder(this).build(
+        return this.aggregationIsmMetadataBuilder.build(
           message,
-          ismConfig,
+          { ...context, ism },
           maxDepth - 1,
         );
     }
-    /* eslint-enable no-case-declarations */
   }
 }

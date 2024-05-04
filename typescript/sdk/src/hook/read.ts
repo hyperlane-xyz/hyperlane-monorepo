@@ -42,6 +42,8 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
+export type DerivedHookConfigWithAddress = WithAddress<HookConfig>;
+
 export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
@@ -82,7 +84,9 @@ export class EvmHookReader implements HookReader {
     this.provider = multiProvider.getProvider(chain);
   }
 
-  async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {
+  async deriveHookConfig(
+    address: Address,
+  ): Promise<DerivedHookConfigWithAddress> {
     const hook = IPostDispatchHook__factory.connect(address, this.provider);
     const onchainHookType: OnchainHookType = await hook.hookType();
 
