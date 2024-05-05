@@ -64,14 +64,17 @@ export function deepFind<I extends object, O extends I>(
   maxDepth = 10,
 ): O | undefined {
   assert(maxDepth > 0, 'deepFind max depth reached');
-  return (
-    func(obj) ||
-    Object.values(obj).find(
-      (v) =>
-        (isObject(v) && deepFind(v, func, maxDepth - 1)) ||
-        (Array.isArray(v) && v.map((e) => deepFind(e, func, maxDepth - 1))),
-    )
-  );
+  if (func(obj)) {
+    return obj;
+  }
+  const entries = isObject(obj)
+    ? Object.values(obj)
+    : Array.isArray(obj)
+    ? obj
+    : [];
+  return entries
+    .map((e) => deepFind(e as any, func, maxDepth - 1))
+    .find((v) => v);
 }
 
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}

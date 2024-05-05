@@ -4,6 +4,7 @@ import {
   WithAddress,
   assert,
   fromHexString,
+  rootLogger,
   toHexString,
 } from '@hyperlane-xyz/utils';
 
@@ -30,6 +31,10 @@ export class AggregationIsmMetadataBuilder
       DerivedHookConfigWithAddress
     >
 {
+  protected logger = rootLogger.child({
+    module: 'AggregationIsmMetadataBuilder',
+  });
+
   constructor(protected readonly base: BaseMetadataBuilder) {}
 
   async build(
@@ -42,7 +47,6 @@ export class AggregationIsmMetadataBuilder
     maxDepth = 10,
   ): Promise<string> {
     assert(maxDepth > 0, 'Max depth reached');
-
     const promises = await Promise.allSettled(
       context.ism.modules.map((module) =>
         this.base.build(

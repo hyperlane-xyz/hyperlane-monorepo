@@ -11,11 +11,13 @@ import {
   SignatureLike,
   WithAddress,
   assert,
+  bytes32ToAddress,
   chunk,
   ensure0x,
   eqAddress,
   eqAddressEvm,
   fromHexString,
+  rootLogger,
   strip0x,
   toHexString,
 } from '@hyperlane-xyz/utils';
@@ -61,7 +63,7 @@ export class MultisigMetadataBuilder
 
   constructor(
     protected readonly core: HyperlaneCore,
-    protected readonly logger = core.logger.child({
+    protected readonly logger = rootLogger.child({
       module: 'MultisigMetadataBuilder',
     }),
   ) {}
@@ -71,23 +73,30 @@ export class MultisigMetadataBuilder
     validators: string[],
   ): Promise<S3Validator[]> {
     this.validatorCache[originChain] ??= {};
-    const cached = new Set(Object.keys(this.validatorCache[originChain]));
-    const toFetch = validators.filter((v) => !cached.has(v));
-
-    const storageLocations = await this.core
-      .getContracts(originChain)
-      .validatorAnnounce.getAnnouncedStorageLocations(toFetch);
-
-    const s3Validators = await Promise.all(
-      storageLocations.map((locations) => {
-        const latestLocation = locations.slice(-1)[0];
-        return S3Validator.fromStorageLocation(latestLocation);
-      }),
+    const toFetch = validators.filter(
+      (v) => !(v in this.validatorCache[originChain]),
     );
 
-    s3Validators.forEach((v) => {
-      this.validatorCache[originChain][v.address] = v;
-    });
+    if (toFetch.length > 0) {
+      const storageLocations = await this.core
+        .getContracts(originChain)
+        .validatorAnnounce.getAnnouncedStorageLocations(toFetch);
+
+      this.logger.debug({ storageLocations }, 'Fetched storage locations');
+
+      const s3Validators = await Promise.all(
+        storageLocations.map((locations) => {
+          const latestLocation = locations.slice(-1)[0];
+          return S3Validator.fromStorageLocation(latestLocation);
+        }),
+      );
+
+      this.logger.debug({ s3Validators }, 'Fetched validators');
+
+      toFetch.forEach((validator, index) => {
+        this.validatorCache[originChain][validator] = s3Validators[index];
+      });
+    }
 
     return validators.map((v) => this.validatorCache[originChain][v]);
   }
@@ -101,7 +110,9 @@ export class MultisigMetadataBuilder
       index: number;
     },
   ): Promise<S3CheckpointWithId[]> {
-    const originChain = this.core.multiProvider.getChainName(origin);
+    this.logger.debug({ match, validators }, 'Fetching checkpoints');
+
+    const originChain = this.core.multiProvider.getChainName(match.origin);
     const s3Validators = await this.s3Validators(originChain, validators);
 
     const checkpointPromises = await Promise.allSettled(
@@ -115,16 +126,25 @@ export class MultisigMetadataBuilder
       .map((p) => p.value)
       .filter((v): v is S3CheckpointWithId => v !== undefined);
 
+    this.logger.debug({ checkpoints }, 'Fetched checkpoints');
+
     const matchingCheckpoints = checkpoints.filter(
       ({ value }) =>
         eqAddress(
-          value.checkpoint.merkle_tree_hook_address,
+          bytes32ToAddress(value.checkpoint.merkle_tree_hook_address),
           match.merkleTree,
         ) &&
         value.message_id === match.messageId &&
         value.checkpoint.index === match.index &&
         value.checkpoint.mailbox_domain === match.origin,
     );
+
+    if (matchingCheckpoints.length !== checkpoints.length) {
+      this.logger.warn(
+        { matchingCheckpoints, checkpoints, match },
+        'Mismatched checkpoints',
+      );
+    }
 
     return matchingCheckpoints;
   }
@@ -154,6 +174,7 @@ export class MultisigMetadataBuilder
       matchingInsertion,
       `No merkle tree insertion of ${message.id} to ${context.hook.address} found in dispatch tx`,
     );
+    this.logger.debug({ matchingInsertion }, 'Found matching insertion event');
 
     const checkpoints = await this.getS3Checkpoints(context.ism.validators, {
       origin: message.parsed.origin,
@@ -166,9 +187,15 @@ export class MultisigMetadataBuilder
       `Only ${checkpoints.length} of ${context.ism.threshold} required signatures found`,
     );
 
+    this.logger.debug(
+      { checkpoints },
+      `Found ${checkpoints.length} checkpoints for message ${message.id}`,
+    );
+
     const signatures = checkpoints
       .map((c) => c.signature)
       .slice(0, context.ism.threshold);
+
     this.logger.debug(
       { signatures, message },
       `Taking ${signatures.length} (threshold) signatures for message ${message.id}`,

@@ -15,6 +15,7 @@ import {
   ProtocolType,
   assert,
   bytes32ToAddress,
+  eqAddress,
   messageId,
   objFilter,
   objMap,
@@ -113,20 +114,27 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return destinationMailbox.mailbox.recipientIsm(ethAddress);
   }
 
+  async getIsmConfig(
+    chain: ChainName,
+    ism: Address,
+  ): Promise<DerivedIsmConfigWithAddress> {
+    if (this.ismCache[chain]?.[ism]) {
+      return this.ismCache[chain][ism];
+    }
+
+    const ismReader = new EvmIsmReader(this.multiProvider, chain);
+    const config = await ismReader.deriveIsmConfig(ism);
+    this.ismCache[chain] ??= {};
+    this.ismCache[chain][ism] = config;
+    return config;
+  }
+
   async getRecipientIsmConfig(
     message: DispatchedMessage,
   ): Promise<DerivedIsmConfigWithAddress> {
-    const destinationChain = this.getDestination(message);
-    const ismReader = new EvmIsmReader(this.multiProvider, destinationChain);
+    const chain = this.getDestination(message);
     const ism = await this.getRecipientIsmAddress(message);
-    if (this.ismCache[destinationChain]?.[ism]) {
-      return this.ismCache[destinationChain][ism];
-    }
-
-    const config = await ismReader.deriveIsmConfig(ism);
-    this.ismCache[destinationChain] ??= {};
-    this.ismCache[destinationChain][ism] = config;
-    return config;
+    return this.getIsmConfig(chain, ism);
   }
 
   protected getOrigin(message: DispatchedMessage): ChainName {
@@ -139,11 +147,33 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const provider = this.multiProvider.getProvider(originChain);
     try {
       const client = MailboxClient__factory.connect(senderAddress, provider);
-      return client.hook();
+      const hook = await client.hook();
+      if (!eqAddress(hook, ethers.constants.AddressZero)) {
+        return hook;
+      }
     } catch (e) {
-      const originMailbox = this.contractsMap[originChain].mailbox;
-      return originMailbox.defaultHook();
+      this.logger.debug(
+        { senderAddress, error: e },
+        `Error fetching hook address for sender`,
+      );
     }
+    const originMailbox = this.contractsMap[originChain].mailbox;
+    return originMailbox.defaultHook();
+  }
+
+  async getHookConfig(
+    chain: ChainName,
+    hook: Address,
+  ): Promise<DerivedHookConfigWithAddress> {
+    if (this.hookCache[chain]?.[hook]) {
+      return this.hookCache[chain][hook];
+    }
+
+    const hookReader = new EvmHookReader(this.multiProvider, chain);
+    const config = await hookReader.deriveHookConfig(hook);
+    this.hookCache[chain] ??= {};
+    this.hookCache[chain][hook] = config;
+    return config;
   }
 
   async getSenderHookConfig(
@@ -151,30 +181,22 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   ): Promise<DerivedHookConfigWithAddress> {
     const originChain = this.getOrigin(message);
     const hook = await this.getSenderHookAddress(message);
-    if (this.hookCache[originChain]?.[hook]) {
-      return this.hookCache[originChain][hook];
-    }
-
-    const hookReader = new EvmHookReader(this.multiProvider, originChain);
-    const config = await hookReader.deriveHookConfig(hook);
-    this.hookCache[originChain] ??= {};
-    this.hookCache[originChain][hook] = config;
-    return config;
+    return this.getHookConfig(originChain, hook);
   }
 
   async buildMetadata(
     message: DispatchedMessage,
-    dispatchTx?: TransactionReceipt,
+    dispatchTx: TransactionReceipt,
   ): Promise<string> {
-    const [ism, hook, tx] = await Promise.all([
+    const [ism, hook] = await Promise.all([
       this.getRecipientIsmConfig(message),
       this.getSenderHookConfig(message),
-      dispatchTx ?? this.getDispatchTx(this.getOrigin(message), message.id),
     ]);
+    this.logger.debug({ ism, hook }, `Fetched context for message`);
     return this.metadataBuilder.build(message, {
       ism,
       hook,
-      dispatchTx: tx,
+      dispatchTx,
     });
   }
 
@@ -196,19 +218,19 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async relayMessage(
     message: DispatchedMessage,
-    dispatchTx?: TransactionReceipt,
+    dispatchTx: TransactionReceipt,
   ): Promise<ethers.ContractReceipt> {
+    assert(
+      this.multiProvider.hasChain(message.parsed.origin) &&
+        this.multiProvider.hasChain(message.parsed.destination),
+      'Chain not supported',
+    );
+
     const destinationChain = this.getDestination(message);
     const mailbox = this.getContracts(destinationChain).mailbox;
 
-    const isDelivered = await mailbox.delivered(message.id);
-    if (isDelivered) {
-      this.logger.debug(`Message ${message.id} already delivered`);
-      return this.getProcessedReceipt(message);
-    }
-
     const recipient = IMessageRecipient__factory.connect(
-      message.parsed.recipient,
+      bytes32ToAddress(message.parsed.recipient),
       mailbox.provider,
     );
     this.logger.debug({ message }, `Simulating recipient message handling`);
@@ -216,6 +238,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       message.parsed.origin,
       message.parsed.sender,
       message.parsed.body,
+      { from: mailbox.address },
     );
 
     const recipientIsm = await this.getRecipientIsmAddress(message);
@@ -224,53 +247,82 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.provider,
     );
 
-    const metadata = await pollAsync(
+    return pollAsync(
       async () => {
         this.logger.debug(
           { message, recipientIsm },
-          `Building recipient ISM ${recipientIsm} metadata`,
+          `Building recipient ISM metadata`,
         );
         const metadata = await this.buildMetadata(message, dispatchTx);
 
         this.logger.debug(
           { message, metadata },
-          `Simulating recipient ISM ${recipientIsm} verification`,
+          `Simulating recipient ISM verification`,
         );
         const verified = await ism.callStatic.verify(metadata, message.message);
         assert(verified, 'ISM verification failed');
 
-        return metadata;
+        const isDelivered = await mailbox.delivered(message.id);
+        if (isDelivered) {
+          this.logger.debug(`Message ${message.id} already delivered`);
+          return this.getProcessedReceipt(message);
+        }
+
+        this.logger.info(
+          { message, metadata },
+          `Relaying message ${message.id} to ${destinationChain}`,
+        );
+
+        return this.multiProvider.handleTx(
+          destinationChain,
+          mailbox.process(metadata, message.message),
+        );
       },
       5 * 1000, // every 5 seconds
-      12, // 12 attempts (1 minute total)
-    );
-
-    this.logger.info(
-      { message, metadata },
-      `Relaying message ${message.id} to ${destinationChain}`,
-    );
-
-    return this.multiProvider.handleTx(
-      destinationChain,
-      mailbox.process(metadata, message.message),
+      12, // 12 attempts
     );
   }
 
-  async relay(filters: ChainMap<Parameters<Mailbox['filters']['Dispatch']>>) {
-    for (const [chain, filter] of Object.entries(filters)) {
-      const mailbox = this.getContracts(chain).mailbox;
+  async relay(
+    filters = objMap(
+      this.contractsMap,
+      (): Parameters<Mailbox['filters']['Dispatch']> => [
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ],
+    ),
+  ): Promise<void> {
+    const chains = this.multiProvider.getKnownChainNames();
+    await Promise.all(
+      chains.map(async (chain) => {
+        this.logger.debug(`Hydrating ${chain} default ISM and hook caches`);
+        const mailbox = this.getContracts(chain).mailbox;
+        const hook = await mailbox.defaultHook();
+        const ism = await mailbox.defaultIsm();
+        await this.getIsmConfig(chain, ism);
+        await this.getHookConfig(chain, hook);
+      }),
+    );
+
+    for (const [originChain, filter] of Object.entries(filters)) {
+      const mailbox = this.getContracts(originChain).mailbox;
+      this.logger.debug(`Listening on ${originChain} for messages`);
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(...filter),
         async (sender, destination, recipient, message, event) => {
-          this.logger.info(
-            { chain, sender, destination, recipient, message, event },
-            `Observed message from ${chain}, attempting to relay`,
-          );
-          const receipt = await event.getTransactionReceipt();
-          await this.relayMessage(
-            HyperlaneCore.parseDispatchedMessage(message),
-            receipt,
-          );
+          const destinationChain =
+            this.multiProvider.tryGetChainName(destination);
+          if (destinationChain) {
+            this.logger.info(
+              { chain: originChain, sender, destination, recipient },
+              `Observed message from ${originChain} to ${destinationChain} attempting to relay`,
+            );
+            const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+            const receipt = await event.getTransactionReceipt();
+            await this.relayMessage(dispatched, receipt);
+          }
         },
       );
     }

@@ -1,6 +1,11 @@
 import { TransactionReceipt } from '@ethersproject/providers';
 
-import { WithAddress, assert, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  assert,
+  eqAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
@@ -49,6 +54,7 @@ export class BaseMetadataBuilder
 {
   private multisigMetadataBuilder: MultisigMetadataBuilder;
   private aggregationIsmMetadataBuilder: AggregationIsmMetadataBuilder;
+  protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
 
   constructor(protected readonly core: HyperlaneCore) {
     this.multisigMetadataBuilder = new MultisigMetadataBuilder(core);
@@ -67,6 +73,10 @@ export class BaseMetadataBuilder
     maxDepth = 10,
   ): Promise<string> {
     assert(maxDepth > 0, 'Max depth reached');
+    this.logger.debug(
+      { maxDepth, context },
+      `Building ${context.ism.type} metadata`,
+    );
 
     if (context.ism.type === IsmType.TRUSTED_RELAYER) {
       const destinationSigner = await this.core.multiProvider.getSignerAddress(
