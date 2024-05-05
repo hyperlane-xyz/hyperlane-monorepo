@@ -39,6 +39,7 @@ export async function checkMessageStatus({
     chainAddresses,
     context.multiProvider,
   );
+
   const mailbox = core.getContracts(destination).mailbox;
   log(`Checking status of message ${messageId} on ${destination}`);
   const delivered = await mailbox.delivered(messageId);
@@ -65,8 +66,7 @@ export async function checkMessageStatus({
       .getProvider(origin)
       .getTransactionReceipt(dispatchTx);
 
-    const messages = core.getDispatchedMessages(dispatchTxReceipt);
-    const tx = await core.relayMessage(messages[0], dispatchTxReceipt);
+    const tx = await core.relayMessage(dispatchTxReceipt);
     logGreen(
       `Message ${messageId} was relayed in ${context.multiProvider.getExplorerTxUrl(
         destination,

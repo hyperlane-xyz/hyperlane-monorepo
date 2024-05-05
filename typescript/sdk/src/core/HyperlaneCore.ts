@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
 import {
-  IInterchainSecurityModule__factory,
   IMessageRecipient__factory,
   MailboxClient__factory,
   Mailbox__factory,
@@ -217,8 +216,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   async relayMessage(
-    message: DispatchedMessage,
     dispatchTx: TransactionReceipt,
+    index = 0,
+    message = HyperlaneCore.getDispatchedMessages(dispatchTx)[index],
   ): Promise<ethers.ContractReceipt> {
     assert(
       this.multiProvider.hasChain(message.parsed.origin) &&
@@ -228,6 +228,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
     const destinationChain = this.getDestination(message);
     const mailbox = this.getContracts(destinationChain).mailbox;
+
+    const isDelivered = await mailbox.delivered(message.id);
+    if (isDelivered) {
+      this.logger.debug(`Message ${message.id} already delivered`);
+      return this.getProcessedReceipt(message);
+    }
 
     const recipient = IMessageRecipient__factory.connect(
       bytes32ToAddress(message.parsed.recipient),
@@ -241,45 +247,19 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       { from: mailbox.address },
     );
 
-    const recipientIsm = await this.getRecipientIsmAddress(message);
-    const ism = IInterchainSecurityModule__factory.connect(
-      recipientIsm,
-      mailbox.provider,
-    );
-
-    return pollAsync(
-      async () => {
-        this.logger.debug(
-          { message, recipientIsm },
-          `Building recipient ISM metadata`,
-        );
-        const metadata = await this.buildMetadata(message, dispatchTx);
-
-        this.logger.debug(
-          { message, metadata },
-          `Simulating recipient ISM verification`,
-        );
-        const verified = await ism.callStatic.verify(metadata, message.message);
-        assert(verified, 'ISM verification failed');
-
-        const isDelivered = await mailbox.delivered(message.id);
-        if (isDelivered) {
-          this.logger.debug(`Message ${message.id} already delivered`);
-          return this.getProcessedReceipt(message);
-        }
-
-        this.logger.info(
-          { message, metadata },
-          `Relaying message ${message.id} to ${destinationChain}`,
-        );
-
-        return this.multiProvider.handleTx(
-          destinationChain,
-          mailbox.process(metadata, message.message),
-        );
-      },
+    const metadata = await pollAsync(
+      () => this.buildMetadata(message, dispatchTx),
       5 * 1000, // every 5 seconds
       12, // 12 attempts
+    );
+
+    this.logger.info(
+      { message, metadata },
+      `Relaying message ${message.id} to ${destinationChain}`,
+    );
+    return this.multiProvider.handleTx(
+      destinationChain,
+      mailbox.process(metadata, message.message),
     );
   }
 
@@ -316,12 +296,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
             this.multiProvider.tryGetChainName(destination);
           if (destinationChain) {
             this.logger.info(
-              { chain: originChain, sender, destination, recipient },
+              { originChain, sender, destinationChain, recipient },
               `Observed message from ${originChain} to ${destinationChain} attempting to relay`,
             );
-            const dispatched = HyperlaneCore.parseDispatchedMessage(message);
-            const receipt = await event.getTransactionReceipt();
-            await this.relayMessage(dispatched, receipt);
+            const dispatchReceipt = await event.getTransactionReceipt();
+            await this.relayMessage(dispatchReceipt);
           }
         },
       );
@@ -413,6 +392,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     messageId: string,
   ): Promise<TransactionReceipt> {
     const mailbox = this.contractsMap[originChain].mailbox;
+    // TODO: scan and chunk if necessary
     const filter = mailbox.filters.DispatchId(messageId);
     const matchingEvents = await mailbox.queryFilter(filter);
     if (matchingEvents.length === 0) {

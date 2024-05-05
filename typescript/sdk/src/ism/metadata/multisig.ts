@@ -2,7 +2,6 @@ import { TransactionReceipt } from '@ethersproject/providers';
 import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
 
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
-import type { InsertedIntoTreeEvent } from '@hyperlane-xyz/core/merkle';
 import {
   Address,
   Checkpoint,
@@ -115,18 +114,24 @@ export class MultisigMetadataBuilder
     const originChain = this.core.multiProvider.getChainName(match.origin);
     const s3Validators = await this.s3Validators(originChain, validators);
 
-    const checkpointPromises = await Promise.allSettled(
+    const results = await Promise.allSettled(
       s3Validators.map((v) => v.getCheckpoint(match.index)),
     );
-    const checkpoints = checkpointPromises
+    const checkpoints = results
       .filter(
-        (p): p is PromiseFulfilledResult<S3CheckpointWithId | undefined> =>
-          p.status === 'fulfilled',
+        (result): result is PromiseFulfilledResult<S3CheckpointWithId> =>
+          result.status === 'fulfilled' && result.value !== undefined,
       )
-      .map((p) => p.value)
-      .filter((v): v is S3CheckpointWithId => v !== undefined);
+      .map((result) => result.value);
 
     this.logger.debug({ checkpoints }, 'Fetched checkpoints');
+
+    if (checkpoints.length < validators.length) {
+      this.logger.debug(
+        { checkpoints, validators, match },
+        `Found ${checkpoints.length} checkpoints out of ${validators.length} validators`,
+      );
+    }
 
     const matchingCheckpoints = checkpoints.filter(
       ({ value }) =>
@@ -162,24 +167,23 @@ export class MultisigMetadataBuilder
       'Merkle proofs are not yet supported',
     );
 
+    const merkleTree = context.hook.address;
+
     const matchingInsertion = context.dispatchTx.logs
-      .filter((l) => eqAddressEvm(l.address, context.hook.address))
-      .map(
-        (l) =>
-          MerkleTreeInterface.parseLog(l) as unknown as InsertedIntoTreeEvent,
-      )
-      .find((e) => e.args.messageId === message.id);
+      .filter((log) => eqAddressEvm(log.address, merkleTree))
+      .map((log) => MerkleTreeInterface.parseLog(log))
+      .find((event) => event.args.messageId === message.id);
 
     assert(
       matchingInsertion,
-      `No merkle tree insertion of ${message.id} to ${context.hook.address} found in dispatch tx`,
+      `No merkle tree insertion of ${message.id} to ${merkleTree} found in dispatch tx`,
     );
     this.logger.debug({ matchingInsertion }, 'Found matching insertion event');
 
     const checkpoints = await this.getS3Checkpoints(context.ism.validators, {
       origin: message.parsed.origin,
-      merkleTree: context.hook.address,
       messageId: message.id,
+      merkleTree,
       index: matchingInsertion.args.index,
     });
     assert(
@@ -193,7 +197,7 @@ export class MultisigMetadataBuilder
     );
 
     const signatures = checkpoints
-      .map((c) => c.signature)
+      .map((checkpoint) => checkpoint.signature)
       .slice(0, context.ism.threshold);
 
     this.logger.debug(
