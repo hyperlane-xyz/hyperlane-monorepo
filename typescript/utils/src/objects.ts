@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
+import { assert } from './validation.js';
 
 export function isObject(item: any) {
   return item && typeof item === 'object' && !Array.isArray(item);
@@ -55,6 +56,25 @@ export function objFilter<K extends string, I, O extends I>(
   return Object.fromEntries(
     Object.entries<I>(obj).filter(([k, v]) => func(k as K, v)),
   ) as Record<K, O>;
+}
+
+export function deepFind<I extends object, O extends I>(
+  obj: I,
+  func: (v: I) => v is O,
+  maxDepth = 10,
+): O | undefined {
+  assert(maxDepth > 0, 'deepFind max depth reached');
+  if (func(obj)) {
+    return obj;
+  }
+  const entries = isObject(obj)
+    ? Object.values(obj)
+    : Array.isArray(obj)
+    ? obj
+    : [];
+  return entries
+    .map((e) => deepFind(e as any, func, maxDepth - 1))
+    .find((v) => v);
 }
 
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}

@@ -1,4 +1,19 @@
-import { fromHexString, toHexString } from '@hyperlane-xyz/utils';
+import { TransactionReceipt } from '@ethersproject/providers';
+
+import {
+  WithAddress,
+  assert,
+  fromHexString,
+  rootLogger,
+  toHexString,
+} from '@hyperlane-xyz/utils';
+
+import { DispatchedMessage } from '../../core/types.js';
+import { DerivedHookConfigWithAddress } from '../../hook/read.js';
+import { DerivedIsmConfigWithAddress } from '../read.js';
+import { AggregationIsmConfig } from '../types.js';
+
+import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
 
 // null indicates that metadata is NOT INCLUDED for this submodule
 // empty or 0x string indicates that metadata is INCLUDED but NULL
@@ -9,7 +24,54 @@ export interface AggregationIsmMetadata {
 const RANGE_SIZE = 4;
 
 // adapted from rust/agents/relayer/src/msg/metadata/aggregation.rs
-export class AggregationIsmMetadataBuilder {
+export class AggregationIsmMetadataBuilder
+  implements
+    MetadataBuilder<
+      WithAddress<AggregationIsmConfig>,
+      DerivedHookConfigWithAddress
+    >
+{
+  protected logger = rootLogger.child({
+    module: 'AggregationIsmMetadataBuilder',
+  });
+
+  constructor(protected readonly base: BaseMetadataBuilder) {}
+
+  async build(
+    message: DispatchedMessage,
+    context: {
+      ism: WithAddress<AggregationIsmConfig>;
+      hook: DerivedHookConfigWithAddress;
+      dispatchTx: TransactionReceipt;
+    },
+    maxDepth = 10,
+  ): Promise<string> {
+    assert(maxDepth > 0, 'Max depth reached');
+    const promises = await Promise.allSettled(
+      context.ism.modules.map((module) =>
+        this.base.build(
+          message,
+          {
+            ...context,
+            ism: module as DerivedIsmConfigWithAddress,
+          },
+          maxDepth - 1,
+        ),
+      ),
+    );
+    const submoduleMetadata = promises.map((r) =>
+      r.status === 'fulfilled' ? r.value : null,
+    );
+    const included = submoduleMetadata.filter((m) => m !== null).length;
+    if (included < context.ism.threshold) {
+      throw new Error(
+        `Only built ${included} of ${context.ism.threshold} required modules`,
+      );
+    }
+
+    return AggregationIsmMetadataBuilder.encode({ submoduleMetadata });
+  }
+
   static rangeIndex(index: number): number {
     return index * 2 * RANGE_SIZE;
   }

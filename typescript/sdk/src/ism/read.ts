@@ -79,6 +79,7 @@ export class EvmIsmReader implements IsmReader {
       this.provider,
     );
     const moduleType: ModuleType = await ism.moduleType();
+    this.logger.debug('Deriving ISM config', { address, moduleType });
 
     switch (moduleType) {
       case ModuleType.UNUSED:
@@ -94,7 +95,11 @@ export class EvmIsmReader implements IsmReader {
       case ModuleType.MESSAGE_ID_MULTISIG:
         return this.deriveMultisigConfig(address);
       case ModuleType.NULL:
-        return this.deriveNullConfig(address);
+        return {
+          type: IsmType.TEST_ISM,
+          address,
+        };
+      // return this.deriveNullConfig(address);
       case ModuleType.CCIP_READ:
         throw new Error('CCIP_READ does not have a corresponding IsmType');
       default:
@@ -116,12 +121,18 @@ export class EvmIsmReader implements IsmReader {
     const domainIds = await ism.domains();
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
-      const chainName = this.multiProvider.getChainName(domainId.toNumber());
+      const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
+      if (!chainName) {
+        this.logger.warn(
+          `Unknown domain ID ${domainId}, skipping domain configuration`,
+        );
+        return;
+      }
       const module = await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
     });
 
-    // Fallback routing ISM extends from MailboxClient, default routign
+    // Fallback routing ISM extends from MailboxClient, default routing
     let ismType = IsmType.FALLBACK_ROUTING;
     try {
       await ism.mailbox();
