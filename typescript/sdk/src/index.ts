@@ -48,6 +48,7 @@ export {
   HyperlaneFactories,
 } from './contracts/types.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
+export { HyperlaneRelayer } from './core/HyperlaneRelayer.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';

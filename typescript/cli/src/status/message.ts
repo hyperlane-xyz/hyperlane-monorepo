@@ -1,6 +1,6 @@
 import { input } from '@inquirer/prompts';
 
-import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
 import { log, logBlue, logGreen } from '../logger.js';
@@ -66,7 +66,8 @@ export async function checkMessageStatus({
       .getProvider(origin)
       .getTransactionReceipt(dispatchTx);
 
-    const tx = await core.relayMessage(dispatchTxReceipt);
+    const relayer = new HyperlaneRelayer(core);
+    const tx = await relayer.relayMessage(dispatchTxReceipt);
     logGreen(
       `Message ${messageId} was relayed in ${context.multiProvider.getExplorerTxUrl(
         destination,

@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
@@ -133,8 +133,9 @@ async function executeDelivery({
     log(`Message: ${JSON.stringify(message)}`);
 
     if (selfRelay) {
+      const relayer = new HyperlaneRelayer(core);
       log('Attempting self-relay of message');
-      await core.relayMessage(message, txReceipt);
+      await relayer.relayMessage(txReceipt);
       logGreen('Message was self-relayed!');
       return;
     }

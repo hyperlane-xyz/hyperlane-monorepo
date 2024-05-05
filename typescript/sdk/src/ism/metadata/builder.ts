@@ -63,6 +63,7 @@ export class BaseMetadataBuilder
     );
   }
 
+  // assumes that all post dispatch hooks are included in dispatchTx logs
   async build(
     message: DispatchedMessage,
     context: {

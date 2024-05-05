@@ -1,6 +1,7 @@
 import {
   ChainName,
   HyperlaneCore,
+  HyperlaneRelayer,
   MultiProtocolProvider,
   ProviderType,
   Token,
@@ -157,16 +158,14 @@ async function executeDelivery({
       txReceipts.push(txReceipt);
     }
   }
-
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
 
-  const message = core.getDispatchedMessages(transferTxReceipt)[0];
-  logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
-  logBlue(`Message ID: ${message.id}`);
+  logBlue(`Sent transfer from ${origin} to ${recipient} on ${destination}.`);
 
   if (selfRelay) {
-    await core.relayMessage(message, transferTxReceipt);
-    logGreen('Message was self-relayed!');
+    const relayer = new HyperlaneRelayer(core);
+    await relayer.relayMessage(transferTxReceipt);
+    logGreen('Transfer was self-relayed!');
     return;
   }
 
