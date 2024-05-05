@@ -1,10 +1,4 @@
-import { WithAddress, fromHexString, toHexString } from '@hyperlane-xyz/utils';
-
-import { DispatchedMessage } from '../../core/types.js';
-import { DerivedIsmConfigWithAddress } from '../read.js';
-import { AggregationIsmConfig } from '../types.js';
-
-import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
+import { fromHexString, toHexString } from '@hyperlane-xyz/utils';
 
 // null indicates that metadata is NOT INCLUDED for this submodule
 // empty or 0x string indicates that metadata is INCLUDED but NULL
@@ -15,33 +9,7 @@ export interface AggregationIsmMetadata {
 const RANGE_SIZE = 4;
 
 // adapted from rust/agents/relayer/src/msg/metadata/aggregation.rs
-export class AggregationIsmMetadataBuilder
-  implements MetadataBuilder<WithAddress<AggregationIsmConfig>>
-{
-  constructor(protected readonly base: BaseMetadataBuilder) {}
-
-  async build(
-    message: DispatchedMessage,
-    config: WithAddress<AggregationIsmConfig>,
-  ): Promise<string> {
-    const results = await Promise.allSettled(
-      config.modules.map((module) =>
-        this.base.build(message, module as DerivedIsmConfigWithAddress),
-      ),
-    );
-    const submoduleMetadata = results.map((r) =>
-      r.status === 'fulfilled' ? r.value : null,
-    );
-    const included = submoduleMetadata.filter((m) => m !== null).length;
-    if (included < config.threshold) {
-      throw new Error(
-        `Only built ${included} of ${config.threshold} required modules`,
-      );
-    }
-
-    return AggregationIsmMetadataBuilder.encode({ submoduleMetadata });
-  }
-
+export class AggregationIsmMetadataBuilder {
   static rangeIndex(index: number): number {
     return index * 2 * RANGE_SIZE;
   }

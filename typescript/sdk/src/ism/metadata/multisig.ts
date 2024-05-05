@@ -1,12 +1,9 @@
 import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
 
-import { IValidatorAnnounce__factory } from '@hyperlane-xyz/core';
 import {
   Checkpoint,
   MerkleProof,
-  S3CheckpointWithId,
   SignatureLike,
-  WithAddress,
   assert,
   chunk,
   ensure0x,
@@ -15,14 +12,7 @@ import {
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import '../../../../utils/dist/types.js';
-import { S3Validator } from '../../aws/validator.js';
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { DispatchedMessage } from '../../core/types.js';
-import { ChainName } from '../../types.js';
-import { IsmType, ModuleType, MultisigIsmConfig } from '../types.js';
-
-import { MetadataBuilder } from './builder.js';
+import { ModuleType } from '../types.js';
 
 interface MessageIdMultisigMetadata {
   type: ModuleType.MESSAGE_ID_MULTISIG;
@@ -42,105 +32,7 @@ export type MultisigMetadata =
   | MessageIdMultisigMetadata
   | MerkleRootMultisigMetadata;
 
-export class MultisigMetadataBuilder
-  implements MetadataBuilder<WithAddress<MultisigIsmConfig>>
-{
-  constructor(
-    protected readonly core: HyperlaneCore,
-    protected readonly logger = core.logger.child({
-      module: 'MultisigMetadataBuilder',
-    }),
-  ) {}
-
-  async s3Validators(
-    originChain: ChainName,
-    validators: string[],
-  ): Promise<S3Validator[]> {
-    const originProvider = this.core.multiProvider.getProvider(origin);
-    const validatorAnnounce = IValidatorAnnounce__factory.connect(
-      this.core.getAddresses(originChain).validatorAnnounce,
-      originProvider,
-    );
-
-    const storageLocations =
-      await validatorAnnounce.getAnnouncedStorageLocations(validators);
-
-    return Promise.all(
-      storageLocations.map(([firstStorageLocation]) =>
-        S3Validator.fromStorageLocation(firstStorageLocation),
-      ),
-    );
-  }
-
-  async build(
-    message: DispatchedMessage,
-    ismConfig: WithAddress<MultisigIsmConfig>,
-  ): Promise<string> {
-    assert(
-      ismConfig.type === IsmType.MESSAGE_ID_MULTISIG,
-      'Merkle proofs are not yet supported',
-    );
-
-    const originChain = this.core.multiProvider.getChainName(origin);
-    const validators = await this.s3Validators(
-      originChain,
-      ismConfig.validators,
-    );
-
-    this.logger.debug(
-      {
-        originChain,
-        validators,
-      },
-      `Connected to ${validators.length} ${originChain} validator S3 buckets`,
-    );
-
-    const matching = await Promise.any(
-      validators.map((v) => v.findCheckpoint(message.id)),
-    );
-    this.logger.debug(
-      { matching, message },
-      `Found matching checkpoint for message ${message.id}`,
-    );
-    const checkpointPromises = await Promise.allSettled(
-      validators.map((v) => v.getCheckpoint(matching.value.checkpoint.index)),
-    );
-
-    const checkpoints = checkpointPromises
-      .filter(
-        (p): p is PromiseFulfilledResult<S3CheckpointWithId | undefined> =>
-          p.status === 'fulfilled',
-      )
-      .map((p) => p.value)
-      .filter((v): v is S3CheckpointWithId => v !== undefined);
-
-    this.logger.debug(
-      { matching, message, checkpoints },
-      `Found ${checkpoints.length} checkpoints for message ${message.id}`,
-    );
-
-    assert(
-      checkpoints.length >= ismConfig.threshold,
-      `Only ${checkpoints.length} of ${ismConfig.threshold} required signatures found`,
-    );
-
-    const signatures = checkpoints
-      .map((c) => c.signature)
-      .slice(0, ismConfig.threshold);
-    this.logger.debug(
-      { signatures, message },
-      `Taking ${signatures.length} (threshold) signatures for message ${message.id}`,
-    );
-
-    const metadata: MessageIdMultisigMetadata = {
-      type: ModuleType.MESSAGE_ID_MULTISIG,
-      checkpoint: matching.value.checkpoint,
-      signatures,
-    };
-
-    return MultisigMetadataBuilder.encode(metadata);
-  }
-
+export class MultisigMetadataBuilder {
   static encodeSimplePrefix(metadata: MessageIdMultisigMetadata): string {
     const checkpoint = metadata.checkpoint;
     const buf = Buffer.alloc(68);
