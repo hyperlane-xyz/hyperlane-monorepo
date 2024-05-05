@@ -7,11 +7,12 @@ import {
   AddressBytes32,
   ProtocolType,
   bytes32ToAddress,
+  eqAddress,
   messageId,
   objFilter,
   objMap,
   parseMessage,
-  pollAsync
+  pollAsync,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
@@ -19,6 +20,7 @@ import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
 import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
+import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -87,6 +89,47 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const ismReader = new EvmIsmReader(this.multiProvider, destinationChain);
     const address = await this.getRecipientIsmAddress(message);
     return ismReader.deriveIsmConfig(address);
+  }
+
+  async buildMetadata(message: DispatchedMessage): Promise<string> {
+    const ismConfig = await this.getRecipientIsmConfig(message);
+    const destinationChain = this.getDestination(message);
+
+    switch (ismConfig.type) {
+      case IsmType.TRUSTED_RELAYER:
+        // eslint-disable-next-line no-case-declarations
+        const destinationSigner = await this.multiProvider.getSignerAddress(
+          destinationChain,
+        );
+        if (!eqAddress(destinationSigner, ismConfig.relayer)) {
+          this.logger.warn(
+            `${destinationChain} signer ${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
+          );
+        }
+    }
+
+    // TODO: implement metadata builders for other module types
+    const moduleType = ismTypeToModuleType(ismConfig.type);
+    switch (moduleType) {
+      case ModuleType.NULL:
+        return '0x';
+      default:
+        throw new Error(`Unsupported module type ${moduleType}`);
+    }
+  }
+
+  async relayMessage(
+    message: DispatchedMessage,
+  ): Promise<ethers.ContractReceipt> {
+    const metadata = await this.buildMetadata(message);
+
+    const destinationChain = this.getDestination(message);
+    const mailbox = this.contractsMap[destinationChain].mailbox;
+
+    return this.multiProvider.handleTx(
+      destinationChain,
+      mailbox.process(metadata, message.message),
+    );
   }
 
   protected waitForProcessReceipt(
