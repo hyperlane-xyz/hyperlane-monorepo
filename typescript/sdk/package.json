@@ -66,7 +66,7 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "yarn build:fixSafeGlobalLib; tsc",
+    "build": "tsc",
     "build:fixSafeGlobalLib": "rm -rf ../../node_modules/@safe-global/protocol-kit/dist/typechain/src/web3-v1/**/Multi_send.ts",
     "dev": "tsc --watch",
     "check": "tsc --noEmit",

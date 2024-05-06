@@ -4,5 +4,6 @@
     "outDir": "./dist/",
     "rootDir": "./src/",
   },
-  "include": ["./src/**/*.ts", "./src/*.d.ts"]
+  "include": ["./src/**/*.ts", "./src/*.d.ts", "src/utils/gnosisSafe.js"],
+  "exclude": ["node_modules/**/*.ts", "dist", "../../node_modules/**/*.ts",]
 }

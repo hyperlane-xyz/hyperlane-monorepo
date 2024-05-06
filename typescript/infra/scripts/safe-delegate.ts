@@ -4,7 +4,9 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 import '@ethersproject/hardware-wallets/thirdparty';
 import { AddSafeDelegateProps } from '@safe-global/api-kit';
 
-import { getSafeDelegates, getSafeService } from '@hyperlane-xyz/sdk';
+// prettier-ignore
+// @ts-ignore
+import { getSafeDelegates, getSafeService } from '@hyperlane-xyz/sdk/src/utils/gnosisSafe.js';
 
 import { getChains } from '../config/registry.js';
 

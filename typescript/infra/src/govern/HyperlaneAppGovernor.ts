@@ -11,8 +11,9 @@ import {
   InterchainAccount,
   OwnableConfig,
   OwnerViolation,
-  canProposeSafeTransactions,
 } from '@hyperlane-xyz/sdk';
+// @ts-ignore
+import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk/src/utils/gnosisSafe.js';
 import {
   Address,
   CallData,
