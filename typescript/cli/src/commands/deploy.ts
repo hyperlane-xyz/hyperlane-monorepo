@@ -72,7 +72,7 @@ const coreCommand: CommandModuleWithWriteContext<{
   targets: string;
   ism?: string;
   hook?: string;
-  'dry-run': boolean;
+  'dry-run': string;
   agent: string;
 }> = {
   command: 'core',
@@ -114,7 +114,7 @@ const coreCommand: CommandModuleWithWriteContext<{
  */
 const warpCommand: CommandModuleWithWriteContext<{
   config: string;
-  'dry-run': boolean;
+  'dry-run': string;
 }> = {
   command: 'warp',
   describe: 'Deploy Warp Route contracts',
