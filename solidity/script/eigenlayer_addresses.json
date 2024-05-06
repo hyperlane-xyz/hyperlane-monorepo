@@ -1,0 +1,14 @@
+{
+  "mainnet": {
+    "delegationManager": "0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A",
+    "avsDirectory": "0x135DDa560e946695d6f155dACaFC6f1F25C1F5AF",
+    "paymentCoordinator": "",
+    "strategies": [
+      {
+        "name": "cbETH",
+        "address": "0x54945180dB7943c0ed0FEE7EdaB2Bd24620256bc"
+      }
+    ]
+  },
+  "holesky": {}
+}

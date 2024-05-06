@@ -5,9 +5,9 @@ import {IDelegationManager} from "../../contracts/interfaces/avs/IDelegationMana
 import {ISlasher} from "../../contracts/interfaces/avs/ISlasher.sol";
 
 import {IAVSDirectory} from "../../contracts/interfaces/avs/IAVSDirectory.sol";
-import {Quorum, StrategyParams, IECDSAStakeRegistry} from "../../contracts/interfaces/avs/IECDSAStakeRegistry.sol";
+import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/IECDSAStakeRegistryEventsAndErrors.sol";
 import {TestDelegationManager} from "../../contracts/test/avs/TestDelegationManager.sol";
-import {TestECDSAStakeRegistry} from "../../contracts/test/avs/TestECDSAStakeRegistry.sol";
+import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
 
 import {IStrategy} from "../../contracts/interfaces/avs/IStrategy.sol";
@@ -22,7 +22,7 @@ import {EigenlayerBase} from "./EigenlayerBase.sol";
 
 contract HyperlaneServiceManagerTest is EigenlayerBase {
     HyperlaneServiceManager internal _hsm;
-    TestECDSAStakeRegistry internal _ecdsaStakeRegistry;
+    ECDSAStakeRegistry internal _ecdsaStakeRegistry;
     TestPaymentCoordinator internal _paymentCoordinator;
 
     // Operator info
@@ -37,7 +37,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
     function setUp() public {
         _deployMockEigenLayerAndAVS();
 
-        _ecdsaStakeRegistry = new TestECDSAStakeRegistry();
+        _ecdsaStakeRegistry = new ECDSAStakeRegistry(delegationManager);
         _paymentCoordinator = new TestPaymentCoordinator();
 
         _hsm = new HyperlaneServiceManager(

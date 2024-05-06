@@ -9,7 +9,8 @@ import {IServiceManagerUI} from "../interfaces/avs/IServiceManagerUI.sol";
 import {IDelegationManager} from "../interfaces/avs/IDelegationManager.sol";
 import {IStrategy} from "../interfaces/avs/IStrategy.sol";
 import {IPaymentCoordinator} from "../interfaces/avs/IPaymentCoordinator.sol";
-import {Quorum, IECDSAStakeRegistry} from "../interfaces/avs/IECDSAStakeRegistry.sol";
+import {Quorum} from "../interfaces/avs/IECDSAStakeRegistryEventsAndErrors.sol";
+import {ECDSAStakeRegistry} from "./ECDSAStakeRegistry.sol";
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -206,7 +207,7 @@ abstract contract ECDSAServiceManagerBase is
         virtual
         returns (address[] memory)
     {
-        Quorum memory quorum = IECDSAStakeRegistry(stakeRegistry).quorum();
+        Quorum memory quorum = ECDSAStakeRegistry(stakeRegistry).quorum();
         address[] memory strategies = new address[](quorum.strategies.length);
         for (uint256 i = 0; i < quorum.strategies.length; i++) {
             strategies[i] = address(quorum.strategies[i].strategy);
@@ -224,7 +225,7 @@ abstract contract ECDSAServiceManagerBase is
     function _getOperatorRestakedStrategies(
         address _operator
     ) internal view virtual returns (address[] memory) {
-        Quorum memory quorum = IECDSAStakeRegistry(stakeRegistry).quorum();
+        Quorum memory quorum = ECDSAStakeRegistry(stakeRegistry).quorum();
         uint256 count = quorum.strategies.length;
         IStrategy[] memory strategies = new IStrategy[](count);
         for (uint256 i; i < count; i++) {

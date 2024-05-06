@@ -18,10 +18,7 @@ import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/Enu
 import {IAVSDirectory} from "../interfaces/avs/IAVSDirectory.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
-
-// ============ External Imports ============
 import {ISlasher} from "../interfaces/avs/ISlasher.sol";
-import {IECDSAStakeRegistry} from "../interfaces/avs/IECDSAStakeRegistry.sol";
 
 contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Libraries ============
