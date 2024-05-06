@@ -1,5 +1,4 @@
 @openzeppelin=../node_modules/@openzeppelin
-@openzeppelin/contracts-upgradeable/=../node_modules/@openzeppelin/contracts-upgradeable/
 @layerzerolabs=../node_modules/@layerzerolabs
 @eth-optimism=../node_modules/@eth-optimism
 ds-test/=lib/forge-std/lib/ds-test/src/
