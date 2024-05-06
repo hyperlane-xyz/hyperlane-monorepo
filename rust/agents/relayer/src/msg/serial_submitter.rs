@@ -13,8 +13,8 @@ use tracing::{info, warn};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneMessage,
-    MpmcReceiver, TxOutcome,
+    BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneMessage, MpmcReceiver, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -274,10 +274,21 @@ async fn submit_single_operation(
     confirm_queue: &mut OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
+    let destination = op.destination_domain().clone();
     op.submit().await;
     debug!(?op, "Operation submitted");
     confirm_queue.push(op).await;
     metrics.ops_submitted.inc();
+
+    if matches!(
+        destination.domain_protocol(),
+        HyperlaneDomainProtocol::Cosmos
+    ) {
+        // On cosmos chains, sleep for 1 sec (the finality period).
+        // Otherwise we get `account sequence mismatch` errors, which have caused us
+        // to lose liveness.
+        sleep(Duration::from_secs(1)).await;
+    }
 }
 
 #[instrument(skip_all, fields(%domain))]
