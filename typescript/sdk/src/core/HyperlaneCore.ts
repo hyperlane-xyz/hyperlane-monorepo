@@ -181,7 +181,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       if (!eqAddress(hook, ethers.constants.AddressZero)) {
         return hook;
       }
-    } catch (e) {}
+    } catch (e) {
+      this.logger.debug(`MailboxClient hook not found for ${senderAddress}`);
+      this.logger.trace({ e });
+    }
+
     const originMailbox = this.contractsMap[originChain].mailbox;
     return originMailbox.defaultHook();
   }
