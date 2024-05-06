@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-import { OwnableConfigSchema } from '../deploy/schemas.js';
+import {
+  OwnableConfigSchema,
+  ProxyFactoryFactoriesSchema,
+} from '../deploy/schemas.js';
 import { ZHash } from '../index.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 
@@ -12,6 +15,9 @@ export const MailboxClientConfigSchema = z.object({
   mailbox: ZHash,
   hook: ZHash.optional(),
   interchainSecurityModule: IsmConfigSchema.optional(),
+  ismFactoryAddresses: z
+    .record(ProxyFactoryFactoriesSchema.keyof(), ZHash)
+    .optional(),
 });
 
 export const routerConfigSchema = MailboxClientConfigSchema.merge(

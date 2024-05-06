@@ -1,9 +1,12 @@
-import { PopulatedTransaction } from 'ethers';
-
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
-import { IsmConfig } from '../ism/types.js';
+import { attachContracts } from '../contracts/contracts.js';
+import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import {
+  ProxyFactoryFactories,
+  proxyFactoryFactories,
+} from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   EthersV5Transaction,
@@ -27,7 +30,9 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 export class EvmERC20WarpCrudModule extends CrudModule<
   ProtocolType.Ethereum,
   TokenRouterConfig,
-  HyperlaneContracts<HypERC20Factories>
+  HyperlaneContracts<HypERC20Factories> & {
+    deployedWarpRoute: Address;
+  }
 > {
   protected logger = rootLogger.child({ module: 'EvmERC20WarpCrudModule' });
   reader: EvmERC20WarpRouteReader;
@@ -36,7 +41,9 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     protected readonly multiProvider: MultiProvider,
     args: CrudModuleArgs<
       TokenRouterConfig,
-      HyperlaneContracts<HypERC20Factories>
+      HyperlaneContracts<HypERC20Factories> & {
+        deployedWarpRoute: Address;
+      }
     >,
   ) {
     super(args);
@@ -50,8 +57,10 @@ export class EvmERC20WarpCrudModule extends CrudModule<
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  public async read(address: Address): Promise<DerivedTokenRouterConfig> {
-    return this.reader.deriveWarpRouteConfig(address);
+  public async read(): Promise<DerivedTokenRouterConfig> {
+    return this.reader.deriveWarpRouteConfig(
+      this.args.addresses.deployedWarpRoute,
+    );
   }
 
   /**
@@ -91,37 +100,59 @@ export class EvmERC20WarpCrudModule extends CrudModule<
       config.type as DerivedTokenType // Cast because cast.types needs to be narrowed
     ].deployed();
 
-    if (typeof config.interchainSecurityModule === 'object') {
-      const onchainConfig = await this.read(contractToUpdate.address);
+    if (typeof config.interchainSecurityModule === 'string') {
+      // Derive & set ISM
+      const ism = await this.reader.evmIsmReader.deriveIsmConfig(
+        config.interchainSecurityModule,
+      );
+      transactions.push({
+        transaction:
+          await contractToUpdate.populateTransaction.setInterchainSecurityModule(
+            ism.address,
+          ),
+        type: ProviderType.EthersV5,
+      });
+    } else if (typeof config.interchainSecurityModule === 'object') {
+      const onchainConfig = await this.read();
       if (
         config.interchainSecurityModule.type !==
         onchainConfig.interchainSecurityModule!.type
       ) {
         // Deploy & set ISM
-        const ismModule = await this.deployIsm(config.interchainSecurityModule);
-        transactions.push(
-          this.createTransaction(
+        const ismModule = await this.deployIsm(config);
+        transactions.push({
+          transaction:
             await contractToUpdate.populateTransaction.setInterchainSecurityModule(
               ismModule,
             ),
-          ),
-        );
+          type: ProviderType.EthersV5,
+        });
       }
-    } else if (typeof config.interchainSecurityModule === 'string') {
-      // Derive & set ISM
-      const ism = await this.reader.evmIsmReader.deriveIsmConfig(
-        config.interchainSecurityModule,
-      );
-      transactions.push(
-        this.createTransaction(
-          await contractToUpdate.populateTransaction.setInterchainSecurityModule(
-            ism.address,
-          ),
-        ),
-      );
     }
 
     return transactions;
+  }
+
+  /**
+   * Deploys the ISM using the provided configuration.
+   *
+   * @param config - The configuration for the ISM to be deployed.
+   * @returns The deployed ISM contract address.
+   */
+  public async deployIsm(config: TokenRouterConfig): Promise<string> {
+    // Take the config.ismFactoryAddresses, de-serialize them into Contracts, and pass into EvmIsmModule.create
+    const factories = attachContracts(
+      config.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
+      proxyFactoryFactories,
+    );
+    const evmIsmModule = await EvmIsmModule.create({
+      chain: this.args.chain,
+      config: config.interchainSecurityModule!,
+      deployer: new HyperlaneProxyFactoryDeployer(this.multiProvider),
+      factories,
+      multiProvider: this.multiProvider,
+    });
+    return evmIsmModule.serialize().deployedIsm;
   }
 
   /**
@@ -142,31 +173,15 @@ export class EvmERC20WarpCrudModule extends CrudModule<
       const hook = await this.reader.evmHookReader.deriveHookConfig(
         config.hook,
       );
-      transactions.push(
-        this.createTransaction(
-          await contractToUpdate.populateTransaction.setHook(hook.address),
+      transactions.push({
+        transaction: await contractToUpdate.populateTransaction.setHook(
+          hook.address,
         ),
-      );
+        type: ProviderType.EthersV5,
+      });
     }
 
     return transactions;
-  }
-
-  /**
-   * Deploys the ISM using the provided configuration.
-   *
-   * @param config - The configuration for the ISM to be deployed.
-   * @returns The deployed ISM contract address.
-   */
-  async deployIsm(config: IsmConfig): Promise<string> {
-    const evmIsmModule = await EvmIsmModule.create({
-      chain: this.args.chain,
-      config,
-      deployer: '' as any,
-      factories: '' as any,
-      multiProvider: this.multiProvider,
-    });
-    return evmIsmModule.serialize().deployedIsm;
   }
 
   /**
@@ -183,7 +198,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     multiProvider,
   }: {
     chain: ChainNameOrId;
-    config: TokenRouterConfig;
+    config: DerivedTokenRouterConfig;
     multiProvider: MultiProvider;
   }): Promise<EvmERC20WarpCrudModule> {
     const deployer = new HypERC20Deployer(multiProvider);
@@ -192,16 +207,12 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     } as ChainMap<TokenConfig & RouterConfig>);
 
     return new EvmERC20WarpCrudModule(multiProvider, {
-      addresses: deployedContracts[chain],
+      addresses: {
+        ...deployedContracts[chain],
+        deployedWarpRoute: deployedContracts[chain][config.type].address,
+      },
       chain,
       config,
     });
-  }
-
-  createTransaction(transaction: PopulatedTransaction): EthersV5Transaction {
-    return {
-      transaction,
-      type: ProviderType.EthersV5,
-    };
   }
 }

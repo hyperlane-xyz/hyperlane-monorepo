@@ -45,7 +45,7 @@ export class HyperlaneRouterChecker<
     const router = this.app.router(this.app.getContracts(chain));
 
     const checkMailboxClientProperty = async (
-      property: keyof MailboxClientConfig,
+      property: keyof Omit<MailboxClientConfig, 'ismFactoryAddresses'>,
       actual: string,
       violationType: ClientViolationType,
     ) => {
