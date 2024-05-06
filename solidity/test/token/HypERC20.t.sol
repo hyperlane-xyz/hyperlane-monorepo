@@ -19,7 +19,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {XERC20Test, FiatTokenTest, ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
@@ -401,6 +401,8 @@ contract HypXERC20CollateralTest is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
+        primaryToken = new XERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
+
         localToken = new HypXERC20Collateral(
             address(primaryToken),
             address(localMailbox)
@@ -446,6 +448,8 @@ contract HypFiatTokenCollateralTest is HypTokenTest {
 
     function setUp() public override {
         super.setUp();
+
+        primaryToken = new FiatTokenTest(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
 
         localToken = new HypFiatTokenCollateral(
             address(primaryToken),

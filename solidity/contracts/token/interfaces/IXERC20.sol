@@ -12,7 +12,7 @@ interface IXERC20 is IERC20 {
      * @param _user The address of the user who needs tokens minted
      * @param _amount The amount of tokens being minted
      */
-    function mint(address _user, uint256 _amount) external returns (bool);
+    function mint(address _user, uint256 _amount) external;
 
     /**
      * @notice Burns tokens for a user
