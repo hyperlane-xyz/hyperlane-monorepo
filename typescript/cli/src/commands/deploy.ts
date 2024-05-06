@@ -6,7 +6,7 @@ import {
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure, verifyAnvil } from '../deploy/dry-run.js';
+import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
 
@@ -90,8 +90,6 @@ const coreCommand: CommandModuleWithWriteContext<{
     );
     logGray('------------------------------------------------');
 
-    if (dryRun) await verifyAnvil();
-
     try {
       const chains = targets?.split(',').map((r: string) => r.trim());
       await runCoreDeploy({
@@ -125,8 +123,6 @@ const warpCommand: CommandModuleWithWriteContext<{
   handler: async ({ context, config, dryRun }) => {
     logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
     logGray('------------------------------------------------');
-
-    if (dryRun) await verifyAnvil();
 
     try {
       await runWarpRouteDeploy({

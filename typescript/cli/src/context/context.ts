@@ -5,7 +5,7 @@ import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import { isNullish } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import { forkNetworkToMultiProvider } from '../deploy/dry-run.js';
+import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { MergedRegistry } from '../registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -82,6 +82,7 @@ export async function getDryRunContext(
   }
 
   logBlue(`Dry-running against chain: ${chain}`);
+  await verifyAnvil();
 
   const multiProvider = await getMultiProvider(registry);
   await forkNetworkToMultiProvider(multiProvider, chain);
