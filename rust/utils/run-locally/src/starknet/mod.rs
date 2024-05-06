@@ -16,8 +16,10 @@ use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
 use self::source::{CLISource, CodeSource};
+use self::types::{DeclaredClasses, Deployments, StarknetEndpoint};
 
 mod source;
+mod types;
 mod utils;
 
 const KATANA_CLI_GIT: &str = "https://github.com/dojoengine/dojo";
@@ -75,86 +77,35 @@ pub struct MockDispatchInner {
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/astraly-labs/hyperlane_starknet";
 const CAIRO_HYPERLANE_VERSION: &str = "v0.0.1";
 
-fn make_target() -> String {
-    let os = if cfg!(target_os = "linux") {
-        "linux"
-    } else if cfg!(target_os = "macos") {
-        "darwin"
-    } else {
-        panic!("Current os is not supported by Katana")
-    };
-
-    let arch = if cfg!(target_arch = "aarch64") {
-        "arm64"
-    } else {
-        "amd64"
-    };
-
-    format!("{}-{}", os, arch)
-}
-
-pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, PathBuf> {
-    let dir_path = match dir {
-        Some(path) => path,
-        None => tempdir().unwrap().into_path(),
-    };
-
-    if !local {
-        let dir_path_str = dir_path.to_str().unwrap();
-
-        let release_comp = "wasm_codes.zip";
-
-        log!(
-            "Downloading {} @ {}",
-            CAIRO_HYPERLANE_GIT,
-            CAIRO_HYPERLANE_VERSION,
-        );
-        let uri = format!(
-            "{CAIRO_HYPERLANE_GIT}/releases/download/{CAIRO_HYPERLANE_VERSION}/{release_comp}"
-        );
-        download(release_comp, &uri, dir_path_str);
-
-        log!("Uncompressing {} release", CAIRO_HYPERLANE_GIT);
-        unzip(release_comp, dir_path_str);
-    }
-
-    log!("Installing {} in Path: {:?}", CAIRO_HYPERLANE_GIT, dir_path);
-
-    // make contract_name => path map
-    fs::read_dir(dir_path)
-        .unwrap()
-        .map(|v| {
-            let entry = v.unwrap();
-            (entry.file_name().into_string().unwrap(), entry.path())
-        })
-        .filter(|(filename, _)| filename.ends_with(".wasm"))
-        .map(|v| (v.0.replace(".wasm", ""), v.1))
-        .collect()
-}
-
 #[allow(dead_code)]
-pub fn install_cosmos(
+pub fn install_starknet(
     cli_dir: Option<PathBuf>,
     cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
-    _codes_src: Option<CodeSource>,
+    codes_src: Option<CodeSource>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
-    let osmosisd = cli_src
+    let katanad = cli_src
         .unwrap_or(CLISource::Remote {
             url: KATANA_CLI_GIT.to_string(),
             version: KATANA_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir, false);
 
-    (osmosisd, codes)
+    let codes = codes_src
+        .unwrap_or(CodeSource::Remote {
+            url: CAIRO_HYPERLANE_GIT.to_string(),
+            version: CAIRO_HYPERLANE_VERSION.to_string(),
+        })
+        .install(codes_dir);
+
+    (katanad, codes)
 }
 
 #[derive(Clone)]
 pub struct StarknetConfig {
     pub cli_path: PathBuf,
 
-    pub codes: BTreeMap<String, PathBuf>,
+    pub sierra_classes: BTreeMap<String, PathBuf>,
 
     pub node_addr_base: String,
     pub node_port_base: u32,
@@ -164,17 +115,17 @@ pub struct StarknetConfig {
 
 pub struct StarknetResp {
     pub node: AgentHandles,
-    pub endpoint: OsmosisEndpoint,
-    pub codes: Codes,
+    pub endpoint: StarknetEndpoint,
+    pub declared_classes: DeclaredClasses,
 }
 
-impl StarknetResp {
-    pub fn cli(&self, bin: &Path) -> StarknetCLI {
-        StarknetCLI::new(bin.to_path_buf())
-    }
-}
+// impl StarknetResp {
+//     pub fn cli(&self, bin: &Path) -> StarknetCLI {
+//         StarknetCLI::new(bin.to_path_buf())
+//     }
+// }
 
-pub struct CosmosNetwork {
+pub struct StarknetNetwork {
     pub launch_resp: StarknetResp,
     pub deployments: Deployments,
     pub chain_id: String,
@@ -182,13 +133,13 @@ pub struct CosmosNetwork {
     pub domain: u32,
 }
 
-impl Drop for CosmosNetwork {
+impl Drop for StarknetNetwork {
     fn drop(&mut self) {
         stop_child(&mut self.launch_resp.node.1);
     }
 }
 
-impl From<(StarknetResp, Deployments, String, u32, u32)> for CosmosNetwork {
+impl From<(StarknetResp, Deployments, String, u32, u32)> for StarknetNetwork {
     fn from(v: (StarknetResp, Deployments, String, u32, u32)) -> Self {
         Self {
             launch_resp: v.0,
@@ -215,17 +166,23 @@ impl Drop for StarknetHyperlaneStack {
 
 #[apply(as_task)]
 fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
-    let cli = StarknetCLI::new(config.cli_path);
+    let cli = Program::new(config.cli_path);
 
-    cli.init(&config.chain_id);
+    let node: AgentHandles = cli
+        .arg("--host", config.node_addr_base)
+        .arg("--port", config.node_port_base.to_string())
+        .spawn("STARKNET");
 
-    let (node, endpoint) = cli.start(config.node_addr_base, config.node_port_base);
-    let codes = cli.store_codes(&endpoint, "validator", config.codes);
+    let endpoint: StarknetEndpoint = StarknetEndpoint {
+        rpc_addr: config.node_addr_base,
+    };
+
+    let declared_classes = hyperlane_starknet_rs::declare_all(config.sierra_classes);
 
     StarknetResp {
         node,
         endpoint,
-        codes,
+        declared_classes,
     }
 }
 
@@ -331,12 +288,13 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let (katanad, codes) = install_starknet(None, cli_src, None, code_src);
+    let (katanad, sierra_classes) = install_starknet(None, cli_src, None, code_src);
+
     let addr_base = "http://0.0.0.0";
     let default_config = StarknetConfig {
         cli_path: katanad.clone(),
 
-        codes,
+        sierra_classes,
 
         node_addr_base: addr_base.to_string(),
         node_port_base: 5050,
@@ -346,18 +304,18 @@ fn run_locally() {
 
     let port_start = 26600u32;
     let metrics_port_start = 9090u32;
-    let domain_start = 99990u32;
+    let domain_start = 23448593u32;
     let node_count = 2;
 
     let nodes = (0..node_count)
         .map(|i| {
             (
-                launch_cosmos_node(CosmosConfig {
+                launch_starknet_node(StarknetConfig {
                     node_port_base: port_start + (i * 10),
-                    chain_id: format!("cosmos-test-{}", i + domain_start),
+                    chain_id: format!("KATANA"),
                     ..default_config.clone()
                 }),
-                format!("cosmos-test-{}", i + domain_start),
+                format!("KATANA"),
                 metrics_port_start + i,
                 domain_start + i,
             )
@@ -373,11 +331,10 @@ fn run_locally() {
         .into_iter()
         .map(|v| (v.0.join(), v.1, v.2, v.3))
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
-            let deployments = deploy_cw_hyperlane(
-                launch_resp.cli(&osmosisd),
+            let deployments = hyperlane_starknet_rs::deploy_all(
                 launch_resp.endpoint.clone(),
                 deployer.to_string(),
-                launch_resp.codes.clone(),
+                launch_resp.declared_classes.clone(),
                 domain,
             );
 
@@ -390,7 +347,7 @@ fn run_locally() {
         .into_iter()
         .map(|v| (v.0, v.1.join(), v.2, v.3, v.4))
         .map(|v| v.into())
-        .collect::<Vec<CosmosNetwork>>();
+        .collect::<Vec<StarknetNetwork>>();
 
     for (i, node) in nodes.iter().enumerate() {
         let targets = &nodes[(i + 1)..];
@@ -404,7 +361,7 @@ fn run_locally() {
         }
 
         for target in targets {
-            link_networks(&osmosisd, linker, validator, node, target);
+            link_networks(&katanad, linker, validator, node, target);
         }
     }
 
@@ -429,7 +386,7 @@ fn run_locally() {
             .map(|v| {
                 (
                     format!("cosmostest{}", v.domain),
-                    AgentConfig::new(osmosisd.clone(), validator, v),
+                    AgentConfig::new(katanad.clone(), validator, v),
                 )
             })
             .collect::<BTreeMap<String, AgentConfig>>(),
@@ -446,10 +403,12 @@ fn run_locally() {
         .chains
         .clone()
         .into_values()
-        .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone(), debug))
+        .map(|agent_config| {
+            launch_starknet_validator(agent_config, agent_config_path.clone(), debug)
+        })
         .collect::<Vec<_>>();
     let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
-    let hpl_rly = launch_cosmos_relayer(
+    let hpl_rly = launch_starknet_relayer(
         agent_config_path,
         agent_config_out.chains.into_keys().collect::<Vec<_>>(),
         hpl_rly_metrics_port,
@@ -605,7 +564,7 @@ fn termination_invariants_met(
     Ok(true)
 }
 
-#[cfg(feature = "cosmos")]
+#[cfg(feature = "starknet")]
 mod test {
     use super::*;
 

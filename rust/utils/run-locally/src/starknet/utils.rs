@@ -44,3 +44,21 @@ pub(crate) fn modify_toml(file: impl Into<PathBuf>, modifier: Box<dyn Fn(&mut Do
 
     fs::write(path, config.to_string()).unwrap();
 }
+
+pub(crate) fn make_target() -> String {
+    let os = if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "darwin"
+    } else {
+        panic!("Current os is not supported by Katana")
+    };
+
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        "amd64"
+    };
+
+    format!("{}-{}", os, arch)
+}
