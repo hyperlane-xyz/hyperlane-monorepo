@@ -1,9 +1,12 @@
 import { TransactionReceipt } from '@ethersproject/providers';
 import { ethers } from 'ethers';
+import { Logger } from 'pino';
 
 import {
   Address,
+  assert,
   objMap,
+  objMerge,
   pollAsync,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -17,26 +20,33 @@ import { ChainName } from '../types.js';
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { DispatchedMessage } from './types.js';
 
+type AddressCache<T> = Record<Address, T>;
+type ChainCache<T> = Record<ChainName, T>;
+
+type RelayerCache = {
+  hook: ChainCache<AddressCache<DerivedHookConfigWithAddress>>;
+  ism: ChainCache<AddressCache<DerivedIsmConfigWithAddress>>;
+};
+
 export class HyperlaneRelayer {
   private multiProvider: MultiProvider;
   private metadataBuilder: BaseMetadataBuilder;
 
-  private hookCache:
-    | Record<ChainName, Record<Address, DerivedHookConfigWithAddress>>
-    | undefined;
-  private ismCache:
-    | Record<ChainName, Record<Address, DerivedIsmConfigWithAddress>>
-    | undefined;
+  public cache: RelayerCache | undefined;
 
-  public readonly logger;
+  private stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
+
+  public readonly logger: Logger;
 
   constructor(protected readonly core: HyperlaneCore, caching = true) {
     this.logger = core.logger.child({ module: 'Relayer' });
     this.metadataBuilder = new BaseMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
     if (caching) {
-      this.hookCache = {};
-      this.ismCache = {};
+      this.cache = {
+        hook: {},
+        ism: {},
+      };
     }
   }
 
@@ -45,14 +55,14 @@ export class HyperlaneRelayer {
     hook: Address,
   ): Promise<DerivedHookConfigWithAddress> {
     const config =
-      this.hookCache?.[chain]?.[hook] ??
+      this.cache?.hook[chain]?.[hook] ??
       (await new EvmHookReader(this.multiProvider, chain).deriveHookConfig(
         hook,
       ));
 
-    if (this.hookCache) {
-      this.hookCache[chain] ??= {};
-      this.hookCache[chain][hook] = config;
+    if (this.cache) {
+      this.cache.hook[chain] ??= {};
+      this.cache.hook[chain][hook] = config;
     }
 
     return config;
@@ -63,12 +73,12 @@ export class HyperlaneRelayer {
     ism: Address,
   ): Promise<DerivedIsmConfigWithAddress> {
     const config =
-      this.ismCache?.[chain]?.[ism] ??
+      this.cache?.ism[chain]?.[ism] ??
       (await new EvmIsmReader(this.multiProvider, chain).deriveIsmConfig(ism));
 
-    if (this.ismCache) {
-      this.ismCache[chain] ??= {};
-      this.ismCache[chain][ism] = config;
+    if (this.cache) {
+      this.cache.ism[chain] ??= {};
+      this.cache.ism[chain][ism] = config;
     }
 
     return config;
@@ -95,6 +105,8 @@ export class HyperlaneRelayer {
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
   ): Promise<ethers.ContractReceipt> {
+    this.logger.info(`Preparing to relay message ${message.id}`);
+
     const isDelivered = await this.core.isDelivered(message);
     if (isDelivered) {
       this.logger.debug(`Message ${message.id} already delivered`);
@@ -118,23 +130,52 @@ export class HyperlaneRelayer {
     );
 
     this.logger.info({ message, metadata }, `Relaying message ${message.id}`);
-    return this.core.process(message, metadata);
+    return this.core.deliver(message, metadata);
   }
 
-  protected async hydrateDefaults(): Promise<void> {
+  async relayMessages(
+    dispatchTx: TransactionReceipt,
+  ): Promise<ethers.ContractReceipt[]> {
+    const messages = HyperlaneCore.getDispatchedMessages(dispatchTx);
+    return Promise.all(
+      messages.map((message, index) =>
+        this.relayMessage(dispatchTx, index, message),
+      ),
+    );
+  }
+
+  async relayMessageId(
+    originChain: ChainName,
+    messageId: string,
+  ): Promise<ethers.ContractReceipt> {
+    const dispatchTx = await this.core.getDispatchTx(originChain, messageId);
+    return this.relayMessage(dispatchTx);
+  }
+
+  hydrate(cache: RelayerCache): void {
+    assert(this.cache, 'Caching not enabled');
+    this.cache = objMerge(this.cache, cache);
+  }
+
+  async hydrateDefaults(): Promise<void> {
+    assert(this.cache, 'Caching not enabled');
+
     const defaults = await this.core.getDefaults();
     await promiseObjAll(
       objMap(defaults, async (chain, { ism, hook }) => {
+        this.logger.debug(
+          `Hydrating ${chain} cache with default ISM and hook configs`,
+        );
         await this.getHookConfig(chain, hook);
         await this.getIsmConfig(chain, ism);
       }),
     );
   }
 
-  async relay(): Promise<void> {
-    await this.hydrateDefaults();
+  start(chains = this.multiProvider.getKnownChainNames()): void {
+    assert(!this.stopRelayingHandler, 'Relayer already started');
 
-    this.core.onDispatch(async (message, event) => {
+    const { removeHandler } = this.core.onDispatch(async (message, event) => {
       const destination = message.parsed.destination;
       const chain = this.multiProvider.tryGetChainName(destination);
       if (!chain) {
@@ -142,9 +183,21 @@ export class HyperlaneRelayer {
         return;
       }
 
-      this.logger.info(`Relaying message ${message.id} to chain ${chain}`);
+      if (!chains.includes(chain)) {
+        this.logger.info(`Skipping message to chain ${chain}`);
+        return;
+      }
+
       const dispatchReceipt = await event.getTransactionReceipt();
       await this.relayMessage(dispatchReceipt, undefined, message);
-    });
+    }, chains);
+
+    this.stopRelayingHandler = removeHandler;
+  }
+
+  stop(chains = this.multiProvider.getKnownChainNames()): void {
+    assert(this.stopRelayingHandler, 'Relayer not started');
+    this.stopRelayingHandler(chains);
+    this.stopRelayingHandler = undefined;
   }
 }

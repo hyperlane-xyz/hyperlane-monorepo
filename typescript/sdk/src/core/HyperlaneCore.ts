@@ -83,19 +83,30 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       message: DispatchedMessage,
       event: DispatchEvent,
     ) => Promise<void>,
-  ): void {
-    objMap(this.contractsMap, (originChain, { mailbox }) =>
+    chains = Object.keys(this.contractsMap),
+  ): {
+    removeHandler: (chains?: ChainName[]) => void;
+  } {
+    chains.map((originChain) => {
+      const mailbox = this.contractsMap[originChain].mailbox;
+      this.logger.debug(`Listening for dispatch on ${originChain}`);
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(),
-        (sender, destination, recipient, message, event) => {
+        (_sender, _destination, _recipient, message, event) => {
           const parsed = HyperlaneCore.parseDispatchedMessage(message);
-          this.logger.info(
-            `Observed message ${parsed.id} from ${sender} on ${originChain} to ${recipient} on ${destination}`,
-          );
+          this.logger.info(`Observed message ${parsed.id} on ${originChain}`);
           return handler(parsed, event);
         },
-      ),
-    );
+      );
+    });
+
+    return {
+      removeHandler: (removeChains) =>
+        (removeChains ?? chains).map((originChain) => {
+          this.contractsMap[originChain].mailbox.removeAllListeners('Dispatch');
+          this.logger.debug(`Stopped listening for dispatch on ${originChain}`);
+        }),
+    };
   }
 
   getDefaults(): Promise<ChainMap<{ ism: Address; hook: Address }>> {
@@ -141,15 +152,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
-  process(
+  deliver(
     message: DispatchedMessage,
-    metadata: string,
+    ismMetadata: string,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
     return this.multiProvider.handleTx(
       destinationChain,
       this.getContracts(destinationChain).mailbox.process(
-        metadata,
+        ismMetadata,
         message.message,
       ),
     );
@@ -285,16 +296,37 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   async getDispatchTx(
     originChain: ChainName,
     messageId: string,
+    blockNumber?: number,
   ): Promise<TransactionReceipt> {
     const mailbox = this.contractsMap[originChain].mailbox;
-    // TODO: scan and chunk if necessary
     const filter = mailbox.filters.DispatchId(messageId);
-    const matchingEvents = await mailbox.queryFilter(filter);
-    if (matchingEvents.length === 0) {
+
+    const { fromBlock, toBlock } = blockNumber
+      ? { toBlock: blockNumber, fromBlock: blockNumber }
+      : await this.multiProvider.getLatestBlockRange(originChain);
+
+    const matching = await mailbox.queryFilter(filter, fromBlock, toBlock);
+    if (matching.length === 0) {
       throw new Error(`No dispatch event found for message ${messageId}`);
     }
-    const event = matchingEvents[0]; // only 1 event per message ID
+    const event = matching[0]; // only 1 event per message ID
     return event.getTransactionReceipt();
+  }
+
+  async getDispatched(
+    originChain: ChainName,
+    messageId: string,
+  ): Promise<{
+    message: DispatchedMessage;
+    tx: TransactionReceipt;
+  }> {
+    const tx = await this.getDispatchTx(originChain, messageId);
+    const messages = HyperlaneCore.getDispatchedMessages(tx);
+    const message = messages.find((msg) => msg.id === messageId);
+    if (!message) {
+      throw new Error(`Message ${messageId} not found in dispatch event`);
+    }
+    return { message, tx };
   }
 
   static parseDispatchedMessage(message: string): DispatchedMessage {

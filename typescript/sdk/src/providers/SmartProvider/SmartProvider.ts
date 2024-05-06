@@ -229,7 +229,7 @@ export class HyperlaneSmartProvider
         if (result.status === ProviderStatus.Success) {
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
-          this.logger.debug(
+          this.logger.trace(
             `Slow response from provider #${pIndex}.${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,

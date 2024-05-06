@@ -106,6 +106,15 @@ export class ChainMetadataManager<MetaExt = {}> {
     return chainMetadata;
   }
 
+  getMaxBlockRange(chainNameOrId: ChainNameOrId): number {
+    const metadata = this.getChainMetadata(chainNameOrId);
+    return Math.max(
+      ...metadata.rpcUrls.map(
+        ({ pagination }) => pagination?.maxBlockRange ?? 2000,
+      ),
+    );
+  }
+
   /**
    * Returns true if the given chain name, chain id, or domain id is
    * include in this manager's metadata, false otherwise
