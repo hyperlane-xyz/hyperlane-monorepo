@@ -1,6 +1,7 @@
 {
   "chains": {
     "ancient8": {
+      "batchContractAddress": "0x4C97D35c668EE5194a13c8DE8Afc18cce40C9F28",
       "blockExplorers": [
         {
           "apiUrl": "https://scan.ancient8.gg/api",
