@@ -92,7 +92,7 @@ export class EvmERC20WarpRouteReader {
    */
   async deriveTokenType(address: Address): Promise<DerivedTokenType> {
     const contractTypes: Record<
-      Exclude<DerivedTokenType, 'native'>,
+      Exclude<DerivedTokenType, 'native'>, // native is excluded because it's the default return type
       { factory: any; method: string }
     > = {
       collateral: {

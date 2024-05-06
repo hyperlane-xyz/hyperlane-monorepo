@@ -183,7 +183,7 @@ describe('TokenDeployer', async () => {
     });
   });
 
-  describe('EvmERC20WarpRouteReader', async () => {
+  describe('EvmERC20WarpCrudModule', async () => {
     let config: any;
     let mailbox: Mailbox;
 
