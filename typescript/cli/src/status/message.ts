@@ -1,6 +1,12 @@
+import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
-import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  DispatchedMessage,
+  HyperlaneCore,
+  HyperlaneRelayer,
+} from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
 import { log, logBlue, logGreen } from '../logger.js';
@@ -21,10 +27,10 @@ export async function checkMessageStatus({
   origin?: ChainName;
   selfRelay?: boolean;
 }) {
-  if (!destination) {
-    destination = await runSingleChainSelectionStep(
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
       context.chainMetadata,
-      'Select the destination chain',
+      'Select the origin chain',
     );
   }
 
@@ -40,39 +46,46 @@ export async function checkMessageStatus({
     context.multiProvider,
   );
 
-  const mailbox = core.getContracts(destination).mailbox;
-  log(`Checking status of message ${messageId} on ${destination}`);
-  const delivered = await mailbox.delivered(messageId);
-  if (delivered) {
-    logGreen(`Message ${messageId} was delivered`);
-    return;
-  }
-  logBlue(`Message ${messageId} was not yet delivered`);
-
-  if (selfRelay) {
-    if (!origin) {
-      origin = await runSingleChainSelectionStep(
-        context.chainMetadata,
-        'Select the origin chain',
-      );
-    }
-
+  let message: DispatchedMessage;
+  let dispatchedTx: TransactionReceipt;
+  try {
+    const dispatched = await core.getDispatched(origin, messageId);
+    message = dispatched.message;
+    dispatchedTx = dispatched.tx;
+  } catch (e) {
     if (!dispatchTx) {
       dispatchTx = await input({
-        message: 'Provide the dispatch transaction hash',
+        message: 'Failed to infer dispatch tx, provide transaction hash',
       });
     }
-    const dispatchTxReceipt = await context.multiProvider
+    dispatchedTx = await core.multiProvider
       .getProvider(origin)
       .getTransactionReceipt(dispatchTx);
+    message = core.getDispatchedMessages(dispatchedTx)[0];
+  }
+
+  let deliveredTx: TransactionReceipt;
+
+  log(`Checking status of message ${messageId} on ${destination}`);
+  const delivered = await core.isDelivered(message);
+  if (delivered) {
+    logGreen(`Message ${messageId} was delivered`);
+    deliveredTx = await core.getProcessedReceipt(message);
+  } else {
+    logBlue(`Message ${messageId} was not yet delivered`);
+
+    if (!selfRelay) {
+      return;
+    }
 
     const relayer = new HyperlaneRelayer(core);
-    const tx = await relayer.relayMessage(dispatchTxReceipt);
-    logGreen(
-      `Message ${messageId} was relayed in ${context.multiProvider.getExplorerTxUrl(
-        destination,
-        { hash: tx.transactionHash },
-      )}`,
-    );
+    deliveredTx = await relayer.relayMessage(dispatchedTx);
   }
+
+  logGreen(
+    `Message ${messageId} delivered in ${context.multiProvider.getExplorerTxUrl(
+      message.parsed.destination,
+      { hash: deliveredTx.transactionHash },
+    )}`,
+  );
 }
