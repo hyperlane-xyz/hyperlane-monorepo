@@ -4,7 +4,9 @@ pragma solidity >=0.8.0;
 import "forge-std/Test.sol";
 
 import {ISlasher} from "../../contracts/interfaces/avs/ISlasher.sol";
-import {TestAVSDirectory, TestDelegationManager, TestSlasher, TestDelegationManager} from "../../contracts/test/TestEigenlayer.sol";
+import {TestAVSDirectory} from "../../contracts/test/avs/TestAVSDirectory.sol";
+import {TestDelegationManager} from "../../contracts/test/avs/TestDelegationManager.sol";
+import {TestSlasher} from "../../contracts/test/avs/TestSlasher.sol";
 
 contract EigenlayerBase is Test {
     TestAVSDirectory internal avsDirectory;

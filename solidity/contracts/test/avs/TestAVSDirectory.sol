@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IAVSDirectory} from "../interfaces/avs/IAVSDirectory.sol";
-import {ISignatureUtils} from "../interfaces/avs/ISignatureUtils.sol";
-import {IDelegationManager} from "../interfaces/avs/IDelegationManager.sol";
-import {ISlasher} from "../interfaces/avs/ISlasher.sol";
-import {Quorum, IECDSAStakeRegistry} from "../interfaces/avs/IECDSAStakeRegistry.sol";
-
+import {IAVSDirectory} from "../../interfaces/avs/IAVSDirectory.sol";
+import {ISignatureUtils} from "../../interfaces/avs/ISignatureUtils.sol";
+import {ISlasher} from "../../interfaces/avs/ISlasher.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract TestAVSDirectory is IAVSDirectory {
@@ -85,57 +82,5 @@ contract TestAVSDirectory is IAVSDirectory {
                     address(this)
                 )
             );
-    }
-}
-
-contract TestDelegationManager is IDelegationManager {
-    mapping(address => bool) public isOperator;
-
-    function registerAsOperator(
-        OperatorDetails calldata registeringOperatorDetails,
-        string calldata metadataURI
-    ) external {}
-
-    function setIsOperator(
-        address operator,
-        bool _isOperatorReturnValue
-    ) external {
-        isOperator[operator] = _isOperatorReturnValue;
-    }
-}
-
-contract TestSlasher is ISlasher {
-    function freezeOperator(address toBeFrozen) external {}
-}
-
-import {IServiceManager} from "../interfaces/avs/IServiceManager.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-
-contract TestECDSAStakeRegistry is IECDSAStakeRegistry {
-    Quorum internal _quorum;
-    address internal _serviceManager;
-
-    function initialize(
-        address serviceManager,
-        uint256,
-        Quorum memory
-    ) external {
-        _serviceManager = serviceManager;
-    }
-
-    function quorum() external view returns (Quorum memory) {}
-
-    function registerOperatorWithSignature(
-        address _operator,
-        ISignatureUtils.SignatureWithSaltAndExpiry memory _operatorSignature
-    ) external {
-        IServiceManager(_serviceManager).registerOperatorToAVS(
-            _operator,
-            _operatorSignature
-        );
-    }
-
-    function deregisterOperator() external {
-        IServiceManager(_serviceManager).deregisterOperatorFromAVS(msg.sender);
     }
 }

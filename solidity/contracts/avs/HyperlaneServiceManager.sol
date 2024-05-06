@@ -28,6 +28,12 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
 
     using EnumerableMapEnrollment for EnumerableMapEnrollment.AddressToEnrollmentMap;
 
+    // ============ Public Storage ============
+
+    // Slasher contract responsible for slashing operators
+    // @dev slasher needs to be updated once slashing is implemented
+    ISlasher internal slasher;
+
     // ============ Events ============
 
     /**
@@ -87,15 +93,19 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Constructor ============
 
     constructor(
-        IAVSDirectory _avsDirectory,
-        IECDSAStakeRegistry _stakeRegistry,
-        ISlasher _slasher
-    ) ECDSAServiceManagerBase(_avsDirectory, _stakeRegistry, _slasher) {
-        __ServiceManagerBase_init(msg.sender);
-        _disableInitializers();
-    }
-
-    function initialize() external initializer {
+        address _avsDirectory,
+        address _stakeRegistry,
+        address _paymentCoordinator,
+        address _delegationManager
+    )
+        ECDSAServiceManagerBase(
+            _avsDirectory,
+            _stakeRegistry,
+            _paymentCoordinator,
+            _delegationManager
+        )
+        initializer
+    {
         __ServiceManagerBase_init(msg.sender);
     }
 
@@ -156,13 +166,76 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
 
     /**
      * @notice Completes the unenrollment of an operator from a list of challengers
-     * @param operator The address of the operator
      * @param _challengers The list of challengers to unenroll from
      */
     function completeUnenrollment(
+        IRemoteChallenger[] memory _challengers
+    ) external {
+        _completeUnenrollment(msg.sender, _challengers);
+    }
+
+    /**
+     * @notice Sets the slasher contract responsible for slashing operators
+     * @param _slasher The address of the slasher contract
+     */
+    function setSlasher(ISlasher _slasher) external onlyOwner {
+        slasher = _slasher;
+    }
+
+    /**
+     * @notice returns the status of a challenger an operator is enrolled in
+     * @param _operator The address of the operator
+     * @param _challenger specified IRemoteChallenger contract
+     */
+    function getChallengerEnrollment(
+        address _operator,
+        IRemoteChallenger _challenger
+    ) external view returns (Enrollment memory enrollment) {
+        return enrolledChallengers[_operator].get(address(_challenger));
+    }
+
+    /**
+     * @notice forwards a call to the Slasher contract to freeze an operator
+     * @param operator The address of the operator to freeze.
+     * @dev only the enrolled challengers can call this function
+     */
+    function freezeOperator(
+        address operator
+    ) external virtual onlyEnrolledChallenger(operator) {
+        slasher.freezeOperator(operator);
+    }
+
+    // ============ Public Functions ============
+
+    /**
+     * @notice returns the list of challengers an operator is enrolled in
+     * @param _operator The address of the operator
+     */
+    function getOperatorChallengers(
+        address _operator
+    ) public view returns (IRemoteChallenger[] memory) {
+        address[] memory keys = enrolledChallengers[_operator].keys();
+
+        IRemoteChallenger[] memory challengers = new IRemoteChallenger[](
+            keys.length
+        );
+        for (uint256 i = 0; i < keys.length; i++) {
+            challengers[i] = IRemoteChallenger(keys[i]);
+        }
+        return challengers;
+    }
+
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Completes the unenrollment of an operator from a list of challengers
+     * @param operator The address of the operator
+     * @param _challengers The list of challengers to unenroll from
+     */
+    function _completeUnenrollment(
         address operator,
         IRemoteChallenger[] memory _challengers
-    ) public onlyStakeRegistryOrOperator(operator) {
+    ) internal {
         for (uint256 i = 0; i < _challengers.length; i++) {
             IRemoteChallenger challenger = _challengers[i];
             (bool exists, Enrollment memory enrollment) = enrolledChallengers[
@@ -188,64 +261,16 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         }
     }
 
-    // ============ Public Functions ============
-
-    /**
-     * @notice returns the status of a challenger an operator is enrolled in
-     * @param _operator The address of the operator
-     * @param _challenger specified IRemoteChallenger contract
-     */
-    function getChallengerEnrollment(
-        address _operator,
-        IRemoteChallenger _challenger
-    ) external view returns (Enrollment memory enrollment) {
-        return enrolledChallengers[_operator].get(address(_challenger));
-    }
-
-    /**
-     * @notice returns the list of challengers an operator is enrolled in
-     * @param _operator The address of the operator
-     */
-    function getOperatorChallengers(
-        address _operator
-    ) public view returns (IRemoteChallenger[] memory) {
-        address[] memory keys = enrolledChallengers[_operator].keys();
-
-        IRemoteChallenger[] memory challengers = new IRemoteChallenger[](
-            keys.length
-        );
-        for (uint256 i = 0; i < keys.length; i++) {
-            challengers[i] = IRemoteChallenger(keys[i]);
-        }
-        return challengers;
-    }
-
-    /**
-     * @notice forwards a call to the Slasher contract to freeze an operator
-     * @param operator The address of the operator to freeze.
-     * @dev only the enrolled challengers can call this function
-     */
-    function freezeOperator(
+    /// @inheritdoc ECDSAServiceManagerBase
+    function _deregisterOperatorFromAVS(
         address operator
-    ) public virtual override onlyEnrolledChallenger(operator) {
-        slasher.freezeOperator(operator);
-    }
-
-    // ============ Public Functions ============
-
-    /**
-     * @notice Forwards a call to EigenLayer's AVSDirectory contract to confirm operator deregistration from the AVS
-     * @param operator The address of the operator to deregister.
-     */
-    function deregisterOperatorFromAVS(
-        address operator
-    ) public virtual override onlyStakeRegistry {
+    ) internal virtual override {
         IRemoteChallenger[] memory challengers = getOperatorChallengers(
             operator
         );
-        completeUnenrollment(operator, challengers);
+        _completeUnenrollment(operator, challengers);
 
-        elAvsDirectory.deregisterOperatorFromAVS(operator);
+        IAVSDirectory(avsDirectory).deregisterOperatorFromAVS(operator);
         emit OperatorDeregisteredFromAVS(operator);
     }
 }

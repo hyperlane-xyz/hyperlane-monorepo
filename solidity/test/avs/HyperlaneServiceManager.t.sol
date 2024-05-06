@@ -6,7 +6,9 @@ import {ISlasher} from "../../contracts/interfaces/avs/ISlasher.sol";
 
 import {IAVSDirectory} from "../../contracts/interfaces/avs/IAVSDirectory.sol";
 import {Quorum, StrategyParams, IECDSAStakeRegistry} from "../../contracts/interfaces/avs/IECDSAStakeRegistry.sol";
-import {TestECDSAStakeRegistry, TestDelegationManager} from "../../contracts/test/TestEigenlayer.sol";
+import {TestDelegationManager} from "../../contracts/test/avs/TestDelegationManager.sol";
+import {TestECDSAStakeRegistry} from "../../contracts/test/avs/TestECDSAStakeRegistry.sol";
+import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
 
 import {IStrategy} from "../../contracts/interfaces/avs/IStrategy.sol";
 import {ISignatureUtils} from "../../contracts/interfaces/avs/ISignatureUtils.sol";
@@ -21,6 +23,7 @@ import {EigenlayerBase} from "./EigenlayerBase.sol";
 contract HyperlaneServiceManagerTest is EigenlayerBase {
     HyperlaneServiceManager internal _hsm;
     TestECDSAStakeRegistry internal _ecdsaStakeRegistry;
+    TestPaymentCoordinator internal _paymentCoordinator;
 
     // Operator info
     uint256 operatorPrivateKey = 0xdeadbeef;
@@ -35,11 +38,15 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         _deployMockEigenLayerAndAVS();
 
         _ecdsaStakeRegistry = new TestECDSAStakeRegistry();
+        _paymentCoordinator = new TestPaymentCoordinator();
+
         _hsm = new HyperlaneServiceManager(
-            avsDirectory,
-            _ecdsaStakeRegistry,
-            slasher
+            address(avsDirectory),
+            address(_ecdsaStakeRegistry),
+            address(_paymentCoordinator),
+            address(delegationManager)
         );
+        _hsm.setSlasher(slasher);
 
         IStrategy mockStrategy = IStrategy(address(0x1234));
         Quorum memory quorum = Quorum({strategies: new StrategyParams[](1)});
@@ -232,35 +239,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
     }
 
     /// forge-config: default.fuzz.runs = 10
-    function testFuzz_completeQueuedUnenrollmentFromChallenger_revert_unauthorized(
-        uint8 numOfChallengers
-    ) public {
-        vm.assume(numOfChallengers > 0);
-
-        _registerOperator();
-        IRemoteChallenger[] memory challengers = _deployChallengers(
-            numOfChallengers
-        );
-
-        vm.startPrank(operator);
-        _hsm.enrollIntoChallengers(challengers);
-        _hsm.startUnenrollment(challengers);
-        vm.stopPrank();
-
-        vm.roll(block.number + challengeDelayBlocks);
-
-        vm.expectRevert(
-            "ECDSAServiceManagerBase: caller is not the stake registry or operator"
-        );
-        _hsm.completeUnenrollment(operator, challengers);
-
-        vm.prank(address(_ecdsaStakeRegistry));
-        _hsm.completeUnenrollment(operator, challengers);
-
-        assertEq(_hsm.getOperatorChallengers(operator).length, 0);
-    }
-
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_completeQueuedUnenrollmentFromChallenger(
         uint8 numOfChallengers,
         uint8 numUnenrollable
@@ -290,11 +268,11 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         );
 
         vm.expectRevert();
-        _hsm.completeUnenrollment(operator, unenrollableChallengers);
+        _hsm.completeUnenrollment(unenrollableChallengers);
 
         vm.roll(block.number + challengeDelayBlocks);
 
-        _hsm.completeUnenrollment(operator, unenrollableChallengers);
+        _hsm.completeUnenrollment(unenrollableChallengers);
 
         assertEq(
             _hsm.getOperatorChallengers(operator).length,
@@ -363,7 +341,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
 
         _hsm.startUnenrollment(challengers);
         vm.roll(block.number + challengeDelayBlocks);
-        _hsm.completeUnenrollment(operator, unenrollableChallengers);
+        _hsm.completeUnenrollment(unenrollableChallengers);
 
         for (uint256 i = 0; i < unenrollableChallengers.length; i++) {
             vm.expectRevert(

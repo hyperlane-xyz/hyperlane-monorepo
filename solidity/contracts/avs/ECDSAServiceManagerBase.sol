@@ -1,41 +1,47 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.0;
 
-/*@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-     @@@@@  HYPERLANE  @@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-@@@@@@@@@       @@@@@@@@*/
-
-// ============ Internal Imports ============
-import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
-import {IAVSDirectory} from "../interfaces/avs/IAVSDirectory.sol";
 import {ISignatureUtils} from "../interfaces/avs/ISignatureUtils.sol";
-import {ISlasher} from "../interfaces/avs/ISlasher.sol";
-import {IECDSAStakeRegistry} from "../interfaces/avs/IECDSAStakeRegistry.sol";
+import {IAVSDirectory} from "../interfaces/avs/IAVSDirectory.sol";
+
 import {IServiceManager} from "../interfaces/avs/IServiceManager.sol";
+import {IServiceManagerUI} from "../interfaces/avs/IServiceManagerUI.sol";
+import {IDelegationManager} from "../interfaces/avs/IDelegationManager.sol";
+import {IStrategy} from "../interfaces/avs/IStrategy.sol";
+import {IPaymentCoordinator} from "../interfaces/avs/IPaymentCoordinator.sol";
+import {Quorum, IECDSAStakeRegistry} from "../interfaces/avs/IECDSAStakeRegistry.sol";
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
-    // ============ Constants ============
+abstract contract ECDSAServiceManagerBase is
+    IServiceManager,
+    OwnableUpgradeable
+{
+    /// @notice Address of the stake registry contract, which manages registration and stake recording.
+    address public immutable stakeRegistry;
 
-    // Stake registry responsible for maintaining operator stakes
-    IECDSAStakeRegistry internal immutable stakeRegistry;
-    // Eigenlayer's AVS directory for interactions between AVS and operators
-    IAVSDirectory internal immutable elAvsDirectory;
+    /// @notice Address of the AVS directory contract, which manages AVS-related data for registered operators.
+    address public immutable avsDirectory;
 
-    // ============ Public Storage ============
+    /// @notice Address of the payment coordinator contract, which handles payment distributions.
+    address internal immutable paymentCoordinator;
 
-    // Slasher contract responsible for slashing operators
-    // @dev slasher needs to be updated once slashing is implemented
-    ISlasher internal slasher;
+    /// @notice Address of the delegation manager contract, which manages staker delegations to operators.
+    address internal immutable delegationManager;
+
+    // ============ Modifiers ============
+
+    /**
+     * @dev Ensures that the function is only callable by the `stakeRegistry` contract.
+     * This is used to restrict certain registration and deregistration functionality to the `stakeRegistry`
+     */
+    modifier onlyStakeRegistry() {
+        require(
+            msg.sender == stakeRegistry,
+            "ECDSAServiceManagerBase.onlyStakeRegistry: caller is not the stakeRegistry"
+        );
+        _;
+    }
 
     // ============ Events ============
 
@@ -51,153 +57,198 @@ contract ECDSAServiceManagerBase is IServiceManager, OwnableUpgradeable {
      */
     event OperatorDeregisteredFromAVS(address indexed operator);
 
-    // ============ Modifiers ============
-
-    /// @notice when applied to a function, only allows the ECDSAStakeRegistry to call it
-    modifier onlyStakeRegistry() {
-        require(
-            msg.sender == address(stakeRegistry),
-            "ECDSAServiceManagerBase: caller is not the stake registry"
-        );
-        _;
-    }
-
-    /// @notice when applied to a function, only allows the ECDSAStakeRegistry or the operator to call it
-    /// for completeUnenrollment access control
-    modifier onlyStakeRegistryOrOperator(address operator) {
-        require(
-            msg.sender == address(stakeRegistry) || msg.sender == operator,
-            "ECDSAServiceManagerBase: caller is not the stake registry or operator"
-        );
-        _;
-    }
-
     // ============ Constructor ============
 
+    /**
+     * @dev Constructor for ECDSAServiceManagerBase, initializing immutable contract addresses and disabling initializers.
+     * @param _avsDirectory The address of the AVS directory contract, managing AVS-related data for registered operators.
+     * @param _stakeRegistry The address of the stake registry contract, managing registration and stake recording.
+     * @param _paymentCoordinator The address of the payment coordinator contract, handling payment distributions.
+     * @param _delegationManager The address of the delegation manager contract, managing staker delegations to operators.
+     */
     constructor(
-        IAVSDirectory _avsDirectory,
-        IECDSAStakeRegistry _stakeRegistry,
-        ISlasher _slasher
+        address _avsDirectory,
+        address _stakeRegistry,
+        address _paymentCoordinator,
+        address _delegationManager
     ) {
-        elAvsDirectory = _avsDirectory;
+        avsDirectory = _avsDirectory;
         stakeRegistry = _stakeRegistry;
-        slasher = _slasher;
-        // _transferOwnership(msg.sender);
-        // _disableInitializers();
+        paymentCoordinator = _paymentCoordinator;
+        delegationManager = _delegationManager;
     }
 
+    /**
+     * @dev Initializes the base service manager by transferring ownership to the initial owner.
+     * @param initialOwner The address to which the ownership of the contract will be transferred.
+     */
     function __ServiceManagerBase_init(
         address initialOwner
-    ) internal virtual initializer {
+    ) internal virtual onlyInitializing {
         _transferOwnership(initialOwner);
     }
 
-    // ============ External Functions ============
+    /// @inheritdoc IServiceManagerUI
+    function updateAVSMetadataURI(
+        string memory _metadataURI
+    ) external virtual onlyOwner {
+        _updateAVSMetadataURI(_metadataURI);
+    }
 
-    /**
-     * @notice Returns the list of strategies that the AVS supports for restaking
-     * @dev This function is intended to be called off-chain
-     * @dev No guarantee is made on uniqueness of each element in the returned array.
-     *      The off-chain service should do that validation separately
-     */
+    /// @inheritdoc IServiceManager
+    function payForRange(
+        IPaymentCoordinator.RangePayment[] calldata rangePayments
+    ) external virtual onlyOwner {
+        _payForRange(rangePayments);
+    }
+
+    /// @inheritdoc IServiceManagerUI
+    function registerOperatorToAVS(
+        address operator,
+        ISignatureUtils.SignatureWithSaltAndExpiry memory operatorSignature
+    ) external virtual onlyStakeRegistry {
+        _registerOperatorToAVS(operator, operatorSignature);
+    }
+
+    /// @inheritdoc IServiceManagerUI
+    function deregisterOperatorFromAVS(
+        address operator
+    ) external virtual onlyStakeRegistry {
+        _deregisterOperatorFromAVS(operator);
+    }
+
+    /// @inheritdoc IServiceManagerUI
     function getRestakeableStrategies()
         external
         view
+        virtual
         returns (address[] memory)
     {
         return _getRestakeableStrategies();
     }
 
-    /**
-     * @notice Returns the list of strategies that the operator has potentially restaked on the AVS
-     * @dev This function is intended to be called off-chain
-     * @dev Since ECDSAStakeRegistry only supports one quorum, each operator restakes into all the AVS strategies
-     * @dev No guarantee is made on uniqueness of each element in the returned array.
-     *      The off-chain service should do that validation separately
-     */
+    /// @inheritdoc IServiceManagerUI
     function getOperatorRestakedStrategies(
-        address /* operator */
-    ) external view returns (address[] memory) {
-        return _getRestakeableStrategies();
+        address _operator
+    ) external view virtual returns (address[] memory) {
+        return _getOperatorRestakedStrategies(_operator);
     }
 
     /**
-     * @notice Sets the slasher contract responsible for slashing operators
-     * @param _slasher The address of the slasher contract
+     * @notice Forwards the call to update AVS metadata URI in the AVSDirectory contract.
+     * @dev This internal function is a proxy to the `updateAVSMetadataURI` function of the AVSDirectory contract.
+     * @param _metadataURI The new metadata URI to be set.
      */
-    function setSlasher(ISlasher _slasher) external onlyOwner {
-        slasher = _slasher;
-    }
-
-    /// @notice Returns the EigenLayer AVSDirectory contract.
-    function avsDirectory() external view override returns (address) {
-        return address(elAvsDirectory);
-    }
-
-    // ============ Public Functions ============
-
-    /**
-     * @notice Updates the metadata URI for the AVS
-     * @param _metadataURI is the metadata URI for the AVS
-     * @dev only callable by the owner
-     */
-    function updateAVSMetadataURI(
+    function _updateAVSMetadataURI(
         string memory _metadataURI
-    ) public virtual onlyOwner {
-        elAvsDirectory.updateAVSMetadataURI(_metadataURI);
+    ) internal virtual {
+        IAVSDirectory(avsDirectory).updateAVSMetadataURI(_metadataURI);
     }
 
     /**
-     * @notice Forwards a call to EigenLayer's AVSDirectory contract to confirm operator registration with the AVS
+     * @notice Forwards the call to register an operator in the AVSDirectory contract.
+     * @dev This internal function is a proxy to the `registerOperatorToAVS` function of the AVSDirectory contract.
      * @param operator The address of the operator to register.
-     * @param operatorSignature The signature, salt, and expiry of the operator's signature.
+     * @param operatorSignature The signature, salt, and expiry details of the operator's registration.
      */
-    function registerOperatorToAVS(
+    function _registerOperatorToAVS(
         address operator,
         ISignatureUtils.SignatureWithSaltAndExpiry memory operatorSignature
-    ) public virtual onlyStakeRegistry {
-        elAvsDirectory.registerOperatorToAVS(operator, operatorSignature);
+    ) internal virtual {
+        IAVSDirectory(avsDirectory).registerOperatorToAVS(
+            operator,
+            operatorSignature
+        );
         emit OperatorRegisteredToAVS(operator);
     }
 
     /**
-     * @notice Forwards a call to EigenLayer's AVSDirectory contract to confirm operator deregistration from the AVS
+     * @notice Forwards the call to deregister an operator from the AVSDirectory contract.
+     * @dev This internal function is a proxy to the `deregisterOperatorFromAVS` function of the AVSDirectory contract.
      * @param operator The address of the operator to deregister.
      */
-    function deregisterOperatorFromAVS(
-        address operator
-    ) public virtual onlyStakeRegistry {
-        elAvsDirectory.deregisterOperatorFromAVS(operator);
+    function _deregisterOperatorFromAVS(address operator) internal virtual {
+        IAVSDirectory(avsDirectory).deregisterOperatorFromAVS(operator);
         emit OperatorDeregisteredFromAVS(operator);
     }
 
     /**
-     * @notice Freezes an operator and their stake from Eigenlayer
-     * @param operator The address of the operator to freeze.
+     * @notice Processes a batch of range payments by transferring the specified amounts from the sender to this contract and then approving the PaymentCoordinator to use these amounts.
+     * @dev This function handles the transfer and approval of tokens necessary for range payments. It then delegates the actual payment logic to the PaymentCoordinator contract.
+     * @param rangePayments An array of `RangePayment` structs, each representing a payment for a specific range.
      */
-    function freezeOperator(address operator) public virtual onlyOwner {
-        slasher.freezeOperator(operator);
+    function _payForRange(
+        IPaymentCoordinator.RangePayment[] calldata rangePayments
+    ) internal virtual {
+        for (uint256 i = 0; i < rangePayments.length; ++i) {
+            rangePayments[i].token.transferFrom(
+                msg.sender,
+                address(this),
+                rangePayments[i].amount
+            );
+            rangePayments[i].token.approve(
+                paymentCoordinator,
+                rangePayments[i].amount
+            );
+        }
+
+        IPaymentCoordinator(paymentCoordinator).payForRange(rangePayments);
     }
 
-    // ============ Internal Function ============
-
+    /**
+     * @notice Retrieves the addresses of all strategies that are part of the current quorum.
+     * @dev Fetches the quorum configuration from the ECDSAStakeRegistry and extracts the strategy addresses.
+     * @return strategies An array of addresses representing the strategies in the current quorum.
+     */
     function _getRestakeableStrategies()
         internal
         view
+        virtual
         returns (address[] memory)
     {
-        uint256 strategyCount = stakeRegistry.quorum().strategies.length;
+        Quorum memory quorum = IECDSAStakeRegistry(stakeRegistry).quorum();
+        address[] memory strategies = new address[](quorum.strategies.length);
+        for (uint256 i = 0; i < quorum.strategies.length; i++) {
+            strategies[i] = address(quorum.strategies[i].strategy);
+        }
+        return strategies;
+    }
 
-        if (strategyCount == 0) {
-            return new address[](0);
+    /**
+     * @notice Retrieves the addresses of strategies where the operator has restaked.
+     * @dev This function fetches the quorum details from the ECDSAStakeRegistry, retrieves the operator's shares for each strategy,
+     * and filters out strategies with non-zero shares indicating active restaking by the operator.
+     * @param _operator The address of the operator whose restaked strategies are to be retrieved.
+     * @return restakedStrategies An array of addresses of strategies where the operator has active restakes.
+     */
+    function _getOperatorRestakedStrategies(
+        address _operator
+    ) internal view virtual returns (address[] memory) {
+        Quorum memory quorum = IECDSAStakeRegistry(stakeRegistry).quorum();
+        uint256 count = quorum.strategies.length;
+        IStrategy[] memory strategies = new IStrategy[](count);
+        for (uint256 i; i < count; i++) {
+            strategies[i] = quorum.strategies[i].strategy;
+        }
+        uint256[] memory shares = IDelegationManager(delegationManager)
+            .getOperatorShares(_operator, strategies);
+
+        address[] memory activeStrategies = new address[](count);
+        uint256 activeCount;
+        for (uint256 i; i < count; i++) {
+            if (shares[i] > 0) {
+                activeCount++;
+            }
         }
 
-        address[] memory restakedStrategies = new address[](strategyCount);
-        for (uint256 i = 0; i < strategyCount; i++) {
-            restakedStrategies[i] = address(
-                stakeRegistry.quorum().strategies[i].strategy
-            );
+        // Resize the array to fit only the active strategies
+        address[] memory restakedStrategies = new address[](activeCount);
+        for (uint256 j = 0; j < count; j++) {
+            if (shares[j] > 0) {
+                restakedStrategies[j] = activeStrategies[j];
+            }
         }
+
         return restakedStrategies;
     }
 
