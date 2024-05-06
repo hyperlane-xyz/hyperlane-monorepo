@@ -1,7 +1,6 @@
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-// prettier-ignore
 // @ts-ignore
-import { getSafe, getSafeService } from '@hyperlane-xyz/sdk/src/utils/gnosisSafe.js';
+import { getSafe, getSafeService } from '@hyperlane-xyz/sdk';
 import { CallData } from '@hyperlane-xyz/utils';
 
 export abstract class MultiSend {

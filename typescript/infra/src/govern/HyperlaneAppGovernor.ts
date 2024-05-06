@@ -13,7 +13,7 @@ import {
   OwnerViolation,
 } from '@hyperlane-xyz/sdk';
 // @ts-ignore
-import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk/src/utils/gnosisSafe.js';
+import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,

@@ -453,6 +453,7 @@ export {
   setFork,
   stopImpersonatingAccount,
 } from './utils/fork.js';
+
 export { multisigIsmVerificationCost } from './utils/ism.js';
 export {
   SealevelAccountDataWrapper,
@@ -477,3 +478,7 @@ export {
   TokenRouterConfigSchema as tokenRouterConfigSchema,
 } from './token/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
+
+// prettier-ignore
+// @ts-ignore
+export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';

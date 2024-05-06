@@ -1,3 +1,4 @@
+// This file is JS because of https://github.com/safe-global/safe-core-sdk/issues/805
 import SafeApiKit from '@safe-global/api-kit';
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
