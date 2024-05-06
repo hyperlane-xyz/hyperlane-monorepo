@@ -396,7 +396,8 @@ where
             .collect::<ChainResult<Vec<_>>>()?;
 
         let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls);
-        let call = self.add_gas_overrides(batch_call, None).await?;
+        let call =
+            fill_tx_gas_params(batch_call, self.provider.clone(), &Default::default()).await?;
 
         let receipt = report_tx(call).await?;
         Ok(receipt.into())
