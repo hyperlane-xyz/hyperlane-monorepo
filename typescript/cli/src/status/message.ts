@@ -1,12 +1,8 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
-import {
-  ChainName,
-  DispatchedMessage,
-  HyperlaneCore,
-  HyperlaneRelayer,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { log, logBlue, logGreen } from '../logger.js';
@@ -46,23 +42,24 @@ export async function checkMessageStatus({
     context.multiProvider,
   );
 
-  let message: DispatchedMessage;
   let dispatchedTx: TransactionReceipt;
-  try {
-    const dispatched = await core.getDispatched(origin, messageId);
-    message = dispatched.message;
-    dispatchedTx = dispatched.tx;
-  } catch (e) {
-    if (!dispatchTx) {
-      dispatchTx = await input({
-        message: 'Failed to infer dispatch tx, provide transaction hash',
-      });
-    }
-    dispatchedTx = await core.multiProvider
-      .getProvider(origin)
-      .getTransactionReceipt(dispatchTx);
-    message = core.getDispatchedMessages(dispatchedTx)[0];
+  if (!dispatchTx) {
+    try {
+      dispatchedTx = await core.getDispatchTx(origin, messageId);
+    } catch (e) {}
+    dispatchTx = await input({
+      message: 'Failed to infer dispatch tx, provide transaction hash',
+    });
   }
+
+  dispatchedTx ??= await context.multiProvider
+    .getProvider(origin)
+    .getTransactionReceipt(dispatchTx);
+
+  const messages = core.getDispatchedMessages(dispatchedTx);
+  const match = messages.find((m) => m.id === messageId);
+  assert(match, `Message ${messageId} not found in dispatch tx ${dispatchTx}`);
+  const message = match;
 
   let deliveredTx: TransactionReceipt;
 

@@ -313,22 +313,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return event.getTransactionReceipt();
   }
 
-  async getDispatched(
-    originChain: ChainName,
-    messageId: string,
-  ): Promise<{
-    message: DispatchedMessage;
-    tx: TransactionReceipt;
-  }> {
-    const tx = await this.getDispatchTx(originChain, messageId);
-    const messages = HyperlaneCore.getDispatchedMessages(tx);
-    const message = messages.find((msg) => msg.id === messageId);
-    if (!message) {
-      throw new Error(`Message ${messageId} not found in dispatch event`);
-    }
-    return { message, tx };
-  }
-
   static parseDispatchedMessage(message: string): DispatchedMessage {
     const parsed = parseMessage(message);
     const id = messageId(message);
