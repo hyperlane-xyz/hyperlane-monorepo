@@ -1,5 +1,13 @@
 # @hyperlane-xyz/sdk
 
+## 3.11.1
+
+### Patch Changes
+
+- c900da187: Workaround TS bug in Safe protocol-lib
+  - @hyperlane-xyz/core@3.11.1
+  - @hyperlane-xyz/utils@3.11.1
+
 ## 3.11.0
 
 ### Minor Changes

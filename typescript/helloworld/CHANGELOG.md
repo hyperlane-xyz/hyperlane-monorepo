@@ -1,5 +1,13 @@
 # @hyperlane-xyz/helloworld
 
+## 3.11.1
+
+### Patch Changes
+
+- Updated dependencies [c900da187]
+  - @hyperlane-xyz/sdk@3.11.1
+  - @hyperlane-xyz/core@3.11.1
+
 ## 3.11.0
 
 ### Minor Changes
