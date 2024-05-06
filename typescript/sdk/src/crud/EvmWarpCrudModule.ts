@@ -18,10 +18,8 @@ import { HypERC20Factories } from '../token/contracts.js';
 import { HypERC20Deployer } from '../token/deploy.js';
 import {
   DerivedTokenRouterConfig,
-  DerivedTokenType,
   EvmERC20WarpRouteReader,
 } from '../token/read.js';
-import { TokenRouterConfig } from '../token/types.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
 
 import { CrudModule, CrudModuleArgs } from './AbstractCrudModule.js';
@@ -29,7 +27,7 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 
 export class EvmERC20WarpCrudModule extends CrudModule<
   ProtocolType.Ethereum,
-  TokenRouterConfig,
+  DerivedTokenRouterConfig,
   HyperlaneContracts<HypERC20Factories> & {
     deployedWarpRoute: Address;
   }
@@ -40,7 +38,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: CrudModuleArgs<
-      TokenRouterConfig,
+      DerivedTokenRouterConfig,
       HyperlaneContracts<HypERC20Factories> & {
         deployedWarpRoute: Address;
       }
@@ -72,7 +70,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
   public async update(
-    config: TokenRouterConfig,
+    config: DerivedTokenRouterConfig,
   ): Promise<EthersV5Transaction[]> {
     return [
       ...(await this.updateIsm(config)),
@@ -93,12 +91,12 @@ export class EvmERC20WarpCrudModule extends CrudModule<
    * @param config - The token router configuration, including the ISM configuration.
    * @returns An array of Ethereum transactions that need to be executed to update the ISM configuration.
    */
-  async updateIsm(config: TokenRouterConfig): Promise<EthersV5Transaction[]> {
+  async updateIsm(
+    config: DerivedTokenRouterConfig,
+  ): Promise<EthersV5Transaction[]> {
     const transactions: EthersV5Transaction[] = [];
 
-    const contractToUpdate = await this.args.addresses[
-      config.type as DerivedTokenType // Cast because cast.types needs to be narrowed
-    ].deployed();
+    const contractToUpdate = await this.args.addresses[config.type].deployed();
 
     if (typeof config.interchainSecurityModule === 'string') {
       // Derive & set ISM
@@ -139,7 +137,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
    * @param config - The configuration for the ISM to be deployed.
    * @returns The deployed ISM contract address.
    */
-  public async deployIsm(config: TokenRouterConfig): Promise<string> {
+  public async deployIsm(config: DerivedTokenRouterConfig): Promise<string> {
     // Take the config.ismFactoryAddresses, de-serialize them into Contracts, and pass into EvmIsmModule.create
     const factories = attachContracts(
       config.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
@@ -161,12 +159,12 @@ export class EvmERC20WarpCrudModule extends CrudModule<
    * @param config - The token router configuration, including the hook configuration to update.
    * @returns An array of Ethereum transactions that can be executed to update the hook.
    */
-  async updateHook(config: TokenRouterConfig): Promise<EthersV5Transaction[]> {
+  async updateHook(
+    config: DerivedTokenRouterConfig,
+  ): Promise<EthersV5Transaction[]> {
     const transactions: EthersV5Transaction[] = [];
 
-    const contractToUpdate = await this.args.addresses[
-      config.type as DerivedTokenType // Cast because cast.types needs to be narrowed
-    ].deployed();
+    const contractToUpdate = await this.args.addresses[config.type].deployed();
 
     if (typeof config.hook === 'string') {
       // Derive & set Hook
