@@ -1,5 +1,14 @@
 # @hyperlane-xyz/cli
 
+## 3.11.1
+
+### Patch Changes
+
+- 78b77eecf: Fixes for CLI dry-runs
+- Updated dependencies [c900da187]
+  - @hyperlane-xyz/sdk@3.11.1
+  - @hyperlane-xyz/utils@3.11.1
+
 ## 3.11.0
 
 ### Minor Changes
