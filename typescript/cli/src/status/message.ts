@@ -5,7 +5,7 @@ import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { log, logBlue, logGreen } from '../logger.js';
+import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function checkMessageStatus({
@@ -46,9 +46,11 @@ export async function checkMessageStatus({
   if (!dispatchTx) {
     try {
       dispatchedTx = await core.getDispatchTx(origin, messageId);
-    } catch (e) {}
+    } catch (e) {
+      logRed(`Failed to infer dispatch transaction for message ${messageId}`);
+    }
     dispatchTx = await input({
-      message: 'Failed to infer dispatch tx, provide transaction hash',
+      message: 'Provide dispatch transaction hash',
     });
   }
 
