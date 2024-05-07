@@ -33,9 +33,9 @@ use crate::{
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
         op_queue::QueueOperation,
+        op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         processor::{MessageProcessor, MessageProcessorMetrics},
-        serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
     server::{self as relayer_server, MessageRetryRequest},
     settings::{matching_list::MatchingList, RelayerSettings},
@@ -315,7 +315,7 @@ impl BaseAgent for Relayer {
                     // Default to submitting one message at a time if there is no batch config
                     self.core.settings.chains[dest_domain.name()]
                         .connection
-                        .message_batch_config()
+                        .operation_batch_config()
                         .map(|c| c.max_batch_size)
                         .unwrap_or(1),
                 ),

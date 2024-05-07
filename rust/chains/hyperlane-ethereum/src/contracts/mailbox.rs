@@ -498,7 +498,7 @@ mod test {
                 url: "http://127.0.0.1:8545".parse().unwrap(),
             },
             transaction_overrides: Default::default(),
-            message_batch: Default::default(),
+            operation_batch: Default::default(),
         };
 
         let mailbox = EthereumMailbox::new(
