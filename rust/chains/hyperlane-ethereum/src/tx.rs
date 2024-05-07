@@ -22,10 +22,7 @@ use tracing::{error, info};
 use crate::{Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
-pub const GAS_ESTIMATE_BUFFER: u32 = 50_000;
-
-/// The gas limit to temporarily hardcode when sending multicall operations
-pub const BATCH_GAS_LIMIT: u32 = 4_000_000;
+pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
