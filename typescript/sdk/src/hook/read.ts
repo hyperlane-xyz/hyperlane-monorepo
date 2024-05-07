@@ -1,4 +1,3 @@
-import { assert } from 'console';
 import { ethers, providers } from 'ethers';
 
 import {
@@ -18,6 +17,7 @@ import {
 import {
   Address,
   WithAddress,
+  assert,
   concurrentMap,
   eqAddress,
   rootLogger,

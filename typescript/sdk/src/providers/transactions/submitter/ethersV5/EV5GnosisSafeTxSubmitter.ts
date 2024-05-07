@@ -1,16 +1,10 @@
-import SafeApiKit from '@safe-global/api-kit';
-import Safe, { EthSafeSignature } from '@safe-global/protocol-kit';
-import {
-  MetaTransactionData,
-  SafeTransactionData,
-} from '@safe-global/safe-core-sdk-types';
-import assert from 'assert';
 import { PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../../../types.js';
+// @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -36,19 +30,16 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   ) {}
 
   public async submit(...txs: PopulatedTransaction[]): Promise<void> {
-    const safe: Safe.default = await getSafe(
+    const safe = await getSafe(
       this.chain,
       this.multiProvider,
       this.props.safeAddress,
     );
-    const safeService: SafeApiKit.default = getSafeService(
-      this.chain,
-      this.multiProvider,
-    );
+    const safeService = await getSafeService(this.chain, this.multiProvider);
     const nextNonce: number = await safeService.getNextNonce(
       this.props.safeAddress,
     );
-    const safeTransactionBatch: MetaTransactionData[] = txs.map(
+    const safeTransactionBatch: any[] = txs.map(
       ({ to, data, value }: PopulatedTransaction) => {
         assert(
           to && data,
@@ -61,14 +52,12 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       safeTransactionData: safeTransactionBatch,
       options: { nonce: nextNonce },
     });
-    const safeTransactionData: SafeTransactionData = safeTransaction.data;
+    const safeTransactionData: any = safeTransaction.data;
     const safeTxHash: string = await safe.getTransactionHash(safeTransaction);
     const senderAddress: Address = await this.multiProvider.getSignerAddress(
       this.chain,
     );
-    const safeSignature: EthSafeSignature = await safe.signTransactionHash(
-      safeTxHash,
-    );
+    const safeSignature: any = await safe.signTransactionHash(safeTxHash);
     const senderSignature: string = safeSignature.data;
 
     this.logger.debug(
