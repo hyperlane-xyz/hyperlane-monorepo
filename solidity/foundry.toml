@@ -18,3 +18,8 @@ verbosity = 4
 [rpc_endpoints]
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
+
+
+[fuzz]
+runs = 50
+dictionary_weight = 80

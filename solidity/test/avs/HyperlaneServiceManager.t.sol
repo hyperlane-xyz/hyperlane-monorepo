@@ -154,7 +154,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         );
     }
 
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_enrollIntoChallengers(uint8 numOfChallengers) public {
         _registerOperator();
         IRemoteChallenger[] memory challengers = _deployChallengers(
@@ -180,7 +179,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         _assertChallengers(challengers, EnrollmentStatus.UNENROLLED, 0);
     }
 
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_startUnenrollment_revert(uint8 numOfChallengers) public {
         vm.assume(numOfChallengers > 0);
 
@@ -213,7 +211,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         vm.stopPrank();
     }
 
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_startUnenrollment(
         uint8 numOfChallengers,
         uint8 numQueued
@@ -253,7 +250,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         vm.stopPrank();
     }
 
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_completeQueuedUnenrollmentFromChallenger(
         uint8 numOfChallengers,
         uint8 numUnenrollable
@@ -296,7 +292,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         vm.stopPrank();
     }
 
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_freezeOperator(uint8 numOfChallengers) public {
         _registerOperator();
 
@@ -316,7 +311,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         }
     }
 
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_freezeOperator_duringEnrollment(
         uint8 numOfChallengers,
         uint8 numUnenrollable
@@ -374,7 +368,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         vm.stopPrank();
     }
 
-    /// forge-config: default.fuzz.runs = 10
     function testFuzz_deregisterOperator_withEnrollment() public {
         uint8 numOfChallengers = 1;
         vm.assume(numOfChallengers > 0);
