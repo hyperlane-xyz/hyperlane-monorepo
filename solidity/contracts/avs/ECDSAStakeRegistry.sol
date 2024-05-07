@@ -2,10 +2,10 @@
 pragma solidity ^0.8.12;
 
 import {ECDSAStakeRegistryStorage, Quorum, StrategyParams} from "./ECDSAStakeRegistryStorage.sol";
-import {IStrategy} from "../interfaces/avs/IStrategy.sol";
-import {IDelegationManager} from "../interfaces/avs/IDelegationManager.sol";
-import {ISignatureUtils} from "../interfaces/avs/ISignatureUtils.sol";
-import {IServiceManager} from "../interfaces/avs/IServiceManager.sol";
+import {IStrategy} from "../interfaces/avs/vendored/IStrategy.sol";
+import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.sol";
+import {ISignatureUtils} from "../interfaces/avs/vendored/ISignatureUtils.sol";
+import {IServiceManager} from "../interfaces/avs/vendored/IServiceManager.sol";
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {CheckpointsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CheckpointsUpgradeable.sol";

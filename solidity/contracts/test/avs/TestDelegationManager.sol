@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IDelegationManager} from "../../interfaces/avs/IDelegationManager.sol";
-import {IStrategy} from "../../interfaces/avs/IStrategy.sol";
+import {IDelegationManager} from "../../interfaces/avs/vendored/IDelegationManager.sol";
+import {IStrategy} from "../../interfaces/avs/vendored/IStrategy.sol";
 
 contract TestDelegationManager is IDelegationManager {
     mapping(address => bool) public isOperator;

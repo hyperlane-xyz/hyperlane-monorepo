@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
-import {IDelegationManager} from "../interfaces/avs/IDelegationManager.sol";
+import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.sol";
 import {CheckpointsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CheckpointsUpgradeable.sol";
-import {IECDSAStakeRegistryEventsAndErrors, Quorum, StrategyParams} from "../interfaces/avs/IECDSAStakeRegistryEventsAndErrors.sol";
+import {IECDSAStakeRegistryEventsAndErrors, Quorum, StrategyParams} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 
 abstract contract ECDSAStakeRegistryStorage is
     IECDSAStakeRegistryEventsAndErrors

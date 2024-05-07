@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.0;
 
-import {ISignatureUtils} from "../interfaces/avs/ISignatureUtils.sol";
-import {IAVSDirectory} from "../interfaces/avs/IAVSDirectory.sol";
+import {ISignatureUtils} from "../interfaces/avs/vendored/ISignatureUtils.sol";
+import {IAVSDirectory} from "../interfaces/avs/vendored/IAVSDirectory.sol";
 
-import {IServiceManager} from "../interfaces/avs/IServiceManager.sol";
-import {IServiceManagerUI} from "../interfaces/avs/IServiceManagerUI.sol";
-import {IDelegationManager} from "../interfaces/avs/IDelegationManager.sol";
-import {IStrategy} from "../interfaces/avs/IStrategy.sol";
-import {IPaymentCoordinator} from "../interfaces/avs/IPaymentCoordinator.sol";
-import {Quorum} from "../interfaces/avs/IECDSAStakeRegistryEventsAndErrors.sol";
+import {IServiceManager} from "../interfaces/avs/vendored/IServiceManager.sol";
+import {IServiceManagerUI} from "../interfaces/avs/vendored/IServiceManagerUI.sol";
+import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.sol";
+import {IStrategy} from "../interfaces/avs/vendored/IStrategy.sol";
+import {IPaymentCoordinator} from "../interfaces/avs/vendored/IPaymentCoordinator.sol";
+import {Quorum} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 import {ECDSAStakeRegistry} from "./ECDSAStakeRegistry.sol";
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";

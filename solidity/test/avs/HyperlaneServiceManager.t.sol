@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IDelegationManager} from "../../contracts/interfaces/avs/IDelegationManager.sol";
-import {ISlasher} from "../../contracts/interfaces/avs/ISlasher.sol";
+import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
+import {ISlasher} from "../../contracts/interfaces/avs/vendored/ISlasher.sol";
 
-import {IAVSDirectory} from "../../contracts/interfaces/avs/IAVSDirectory.sol";
-import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/IECDSAStakeRegistryEventsAndErrors.sol";
+import {IAVSDirectory} from "../../contracts/interfaces/avs/vendored/IAVSDirectory.sol";
+import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 import {TestDelegationManager} from "../../contracts/test/avs/TestDelegationManager.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
 
-import {IStrategy} from "../../contracts/interfaces/avs/IStrategy.sol";
-import {ISignatureUtils} from "../../contracts/interfaces/avs/ISignatureUtils.sol";
+import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
+import {ISignatureUtils} from "../../contracts/interfaces/avs/vendored/ISignatureUtils.sol";
 import {Enrollment, EnrollmentStatus} from "../../contracts/libs/EnumerableMapEnrollment.sol";
 import {IRemoteChallenger} from "../../contracts/interfaces/avs/IRemoteChallenger.sol";
 

@@ -3,10 +3,10 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Script.sol";
 
-import {IStrategy} from "../../contracts/interfaces/avs/IStrategy.sol";
-import {IDelegationManager} from "../../contracts/interfaces/avs/IDelegationManager.sol";
+import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
+import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
-import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/IECDSAStakeRegistryEventsAndErrors.sol";
+import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
 
 import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";

@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
-import {ISlasher} from "../../contracts/interfaces/avs/ISlasher.sol";
+import {ISlasher} from "../../contracts/interfaces/avs/vendored/ISlasher.sol";
 import {TestAVSDirectory} from "../../contracts/test/avs/TestAVSDirectory.sol";
 import {TestDelegationManager} from "../../contracts/test/avs/TestDelegationManager.sol";
 import {TestSlasher} from "../../contracts/test/avs/TestSlasher.sol";
