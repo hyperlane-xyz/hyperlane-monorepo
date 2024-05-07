@@ -165,9 +165,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
      * @notice Completes the unenrollment of an operator from a list of challengers
      * @param _challengers The list of challengers to unenroll from
      */
-    function completeUnenrollment(
-        IRemoteChallenger[] memory _challengers
-    ) external {
+    function completeUnenrollment(address[] memory _challengers) external {
         _completeUnenrollment(msg.sender, _challengers);
     }
 
@@ -210,16 +208,8 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
      */
     function getOperatorChallengers(
         address _operator
-    ) public view returns (IRemoteChallenger[] memory) {
-        address[] memory keys = enrolledChallengers[_operator].keys();
-
-        IRemoteChallenger[] memory challengers = new IRemoteChallenger[](
-            keys.length
-        );
-        for (uint256 i = 0; i < keys.length; i++) {
-            challengers[i] = IRemoteChallenger(keys[i]);
-        }
-        return challengers;
+    ) public view returns (address[] memory) {
+        return enrolledChallengers[_operator].keys();
     }
 
     // ============ Internal Functions ============
@@ -231,10 +221,10 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
      */
     function _completeUnenrollment(
         address operator,
-        IRemoteChallenger[] memory _challengers
+        address[] memory _challengers
     ) internal {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            IRemoteChallenger challenger = _challengers[i];
+            IRemoteChallenger challenger = IRemoteChallenger(_challengers[i]);
             (bool exists, Enrollment memory enrollment) = enrolledChallengers[
                 operator
             ].tryGet(address(challenger));
@@ -262,9 +252,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     function _deregisterOperatorFromAVS(
         address operator
     ) internal virtual override {
-        IRemoteChallenger[] memory challengers = getOperatorChallengers(
-            operator
-        );
+        address[] memory challengers = getOperatorChallengers(operator);
         _completeUnenrollment(operator, challengers);
 
         IAVSDirectory(avsDirectory).deregisterOperatorFromAVS(operator);

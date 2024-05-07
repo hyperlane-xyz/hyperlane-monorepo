@@ -263,12 +263,11 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         IRemoteChallenger[] memory challengers = _deployChallengers(
             numOfChallengers
         );
-        IRemoteChallenger[]
-            memory unenrollableChallengers = new IRemoteChallenger[](
-                numUnenrollable
-            );
+        address[] memory unenrollableChallengers = new address[](
+            numUnenrollable
+        );
         for (uint8 i = 0; i < numUnenrollable; i++) {
-            unenrollableChallengers[i] = challengers[i];
+            unenrollableChallengers[i] = address(challengers[i]);
         }
 
         vm.startPrank(operator);
@@ -327,16 +326,15 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         IRemoteChallenger[] memory challengers = _deployChallengers(
             numOfChallengers
         );
-        IRemoteChallenger[]
-            memory unenrollableChallengers = new IRemoteChallenger[](
-                numUnenrollable
-            );
+        address[] memory unenrollableChallengers = new address[](
+            numUnenrollable
+        );
         IRemoteChallenger[]
             memory otherChallengeChallengers = new IRemoteChallenger[](
                 numOfChallengers - numUnenrollable
             );
         for (uint8 i = 0; i < numUnenrollable; i++) {
-            unenrollableChallengers[i] = challengers[i];
+            unenrollableChallengers[i] = address(challengers[i]);
         }
         for (uint8 i = numUnenrollable; i < numOfChallengers; i++) {
             otherChallengeChallengers[i - numUnenrollable] = challengers[i];
@@ -361,7 +359,9 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
             vm.expectRevert(
                 "HyperlaneServiceManager: Operator not enrolled in challenger"
             );
-            unenrollableChallengers[i].handleChallenge(operator);
+            IRemoteChallenger(unenrollableChallengers[i]).handleChallenge(
+                operator
+            );
         }
         for (uint256 i = 0; i < otherChallengeChallengers.length; i++) {
             vm.expectCall(
