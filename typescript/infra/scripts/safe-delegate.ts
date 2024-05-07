@@ -4,6 +4,7 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 import '@ethersproject/hardware-wallets/thirdparty';
 import { AddSafeDelegateProps } from '@safe-global/api-kit';
 
+// @ts-ignore
 import { getSafeDelegates, getSafeService } from '@hyperlane-xyz/sdk';
 
 import { getChains } from '../config/registry.js';

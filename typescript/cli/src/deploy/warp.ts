@@ -227,7 +227,7 @@ async function executeDeploy(params: DeployParams) {
 
   logGreen('✅ Hyp token deployments complete');
 
-  log('Writing deployment artifacts');
+  if (!isDryRun) log('Writing deployment artifacts');
   const warpCoreConfig = getWarpCoreConfig(params, deployedContracts);
   await registry.addWarpRoute(warpCoreConfig);
   log(JSON.stringify(warpCoreConfig, null, 2));
