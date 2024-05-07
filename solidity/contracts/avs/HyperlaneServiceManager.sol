@@ -101,9 +101,13 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
             _paymentCoordinator,
             _delegationManager
         )
-        initializer
-    {
-        __ServiceManagerBase_init(msg.sender);
+    {}
+
+    /**
+     * @notice Initializes the HyperlaneServiceManager contract with the owner address
+     */
+    function initialize(address _owner) public initializer {
+        __ServiceManagerBase_init(_owner);
     }
 
     // ============ External Functions ============

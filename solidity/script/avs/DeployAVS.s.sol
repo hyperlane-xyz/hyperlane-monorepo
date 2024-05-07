@@ -4,7 +4,12 @@ pragma solidity >=0.8.0;
 import "forge-std/Script.sol";
 
 import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
+import {IAVSDirectory} from "../../contracts/interfaces/avs/vendored/IAVSDirectory.sol";
+import {IPaymentCoordinator} from "../../contracts/interfaces/avs/vendored/IPaymentCoordinator.sol";
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
+
+import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
+import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
@@ -21,9 +26,10 @@ contract DeployAVS is Script {
 
     uint256 deployerPrivateKey;
 
-    address public avsDirectory;
+    ProxyAdmin public proxyAdmin;
+    IAVSDirectory public avsDirectory;
+    IPaymentCoordinator public paymentCoordinator;
     IDelegationManager public delegationManager;
-    address public paymentCoordinator;
 
     Quorum quorum;
     uint256 thresholdWeight = 6667;
@@ -36,17 +42,23 @@ contract DeployAVS is Script {
         );
         string memory json = vm.readFile(path);
 
-        avsDirectory = json.readAddress(
-            string(abi.encodePacked(".", targetEnv, ".avsDirectory"))
+        proxyAdmin = ProxyAdmin(
+            json.readAddress(
+                string(abi.encodePacked(".", targetEnv, ".proxyAdmin"))
+            )
         );
-        console.log("AVS directory address: ", avsDirectory);
+        avsDirectory = IAVSDirectory(
+            json.readAddress(
+                string(abi.encodePacked(".", targetEnv, ".avsDirectory"))
+            )
+        );
         delegationManager = IDelegationManager(
             json.readAddress(
                 string(abi.encodePacked(".", targetEnv, ".delegationManager"))
             )
         );
-        // paymentCoordinator = json.readAddress(string(abi.encodePacked(".", targetEnv, ".paymentCoordinator")));
-        paymentCoordinator = address(new TestPaymentCoordinator());
+        // paymentCoordinator = IPaymentCoordinator(json.readAddress(string(abi.encodePacked(".", targetEnv, ".paymentCoordinator"))));
+        paymentCoordinator = new TestPaymentCoordinator(); // temporary until Eigenlayer deploys the real one
 
         StrategyInfo[] memory strategies = abi.decode(
             vm.parseJson(
@@ -81,24 +93,41 @@ contract DeployAVS is Script {
         }
     }
 
-    function run() external {
+    function run(string memory network) external {
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
-        _loadEigenlayerAddresses("holesky");
+        _loadEigenlayerAddresses(network);
 
         vm.startBroadcast(deployerPrivateKey);
 
-        ECDSAStakeRegistry stakeRegistry = new ECDSAStakeRegistry(
+        ECDSAStakeRegistry stakeRegistryImpl = new ECDSAStakeRegistry(
             delegationManager
         );
-        HyperlaneServiceManager hsm = new HyperlaneServiceManager(
-            avsDirectory,
-            address(stakeRegistry),
-            paymentCoordinator,
-            address(delegationManager)
-        );
+        HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
+                address(avsDirectory),
+                address(stakeRegistryImpl),
+                address(paymentCoordinator),
+                address(delegationManager)
+            );
 
-        stakeRegistry.initialize(address(hsm), thresholdWeight, quorum);
+        TransparentUpgradeableProxy hsmProxy = new TransparentUpgradeableProxy(
+            address(strategyManagerImpl),
+            address(proxyAdmin),
+            abi.encodeWithSelector(
+                HyperlaneServiceManager.initialize.selector,
+                msg.sender
+            )
+        );
+        TransparentUpgradeableProxy stakeRegistryProxy = new TransparentUpgradeableProxy(
+                address(stakeRegistryImpl),
+                address(proxyAdmin),
+                abi.encodeWithSelector(
+                    ECDSAStakeRegistry.initialize.selector,
+                    address(hsmProxy),
+                    thresholdWeight,
+                    quorum
+                )
+            );
 
         vm.stopBroadcast();
     }

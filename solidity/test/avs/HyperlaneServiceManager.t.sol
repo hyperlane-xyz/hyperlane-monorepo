@@ -47,6 +47,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
             address(_paymentCoordinator),
             address(delegationManager)
         );
+        _hsm.initialize(address(this));
         _hsm.setSlasher(slasher);
 
         IStrategy mockStrategy = IStrategy(address(0x1234));
