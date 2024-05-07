@@ -26,7 +26,7 @@ use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
-use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx, BATCH_GAS_LIMIT};
+use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
 use super::multicall::{self, build_multicall};
@@ -396,8 +396,7 @@ where
             .collect::<ChainResult<Vec<_>>>()?;
 
         let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls);
-        let call =
-            fill_tx_gas_params(batch_call, self.provider.clone(), &Default::default()).await?;
+        let call = self.add_gas_overrides(batch_call, None).await?;
 
         let receipt = report_tx(call).await?;
         Ok(receipt.into())
