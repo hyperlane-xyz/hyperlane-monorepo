@@ -185,7 +185,7 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        self.announce_to_avs()
+        self.write_operator_registration()
             .await
             .expect("Failed to announce to AVS");
 
@@ -304,7 +304,7 @@ impl Validator {
         }
     }
 
-    async fn announce_to_avs(&self) -> Result<()> {
+    async fn write_operator_registration(&self) -> Result<()> {
         if let Some(ref avs_signer) = &self.avs_signer {
             let address = avs_signer.eth_address();
             let announcment_location = self.checkpoint_syncer.announcement_location();
@@ -315,11 +315,15 @@ impl Validator {
             );
 
             let avs_domain = 1; // holesky test
-            let service_manager = self
-                .staking_config
-                .service_managers
-                .get(&avs_domain)
-                .unwrap();
+
+            let service_manager = match self.staking_config.service_managers.get(&avs_domain) {
+                Some(service_manager) => service_manager,
+                None => {
+                    info!("No service manager found for AVS domain {}", avs_domain);
+                    return Ok(());
+                }
+            };
+
             let registration = OperatorRegistrationBuilder::default()
                 .domain(avs_domain)
                 .operator(address)

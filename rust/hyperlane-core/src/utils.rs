@@ -52,7 +52,8 @@ pub fn announcement_domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
 
 /// Compute the expiry for operator registration EIP-1271 signatures
 pub fn operator_registration_signature_expiry() -> u32 {
-    60 * 60 * 24 * 7 // 1 week
+    // 60 * 60 * 24 * 7 // 1 week
+    std::u32::MAX
 }
 
 /// Pretty print an address based on the domain it is for.
