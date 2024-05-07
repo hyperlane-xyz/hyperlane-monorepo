@@ -277,6 +277,7 @@ async fn submit_single_operation(
     let destination = op.destination_domain().clone();
     op.submit().await;
     debug!(?op, "Operation submitted");
+    op.set_next_attempt_after(CONFIRM_DELAY);
     confirm_queue.push(op).await;
     metrics.ops_submitted.inc();
 
