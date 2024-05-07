@@ -10,6 +10,7 @@ solc_version = '0.8.22'
 evm_version= 'paris'
 optimizer = true
 optimizer_runs = 999_999
+fs_permissions = [{ access = "read-write", path = "./"}]
 
 [profile.ci]
 verbosity = 4
