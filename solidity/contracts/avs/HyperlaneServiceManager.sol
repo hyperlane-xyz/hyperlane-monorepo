@@ -15,18 +15,21 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/EnumerableMapEnrollment.sol";
+import {IAVSDirectory} from "../interfaces/avs/vendored/IAVSDirectory.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
+import {ISlasher} from "../interfaces/avs/vendored/ISlasher.sol";
 import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
-
-// ============ External Imports ============
-import {IAVSDirectory} from "@eigenlayer/interfaces/IAVSDirectory.sol";
-import {ISlasher} from "@eigenlayer/interfaces/ISlasher.sol";
-import {ECDSAStakeRegistry} from "@eigenlayer/ecdsa/ECDSAStakeRegistry.sol";
 
 contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Libraries ============
 
     using EnumerableMapEnrollment for EnumerableMapEnrollment.AddressToEnrollmentMap;
+
+    // ============ Public Storage ============
+
+    // Slasher contract responsible for slashing operators
+    // @dev slasher needs to be updated once slashing is implemented
+    ISlasher internal slasher;
 
     // ============ Events ============
 
@@ -87,10 +90,25 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Constructor ============
 
     constructor(
-        IAVSDirectory _avsDirectory,
-        ECDSAStakeRegistry _stakeRegistry,
-        ISlasher _slasher
-    ) ECDSAServiceManagerBase(_avsDirectory, _stakeRegistry, _slasher) {}
+        address _avsDirectory,
+        address _stakeRegistry,
+        address _paymentCoordinator,
+        address _delegationManager
+    )
+        ECDSAServiceManagerBase(
+            _avsDirectory,
+            _stakeRegistry,
+            _paymentCoordinator,
+            _delegationManager
+        )
+    {}
+
+    /**
+     * @notice Initializes the HyperlaneServiceManager contract with the owner address
+     */
+    function initialize(address _owner) public initializer {
+        __ServiceManagerBase_init(_owner);
+    }
 
     // ============ External Functions ============
 
@@ -102,113 +120,48 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            IRemoteChallenger challenger = _challengers[i];
-            require(
-                enrolledChallengers[msg.sender].set(
-                    address(challenger),
-                    Enrollment(EnrollmentStatus.ENROLLED, 0)
-                )
-            );
-            emit OperatorEnrolledToChallenger(msg.sender, challenger);
+            enrollIntoChallenger(_challengers[i]);
         }
     }
 
     /**
-     * @notice Queues an operator for unenrollment from a list of challengers
+     * @notice starts an operator for unenrollment from a list of challengers
      * @param _challengers The list of challengers to unenroll from
      */
-    function queueUnenrollmentFromChallengers(
+    function startUnenrollment(
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            IRemoteChallenger challenger = _challengers[i];
-            (bool exists, Enrollment memory enrollment) = enrolledChallengers[
-                msg.sender
-            ].tryGet(address(challenger));
-            if (exists && enrollment.status == EnrollmentStatus.ENROLLED) {
-                require(
-                    enrolledChallengers[msg.sender].set(
-                        address(challenger),
-                        Enrollment(
-                            EnrollmentStatus.PENDING_UNENROLLMENT,
-                            uint248(block.number)
-                        )
-                    )
-                );
-                emit OperatorQueuedUnenrollmentFromChallenger(
-                    msg.sender,
-                    challenger,
-                    block.number,
-                    challenger.challengeDelayBlocks()
-                );
-            }
+            startUnenrollment(_challengers[i]);
         }
     }
 
     /**
      * @notice Completes the unenrollment of an operator from a list of challengers
-     * @param operator The address of the operator
      * @param _challengers The list of challengers to unenroll from
      */
-    function completeQueuedUnenrollmentFromChallengers(
-        address operator,
-        IRemoteChallenger[] memory _challengers
-    ) public onlyStakeRegistryOrOperator(operator) {
-        for (uint256 i = 0; i < _challengers.length; i++) {
-            IRemoteChallenger challenger = _challengers[i];
-            (bool exists, Enrollment memory enrollment) = enrolledChallengers[
-                operator
-            ].tryGet(address(challenger));
-
-            require(
-                exists &&
-                    enrollment.status != EnrollmentStatus.ENROLLED &&
-                    block.number >=
-                    enrollment.unenrollmentStartBlock +
-                        challenger.challengeDelayBlocks(),
-                "HyperlaneServiceManager: Invalid unenrollment"
-            );
-
-            enrolledChallengers[operator].remove(address(challenger));
-            emit OperatorUnenrolledFromChallenger(
-                operator,
-                challenger,
-                block.number
-            );
-        }
+    function completeUnenrollment(address[] memory _challengers) external {
+        _completeUnenrollment(msg.sender, _challengers);
     }
 
-    // ============ Public Functions ============
+    /**
+     * @notice Sets the slasher contract responsible for slashing operators
+     * @param _slasher The address of the slasher contract
+     */
+    function setSlasher(ISlasher _slasher) external onlyOwner {
+        slasher = _slasher;
+    }
 
     /**
      * @notice returns the status of a challenger an operator is enrolled in
      * @param _operator The address of the operator
      * @param _challenger specified IRemoteChallenger contract
      */
-    function getEnrolledChallenger(
+    function getChallengerEnrollment(
         address _operator,
         IRemoteChallenger _challenger
     ) external view returns (Enrollment memory enrollment) {
-        address[] memory keys = enrolledChallengers[_operator].keys();
         return enrolledChallengers[_operator].get(address(_challenger));
-    }
-
-    /**
-     * @notice returns the list of challengers an operator is enrolled in
-     * @param _operator The address of the operator
-     */
-    function getOperatorChallengers(
-        address _operator
-    ) public view returns (IRemoteChallenger[] memory) {
-        address[] memory keys = enrolledChallengers[_operator].keys();
-
-        IRemoteChallenger[] memory challengers = new IRemoteChallenger[](
-            keys.length
-        );
-        for (uint256 i = 0; i < keys.length; i++) {
-            challengers[i] = IRemoteChallenger(keys[i]);
-        }
-        return challengers;
     }
 
     /**
@@ -218,25 +171,127 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
      */
     function freezeOperator(
         address operator
-    ) public virtual override onlyEnrolledChallenger(operator) {
+    ) external virtual onlyEnrolledChallenger(operator) {
         slasher.freezeOperator(operator);
     }
 
     // ============ Public Functions ============
 
     /**
-     * @notice Forwards a call to EigenLayer's AVSDirectory contract to confirm operator deregistration from the AVS
-     * @param operator The address of the operator to deregister.
+     * @notice returns the list of challengers an operator is enrolled in
+     * @param _operator The address of the operator
      */
-    function deregisterOperatorFromAVS(
-        address operator
-    ) public virtual override onlyStakeRegistry {
-        IRemoteChallenger[] memory challengers = getOperatorChallengers(
-            operator
-        );
-        completeQueuedUnenrollmentFromChallengers(operator, challengers);
+    function getOperatorChallengers(
+        address _operator
+    ) public view returns (address[] memory) {
+        return enrolledChallengers[_operator].keys();
+    }
 
-        elAvsDirectory.deregisterOperatorFromAVS(operator);
+    /**
+     * @notice Enrolls as an operator into a single challenger
+     * @param challenger The challenger to enroll into
+     */
+    function enrollIntoChallenger(IRemoteChallenger challenger) public {
+        require(
+            enrolledChallengers[msg.sender].set(
+                address(challenger),
+                Enrollment(EnrollmentStatus.ENROLLED, 0)
+            )
+        );
+        emit OperatorEnrolledToChallenger(msg.sender, challenger);
+    }
+
+    /**
+     * @notice starts an operator for unenrollment from a challenger
+     * @param challenger The challenger to unenroll from
+     */
+    function startUnenrollment(IRemoteChallenger challenger) public {
+        (bool exists, Enrollment memory enrollment) = enrolledChallengers[
+            msg.sender
+        ].tryGet(address(challenger));
+        require(
+            exists && enrollment.status == EnrollmentStatus.ENROLLED,
+            "HyperlaneServiceManager: challenger isn't enrolled"
+        );
+
+        enrolledChallengers[msg.sender].set(
+            address(challenger),
+            Enrollment(
+                EnrollmentStatus.PENDING_UNENROLLMENT,
+                uint248(block.number)
+            )
+        );
+        emit OperatorQueuedUnenrollmentFromChallenger(
+            msg.sender,
+            challenger,
+            block.number,
+            challenger.challengeDelayBlocks()
+        );
+    }
+
+    /**
+     * @notice Completes the unenrollment of an operator from a challenger
+     * @param challenger The challenger to unenroll from
+     */
+    function completeUnenrollment(address challenger) public {
+        _completeUnenrollment(msg.sender, challenger);
+    }
+
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Completes the unenrollment of an operator from a list of challengers
+     * @param operator The address of the operator
+     * @param _challengers The list of challengers to unenroll from
+     */
+    function _completeUnenrollment(
+        address operator,
+        address[] memory _challengers
+    ) internal {
+        for (uint256 i = 0; i < _challengers.length; i++) {
+            _completeUnenrollment(operator, _challengers[i]);
+        }
+    }
+
+    /**
+     * @notice Completes the unenrollment of an operator from a challenger
+     * @param operator The address of the operator
+     * @param _challenger The challenger to unenroll from
+     */
+    function _completeUnenrollment(
+        address operator,
+        address _challenger
+    ) internal {
+        IRemoteChallenger challenger = IRemoteChallenger(_challenger);
+        (bool exists, Enrollment memory enrollment) = enrolledChallengers[
+            operator
+        ].tryGet(address(challenger));
+
+        require(
+            exists &&
+                enrollment.status == EnrollmentStatus.PENDING_UNENROLLMENT &&
+                block.number >=
+                enrollment.unenrollmentStartBlock +
+                    challenger.challengeDelayBlocks(),
+            "HyperlaneServiceManager: Invalid unenrollment"
+        );
+
+        enrolledChallengers[operator].remove(address(challenger));
+        emit OperatorUnenrolledFromChallenger(
+            operator,
+            challenger,
+            block.number
+        );
+    }
+
+    /// @inheritdoc ECDSAServiceManagerBase
+    function _deregisterOperatorFromAVS(
+        address operator
+    ) internal virtual override {
+        address[] memory challengers = getOperatorChallengers(operator);
+        _completeUnenrollment(operator, challengers);
+
+        IAVSDirectory(avsDirectory).deregisterOperatorFromAVS(operator);
         emit OperatorDeregisteredFromAVS(operator);
     }
 }

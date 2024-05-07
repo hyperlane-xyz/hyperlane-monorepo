@@ -44,7 +44,7 @@ library EnumerableMapEnrollment {
             );
     }
 
-    function decode(bytes32 encoded) public view returns (Enrollment memory) {
+    function decode(bytes32 encoded) public pure returns (Enrollment memory) {
         uint8 status = uint8(encoded[0]);
         uint248 unenrollmentStartBlock = uint248(uint256((encoded << 8) >> 8));
         return Enrollment(EnrollmentStatus(status), unenrollmentStartBlock);

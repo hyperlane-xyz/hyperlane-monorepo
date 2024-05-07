@@ -9,7 +9,6 @@ import {
   GasOracleContractType,
   HookType,
   HooksConfig,
-  chainMetadata,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -18,11 +17,10 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
+import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen, logRed } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
-
-import { readChainConfigsIfExists } from './chain.js';
+import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 const ProtocolFeeSchema = z.object({
   type: z.literal(HookType.PROTOCOL_FEE),
@@ -118,17 +116,14 @@ export function readHooksConfigMap(filePath: string) {
 }
 
 export async function createHooksConfigMap({
-  format,
+  context,
   outPath,
-  chainConfigPath,
 }: {
-  format: FileFormat;
+  context: CommandContext;
   outPath: string;
-  chainConfigPath: string;
 }) {
   logBlue('Creating a new hook config');
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-  const chains = await runMultiChainSelectionStep(customChains);
+  const chains = await runMultiChainSelectionStep(context.chainMetadata);
 
   const result: HooksConfigMap = {};
   for (const chain of chains) {
@@ -137,12 +132,12 @@ export async function createHooksConfigMap({
       const remotes = chains.filter((c) => c !== chain);
       result[chain] = {
         ...result[chain],
-        [hookRequirements]: await createHookConfig(chain, remotes),
+        [hookRequirements]: await createHookConfig(context, chain, remotes),
       };
     }
     if (isValidHookConfigMap(result)) {
       logGreen(`Hook config is valid, writing to file ${outPath}`);
-      mergeYamlOrJson(outPath, result, format);
+      mergeYamlOrJson(outPath, result);
     } else {
       errorRed(
         `Hook config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/hooks.yaml for an example`,
@@ -153,6 +148,7 @@ export async function createHooksConfigMap({
 }
 
 export async function createHookConfig(
+  context: CommandContext,
   chain: ChainName,
   remotes: ChainName[],
 ): Promise<HookConfig> {
@@ -195,13 +191,13 @@ export async function createHookConfig(
   if (hookType === HookType.MERKLE_TREE) {
     lastConfig = { type: HookType.MERKLE_TREE };
   } else if (hookType === HookType.PROTOCOL_FEE) {
-    lastConfig = await createProtocolFeeConfig(chain);
+    lastConfig = await createProtocolFeeConfig(context, chain);
   } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
     lastConfig = await createIGPConfig(remotes);
   } else if (hookType === HookType.AGGREGATION) {
-    lastConfig = await createAggregationConfig(chain, remotes);
+    lastConfig = await createAggregationConfig(context, chain, remotes);
   } else if (hookType === HookType.ROUTING) {
-    lastConfig = await createRoutingConfig(chain, remotes);
+    lastConfig = await createRoutingConfig(context, chain, remotes);
   } else {
     throw new Error(`Invalid hook type: ${hookType}`);
   }
@@ -209,6 +205,7 @@ export async function createHookConfig(
 }
 
 export async function createProtocolFeeConfig(
+  context: CommandContext,
   chain: ChainName,
 ): Promise<HookConfig> {
   const owner = await input({
@@ -232,6 +229,7 @@ export async function createProtocolFeeConfig(
   const maxProtocolFee = toWei(
     await input({
       message: `Enter max protocol fee ${nativeTokenAndDecimals(
+        context,
         chain,
       )} e.g. 1.0)`,
     }),
@@ -239,6 +237,7 @@ export async function createProtocolFeeConfig(
   const protocolFee = toWei(
     await input({
       message: `Enter protocol fee in ${nativeTokenAndDecimals(
+        context,
         chain,
       )} e.g. 0.01)`,
     }),
@@ -305,6 +304,7 @@ export async function createIGPConfig(
 }
 
 export async function createAggregationConfig(
+  context: CommandContext,
   chain: ChainName,
   remotes: ChainName[],
 ): Promise<HookConfig> {
@@ -317,7 +317,7 @@ export async function createAggregationConfig(
   const hooks: Array<HookConfig> = [];
   for (let i = 0; i < hooksNum; i++) {
     logBlue(`Creating hook ${i + 1} of ${hooksNum} ...`);
-    hooks.push(await createHookConfig(chain, remotes));
+    hooks.push(await createHookConfig(context, chain, remotes));
   }
   return {
     type: HookType.AGGREGATION,
@@ -326,6 +326,7 @@ export async function createAggregationConfig(
 }
 
 export async function createRoutingConfig(
+  context: CommandContext,
   origin: ChainName,
   remotes: ChainName[],
 ): Promise<HookConfig> {
@@ -339,7 +340,7 @@ export async function createRoutingConfig(
     await confirm({
       message: `You are about to configure hook for remote chain ${chain}. Continue?`,
     });
-    const config = await createHookConfig(origin, remotes);
+    const config = await createHookConfig(context, origin, remotes);
     domainsMap[chain] = config;
   }
   return {
@@ -349,10 +350,10 @@ export async function createRoutingConfig(
   };
 }
 
-function nativeTokenAndDecimals(chain: ChainName) {
+function nativeTokenAndDecimals(context: CommandContext, chain: ChainName) {
   return `10^${
-    chainMetadata[chain].nativeToken?.decimals ?? '18'
+    context.chainMetadata[chain].nativeToken?.decimals ?? '18'
   } which you cannot exceed (in ${
-    chainMetadata[chain].nativeToken?.symbol ?? 'eth'
+    context.chainMetadata[chain].nativeToken?.symbol ?? 'eth'
   }`;
 }

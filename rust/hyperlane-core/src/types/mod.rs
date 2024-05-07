@@ -15,6 +15,7 @@ pub use log_metadata::*;
 pub use merkle_tree::*;
 pub use message::*;
 pub use operator_registration::*;
+pub use transaction::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError, Sequenced};
 
@@ -28,6 +29,7 @@ mod merkle_tree;
 mod message;
 mod operator_registration;
 mod serialize;
+mod transaction;
 
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)

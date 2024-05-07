@@ -2,38 +2,26 @@ import { input } from '@inquirer/prompts';
 
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
-import { getContext, getMergedContractAddresses } from '../context.js';
+import { CommandContext } from '../context/types.js';
 import { log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function checkMessageStatus({
-  chainConfigPath,
-  coreArtifactsPath,
+  context,
   messageId,
   destination,
   origin,
   selfRelay,
-  key,
 }: {
-  chainConfigPath: string;
-  coreArtifactsPath?: string;
+  context: CommandContext;
   messageId?: string;
   destination?: ChainName;
   origin?: ChainName;
   selfRelay?: boolean;
-  key?: string;
 }) {
-  const keyConfig = selfRelay ? { key } : undefined;
-
-  const { multiProvider, customChains, coreArtifacts } = await getContext({
-    chainConfigPath,
-    coreConfig: { coreArtifactsPath },
-    keyConfig,
-  });
-
   if (!destination) {
     destination = await runSingleChainSelectionStep(
-      customChains,
+      context.chainMetadata,
       'Select the destination chain',
     );
   }
@@ -44,10 +32,10 @@ export async function checkMessageStatus({
     });
   }
 
-  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
+  const chainAddresses = await context.registry.getAddresses();
   const core = HyperlaneCore.fromAddressesMap(
-    mergedContractAddrs,
-    multiProvider,
+    chainAddresses,
+    context.multiProvider,
   );
   const mailbox = core.getContracts(destination).mailbox;
   log(`Checking status of message ${messageId} on ${destination}`);
@@ -62,7 +50,7 @@ export async function checkMessageStatus({
     // TODO: implement option for tx receipt input
     if (!origin) {
       origin = await runSingleChainSelectionStep(
-        customChains,
+        context.chainMetadata,
         'Select the origin chain',
       );
     }

@@ -41,6 +41,7 @@ pub enum MetadataBuilderError {
     MaxDepthExceeded(u32),
 }
 
+#[derive(Debug)]
 pub struct IsmWithMetadataAndType {
     pub ism: Box<dyn InterchainSecurityModule>,
     pub metadata: Option<Vec<u8>>,
@@ -224,7 +225,7 @@ impl MessageMetadataBuilder {
         }
     }
 
-    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()))]
+    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()), ret)]
     pub async fn build_ism_and_metadata(
         &self,
         ism_address: H256,
