@@ -11,7 +11,7 @@ import {
   testSealevelChain,
 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { stubMultiProtocolProvider } from '../test/testUtils.js';
+import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
 
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
@@ -41,6 +41,24 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.EvmHypCollateral]: {
     chainName: TestChainName.test3,
     standard: TokenStandard.EvmHypCollateral,
+    addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
+    collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
+    decimals: 18,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypXERC20Collateral]: {
+    chainName: TestChainName.test3,
+    standard: TokenStandard.EvmHypXERC20Collateral,
+    addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
+    collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
+    decimals: 18,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypFiatCollateral]: {
+    chainName: TestChainName.test3,
+    standard: TokenStandard.EvmHypXERC20Collateral,
     addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
     collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
     decimals: 18,

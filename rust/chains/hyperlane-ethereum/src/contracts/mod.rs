@@ -6,4 +6,6 @@ mod mailbox;
 
 mod merkle_tree_hook;
 
+mod multicall;
+
 mod validator_announce;

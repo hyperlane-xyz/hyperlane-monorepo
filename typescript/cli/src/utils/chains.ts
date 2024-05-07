@@ -18,7 +18,7 @@ export async function runSingleChainSelectionStep(
   const chain = (await select({
     message,
     choices,
-    pageSize: 20,
+    pageSize: 30,
   })) as string;
   handleNewChain([chain]);
   return chain;
@@ -35,7 +35,7 @@ export async function runMultiChainSelectionStep(
     const chains = (await checkbox({
       message,
       choices,
-      pageSize: 20,
+      pageSize: 30,
     })) as string[];
     handleNewChain(chains);
     if (requireMultiple && chains?.length < 2) {

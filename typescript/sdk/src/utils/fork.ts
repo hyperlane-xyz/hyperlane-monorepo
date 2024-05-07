@@ -5,8 +5,6 @@ import { Address, isValidAddressEvm, rootLogger } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
-const logger = rootLogger.child({ module: 'fork-utils' });
-
 const ENDPOINT_PREFIX = 'http';
 const DEFAULT_ANVIL_ENDPOINT = 'http://127.0.0.1:8545';
 
@@ -21,7 +19,7 @@ export enum ANVIL_RPC_METHODS {
  * Resets the local node to it's original state (anvil [31337] at block zero).
  */
 export const resetFork = async (anvilIPAddr?: string, anvilPort?: number) => {
-  logger.info(`Resetting forked network...`);
+  rootLogger.info(`Resetting forked network...`);
 
   const provider = getLocalProvider(anvilIPAddr, anvilPort);
   await provider.send(ANVIL_RPC_METHODS.RESET, [
@@ -32,7 +30,7 @@ export const resetFork = async (anvilIPAddr?: string, anvilPort?: number) => {
     },
   ]);
 
-  logger.info(`✅ Successfully reset forked network`);
+  rootLogger.info(`✅ Successfully reset forked network`);
 };
 
 /**
@@ -46,7 +44,7 @@ export const setFork = async (
   anvilIPAddr?: string,
   anvilPort?: number,
 ) => {
-  logger.info(`Forking ${chain} for dry-run...`);
+  rootLogger.info(`Forking ${chain} for dry-run...`);
 
   const provider = getLocalProvider(anvilIPAddr, anvilPort);
   const currentChainMetadata = multiProvider.metadata[chain];
@@ -61,7 +59,7 @@ export const setFork = async (
 
   multiProvider.setProvider(chain, provider);
 
-  logger.info(`✅ Successfully forked ${chain} for dry-run`);
+  rootLogger.info(`✅ Successfully forked ${chain} for dry-run`);
 };
 
 /**
@@ -74,12 +72,12 @@ export const impersonateAccount = async (
   anvilIPAddr?: string,
   anvilPort?: number,
 ): Promise<providers.JsonRpcSigner> => {
-  logger.info(`Impersonating account (${address})...`);
+  rootLogger.info(`Impersonating account (${address})...`);
 
   const provider = getLocalProvider(anvilIPAddr, anvilPort);
   await provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]);
 
-  logger.info(`✅ Successfully impersonated account (${address})`);
+  rootLogger.info(`✅ Successfully impersonated account (${address})`);
 
   return provider.getSigner(address);
 };
@@ -93,7 +91,7 @@ export const stopImpersonatingAccount = async (
   anvilIPAddr?: string,
   anvilPort?: number,
 ) => {
-  logger.info(`Stopping account impersonation for address (${address})...`);
+  rootLogger.info(`Stopping account impersonation for address (${address})...`);
 
   if (isValidAddressEvm(address))
     throw new Error(
@@ -105,7 +103,7 @@ export const stopImpersonatingAccount = async (
     address.substring(2),
   ]);
 
-  logger.info(
+  rootLogger.info(
     `✅ Successfully stopped account impersonation for address (${address})`,
   );
 };
@@ -125,7 +123,7 @@ export const getLocalProvider = (
     envUrl = `${ENDPOINT_PREFIX}${anvilIPAddr}:${anvilPort}`;
 
   if (urlOverride && !urlOverride.startsWith(ENDPOINT_PREFIX)) {
-    logger.warn(
+    rootLogger.warn(
       `⚠️ Provided URL override (${urlOverride}) does not begin with ${ENDPOINT_PREFIX}. Defaulting to ${
         envUrl ?? DEFAULT_ANVIL_ENDPOINT
       }`,

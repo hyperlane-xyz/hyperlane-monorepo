@@ -8,10 +8,11 @@ use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta,
-    Mailbox, MerkleTreeHook, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError, ChainResult,
+    Checkpoint, ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Indexer, LogMeta, Mailbox, MerkleTreeHook, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
+    H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,

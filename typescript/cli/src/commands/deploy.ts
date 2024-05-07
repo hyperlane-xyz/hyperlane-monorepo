@@ -6,7 +6,7 @@ import {
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure, verifyAnvil } from '../deploy/dry-run.js';
+import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
 
@@ -72,7 +72,7 @@ const coreCommand: CommandModuleWithWriteContext<{
   targets: string;
   ism?: string;
   hook?: string;
-  'dry-run': boolean;
+  'dry-run': string;
   agent: string;
 }> = {
   command: 'core',
@@ -89,8 +89,6 @@ const coreCommand: CommandModuleWithWriteContext<{
       `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
     );
     logGray('------------------------------------------------');
-
-    if (dryRun) await verifyAnvil();
 
     try {
       const chains = targets?.split(',').map((r: string) => r.trim());
@@ -114,7 +112,7 @@ const coreCommand: CommandModuleWithWriteContext<{
  */
 const warpCommand: CommandModuleWithWriteContext<{
   config: string;
-  'dry-run': boolean;
+  'dry-run': string;
 }> = {
   command: 'warp',
   describe: 'Deploy Warp Route contracts',
@@ -125,8 +123,6 @@ const warpCommand: CommandModuleWithWriteContext<{
   handler: async ({ context, config, dryRun }) => {
     logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
     logGray('------------------------------------------------');
-
-    if (dryRun) await verifyAnvil();
 
     try {
       await runWarpRouteDeploy({

@@ -1,32 +1,19 @@
+// This file is JS because of https://github.com/safe-global/safe-core-sdk/issues/805
 import SafeApiKit from '@safe-global/api-kit';
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-
-import { getChain } from '../../config/registry.js';
-
-// NOTE about Safe:
-// Accessing lib through .default due to https://github.com/safe-global/safe-core-sdk/issues/419
-// See also https://github.com/safe-global/safe-core-sdk/issues/514
-
-export function getSafeService(
-  chain: ChainName,
-  multiProvider: MultiProvider,
-): SafeApiKit.default {
+export function getSafeService(chain, multiProvider) {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
-  const txServiceUrl = getChain(chain).gnosisSafeTransactionServiceUrl;
+  const txServiceUrl =
+    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl)
     throw new Error(`must provide tx service url for ${chain}`);
   return new SafeApiKit.default({ txServiceUrl, ethAdapter });
 }
 
-export function getSafe(
-  chain: ChainName,
-  multiProvider: MultiProvider,
-  safeAddress: string,
-): Promise<Safe.default> {
+export function getSafe(chain, multiProvider, safeAddress) {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   return Safe.default.create({
@@ -35,20 +22,17 @@ export function getSafe(
   });
 }
 
-export async function getSafeDelegates(
-  service: SafeApiKit.default,
-  safeAddress: string,
-) {
+export async function getSafeDelegates(service, safeAddress) {
   const delegateResponse = await service.getSafeDelegates({ safeAddress });
   return delegateResponse.results.map((r) => r.delegate);
 }
 
 export async function canProposeSafeTransactions(
-  proposer: string,
-  chain: ChainName,
-  multiProvider: MultiProvider,
-  safeAddress: string,
-): Promise<boolean> {
+  proposer,
+  chain,
+  multiProvider,
+  safeAddress,
+) {
   let safeService;
   try {
     safeService = getSafeService(chain, multiProvider);
