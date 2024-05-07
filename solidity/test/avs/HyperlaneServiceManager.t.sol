@@ -16,12 +16,13 @@ import {Enrollment, EnrollmentStatus} from "../../contracts/libs/EnumerableMapEn
 import {IRemoteChallenger} from "../../contracts/interfaces/avs/IRemoteChallenger.sol";
 
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
+import {TestHyperlaneServiceManager} from "../../contracts/test/avs/TestHyperlaneServiceManager.sol";
 import {TestRemoteChallenger} from "../../contracts/test/TestRemoteChallenger.sol";
 
 import {EigenlayerBase} from "./EigenlayerBase.sol";
 
 contract HyperlaneServiceManagerTest is EigenlayerBase {
-    HyperlaneServiceManager internal _hsm;
+    TestHyperlaneServiceManager internal _hsm;
     ECDSAStakeRegistry internal _ecdsaStakeRegistry;
     TestPaymentCoordinator internal _paymentCoordinator;
 
@@ -40,7 +41,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         _ecdsaStakeRegistry = new ECDSAStakeRegistry(delegationManager);
         _paymentCoordinator = new TestPaymentCoordinator();
 
-        _hsm = new HyperlaneServiceManager(
+        _hsm = new TestHyperlaneServiceManager(
             address(avsDirectory),
             address(_ecdsaStakeRegistry),
             address(_paymentCoordinator),
@@ -163,6 +164,19 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         _hsm.enrollIntoChallengers(challengers);
 
         _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
+    }
+
+    // to check if the exists in tryGet is working for when we set the enrollment to UNENROLLED
+    function test_checkUnenrolled() public {
+        _registerOperator();
+        IRemoteChallenger[] memory challengers = _deployChallengers(1);
+
+        vm.prank(operator);
+        _hsm.enrollIntoChallengers(challengers);
+        _assertChallengers(challengers, EnrollmentStatus.ENROLLED, 0);
+
+        _hsm.mockSetUnenrolled(operator, address(challengers[0]));
+        _assertChallengers(challengers, EnrollmentStatus.UNENROLLED, 0);
     }
 
     /// forge-config: default.fuzz.runs = 10
