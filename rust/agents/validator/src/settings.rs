@@ -35,6 +35,8 @@ pub struct ValidatorSettings {
     pub origin_chain: HyperlaneDomain,
     /// The validator attestation signer
     pub validator: SignerConf,
+    /// The optional signer for registering the AVS operator
+    pub avs_operator: Option<SignerConf>,
     /// The checkpoint syncer configuration
     pub checkpoint_syncer: CheckpointSyncerConf,
     /// The reorg_period in blocks
@@ -94,6 +96,15 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             )
             .end();
 
+        let avs_operator = p
+            .chain(&mut err)
+            .get_opt_key("avs_operator")
+            .parse_from_raw_config::<SignerConf, RawAgentSignerConf, NoFilter>(
+                (),
+                "Expected valid validator configuration",
+            )
+            .end();
+
         let db = p
             .chain(&mut err)
             .get_opt_key("db")
@@ -143,6 +154,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             db,
             origin_chain,
             validator,
+            avs_operator,
             checkpoint_syncer,
             reorg_period,
             interval,

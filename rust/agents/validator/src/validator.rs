@@ -45,6 +45,7 @@ pub struct Validator {
     signer: SingletonSignerHandle,
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
+    avs_signer: Option<SingletonSignerHandle>,
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -74,6 +75,15 @@ impl BaseAgent for Validator {
 
         // Intentionally using hyperlane_ethereum for the validator's signer
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
+
+        // If the AVS operator is provided, create a signer for it to write the announcement
+        let avs_signer = match &settings.avs_operator {
+            Some(avs_operator) => {
+                let (_, avs_signer) = SingletonSigner::new(avs_operator.build().await?);
+                Some(avs_signer)
+            }
+            None => None,
+        };
 
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpoint_syncer.build(None).await?.into();
@@ -118,6 +128,7 @@ impl BaseAgent for Validator {
             validator_announce: validator_announce.into(),
             signer,
             signer_instance: Some(Box::new(signer_instance)),
+            avs_signer,
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
@@ -294,33 +305,37 @@ impl Validator {
     }
 
     async fn announce_to_avs(&self) -> Result<()> {
-        let address = self.signer.eth_address();
-        let announcment_location = self.checkpoint_syncer.announcement_location();
+        if let Some(ref avs_signer) = &self.avs_signer {
+            let address = avs_signer.eth_address();
+            let announcment_location = self.checkpoint_syncer.announcement_location();
 
-        println!(
-            "Announcing to AVS, location: {:?} for validator: {:?}",
-            announcment_location, address
-        );
+            println!(
+                "Announcing to AVS, location: {:?} for validator: {:?}",
+                announcment_location, address
+            );
 
-        let avs_domain = 1; // holesky test
-        let service_manager = self
-            .staking_config
-            .service_managers
-            .get(&avs_domain)
-            .unwrap();
-        let registration = OperatorRegistrationBuilder::default()
-            .domain(avs_domain)
-            .operator(address)
-            .service_manager_address(*service_manager) // Dereference the service_manager variable
-            .salt(H256::zero()) // TODO: is this ok?
-            .expiry(operator_registration_signature_expiry())
-            .build()
-            .unwrap();
+            let avs_domain = 1; // holesky test
+            let service_manager = self
+                .staking_config
+                .service_managers
+                .get(&avs_domain)
+                .unwrap();
+            let registration = OperatorRegistrationBuilder::default()
+                .domain(avs_domain)
+                .operator(address)
+                .service_manager_address(*service_manager) // Dereference the service_manager variable
+                .salt(H256::zero()) // TODO: is this ok?
+                .expiry(operator_registration_signature_expiry())
+                .build()
+                .unwrap();
 
-        let signed_registration = self.signer.sign(registration.clone()).await?;
-        self.checkpoint_syncer
-            .write_operator_registration(&signed_registration)
-            .await?;
+            let signed_registration = self.signer.sign(registration.clone()).await?;
+            self.checkpoint_syncer
+                .write_operator_registration(&signed_registration)
+                .await?;
+        } else {
+            info!("No AVS signer configured, skipping AVS announcement");
+        }
         Ok(())
     }
 
