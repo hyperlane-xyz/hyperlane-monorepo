@@ -5,6 +5,7 @@ import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.
 import {CheckpointsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CheckpointsUpgradeable.sol";
 import {IECDSAStakeRegistryEventsAndErrors, Quorum, StrategyParams} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 
+/// @author Layr Labs, Inc.
 abstract contract ECDSAStakeRegistryStorage is
     IECDSAStakeRegistryEventsAndErrors
 {

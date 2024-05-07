@@ -13,6 +13,7 @@ import {SignatureCheckerUpgradeable} from "@openzeppelin/contracts-upgradeable/u
 import {IERC1271Upgradeable} from "@openzeppelin/contracts-upgradeable/interfaces/IERC1271Upgradeable.sol";
 
 /// @title ECDSA Stake Registry
+/// @author Layr Labs, Inc.
 /// @dev THIS CONTRACT IS NOT AUDITED
 /// @notice Manages operator registration and quorum updates for an AVS using ECDSA signatures.
 contract ECDSAStakeRegistry is

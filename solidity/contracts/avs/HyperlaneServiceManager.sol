@@ -17,8 +17,8 @@ pragma solidity >=0.8.0;
 import {Enrollment, EnrollmentStatus, EnumerableMapEnrollment} from "../libs/EnumerableMapEnrollment.sol";
 import {IAVSDirectory} from "../interfaces/avs/vendored/IAVSDirectory.sol";
 import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
-import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
 import {ISlasher} from "../interfaces/avs/vendored/ISlasher.sol";
+import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
 
 contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Libraries ============

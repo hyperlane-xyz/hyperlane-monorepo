@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
-/// part of mock interfaces for vendoring necessary Eigenlayer contracts for the hyperlane AVS
-/// @author Layr Labs, Inc.
-
 import {IStrategy} from "./IStrategy.sol";
 
 struct StrategyParams {
@@ -15,6 +12,8 @@ struct Quorum {
     StrategyParams[] strategies; // An array of strategy parameters to define the quorum
 }
 
+/// part of mock interfaces for vendoring necessary Eigenlayer contracts for the hyperlane AVS
+/// @author Layr Labs, Inc.
 interface IECDSAStakeRegistryEventsAndErrors {
     /// @notice Emitted when the system registers an operator
     /// @param _operator The address of the registered operator

@@ -14,6 +14,7 @@ import {ECDSAStakeRegistry} from "./ECDSAStakeRegistry.sol";
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+/// @author Layr Labs, Inc.
 abstract contract ECDSAServiceManagerBase is
     IServiceManager,
     OwnableUpgradeable

@@ -5,7 +5,6 @@ import "./ISignatureUtils.sol";
 
 /// part of mock interfaces for vendoring necessary Eigenlayer contracts for the hyperlane AVS
 /// @author Layr Labs, Inc.
-
 interface IAVSDirectory is ISignatureUtils {
     enum OperatorAVSRegistrationStatus {
         UNREGISTERED,
