@@ -95,6 +95,6 @@ interface IECDSAStakeRegistryEventsAndErrors {
     /// @notice Thrown when registering an already registered operator
     error OperatorAlreadyRegistered();
 
-    /// @notice Thrown when de-registering or updating the stake for an unregisted operator
+    /// @notice Thrown when de-registering or updating the stake for an unregistered operator
     error OperatorNotRegistered();
 }
