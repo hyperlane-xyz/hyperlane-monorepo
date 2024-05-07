@@ -487,7 +487,7 @@ mod test {
     use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
 
     /// An amount of gas to add to the estimated gas
-    const GAS_ESTIMATE_BUFFER: u32 = 50000;
+    const GAS_ESTIMATE_BUFFER: u32 = 75_000;
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
