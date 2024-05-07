@@ -116,14 +116,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            IRemoteChallenger challenger = _challengers[i];
-            require(
-                enrolledChallengers[msg.sender].set(
-                    address(challenger),
-                    Enrollment(EnrollmentStatus.ENROLLED, 0)
-                )
-            );
-            emit OperatorEnrolledToChallenger(msg.sender, challenger);
+            enrollIntoChallenger(_challengers[i]);
         }
     }
 
@@ -135,29 +128,7 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         IRemoteChallenger[] memory _challengers
     ) external {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            IRemoteChallenger challenger = _challengers[i];
-
-            (bool exists, Enrollment memory enrollment) = enrolledChallengers[
-                msg.sender
-            ].tryGet(address(challenger));
-            require(
-                exists && enrollment.status == EnrollmentStatus.ENROLLED,
-                "HyperlaneServiceManager: challenger isn't enrolled"
-            );
-
-            enrolledChallengers[msg.sender].set(
-                address(challenger),
-                Enrollment(
-                    EnrollmentStatus.PENDING_UNENROLLMENT,
-                    uint248(block.number)
-                )
-            );
-            emit OperatorQueuedUnenrollmentFromChallenger(
-                msg.sender,
-                challenger,
-                block.number,
-                challenger.challengeDelayBlocks()
-            );
+            startUnenrollment(_challengers[i]);
         }
     }
 
@@ -212,6 +183,56 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         return enrolledChallengers[_operator].keys();
     }
 
+    /**
+     * @notice Enrolls as an operator into a single challenger
+     * @param challenger The challenger to enroll into
+     */
+    function enrollIntoChallenger(IRemoteChallenger challenger) public {
+        require(
+            enrolledChallengers[msg.sender].set(
+                address(challenger),
+                Enrollment(EnrollmentStatus.ENROLLED, 0)
+            )
+        );
+        emit OperatorEnrolledToChallenger(msg.sender, challenger);
+    }
+
+    /**
+     * @notice starts an operator for unenrollment from a challenger
+     * @param challenger The challenger to unenroll from
+     */
+    function startUnenrollment(IRemoteChallenger challenger) public {
+        (bool exists, Enrollment memory enrollment) = enrolledChallengers[
+            msg.sender
+        ].tryGet(address(challenger));
+        require(
+            exists && enrollment.status == EnrollmentStatus.ENROLLED,
+            "HyperlaneServiceManager: challenger isn't enrolled"
+        );
+
+        enrolledChallengers[msg.sender].set(
+            address(challenger),
+            Enrollment(
+                EnrollmentStatus.PENDING_UNENROLLMENT,
+                uint248(block.number)
+            )
+        );
+        emit OperatorQueuedUnenrollmentFromChallenger(
+            msg.sender,
+            challenger,
+            block.number,
+            challenger.challengeDelayBlocks()
+        );
+    }
+
+    /**
+     * @notice Completes the unenrollment of an operator from a challenger
+     * @param challenger The challenger to unenroll from
+     */
+    function completeUnenrollment(address challenger) public {
+        _completeUnenrollment(msg.sender, challenger);
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -224,28 +245,39 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
         address[] memory _challengers
     ) internal {
         for (uint256 i = 0; i < _challengers.length; i++) {
-            IRemoteChallenger challenger = IRemoteChallenger(_challengers[i]);
-            (bool exists, Enrollment memory enrollment) = enrolledChallengers[
-                operator
-            ].tryGet(address(challenger));
-
-            require(
-                exists &&
-                    enrollment.status ==
-                    EnrollmentStatus.PENDING_UNENROLLMENT &&
-                    block.number >=
-                    enrollment.unenrollmentStartBlock +
-                        challenger.challengeDelayBlocks(),
-                "HyperlaneServiceManager: Invalid unenrollment"
-            );
-
-            enrolledChallengers[operator].remove(address(challenger));
-            emit OperatorUnenrolledFromChallenger(
-                operator,
-                challenger,
-                block.number
-            );
+            _completeUnenrollment(operator, _challengers[i]);
         }
+    }
+
+    /**
+     * @notice Completes the unenrollment of an operator from a challenger
+     * @param operator The address of the operator
+     * @param _challenger The challenger to unenroll from
+     */
+    function _completeUnenrollment(
+        address operator,
+        address _challenger
+    ) internal {
+        IRemoteChallenger challenger = IRemoteChallenger(_challenger);
+        (bool exists, Enrollment memory enrollment) = enrolledChallengers[
+            operator
+        ].tryGet(address(challenger));
+
+        require(
+            exists &&
+                enrollment.status == EnrollmentStatus.PENDING_UNENROLLMENT &&
+                block.number >=
+                enrollment.unenrollmentStartBlock +
+                    challenger.challengeDelayBlocks(),
+            "HyperlaneServiceManager: Invalid unenrollment"
+        );
+
+        enrolledChallengers[operator].remove(address(challenger));
+        emit OperatorUnenrolledFromChallenger(
+            operator,
+            challenger,
+            block.number
+        );
     }
 
     /// @inheritdoc ECDSAServiceManagerBase
