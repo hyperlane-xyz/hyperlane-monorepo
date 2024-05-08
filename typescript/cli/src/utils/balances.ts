@@ -8,9 +8,10 @@ export async function assertNativeBalances(
   signer: ethers.Signer,
   chains: ChainName[],
   minBalanceWei: string,
-) {
+): Promise<boolean> {
   const address = await signer.getAddress();
   const minBalance = ethers.utils.formatEther(minBalanceWei.toString());
+  let lowBalanceExists = false;
   await Promise.all(
     chains.map(async (chain) => {
       const balanceWei = await multiProvider
@@ -25,9 +26,11 @@ export async function assertNativeBalances(
           message: `WARNING: ${error} Continue?`,
         });
         if (!isResume) throw new Error(error);
+        lowBalanceExists = true;
       }
     }),
   );
+  return lowBalanceExists;
 }
 
 export async function assertGasBalances(
@@ -35,13 +38,20 @@ export async function assertGasBalances(
   signer: ethers.Signer,
   chains: ChainName[],
   minGas: string,
-) {
+): Promise<boolean> {
+  let lowBalanceExists = false;
   await Promise.all(
     chains.map(async (chain) => {
       const provider = multiProvider.getProvider(chain);
       const gasPrice = await provider.getGasPrice();
       const minBalanceWei = gasPrice.mul(minGas).toString();
-      await assertNativeBalances(multiProvider, signer, [chain], minBalanceWei);
+      lowBalanceExists = await assertNativeBalances(
+        multiProvider,
+        signer,
+        [chain],
+        minBalanceWei,
+      );
     }),
   );
+  return lowBalanceExists;
 }

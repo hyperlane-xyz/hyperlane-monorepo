@@ -76,13 +76,17 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  await assertGasBalances(
+  const lowBalanceExists = await assertGasBalances(
     multiProvider,
     signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
-  logGreen('✅ Balances are sufficient');
+  logGreen(
+    lowBalanceExists
+      ? '⚠️ Balances may not be sufficient'
+      : '✅ Balances are sufficient',
+  );
 }
 
 // from parsed types
