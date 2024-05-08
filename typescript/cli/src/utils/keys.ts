@@ -36,6 +36,8 @@ export async function getImpersonatedSigner({
   skipConfirmation?: boolean;
 }) {
   key ||= await retrieveKey(IMPERSONATED_KEY_TYPE, skipConfirmation);
+  if (key.length != ETHEREUM_ADDRESS_LENGTH)
+    key = privateKeyToSigner(key).address;
   const signer = await addressToImpersonatedSigner(key);
   return { key, signer };
 }
@@ -61,9 +63,7 @@ async function addressToImpersonatedSigner(
 
   const formattedKey = address.trim().toLowerCase();
   if (address.length != ETHEREUM_ADDRESS_LENGTH)
-    throw new Error(
-      'Invalid address length. Please ensure you are passing an address and not a private key.',
-    );
+    throw new Error('Invalid address length.');
   else if (ethers.utils.isHexString(ensure0x(formattedKey)))
     return await impersonateAccount(address);
   else throw new Error('Invalid address format');
