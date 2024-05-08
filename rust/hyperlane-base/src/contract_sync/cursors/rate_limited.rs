@@ -10,7 +10,6 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
     ContractSyncCursor, CursorAction, HyperlaneWatermarkedLogStore, Indexed, Indexer, LogMeta,
-    SequenceAwareIndexer,
 };
 
 use crate::contract_sync::eta_calculator::SyncerEtaCalculator;
@@ -78,8 +77,7 @@ pub enum SyncDirection {
 /// queried is and also handling rate limiting. Rate limiting is automatically
 /// performed by `next_action`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
-    // TODO: Sequence information is no longer required, so just use Indexer
-    indexer: Arc<dyn SequenceAwareIndexer<T>>,
+    indexer: Arc<dyn Indexer<T>>,
     db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
     last_tip_update: Instant,
@@ -90,12 +88,12 @@ pub(crate) struct RateLimitedContractSyncCursor<T> {
 impl<T> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
-        indexer: Arc<dyn SequenceAwareIndexer<T>>,
+        indexer: Arc<dyn Indexer<T>>,
         db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
         initial_height: u32,
     ) -> Result<Self> {
-        let (_, tip) = indexer.latest_sequence_count_and_tip().await?;
+        let tip = indexer.get_finalized_block_number().await?;
         Ok(Self {
             indexer,
             db,
@@ -143,7 +141,7 @@ impl<T> RateLimitedContractSyncCursor<T> {
     }
 
     async fn get_next_range(&self) -> Result<Option<RangeInclusive<u32>>> {
-        let (_, tip) = self.indexer.latest_sequence_count_and_tip().await?;
+        let tip = self.indexer.get_finalized_block_number().await?;
         self.sync_state.get_next_range(tip).await
     }
 

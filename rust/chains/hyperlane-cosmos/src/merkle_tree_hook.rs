@@ -317,7 +317,7 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
                 }
             })
             .flatten()
-            .map(|(log, meta)| (Indexed::new(log).with_sequence(log.index() as _), meta))
+            .map(|(log, meta)| (log.into(), meta))
             .collect();
 
         Ok(result)

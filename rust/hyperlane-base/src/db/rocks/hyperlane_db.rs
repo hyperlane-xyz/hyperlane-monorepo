@@ -22,7 +22,7 @@ const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
-const GAS_PAYMENT_BY_SEQUENCE: &str = "indexing_decorator_by_igp_key_";
+const GAS_PAYMENT_BY_SEQUENCE: &str = "gas_payment_by_sequence_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
@@ -373,8 +373,6 @@ impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for Hyperlan
     }
 }
 
-/// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
-/// The high watermark cursor is relatively conservative in writing block numbers, so this shouldn't result in any events being missed.
 #[async_trait]
 impl HyperlaneWatermarkedLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Gets the block number high watermark
