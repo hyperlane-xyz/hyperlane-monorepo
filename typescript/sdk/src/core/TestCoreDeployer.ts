@@ -6,10 +6,11 @@ import { ChainMap } from '../types.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { TestCoreApp } from './TestCoreApp.js';
 import { CoreFactories } from './contracts.js';
+import { CoreConfig } from './types.js';
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
   async deploy(): Promise<ChainMap<HyperlaneContracts<CoreFactories>>> {
-    return super.deploy(testCoreConfig(testChains));
+    return super.deploy(testCoreConfig(testChains) as ChainMap<CoreConfig>);
   }
 
   async deployApp(): Promise<TestCoreApp> {
