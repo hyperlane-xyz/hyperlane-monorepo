@@ -32,8 +32,10 @@ describe('EvmIcaModule', async () => {
         multiProvider,
       });
 
-      expect(evmIcaModule.serialize().deployedInterchainAccountIsm).to.be.not
-        .undefined;
+      const { interchainAccountRouter, interchainAccountIsm } =
+        evmIcaModule.serialize();
+      expect(interchainAccountIsm).to.not.be.undefined;
+      expect(interchainAccountRouter).to.not.be.undefined;
     });
   });
 });
