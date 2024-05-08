@@ -1,18 +1,21 @@
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
+import {
+  HyperlaneModule,
+  HyperlaneModuleArgs,
+} from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { EvmIsmCreator } from '../ism/EvmIsmCreator.js';
-import { EvmIsmReader } from '../ism/read.js';
-import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
-import { CrudModule, CrudModuleArgs } from './AbstractCrudModule.js';
+import { EvmIsmCreator } from './EvmIsmCreator.js';
+import { EvmIsmReader } from './read.js';
+import { IsmConfig } from './types.js';
 
-export class EvmIsmModule extends CrudModule<
+export class EvmIsmModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   IsmConfig,
   HyperlaneContracts<ProxyFactoryFactories> & {
@@ -26,7 +29,7 @@ export class EvmIsmModule extends CrudModule<
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly deployer: HyperlaneDeployer<any, any>,
-    args: CrudModuleArgs<
+    args: HyperlaneModuleArgs<
       IsmConfig,
       HyperlaneContracts<ProxyFactoryFactories> & {
         deployedIsm: Address;

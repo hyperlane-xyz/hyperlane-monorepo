@@ -1,17 +1,20 @@
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAddresses } from '../contracts/types.js';
+import {
+  HyperlaneModule,
+  HyperlaneModuleArgs,
+} from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
-import { HookFactories } from '../hook/contracts.js';
-import { EvmHookReader } from '../hook/read.js';
-import { HookConfig } from '../hook/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../providers/ProviderType.js';
 
-import { CrudModule, CrudModuleArgs } from './AbstractCrudModule.js';
+import { HookFactories } from './contracts.js';
+import { EvmHookReader } from './read.js';
+import { HookConfig } from './types.js';
 
 // WIP example implementation of EvmHookModule
-export class EvmHookModule extends CrudModule<
+export class EvmHookModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   HookConfig,
   HyperlaneAddresses<HookFactories> & {
@@ -24,7 +27,7 @@ export class EvmHookModule extends CrudModule<
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly deployer: HyperlaneDeployer<any, any>,
-    args: CrudModuleArgs<
+    args: HyperlaneModuleArgs<
       HookConfig,
       HyperlaneAddresses<HookFactories> & {
         deployedHook: Address;
