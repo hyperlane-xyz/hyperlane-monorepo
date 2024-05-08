@@ -3,19 +3,14 @@ import { Logger } from 'pino';
 
 import { CallData, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { InterchainAccount } from '../../../../middleware/account/InterchainAccount.js';
-import { AccountConfig } from '../../../../middleware/account/types.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { TxTransformerType } from '../TxTransformerTypes.js';
+import {
+  EV5InterchainAccountTxTransformerProps,
+  TxTransformerType,
+} from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
-
-interface EV5InterchainAccountTxTransformerProps {
-  interchainAccount: InterchainAccount;
-  accountConfig: AccountConfig;
-  hookMetadata?: string;
-}
 
 export class EV5InterchainAccountTxTransformer
   implements EV5TxTransformerInterface

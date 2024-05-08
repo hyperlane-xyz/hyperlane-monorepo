@@ -1,12 +1,12 @@
 import type {
-  AccountConfig,
   ChainName,
-  InterchainAccount,
+  EV5GnosisSafeTxSubmitterProps,
+  EV5ImpersonatedAccountTxSubmitterProps,
+  EV5InterchainAccountTxTransformerProps,
   MultiProvider,
   TxSubmitterType,
   TxTransformerType,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 export interface SubmitterBuilderSettings {
   submitterMetadata: SubmitterMetadata;
@@ -25,11 +25,9 @@ export interface TransformerMetadata {
 }
 
 interface SubmitterSettings {
-  safeAddress?: Address;
-  userAddress?: Address;
+  eV5GnosisSafeProps: EV5GnosisSafeTxSubmitterProps;
+  eV5ImpersonatedAccountProps: EV5ImpersonatedAccountTxSubmitterProps;
 }
 interface TransformerSettings {
-  interchainAccount?: InterchainAccount;
-  accountConfig?: AccountConfig;
-  hookMetadata?: any;
+  eV5InterchainAccountProps: EV5InterchainAccountTxTransformerProps;
 }

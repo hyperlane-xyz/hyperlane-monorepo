@@ -304,14 +304,21 @@ export {
   protocolToDefaultProviderBuilder,
 } from './providers/providerBuilders.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
-export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
+export {
+  TxSubmitterType,
+  EV5GnosisSafeTxSubmitterProps,
+  EV5ImpersonatedAccountTxSubmitterProps,
+} from './providers/transactions/submitter/TxSubmitterTypes.js';
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export { TxTransformerInterface } from './providers/transactions/transformer/TxTransformerInterface.js';
-export { TxTransformerType } from './providers/transactions/transformer/TxTransformerTypes.js';
+export {
+  TxTransformerType,
+  EV5InterchainAccountTxTransformerProps,
+} from './providers/transactions/transformer/TxTransformerTypes.js';
 export { EV5InterchainAccountTxTransformer } from './providers/transactions/transformer/ethersV5/EV5InterchainAccountTxTransformer.js';
 export { EV5TxTransformerInterface } from './providers/transactions/transformer/ethersV5/EV5TxTransformerInterface.js';
 export { GasRouterDeployer } from './router/GasRouterDeployer.js';

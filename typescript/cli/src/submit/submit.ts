@@ -45,25 +45,29 @@ async function getSubmitter<TProtocol extends ProtocolType>(
     case TxSubmitterType.JSON_RPC:
       return new EV5JsonRpcTxSubmitter(multiProvider, chain);
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
-      if (!settings?.userAddress)
+      if (!settings)
         throw new Error(
-          `Missing param 'userAddress': Cannot instantiate EV5ImpersonatedAccountTxSubmitter.`,
+          'Must provide EV5ImpersonatedAccountTxSubmitterProps for impersonated account submitter.',
         );
 
       await verifyAnvil();
       await forkNetworkToMultiProvider(multiProvider, chain);
 
-      return new EV5ImpersonatedAccountTxSubmitter(multiProvider, chain, {
-        address: settings?.userAddress,
-      });
+      return new EV5ImpersonatedAccountTxSubmitter(
+        multiProvider,
+        chain,
+        settings.eV5ImpersonatedAccountProps,
+      );
     case TxSubmitterType.GNOSIS_SAFE:
-      if (!settings?.safeAddress)
+      if (!settings)
         throw new Error(
-          `Missing param 'safeAddress': Cannot instantiate EV5GnosisSafeTxSubmitter.`,
+          'Must provide EV5GnosisSafeTxSubmitterProps for Gnosis safe submitter.',
         );
-      return new EV5GnosisSafeTxSubmitter(multiProvider, chain, {
-        safeAddress: settings?.safeAddress,
-      });
+      return new EV5GnosisSafeTxSubmitter(
+        multiProvider,
+        chain,
+        settings.eV5GnosisSafeProps,
+      );
     default:
       throw new Error(`Invalid TxSubmitterType: ${type}`);
   }
@@ -86,19 +90,15 @@ async function getTransformer<TProtocol extends ProtocolType>(
 ): Promise<TxTransformerInterface<TProtocol>> {
   switch (type) {
     case TxTransformerType.ICA:
-      if (!settings?.interchainAccount)
+      if (!settings)
         throw new Error(
-          `Missing param 'interchainAccount': Cannot instantiate EV5InterchainAccountTxTransformer.`,
+          'Must provide EV5InterchainAccountTxTransformerProps for ICA transformer.',
         );
-      if (!settings?.accountConfig)
-        throw new Error(
-          `Missing param 'accountConfig': Cannot instantiate EV5InterchainAccountTxTransformer.`,
-        );
-      return new EV5InterchainAccountTxTransformer(multiProvider, chain, {
-        interchainAccount: settings.interchainAccount,
-        accountConfig: settings.accountConfig,
-        hookMetadata: settings.hookMetadata,
-      });
+      return new EV5InterchainAccountTxTransformer(
+        multiProvider,
+        chain,
+        settings.eV5InterchainAccountProps,
+      );
     default:
       throw new Error(`Invalid TxTransformerType: ${type}`);
   }

@@ -7,13 +7,12 @@ import { ChainName } from '../../../../types.js';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { TxSubmitterType } from '../TxSubmitterTypes.js';
+import {
+  EV5GnosisSafeTxSubmitterProps,
+  TxSubmitterType,
+} from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-
-interface EV5GnosisSafeTxSubmitterProps {
-  safeAddress: Address;
-}
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =
