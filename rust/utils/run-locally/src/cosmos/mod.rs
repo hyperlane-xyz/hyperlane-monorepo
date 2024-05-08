@@ -617,10 +617,11 @@ fn termination_invariants_met(
 
 #[cfg(feature = "cosmos")]
 mod test {
-    use super::*;
 
     #[test]
     fn test_run() {
+        use crate::cosmos::run_locally;
+
         run_locally()
     }
 }

@@ -1,7 +1,7 @@
 use derive_new::new;
 use std::io::{Read, Write};
 
-use crate::{Decode, Encode, HyperlaneProtocolError, Sequenced, H256};
+use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
 /// Merkle Tree Hook insertion event
 #[derive(Debug, Copy, Clone, new, Eq, PartialEq, Hash)]
@@ -19,12 +19,6 @@ impl MerkleTreeInsertion {
     /// ID of the message inserted
     pub fn message_id(&self) -> H256 {
         self.message_id
-    }
-}
-
-impl Sequenced for MerkleTreeInsertion {
-    fn sequence(&self) -> u32 {
-        self.leaf_index
     }
 }
 
