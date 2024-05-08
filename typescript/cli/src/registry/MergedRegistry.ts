@@ -92,7 +92,7 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }): Promise<void> {
     return this.multiRegistryWrite(
       async (registry) => await registry.addChain(chain),
-      `adding chain ${chain.chainName}`,
+      `Adding chain ${chain.chainName}`,
     );
   }
 
@@ -103,21 +103,21 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }): Promise<void> {
     return this.multiRegistryWrite(
       async (registry) => await registry.updateChain(chain),
-      `updating chain ${chain.chainName}`,
+      `Updating chain ${chain.chainName}`,
     );
   }
 
   async removeChain(chain: ChainName): Promise<void> {
     return this.multiRegistryWrite(
       async (registry) => await registry.removeChain(chain),
-      `removing chain ${chain}`,
+      `Removing chain ${chain}`,
     );
   }
 
   async addWarpRoute(config: WarpCoreConfig): Promise<void> {
     return this.multiRegistryWrite(
       async (registry) => await registry.addWarpRoute(config),
-      'adding warp route',
+      'Adding warp route',
     );
   }
 
@@ -135,7 +135,7 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
     for (const registry of this.registries) {
       // TODO remove this when GithubRegistry supports write methods
       if (registry.type === RegistryType.Github) {
-        this.logger.warn(`skipping ${logMsg} at ${registry.type} registry`);
+        this.logger.warn(`Skipping ${logMsg} at ${registry.type} registry`);
         continue;
       }
       try {
@@ -143,11 +143,11 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
           `${logMsg} at ${registry.type} registry at ${registry.uri}`,
         );
         await writeFn(registry);
-        this.logger.info(`done ${logMsg} at ${registry.type} registry`);
+        this.logger.info(`Done ${logMsg} at ${registry.type} registry`);
       } catch (error) {
         // To prevent loss of artifacts, MergedRegistry write methods are failure tolerant
         this.logger.error(
-          `failure ${logMsg} at ${registry.type} registry`,
+          `Failure ${logMsg} at ${registry.type} registry`,
           error,
         );
       }
