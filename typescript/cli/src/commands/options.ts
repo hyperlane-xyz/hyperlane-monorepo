@@ -29,7 +29,7 @@ export const registryUriCommandOption: Options = {
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
-  default: './',
+  default: '~/.hyperlane',
 };
 
 export const skipConfirmationOption: Options = {
