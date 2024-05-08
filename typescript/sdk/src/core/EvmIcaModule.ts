@@ -17,7 +17,7 @@ export class EvmIcaModule extends HyperlaneModule<
   InterchainAccountConfig,
   HyperlaneContracts<InterchainAccountFactories>
 > {
-  protected logger = rootLogger.child({ module: 'EvmIsmModule' });
+  protected logger = rootLogger.child({ module: 'EvmIcaModule' });
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,

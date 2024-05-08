@@ -34,8 +34,8 @@ describe('EvmIcaModule', async () => {
 
       const { interchainAccountRouter, interchainAccountIsm } =
         evmIcaModule.serialize();
-      expect(interchainAccountIsm).to.not.be.undefined;
-      expect(interchainAccountRouter).to.not.be.undefined;
+      expect(interchainAccountIsm).to.exist;
+      expect(interchainAccountRouter).to.exist;
     });
   });
 });
