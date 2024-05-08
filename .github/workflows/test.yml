@@ -18,6 +18,7 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  REGISTRY_URI: ../../node_modules/@hyperlane-xyz/registry/dist
 
 jobs:
   yarn-install:

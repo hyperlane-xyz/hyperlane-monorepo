@@ -15,12 +15,12 @@ import {
   WithAddress,
   assert,
   concurrentMap,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import {
   AggregationIsmConfig,
@@ -45,7 +45,7 @@ export type DerivedIsmConfigWithAddress = WithAddress<
   Exclude<IsmConfig, Address>
 >;
 
-interface IsmReader {
+export interface IsmReader {
   deriveIsmConfig(address: Address): Promise<DerivedIsmConfigWithAddress>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
@@ -63,14 +63,12 @@ export class EvmIsmReader implements IsmReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: ChainName,
-    protected readonly concurrency: number = 20,
+    protected readonly chain: ChainNameOrId,
+    protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
+      chain,
+    ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(config: IsmConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberSerializer, space);
+    this.provider = multiProvider.getProvider(chain);
   }
 
   async deriveIsmConfig(

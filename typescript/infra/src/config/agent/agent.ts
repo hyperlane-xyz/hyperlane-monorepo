@@ -5,11 +5,11 @@ import {
   ChainMap,
   ChainName,
   RpcConsensusType,
-  chainMetadata,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
+import { getChain } from '../../../config/registry.js';
 import { AgentChainNames, AgentRole, Role } from '../../roles.js';
 import { DeployEnvironment } from '../environment.js';
 import { HelmImageValues } from '../infrastructure.js';
@@ -195,12 +195,14 @@ export const allAgentChainNames = (agentChainNames: AgentChainNames) => [
 // Returns the default KeyConfig for the `chainName`'s chain signer.
 // For Ethereum or Sealevel, this is a hexKey, for Cosmos, this is a cosmosKey.
 export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
-  const metadata = chainMetadata[chainName];
+  const metadata = getChain(chainName);
 
   switch (metadata?.protocol) {
     case ProtocolType.Cosmos:
       if (metadata.bech32Prefix === undefined) {
-        throw new Error(`Bech32 prefix for cosmos chain ${name} is undefined`);
+        throw new Error(
+          `Bech32 prefix for cosmos chain ${chainName} is undefined`,
+        );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
     // For Ethereum and Sealevel, use a hex key
@@ -220,7 +222,7 @@ export function getAgentChainNamesFromConfig(
 ): AgentChainNames {
   ensureAgentChainConfigIncludesAllChainNames(config, supportedChainNames);
 
-  return objMap(config, (role, roleConfig) =>
+  return objMap(config, (_, roleConfig) =>
     Object.entries(roleConfig)
       .filter(([_chain, enabled]) => enabled)
       .map(([chain]) => chain),

@@ -93,7 +93,6 @@ impl HyperlaneChain for CosmosMailbox {
 
 impl Debug for CosmosMailbox {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        // Debug::fmt(&(self as &dyn HyperlaneContract), f)
         todo!()
     }
 }

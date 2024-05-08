@@ -1,0 +1,9 @@
+chainId: 1
+domainId: 1
+name: ethereum
+protocol: ethereum
+rpcUrls:
+  - http: http://127.0.0.1:8555
+blocks:
+  confirmations: 1
+  estimateBlockTime: 1

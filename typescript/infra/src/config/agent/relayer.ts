@@ -9,11 +9,10 @@ import {
   HyperlaneFactories,
   MatchingList,
   RelayerConfig as RelayerAgentConfig,
-  chainMetadata,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
+import { getChain, getDomainId } from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
@@ -114,7 +113,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
       // AWS keys only work for Ethereum chains
       for (const chainName of this.relayChains) {
-        if (chainMetadata[chainName].protocol === ProtocolType.Ethereum) {
+        if (getChain(chainName).protocol === ProtocolType.Ethereum) {
           chainSigners[chainName] = awsKey;
         }
       }
@@ -180,9 +179,9 @@ export function matchingList<F extends HyperlaneFactories>(
         );
 
       matchingList.push({
-        originDomain: getDomainId(chainMetadata[source]),
+        originDomain: getDomainId(source),
         senderAddress: uniqueAddresses(addressesMap[source]),
-        destinationDomain: getDomainId(chainMetadata[destination]),
+        destinationDomain: getDomainId(destination),
         recipientAddress: uniqueAddresses(addressesMap[destination]),
       });
     }

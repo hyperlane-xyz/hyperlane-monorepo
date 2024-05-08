@@ -1,4 +1,3 @@
-import { assert } from 'console';
 import { ethers, providers } from 'ethers';
 
 import {
@@ -18,14 +17,15 @@ import {
 import {
   Address,
   WithAddress,
+  assert,
   concurrentMap,
   eqAddress,
-  ethersBigNumberSerializer,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import {
   AggregationHookConfig,
@@ -42,7 +42,7 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-interface HookReader {
+export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
     address: Address,
@@ -74,14 +74,12 @@ export class EvmHookReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    chain: ChainName,
-    protected readonly concurrency: number = 20,
+    protected readonly chain: ChainNameOrId,
+    protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
+      chain,
+    ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = this.multiProvider.getProvider(chain);
-  }
-
-  public static stringifyConfig(config: HookConfig, space?: number): string {
-    return JSON.stringify(config, ethersBigNumberSerializer, space);
+    this.provider = multiProvider.getProvider(chain);
   }
 
   async deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>> {

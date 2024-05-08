@@ -1,5 +1,13 @@
 .env*
 /dist
 /cache
+
+# Deployment artifacts and local registry configs
 /configs
 /artifacts
+/chains
+/deployments
+
+# Test artifacts
+/test-configs/**/addresses.yaml
+/test-configs/*/deployments

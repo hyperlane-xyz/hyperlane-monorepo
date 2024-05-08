@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   InterchainGasPaymaster,
   ProxyAdmin,
@@ -5,7 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
+import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -47,9 +49,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
-      const remoteId =
-        chainMetadata[remote]?.domainId ??
-        this.multiProvider.getDomainId(remote);
+      const remoteId = this.multiProvider.getDomainId(remote);
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
@@ -95,15 +95,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       return gasOracle;
     }
 
-    this.logger.debug(`Configuring gas oracle from ${chain}...`);
+    this.logger.info(`Configuring gas oracle from ${chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
       // check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      const remoteDomain =
-        chainMetadata[remote]?.domainId ??
-        this.multiProvider.getDomainId(remote);
+      const remoteDomain = this.multiProvider.getDomainId(remote);
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
 
@@ -111,14 +109,25 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
-        this.logger.debug(
-          `-> ${remote} ${serializeDifference(actual, desired)}`,
+        this.logger.info(
+          `${chain} -> ${remote}: ${serializeDifference(actual, desired)}`,
         );
         configsToSet.push({
           remoteDomain,
           ...desired,
         });
       }
+
+      const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
+      const exampleRemoteGasCost = desired.tokenExchangeRate
+        .mul(desired.gasPrice)
+        .mul(exampleRemoteGas)
+        .div(TOKEN_EXCHANGE_RATE_SCALE);
+      this.logger.info(
+        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
+          exampleRemoteGasCost,
+        )}`,
+      );
     }
 
     if (configsToSet.length > 0) {

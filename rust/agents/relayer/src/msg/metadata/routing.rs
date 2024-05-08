@@ -14,7 +14,7 @@ pub struct RoutingIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for RoutingIsmMetadataBuilder {
-    #[instrument(err, skip(self))]
+    #[instrument(err, skip(self), ret)]
     async fn build(
         &self,
         ism_address: H256,

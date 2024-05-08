@@ -1,10 +1,6 @@
 import { HexString, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AdapterClassType, MultiProtocolApp } from '../app/MultiProtocolApp.js';
-import {
-  HyperlaneEnvironment,
-  hyperlaneEnvironments,
-} from '../consts/environments/index.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { TypedTransactionReceipt } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -25,17 +21,6 @@ export class MultiProtocolCore extends MultiProtocolApp<
     public readonly logger = rootLogger.child({ module: 'MultiProtocolCore' }),
   ) {
     super(multiProvider, addresses, logger);
-  }
-
-  static fromEnvironment<Env extends HyperlaneEnvironment>(
-    env: Env,
-    multiProvider: MultiProtocolProvider,
-  ): MultiProtocolCore {
-    const envAddresses = hyperlaneEnvironments[env];
-    if (!envAddresses) {
-      throw new Error(`No addresses found for ${env}`);
-    }
-    return MultiProtocolCore.fromAddressesMap(envAddresses, multiProvider);
   }
 
   static fromAddressesMap(

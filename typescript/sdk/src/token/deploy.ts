@@ -28,9 +28,7 @@ import {
   TokenMetadata,
   TokenType,
   isCollateralConfig,
-  isCollateralVaultConfig,
   isErc20Metadata,
-  isFastConfig,
   isNativeConfig,
   isSyntheticConfig,
   isTokenMetadata,
@@ -38,6 +36,7 @@ import {
 } from './config.js';
 import {
   HypERC20Factories,
+  HypERC20contracts,
   HypERC721Factories,
   HypERC721contracts,
   hypERC20contracts,
@@ -67,23 +66,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   routerContractKey(config: ERC20RouterConfig) {
-    if (isCollateralConfig(config)) {
-      if (isFastConfig(config)) {
-        return TokenType.fastCollateral;
-      } else if (isCollateralVaultConfig(config)) {
-        return TokenType.collateralVault;
-      } else {
-        return TokenType.collateral;
-      }
-    } else if (isNativeConfig(config)) {
-      return config.scale ? TokenType.nativeScaled : TokenType.native;
-    } else if (isSyntheticConfig(config)) {
-      return isFastConfig(config)
-        ? TokenType.fastSynthetic
-        : TokenType.synthetic;
-    } else {
-      throw new Error('Unknown collateral type when constructing router name');
-    }
+    return config.type as keyof HypERC20contracts;
   }
 
   async constructorArgs<K extends keyof HypERC20Factories>(
@@ -104,7 +87,7 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   async initializeArgs(_: ChainName, config: HypERC20Config): Promise<any> {
-    // ISM config can be an object, but is not supported right now
+    // ISM config can be an object, but is not supported right now.
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('Token deployer does not support ISM objects currently');
     }
@@ -205,11 +188,13 @@ export class HypERC20Deployer extends GasRouterDeployer<
   }
 
   async deployContracts(chain: ChainName, config: HypERC20Config) {
-    const { [this.routerContractKey(config)]: router } =
-      await super.deployContracts(chain, config);
-
-    await this.configureClient(chain, router as MailboxClient, config);
-    return { [config.type]: router } as any;
+    const deployedContracts = await super.deployContracts(chain, config);
+    const router = deployedContracts[this.routerContractKey(config)];
+    await this.configureClient(chain, router, config);
+    return {
+      [config.type]: router,
+      ...deployedContracts,
+    } as any;
   }
 
   async buildTokenMetadata(
