@@ -388,7 +388,6 @@ where
         let contract_call_futures = messages
             .iter()
             .map(|batch_item| async {
-                // move ownership of the batch inside the closure
                 self.process_contract_call(
                     &batch_item.data,
                     &batch_item.submission_data.metadata,
