@@ -1,6 +1,6 @@
 use eyre::eyre;
 use h_eth::TransactionOverrides;
-use hyperlane_core::config::ConfigErrResultExt;
+use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
 use url::Url;
 
@@ -14,6 +14,7 @@ pub fn build_ethereum_connection_conf(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
+    operation_batch: OperationBatchConfig,
 ) -> Option<ChainConnectionConf> {
     let Some(first_url) = rpcs.to_owned().clone().into_iter().next() else {
         return None;
@@ -64,25 +65,10 @@ pub fn build_ethereum_connection_conf(
         })
         .unwrap_or_default();
 
-    let multicall3_address = chain
-        .chain(err)
-        .get_opt_key("batchContractAddress")
-        .parse_address_hash()
-        .end();
-
-    let max_batch_size = chain
-        .chain(err)
-        .get_opt_key("maxBatchSize")
-        .parse_u32()
-        .unwrap_or(1);
-
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
-        message_batch: h_eth::MessageBatchConfig {
-            multicall3_address,
-            max_batch_size,
-        },
+        operation_batch,
     }))
 }
 
@@ -90,6 +76,7 @@ pub fn build_cosmos_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
+    operation_batch: OperationBatchConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
     let grpcs =
@@ -159,6 +146,7 @@ pub fn build_cosmos_connection_conf(
             canonical_asset.unwrap(),
             gas_price.unwrap(),
             contract_address_bytes.unwrap().try_into().unwrap(),
+            operation_batch,
         )))
     }
 }
@@ -169,18 +157,28 @@ pub fn build_connection_conf(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     default_rpc_consensus_type: &str,
+    operation_batch: OperationBatchConfig,
 ) -> Option<ChainConnectionConf> {
     match domain_protocol {
-        HyperlaneDomainProtocol::Ethereum => {
-            build_ethereum_connection_conf(rpcs, chain, err, default_rpc_consensus_type)
-        }
+        HyperlaneDomainProtocol::Ethereum => build_ethereum_connection_conf(
+            rpcs,
+            chain,
+            err,
+            default_rpc_consensus_type,
+            operation_batch,
+        ),
         HyperlaneDomainProtocol::Fuel => rpcs
             .iter()
             .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
         HyperlaneDomainProtocol::Sealevel => rpcs.iter().next().map(|url| {
-            ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf { url: url.clone() })
+            ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
+                url: url.clone(),
+                operation_batch,
+            })
         }),
-        HyperlaneDomainProtocol::Cosmos => build_cosmos_connection_conf(rpcs, chain, err),
+        HyperlaneDomainProtocol::Cosmos => {
+            build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
+        }
     }
 }
