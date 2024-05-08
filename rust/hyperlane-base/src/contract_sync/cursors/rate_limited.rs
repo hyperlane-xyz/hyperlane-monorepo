@@ -237,11 +237,6 @@ pub(crate) mod test {
             async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(hyperlane_core::Indexed<()> , LogMeta)>>;
             async fn get_finalized_block_number(&self) -> ChainResult<u32>;
         }
-
-        #[async_trait]
-        impl SequenceAwareIndexer<()> for Indexer {
-            async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
-        }
     }
 
     mockall::mock! {
@@ -272,16 +267,16 @@ pub(crate) mod test {
             Some(chain_tips) => {
                 for tip in chain_tips {
                     indexer
-                        .expect_latest_sequence_count_and_tip()
+                        .expect_get_finalized_block_number()
                         .times(1)
                         .in_sequence(&mut seq)
-                        .returning(move || Ok((None, tip)));
+                        .returning(move || Ok(tip));
                 }
             }
             None => {
                 indexer
-                    .expect_latest_sequence_count_and_tip()
-                    .returning(move || Ok((None, 100)));
+                    .expect_get_finalized_block_number()
+                    .returning(move || Ok(100));
                 indexer
                     .expect_get_finalized_block_number()
                     .returning(move || Ok(100));
