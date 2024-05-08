@@ -12,7 +12,6 @@ import { ChainNameOrId } from '../types.js';
 
 import { CrudModule, CrudModuleArgs } from './AbstractCrudModule.js';
 
-// WIP example implementation of EvmIsmModule
 export class EvmIsmModule extends CrudModule<
   ProtocolType.Ethereum,
   IsmConfig,
@@ -50,8 +49,6 @@ export class EvmIsmModule extends CrudModule<
     await this.creator.update({
       destination,
       config,
-      // origin?: string | undefined;
-      // mailbox?: string | undefined;
       existingIsmAddress: this.args.addresses.deployedIsm,
     });
     return [];
