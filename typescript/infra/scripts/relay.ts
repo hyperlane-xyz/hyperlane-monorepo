@@ -1,4 +1,4 @@
-import { HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import { HyperlaneRelayer, RelayerCacheSchema } from '@hyperlane-xyz/sdk';
 
 import { readFile, writeFile } from 'fs/promises';
 
@@ -12,14 +12,16 @@ async function main() {
   const { core } = await getHyperlaneCore(environment);
   const relayer = new HyperlaneRelayer(core);
 
-  const chains = ['optimism', 'arbitrum', 'polygon', 'celo', 'base'];
+  // target subset of chains
+  // const chains = ['ethereum', 'polygon', 'bsc']
+  const chains = undefined;
 
   try {
     const contents = await readFile(CACHE_PATH, 'utf-8');
-    const cache = JSON.parse(contents);
+    const data = JSON.parse(contents);
+    const cache = RelayerCacheSchema.parse(data);
+    relayer.hydrate(cache);
     console.log(`Relayer cache loaded from ${CACHE_PATH}`);
-
-    await relayer.hydrate(cache);
   } catch (e) {
     console.error(`Failed to load cache from ${CACHE_PATH}`);
   }

@@ -1,6 +1,7 @@
 import { TransactionReceipt } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
+import { z } from 'zod';
 
 import {
   Address,
@@ -12,21 +13,31 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DerivedHookConfigWithAddress, EvmHookReader } from '../hook/read.js';
+import { HookConfigSchema } from '../hook/schemas.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
+import { IsmConfigObjectSchema } from '../ism/schemas.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { DispatchedMessage } from './types.js';
 
-type AddressCache<T> = Record<Address, T>;
-type ChainCache<T> = Record<ChainName, T>;
+const WithAddressSchema = z.object({
+  address: z.string(),
+});
 
-type RelayerCache = {
-  hook: ChainCache<AddressCache<DerivedHookConfigWithAddress>>;
-  ism: ChainCache<AddressCache<DerivedIsmConfigWithAddress>>;
-};
+const DerivedHookConfigWithAddressSchema =
+  HookConfigSchema.and(WithAddressSchema);
+const DerivedIsmConfigWithAddressSchema =
+  IsmConfigObjectSchema.and(WithAddressSchema);
+
+export const RelayerCacheSchema = z.object({
+  hook: z.record(z.record(DerivedHookConfigWithAddressSchema)),
+  ism: z.record(z.record(DerivedIsmConfigWithAddressSchema)),
+});
+
+type RelayerCache = z.infer<typeof RelayerCacheSchema>;
 
 export class HyperlaneRelayer {
   private multiProvider: MultiProvider;
