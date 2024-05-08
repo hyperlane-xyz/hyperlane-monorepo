@@ -5,7 +5,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches:
+      - '*' # run against all branches
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -175,6 +176,8 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
+    if:
+      github.event_name == 'pull_request' && github.event.base_ref == 'main' || github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [yarn-build]
     strategy:
       matrix:
@@ -264,6 +267,8 @@ jobs:
 
   cli-e2e:
     runs-on: larger-runner
+    if:
+      github.event_name == 'pull_request' && github.event.base_ref == 'main' || github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [yarn-build]
     strategy:
       matrix:
