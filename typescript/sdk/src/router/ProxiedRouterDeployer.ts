@@ -8,7 +8,6 @@ import {
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
-import { resolveOrDeployAccountOwner } from '../deploy/types.js';
 import { ChainName } from '../types.js';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer.js';
@@ -77,11 +76,7 @@ export abstract class ProxiedRouterDeployer<
         constants.AddressZero,
         this.multiProvider.getProvider(chain),
       );
-      adminOwner = await resolveOrDeployAccountOwner(
-        this.multiProvider,
-        chain,
-        config.owner,
-      );
+      adminOwner = config.owner;
     }
 
     await super.runIfOwner(chain, proxyAdmin, async () => {

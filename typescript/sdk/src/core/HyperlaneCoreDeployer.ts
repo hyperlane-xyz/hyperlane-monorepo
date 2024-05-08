@@ -69,11 +69,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       [domain],
     );
-    // resolve the owner account so that the subsequent calls terminate early
-    config.owner = await this.resolveInterchainAccountAsOwner(
-      chain,
-      config.owner,
-    );
 
     let defaultIsm = await mailbox.defaultIsm();
     const matches = await moduleMatchesConfig(
@@ -111,15 +106,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // configure mailbox
     try {
-      const owner = await this.resolveInterchainAccountAsOwner(
-        chain,
-        config.owner,
-      );
       this.logger.debug('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
         mailbox.initialize(
-          owner,
+          config.owner,
           defaultIsm,
           defaultHook.address,
           requiredHook.address,
@@ -199,7 +190,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
-    return hooks[config.type];
+    if (typeof config === 'string') {
+      return Object.values(hooks)[0];
+    } else {
+      return hooks[config.type];
+    }
   }
 
   async deployIsm(

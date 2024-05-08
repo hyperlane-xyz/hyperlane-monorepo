@@ -157,7 +157,7 @@ export class EvmHookReader implements HookReader {
     const beneficiary = await hook.beneficiary();
 
     const overhead: IgpHookConfig['overhead'] = {};
-    const oracleConfig: IgpHookConfig['oracleConfig'] = {};
+    // const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
     let oracleKey: string | undefined;
 
@@ -169,12 +169,12 @@ export class EvmHookReader implements HookReader {
       async (domainId) => {
         const chainName = this.multiProvider.getChainName(domainId);
         try {
-          const { tokenExchangeRate, gasPrice } =
-            await hook.getExchangeRateAndGasPrice(domainId);
+          // const { tokenExchangeRate, gasPrice } =
+          //   await hook.getExchangeRateAndGasPrice(domainId);
+          // oracleConfig[chainName] = { tokenExchangeRate, gasPrice };
           const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
 
           overhead[chainName] = domainGasOverhead.toNumber();
-          oracleConfig[chainName] = { tokenExchangeRate, gasPrice };
 
           const { gasOracle } = await hook.destinationGasConfigs(domainId);
           const oracle = StorageGasOracle__factory.connect(
@@ -212,7 +212,7 @@ export class EvmHookReader implements HookReader {
       beneficiary,
       oracleKey: oracleKey ?? owner,
       overhead,
-      oracleConfig,
+      // oracleConfig,
     };
   }
 
@@ -330,9 +330,11 @@ export class EvmHookReader implements HookReader {
     const hook = PausableHook__factory.connect(address, this.provider);
     assert((await hook.hookType()) === OnchainHookType.PAUSABLE);
 
+    const paused = await hook.paused();
     const owner = await hook.owner();
     return {
       owner,
+      paused,
       address,
       type: HookType.PAUSABLE,
     };

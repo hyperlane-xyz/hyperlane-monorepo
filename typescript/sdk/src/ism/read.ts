@@ -98,7 +98,14 @@ export class EvmIsmReader implements IsmReader {
       case ModuleType.CCIP_READ:
         throw new Error('CCIP_READ does not have a corresponding IsmType');
       default:
-        throw new Error('Unknown ModuleType');
+        this.logger.warn(`Unknown module type ${moduleType}`, {
+          moduleType,
+          address,
+        });
+        return {
+          type: moduleType,
+          address,
+        };
     }
   }
 

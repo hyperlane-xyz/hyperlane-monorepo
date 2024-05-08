@@ -1,11 +1,6 @@
 import { expect } from 'chai';
 
-import {
-  ChainMap,
-  GasOracleContractType,
-  HookType,
-  HooksConfig,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HookType, HooksConfig } from '@hyperlane-xyz/sdk';
 
 import { readHooksConfigMap } from '../config/hooks.js';
 
@@ -37,9 +32,6 @@ describe('readHooksConfigMap', () => {
                   beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-                  gasOracleType: {
-                    anvil2: GasOracleContractType.StorageGasOracle,
-                  },
                   overhead: { anvil2: 50000 },
                 },
               ],
@@ -70,9 +62,6 @@ describe('readHooksConfigMap', () => {
                   beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-                  gasOracleType: {
-                    anvil1: GasOracleContractType.StorageGasOracle,
-                  },
                   overhead: { anvil1: 50000 },
                 },
               ],
