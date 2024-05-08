@@ -8,7 +8,7 @@ import {
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 
-import { Chains } from '../../consts/chains.js';
+import { TestChainName } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
@@ -25,8 +25,8 @@ import { InterchainAccountFactories } from './contracts.js';
 import { AccountConfig } from './types.js';
 
 describe('InterchainAccounts', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
 
   let signer: SignerWithAddress;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;

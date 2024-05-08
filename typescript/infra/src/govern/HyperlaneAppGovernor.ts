@@ -12,6 +12,8 @@ import {
   OwnableConfig,
   OwnerViolation,
 } from '@hyperlane-xyz/sdk';
+// @ts-ignore
+import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
@@ -19,8 +21,6 @@ import {
   eqAddress,
   objMap,
 } from '@hyperlane-xyz/utils';
-
-import { canProposeSafeTransactions } from '../utils/safe.js';
 
 import {
   ManualMultiSend,

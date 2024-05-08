@@ -2,32 +2,30 @@ import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
+  ChainMetadata,
   TokenType,
+  WarpCoreConfig,
+  WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
+import { objFilter } from '@hyperlane-xyz/utils';
 
+import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
-import { FileFormat, readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-import { readChainConfigsIfExists } from './chain.js';
-
-export function readWarpRouteDeployConfig(filePath: string) {
+export function readWarpRouteDeployConfig(
+  filePath: string,
+): WarpRouteDeployConfig {
   const config = readYamlOrJson(filePath);
   if (!config)
     throw new Error(`No warp route deploy config found at ${filePath}`);
-  const result = WarpRouteDeployConfigSchema.safeParse(config);
-  if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(
-      `Invalid warp config: ${firstIssue.path} => ${firstIssue.message}`,
-    );
-  }
-  return result.data;
+  return WarpRouteDeployConfigSchema.parse(config);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
@@ -35,18 +33,15 @@ export function isValidWarpRouteDeployConfig(config: any) {
 }
 
 export async function createWarpRouteDeployConfig({
-  format,
+  context,
   outPath,
-  chainConfigPath,
 }: {
-  format: FileFormat;
+  context: CommandContext;
   outPath: string;
-  chainConfigPath: string;
 }) {
   logBlue('Creating a new warp route deployment config');
-  const customChains = readChainConfigsIfExists(chainConfigPath);
   const baseChain = await runSingleChainSelectionStep(
-    customChains,
+    context.chainMetadata,
     'Select base chain with the original token to warp',
   );
 
@@ -73,8 +68,12 @@ export async function createWarpRouteDeployConfig({
     ? ethers.constants.AddressZero
     : await input({ message: addressMessage });
 
+  const metadataWithoutBase = objFilter(
+    context.chainMetadata,
+    (chain, _): _ is ChainMetadata => chain !== baseChain,
+  );
   const syntheticChains = await runMultiChainSelectionStep(
-    customChains,
+    metadataWithoutBase,
     'Select chains to which the base token will be connected',
   );
 
@@ -104,11 +103,19 @@ export async function createWarpRouteDeployConfig({
 
   if (isValidWarpRouteDeployConfig(result)) {
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);
-    writeYamlOrJson(outPath, result, format);
+    writeYamlOrJson(outPath, result);
   } else {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
     );
     throw new Error('Invalid multisig config');
   }
+}
+
+// Note, this is different than the function above which reads a config
+// for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
+export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
+  const config = readYamlOrJson(filePath);
+  if (!config) throw new Error(`No warp route config found at ${filePath}`);
+  return WarpCoreConfigSchema.parse(config);
 }

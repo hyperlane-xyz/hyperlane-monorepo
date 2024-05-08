@@ -2,16 +2,14 @@ import { providers } from 'ethers';
 
 import {
   ChainMetadata,
-  ChainMetadataManager,
   ChainName,
-  CoreChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
   RpcConsensusType,
-  chainMetadata,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../config/registry.js';
 import { getSecretRpcEndpoint } from '../agents/index.js';
 
 import { DeployEnvironment } from './environment.js';
@@ -26,14 +24,13 @@ export async function fetchProvider(
   chainName: ChainName,
   connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
-  const cmm = new ChainMetadataManager(chainMetadata);
-  const chainData = cmm.tryGetChainMetadata(chainName);
-  if (!chainData) {
+  const chainMetadata = getChain(chainName);
+  if (!chainMetadata) {
     throw Error(`Unsupported chain: ${chainName}`);
   }
-  const chainId = chainData.chainId;
+  const chainId = chainMetadata.chainId;
   const single = connectionType === RpcConsensusType.Single;
-  let rpcData = chainData.rpcUrls.map((url) => url.http);
+  let rpcData = chainMetadata.rpcUrls.map((url) => url.http);
   if (rpcData.length === 0) {
     rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   }
@@ -56,10 +53,10 @@ export async function fetchProvider(
   }
 }
 
-export function getChainMetadatas(chains: Array<CoreChainName>) {
+export function getChainMetadatas(chains: Array<ChainName>) {
   const allMetadatas = Object.fromEntries(
     chains
-      .map((chain) => chainMetadata[chain])
+      .map((chain) => getChain(chain))
       .map((metadata) => [metadata.name, metadata]),
   );
 

@@ -5,10 +5,8 @@
 #   native
 #   collateral
 #   synthetic
-#   collateralUri
-#   syntheticUri
-#   fastCollateral
-#   fastSynthetic
+#
+# see comprehensive [list](https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/token/config.ts#L8)
 ---
 anvil1:
   type: native

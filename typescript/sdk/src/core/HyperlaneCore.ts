@@ -16,11 +16,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
-import { chainMetadata } from '../consts/chainMetadata.js';
-import {
-  HyperlaneEnvironment,
-  hyperlaneEnvironments,
-} from '../consts/environments/index.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
@@ -34,17 +29,6 @@ import { CoreFactories, coreFactories } from './contracts.js';
 import { DispatchedMessage } from './types.js';
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
-  static fromEnvironment<Env extends HyperlaneEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider,
-  ): HyperlaneCore {
-    const envAddresses = hyperlaneEnvironments[env];
-    if (!envAddresses) {
-      throw new Error(`No addresses found for ${env}`);
-    }
-    return HyperlaneCore.fromAddressesMap(envAddresses, multiProvider);
-  }
-
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
@@ -72,7 +56,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return objFilter(
       config,
       (chainName, _): _ is RouterConfig =>
-        chainMetadata[chainName].protocol === ProtocolType.Ethereum,
+        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
     );
   };
 

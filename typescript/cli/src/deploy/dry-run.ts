@@ -6,7 +6,6 @@ import {
   setFork,
 } from '@hyperlane-xyz/sdk';
 
-import { Command } from '../commands/deploy.js';
 import { logGray, logGreen, warnYellow } from '../logger.js';
 import { ENV } from '../utils/env.js';
 
@@ -58,7 +57,7 @@ export function evaluateIfDryRunFailure(error: any, dryRun: string) {
     );
 }
 
-export async function completeDryRun(command: Command) {
+export async function completeDryRun(command: string) {
   await resetFork();
 
   logGreen(`✅ ${toUpperCamelCase(command)} dry-run completed successfully`);

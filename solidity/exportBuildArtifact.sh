@@ -6,7 +6,9 @@ cd "$(dirname "$0")"
 # Define the artifacts directory
 artifactsDir="./artifacts/build-info"
 # Define the output file
-outputFile="./buildArtifact.json"
+outputFileJson="./dist/buildArtifact.json"
+outputFileJs="./dist/buildArtifact.js"
+outputFileTsd="./dist/buildArtifact.d.ts"
 
 # log that we're in the script
 echo 'Finding and processing hardhat build artifact...'
@@ -26,7 +28,10 @@ if [ ! -f "$jsonFiles" ]; then
 fi
 
 # Extract required keys and write to outputFile
-if jq -c '{input, solcLongVersion}' "$jsonFiles" > "$outputFile"; then
+if jq -c '{input, solcLongVersion}' "$jsonFiles" > "$outputFileJson"; then
+  echo "export const buildArtifact = " > "$outputFileJs"
+  cat "$outputFileJson" >> "$outputFileJs"
+  echo "export const buildArtifact: any" > "$outputFileTsd"
   echo 'Finished processing build artifact.'
 else
   echo 'Failed to process build artifact with jq'
