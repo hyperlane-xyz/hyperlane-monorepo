@@ -307,14 +307,14 @@ impl Validator {
     async fn write_operator_registration(&self) -> Result<()> {
         if let Some(ref avs_signer) = &self.avs_signer {
             let address = avs_signer.eth_address();
-            let announcment_location = self.checkpoint_syncer.announcement_location();
+            let registration_location = self.checkpoint_syncer.announcement_location();
 
             println!(
                 "Announcing to AVS, location: {:?} for validator: {:?}",
-                announcment_location, address
+                registration_location, address
             );
 
-            let avs_domain = 1; // holesky test
+            let avs_domain = 1; // mainnet domain
 
             let service_manager = match self.staking_config.service_managers.get(&avs_domain) {
                 Some(service_manager) => service_manager,
@@ -333,7 +333,7 @@ impl Validator {
                 .build()
                 .unwrap();
 
-            let signed_registration = self.signer.sign(registration.clone()).await?;
+            let signed_registration = avs_signer.sign(registration.clone()).await?;
             self.checkpoint_syncer
                 .write_operator_registration(&signed_registration)
                 .await?;

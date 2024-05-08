@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
 import {ISlasher} from "../../contracts/interfaces/avs/vendored/ISlasher.sol";
 
@@ -474,5 +477,41 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
             operatorSignature.signature = abi.encodePacked(r, s, v);
         }
         return operatorSignature;
+    }
+
+    function test_signature() public {
+        uint256 _operatorPrivateKey = 0xfc422f453016fbdf44cf63547593bd8d13f094febcdabf6c5a33a325c12af912;
+        address _operator = 0x6cC187c6d185b2c54e671efEA6Ab6F5e75E90B9d;
+        address hsm = 0xc82C44E3b5fA9fa9915F4c09fB0b5bb9e417625c;
+        uint32 maxExpiryTime = 0xffffffff;
+        ISignatureUtils.SignatureWithSaltAndExpiry
+            memory operatorSignature = _getOperatorSignature(
+                _operatorPrivateKey,
+                _operator,
+                address(hsm),
+                emptySalt,
+                maxExpiryTime
+            );
+        console.log("signature");
+        console.logBytes(operatorSignature.signature);
+        console.logBytes32(operatorSignature.salt);
+        console.log(operatorSignature.expiry);
+
+        bytes32 operatorRegistrationDigestHash = avsDirectory
+            .calculateOperatorAVSRegistrationDigestHash({
+                operator: _operator,
+                avs: address(hsm),
+                salt: operatorSignature.salt,
+                expiry: operatorSignature.expiry
+            });
+        console.log("operatorRegistrationDigestHash");
+        console.logBytes32(operatorRegistrationDigestHash);
+        require(
+            ECDSA.recover(
+                operatorRegistrationDigestHash,
+                operatorSignature.signature
+            ) == operator,
+            "EIP1271SignatureUtils.checkSignature_EIP1271: signature not from signer"
+        );
     }
 }

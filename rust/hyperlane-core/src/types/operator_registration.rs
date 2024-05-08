@@ -65,14 +65,19 @@ impl Signable for OperatorRegistration {
                 .finalize()
                 .as_slice(),
         );
-        H256::from_slice(
+        let signingDigest = H256::from_slice(
             Keccak256::new()
                 .chain(b"\x19\x01")
                 .chain(domain_separator(self.domain))
                 .chain(&struct_hash)
                 .finalize()
                 .as_slice(),
-        )
+        );
+        println!(
+            "OperatorRegistration signing_hash: {:?}",
+            hex::encode(signingDigest.as_bytes())
+        );
+        signingDigest
     }
 }
 
