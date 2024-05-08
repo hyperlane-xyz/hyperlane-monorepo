@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ContractSyncCursor, CursorAction,
-    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta, SequenceAwareIndexer, Sequenced,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
 };
 use std::ops::RangeInclusive;
 
@@ -68,7 +68,7 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     last_direction: SyncDirection,
 }
 
-impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
+impl<T: Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
@@ -101,7 +101,9 @@ impl<T: Sequenced + Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwareSyncCursor<T> {
+impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+    for ForwardBackwardSequenceAwareSyncCursor<T>
+{
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Proper ETA for backwards sync
         let eta = Duration::from_secs(0);
@@ -123,7 +125,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardBackwardSequenceAwar
         self.forward.latest_queried_block()
     }
 
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
+    async fn update(
+        &mut self,
+        logs: Vec<(Indexed<T>, LogMeta)>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()> {
         match self.last_direction {
             SyncDirection::Forward => self.forward.update(logs, range).await,
             SyncDirection::Backward => self.backward.update(logs, range).await,

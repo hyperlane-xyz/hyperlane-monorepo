@@ -11,14 +11,13 @@ use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use futures_util::future::join_all;
-use hyperlane_core::BatchItem;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::bytes_to_hex, BatchItem, ChainCommunicationError, ChainResult, ContractLocator,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
+    RawHyperlaneMessage, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
 use crate::error::HyperlaneEthereumError;
@@ -138,8 +137,8 @@ where
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+        let mut events: Vec<(Indexed<HyperlaneMessage>, LogMeta)> = self
             .contract
             .dispatch_filter()
             .from_block(*range.start())
@@ -147,10 +146,15 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (HyperlaneMessage::from(event.message.to_vec()), meta.into()))
+            .map(|(event, meta)| {
+                (
+                    HyperlaneMessage::from(event.message.to_vec()).into(),
+                    meta.into(),
+                )
+            })
             .collect();
 
-        events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
+        events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
         Ok(events)
     }
 }
@@ -179,7 +183,10 @@ where
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -188,7 +195,7 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (H256::from(event.message_id), meta.into()))
+            .map(|(event, meta)| (Indexed::new(H256::from(event.message_id)), meta.into()))
             .collect())
     }
 }
@@ -381,7 +388,6 @@ where
         let contract_call_futures = messages
             .iter()
             .map(|batch_item| async {
-                // move ownership of the batch inside the closure
                 self.process_contract_call(
                     &batch_item.data,
                     &batch_item.submission_data.metadata,
