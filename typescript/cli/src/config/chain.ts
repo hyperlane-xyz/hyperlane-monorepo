@@ -40,15 +40,10 @@ export async function createChainConfig({
 }) {
   logBlue('Creating a new chain config');
 
-  let rpcUrl = 'http://localhost:8545';
-  let network: ethers.providers.Network | undefined;
-  do {
-    try {
-      network = await new ethers.providers.JsonRpcProvider(rpcUrl).getNetwork();
-    } catch (e) {
-      rpcUrl = await input({ message: 'Enter http or https rpc url' });
-    }
-  } while (network === undefined);
+  const rpcUrl = await input({ message: 'Enter http or https rpc url' });
+  const network = await new ethers.providers.JsonRpcProvider(
+    rpcUrl,
+  ).getNetwork();
 
   let { chainId, name } = network;
   if (name === 'unknown') {
