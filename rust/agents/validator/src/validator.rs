@@ -46,6 +46,7 @@ pub struct Validator {
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
     avs_signer: Option<SingletonSignerHandle>,
+    avs_signer_instance: Option<Box<SingletonSigner>>,
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -77,12 +78,13 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         // If the AVS operator is provided, create a signer for it to write the announcement
-        let avs_signer = match &settings.avs_operator {
+        let (avs_signer_instance, avs_signer) = match &settings.avs_operator {
             Some(avs_operator) => {
-                let (_, avs_signer) = SingletonSigner::new(avs_operator.build().await?);
-                Some(avs_signer)
+                let (avs_signer_instance, avs_signer) =
+                    SingletonSigner::new(avs_operator.build().await?);
+                (Some(avs_signer_instance), Some(avs_signer))
             }
-            None => None,
+            None => (None, None),
         };
 
         let core = settings.build_hyperlane_core(metrics.clone());
@@ -129,6 +131,7 @@ impl BaseAgent for Validator {
             signer,
             signer_instance: Some(Box::new(signer_instance)),
             avs_signer,
+            avs_signer_instance: avs_signer_instance.map(Box::new),
             reorg_period: settings.reorg_period,
             interval: settings.interval,
             checkpoint_syncer,
@@ -163,6 +166,15 @@ impl BaseAgent for Validator {
                     signer_instance.run().await;
                 })
                 .instrument(info_span!("SingletonSigner")),
+            );
+        }
+
+        if let Some(avs_signer_instance) = self.avs_signer_instance.take() {
+            tasks.push(
+                tokio::spawn(async move {
+                    avs_signer_instance.run().await;
+                })
+                .instrument(info_span!("AvsSingletonSigner")),
             );
         }
 
