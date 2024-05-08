@@ -89,7 +89,6 @@ export {
   OwnableConfig,
   OwnerViolation,
   ViolationType,
-  resolveOrDeployAccountOwner,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
@@ -113,10 +112,7 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization.js';
 export { IgpFactories, igpFactories } from './gas/contracts.js';
-export {
-  GasOracleContractType,
-  StorageGasOracleConfig,
-} from './gas/oracle/types.js';
+export { StorageGasOracleConfig } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
   IgpBeneficiaryViolation,
@@ -128,6 +124,7 @@ export {
 } from './gas/types.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
 export { EvmHookReader } from './hook/read.js';
+export { HookConfigSchema } from './hook/schemas.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -148,10 +145,16 @@ export {
 } from './ism/multisig.js';
 export { EvmIsmReader } from './ism/read.js';
 export {
+  AggregationIsmConfigSchema,
+  IsmConfigObjectSchema,
+  IsmConfigSchema,
+} from './ism/schemas.js';
+export {
   AggregationIsmConfig,
   DeployedIsm,
   IsmConfig,
   IsmType,
+  TrustedRelayerIsmConfig,
   ModuleType,
   MultisigConfig,
   MultisigIsmConfig,
@@ -323,6 +326,7 @@ export {
   SealevelRouterAdapter,
 } from './router/adapters/SealevelRouterAdapter.js';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
@@ -433,6 +437,11 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
+export {
+  WarpRouteDeployConfigSchema,
+  TokenRouterConfigSchema as tokenRouterConfigSchema,
+} from './token/schemas.js';
+export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
@@ -461,11 +470,3 @@ export {
   WarpTxCategory,
   WarpTypedTransaction,
 } from './warp/types.js';
-
-export { AggregationIsmConfigSchema } from './ism/schemas.js';
-export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
-export {
-  WarpRouteDeployConfigSchema,
-  TokenRouterConfigSchema as tokenRouterConfigSchema,
-} from './token/schemas.js';
-export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';

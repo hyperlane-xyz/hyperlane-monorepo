@@ -1,17 +1,18 @@
 import { ethers } from 'ethers';
-
-import { StorageGasOracle } from '@hyperlane-xyz/core';
+import { z } from 'zod';
 
 import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../consts/igp.js';
 
-export enum GasOracleContractType {
-  StorageGasOracle = 'StorageGasOracle',
-}
+const BigNumberString = z.string().transform(ethers.BigNumber.from);
+
+export const StorageGasOracleConfigSchema = z.object({
+  gasPrice: BigNumberString,
+  tokenExchangeRate: BigNumberString,
+});
 
 // Gas data to configure on a single destination chain.
-export type StorageGasOracleConfig = Pick<
-  StorageGasOracle.RemoteGasDataConfigStructOutput,
-  'gasPrice' | 'tokenExchangeRate'
+export type StorageGasOracleConfig = z.output<
+  typeof StorageGasOracleConfigSchema
 >;
 
 export const formatGasOracleConfig = (

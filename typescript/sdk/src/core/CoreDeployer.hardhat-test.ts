@@ -163,7 +163,7 @@ describe('core', async () => {
           const defaultHookTest = coreConfig[chainName]
             .defaultHook as HookConfig;
 
-          expect(defaultHookOnchain.type).to.be.equal(defaultHookTest.type);
+          expect(defaultHookOnchain).to.be.equal(defaultHookTest);
         }),
       );
     });

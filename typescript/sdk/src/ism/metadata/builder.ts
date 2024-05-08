@@ -74,10 +74,7 @@ export class BaseMetadataBuilder
     maxDepth = 10,
   ): Promise<string> {
     assert(maxDepth > 0, 'Max depth reached');
-    this.logger.debug(
-      { maxDepth, context },
-      `Building ${context.ism.type} metadata`,
-    );
+    this.logger.debug({ maxDepth, context }, `Building ISM metadata`);
 
     if (context.ism.type === IsmType.TRUSTED_RELAYER) {
       const destinationSigner = await this.core.multiProvider.getSignerAddress(

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import { randomBytes } from 'ethers/lib/utils.js';
 import sinon from 'sinon';
 
 import {
@@ -117,11 +118,13 @@ describe('EvmHookReader', () => {
   it('should derive pausable config correctly', async () => {
     const mockAddress = generateRandomAddress();
     const mockOwner = generateRandomAddress();
+    const mockPaused = randomBytes(1)[0] % 2 === 0;
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
       hookType: sandbox.stub().resolves(OnchainHookType.PAUSABLE),
       owner: sandbox.stub().resolves(mockOwner),
+      paused: sandbox.stub().resolves(mockPaused),
     };
     sandbox
       .stub(PausableHook__factory, 'connect')
@@ -132,6 +135,7 @@ describe('EvmHookReader', () => {
 
     const expectedConfig: WithAddress<PausableHookConfig> = {
       owner: mockOwner,
+      paused: mockPaused,
       address: mockAddress,
       type: HookType.PAUSABLE,
     };
