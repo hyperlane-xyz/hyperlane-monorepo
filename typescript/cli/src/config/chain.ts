@@ -1,4 +1,5 @@
 import { confirm, input } from '@inquirer/prompts';
+import { ethers } from 'ethers';
 
 import { ChainMetadata, ChainMetadataSchema } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -38,19 +39,32 @@ export async function createChainConfig({
   context: CommandContext;
 }) {
   logBlue('Creating a new chain config');
-  const name = await input({
-    message: 'Enter chain name (one word, lower case)',
-  });
-  const chainId = await input({ message: 'Enter chain id (number)' });
-  const domainId = chainId;
-  const rpcUrl = await input({ message: 'Enter http or https rpc url' });
+
+  let rpcUrl = 'http://localhost:8545';
+  let network: ethers.providers.Network | undefined;
+  do {
+    try {
+      network = await new ethers.providers.JsonRpcProvider(rpcUrl).getNetwork();
+    } catch (e) {
+      rpcUrl = await input({ message: 'Enter http or https rpc url' });
+    }
+  } while (network === undefined);
+
+  let { chainId, name } = network;
+  if (name === 'unknown') {
+    name = await input({
+      message: 'Enter chain name (one word, lower case)',
+    });
+  }
+
   const metadata: ChainMetadata = {
     name,
-    chainId: parseInt(chainId, 10),
-    domainId: parseInt(domainId, 10),
+    chainId,
+    domainId: chainId,
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
   };
+
   const wantAdvancedConfig = await confirm({
     message:
       'Do you want to set block or gas properties for this chain config?(optional)',
