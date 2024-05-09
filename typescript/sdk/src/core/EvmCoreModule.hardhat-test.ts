@@ -48,8 +48,20 @@ describe.only('EvmCoreModule', async () => {
       expect(evmCoreModule.serialize().proxyAdmin.address).to.exist;
     });
 
+    it('should set proxyAdmin owner to deployer', async () => {
+      expect(await evmCoreModule.serialize().proxyAdmin.owner()).to.equal(
+        signer.address,
+      );
+    });
+
     it('should deploy mailbox', () => {
       expect(evmCoreModule.serialize().mailbox.address).to.exist;
+    });
+
+    it('should set mailbox owner to proxyAdmin', async () => {
+      expect(await evmCoreModule.serialize().mailbox.owner()).to.equal(
+        evmCoreModule.serialize().proxyAdmin.address,
+      );
     });
 
     it('should deploy mailbox default Ism', async () => {
@@ -77,8 +89,20 @@ describe.only('EvmCoreModule', async () => {
       expect(evmCoreModule.serialize().validatorAnnounce.address).to.exist;
     });
 
+    it('should set validatorAnnounce owner to deployer', async () => {
+      expect(
+        await evmCoreModule.serialize().validatorAnnounce.owner(),
+      ).to.equal(signer.address);
+    });
+
     it('should deploy testRecipient', () => {
       expect(evmCoreModule.serialize().testRecipient.address).to.exist;
+    });
+
+    it('should set testRecipient owner to deployer', async () => {
+      expect(await evmCoreModule.serialize().testRecipient.owner()).to.equal(
+        signer.address,
+      );
     });
   });
 });
