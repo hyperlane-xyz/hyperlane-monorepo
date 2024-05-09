@@ -82,11 +82,10 @@ export async function detectAndConfirmOrPrompt(
   let detectedValue: string | undefined;
   try {
     detectedValue = await detect();
-    if (
-      await confirm({
-        message: `Detected ${label} as ${detectedValue}, is this correct?`,
-      })
-    ) {
+    const confirmed = await confirm({
+      message: `Detected ${label} as ${detectedValue}, is this correct?`,
+    });
+    if (confirmed) {
       return detectedValue;
     }
     // eslint-disable-next-line no-empty
