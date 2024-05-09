@@ -1,11 +1,18 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import { ChainMetadata, ChainMetadataSchema } from '@hyperlane-xyz/sdk';
+import {
+  ChainMetadata,
+  ChainMetadataSchema,
+  CoreConfig,
+  HookType,
+  IsmType,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { detectAndConfirmOrPrompt } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 export function readChainConfigs(filePath: string) {
@@ -40,35 +47,51 @@ export async function createChainConfig({
 }) {
   logBlue('Creating a new chain config');
 
-  const rpcUrl = await input({ message: 'Enter http or https rpc url' });
-  const network = await new ethers.providers.JsonRpcProvider(
-    rpcUrl,
-  ).getNetwork();
+  const rpcUrl = await detectAndConfirmOrPrompt(
+    async () => {
+      await new ethers.providers.JsonRpcProvider().getNetwork();
+      return ethers.providers.JsonRpcProvider.defaultUrl();
+    },
+    'rpc url',
+    'Enter http or https',
+  );
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
-  let isDetectedName = network.name !== 'unknown';
-  if (isDetectedName) {
-    isDetectedName = await confirm({
-      message: `Detected network as ${network.name}, is this correct?`,
-    });
-  }
+  const name = await detectAndConfirmOrPrompt(
+    async () => {
+      const clientName = await provider.send('web3_clientVersion', []);
+      const port = rpcUrl.split(':').slice(-1);
+      const client = clientName.split('/')[0];
+      return `${client}${port}`;
+    },
+    'chain name',
+    'Enter (one word, lower case)',
+  );
 
-  if (!isDetectedName) {
-    network.name = await input({
-      message: 'Enter chain name (one word, lower case)',
-    });
-  }
+  const chainId = parseInt(
+    await detectAndConfirmOrPrompt(
+      async () => {
+        const network = await provider.getNetwork();
+        return network.chainId.toString();
+      },
+      'chain id',
+      'Enter a (number)',
+    ),
+    10,
+  );
 
   const metadata: ChainMetadata = {
-    name: network.name,
-    chainId: network.chainId,
-    domainId: network.chainId,
+    name,
+    chainId,
+    domainId: chainId,
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
   };
 
   const wantAdvancedConfig = await confirm({
+    default: false,
     message:
-      'Do you want to set block or gas properties for this chain config?(optional)',
+      'Do you want to set block or gas properties for this chain config?',
   });
   if (wantAdvancedConfig) {
     const wantBlockConfig = await confirm({
