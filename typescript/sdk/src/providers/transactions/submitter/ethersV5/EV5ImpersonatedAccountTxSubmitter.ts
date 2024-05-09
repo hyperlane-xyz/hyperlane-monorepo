@@ -4,7 +4,6 @@ import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../../../types.js';
 import { impersonateAccount } from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import {
@@ -24,18 +23,17 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly chain: ChainName,
     public readonly props: EV5ImpersonatedAccountTxSubmitterProps,
   ) {
-    super(multiProvider, chain);
+    super(multiProvider);
   }
 
   public async submit(
     ...txs: PopulatedTransaction[]
   ): Promise<TransactionReceipt[]> {
     const impersonatedAccount = await impersonateAccount(this.props.address);
-    this.multiProvider.setSigner(this.chain, impersonatedAccount);
-    super.multiProvider.setSigner(this.chain, impersonatedAccount);
+    this.multiProvider.setSharedSigner(impersonatedAccount);
+    super.multiProvider.setSharedSigner(impersonatedAccount);
     return await super.submit(...txs);
   }
 }

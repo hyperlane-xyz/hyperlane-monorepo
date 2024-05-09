@@ -39,11 +39,11 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 
 async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  { type, chain, settings }: SubmitterMetadata,
+  { type, settings }: SubmitterMetadata,
 ): Promise<TxSubmitterInterface<TProtocol>> {
   switch (type) {
     case TxSubmitterType.JSON_RPC:
-      return new EV5JsonRpcTxSubmitter(multiProvider, chain);
+      return new EV5JsonRpcTxSubmitter(multiProvider);
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
       if (!settings)
         throw new Error(
@@ -51,11 +51,13 @@ async function getSubmitter<TProtocol extends ProtocolType>(
         );
 
       await verifyAnvil();
-      await forkNetworkToMultiProvider(multiProvider, chain);
+      await forkNetworkToMultiProvider(
+        multiProvider,
+        settings.eV5ImpersonatedAccountProps.chain,
+      );
 
       return new EV5ImpersonatedAccountTxSubmitter(
         multiProvider,
-        chain,
         settings.eV5ImpersonatedAccountProps,
       );
     case TxSubmitterType.GNOSIS_SAFE:
@@ -65,7 +67,6 @@ async function getSubmitter<TProtocol extends ProtocolType>(
         );
       return new EV5GnosisSafeTxSubmitter(
         multiProvider,
-        chain,
         settings.eV5GnosisSafeProps,
       );
     default:
@@ -78,15 +79,15 @@ async function getTransformers<TProtocol extends ProtocolType>(
   metadata: TransformerMetadata[],
 ): Promise<TxTransformerInterface<TProtocol>[]> {
   return Promise.all(
-    metadata.map(({ type, chain, settings }) =>
-      getTransformer<TProtocol>(multiProvider, { type, chain, settings }),
+    metadata.map(({ type, settings }) =>
+      getTransformer<TProtocol>(multiProvider, { type, settings }),
     ),
   );
 }
 
 async function getTransformer<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  { type, chain, settings }: TransformerMetadata,
+  { type, settings }: TransformerMetadata,
 ): Promise<TxTransformerInterface<TProtocol>> {
   switch (type) {
     case TxTransformerType.ICA:
@@ -96,7 +97,6 @@ async function getTransformer<TProtocol extends ProtocolType>(
         );
       return new EV5InterchainAccountTxTransformer(
         multiProvider,
-        chain,
         settings.eV5InterchainAccountProps,
       );
     default:

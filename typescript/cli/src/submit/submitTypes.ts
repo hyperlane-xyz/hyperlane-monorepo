@@ -1,5 +1,4 @@
 import type {
-  ChainName,
   EV5GnosisSafeTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5InterchainAccountTxTransformerProps,
@@ -15,12 +14,10 @@ export interface SubmitterBuilderSettings {
 }
 export interface SubmitterMetadata {
   type: TxSubmitterType;
-  chain: ChainName;
   settings?: SubmitterSettings;
 }
 export interface TransformerMetadata {
   type: TxTransformerType;
-  chain: ChainName;
   settings?: TransformerSettings;
 }
 
