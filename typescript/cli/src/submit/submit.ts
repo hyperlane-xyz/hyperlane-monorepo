@@ -10,15 +10,13 @@ import {
   TxTransformerInterface,
   TxTransformerType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
-
-import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   SubmitterBuilderSettings,
   SubmitterMetadata,
   TransformerMetadata,
-} from './submitTypes.js';
+} from './types.js';
 
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submitterMetadata,
@@ -45,15 +43,9 @@ async function getSubmitter<TProtocol extends ProtocolType>(
     case TxSubmitterType.JSON_RPC:
       return new EV5JsonRpcTxSubmitter(multiProvider);
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
-      if (!settings)
-        throw new Error(
-          'Must provide EV5ImpersonatedAccountTxSubmitterProps for impersonated account submitter.',
-        );
-
-      await verifyAnvil();
-      await forkNetworkToMultiProvider(
-        multiProvider,
-        settings.eV5ImpersonatedAccountProps.chain,
+      assert(
+        settings,
+        'Must provide EV5ImpersonatedAccountTxSubmitterProps for impersonated account submitter.',
       );
 
       return new EV5ImpersonatedAccountTxSubmitter(
@@ -61,10 +53,11 @@ async function getSubmitter<TProtocol extends ProtocolType>(
         settings.eV5ImpersonatedAccountProps,
       );
     case TxSubmitterType.GNOSIS_SAFE:
-      if (!settings)
-        throw new Error(
-          'Must provide EV5GnosisSafeTxSubmitterProps for Gnosis safe submitter.',
-        );
+      assert(
+        settings,
+        'Must provide EV5GnosisSafeTxSubmitterProps for Gnosis safe submitter.',
+      );
+
       return new EV5GnosisSafeTxSubmitter(
         multiProvider,
         settings.eV5GnosisSafeProps,
@@ -91,10 +84,11 @@ async function getTransformer<TProtocol extends ProtocolType>(
 ): Promise<TxTransformerInterface<TProtocol>> {
   switch (type) {
     case TxTransformerType.ICA:
-      if (!settings)
-        throw new Error(
-          'Must provide EV5InterchainAccountTxTransformerProps for ICA transformer.',
-        );
+      assert(
+        settings,
+        'Must provide EV5InterchainAccountTxTransformerProps for ICA transformer.',
+      );
+
       return new EV5InterchainAccountTxTransformer(
         multiProvider,
         settings.eV5InterchainAccountProps,

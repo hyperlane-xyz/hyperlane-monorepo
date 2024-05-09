@@ -31,7 +31,9 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   public async submit(
     ...txs: PopulatedTransaction[]
   ): Promise<TransactionReceipt[]> {
-    const impersonatedAccount = await impersonateAccount(this.props.address);
+    const impersonatedAccount = await impersonateAccount(
+      this.props.userAddress,
+    );
     this.multiProvider.setSharedSigner(impersonatedAccount);
     super.multiProvider.setSharedSigner(impersonatedAccount);
     return await super.submit(...txs);

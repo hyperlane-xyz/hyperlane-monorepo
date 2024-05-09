@@ -15,5 +15,5 @@ export interface EV5GnosisSafeTxSubmitterProps {
 
 export interface EV5ImpersonatedAccountTxSubmitterProps {
   chain: ChainName;
-  address: Address;
+  userAddress: Address;
 }
