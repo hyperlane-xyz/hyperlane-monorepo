@@ -100,6 +100,20 @@ export class HyperlaneRelayer {
     return this.getIsmConfig(destinationChain, ism);
   }
 
+  async relayMessagesFromDispatchTx(
+    chain: string,
+    dispatchTxHash: string,
+  ): Promise<ethers.ContractReceipt[]> {
+    const provider = await this.multiProvider.getProvider(chain);
+    this.logger.debug(`Retrieving dispatch transaction ${dispatchTxHash}`);
+    const dispatchTx = await provider.getTransactionReceipt(dispatchTxHash);
+    this.logger.debug(
+      { dispatchTx },
+      `Retrieved dispatch transaction ${dispatchTxHash}`,
+    );
+    return this.relayMessages(dispatchTx);
+  }
+
   async relayMessage(
     dispatchTx: TransactionReceipt,
     messageIndex = 0,
