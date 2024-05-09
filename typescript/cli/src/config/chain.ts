@@ -1,13 +1,7 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import {
-  ChainMetadata,
-  ChainMetadataSchema,
-  CoreConfig,
-  HookType,
-  IsmType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMetadata, ChainMetadataSchema } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
