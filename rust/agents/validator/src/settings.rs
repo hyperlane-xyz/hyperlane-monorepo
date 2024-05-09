@@ -35,6 +35,8 @@ pub struct ValidatorSettings {
     pub origin_chain: HyperlaneDomain,
     /// The validator attestation signer
     pub validator: SignerConf,
+    /// The AVS domain to register the operator with ()
+    pub avs_domain: Option<u32>,
     /// The optional signer for registering the AVS operator
     pub avs_operator: Option<SignerConf>,
     /// The checkpoint syncer configuration
@@ -96,6 +98,18 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             )
             .end();
 
+        let avs_chain_name = p
+            .chain(&mut err)
+            .get_key("avsChainName")
+            .parse_string()
+            .end();
+
+        let avs_domain: Option<u32> = match avs_chain_name {
+            Some("ethereum") => Some(1),
+            Some("holesky") => Some(17000),
+            _ => None,
+        };
+
         let avs_operator = p
             .chain(&mut err)
             .get_opt_key("avs_operator")
@@ -154,6 +168,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             db,
             origin_chain,
             validator,
+            avs_domain,
             avs_operator,
             checkpoint_syncer,
             reorg_period,

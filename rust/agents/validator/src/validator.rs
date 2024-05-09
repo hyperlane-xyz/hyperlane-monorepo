@@ -45,6 +45,7 @@ pub struct Validator {
     signer: SingletonSignerHandle,
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
+    avs_domain: Option<u32>,
     avs_signer: Option<SingletonSignerHandle>,
     avs_signer_instance: Option<Box<SingletonSigner>>,
     reorg_period: u64,
@@ -130,6 +131,7 @@ impl BaseAgent for Validator {
             validator_announce: validator_announce.into(),
             signer,
             signer_instance: Some(Box::new(signer_instance)),
+            avs_domain: settings.avs_domain,
             avs_signer,
             avs_signer_instance: avs_signer_instance.map(Box::new),
             reorg_period: settings.reorg_period,
@@ -326,7 +328,7 @@ impl Validator {
                 registration_location, address
             );
 
-            let avs_domain = 1; // mainnet domain
+            let avs_domain = self.avs_domain.unwrap();
 
             let service_manager = match self.staking_config.service_managers.get(&avs_domain) {
                 Some(service_manager) => service_manager,
