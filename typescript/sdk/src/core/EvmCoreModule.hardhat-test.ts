@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import { objMap } from '@hyperlane-xyz/utils';
@@ -26,28 +27,58 @@ describe.only('EvmCoreModule', async () => {
     });
   });
   describe('Create', async () => {
-    it('should create deploy an ICA', async () => {
+    it('should create deploy an ICA', () => {
       const { interchainAccountRouter, interchainAccountIsm } =
         evmCoreModule.serialize();
-      expect(interchainAccountIsm).to.not.be.undefined;
-      expect(interchainAccountRouter).to.not.be.undefined;
+      expect(interchainAccountIsm).to.exist;
+      expect(interchainAccountRouter).to.exist;
     });
 
-    it('should return the correct addresses', async () => {
+    it('should deploy ISM factories', () => {
       // Each ISM factory
-      objMap(evmCoreModule.serialize().ismFactories, (_, contract) => {
-        expect(contract.address).to.be.not.undefined;
-      });
+      objMap(
+        evmCoreModule.serialize().ismFactoryFactories,
+        (_: any, contract: any) => {
+          expect(contract.address).to.exist;
+        },
+      );
+    });
 
-      // proxyAdmin
-      expect(evmCoreModule.serialize().proxyAdmin.address).to.be.not.undefined;
+    it('should deploy proxyAdmin', () => {
+      expect(evmCoreModule.serialize().proxyAdmin.address).to.exist;
+    });
 
-      // mailbox
-      expect(evmCoreModule.serialize().mailbox.address).to.be.not.undefined;
+    it('should deploy mailbox', () => {
+      expect(evmCoreModule.serialize().mailbox.address).to.exist;
+    });
 
-      // validatorAnnounce
-      expect(evmCoreModule.serialize().validatorAnnounce.address).to.be.not
-        .undefined;
+    it('should deploy mailbox default Ism', async () => {
+      const mailbox = evmCoreModule.serialize().mailbox;
+      expect(await mailbox.defaultIsm()).to.not.equal(
+        ethers.constants.AddressZero,
+      );
+    });
+
+    it('should deploy mailbox default hook', async () => {
+      const mailbox = evmCoreModule.serialize().mailbox;
+      expect(await mailbox.defaultHook()).to.not.equal(
+        ethers.constants.AddressZero,
+      );
+    });
+
+    it('should deploy mailbox required hook', async () => {
+      const mailbox = evmCoreModule.serialize().mailbox;
+      expect(await mailbox.requiredHook()).to.not.equal(
+        ethers.constants.AddressZero,
+      );
+    });
+
+    it('should deploy validatorAnnounce', () => {
+      expect(evmCoreModule.serialize().validatorAnnounce.address).to.exist;
+    });
+
+    it('should deploy testRecipient', () => {
+      expect(evmCoreModule.serialize().testRecipient.address).to.exist;
     });
   });
 });
