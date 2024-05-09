@@ -614,7 +614,7 @@
         }
       ],
       "index": {
-        "chunk": 50,
+        "chunk": 25,
         "from": 58419500
       },
       "interchainGasPaymaster": "0x27ae52298e5b53b34b7ae0ca63e05845c31e1f59",
@@ -1037,7 +1037,8 @@
       "fallbackRoutingHook": "0xDa7cECb05C4aeB02c1aFDE277d4306a2da7Bd762",
       "gasCurrencyCoinGeckoId": "ethereum",
       "index": {
-        "from": 271840
+        "from": 271840,
+        "chunk": 999
       },
       "interchainAccountIsm": "0xb89c6ED617f5F46175E41551350725A09110bbCE",
       "interchainAccountRouter": "0x9629c28990F11c31735765A6FD59E1E1bC197DbD",
@@ -1091,7 +1092,7 @@
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "gasCurrencyCoinGeckoId": "tomochain",
       "index": {
-        "chunk": 1000,
+        "chunk": 999,
         "from": 73573878
       },
       "interchainAccountIsm": "0xD1E267d2d7876e97E217BfE61c34AB50FEF52807",
