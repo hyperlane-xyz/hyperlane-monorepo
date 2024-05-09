@@ -32,6 +32,7 @@ serde_json.workspace = true
 strum.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot", "rt-multi-thread"] }
+tokio-metrics.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 

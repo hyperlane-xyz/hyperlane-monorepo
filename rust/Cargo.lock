@@ -6968,6 +6968,7 @@ dependencies = [
  "strum 0.25.0",
  "thiserror",
  "tokio",
+ "tokio-metrics",
  "tokio-test",
  "tracing",
  "tracing-futures",
@@ -9956,6 +9957,7 @@ dependencies = [
  "signal-hook-registry",
  "socket2 0.5.5",
  "tokio-macros",
+ "tracing",
  "windows-sys 0.48.0",
 ]
 
@@ -9978,6 +9980,17 @@ dependencies = [
  "proc-macro2 1.0.76",
  "quote 1.0.35",
  "syn 2.0.48",
+]
+
+[[package]]
+name = "tokio-metrics"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eace09241d62c98b7eeb1107d4c5c64ca3bd7da92e8c218c153ab3a78f9be112"
+dependencies = [
+ "futures-util",
+ "pin-project-lite",
+ "tokio-stream",
 ]
 
 [[package]]

@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     sync::Arc,
+    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -25,6 +26,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tokio_metrics::TaskMonitor;
 use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::{
@@ -287,6 +289,19 @@ impl BaseAgent for Relayer {
     async fn run(self) {
         let mut tasks = vec![];
 
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        {
+            let task_monitor = task_monitor.clone();
+            tokio::spawn(async move {
+                for interval in task_monitor.intervals() {
+                    // pretty-print the metric interval
+                    info!(interval=?interval, "Tokio metrics");
+                    // wait 500ms
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            });
+        }
+
         // run server
         let mpmc_channel = MpmcChannel::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         let custom_routes = relayer_server::routes(mpmc_channel.sender());
@@ -318,6 +333,7 @@ impl BaseAgent for Relayer {
                         .operation_batch_config()
                         .map(|c| c.max_batch_size)
                         .unwrap_or(1),
+                    task_monitor.clone(),
                 ),
             );
 
@@ -334,15 +350,25 @@ impl BaseAgent for Relayer {
         }
 
         for origin in &self.origin_chains {
-            tasks.push(self.run_message_sync(origin).await);
-            tasks.push(self.run_interchain_gas_payment_sync(origin).await);
-            tasks.push(self.run_merkle_tree_hook_syncs(origin).await);
+            tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
+            tasks.push(
+                self.run_interchain_gas_payment_sync(origin, task_monitor.clone())
+                    .await,
+            );
+            tasks.push(
+                self.run_merkle_tree_hook_syncs(origin, task_monitor.clone())
+                    .await,
+            );
         }
 
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
-            tasks.push(self.run_message_processor(origin, send_channels.clone()));
-            tasks.push(self.run_merkle_tree_processor(origin));
+            tasks.push(self.run_message_processor(
+                origin,
+                send_channels.clone(),
+                task_monitor.clone(),
+            ));
+            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
 
         if let Err(err) = try_join_all(tasks).await {
@@ -355,22 +381,27 @@ impl BaseAgent for Relayer {
 }
 
 impl Relayer {
-    async fn run_message_sync(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
+    async fn run_message_sync(
+        &self,
+        origin: &HyperlaneDomain,
+        task_monitor: TaskMonitor,
+    ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync.cursor(index_settings).await;
-        tokio::spawn(async move {
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
                 .sync("dispatched_messages", cursor)
                 .await
-        })
+        }))
         .instrument(info_span!("MessageSync"))
     }
 
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self
@@ -379,25 +410,31 @@ impl Relayer {
             .unwrap()
             .clone();
         let cursor = contract_sync.cursor(index_settings).await;
-        tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
-            .instrument(info_span!("IgpSync"))
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            contract_sync.clone().sync("gas_payments", cursor).await
+        }))
+        .instrument(info_span!("IgpSync"))
     }
 
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync.cursor(index_settings).await;
-        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
-            .instrument(info_span!("MerkleTreeHookSync"))
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            contract_sync.clone().sync("merkle_tree_hook", cursor).await
+        }))
+        .instrument(info_span!("MerkleTreeHookSync"))
     }
 
     fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -431,12 +468,16 @@ impl Relayer {
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
-        let processor = Processor::new(Box::new(message_processor));
+        let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
 
         processor.spawn().instrument(span)
     }
 
-    fn run_merkle_tree_processor(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
+    fn run_merkle_tree_processor(
+        &self,
+        origin: &HyperlaneDomain,
+        task_monitor: TaskMonitor,
+    ) -> Instrumented<JoinHandle<()>> {
         let metrics = MerkleTreeProcessorMetrics::new();
         let merkle_tree_processor = MerkleTreeProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
@@ -445,7 +486,7 @@ impl Relayer {
         );
 
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
-        let processor = Processor::new(Box::new(merkle_tree_processor));
+        let processor = Processor::new(Box::new(merkle_tree_processor), task_monitor.clone());
         processor.spawn().instrument(span)
     }
 
@@ -457,6 +498,7 @@ impl Relayer {
         receiver: UnboundedReceiver<QueueOperation>,
         retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
         batch_size: u32,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
@@ -464,10 +506,11 @@ impl Relayer {
             retry_receiver_channel,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
             batch_size,
+            task_monitor.clone(),
         );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
-        tokio::spawn(async move {
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             // Propagate task panics
             serial_submitter.spawn().await.unwrap_or_else(|err| {
                 panic!(
@@ -475,7 +518,7 @@ impl Relayer {
                     destination, err
                 )
             });
-        })
+        }))
         .instrument(span)
     }
 }
