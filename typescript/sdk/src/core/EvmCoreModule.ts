@@ -56,6 +56,16 @@ export class EvmCoreModule extends HyperlaneModule<
     throw new Error('Method not implemented.');
   }
 
+  /**
+   * Deploys the Core contracts
+   *
+   * @remark Most of the contract owners are the deployers with some being the Proxy Admin
+   *
+   * @param chain - The chain name or ID to deploy the Hyperlane contracts on.
+   * @param config - The derived core configuration for the deployment.
+   * @param multiProvider - The multi-provider instance to use for the deployment.
+   * @returns The created EvmCoreModule instance.
+   */
   public static async create({
     chain,
     config,
@@ -162,6 +172,17 @@ export class EvmCoreModule extends HyperlaneModule<
     return { ismFactory, ismFactoriesFactory };
   }
 
+  /**
+   * Deploys a Mailbox and it's default ISM, hook, and required hook contracts with a given configuration.
+   *
+   * @param chain - The chain name or ID to deploy the Mailbox on.
+   * @param config - The derived core configuration for the deployment.
+   * @param proxyAdmin - The address of the proxy admin for the Mailbox contract.
+   * @param deployer - The Hyperlane core deployer instance to use for the deployment.
+   * @param factories - The Hyperlane contract factories to use for the deployment.
+   * @param multiProvider - The multi-provider instance to use for the deployment.
+   * @returns The deployed Mailbox contract instance.
+   */
   static async deployMailbox(
     chain: ChainNameOrId,
     config: DerivedCoreConfig,
