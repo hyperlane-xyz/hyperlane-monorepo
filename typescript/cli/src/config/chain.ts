@@ -45,17 +45,23 @@ export async function createChainConfig({
     rpcUrl,
   ).getNetwork();
 
-  let { chainId, name } = network;
-  if (name === 'unknown') {
-    name = await input({
+  let isDetectedName = network.name !== 'unknown';
+  if (isDetectedName) {
+    isDetectedName = await confirm({
+      message: `Detected network as ${network.name}, is this correct?`,
+    });
+  }
+
+  if (!isDetectedName) {
+    network.name = await input({
       message: 'Enter chain name (one word, lower case)',
     });
   }
 
   const metadata: ChainMetadata = {
-    name,
-    chainId,
-    domainId: chainId,
+    name: network.name,
+    chainId: network.chainId,
+    domainId: network.chainId,
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
   };
