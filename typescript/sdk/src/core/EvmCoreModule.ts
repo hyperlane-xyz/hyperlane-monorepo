@@ -29,9 +29,11 @@ type ExtraArgs = {
   ismFactoryFactories: HyperlaneContracts<ProxyFactoryFactories>;
 } & DerivedInterchainAccountFactories;
 
+type DerivedCoreConfig = Omit<CoreConfig, 'owner'>; // config.owner is excluded because contract owners are always 1) Deployer, or 2) Proxy Admin
+
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
-  CoreConfig,
+  DerivedCoreConfig,
   HyperlaneContracts<CoreFactories> & ExtraArgs
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
@@ -39,7 +41,7 @@ export class EvmCoreModule extends HyperlaneModule<
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleArgs<
-      CoreConfig,
+      DerivedCoreConfig,
       HyperlaneContracts<CoreFactories> & ExtraArgs
     >,
   ) {
@@ -60,7 +62,7 @@ export class EvmCoreModule extends HyperlaneModule<
     multiProvider,
   }: {
     chain: ChainNameOrId;
-    config: CoreConfig;
+    config: DerivedCoreConfig;
     multiProvider: MultiProvider;
   }): Promise<EvmCoreModule> {
     const chainName = multiProvider.getChainName(chain);
@@ -96,7 +98,10 @@ export class EvmCoreModule extends HyperlaneModule<
       await EvmIcaModule.create({
         chain: chainName,
         multiProvider,
-        config: { mailbox: mailbox.address, owner: config.owner },
+        config: {
+          mailbox: mailbox.address,
+          owner: await multiProvider.getSigner(chain).getAddress(),
+        },
       })
     ).serialize();
 
@@ -137,7 +142,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
   static async deployIsmFactories(
     chainName: string,
-    config: CoreConfig,
+    config: DerivedCoreConfig,
     multiProvider: MultiProvider,
   ): Promise<{
     ismFactory: HyperlaneIsmFactory;
@@ -159,7 +164,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
   static async deployMailbox(
     chain: ChainNameOrId,
-    config: CoreConfig,
+    config: DerivedCoreConfig,
     proxyAdmin: Address,
     deployer: HyperlaneCoreDeployer,
     factories: HyperlaneContracts<ProxyFactoryFactories>,
