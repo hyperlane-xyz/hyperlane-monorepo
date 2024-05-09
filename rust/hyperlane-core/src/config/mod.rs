@@ -10,6 +10,8 @@ use eyre::Report;
 pub use str_or_int::{StrOrInt, StrOrIntParseError};
 pub use trait_ext::*;
 
+use crate::H256;
+
 mod config_path;
 mod str_or_int;
 mod trait_ext;
@@ -19,6 +21,15 @@ mod trait_ext;
 pub type ConfigResult<T> = Result<T, ConfigParsingError>;
 /// A no-op filter type.
 pub type NoFilter = ();
+
+/// Config for batching messages
+#[derive(Debug, Clone, Default)]
+pub struct OperationBatchConfig {
+    /// Optional batch contract address (e.g. Multicall3 on EVM chains)
+    pub batch_contract_address: Option<H256>,
+    /// Batch size
+    pub max_batch_size: u32,
+}
 
 /// A trait that allows for constructing `Self` from a raw config type.
 pub trait FromRawConf<T, F = NoFilter>: Sized

@@ -187,6 +187,18 @@ fn parse_chain(
         .parse_address_hash()
         .end();
 
+    let batch_contract_address = chain
+        .chain(&mut err)
+        .get_opt_key("batchContractAddress")
+        .parse_address_hash()
+        .end();
+
+    let max_batch_size = chain
+        .chain(&mut err)
+        .get_opt_key("maxBatchSize")
+        .parse_u32()
+        .unwrap_or(1);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -194,6 +206,10 @@ fn parse_chain(
         &chain,
         &mut err,
         default_rpc_consensus_type,
+        OperationBatchConfig {
+            batch_contract_address,
+            max_batch_size,
+        },
     );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);

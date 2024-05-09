@@ -11,8 +11,8 @@ use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError, ChainResult,
     Checkpoint, ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexer, LogMeta, Mailbox, MerkleTreeHook, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
-    H256, H512, U256,
+    Indexed, Indexer, LogMeta, Mailbox, MerkleTreeHook, SequenceAwareIndexer, TxCostEstimate,
+    TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -528,7 +528,10 @@ impl SealevelMailboxIndexer {
         Ok(height)
     }
 
-    async fn get_message_with_nonce(&self, nonce: u32) -> ChainResult<(HyperlaneMessage, LogMeta)> {
+    async fn get_message_with_nonce(
+        &self,
+        nonce: u32,
+    ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
         let target_message_account_bytes = &[
             &hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR[..],
             &nonce.to_le_bytes()[..],
@@ -615,7 +618,7 @@ impl SealevelMailboxIndexer {
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
         Ok((
-            hyperlane_message,
+            hyperlane_message.into(),
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
@@ -646,7 +649,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         info!(
             ?range,
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
@@ -667,7 +670,10 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(
+        &self,
+        _range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         todo!()
     }
 

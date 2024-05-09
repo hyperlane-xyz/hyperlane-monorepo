@@ -14,8 +14,8 @@ pub async fn build_multicall<M: Middleware + 'static>(
     domain: HyperlaneDomain,
 ) -> eyre::Result<Multicall<M>> {
     let address = conn
-        .message_batch
-        .multicall3_address
+        .operation_batch
+        .batch_contract_address
         .unwrap_or(hex_or_base58_to_h256("0xcA11bde05977b3631167028862bE2a173976CA11").unwrap());
     let ethereum_provider = EthereumProvider::new(provider.clone(), domain);
     if !ethereum_provider.is_contract(&address).await? {

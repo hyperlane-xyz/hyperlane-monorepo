@@ -11,18 +11,20 @@ pub use chain_data::*;
 #[cfg(feature = "async")]
 pub use channel::*;
 pub use checkpoint::*;
+pub use indexing::*;
 pub use log_metadata::*;
 pub use merkle_tree::*;
 pub use message::*;
 pub use transaction::*;
 
-use crate::{Decode, Encode, HyperlaneProtocolError, Sequenced};
+use crate::{Decode, Encode, HyperlaneProtocolError};
 
 mod announcement;
 mod chain_data;
 #[cfg(feature = "async")]
 mod channel;
 mod checkpoint;
+mod indexing;
 mod log_metadata;
 mod merkle_tree;
 mod message;
@@ -120,6 +122,15 @@ pub struct GasPaymentKey {
     pub destination: u32,
 }
 
+impl From<InterchainGasPayment> for GasPaymentKey {
+    fn from(value: InterchainGasPayment) -> Self {
+        Self {
+            message_id: value.message_id,
+            destination: value.destination,
+        }
+    }
+}
+
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash)]
 pub struct InterchainGasPayment {
@@ -131,12 +142,6 @@ pub struct InterchainGasPayment {
     pub payment: U256,
     /// Amount of destination gas paid for.
     pub gas_amount: U256,
-}
-
-impl Sequenced for InterchainGasPayment {
-    fn sequence(&self) -> u32 {
-        Default::default()
-    }
 }
 
 /// Amount of gas spent attempting to send the message.
