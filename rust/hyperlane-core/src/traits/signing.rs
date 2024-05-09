@@ -25,6 +25,9 @@ pub trait HyperlaneSigner: Send + Sync + Debug {
     /// Sign a hyperlane checkpoint hash. This must be a signature without eip
     /// 155.
     async fn sign_hash(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError>;
+
+    /// Sign a pre-hashed message. This is used for signing EIP-191 compliant messages.
+    async fn sign_hash_directly(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError>;
 }
 
 /// Auto-implemented extension trait for HyperlaneSigner.
@@ -51,7 +54,7 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
         value: T,
     ) -> Result<SignedType<T>, HyperlaneSignerError> {
         let signing_hash = value.signing_hash();
-        let signature = self.sign_hash(&signing_hash).await?;
+        let signature = self.sign_hash_directly(&signing_hash).await?;
 
         Ok(SignedType { value, signature })
     }

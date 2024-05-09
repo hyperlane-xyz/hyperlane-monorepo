@@ -12,7 +12,7 @@ impl StakingConf {
         let mut service_managers = HashMap::new();
         service_managers.insert(
             1,
-            H160::from_str("0xc82C44E3b5fA9fa9915F4c09fB0b5bb9e417625c").unwrap(),
+            H160::from_str("0xa3aC2db78AC678D9609637e23020dc210110DAE4").unwrap(),
         );
         service_managers.insert(
             17000,

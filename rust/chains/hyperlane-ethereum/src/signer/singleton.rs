@@ -61,6 +61,13 @@ impl HyperlaneSigner for SingletonSignerHandle {
             Err(err) => Err(SingletonSignerError::from(err).into()),
         }
     }
+
+    async fn sign_hash_directly(
+        &self,
+        hash: &H256,
+    ) -> Result<HyperlaneSignature, HyperlaneSignerError> {
+        self.sign_hash(hash).await
+    }
 }
 
 impl SingletonSigner {

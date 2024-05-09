@@ -92,9 +92,22 @@ impl HyperlaneSigner for Signers {
     }
 
     async fn sign_hash(&self, hash: &H256) -> Result<HyperlaneSignature, HyperlaneSignerError> {
+        print!("non_sign_hash: {:?}", hash);
         let mut signature = Signer::sign_message(self, hash)
             .await
             .map_err(|err| HyperlaneSignerError::from(Box::new(err) as Box<_>))?;
+        signature.v = 28 - (signature.v % 2);
+        Ok(signature.into())
+    }
+
+    async fn sign_hash_directly(
+        &self,
+        hash: &H256,
+    ) -> Result<HyperlaneSignature, HyperlaneSignerError> {
+        let mut signature = match self {
+            Signers::Local(signer) => signer.sign_hash(hash.into()),
+            Signers::Aws(_signer) => !unimplemented!(),
+        }; // TODO: map_err
         signature.v = 28 - (signature.v % 2);
         Ok(signature.into())
     }

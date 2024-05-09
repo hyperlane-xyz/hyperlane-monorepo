@@ -111,7 +111,7 @@ contract DeployAVS is Script {
 
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
-                address(stakeRegistryImpl),
+                address(stakeRegistryProxy),
                 address(paymentCoordinator),
                 address(delegationManager)
             );
@@ -125,7 +125,7 @@ contract DeployAVS is Script {
             )
         );
 
-        // abi.encodeWithSelector(ECDSAStakeRegistry.initialize.selector, address(hsmProxy), thresholdWeight, quorum)
+        // Initialize the ECDSAStakeRegistry once we have the HyperlaneServiceManager proxy
         (bool success, ) = address(stakeRegistryProxy).call(
             abi.encodeWithSelector(
                 ECDSAStakeRegistry.initialize.selector,

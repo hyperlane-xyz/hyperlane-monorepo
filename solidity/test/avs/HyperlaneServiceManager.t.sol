@@ -89,12 +89,12 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
     function test_registerOperator_withProxy() public {
         ProxyAdmin proxyAdmin = new ProxyAdmin();
 
-        // 1. Deploy the ECDSAStakeRegistry implementation contract
+        // Deploy the ECDSAStakeRegistry implementation contract
         ECDSAStakeRegistry stakeRegistryImpl = new ECDSAStakeRegistry(
             delegationManager
         );
 
-        // 2. Deploy the ECDSAStakeRegistry proxy contract
+        // Deploy the ECDSAStakeRegistry proxy contract
         IStrategy mockStrategy = IStrategy(address(0x1234));
         Quorum memory quorum = Quorum({strategies: new StrategyParams[](1)});
         quorum.strategies[0] = StrategyParams({
@@ -107,7 +107,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 ""
             );
 
-        // 3. Deploy the HyperlaneServiceManager implementation contract
+        // Deploy the HyperlaneServiceManager implementation contract
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
                 address(stakeRegistryProxy),
@@ -115,7 +115,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 address(delegationManager)
             );
 
-        // 4. Deploy the HyperlaneServiceManager proxy contract
+        // Deploy the HyperlaneServiceManager proxy contract
         TransparentUpgradeableProxy hsmProxy = new TransparentUpgradeableProxy(
             address(strategyManagerImpl),
             address(proxyAdmin),
@@ -125,7 +125,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
             )
         );
 
-        // 5. Initialize the ECDSAStakeRegistry proxy with the correct HyperlaneServiceManager proxy address
+        // Initialize the ECDSAStakeRegistry proxy with the HyperlaneServiceManager proxy address
         (bool success, bytes memory result) = address(stakeRegistryProxy).call(
             abi.encodeWithSelector(
                 ECDSAStakeRegistry.initialize.selector,
@@ -152,7 +152,6 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 operatorSignature
             )
         );
-        // stakeRegistryProxy.registerOperatorWithSignature(operator, operatorSignature);
     }
 
     function test_updateAVSMetadataURI_revert_notOwnable() public {
@@ -545,23 +544,8 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 _operatorPrivateKey,
                 digestHash
             );
+            operatorSignature.signature = abi.encodePacked(r, s, v);
         }
         return operatorSignature;
-    }
-
-    function test_signature() public {
-        vm.chainId(1);
-        uint256 _operatorPrivateKey = 0xfc422f453016fbdf44cf63547593bd8d13f094febcdabf6c5a33a325c12af912;
-        address _operator = 0x6cC187c6d185b2c54e671efEA6Ab6F5e75E90B9d;
-        address hsm = 0xc82C44E3b5fA9fa9915F4c09fB0b5bb9e417625c;
-        uint32 maxExpiryTime = 0xffffffff;
-
-        _getOperatorSignature(
-            _operatorPrivateKey,
-            _operator,
-            hsm,
-            0,
-            maxExpiryTime
-        );
     }
 }
