@@ -103,6 +103,12 @@ contract DeployAVS is Script {
         ECDSAStakeRegistry stakeRegistryImpl = new ECDSAStakeRegistry(
             delegationManager
         );
+        TransparentUpgradeableProxy stakeRegistryProxy = new TransparentUpgradeableProxy(
+                address(stakeRegistryImpl),
+                address(proxyAdmin),
+                ""
+            );
+
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
                 address(stakeRegistryImpl),
@@ -118,16 +124,20 @@ contract DeployAVS is Script {
                 msg.sender
             )
         );
-        TransparentUpgradeableProxy stakeRegistryProxy = new TransparentUpgradeableProxy(
-                address(stakeRegistryImpl),
-                address(proxyAdmin),
-                abi.encodeWithSelector(
-                    ECDSAStakeRegistry.initialize.selector,
-                    address(hsmProxy),
-                    thresholdWeight,
-                    quorum
-                )
-            );
+
+        // abi.encodeWithSelector(ECDSAStakeRegistry.initialize.selector, address(hsmProxy), thresholdWeight, quorum)
+        (bool success, ) = address(stakeRegistryProxy).call(
+            abi.encodeWithSelector(
+                ECDSAStakeRegistry.initialize.selector,
+                address(hsmProxy),
+                thresholdWeight,
+                quorum
+            )
+        );
+        require(success, "Failed to initialize ECDSAStakeRegistry");
+
+        console.log("StakeRegistry: ", address(stakeRegistryProxy));
+        console.log("HyperlaneServiceManager: ", address(hsmProxy));
 
         vm.stopBroadcast();
     }
