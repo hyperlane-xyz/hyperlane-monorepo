@@ -365,7 +365,7 @@ impl Relayer {
                 .sync("dispatched_messages", cursor)
                 .await
         })
-        .instrument(info_span!("ContractSync"))
+        .instrument(info_span!("MessageSync"))
     }
 
     async fn run_interchain_gas_payment_sync(
@@ -380,7 +380,7 @@ impl Relayer {
             .clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
-            .instrument(info_span!("ContractSync"))
+            .instrument(info_span!("IgpSync"))
     }
 
     async fn run_merkle_tree_hook_syncs(
@@ -391,7 +391,7 @@ impl Relayer {
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
-            .instrument(info_span!("ContractSync"))
+            .instrument(info_span!("MerkleTreeHookSync"))
     }
 
     fn run_message_processor(
