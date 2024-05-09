@@ -25,11 +25,13 @@ abstract contract ECDSAServiceManagerBase is
     /// @notice Address of the AVS directory contract, which manages AVS-related data for registered operators.
     address public immutable avsDirectory;
 
-    /// @notice Address of the payment coordinator contract, which handles payment distributions.
-    address internal immutable paymentCoordinator;
-
     /// @notice Address of the delegation manager contract, which manages staker delegations to operators.
     address internal immutable delegationManager;
+
+    // ============ Public Storage ============
+
+    /// @notice Address of the payment coordinator contract, which handles payment distributions. Will be set once live on Eigenlayer.
+    address internal paymentCoordinator;
 
     // ============ Modifiers ============
 
@@ -134,6 +136,17 @@ abstract contract ECDSAServiceManagerBase is
         address _operator
     ) external view virtual returns (address[] memory) {
         return _getOperatorRestakedStrategies(_operator);
+    }
+
+    /**
+     * @notice Sets the address of the payment coordinator contract.
+     * @dev This function is only callable by the contract owner.
+     * @param _paymentCoordinator The address of the payment coordinator contract.
+     */
+    function setPaymentCoordinator(
+        address _paymentCoordinator
+    ) external virtual onlyOwner {
+        paymentCoordinator = _paymentCoordinator;
     }
 
     /**

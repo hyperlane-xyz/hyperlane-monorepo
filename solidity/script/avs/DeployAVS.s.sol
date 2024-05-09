@@ -42,11 +42,6 @@ contract DeployAVS is Script {
         );
         string memory json = vm.readFile(path);
 
-        proxyAdmin = ProxyAdmin(
-            json.readAddress(
-                string(abi.encodePacked(".", targetEnv, ".proxyAdmin"))
-            )
-        );
         avsDirectory = IAVSDirectory(
             json.readAddress(
                 string(abi.encodePacked(".", targetEnv, ".avsDirectory"))
@@ -77,7 +72,7 @@ contract DeployAVS is Script {
         for (uint96 i = 0; i < strategyCount; i++) {
             // the multipliers need to add up to 10,000, so we divide the total by the number of strategies for the first n-1 strategies
             // and then the last strategy gets the remainder
-            if (i < strategies.length - 1) {
+            if (i < strategyCount - 1) {
                 multiplier = totalMultipliers / uint96(strategyCount);
             } else {
                 multiplier =
@@ -100,12 +95,20 @@ contract DeployAVS is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        proxyAdmin = new ProxyAdmin();
+
         ECDSAStakeRegistry stakeRegistryImpl = new ECDSAStakeRegistry(
             delegationManager
         );
+        TransparentUpgradeableProxy stakeRegistryProxy = new TransparentUpgradeableProxy(
+                address(stakeRegistryImpl),
+                address(proxyAdmin),
+                ""
+            );
+
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
-                address(stakeRegistryImpl),
+                address(stakeRegistryProxy),
                 address(paymentCoordinator),
                 address(delegationManager)
             );
@@ -118,16 +121,28 @@ contract DeployAVS is Script {
                 msg.sender
             )
         );
-        TransparentUpgradeableProxy stakeRegistryProxy = new TransparentUpgradeableProxy(
-                address(stakeRegistryImpl),
-                address(proxyAdmin),
-                abi.encodeWithSelector(
-                    ECDSAStakeRegistry.initialize.selector,
-                    address(hsmProxy),
-                    thresholdWeight,
-                    quorum
-                )
-            );
+
+        // Initialize the ECDSAStakeRegistry once we have the HyperlaneServiceManager proxy
+        (bool success, ) = address(stakeRegistryProxy).call(
+            abi.encodeWithSelector(
+                ECDSAStakeRegistry.initialize.selector,
+                address(hsmProxy),
+                thresholdWeight,
+                quorum
+            )
+        );
+        require(success, "Failed to initialize ECDSAStakeRegistry");
+
+        console.log(
+            "ECDSAStakeRegistry Implementation: ",
+            address(stakeRegistryImpl)
+        );
+        console.log(
+            "HyperlaneServiceManager Implementation: ",
+            address(strategyManagerImpl)
+        );
+        console.log("StakeRegistry Proxy: ", address(stakeRegistryProxy));
+        console.log("HyperlaneServiceManager Proxy: ", address(hsmProxy));
 
         vm.stopBroadcast();
     }
