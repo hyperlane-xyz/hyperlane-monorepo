@@ -12,7 +12,7 @@ import { testCoreConfig } from '../test/testUtils.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
 
-describe.only('EvmCoreModule', async () => {
+describe('EvmCoreModule', async () => {
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let evmCoreModule: EvmCoreModule;
