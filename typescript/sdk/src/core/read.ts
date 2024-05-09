@@ -3,7 +3,7 @@ import { providers } from 'ethers';
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/read.js';
 import { EvmIsmReader } from '../ism/read.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
