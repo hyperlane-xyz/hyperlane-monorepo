@@ -33,9 +33,9 @@ use crate::{
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
         op_queue::QueueOperation,
+        op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         processor::{MessageProcessor, MessageProcessorMetrics},
-        serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
     server::{self as relayer_server, MessageRetryRequest},
     settings::{matching_list::MatchingList, RelayerSettings},
@@ -315,7 +315,7 @@ impl BaseAgent for Relayer {
                     // Default to submitting one message at a time if there is no batch config
                     self.core.settings.chains[dest_domain.name()]
                         .connection
-                        .message_batch_config()
+                        .operation_batch_config()
                         .map(|c| c.max_batch_size)
                         .unwrap_or(1),
                 ),
@@ -365,7 +365,7 @@ impl Relayer {
                 .sync("dispatched_messages", cursor)
                 .await
         })
-        .instrument(info_span!("ContractSync"))
+        .instrument(info_span!("MessageSync"))
     }
 
     async fn run_interchain_gas_payment_sync(
@@ -380,7 +380,7 @@ impl Relayer {
             .clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
-            .instrument(info_span!("ContractSync"))
+            .instrument(info_span!("IgpSync"))
     }
 
     async fn run_merkle_tree_hook_syncs(
@@ -391,7 +391,7 @@ impl Relayer {
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
-            .instrument(info_span!("ContractSync"))
+            .instrument(info_span!("MerkleTreeHookSync"))
     }
 
     fn run_message_processor(

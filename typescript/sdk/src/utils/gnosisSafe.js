@@ -1,14 +1,9 @@
+// This file is JS because of https://github.com/safe-global/safe-core-sdk/issues/805
 import SafeApiKit from '@safe-global/api-kit';
 import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
-
-export function getSafeService(
-  chain: ChainName,
-  multiProvider: MultiProvider,
-): SafeApiKit.default {
+export function getSafeService(chain, multiProvider) {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   const txServiceUrl =
@@ -18,11 +13,7 @@ export function getSafeService(
   return new SafeApiKit.default({ txServiceUrl, ethAdapter });
 }
 
-export function getSafe(
-  chain: ChainName,
-  multiProvider: MultiProvider,
-  safeAddress: string,
-): Promise<Safe.default> {
+export function getSafe(chain, multiProvider, safeAddress) {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   return Safe.default.create({
@@ -31,20 +22,17 @@ export function getSafe(
   });
 }
 
-export async function getSafeDelegates(
-  service: SafeApiKit.default,
-  safeAddress: string,
-) {
+export async function getSafeDelegates(service, safeAddress) {
   const delegateResponse = await service.getSafeDelegates({ safeAddress });
   return delegateResponse.results.map((r) => r.delegate);
 }
 
 export async function canProposeSafeTransactions(
-  proposer: string,
-  chain: ChainName,
-  multiProvider: MultiProvider,
-  safeAddress: string,
-): Promise<boolean> {
+  proposer,
+  chain,
+  multiProvider,
+  safeAddress,
+) {
   let safeService;
   try {
     safeService = getSafeService(chain, multiProvider);

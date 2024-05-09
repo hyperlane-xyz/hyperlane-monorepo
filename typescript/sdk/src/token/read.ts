@@ -13,7 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/read.js';
 import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
 import { MultiProvider } from '../providers/MultiProvider.js';

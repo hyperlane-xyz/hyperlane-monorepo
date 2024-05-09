@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
+use hyperlane_core::Indexed;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -128,7 +129,7 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         todo!()
     }
 
@@ -139,7 +140,10 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for FuelMailboxIndexer {
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         todo!()
     }
 

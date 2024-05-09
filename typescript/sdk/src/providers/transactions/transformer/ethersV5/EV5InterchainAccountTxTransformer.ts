@@ -1,8 +1,7 @@
-import assert from 'assert';
 import { PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
-import { CallData, rootLogger } from '@hyperlane-xyz/utils';
+import { CallData, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { InterchainAccount } from '../../../../middleware/account/InterchainAccount.js';
 import { AccountConfig } from '../../../../middleware/account/types.js';
@@ -43,10 +42,8 @@ export class EV5InterchainAccountTxTransformer
 
     const innerCalls: CallData[] = txs.map(
       ({ to, data, value }: PopulatedTransaction) => {
-        assert(
-          to && data,
-          'Invalid PopulatedTransaction: Missing required field to or data.',
-        );
+        assert(to, 'Invalid PopulatedTransaction: Missing to field');
+        assert(data, 'Invalid PopulatedTransaction: Missing data field');
         return { to, data, value };
       },
     );

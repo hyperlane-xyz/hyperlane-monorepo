@@ -5,8 +5,8 @@ use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta,
-    Sequenced,
+    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceIndexed,
 };
 use itertools::Itertools;
 use tracing::{debug, warn};
@@ -33,7 +33,7 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
-impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
+impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     pub fn new(
         chunk_size: u32,
         db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
@@ -161,7 +161,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds to the last indexed snapshot, and ranges will be retried.
     fn update_block_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
         current_indexing_snapshot: TargetSnapshot,
@@ -198,7 +198,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
         if let Some(lowest_sequence_log) = logs.first() {
             // Update the last snapshot.
             self.last_indexed_snapshot = LastIndexedSnapshot {
-                sequence: Some(lowest_sequence_log.0.sequence()),
+                sequence: Some(lowest_sequence_log.0.sequence),
                 at_block: lowest_sequence_log.1.block_number.try_into()?,
             };
         }
@@ -215,7 +215,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds and the range will be retried.
     fn update_sequence_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
         current_indexing_snapshot: TargetSnapshot,
@@ -261,7 +261,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
 
         // Update the last indexed snapshot.
         self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: Some(lowest_sequence_log.0.sequence()),
+            sequence: Some(lowest_sequence_log.0.sequence),
             at_block: lowest_sequence_log.1.block_number.try_into()?,
         };
         // Position the current snapshot to the previous sequence.
@@ -274,7 +274,7 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
     /// and logs the inconsistencies.
     fn rewind_due_to_sequence_gaps(
         &mut self,
-        logs: &Vec<(T, LogMeta)>,
+        logs: &Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         expected_sequences: &HashSet<u32>,
         expected_sequence_range: &RangeInclusive<u32>,
@@ -300,7 +300,9 @@ impl<T: Sequenced + Debug> BackwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCursor<T> {
+impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+    for BackwardSequenceAwareSyncCursor<T>
+{
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -327,7 +329,11 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
     /// ## logs
     /// The logs to ingest. If any logs are duplicated or their sequence is higher than the current indexing snapshot,
     /// they are filtered out.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
+    async fn update(
+        &mut self,
+        logs: Vec<(Indexed<T>, LogMeta)>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()> {
         let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() else {
             // We're synced, no need to update at all.
             return Ok(());
@@ -335,16 +341,15 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for BackwardSequenceAwareSyncCu
 
         // Remove any duplicates, filter out any logs with a higher sequence than our
         // current snapshot, and sort in ascending order.
-        let logs = logs
+        let logs = indexed_to_sequence_indexed_array(logs)?
             .into_iter()
-            .unique_by(|(log, _)| log.sequence())
-            .filter(|(log, _)| log.sequence() <= current_indexing_snapshot.sequence)
-            .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
+            .unique_by(|(log, _)| log.sequence)
+            .filter(|(log, _)| log.sequence <= current_indexing_snapshot.sequence)
+            .sorted_by_key(|(log, _)| log.sequence)
             .collect::<Vec<_>>();
-
         let all_log_sequences = logs
             .iter()
-            .map(|(log, _)| log.sequence())
+            .map(|(log, _)| log.sequence)
             .collect::<HashSet<_>>();
 
         match &self.index_mode {
@@ -448,9 +453,9 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(97), log_meta_with_block(970)),
-                        (MockSequencedData::new(98), log_meta_with_block(980)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                        (MockSequencedData::new(97).into(), log_meta_with_block(970)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                     ],
                     expected_range,
                 )
@@ -515,10 +520,10 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(96), log_meta_with_block(850)),
-                        (MockSequencedData::new(97), log_meta_with_block(860)),
-                        (MockSequencedData::new(98), log_meta_with_block(870)),
-                        (MockSequencedData::new(99), log_meta_with_block(880)),
+                        (MockSequencedData::new(96).into(), log_meta_with_block(850)),
+                        (MockSequencedData::new(97).into(), log_meta_with_block(860)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(870)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(880)),
                     ],
                     expected_range,
                 )
@@ -549,7 +554,7 @@ mod test {
 
             async fn update_and_expect_rewind(
                 cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
-                logs: Vec<(MockSequencedData, LogMeta)>,
+                logs: Vec<(Indexed<MockSequencedData>, LogMeta)>,
             ) {
                 // For a more rigorous test case, first do a range where no logs are found,
                 // then in the next range there are issues, and we should rewind to the last indexed snapshot.
@@ -610,9 +615,9 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(96), log_meta_with_block(850)),
-                    (MockSequencedData::new(97), log_meta_with_block(860)),
-                    (MockSequencedData::new(98), log_meta_with_block(870)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(850)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(860)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(870)),
                 ],
             )
             .await;
@@ -621,9 +626,9 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(96), log_meta_with_block(850)),
-                    (MockSequencedData::new(97), log_meta_with_block(860)),
-                    (MockSequencedData::new(99), log_meta_with_block(890)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(850)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(860)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(890)),
                 ],
             )
             .await;
@@ -646,10 +651,13 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
-                        (MockSequencedData::new(100), log_meta_with_block(1000)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
+                        (
+                            MockSequencedData::new(100).into(),
+                            log_meta_with_block(1000),
+                        ),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                     ],
                     expected_range,
                 )
@@ -690,7 +698,7 @@ mod test {
                     (0..=99)
                         .map(|i| {
                             (
-                                MockSequencedData::new(i),
+                                MockSequencedData::new(i).into(),
                                 log_meta_with_block(900 + i as u64),
                             )
                         })
@@ -788,15 +796,15 @@ mod test {
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(95), log_meta_with_block(950)),
-                        (MockSequencedData::new(96), log_meta_with_block(960)),
-                        (MockSequencedData::new(97), log_meta_with_block(970)),
+                        (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                        (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                        (MockSequencedData::new(97).into(), log_meta_with_block(970)),
                         // Add a duplicate here
-                        (MockSequencedData::new(98), log_meta_with_block(980)),
-                        (MockSequencedData::new(98), log_meta_with_block(980)),
-                        (MockSequencedData::new(99), log_meta_with_block(990)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                        (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                        (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                         // Put this out of order
-                        (MockSequencedData::new(94), log_meta_with_block(940)),
+                        (MockSequencedData::new(94).into(), log_meta_with_block(940)),
                     ],
                     expected_range,
                 )
@@ -859,7 +867,7 @@ mod test {
 
             async fn update_and_expect_rewind(
                 cur: &mut BackwardSequenceAwareSyncCursor<MockSequencedData>,
-                logs: Vec<(MockSequencedData, LogMeta)>,
+                logs: Vec<(Indexed<MockSequencedData>, LogMeta)>,
             ) {
                 // Expect the range to be:
                 // (current - chunk_size, current)
@@ -891,10 +899,10 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(94), log_meta_with_block(940)),
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
+                    (MockSequencedData::new(94).into(), log_meta_with_block(940)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
                 ],
             )
             .await;
@@ -903,11 +911,11 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(94), log_meta_with_block(940)),
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
-                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                    (MockSequencedData::new(94).into(), log_meta_with_block(940)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                 ],
             )
             .await;
@@ -916,11 +924,11 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(97), log_meta_with_block(970)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
-                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(970)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                 ],
             )
             .await;
@@ -929,13 +937,13 @@ mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(93), log_meta_with_block(940)),
-                    (MockSequencedData::new(94), log_meta_with_block(950)),
-                    (MockSequencedData::new(95), log_meta_with_block(950)),
-                    (MockSequencedData::new(96), log_meta_with_block(960)),
-                    (MockSequencedData::new(97), log_meta_with_block(970)),
-                    (MockSequencedData::new(98), log_meta_with_block(980)),
-                    (MockSequencedData::new(99), log_meta_with_block(990)),
+                    (MockSequencedData::new(93).into(), log_meta_with_block(940)),
+                    (MockSequencedData::new(94).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(95).into(), log_meta_with_block(950)),
+                    (MockSequencedData::new(96).into(), log_meta_with_block(960)),
+                    (MockSequencedData::new(97).into(), log_meta_with_block(970)),
+                    (MockSequencedData::new(98).into(), log_meta_with_block(980)),
+                    (MockSequencedData::new(99).into(), log_meta_with_block(990)),
                 ],
             )
             .await;
@@ -961,7 +969,7 @@ mod test {
                     (0..=99)
                         .map(|i| {
                             (
-                                MockSequencedData::new(i),
+                                MockSequencedData::new(i).into(),
                                 log_meta_with_block(900 + i as u64),
                             )
                         })
