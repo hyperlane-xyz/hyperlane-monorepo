@@ -29,7 +29,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   testRecipient: TestRecipientDeployer;
 
   constructor(
-    multiProvider: MultiProvider,
+    public multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
   ) {
