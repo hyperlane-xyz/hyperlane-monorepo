@@ -6,12 +6,10 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import {
-  EV5GnosisSafeTxSubmitterProps,
-  TxSubmitterType,
-} from '../TxSubmitterTypes.js';
+import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
+import { EV5GnosisSafeTxSubmitterProps } from './EV5TxSubmitterTypes.js';
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =

@@ -6,12 +6,10 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { impersonateAccount } from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import {
-  EV5ImpersonatedAccountTxSubmitterProps,
-  TxSubmitterType,
-} from '../TxSubmitterTypes.js';
+import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5JsonRpcTxSubmitter } from './EV5JsonRpcTxSubmitter.js';
+import { EV5ImpersonatedAccountTxSubmitterProps } from './EV5TxSubmitterTypes.js';
 
 export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
