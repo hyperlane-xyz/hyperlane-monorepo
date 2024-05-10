@@ -31,6 +31,8 @@ export const CollateralConfigSchema = ERC721MetadataSchema.merge(
       TokenType.collateralUri,
       TokenType.fastCollateral,
       TokenType.collateralVault,
+      TokenType.collateralXERC20,
+      TokenType.collateralFiat,
     ]),
     token: z.string(),
   }),

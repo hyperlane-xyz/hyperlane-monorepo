@@ -246,7 +246,9 @@ async function fetchBaseTokenMetadata(
     else throw new Error(`No native token metadata for ${chain}`);
   } else if (
     config.type === TokenType.collateralVault ||
-    config.type === TokenType.collateral
+    config.type === TokenType.collateral ||
+    config.type === TokenType.collateralXERC20 ||
+    config.type === TokenType.collateralFiat
   ) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata
     log(`Fetching token metadata for ${config.token} on ${chain}`);
