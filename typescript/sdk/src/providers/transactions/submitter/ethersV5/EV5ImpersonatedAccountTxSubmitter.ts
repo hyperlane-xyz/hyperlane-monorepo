@@ -20,7 +20,7 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   });
 
   constructor(
-    public readonly multiProvider: MultiProvider,
+    multiProvider: MultiProvider,
     public readonly props: EV5ImpersonatedAccountTxSubmitterProps,
   ) {
     super(multiProvider);
@@ -32,7 +32,6 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
     const impersonatedAccount = await impersonateAccount(
       this.props.userAddress,
     );
-    this.multiProvider.setSharedSigner(impersonatedAccount);
     super.multiProvider.setSharedSigner(impersonatedAccount);
     return await super.submit(...txs);
   }
