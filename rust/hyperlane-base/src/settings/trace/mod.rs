@@ -60,7 +60,7 @@ pub struct TracingConfig {
 impl TracingConfig {
     /// Attempt to instantiate and register a tracing subscriber setup from
     /// settings.
-    pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
+    pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<console_subscriber::Server> {
         let mut target_layer = Targets::new().with_default(self.level);
 
         if self.level < Level::DependencyTrace {
@@ -85,13 +85,15 @@ impl TracingConfig {
         let fmt_layer: LogOutputLayer<_> = self.fmt.into();
         let err_layer = tracing_error::ErrorLayer::default();
 
+        let (tokio_layer, tokio_server) = console_subscriber::ConsoleLayer::new();
         let subscriber = tracing_subscriber::Registry::default()
+            .with(tokio_layer)
             .with(target_layer)
             .with(TimeSpanLifetime::new(metrics))
             .with(fmt_layer)
             .with(err_layer);
 
         subscriber.try_init()?;
-        Ok(())
+        Ok(tokio_server)
     }
 }

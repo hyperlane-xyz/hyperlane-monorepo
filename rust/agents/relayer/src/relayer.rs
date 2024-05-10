@@ -2,7 +2,6 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     sync::Arc,
-    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -27,7 +26,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -81,6 +80,8 @@ pub struct Relayer {
     // or move them in `core_metrics`, like the validator metrics
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    /// Tokio console server
+    pub tokio_console_server: Option<console_subscriber::Server>,
 }
 
 impl Debug for Relayer {
@@ -111,6 +112,7 @@ impl BaseAgent for Relayer {
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -282,24 +284,24 @@ impl BaseAgent for Relayer {
             core_metrics,
             agent_metrics,
             chain_metrics,
+            tokio_console_server: Some(tokio_console_server),
         })
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(self) {
+    async fn run(mut self) {
         let mut tasks = vec![];
 
         let task_monitor = tokio_metrics::TaskMonitor::new();
-        {
-            let task_monitor = task_monitor.clone();
-            tokio::spawn(async move {
-                for interval in task_monitor.intervals() {
-                    // pretty-print the metric interval
-                    info!(interval=?interval, "Tokio metrics");
-                    // wait 500ms
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                }
-            });
+        if let Some(tokio_console_server) = self.tokio_console_server.take() {
+            let console_server =
+                tokio::spawn(TaskMonitor::instrument(&task_monitor.clone(), async move {
+                    info!("Starting tokio console server");
+                    if let Err(e) = tokio_console_server.serve().await {
+                        error!(error=?e, "Tokio console server failed to start");
+                    }
+                }));
+            tasks.push(console_server.instrument(info_span!("Tokio console server")));
         }
 
         // run server
