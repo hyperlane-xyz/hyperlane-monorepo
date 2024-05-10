@@ -7,9 +7,9 @@ import {
 import { ERC20Metadata, ERC20RouterConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
-import { EvmHookReader } from '../hook/read.js';
-import { EvmIsmReader } from '../ism/read.js';
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 

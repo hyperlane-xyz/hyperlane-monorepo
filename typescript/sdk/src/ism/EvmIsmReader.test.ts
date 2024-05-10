@@ -21,7 +21,7 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { EvmIsmReader } from './read.js';
+import { EvmIsmReader } from './EvmIsmReader.js';
 import {
   IsmType,
   ModuleType,
