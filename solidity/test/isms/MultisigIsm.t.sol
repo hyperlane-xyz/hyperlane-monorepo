@@ -43,6 +43,8 @@ abstract contract AbstractMultisigIsmTest is Test {
 
     function fixtureInit() internal {
         vm.serializeUint(fixtureKey, "type", uint256(ism.moduleType()));
+        string memory prefix = vm.serializeString(prefixKey, "dummy", "dummy");
+        vm.serializeString(fixtureKey, "prefix", prefix);
     }
 
     function fixtureAppendSignature(
@@ -107,8 +109,8 @@ abstract contract AbstractMultisigIsmTest is Test {
             seed
         );
 
-        fixtureInit();
         bytes memory metadata = metadataPrefix(message);
+        fixtureInit();
 
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
