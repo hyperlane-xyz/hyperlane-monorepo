@@ -5,15 +5,11 @@ import {
   AggregationIsmMetadata,
   AggregationIsmMetadataBuilder,
 } from './aggregation.js';
-
-type Fixture = {
-  decoded: AggregationIsmMetadata;
-  encoded: string;
-};
+import { Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/aggregation';
 const files = readdirSync(path);
-const fixtures: Fixture[] = files
+const fixtures: Fixture<AggregationIsmMetadata>[] = files
   .map((f) => JSON.parse(readFileSync(`${path}/${f}`, 'utf8')))
   .map((contents) => {
     const { encoded, ...values } = contents;

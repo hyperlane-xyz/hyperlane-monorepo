@@ -19,9 +19,7 @@ export class AggregationIsmMetadataBuilder {
 
     let encoded = Buffer.alloc(rangeSize, 0);
     metadata.submoduleMetadata.forEach((meta, index) => {
-      if (meta === null) {
-        return;
-      }
+      if (!meta) return;
 
       const start = encoded.length;
       encoded = Buffer.concat([encoded, fromHexString(meta)]);

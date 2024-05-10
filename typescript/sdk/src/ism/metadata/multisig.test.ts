@@ -6,15 +6,11 @@ import { SignatureLike } from '@hyperlane-xyz/utils';
 import { ModuleType } from '../types.js';
 
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
-
-type Fixture = {
-  decoded: MultisigMetadata;
-  encoded: string;
-};
+import { Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/multisig';
 const files = readdirSync(path);
-const fixtures: Fixture[] = files
+const fixtures: Fixture<MultisigMetadata>[] = files
   .map((f) => JSON.parse(readFileSync(`${path}/${f}`, 'utf8')))
   .map((contents) => {
     const type = contents.type as MultisigMetadata['type'];
