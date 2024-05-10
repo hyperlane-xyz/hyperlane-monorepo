@@ -346,9 +346,6 @@ jobs:
           - environment: testnet4
             chain: sepolia
             module: core
-          - environment: mainnet3
-            chain: inevm
-            module: warp
 
     steps:
       - uses: actions/checkout@v3

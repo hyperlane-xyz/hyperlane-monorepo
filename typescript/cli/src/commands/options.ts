@@ -1,3 +1,4 @@
+import os from 'os';
 import { Options } from 'yargs';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -29,7 +30,7 @@ export const registryUriCommandOption: Options = {
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
-  default: './',
+  default: `${os.homedir()}/.hyperlane`,
 };
 
 export const skipConfirmationOption: Options = {

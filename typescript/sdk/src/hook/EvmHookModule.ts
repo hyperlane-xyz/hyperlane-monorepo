@@ -9,8 +9,8 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../providers/ProviderType.js';
 
+import { EvmHookReader } from './EvmHookReader.js';
 import { HookFactories } from './contracts.js';
-import { EvmHookReader } from './read.js';
 import { HookConfig } from './types.js';
 
 // WIP example implementation of EvmHookModule
