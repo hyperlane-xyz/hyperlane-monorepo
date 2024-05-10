@@ -14,6 +14,7 @@ fs_permissions = [
     { access = "read", path = "./script/avs/"},
     { access = "write", path = "./fixtures" }
 ]
+ignored_warnings_from = ['fx-portal']
 
 [profile.ci]
 verbosity = 4

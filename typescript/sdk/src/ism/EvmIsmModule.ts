@@ -12,7 +12,7 @@ import { EthersV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmIsmCreator } from './EvmIsmCreator.js';
-import { EvmIsmReader } from './read.js';
+import { EvmIsmReader } from './EvmIsmReader.js';
 import { IsmConfig } from './types.js';
 
 export class EvmIsmModule extends HyperlaneModule<
