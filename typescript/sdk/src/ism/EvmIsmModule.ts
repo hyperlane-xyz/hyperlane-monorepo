@@ -11,9 +11,9 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
-import { EvmIsmCreator } from './EvmIsmCreator.js';
+import { EvmIsmDeployer } from './EvmIsmDeployer.js';
 import { EvmIsmReader } from './EvmIsmReader.js';
-import { IsmConfig } from './types.js';
+import { DeployedIsmType, IsmConfig, IsmType } from './types.js';
 
 export class EvmIsmModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -23,8 +23,8 @@ export class EvmIsmModule extends HyperlaneModule<
   }
 > {
   protected logger = rootLogger.child({ module: 'EvmIsmModule' });
-  protected reader: EvmIsmReader;
-  protected creator: EvmIsmCreator;
+  protected ismReader: EvmIsmReader;
+  protected ismDeployer: EvmIsmDeployer;
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
@@ -37,23 +37,54 @@ export class EvmIsmModule extends HyperlaneModule<
     >,
   ) {
     super(args);
-    this.reader = new EvmIsmReader(multiProvider, args.chain);
-    this.creator = new EvmIsmCreator(deployer, multiProvider, args.addresses);
+    this.ismReader = new EvmIsmReader(multiProvider, args.chain);
+    this.ismDeployer = new EvmIsmDeployer(
+      deployer,
+      multiProvider,
+      args.addresses,
+    );
   }
 
   public async read(): Promise<IsmConfig> {
-    return await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
+    return await this.ismReader.deriveIsmConfig(
+      this.args.addresses.deployedIsm,
+    );
   }
 
   public async update(config: IsmConfig): Promise<EthersV5Transaction[]> {
-    throw new Error('Method not implemented.');
-
     const destination = this.multiProvider.getChainName(this.args.chain);
-    await this.creator.update({
-      destination,
-      config,
-      existingIsmAddress: this.args.addresses.deployedIsm,
-    });
+
+    if (typeof config === 'string') {
+      this.logger.debug('Skipping update for config of type Address.');
+      return [];
+    }
+
+    const ismType = config.type;
+    this.logger.debug(
+      `Updating ${ismType} on ${destination} ${
+        origin ? `(for verifying ${origin})` : ''
+      }`,
+    );
+
+    let contract: DeployedIsmType[typeof ismType];
+    if (ismType === IsmType.ROUTING || ismType === IsmType.FALLBACK_ROUTING) {
+      contract = await this.ismDeployer.updateRoutingIsm({
+        destination,
+        config,
+        origin,
+        existingIsmAddress: this.args.addresses.deployedIsm,
+        logger: this.logger,
+      });
+    } else {
+      contract = await this.ismDeployer.deploy({
+        destination,
+        config,
+      });
+    }
+
+    // if update was in-place, there's no change in address
+    this.args.addresses.deployedIsm = contract.address;
+    this.args.config = config;
     return [];
   }
 
@@ -72,8 +103,8 @@ export class EvmIsmModule extends HyperlaneModule<
     multiProvider: MultiProvider;
   }): Promise<EvmIsmModule> {
     const destination = multiProvider.getChainName(chain);
-    const ismCreator = new EvmIsmCreator(deployer, multiProvider, factories);
-    const deployedIsm = await ismCreator.deploy({
+    const ismDeployer = new EvmIsmDeployer(deployer, multiProvider, factories);
+    const deployedIsm = await ismDeployer.deploy({
       config,
       destination,
     });

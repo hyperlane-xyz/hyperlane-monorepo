@@ -47,8 +47,8 @@ import {
 } from './types.js';
 import { routingModuleDelta } from './utils.js';
 
-export class EvmIsmCreator {
-  protected readonly logger = rootLogger.child({ module: 'EvmIsmCreator' });
+export class EvmIsmDeployer {
+  protected readonly logger = rootLogger.child({ module: 'EvmIsmDeployer' });
 
   constructor(
     protected readonly deployer: HyperlaneDeployer<any, any>,
@@ -56,52 +56,7 @@ export class EvmIsmCreator {
     protected readonly factories: HyperlaneContracts<ProxyFactoryFactories>,
   ) {}
 
-  async update<C extends IsmConfig>(params: {
-    destination: ChainName;
-    config: C;
-    origin?: ChainName;
-    mailbox?: Address;
-    existingIsmAddress: Address;
-  }): Promise<DeployedIsm> {
-    const { destination, config, origin, mailbox, existingIsmAddress } = params;
-    if (typeof config === 'string') {
-      // @ts-ignore
-      return IInterchainSecurityModule__factory.connect(
-        config,
-        this.multiProvider.getSignerOrProvider(destination),
-      );
-    }
-
-    const ismType = config.type;
-    const logger = this.logger.child({ destination, ismType });
-
-    logger.debug(
-      `Updating ${ismType} on ${destination} ${
-        origin ? `(for verifying ${origin})` : ''
-      }`,
-    );
-
-    let contract: DeployedIsmType[typeof ismType];
-    switch (ismType) {
-      case IsmType.ROUTING:
-      case IsmType.FALLBACK_ROUTING:
-        contract = await this.updateRoutingIsm({
-          destination,
-          config,
-          origin,
-          mailbox,
-          existingIsmAddress,
-          logger,
-        });
-        break;
-      default:
-        return this.deploy(params); // TODO: tidy-up update in follow-up PR
-    }
-
-    return contract;
-  }
-
-  async deploy<C extends IsmConfig>(params: {
+  public async deploy<C extends IsmConfig>(params: {
     destination: ChainName;
     config: C;
     origin?: ChainName;
@@ -214,29 +169,7 @@ export class EvmIsmCreator {
     return contract;
   }
 
-  protected async deployMultisigIsm(
-    destination: ChainName,
-    config: MultisigIsmConfig,
-    logger: Logger,
-  ): Promise<IMultisigIsm> {
-    const signer = this.multiProvider.getSigner(destination);
-    const multisigIsmFactory =
-      config.type === IsmType.MERKLE_ROOT_MULTISIG
-        ? this.factories.staticMerkleRootMultisigIsmFactory
-        : this.factories.staticMessageIdMultisigIsmFactory;
-
-    const address = await this.deployStaticAddressSet(
-      destination,
-      multisigIsmFactory,
-      config.validators,
-      logger,
-      config.threshold,
-    );
-
-    return IMultisigIsm__factory.connect(address, signer);
-  }
-
-  protected async updateRoutingIsm(params: {
+  public async updateRoutingIsm(params: {
     destination: ChainName;
     config: RoutingIsmConfig;
     origin?: ChainName;
@@ -384,6 +317,28 @@ export class EvmIsmCreator {
       }
     }
     return routingIsm;
+  }
+
+  protected async deployMultisigIsm(
+    destination: ChainName,
+    config: MultisigIsmConfig,
+    logger: Logger,
+  ): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(destination);
+    const multisigIsmFactory =
+      config.type === IsmType.MERKLE_ROOT_MULTISIG
+        ? this.factories.staticMerkleRootMultisigIsmFactory
+        : this.factories.staticMessageIdMultisigIsmFactory;
+
+    const address = await this.deployStaticAddressSet(
+      destination,
+      multisigIsmFactory,
+      config.validators,
+      logger,
+      config.threshold,
+    );
+
+    return IMultisigIsm__factory.connect(address, signer);
   }
 
   protected async deployRoutingIsm(params: {
