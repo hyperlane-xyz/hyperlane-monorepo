@@ -1,6 +1,8 @@
 import {
   EV5GnosisSafeTxSubmitter,
+  EV5GnosisSafeTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitter,
+  EV5ImpersonatedAccountTxSubmitterProps,
   EV5InterchainAccountTxTransformer,
   EV5JsonRpcTxSubmitter,
   MultiProvider,
@@ -10,7 +12,7 @@ import {
   TxTransformerInterface,
   TxTransformerType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   SubmitterBuilderSettings,
@@ -37,33 +39,23 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 
 async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  { type, settings }: SubmitterMetadata,
+  submitterMetadata: SubmitterMetadata,
 ): Promise<TxSubmitterInterface<TProtocol>> {
-  switch (type) {
+  switch (submitterMetadata.type) {
     case TxSubmitterType.JSON_RPC:
       return new EV5JsonRpcTxSubmitter(multiProvider);
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
-      assert(
-        settings,
-        'Must provide EV5ImpersonatedAccountTxSubmitterProps for impersonated account submitter.',
-      );
-
       return new EV5ImpersonatedAccountTxSubmitter(
         multiProvider,
-        settings.eV5ImpersonatedAccountProps,
+        submitterMetadata.props as EV5ImpersonatedAccountTxSubmitterProps,
       );
     case TxSubmitterType.GNOSIS_SAFE:
-      assert(
-        settings,
-        'Must provide EV5GnosisSafeTxSubmitterProps for Gnosis safe submitter.',
-      );
-
       return new EV5GnosisSafeTxSubmitter(
         multiProvider,
-        settings.eV5GnosisSafeProps,
+        submitterMetadata.props as EV5GnosisSafeTxSubmitterProps,
       );
     default:
-      throw new Error(`Invalid TxSubmitterType: ${type}`);
+      throw new Error(`Invalid TxSubmitterType: ${submitterMetadata.type}`);
   }
 }
 
@@ -72,28 +64,23 @@ async function getTransformers<TProtocol extends ProtocolType>(
   metadata: TransformerMetadata[],
 ): Promise<TxTransformerInterface<TProtocol>[]> {
   return Promise.all(
-    metadata.map(({ type, settings }) =>
-      getTransformer<TProtocol>(multiProvider, { type, settings }),
+    metadata.map(({ type, props: settings }) =>
+      getTransformer<TProtocol>(multiProvider, { type, props: settings }),
     ),
   );
 }
 
 async function getTransformer<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
-  { type, settings }: TransformerMetadata,
+  transformerMetadata: TransformerMetadata,
 ): Promise<TxTransformerInterface<TProtocol>> {
-  switch (type) {
+  switch (transformerMetadata.type) {
     case TxTransformerType.ICA:
-      assert(
-        settings,
-        'Must provide EV5InterchainAccountTxTransformerProps for ICA transformer.',
-      );
-
       return new EV5InterchainAccountTxTransformer(
         multiProvider,
-        settings.eV5InterchainAccountProps,
+        transformerMetadata.props,
       );
     default:
-      throw new Error(`Invalid TxTransformerType: ${type}`);
+      throw new Error(`Invalid TxTransformerType: ${transformerMetadata.type}`);
   }
 }

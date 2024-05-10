@@ -14,17 +14,14 @@ export interface SubmitterBuilderSettings {
 }
 export interface SubmitterMetadata {
   type: TxSubmitterType;
-  settings?: SubmitterSettings;
+  props: SubmitterProps;
 }
 export interface TransformerMetadata {
   type: TxTransformerType;
-  settings?: TransformerSettings;
+  props: TransformerProps;
 }
 
-interface SubmitterSettings {
-  eV5GnosisSafeProps: EV5GnosisSafeTxSubmitterProps;
-  eV5ImpersonatedAccountProps: EV5ImpersonatedAccountTxSubmitterProps;
-}
-interface TransformerSettings {
-  eV5InterchainAccountProps: EV5InterchainAccountTxTransformerProps;
-}
+type SubmitterProps =
+  | EV5ImpersonatedAccountTxSubmitterProps
+  | EV5GnosisSafeTxSubmitterProps;
+type TransformerProps = EV5InterchainAccountTxTransformerProps;
