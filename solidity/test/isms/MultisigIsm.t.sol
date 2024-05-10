@@ -25,6 +25,10 @@ abstract contract AbstractMultisigIsmTest is Test {
     using Strings for uint256;
     using Strings for uint8;
 
+    string constant fixtureKey = "fixture";
+    string constant signatureKey = "signature";
+    string constant signaturesKey = "signatures";
+
     uint32 constant ORIGIN = 11;
     StaticThresholdAddressSetFactory factory;
     IMultisigIsm ism;
@@ -36,14 +40,51 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes memory message
     ) internal virtual returns (bytes memory, string memory);
 
+    function fixtureInit(uint8 moduleType, string memory prefix) internal {
+        vm.serializeUint(fixtureKey, "type", uint256(moduleType));
+        vm.serializeString(fixtureKey, "prefix", prefix);
+    }
+
+    function fixtureAppendSignature(
+        uint256 index,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) internal {
+        vm.serializeUint(signatureKey, "v", uint256(v));
+        vm.serializeBytes32(signatureKey, "r", r);
+        string memory signature = vm.serializeBytes32(signatureKey, "s", s);
+        vm.serializeString(signaturesKey, index.toString(), signature);
+    }
+
+    function writeFixture(bytes memory metadata, uint8 m, uint8 n) internal {
+        vm.serializeString(
+            fixtureKey,
+            "signatures",
+            vm.serializeString(signaturesKey, "dummy", "dummy")
+        );
+
+        string memory fixturePath = string(
+            abi.encodePacked(
+                "./fixtures/multisig/",
+                m.toString(),
+                "-",
+                n.toString(),
+                ".json"
+            )
+        );
+        vm.writeJson(
+            vm.serializeBytes(fixtureKey, "encoded", metadata),
+            fixturePath
+        );
+    }
+
     function getMetadata(
         uint8 m,
         uint8 n,
         bytes32 seed,
         bytes memory message
     ) internal returns (bytes memory) {
-        string memory structured = "structured";
-
         bytes32 digest;
         {
             uint32 domain = mailbox.localDomain();
@@ -66,40 +107,18 @@ abstract contract AbstractMultisigIsmTest is Test {
             seed
         );
 
-        vm.serializeUint(structured, "type", uint256(ism.moduleType()));
-
         (bytes memory metadata, string memory prefix) = metadataPrefix(message);
-        vm.serializeString(structured, "prefix", prefix);
+        fixtureInit(ism.moduleType(), prefix);
 
-        string memory signatures = "signatures";
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
 
-            string memory signature = "signature";
-            vm.serializeUint(signature, "v", uint256(v));
-            vm.serializeBytes32(signature, "r", r);
-            signature = vm.serializeBytes32(signature, "s", s);
-            vm.serializeString(signatures, i.toString(), signature);
+            fixtureAppendSignature(i, v, r, s);
         }
 
-        vm.serializeString(
-            structured,
-            "signatures",
-            vm.serializeString(signatures, "dummy", "dummy") // idk
-        );
+        writeFixture(metadata, m, n);
 
-        string memory path = string(
-            abi.encodePacked(
-                "./fixtures/multisig/",
-                m.toString(),
-                "-",
-                n.toString(),
-                ".json"
-            )
-        );
-
-        vm.writeJson(vm.serializeBytes(structured, "encoded", metadata), path);
         return metadata;
     }
 
