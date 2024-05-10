@@ -65,7 +65,7 @@ export {
   coreFactories,
 } from './core/contracts.js';
 export { HyperlaneLifecyleEvent } from './core/events.js';
-export { EvmCoreReader } from './core/read.js';
+export { EvmCoreReader } from './core/EvmCoreReader.js';
 export {
   CoreConfig,
   CoreViolationType,
@@ -124,7 +124,7 @@ export {
   IgpViolationType,
 } from './gas/types.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
-export { EvmHookReader } from './hook/read.js';
+export { EvmHookReader } from './hook/EvmHookReader.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -143,7 +143,7 @@ export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
 } from './ism/multisig.js';
-export { EvmIsmReader } from './ism/read.js';
+export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export {
   AggregationIsmConfig,
   DeployedIsm,
