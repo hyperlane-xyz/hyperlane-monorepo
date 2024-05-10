@@ -9,18 +9,18 @@ import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HookConfig } from '../hook/types.js';
+import { DerivedIsmConfigWithAddress } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfigWithAddress } from '../ism/read.js';
 import { AggregationIsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
+import { EvmCoreReader } from './EvmCoreReader.js';
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
-import { EvmCoreReader } from './read.js';
 import { CoreConfig } from './types.js';
 
 describe('core', async () => {
