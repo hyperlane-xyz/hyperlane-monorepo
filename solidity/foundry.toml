@@ -10,7 +10,11 @@ solc_version = '0.8.22'
 evm_version= 'paris'
 optimizer = true
 optimizer_runs = 999_999
-fs_permissions = [{ access = "read-write", path = "./"}]
+fs_permissions = [
+    { access = "read", path = "./script/avs/"},
+    { access = "write", path = "./fixtures" }
+]
+ignored_warnings_from = ['fx-portal']
 
 [profile.ci]
 verbosity = 4

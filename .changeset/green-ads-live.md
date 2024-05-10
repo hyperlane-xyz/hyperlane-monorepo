@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/cli": minor
+'@hyperlane-xyz/cli': minor
 ---
 
 Default to home directory for local registry
