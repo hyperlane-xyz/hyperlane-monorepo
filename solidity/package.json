@@ -7,7 +7,8 @@
     "@hyperlane-xyz/utils": "3.11.1",
     "@layerzerolabs/lz-evm-oapp-v2": "2.0.2",
     "@openzeppelin/contracts": "^4.9.3",
-    "@openzeppelin/contracts-upgradeable": "^v4.9.3"
+    "@openzeppelin/contracts-upgradeable": "^v4.9.3",
+    "fx-portal": "^1.0.3"
   },
   "devDependencies": {
     "@layerzerolabs/solidity-examples": "^1.1.0",
