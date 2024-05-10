@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
-export async function assertNativeBalances(
+export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
   signer: ethers.Signer,
   chains: ChainName[],
@@ -11,7 +11,7 @@ export async function assertNativeBalances(
 ): Promise<boolean> {
   const address = await signer.getAddress();
   const minBalance = ethers.utils.formatEther(minBalanceWei.toString());
-  let lowBalanceExists = false;
+  let sufficient = true;
   await Promise.all(
     chains.map(async (chain) => {
       const balanceWei = await multiProvider
@@ -26,26 +26,26 @@ export async function assertNativeBalances(
           message: `WARNING: ${error} Continue?`,
         });
         if (!isResume) throw new Error(error);
-        lowBalanceExists = true;
+        sufficient = false;
       }
     }),
   );
-  return lowBalanceExists;
+  return sufficient;
 }
 
-export async function assertGasBalances(
+export async function gasBalancesAreSufficient(
   multiProvider: MultiProvider,
   signer: ethers.Signer,
   chains: ChainName[],
   minGas: string,
 ): Promise<boolean> {
-  let lowBalanceExists = false;
+  let sufficient = true;
   await Promise.all(
     chains.map(async (chain) => {
       const provider = multiProvider.getProvider(chain);
       const gasPrice = await provider.getGasPrice();
       const minBalanceWei = gasPrice.mul(minGas).toString();
-      lowBalanceExists = await assertNativeBalances(
+      sufficient = await nativeBalancesAreSufficient(
         multiProvider,
         signer,
         [chain],
@@ -53,5 +53,5 @@ export async function assertGasBalances(
       );
     }),
   );
-  return lowBalanceExists;
+  return sufficient;
 }
