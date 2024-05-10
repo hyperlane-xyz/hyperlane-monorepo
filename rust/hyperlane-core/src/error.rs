@@ -82,6 +82,12 @@ pub enum ChainCommunicationError {
     /// No signer is available and was required for the operation
     #[error("Signer unavailable")]
     SignerUnavailable,
+    /// Batching transaction failed
+    #[error("Batching transaction failed")]
+    BatchingFailed,
+    /// Cannot submit empty batch
+    #[error("Cannot submit empty batch")]
+    BatchIsEmpty,
     /// Failed to parse strings or integers
     #[error("Data parsing error {0:?}")]
     StrOrIntParseError(#[from] StrOrIntParseError),

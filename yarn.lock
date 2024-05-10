@@ -4955,8 +4955,8 @@ __metadata:
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
     "@hyperlane-xyz/registry": "npm:^1.0.7"
-    "@hyperlane-xyz/sdk": "npm:3.10.0"
-    "@hyperlane-xyz/utils": "npm:3.10.0"
+    "@hyperlane-xyz/sdk": "npm:3.11.1"
+    "@hyperlane-xyz/utils": "npm:3.11.1"
     "@inquirer/prompts": "npm:^3.0.0"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -4983,12 +4983,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:3.10.0, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:3.11.1, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:3.10.0"
+    "@hyperlane-xyz/utils": "npm:3.11.1"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -5000,6 +5000,7 @@ __metadata:
     chai: "npm:^4.3.6"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
+    fx-portal: "npm:^1.0.3"
     hardhat: "npm:^2.22.2"
     hardhat-gas-reporter: "npm:^1.0.9"
     prettier: "npm:^2.8.8"
@@ -5034,13 +5035,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/helloworld@npm:3.10.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:3.11.1, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/core": "npm:3.10.0"
+    "@hyperlane-xyz/core": "npm:3.11.1"
     "@hyperlane-xyz/registry": "npm:^1.0.7"
-    "@hyperlane-xyz/sdk": "npm:3.10.0"
+    "@hyperlane-xyz/sdk": "npm:3.11.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -5085,15 +5086,13 @@ __metadata:
     "@ethersproject/experimental": "npm:^5.7.0"
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:^5.7.2"
-    "@hyperlane-xyz/helloworld": "npm:3.10.0"
+    "@hyperlane-xyz/helloworld": "npm:3.11.1"
     "@hyperlane-xyz/registry": "npm:^1.0.7"
-    "@hyperlane-xyz/sdk": "npm:3.10.0"
-    "@hyperlane-xyz/utils": "npm:3.10.0"
+    "@hyperlane-xyz/sdk": "npm:3.11.1"
+    "@hyperlane-xyz/utils": "npm:3.11.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
-    "@safe-global/api-kit": "npm:^1.3.0"
-    "@safe-global/protocol-kit": "npm:^1.2.0"
     "@solana/web3.js": "npm:^1.78.0"
     "@types/chai": "npm:^4.2.21"
     "@types/json-stable-stringify": "npm:^1.0.36"
@@ -5150,16 +5149,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:3.10.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:3.11.1, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
     "@cosmjs/cosmwasm-stargate": "npm:^0.31.3"
     "@cosmjs/stargate": "npm:^0.31.3"
-    "@hyperlane-xyz/core": "npm:3.10.0"
-    "@hyperlane-xyz/utils": "npm:3.10.0"
+    "@hyperlane-xyz/core": "npm:3.11.1"
+    "@hyperlane-xyz/utils": "npm:3.11.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
+    "@safe-global/api-kit": "npm:1.3.0"
+    "@safe-global/protocol-kit": "npm:1.3.0"
     "@solana/spl-token": "npm:^0.3.8"
     "@solana/web3.js": "npm:^1.78.0"
     "@types/coingecko-api": "npm:^1.0.10"
@@ -5223,7 +5224,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:3.10.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:3.11.1, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -6843,6 +6844,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts@npm:^4.2.0":
+  version: 4.9.6
+  resolution: "@openzeppelin/contracts@npm:4.9.6"
+  checksum: 71f45ad42e68c0559be4ba502115462a01c76fc805c08d3005c10b5550a093f1a2b00b2d7e9d6d1f331e147c50fd4ad832f71c4470ec5b34f5a2d0751cd19a47
+  languageName: node
+  linkType: hard
+
 "@openzeppelin/contracts@npm:^4.4.1":
   version: 4.9.5
   resolution: "@openzeppelin/contracts@npm:4.9.5"
@@ -7234,7 +7242,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@safe-global/api-kit@npm:^1.3.0":
+"@safe-global/api-kit@npm:1.3.0":
   version: 1.3.0
   resolution: "@safe-global/api-kit@npm:1.3.0"
   dependencies:
@@ -7245,9 +7253,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@safe-global/protocol-kit@npm:^1.2.0":
-  version: 1.2.0
-  resolution: "@safe-global/protocol-kit@npm:1.2.0"
+"@safe-global/protocol-kit@npm:1.3.0":
+  version: 1.3.0
+  resolution: "@safe-global/protocol-kit@npm:1.3.0"
   dependencies:
     "@ethersproject/address": "npm:^5.7.0"
     "@ethersproject/bignumber": "npm:^5.7.0"
@@ -7258,7 +7266,8 @@ __metadata:
     web3: "npm:^1.8.1"
     web3-core: "npm:^1.8.1"
     web3-utils: "npm:^1.8.1"
-  checksum: f6c6969ee5638fc1af1bf56f7848915bb9cb1e6a3f57f4e9b235f3f251c3a5f8cde6bad13bd8b9a321424cdecdad34e02ad13de3b4fe8fae32acc9000e52b4dc
+    zksync-web3: "npm:^0.14.3"
+  checksum: e562f437c3682ddf395e13b26adb9f4e4d2970c66b78e8f8f4895862864ac5bdfac3bdcfda234a171a3eb79d262b75d48cac3ff248f4587654b7b8da9a1ba7f6
   languageName: node
   linkType: hard
 
@@ -14274,6 +14283,15 @@ __metadata:
   version: 1.2.3
   resolution: "functions-have-names@npm:1.2.3"
   checksum: 0ddfd3ed1066a55984aaecebf5419fbd9344a5c38dd120ffb0739fac4496758dcf371297440528b115e4367fc46e3abc86a2cc0ff44612181b175ae967a11a05
+  languageName: node
+  linkType: hard
+
+"fx-portal@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "fx-portal@npm:1.0.3"
+  dependencies:
+    "@openzeppelin/contracts": "npm:^4.2.0"
+  checksum: 89309e03da57238d153b41fd9fd492d582d41a90da51fc18b4cdd939a8713736572ed1ba034210888ad1b2e81596a860f157785f6911e6d265e2fd0730aa94c2
   languageName: node
   linkType: hard
 
@@ -24669,6 +24687,15 @@ __metadata:
   version: 0.1.0
   resolution: "yocto-queue@npm:0.1.0"
   checksum: f77b3d8d00310def622123df93d4ee654fc6a0096182af8bd60679ddcdfb3474c56c6c7190817c84a2785648cdee9d721c0154eb45698c62176c322fb46fc700
+  languageName: node
+  linkType: hard
+
+"zksync-web3@npm:^0.14.3":
+  version: 0.14.4
+  resolution: "zksync-web3@npm:0.14.4"
+  peerDependencies:
+    ethers: ^5.7.0
+  checksum: a1566a2a2ba34a3026680f3b4000ffa02593e02d9c73a4dd143bde929b5e39b09544d429bccad0479070670cfdad5f6836cb686c4b8d7954b4d930826be91c92
   languageName: node
   linkType: hard
 

@@ -5,7 +5,7 @@ use futures_util::future::try_join_all;
 use hyperlane_core::{
     HyperlaneChain, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
-    Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, Sequenced, ValidatorAnnounce, H256,
+    Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -160,7 +160,7 @@ impl Settings {
         db: Arc<D>,
     ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
     where
-        T: Sequenced + Debug,
+        T: Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
         D: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
     {
@@ -210,7 +210,7 @@ impl Settings {
         dbs: HashMap<HyperlaneDomain, Arc<D>>,
     ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
     where
-        T: Indexable + Sequenced + Debug + Send + Sync + Clone + Eq + Hash + 'static,
+        T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
         D: HyperlaneLogStore<T>
             + HyperlaneSequenceAwareIndexerStoreReader<T>
