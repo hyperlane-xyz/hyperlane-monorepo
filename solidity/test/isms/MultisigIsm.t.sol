@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMerkleRootMultisigIsmFactory, StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
@@ -20,6 +22,13 @@ import {ThresholdTestUtils} from "./IsmTestUtils.sol";
 abstract contract AbstractMultisigIsmTest is Test {
     using Message for bytes;
     using TypeCasts for address;
+    using Strings for uint256;
+    using Strings for uint8;
+
+    string constant fixtureKey = "fixture";
+    string constant signatureKey = "signature";
+    string constant signaturesKey = "signatures";
+    string constant prefixKey = "prefix";
 
     uint32 constant ORIGIN = 11;
     StaticThresholdAddressSetFactory factory;
@@ -30,7 +39,47 @@ abstract contract AbstractMultisigIsmTest is Test {
 
     function metadataPrefix(
         bytes memory message
-    ) internal view virtual returns (bytes memory);
+    ) internal virtual returns (bytes memory);
+
+    function fixtureInit() internal {
+        vm.serializeUint(fixtureKey, "type", uint256(ism.moduleType()));
+        string memory prefix = vm.serializeString(prefixKey, "dummy", "dummy");
+        vm.serializeString(fixtureKey, "prefix", prefix);
+    }
+
+    function fixtureAppendSignature(
+        uint256 index,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) internal {
+        vm.serializeUint(signatureKey, "v", uint256(v));
+        vm.serializeBytes32(signatureKey, "r", r);
+        string memory signature = vm.serializeBytes32(signatureKey, "s", s);
+        vm.serializeString(signaturesKey, index.toString(), signature);
+    }
+
+    function writeFixture(bytes memory metadata, uint8 m, uint8 n) internal {
+        vm.serializeString(
+            fixtureKey,
+            "signatures",
+            vm.serializeString(signaturesKey, "dummy", "dummy")
+        );
+
+        string memory fixturePath = string(
+            abi.encodePacked(
+                "./fixtures/multisig/",
+                m.toString(),
+                "-",
+                n.toString(),
+                ".json"
+            )
+        );
+        vm.writeJson(
+            vm.serializeBytes(fixtureKey, "encoded", metadata),
+            fixturePath
+        );
+    }
 
     function getMetadata(
         uint8 m,
@@ -38,24 +87,40 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes32 seed,
         bytes memory message
     ) internal returns (bytes memory) {
-        uint32 domain = mailbox.localDomain();
-        uint256[] memory keys = addValidators(m, n, seed);
-        uint256[] memory signers = ThresholdTestUtils.choose(m, keys, seed);
+        bytes32 digest;
+        {
+            uint32 domain = mailbox.localDomain();
+            (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
+            bytes32 messageId = message.id();
+            bytes32 merkleTreeAddress = address(merkleTreeHook)
+                .addressToBytes32();
+            digest = CheckpointLib.digest(
+                domain,
+                merkleTreeAddress,
+                root,
+                index,
+                messageId
+            );
+        }
 
-        (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
-        bytes32 messageId = message.id();
-        bytes32 digest = CheckpointLib.digest(
-            domain,
-            address(merkleTreeHook).addressToBytes32(),
-            root,
-            index,
-            messageId
+        uint256[] memory signers = ThresholdTestUtils.choose(
+            m,
+            addValidators(m, n, seed),
+            seed
         );
+
         bytes memory metadata = metadataPrefix(message);
+        fixtureInit();
+
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
             metadata = abi.encodePacked(metadata, r, s, v);
+
+            fixtureAppendSignature(i, v, r, s);
         }
+
+        writeFixture(metadata, m, n);
+
         return metadata;
     }
 
@@ -125,6 +190,9 @@ abstract contract AbstractMultisigIsmTest is Test {
 contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
     using TypeCasts for address;
     using Message for bytes;
+    using Strings for uint256;
+
+    string constant proofKey = "proof";
 
     function setUp() public {
         mailbox = new TestMailbox(ORIGIN);
@@ -135,17 +203,45 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
         mailbox.setRequiredHook(address(noopHook));
     }
 
+    function fixturePrefix(
+        uint32 checkpointIndex,
+        bytes32 merkleTreeAddress,
+        bytes32 messageId,
+        bytes32[32] memory proof
+    ) internal {
+        vm.serializeUint(prefixKey, "index", uint256(checkpointIndex));
+        vm.serializeBytes32(prefixKey, "merkleTree", merkleTreeAddress);
+        vm.serializeUint(prefixKey, "signedIndex", uint256(checkpointIndex));
+        vm.serializeBytes32(prefixKey, "id", messageId);
+
+        for (uint256 i = 0; i < 32; i++) {
+            vm.serializeBytes32(proofKey, i.toString(), proof[i]);
+        }
+        string memory proofString = vm.serializeString(
+            proofKey,
+            "dummy",
+            "dummy"
+        );
+        vm.serializeString(prefixKey, "proof", proofString);
+    }
+
     // TODO: test merkleIndex != signedIndex
     function metadataPrefix(
         bytes memory message
-    ) internal view override returns (bytes memory) {
+    ) internal override returns (bytes memory) {
         uint32 checkpointIndex = uint32(merkleTreeHook.count() - 1);
+        bytes32[32] memory proof = merkleTreeHook.proof();
+        bytes32 messageId = message.id();
+        bytes32 merkleTreeAddress = address(merkleTreeHook).addressToBytes32();
+
+        fixturePrefix(checkpointIndex, merkleTreeAddress, messageId, proof);
+
         return
             abi.encodePacked(
-                address(merkleTreeHook).addressToBytes32(),
+                merkleTreeAddress,
                 checkpointIndex,
-                message.id(),
-                merkleTreeHook.proof(),
+                messageId,
+                proof,
                 checkpointIndex
             );
     }
@@ -164,15 +260,24 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
         mailbox.setRequiredHook(address(noopHook));
     }
 
+    function fixturePrefix(
+        bytes32 root,
+        uint32 index,
+        bytes32 merkleTreeAddress
+    ) internal {
+        vm.serializeBytes32(prefixKey, "root", root);
+        vm.serializeUint(prefixKey, "signedIndex", uint256(index));
+        vm.serializeBytes32(prefixKey, "merkleTree", merkleTreeAddress);
+    }
+
     function metadataPrefix(
         bytes memory
-    ) internal view override returns (bytes memory) {
+    ) internal override returns (bytes memory metadata) {
         (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
-        return
-            abi.encodePacked(
-                address(merkleTreeHook).addressToBytes32(),
-                root,
-                index
-            );
+        bytes32 merkleTreeAddress = address(merkleTreeHook).addressToBytes32();
+
+        fixturePrefix(root, index, merkleTreeAddress);
+
+        return abi.encodePacked(merkleTreeAddress, root, index);
     }
 }
