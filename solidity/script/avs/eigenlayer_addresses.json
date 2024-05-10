@@ -1,0 +1,40 @@
+{
+  "ethereum": {
+    "delegationManager": "0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A",
+    "avsDirectory": "0x135DDa560e946695d6f155dACaFC6f1F25C1F5AF",
+    "paymentCoordinator": "",
+    "strategies": [
+      {
+        "name": "cbETH",
+        "strategy": "0x54945180dB7943c0ed0FEE7EdaB2Bd24620256bc"
+      },
+      {
+        "name": "stETH",
+        "strategy": "0x93c4b944D05dfe6df7645A86cd2206016c51564D"
+      },
+      {
+        "name": "Beacon Chain ETH",
+        "strategy": "0xbeaC0eeEeeeeEEeEeEEEEeeEEeEeeeEeeEEBEaC0"
+      }
+    ]
+  },
+  "holesky": {
+    "delegationManager": "0xA44151489861Fe9e3055d95adC98FbD462B948e7",
+    "avsDirectory": "0x055733000064333CaDDbC92763c58BF0192fFeBf",
+    "paymentCoordinator": "",
+    "strategies": [
+      {
+        "name": "cbETH",
+        "strategy": "0x70EB4D3c164a6B4A5f908D4FBb5a9cAfFb66bAB6"
+      },
+      {
+        "name": "stETH",
+        "strategy": "0x7D704507b76571a51d9caE8AdDAbBFd0ba0e63d3"
+      },
+      {
+        "name": "Beacon Chain ETH",
+        "strategy": "0xbeaC0eeEeeeeEEeEeEEEEeeEEeEeeeEeeEEBEaC0"
+      }
+    ]
+  }
+}

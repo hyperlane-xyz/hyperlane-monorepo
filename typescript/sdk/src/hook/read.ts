@@ -1,4 +1,3 @@
-import { assert } from 'console';
 import { ethers, providers } from 'ethers';
 
 import {
@@ -18,12 +17,13 @@ import {
 import {
   Address,
   WithAddress,
+  assert,
   concurrentMap,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/crud.js';
+import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 

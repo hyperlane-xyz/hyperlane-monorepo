@@ -10,8 +10,8 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
 };
 
 use crate::interfaces::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
@@ -111,7 +111,7 @@ where
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
         let events = self
             .contract
             .inserted_into_tree_filter()
@@ -124,7 +124,7 @@ where
             .into_iter()
             .map(|(log, log_meta)| {
                 (
-                    MerkleTreeInsertion::new(log.index, H256::from(log.message_id)),
+                    MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
                     log_meta.into(),
                 )
             })

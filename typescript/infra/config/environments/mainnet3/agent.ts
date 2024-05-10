@@ -76,7 +76,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     ethereum: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
-    mantapacific: false,
+    mantapacific: true,
     mode: true,
     moonbeam: true,
     optimism: true,
@@ -202,7 +202,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '3012392-20240507-130024',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -233,7 +233,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '3012392-20240507-130024',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
