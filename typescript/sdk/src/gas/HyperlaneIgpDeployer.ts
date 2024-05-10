@@ -49,7 +49,17 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
-      const remoteId = this.multiProvider.getDomainId(remote);
+      // TODO: add back support for non-EVM remotes.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      let remoteId: number;
+      try {
+        remoteId = this.multiProvider.getDomainId(remote);
+      } catch (err) {
+        this.logger.warn(
+          `Skipping overhead ${chain} -> ${remote}: ${err} (not an EVM chain?)`,
+        );
+        continue;
+      }
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
@@ -100,8 +110,17 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
-      // check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      const remoteDomain = this.multiProvider.getDomainId(remote);
+      // TODO: add back support for non-EVM remotes.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      let remoteDomain: number;
+      try {
+        remoteDomain = this.multiProvider.getDomainId(remote);
+      } catch (err) {
+        this.logger.warn(
+          `Skipping gas oracle ${chain} -> ${remote}: ${err} (not an EVM chain?)`,
+        );
+        continue;
+      }
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
 

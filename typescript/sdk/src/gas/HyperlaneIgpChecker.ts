@@ -128,7 +128,16 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       Object.keys(this.configMap[local].oracleConfig ?? {}),
     );
     for (const remote of remotes) {
-      const remoteId = this.multiProvider.getDomainId(remote);
+      // TODO: add back support for non-EVM remotes.
+      let remoteId: number;
+      try {
+        remoteId = this.multiProvider.getDomainId(remote);
+      } catch (err) {
+        this.app.logger.warn(
+          `Skipping checking IGP ${local} -> ${remote}: ${err} (not an EVM chain?)`,
+        );
+        continue;
+      }
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
       const actualGasOracle = destinationGasConfigs.gasOracle;
       const expectedGasOracle = coreContracts.storageGasOracle.address;
