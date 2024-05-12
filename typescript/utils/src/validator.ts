@@ -16,6 +16,10 @@ export interface ValidatorConfig {
 export class BaseValidator {
   constructor(protected readonly config: ValidatorConfig) {}
 
+  get address() {
+    return this.config.address;
+  }
+
   announceDomainHash() {
     return domainHash(this.config.localDomain, this.config.mailbox);
   }

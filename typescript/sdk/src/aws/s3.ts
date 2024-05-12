@@ -15,7 +15,7 @@ export interface S3Config {
   bucket: string;
   region: string;
   folder?: string;
-  caching: boolean;
+  caching?: boolean;
 }
 
 export class S3Wrapper {
@@ -35,6 +35,9 @@ export class S3Wrapper {
 
   constructor(readonly config: S3Config) {
     this.client = new S3Client(config);
+    if (config.caching) {
+      this.cache = {};
+    }
   }
 
   formatKey(key: string): string {

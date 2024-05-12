@@ -28,13 +28,13 @@ async function main() {
       await Promise.all(
         validators.slice(1).map(async (prospectiveValidator) => {
           const address = prospectiveValidator.address;
-          const bucket = prospectiveValidator.s3Bucket.bucket;
+          const bucket = prospectiveValidator.s3Bucket;
           try {
             const metrics = await prospectiveValidator.compare(
               controlValidator,
             );
             console.log(
-              `${chain} ${bucket} validators against control ${controlValidator.s3Bucket.bucket}`,
+              `${chain} ${bucket} validators against control ${controlValidator.s3Bucket}`,
             );
             console.table(metrics);
           } catch (error) {

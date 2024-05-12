@@ -21,7 +21,10 @@ const LOCATION_PREFIX = 's3://';
 export class S3Validator extends BaseValidator {
   public s3Bucket: S3Wrapper;
 
-  constructor(validatorConfig: ValidatorConfig, s3Config: S3Config) {
+  constructor(
+    public validatorConfig: ValidatorConfig,
+    public s3Config: S3Config,
+  ) {
     super(validatorConfig);
     this.s3Bucket = new S3Wrapper(s3Config);
   }
