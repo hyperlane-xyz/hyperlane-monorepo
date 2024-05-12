@@ -478,6 +478,8 @@ export {
   TokenRouterConfigSchema as tokenRouterConfigSchema,
 } from './token/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
+export { S3Validator } from './aws/validator.js';
+export { S3Wrapper, S3Receipt } from './aws/s3.js';
 
 // prettier-ignore
 // @ts-ignore
