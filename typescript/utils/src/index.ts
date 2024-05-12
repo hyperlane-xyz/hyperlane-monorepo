@@ -152,4 +152,4 @@ export {
 } from './types.js';
 export { isHttpsUrl } from './url.js';
 export { assert } from './validation.js';
-export { BaseValidator } from './validator.js';
+export { BaseValidator, ValidatorConfig } from './validator.js';

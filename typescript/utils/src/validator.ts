@@ -1,30 +1,27 @@
 import { ethers } from 'ethers';
 
+import { eqAddress } from './addresses.js';
 import { domainHash } from './domains.js';
-import {
-  Address,
-  Checkpoint,
-  Domain,
-  HexString,
-  SignatureLike,
-} from './types.js';
+import { Address, Checkpoint, HexString, SignatureLike } from './types.js';
+
+export interface ValidatorConfig {
+  address: string;
+  localDomain: number;
+  mailbox: string;
+}
 
 /**
  * Utilities for validators to construct and verify checkpoints.
  */
 export class BaseValidator {
-  constructor(
-    public readonly address: Address,
-    public readonly localDomain: Domain,
-    public readonly mailbox_address: Address,
-  ) {}
+  constructor(protected readonly config: ValidatorConfig) {}
 
   announceDomainHash() {
-    return domainHash(this.localDomain, this.mailbox_address);
+    return domainHash(this.config.localDomain, this.config.mailbox);
   }
 
   checkpointDomainHash(merkle_tree_address: Address) {
-    return domainHash(this.localDomain, merkle_tree_address);
+    return domainHash(this.config.localDomain, merkle_tree_address);
   }
 
   message(checkpoint: Checkpoint, messageId: HexString) {
@@ -57,12 +54,11 @@ export class BaseValidator {
     signature: SignatureLike,
     messageId: HexString,
   ) {
-    return (
-      this.recoverAddressFromCheckpoint(
-        checkpoint,
-        signature,
-        messageId,
-      ).toLowerCase() === this.address.toLowerCase()
+    const address = this.recoverAddressFromCheckpoint(
+      checkpoint,
+      signature,
+      messageId,
     );
+    return eqAddress(address, this.config.address);
   }
 }
