@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "rootDir": "./src/",
+    "noFallthroughCasesInSwitch": false,
   },
   "include": ["./src/**/*.ts", "./src/*.d.ts"]
 }

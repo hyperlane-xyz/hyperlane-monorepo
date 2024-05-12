@@ -12,6 +12,7 @@ import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedHookConfigWithAddress } from '../../hook/EvmHookReader.js';
 import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
 import { DerivedIsmConfigWithAddress } from '../EvmIsmReader.js';
 import { IsmType } from '../types.js';
 
@@ -54,13 +55,16 @@ export class BaseMetadataBuilder
 {
   private multisigMetadataBuilder: MultisigMetadataBuilder;
   private aggregationIsmMetadataBuilder: AggregationIsmMetadataBuilder;
+
+  protected multiProvider: MultiProvider;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
 
-  constructor(protected readonly core: HyperlaneCore) {
+  constructor(core: HyperlaneCore) {
     this.multisigMetadataBuilder = new MultisigMetadataBuilder(core);
     this.aggregationIsmMetadataBuilder = new AggregationIsmMetadataBuilder(
       this,
     );
+    this.multiProvider = core.multiProvider;
   }
 
   // assumes that all post dispatch hooks are included in dispatchTx logs
@@ -79,20 +83,19 @@ export class BaseMetadataBuilder
       `Building ${context.ism.type} metadata`,
     );
 
-    if (context.ism.type === IsmType.TRUSTED_RELAYER) {
-      const destinationSigner = await this.core.multiProvider.getSignerAddress(
-        message.parsed.destination,
-      );
-      assert(
-        eqAddress(destinationSigner, context.ism.relayer),
-        `Destination signer ${destinationSigner} does not match trusted relayer ${context.ism.relayer}`,
-      );
-    }
-
     const { ism, hook, dispatchTx } = context;
+    /* eslint-disable no-case-declarations */
     switch (ism.type) {
       // Null
       case IsmType.TRUSTED_RELAYER:
+        const destinationSigner = await this.multiProvider.getSignerAddress(
+          message.parsed.destination,
+        );
+        assert(
+          eqAddress(destinationSigner, ism.relayer),
+          `Destination signer ${destinationSigner} does not match trusted relayer ${ism.relayer}`,
+        );
+      /* eslint-disable-next-line no-fallthrough */
       case IsmType.PAUSABLE:
       case IsmType.TEST_ISM:
       case IsmType.OP_STACK:
@@ -101,7 +104,6 @@ export class BaseMetadataBuilder
       // Multisig
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
-        // eslint-disable-next-line no-case-declarations
         const merkleTreeHook = deepFind(
           hook,
           (v): v is WithAddress<MerkleTreeHookConfig> =>
@@ -122,7 +124,7 @@ export class BaseMetadataBuilder
           {
             ...context,
             ism: ism.domains[
-              this.core.multiProvider.getChainName(message.parsed.origin)
+              this.multiProvider.getChainName(message.parsed.origin)
             ] as DerivedIsmConfigWithAddress,
           },
           maxDepth - 1,
@@ -136,5 +138,6 @@ export class BaseMetadataBuilder
           maxDepth - 1,
         );
     }
+    /* eslint-enable no-case-declarations */
   }
 }

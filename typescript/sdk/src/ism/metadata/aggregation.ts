@@ -5,6 +5,7 @@ import {
   assert,
   fromHexString,
   rootLogger,
+  runWithTimeout,
   toHexString,
 } from '@hyperlane-xyz/utils';
 
@@ -45,22 +46,22 @@ export class AggregationIsmMetadataBuilder
       dispatchTx: TransactionReceipt;
     },
     maxDepth = 10,
+    timeout = maxDepth * 1000,
   ): Promise<string> {
     assert(maxDepth > 0, 'Max depth reached');
     const promises = await Promise.allSettled(
-      context.ism.modules.map((module) =>
-        this.base.build(
-          message,
-          {
-            ...context,
-            ism: module as DerivedIsmConfigWithAddress,
-          },
-          maxDepth - 1,
-        ),
-      ),
+      context.ism.modules.map((module) => {
+        const subContext = {
+          ...context,
+          ism: module as DerivedIsmConfigWithAddress,
+        };
+        return runWithTimeout(timeout, () =>
+          this.base.build(message, subContext, maxDepth - 1),
+        );
+      }),
     );
     const submoduleMetadata = promises.map((r) =>
-      r.status === 'fulfilled' ? r.value : null,
+      r.status === 'fulfilled' ? r.value ?? null : null,
     );
     const included = submoduleMetadata.filter((m) => m !== null).length;
     if (included < context.ism.threshold) {

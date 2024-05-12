@@ -76,9 +76,10 @@ export class MultisigMetadataBuilder
     );
 
     if (toFetch.length > 0) {
-      const storageLocations = await this.core
-        .getContracts(originChain)
-        .validatorAnnounce.getAnnouncedStorageLocations(toFetch);
+      const validatorAnnounce =
+        this.core.getContracts(originChain).validatorAnnounce;
+      const storageLocations =
+        await validatorAnnounce.getAnnouncedStorageLocations(toFetch);
 
       this.logger.debug({ storageLocations }, 'Fetched storage locations');
 
