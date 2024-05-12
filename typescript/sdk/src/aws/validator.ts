@@ -73,7 +73,7 @@ export class S3Validator extends BaseValidator {
     return resp.data.value;
   }
 
-  async getCheckpoint(index: number) {
+  async getCheckpoint(index: number): Promise<S3CheckpointWithId | void> {
     const key = checkpointWithMessageIdKey(index);
     const s3Object = await this.s3Bucket.getS3Obj<S3CheckpointWithId>(key);
     if (!s3Object) {
@@ -87,7 +87,7 @@ export class S3Validator extends BaseValidator {
     }
   }
 
-  async getLatestCheckpointIndex() {
+  async getLatestCheckpointIndex(): Promise<number> {
     const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
       LATEST_KEY,
     );
