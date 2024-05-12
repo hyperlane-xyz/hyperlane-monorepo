@@ -65,11 +65,10 @@ export class AggregationIsmMetadataBuilder
       r.status === 'fulfilled' ? r.value ?? null : null,
     );
     const included = submoduleMetadata.filter((m) => m !== null).length;
-    if (included < context.ism.threshold) {
-      throw new Error(
-        `Only built ${included} of ${context.ism.threshold} required modules`,
-      );
-    }
+    assert(
+      included < context.ism.threshold,
+      `Only built ${included} of ${context.ism.threshold} required modules`,
+    );
 
     return AggregationIsmMetadataBuilder.encode({
       ...context.ism,
