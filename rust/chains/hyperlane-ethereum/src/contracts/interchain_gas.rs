@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use ethers::prelude::Middleware;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256,
 };
 use tracing::instrument;
 
@@ -89,7 +89,7 @@ where
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         let events = self
             .contract
             .gas_payment_filter()
@@ -102,12 +102,12 @@ where
             .into_iter()
             .map(|(log, log_meta)| {
                 (
-                    InterchainGasPayment {
+                    Indexed::new(InterchainGasPayment {
                         message_id: H256::from(log.message_id),
                         destination: log.destination_domain,
                         payment: log.payment.into(),
                         gas_amount: log.gas_amount.into(),
-                    },
+                    }),
                     log_meta.into(),
                 )
             })

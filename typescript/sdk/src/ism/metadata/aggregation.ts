@@ -9,8 +9,8 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../../core/types.js';
-import { DerivedHookConfigWithAddress } from '../../hook/read.js';
-import { DerivedIsmConfigWithAddress } from '../read.js';
+import { DerivedHookConfigWithAddress } from '../../hook/EvmHookReader.js';
+import { DerivedIsmConfigWithAddress } from '../EvmIsmReader.js';
 import { AggregationIsmConfig } from '../types.js';
 
 import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
@@ -81,9 +81,7 @@ export class AggregationIsmMetadataBuilder
 
     let encoded = Buffer.alloc(rangeSize, 0);
     metadata.submoduleMetadata.forEach((meta, index) => {
-      if (meta === null) {
-        return;
-      }
+      if (!meta) return;
 
       const start = encoded.length;
       encoded = Buffer.concat([encoded, fromHexString(meta)]);

@@ -21,7 +21,6 @@ import {
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import '../../../../utils/dist/types.js';
 import { S3Validator } from '../../aws/validator.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
@@ -225,7 +224,7 @@ export class MultisigMetadataBuilder
     return toHexString(buf);
   }
 
-  private static decodeSimplePrefix(metadata: string) {
+  static decodeSimplePrefix(metadata: string) {
     const buf = fromHexString(metadata);
     const merkleTree = toHexString(buf.subarray(0, 32));
     const root = toHexString(buf.subarray(32, 64));
@@ -242,9 +241,7 @@ export class MultisigMetadataBuilder
     };
   }
 
-  private static encodeProofPrefix(
-    metadata: MerkleRootMultisigMetadata,
-  ): string {
+  static encodeProofPrefix(metadata: MerkleRootMultisigMetadata): string {
     const checkpoint = metadata.checkpoint;
     const buf = Buffer.alloc(1096);
     buf.write(strip0x(checkpoint.merkle_tree_hook_address), 0, 32, 'hex');
@@ -258,7 +255,7 @@ export class MultisigMetadataBuilder
     return toHexString(buf);
   }
 
-  private static decodeProofPrefix(metadata: string) {
+  static decodeProofPrefix(metadata: string) {
     const buf = fromHexString(metadata);
     const merkleTree = toHexString(buf.subarray(0, 32));
     const messageIndex = buf.readUint32BE(32);
@@ -299,7 +296,7 @@ export class MultisigMetadataBuilder
     return encoded;
   }
 
-  private static signatureAt(
+  static signatureAt(
     metadata: string,
     offset: number,
     index: number,

@@ -11,6 +11,10 @@ pub enum HyperlaneEthereumError {
     #[error("{0}")]
     ProviderError(#[from] ProviderError),
 
+    /// multicall Error
+    #[error("Multicall contract error: {0}")]
+    MulticallError(String),
+
     /// Some details from a queried block are missing
     #[error("Some details from a queried block are missing")]
     MissingBlockDetails,

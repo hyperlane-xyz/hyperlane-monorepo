@@ -1,7 +1,11 @@
-use std::{cmp::Ordering, fmt::Debug, time::Instant};
+use std::{
+    cmp::Ordering,
+    fmt::{Debug, Display},
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
-use hyperlane_core::{HyperlaneDomain, H256};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256};
 
 use super::op_queue::QueueOperation;
 
@@ -25,7 +29,7 @@ use super::op_queue::QueueOperation;
 /// responsible for checking if the operation has reached a point at which we
 /// consider it safe from reorgs.
 #[async_trait]
-pub trait PendingOperation: Send + Sync + Debug {
+pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Get the unique identifier for this operation.
     fn id(&self) -> H256;
 
@@ -57,9 +61,11 @@ pub trait PendingOperation: Send + Sync + Debug {
     /// submit call.
     async fn prepare(&mut self) -> PendingOperationResult;
 
-    /// Submit this operation to the blockchain and report if it was successful
-    /// or not.
-    async fn submit(&mut self) -> PendingOperationResult;
+    /// Submit this operation to the blockchain
+    async fn submit(&mut self);
+
+    /// Set the outcome of the `submit` call
+    fn set_submission_outcome(&mut self, outcome: TxOutcome);
 
     /// This will be called after the operation has been submitted and is
     /// responsible for checking if the operation has reached a point at
@@ -72,6 +78,9 @@ pub trait PendingOperation: Send + Sync + Debug {
     /// returning `NotReady` if it is too early and matters.
     fn next_attempt_after(&self) -> Option<Instant>;
 
+    /// Set the next time this operation should be attempted.
+    fn set_next_attempt_after(&mut self, delay: Duration);
+
     /// Reset the number of attempts this operation has made, causing it to be
     /// retried immediately.
     fn reset_attempts(&mut self);
@@ -79,6 +88,19 @@ pub trait PendingOperation: Send + Sync + Debug {
     #[cfg(test)]
     /// Set the number of times this operation has been retried.
     fn set_retries(&mut self, retries: u32);
+}
+
+impl Display for QueueOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "QueueOperation(id: {}, origin: {}, destination: {}, priority: {})",
+            self.id(),
+            self.origin_domain_id(),
+            self.destination_domain(),
+            self.priority()
+        )
+    }
 }
 
 impl PartialOrd for QueueOperation {
@@ -116,6 +138,7 @@ impl Ord for QueueOperation {
     }
 }
 
+#[derive(Debug)]
 pub enum PendingOperationResult {
     /// Promote to the next step
     Success,
@@ -125,6 +148,8 @@ pub enum PendingOperationResult {
     Reprepare,
     /// Do not attempt to run the operation again, forget about it
     Drop,
+    /// Send this message straight to the confirm queue
+    Confirm,
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.

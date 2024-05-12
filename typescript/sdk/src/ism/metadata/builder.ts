@@ -10,9 +10,9 @@ import {
 import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
-import { DerivedHookConfigWithAddress } from '../../hook/read.js';
+import { DerivedHookConfigWithAddress } from '../../hook/EvmHookReader.js';
 import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
-import { DerivedIsmConfigWithAddress } from '../read.js';
+import { DerivedIsmConfigWithAddress } from '../EvmIsmReader.js';
 import { IsmType } from '../types.js';
 
 import {

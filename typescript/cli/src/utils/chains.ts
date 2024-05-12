@@ -1,4 +1,4 @@
-import { Separator, checkbox } from '@inquirer/prompts';
+import { Separator, checkbox, confirm, input } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
@@ -18,7 +18,7 @@ export async function runSingleChainSelectionStep(
   const chain = (await select({
     message,
     choices,
-    pageSize: 20,
+    pageSize: 30,
   })) as string;
   handleNewChain([chain]);
   return chain;
@@ -35,7 +35,7 @@ export async function runMultiChainSelectionStep(
     const chains = (await checkbox({
       message,
       choices,
-      pageSize: 20,
+      pageSize: 30,
     })) as string[];
     handleNewChain(chains);
     if (requireMultiple && chains?.length < 2) {
@@ -72,4 +72,23 @@ function handleNewChain(chainNames: string[]) {
     );
     process.exit(0);
   }
+}
+
+export async function detectAndConfirmOrPrompt(
+  detect: () => Promise<string>,
+  label: string,
+  prompt: string,
+): Promise<string> {
+  let detectedValue: string | undefined;
+  try {
+    detectedValue = await detect();
+    const confirmed = await confirm({
+      message: `Detected ${label} as ${detectedValue}, is this correct?`,
+    });
+    if (confirmed) {
+      return detectedValue;
+    }
+    // eslint-disable-next-line no-empty
+  } catch (e) {}
+  return input({ message: `${prompt} ${label}`, default: detectedValue });
 }

@@ -13,8 +13,6 @@ export {
   capitalizeAddress,
   convertToProtocolAddress,
   ensure0x,
-  fromHexString,
-  toHexString,
   eqAddress,
   eqAddressCosmos,
   eqAddressEvm,
@@ -121,6 +119,8 @@ export {
   streamToString,
   toTitleCase,
   trimToLength,
+  fromHexString,
+  toHexString,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
 export {

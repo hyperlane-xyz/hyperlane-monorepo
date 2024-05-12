@@ -1,3 +1,4 @@
+import os from 'os';
 import { Options } from 'yargs';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -29,7 +30,7 @@ export const registryUriCommandOption: Options = {
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
-  default: './',
+  default: `${os.homedir()}/.hyperlane`,
 };
 
 export const skipConfirmationOption: Options = {
@@ -45,6 +46,7 @@ export const keyCommandOption: Options = {
 Dry-run: An address to simulate transaction signing on a forked network`,
   alias: 'k',
   default: ENV.HYP_KEY,
+  defaultDescription: 'process.env.HYP_KEY',
 };
 
 /* Command-specific options */
@@ -122,7 +124,7 @@ export const dryRunOption: Options = {
   type: 'string',
   description:
     'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
-  alias: ['d'],
+  alias: 'd',
 };
 
 export const chainCommandOption: Options = {

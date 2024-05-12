@@ -138,7 +138,7 @@ async function executeDelivery({
     sender: senderAddress,
   });
   if (errors) {
-    logRed('Unable to validate transfer', errors);
+    logRed('Error validating transfer', JSON.stringify(errors));
     throw new Error('Error validating transfer');
   }
 
