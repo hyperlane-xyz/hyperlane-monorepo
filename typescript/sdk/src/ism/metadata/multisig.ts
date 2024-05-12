@@ -46,7 +46,7 @@ const MerkleTreeInterface = MerkleTreeHook__factory.createInterface();
 
 const SIGNATURE_LENGTH = 65;
 
-export type MultisigMetadata =
+export type MultisigIsmMetadata =
   | MessageIdMultisigMetadata
   | MerkleRootMultisigMetadata;
 
@@ -282,7 +282,7 @@ export class MultisigMetadataBuilder
     };
   }
 
-  static encode(metadata: MultisigMetadata): string {
+  static encode(metadata: MultisigIsmMetadata): string {
     let encoded =
       metadata.type === ModuleType.MESSAGE_ID_MULTISIG
         ? this.encodeSimplePrefix(metadata)
@@ -315,7 +315,7 @@ export class MultisigMetadataBuilder
   static decode(
     metadata: string,
     type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG,
-  ): MultisigMetadata {
+  ): MultisigIsmMetadata {
     const prefix: any =
       type === ModuleType.MERKLE_ROOT_MULTISIG
         ? this.decodeProofPrefix(metadata)

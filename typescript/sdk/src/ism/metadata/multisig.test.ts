@@ -5,20 +5,20 @@ import { SignatureLike } from '@hyperlane-xyz/utils';
 
 import { ModuleType } from '../types.js';
 
-import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
+import { MultisigIsmMetadata, MultisigMetadataBuilder } from './multisig.js';
 import { Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/multisig';
 const files = readdirSync(path);
-const fixtures: Fixture<MultisigMetadata>[] = files
+const fixtures: Fixture<MultisigIsmMetadata>[] = files
   .map((f) => JSON.parse(readFileSync(`${path}/${f}`, 'utf8')))
   .map((contents) => {
-    const type = contents.type as MultisigMetadata['type'];
+    const type = contents.type as MultisigIsmMetadata['type'];
 
     const { dummy: _dummy, ...signatureValues } = contents.signatures;
     const signatures = Object.values<SignatureLike>(signatureValues);
 
-    let decoded: MultisigMetadata;
+    let decoded: MultisigIsmMetadata;
     if (type === ModuleType.MERKLE_ROOT_MULTISIG) {
       const { dummy: _dummy, ...branchValues } = contents.prefix.proof;
       const branch = Object.values<string>(branchValues);

@@ -225,7 +225,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
     const hook = ProtocolFee__factory.connect(address, this.provider);
-    // assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
+    assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
 
     const owner = await hook.owner();
     const maxProtocolFee = await hook.MAX_PROTOCOL_FEE();

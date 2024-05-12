@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { readFileSync, readdirSync } from 'fs';
 
+import { IsmType } from '../types.js';
+
 import {
   AggregationIsmMetadata,
   AggregationIsmMetadataBuilder,
@@ -16,6 +18,7 @@ const fixtures: Fixture<AggregationIsmMetadata>[] = files
     return {
       encoded,
       decoded: {
+        type: IsmType.AGGREGATION,
         submoduleMetadata: Object.values(values),
       },
     };

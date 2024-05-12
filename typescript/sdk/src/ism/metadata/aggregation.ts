@@ -12,13 +12,14 @@ import {
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedHookConfigWithAddress } from '../../hook/EvmHookReader.js';
 import { DerivedIsmConfigWithAddress } from '../EvmIsmReader.js';
-import { AggregationIsmConfig } from '../types.js';
+import { AggregationIsmConfig, IsmType } from '../types.js';
 
 import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
 
 // null indicates that metadata is NOT INCLUDED for this submodule
 // empty or 0x string indicates that metadata is INCLUDED but NULL
 export interface AggregationIsmMetadata {
+  type: IsmType.AGGREGATION;
   submoduleMetadata: Array<string | null>;
 }
 
@@ -70,7 +71,10 @@ export class AggregationIsmMetadataBuilder
       );
     }
 
-    return AggregationIsmMetadataBuilder.encode({ submoduleMetadata });
+    return AggregationIsmMetadataBuilder.encode({
+      ...context.ism,
+      submoduleMetadata,
+    });
   }
 
   static rangeIndex(index: number): number {
@@ -118,6 +122,6 @@ export class AggregationIsmMetadataBuilder
       const submeta = range.start > 0 ? range.encoded : null;
       submoduleMetadata.push(submeta);
     }
-    return { submoduleMetadata };
+    return { type: IsmType.AGGREGATION, submoduleMetadata };
   }
 }

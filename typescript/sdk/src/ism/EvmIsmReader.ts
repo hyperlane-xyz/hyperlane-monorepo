@@ -35,7 +35,7 @@ import {
   TrustedRelayerIsmConfig,
 } from './types.js';
 
-type NullIsmConfig =
+export type NullIsmConfig =
   | PausableIsmConfig
   | TestIsmConfig
   | OpStackIsmConfig
