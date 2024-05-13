@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address, randomChoice, randomInt } from '@hyperlane-xyz/utils';
+import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
@@ -31,7 +31,7 @@ function randomModuleType(): ModuleType {
     ModuleType.ROUTING,
     ModuleType.NULL,
   ];
-  return randomChoice(choices);
+  return randomElement(choices);
 }
 
 const randomMultisigIsmConfig = (
@@ -41,7 +41,7 @@ const randomMultisigIsmConfig = (
 ): MultisigIsmConfig => {
   const emptyArray = new Array<number>(n).fill(0);
   const validators = emptyArray
-    .map(() => (addresses ? randomChoice(addresses) : randomAddress()))
+    .map(() => (addresses ? randomElement(addresses) : randomAddress()))
     .sort();
   return {
     type: IsmType.MESSAGE_ID_MULTISIG,

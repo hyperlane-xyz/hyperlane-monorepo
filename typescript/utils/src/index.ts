@@ -46,7 +46,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomElement as randomChoice } from './arrays.js';
+export { chunk, exclude, randomElement } from './arrays.js';
 export {
   concurrentMap,
   pollAsync,

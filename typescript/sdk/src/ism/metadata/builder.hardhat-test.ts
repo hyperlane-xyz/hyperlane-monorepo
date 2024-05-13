@@ -13,7 +13,7 @@ import {
   addressToBytes32,
   eqAddress,
   objMap,
-  randomChoice,
+  randomElement,
 } from '@hyperlane-xyz/utils';
 
 import { testChains } from '../../consts/testChains.js';
@@ -121,8 +121,8 @@ describe('BaseMetadataBuilder', () => {
     let metadata: string;
 
     beforeEach(async () => {
-      origin = randomChoice(testChains);
-      destination = randomChoice(testChains.filter((c) => c !== origin));
+      origin = randomElement(testChains);
+      destination = randomElement(testChains.filter((c) => c !== origin));
       const testRecipient = testRecipients[destination];
 
       const addresses = validators
