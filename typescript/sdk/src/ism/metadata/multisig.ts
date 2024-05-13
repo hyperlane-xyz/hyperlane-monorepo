@@ -183,7 +183,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     });
     assert(
       checkpoints.length >= context.ism.threshold,
-      `Only ${checkpoints.length} of ${context.ism.threshold} required signatures found`,
+      `Only ${checkpoints.length} of ${context.ism.threshold} required checkpoints found`,
     );
 
     this.logger.debug(
@@ -196,7 +196,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       .slice(0, context.ism.threshold);
 
     this.logger.debug(
-      { signatures, ...context },
+      { signatures, ism: context.ism },
       `Taking ${signatures.length} (threshold) signatures for message ${context.message.id}`,
     );
 

@@ -73,7 +73,7 @@ export const randomIsmConfig = (
     };
     return config;
   } else if (moduleType === ModuleType.AGGREGATION) {
-    const n = randomInt(3, 1);
+    const n = randomInt(5, 2);
     const modules = new Array<number>(n)
       .fill(0)
       .map(() =>

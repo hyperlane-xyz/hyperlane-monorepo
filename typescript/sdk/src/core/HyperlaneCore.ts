@@ -250,7 +250,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   getDispatchedMessages(
     sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
-    return HyperlaneCore.getDispatchedMessages(sourceTx);
+    const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
+    return messages.map(({ parsed, ...other }) => {
+      const originChain =
+        this.multiProvider.tryGetChainName(parsed.origin) ?? undefined;
+      const destinationChain =
+        this.multiProvider.tryGetChainName(parsed.destination) ?? undefined;
+      return { parsed: { ...parsed, originChain, destinationChain }, ...other };
+    });
   }
 
   async getDispatchTx(

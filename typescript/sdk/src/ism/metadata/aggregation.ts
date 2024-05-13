@@ -35,7 +35,6 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
 
   constructor(protected readonly base: BaseMetadataBuilder) {}
 
-  // TODO: debug
   async build(
     context: MetadataContext<WithAddress<AggregationIsmConfig>>,
     depth = 10,
@@ -126,16 +125,11 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
     message: ParsedMessage,
     ism: AggregationIsmConfig,
   ): AggregationMetadata<StructuredMetadata | string> {
-    const submoduleMetadata: Array<StructuredMetadata | string | null> = [];
-    ism.modules.forEach((module, index) => {
+    const submoduleMetadata = ism.modules.map((module, index) => {
       const range = this.metadataRange(metadata, index);
-      const decoded =
-        range.start == 0
-          ? null
-          : typeof module === 'string'
-          ? range.encoded
-          : BaseMetadataBuilder.decode(range.encoded, message, module);
-      submoduleMetadata.push(decoded);
+      if (range.start == 0) return null;
+      if (typeof module === 'string') return range.encoded;
+      return BaseMetadataBuilder.decode(range.encoded, message, module);
     });
     return { type: IsmType.AGGREGATION, submoduleMetadata };
   }

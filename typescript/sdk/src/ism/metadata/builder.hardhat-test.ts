@@ -1,3 +1,4 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import hre from 'hardhat';
 import { before } from 'mocha';
 import sinon from 'sinon';
@@ -8,6 +9,7 @@ import {
   CheckpointWithId,
   S3CheckpointWithId,
   addressToBytes32,
+  eqAddress,
 } from '@hyperlane-xyz/utils';
 
 import { testChains } from '../../consts/testChains.js';
@@ -18,7 +20,7 @@ import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactor
 import { HyperlaneHookDeployer } from '../../hook/HyperlaneHookDeployer.js';
 import { HookType } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { impersonateAccount } from '../../utils/fork.js';
+import { EvmIsmReader } from '../EvmIsmReader.js';
 import { randomIsmConfig } from '../HyperlaneIsmFactory.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 import { DeployedIsm } from '../types.js';
@@ -26,32 +28,29 @@ import { DeployedIsm } from '../types.js';
 import { BaseMetadataBuilder, MetadataContext } from './builder.js';
 
 const MAX_ISM_DEPTH = 5;
-const MAX_VALIDATORS = 5;
-const NUM_RUNS = 100;
+const MAX_NUM_VALIDATORS = 10;
+const NUM_RUNS = 16;
 
 describe('BaseMetadataBuilder', () => {
   const origin = testChains[0];
   const destination = testChains[1];
 
-  let sandbox: sinon.SinonSandbox;
   let core: HyperlaneCore;
   let ismFactory: HyperlaneIsmFactory;
   let recipientDeployer: TestRecipientDeployer;
   let context: MetadataContext;
   let deployedIsm: DeployedIsm;
   let recipientAddress: string;
-  let relayerAddress: string;
-  let validatorAddresses: string[];
+  let relayer: SignerWithAddress;
+  let validators: SignerWithAddress[];
 
   let metadataBuilder: BaseMetadataBuilder;
 
   before(async () => {
-    const [signer, ...otherSigners] = await hre.ethers.getSigners();
-    validatorAddresses = otherSigners
-      .slice(0, MAX_VALIDATORS)
-      .map((signer) => signer.address);
-    const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    relayerAddress = signer.address;
+    [relayer, ...validators] = await hre.ethers.getSigners();
+    const multiProvider = MultiProvider.createTestMultiProvider({
+      signer: relayer,
+    });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
@@ -71,10 +70,11 @@ describe('BaseMetadataBuilder', () => {
     });
     const merkleTreeHook = hookContracts.merkleTreeHook;
     // @ts-ignore partial assignment
-    context = {};
-    context.hook = {
-      type: HookType.MERKLE_TREE,
-      address: merkleTreeHook.address,
+    context = {
+      hook: {
+        type: HookType.MERKLE_TREE,
+        address: merkleTreeHook.address,
+      },
     };
 
     metadataBuilder = new BaseMetadataBuilder(core);
@@ -96,12 +96,9 @@ describe('BaseMetadataBuilder', () => {
           const digest = BaseValidator.messageHash(checkpoint, match.messageId);
           const checkpoints: S3CheckpointWithId[] = [];
           for (const validator of multisigAddresses) {
-            // @ts-ignore
-            const signer = await impersonateAccount(
-              validator,
-              merkleTreeHook.provider,
-            );
-            const signature = await signer.signMessage(digest);
+            const signature = await validators
+              .find((s) => eqAddress(s.address, validator))!
+              .signMessage(digest);
             checkpoints.push({ value: checkpointWithId, signature });
           }
           return checkpoints;
@@ -111,20 +108,23 @@ describe('BaseMetadataBuilder', () => {
 
   describe('#build', () => {
     beforeEach(async () => {
+      const validatorAddresses = validators
+        .map((s) => s.address)
+        .slice(0, MAX_NUM_VALIDATORS);
       const config = randomIsmConfig(
         MAX_ISM_DEPTH - 1, // function does depth + 1
         validatorAddresses,
-        relayerAddress,
+        relayer.address,
       );
       deployedIsm = await ismFactory.deploy({
         destination,
         config,
         mailbox: core.getAddresses(destination).mailbox,
       });
-      context.ism = {
-        ...config,
-        address: deployedIsm.address,
-      };
+      context.ism = await new EvmIsmReader(
+        core.multiProvider,
+        destination,
+      ).deriveIsmConfig(deployedIsm.address);
 
       const contracts = await recipientDeployer.deployContracts(destination, {
         interchainSecurityModule: deployedIsm.address,
@@ -147,7 +147,9 @@ describe('BaseMetadataBuilder', () => {
         try {
           const mailbox = core.getContracts(destination).mailbox;
           // must call process for trusted relayer to be able to verify
-          await mailbox.process(metadata, context.message.message);
+          await mailbox
+            .connect(relayer)
+            .process(metadata, context.message.message);
         } catch (e) {
           const decoded = BaseMetadataBuilder.decode(
             metadata,

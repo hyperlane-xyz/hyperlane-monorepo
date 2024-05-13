@@ -2,7 +2,14 @@ import { ethers } from 'ethers';
 
 import { eqAddress } from './addresses.js';
 import { domainHash } from './domains.js';
-import { Address, Checkpoint, HexString, SignatureLike } from './types.js';
+import {
+  Address,
+  Checkpoint,
+  CheckpointWithId,
+  HexString,
+  S3CheckpointWithId,
+  SignatureLike,
+} from './types.js';
 
 export interface ValidatorConfig {
   address: string;
@@ -57,6 +64,21 @@ export class BaseValidator {
   ): Address {
     const msgHash = this.messageHash(checkpoint, messageId);
     return ethers.utils.verifyMessage(msgHash, signature);
+  }
+
+  static recoverAddressFromCheckpointWithId(
+    { checkpoint, message_id }: CheckpointWithId,
+    signature: SignatureLike,
+  ): Address {
+    return BaseValidator.recoverAddressFromCheckpoint(
+      checkpoint,
+      signature,
+      message_id,
+    );
+  }
+
+  static recoverAddress({ value, signature }: S3CheckpointWithId): Address {
+    return BaseValidator.recoverAddressFromCheckpointWithId(value, signature);
   }
 
   matchesSigner(
