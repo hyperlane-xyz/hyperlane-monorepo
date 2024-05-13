@@ -1,4 +1,4 @@
-import { ethers, providers } from 'ethers';
+import { providers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -11,7 +11,7 @@ import {
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, isZeroishAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
@@ -157,7 +157,7 @@ export class EvmERC20WarpRouteReader {
       hook,
     };
 
-    if (interchainSecurityModule !== ethers.constants.AddressZero) {
+    if (!isZeroishAddress(interchainSecurityModule)) {
       metadata.interchainSecurityModule =
         await this.evmIsmReader.deriveIsmConfig(interchainSecurityModule);
     }

@@ -1,4 +1,11 @@
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ethers } from 'ethers';
+
+import {
+  Address,
+  ProtocolType,
+  deepEquals,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { attachContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -12,6 +19,7 @@ import {
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { DerivedIsmConfigWithAddress } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   EthersV5Transaction,
@@ -32,7 +40,7 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   DerivedTokenRouterConfig,
   HyperlaneContracts<HypERC20Factories> & {
-    deployedWarpRoute: Address;
+    deployedTokenRoute: Address;
   }
 > {
   protected logger = rootLogger.child({
@@ -45,7 +53,7 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
     args: HyperlaneModuleArgs<
       DerivedTokenRouterConfig,
       HyperlaneContracts<HypERC20Factories> & {
-        deployedWarpRoute: Address;
+        deployedTokenRoute: Address;
       }
     >,
   ) {
@@ -62,7 +70,7 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
    */
   public async read(): Promise<DerivedTokenRouterConfig> {
     return this.reader.deriveWarpRouteConfig(
-      this.args.addresses.deployedWarpRoute,
+      this.args.addresses.deployedTokenRoute,
     );
   }
 
@@ -87,11 +95,11 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
    * Updates an existing Warp route ISM with a given configuration.
    *
    * This method handles two cases:
-   * 1. If the `config.interchainSecurityModule` is an object,
+   * 1. If the `config.interchainSecurityModule` is a string
+   *  - It attempts to derive the ISM from the provided string, and updates the contract's ISM.
+   * 2. If the `config.interchainSecurityModule` is an object,
    *  - Checks if the current onchain ISM configuration matches the provided configuration.
    *  - If not, it deploys a new ISM module, and updates the contract's ISM.
-   * 2. If the `config.interchainSecurityModule` is a string
-   *  - It attempts to derive the ISM from the provided string, and updates the contract's ISM.
    *
    * @param config - The token router configuration, including the ISM configuration.
    * @returns An array of Ethereum transactions that need to be executed to update the ISM configuration.
@@ -100,33 +108,29 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
     config: DerivedTokenRouterConfig,
   ): Promise<EthersV5Transaction[]> {
     const transactions: EthersV5Transaction[] = [];
+    if (config.interchainSecurityModule) {
+      const contractToUpdate = await this.args.addresses[
+        config.type
+      ].deployed();
 
-    const contractToUpdate = await this.args.addresses[config.type].deployed();
+      // Attempt to derive the config.interchainSecurityModule if its a string, or deploy it if its an IsmConfig
+      const expectedIsm =
+        typeof config.interchainSecurityModule === 'string'
+          ? await this.reader.evmIsmReader.deriveIsmConfig(
+              config.interchainSecurityModule,
+            )
+          : await this.deployIsm(config);
 
-    if (typeof config.interchainSecurityModule === 'string') {
-      // Derive & set ISM
-      const ism = await this.reader.evmIsmReader.deriveIsmConfig(
-        config.interchainSecurityModule,
-      );
-      transactions.push({
-        transaction:
-          await contractToUpdate.populateTransaction.setInterchainSecurityModule(
-            ism.address,
-          ),
-        type: ProviderType.EthersV5,
-      });
-    } else if (typeof config.interchainSecurityModule === 'object') {
-      const onchainConfig = await this.read();
-      if (
-        config.interchainSecurityModule.type !==
-        onchainConfig.interchainSecurityModule!.type
-      ) {
-        // Deploy & set ISM
-        const ismModule = await this.deployIsm(config);
+      // read() will return undefined if no ISM is set, so make it an IsmConfig-ish object
+      const actualIsm = (await this.read()).interchainSecurityModule ?? {
+        address: ethers.constants.AddressZero,
+      };
+
+      if (!deepEquals(expectedIsm, actualIsm)) {
         transactions.push({
           transaction:
             await contractToUpdate.populateTransaction.setInterchainSecurityModule(
-              ismModule,
+              expectedIsm.address,
             ),
           type: ProviderType.EthersV5,
         });
@@ -142,7 +146,9 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
    * @param config - The configuration for the ISM to be deployed.
    * @returns The deployed ISM contract address.
    */
-  public async deployIsm(config: DerivedTokenRouterConfig): Promise<string> {
+  public async deployIsm(
+    config: DerivedTokenRouterConfig,
+  ): Promise<DerivedIsmConfigWithAddress> {
     // Take the config.ismFactoryAddresses, de-serialize them into Contracts, and pass into EvmIsmModule.create
     const factories = attachContracts(
       config.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
@@ -155,7 +161,7 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
       factories,
       multiProvider: this.multiProvider,
     });
-    return evmIsmModule.serialize().deployedIsm;
+    return evmIsmModule.read();
   }
 
   /**
@@ -212,7 +218,7 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
     return new EvmERC20WarpHyperlaneModule(multiProvider, {
       addresses: {
         ...deployedContracts[chain],
-        deployedWarpRoute: deployedContracts[chain][config.type].address,
+        deployedTokenRoute: deployedContracts[chain][config.type].address,
       },
       chain,
       config,

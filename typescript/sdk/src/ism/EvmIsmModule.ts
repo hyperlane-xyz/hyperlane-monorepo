@@ -12,7 +12,7 @@ import { EthersV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmIsmCreator } from './EvmIsmCreator.js';
-import { EvmIsmReader } from './EvmIsmReader.js';
+import { DerivedIsmConfigWithAddress, EvmIsmReader } from './EvmIsmReader.js';
 import { IsmConfig } from './types.js';
 
 export class EvmIsmModule extends HyperlaneModule<
@@ -41,7 +41,7 @@ export class EvmIsmModule extends HyperlaneModule<
     this.creator = new EvmIsmCreator(deployer, multiProvider, args.addresses);
   }
 
-  public async read(): Promise<IsmConfig> {
+  public async read(): Promise<DerivedIsmConfigWithAddress> {
     return await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 

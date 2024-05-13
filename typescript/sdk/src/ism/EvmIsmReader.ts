@@ -79,7 +79,6 @@ export class EvmIsmReader implements IsmReader {
       this.provider,
     );
     const moduleType: ModuleType = await ism.moduleType();
-
     switch (moduleType) {
       case ModuleType.UNUSED:
         throw new Error('UNUSED does not have a corresponding IsmType');

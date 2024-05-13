@@ -280,9 +280,13 @@ describe('TokenDeployer', async () => {
         const newDefaultIsmAddr = await newCoreApp
           .getContracts(chain)
           .mailbox.defaultIsm();
-        sandbox
-          .stub(evmERC20WarpCrudModule, 'deployIsm')
-          .returns(Promise.resolve(newDefaultIsmAddr));
+        sandbox.stub(evmERC20WarpCrudModule, 'deployIsm').returns(
+          Promise.resolve({
+            owner: randomAddress(),
+            type: IsmType.PAUSABLE,
+            address: newDefaultIsmAddr,
+          }),
+        );
 
         // Update to a different ISM type using an object
         tx = await evmERC20WarpCrudModule.update({
