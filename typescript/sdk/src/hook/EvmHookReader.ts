@@ -42,7 +42,7 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-export type DerivedHookConfigWithAddress = WithAddress<HookConfig>;
+export type DerivedHookConfig = WithAddress<HookConfig>;
 
 export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
@@ -84,9 +84,7 @@ export class EvmHookReader implements HookReader {
     this.provider = multiProvider.getProvider(chain);
   }
 
-  async deriveHookConfig(
-    address: Address,
-  ): Promise<DerivedHookConfigWithAddress> {
+  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
     const hook = IPostDispatchHook__factory.connect(address, this.provider);
     const onchainHookType: OnchainHookType = await hook.hookType();
     this.logger.debug('Deriving HookConfig', { address, onchainHookType });

@@ -46,7 +46,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude } from './arrays.js';
+export { chunk, exclude, randomChoice } from './arrays.js';
 export {
   concurrentMap,
   pollAsync,
@@ -88,7 +88,7 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
-export { mean, median, stdDev, sum } from './math.js';
+export { mean, median, stdDev, sum, randomInt } from './math.js';
 export { formatMessage, messageId, parseMessage } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,

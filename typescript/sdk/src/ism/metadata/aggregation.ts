@@ -1,78 +1,85 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-
 import {
+  ParsedMessage,
   WithAddress,
   assert,
   fromHexString,
   rootLogger,
-  runWithTimeout,
+  timeout,
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import { DispatchedMessage } from '../../core/types.js';
-import { DerivedHookConfigWithAddress } from '../../hook/EvmHookReader.js';
-import { DerivedIsmConfigWithAddress } from '../EvmIsmReader.js';
+import { DerivedIsmConfig } from '../EvmIsmReader.js';
 import { AggregationIsmConfig, IsmType } from '../types.js';
 
-import { BaseMetadataBuilder, MetadataBuilder } from './builder.js';
+import {
+  BaseMetadataBuilder,
+  MetadataBuilder,
+  MetadataContext,
+  StructuredMetadata,
+} from './builder.js';
 
 // null indicates that metadata is NOT INCLUDED for this submodule
 // empty or 0x string indicates that metadata is INCLUDED but NULL
-export interface AggregationIsmMetadata {
+export interface AggregationMetadata<T = string> {
   type: IsmType.AGGREGATION;
-  submoduleMetadata: Array<string | null>;
+  submoduleMetadata: Array<T | null>;
 }
 
 const RANGE_SIZE = 4;
 
 // adapted from rust/agents/relayer/src/msg/metadata/aggregation.rs
-export class AggregationIsmMetadataBuilder
-  implements
-    MetadataBuilder<
-      WithAddress<AggregationIsmConfig>,
-      DerivedHookConfigWithAddress
-    >
-{
+export class AggregationMetadataBuilder implements MetadataBuilder {
   protected logger = rootLogger.child({
     module: 'AggregationIsmMetadataBuilder',
   });
 
   constructor(protected readonly base: BaseMetadataBuilder) {}
 
+  // TODO: debug
   async build(
-    message: DispatchedMessage,
-    context: {
-      ism: WithAddress<AggregationIsmConfig>;
-      hook: DerivedHookConfigWithAddress;
-      dispatchTx: TransactionReceipt;
-    },
-    maxDepth = 10,
-    timeout = maxDepth * 1000,
+    context: MetadataContext<WithAddress<AggregationIsmConfig>>,
+    depth = 10,
+    timeoutMs = depth * 1000,
   ): Promise<string> {
-    assert(maxDepth > 0, 'Max depth reached');
-    const promises = await Promise.allSettled(
-      context.ism.modules.map((module) => {
-        const subContext = {
-          ...context,
-          ism: module as DerivedIsmConfigWithAddress,
-        };
-        return runWithTimeout(timeout, () =>
-          this.base.build(message, subContext, maxDepth - 1),
-        );
-      }),
+    this.logger.debug(
+      { context, depth, timeoutMs },
+      'Building aggregation metadata',
     );
-    const submoduleMetadata = promises.map((r) =>
+    assert(depth > 0, 'Max depth reached');
+    const promises = await Promise.allSettled(
+      context.ism.modules.map((module) =>
+        timeout(
+          this.base.build(
+            {
+              ...context,
+              ism: module as DerivedIsmConfig,
+            },
+            depth - 1,
+          ),
+          timeoutMs,
+        ),
+      ),
+    );
+    const metadatas = promises.map((r) =>
       r.status === 'fulfilled' ? r.value ?? null : null,
     );
-    const included = submoduleMetadata.filter((m) => m !== null).length;
+    const included = metadatas.filter((m) => m !== null).length;
     assert(
-      included < context.ism.threshold,
+      included >= context.ism.threshold,
       `Only built ${included} of ${context.ism.threshold} required modules`,
     );
 
-    return AggregationIsmMetadataBuilder.encode({
+    // only include the first threshold metadatas
+    let count = 0;
+    for (let i = 0; i < metadatas.length; i++) {
+      if (metadatas[i] === null) continue;
+      count += 1;
+      if (count > context.ism.threshold) metadatas[i] = null;
+    }
+
+    return AggregationMetadataBuilder.encode({
       ...context.ism,
-      submoduleMetadata,
+      submoduleMetadata: metadatas,
     });
   }
 
@@ -80,7 +87,7 @@ export class AggregationIsmMetadataBuilder
     return index * 2 * RANGE_SIZE;
   }
 
-  static encode(metadata: AggregationIsmMetadata): string {
+  static encode(metadata: AggregationMetadata<string>): string {
     const rangeSize = this.rangeIndex(metadata.submoduleMetadata.length);
 
     let encoded = Buffer.alloc(rangeSize, 0);
@@ -114,13 +121,22 @@ export class AggregationIsmMetadataBuilder
     };
   }
 
-  static decode(metadata: string, count: number): AggregationIsmMetadata {
-    const submoduleMetadata = [];
-    for (let i = 0; i < count; i++) {
-      const range = this.metadataRange(metadata, i);
-      const submeta = range.start > 0 ? range.encoded : null;
-      submoduleMetadata.push(submeta);
-    }
+  static decode(
+    metadata: string,
+    message: ParsedMessage,
+    ism: AggregationIsmConfig,
+  ): AggregationMetadata<StructuredMetadata | string> {
+    const submoduleMetadata: Array<StructuredMetadata | string | null> = [];
+    ism.modules.forEach((module, index) => {
+      const range = this.metadataRange(metadata, index);
+      const decoded =
+        range.start == 0
+          ? null
+          : typeof module === 'string'
+          ? range.encoded
+          : BaseMetadataBuilder.decode(range.encoded, message, module);
+      submoduleMetadata.push(decoded);
+    });
     return { type: IsmType.AGGREGATION, submoduleMetadata };
   }
 }

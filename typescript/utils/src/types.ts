@@ -90,8 +90,10 @@ export type ParsedMessage = {
   version: number;
   nonce: number;
   origin: number;
+  originChain?: string;
   sender: string;
   destination: number;
+  destinationChain?: string;
   recipient: string;
   body: string;
 };

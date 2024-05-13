@@ -6,6 +6,7 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
+  addressToBytes32,
   bytes32ToAddress,
   eqAddress,
   messageId,
@@ -19,10 +20,7 @@ import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
-import {
-  DerivedIsmConfigWithAddress,
-  EvmIsmReader,
-} from '../ism/EvmIsmReader.js';
+import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
@@ -68,11 +66,19 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     destination: ChainName,
     recipient: AddressBytes32,
     body: string,
+    metadata?: string,
+    hook?: Address,
   ): Promise<ethers.BigNumber> => {
     const destinationId = this.multiProvider.getDomainId(destination);
     return this.contractsMap[origin].mailbox[
-      'quoteDispatch(uint32,bytes32,bytes)'
-    ](destinationId, recipient, body);
+      'quoteDispatch(uint32,bytes32,bytes,bytes,address)'
+    ](
+      destinationId,
+      recipient,
+      body,
+      metadata || '0x',
+      hook || ethers.constants.AddressZero,
+    );
   };
 
   protected getDestination(message: DispatchedMessage): ChainName {
@@ -87,7 +93,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async getRecipientIsmConfig(
     message: DispatchedMessage,
-  ): Promise<DerivedIsmConfigWithAddress> {
+  ): Promise<DerivedIsmConfig> {
     const destinationChain = this.getDestination(message);
     const ismReader = new EvmIsmReader(this.multiProvider, destinationChain);
     const address = await this.getRecipientIsmAddress(message);
@@ -119,6 +125,38 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       default:
         throw new Error(`Unsupported module type ${moduleType}`);
     }
+  }
+
+  async send(
+    origin: ChainName,
+    destination: ChainName,
+    recipient: Address,
+    body: string,
+    hook?: Address,
+    metadata?: string,
+  ): Promise<ethers.ContractReceipt> {
+    const mailbox = this.getContracts(origin).mailbox;
+    const destinationDomain = this.multiProvider.getDomainId(destination);
+    const recipientBytes32 = addressToBytes32(recipient);
+    const quote = await this.quoteGasPayment(
+      origin,
+      destination,
+      recipientBytes32,
+      body,
+      metadata,
+      hook,
+    );
+    return this.multiProvider.handleTx(
+      origin,
+      mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
+        destinationDomain,
+        recipientBytes32,
+        body,
+        metadata || '0x',
+        hook || ethers.constants.AddressZero,
+        { value: quote },
+      ),
+    );
   }
 
   async relayMessage(

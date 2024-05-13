@@ -61,9 +61,9 @@ export function objFilter<K extends string, I, O extends I>(
 export function deepFind<I extends object, O extends I>(
   obj: I,
   func: (v: I) => v is O,
-  maxDepth = 10,
+  depth = 10,
 ): O | undefined {
-  assert(maxDepth > 0, 'deepFind max depth reached');
+  assert(depth > 0, 'deepFind max depth reached');
   if (func(obj)) {
     return obj;
   }
@@ -72,9 +72,7 @@ export function deepFind<I extends object, O extends I>(
     : Array.isArray(obj)
     ? obj
     : [];
-  return entries
-    .map((e) => deepFind(e as any, func, maxDepth - 1))
-    .find((v) => v);
+  return entries.map((e) => deepFind(e as any, func, depth - 1)).find((v) => v);
 }
 
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}

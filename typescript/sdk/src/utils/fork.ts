@@ -1,6 +1,11 @@
 import { providers } from 'ethers';
 
-import { Address, isValidAddressEvm, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  isValidAddressEvm,
+  rootLogger,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
@@ -10,18 +15,17 @@ const DEFAULT_ANVIL_ENDPOINT = 'http://127.0.0.1:8545';
 
 export enum ANVIL_RPC_METHODS {
   RESET = 'anvil_reset',
-  IMPERSONATE_ACCOUNT = 'anvil_impersonateAccount',
-  STOP_IMPERSONATING_ACCOUNT = 'anvil_stopImpersonatingAccount',
+  IMPERSONATE_ACCOUNT = 'hardhat_impersonateAccount',
+  STOP_IMPERSONATING_ACCOUNT = 'hardhat_stopImpersonatingAccount',
   NODE_INFO = 'anvil_nodeInfo',
 }
 
 /**
  * Resets the local node to it's original state (anvil [31337] at block zero).
  */
-export const resetFork = async (anvilIPAddr?: string, anvilPort?: number) => {
+export const resetFork = async (provider = getLocalProvider()) => {
   rootLogger.info(`Resetting forked network...`);
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
   await provider.send(ANVIL_RPC_METHODS.RESET, [
     {
       forking: {
@@ -41,12 +45,10 @@ export const resetFork = async (anvilIPAddr?: string, anvilPort?: number) => {
 export const setFork = async (
   multiProvider: MultiProvider,
   chain: ChainName | number,
-  anvilIPAddr?: string,
-  anvilPort?: number,
+  provider = getLocalProvider(),
 ) => {
   rootLogger.info(`Forking ${chain} for dry-run...`);
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
   const currentChainMetadata = multiProvider.metadata[chain];
 
   await provider.send(ANVIL_RPC_METHODS.RESET, [
@@ -69,12 +71,10 @@ export const setFork = async (
  */
 export const impersonateAccount = async (
   address: Address,
-  anvilIPAddr?: string,
-  anvilPort?: number,
+  provider = getLocalProvider(),
 ): Promise<providers.JsonRpcSigner> => {
   rootLogger.info(`Impersonating account (${address})...`);
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
   await provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]);
 
   rootLogger.info(`✅ Successfully impersonated account (${address})`);
@@ -88,8 +88,7 @@ export const impersonateAccount = async (
  */
 export const stopImpersonatingAccount = async (
   address: Address,
-  anvilIPAddr?: string,
-  anvilPort?: number,
+  provider = getLocalProvider(),
 ) => {
   rootLogger.info(`Stopping account impersonation for address (${address})...`);
 
@@ -98,9 +97,8 @@ export const stopImpersonatingAccount = async (
       `Cannot stop account impersonation: invalid address format: ${address}`,
     );
 
-  const provider = getLocalProvider(anvilIPAddr, anvilPort);
   await provider.send(ANVIL_RPC_METHODS.STOP_IMPERSONATING_ACCOUNT, [
-    address.substring(2),
+    strip0x(address),
   ]);
 
   rootLogger.info(

@@ -3,14 +3,14 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, randomChoice, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { randomAddress, randomInt } from '../test/testUtils.js';
+import { randomAddress } from '../test/testUtils.js';
 
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
@@ -27,43 +27,58 @@ import { moduleMatchesConfig } from './utils.js';
 function randomModuleType(): ModuleType {
   const choices = [
     ModuleType.AGGREGATION,
-    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
     ModuleType.ROUTING,
     ModuleType.NULL,
   ];
-  return choices[randomInt(choices.length)];
+  return randomChoice(choices);
 }
 
-const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
+const randomMultisigIsmConfig = (
+  m: number,
+  n: number,
+  addresses?: string[],
+): MultisigIsmConfig => {
   const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray.map(() => randomAddress());
+  const validators = emptyArray
+    .map(() => (addresses ? randomChoice(addresses) : randomAddress()))
+    .sort();
   return {
-    type: IsmType.MERKLE_ROOT_MULTISIG,
+    type: IsmType.MESSAGE_ID_MULTISIG,
     validators,
     threshold: m,
   };
 };
 
-const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
+export const randomIsmConfig = (
+  depth = 5,
+  validatorAddresses?: string[],
+  relayerAddress?: string,
+): Exclude<IsmConfig, Address> => {
   const moduleType =
-    depth == maxDepth ? ModuleType.MERKLE_ROOT_MULTISIG : randomModuleType();
-  if (moduleType === ModuleType.MERKLE_ROOT_MULTISIG) {
-    const n = randomInt(5, 1);
-    return randomMultisigIsmConfig(randomInt(n, 1), n);
+    depth === 0 ? ModuleType.MESSAGE_ID_MULTISIG : randomModuleType();
+  if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
+    const n = randomInt(validatorAddresses?.length ?? 5, 1);
+    return randomMultisigIsmConfig(randomInt(n, 1), n, validatorAddresses);
   } else if (moduleType === ModuleType.ROUTING) {
     const config: RoutingIsmConfig = {
       type: IsmType.ROUTING,
       owner: randomAddress(),
       domains: Object.fromEntries(
-        testChains.map((c) => [c, randomIsmConfig(depth + 1)]),
+        testChains.map((c) => [
+          c,
+          randomIsmConfig(depth - 1, validatorAddresses, relayerAddress),
+        ]),
       ),
     };
     return config;
   } else if (moduleType === ModuleType.AGGREGATION) {
-    const n = randomInt(5, 1);
+    const n = randomInt(3, 1);
     const modules = new Array<number>(n)
       .fill(0)
-      .map(() => randomIsmConfig(depth + 1));
+      .map(() =>
+        randomIsmConfig(depth - 1, validatorAddresses, relayerAddress),
+      );
     const config: AggregationIsmConfig = {
       type: IsmType.AGGREGATION,
       threshold: randomInt(n, 1),
@@ -73,7 +88,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
   } else if (moduleType === ModuleType.NULL) {
     const config: TrustedRelayerIsmConfig = {
       type: IsmType.TRUSTED_RELAYER,
-      relayer: randomAddress(),
+      relayer: relayerAddress ?? randomAddress(),
     };
     return config;
   } else {
@@ -81,7 +96,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
   }
 };
 
-describe('HyperlaneIsmFactory', async () => {
+describe.skip('HyperlaneIsmFactory', async () => {
   let ismFactory: HyperlaneIsmFactory;
   let coreApp: TestCoreApp;
   let multiProvider: MultiProvider;

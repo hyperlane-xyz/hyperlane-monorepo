@@ -28,25 +28,14 @@ import {
   IsmType,
   ModuleType,
   MultisigIsmConfig,
-  OpStackIsmConfig,
-  PausableIsmConfig,
+  NullIsmConfig,
   RoutingIsmConfig,
-  TestIsmConfig,
-  TrustedRelayerIsmConfig,
 } from './types.js';
 
-export type NullIsmConfig =
-  | PausableIsmConfig
-  | TestIsmConfig
-  | OpStackIsmConfig
-  | TrustedRelayerIsmConfig;
-
-export type DerivedIsmConfigWithAddress = WithAddress<
-  Exclude<IsmConfig, Address>
->;
+export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
 export interface IsmReader {
-  deriveIsmConfig(address: Address): Promise<DerivedIsmConfigWithAddress>;
+  deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
@@ -71,9 +60,7 @@ export class EvmIsmReader implements IsmReader {
     this.provider = multiProvider.getProvider(chain);
   }
 
-  async deriveIsmConfig(
-    address: Address,
-  ): Promise<DerivedIsmConfigWithAddress> {
+  async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
     const ism = IInterchainSecurityModule__factory.connect(
       address,
       this.provider,

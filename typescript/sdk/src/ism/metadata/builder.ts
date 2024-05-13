@@ -1,132 +1,139 @@
+/* eslint-disable no-case-declarations */
 import { TransactionReceipt } from '@ethersproject/providers';
 
-import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ParsedMessage,
+  WithAddress,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
-import { DerivedHookConfigWithAddress } from '../../hook/EvmHookReader.js';
+import { DerivedHookConfig } from '../../hook/EvmHookReader.js';
 import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { DerivedIsmConfigWithAddress, NullIsmConfig } from '../EvmIsmReader.js';
-import {
-  AggregationIsmConfig,
-  ModuleType,
-  MultisigIsmConfig,
-  RoutingIsmConfig,
-  ismTypeToModuleType,
-} from '../types.js';
+import { DerivedIsmConfig } from '../EvmIsmReader.js';
+import { IsmConfig, IsmType } from '../types.js';
 
 import {
-  AggregationIsmMetadata,
-  AggregationIsmMetadataBuilder,
+  AggregationMetadata,
+  AggregationMetadataBuilder,
 } from './aggregation.js';
-import { MultisigIsmMetadata, MultisigMetadataBuilder } from './multisig.js';
-import { NullIsmMetadata, NullMetadataBuilder } from './null.js';
+import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
+import { NullMetadata, NullMetadataBuilder } from './null.js';
+import { RoutingMetadata, RoutingMetadataBuilder } from './routing.js';
 
 export type StructuredMetadata =
-  | AggregationIsmMetadata
-  | MultisigIsmMetadata
-  | NullIsmMetadata;
+  | NullMetadata
+  | MultisigMetadata
+  | AggregationMetadata<any>
+  | RoutingMetadata<any>;
 
-export interface MetadataBuilder<
-  I extends DerivedIsmConfigWithAddress,
-  H extends DerivedHookConfigWithAddress,
+export interface MetadataContext<
+  IsmContext = DerivedIsmConfig,
+  HookContext = DerivedHookConfig,
 > {
-  build(
-    message: DispatchedMessage,
-    context: {
-      dispatchTx: TransactionReceipt;
-      hook: H;
-      ism: I;
-    },
-  ): Promise<string>;
+  message: DispatchedMessage;
+  dispatchTx: TransactionReceipt;
+  ism: IsmContext;
+  hook: HookContext;
 }
 
-export class BaseMetadataBuilder
-  implements
-    MetadataBuilder<DerivedIsmConfigWithAddress, DerivedHookConfigWithAddress>
-{
-  private multisigMetadataBuilder: MultisigMetadataBuilder;
-  private aggregationIsmMetadataBuilder: AggregationIsmMetadataBuilder;
-  private nullMetadataBuilder: NullMetadataBuilder;
+export interface MetadataBuilder {
+  build(context: MetadataContext): Promise<string>;
+}
 
-  protected multiProvider: MultiProvider;
+export class BaseMetadataBuilder implements MetadataBuilder {
+  public nullMetadataBuilder: NullMetadataBuilder;
+  public multisigMetadataBuilder: MultisigMetadataBuilder;
+  public aggregationMetadataBuilder: AggregationMetadataBuilder;
+  public routingMetadataBuilder: RoutingMetadataBuilder;
+
+  public multiProvider: MultiProvider;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
 
   constructor(core: HyperlaneCore) {
     this.multisigMetadataBuilder = new MultisigMetadataBuilder(core);
-    this.aggregationIsmMetadataBuilder = new AggregationIsmMetadataBuilder(
-      this,
-    );
+    this.aggregationMetadataBuilder = new AggregationMetadataBuilder(this);
+    this.routingMetadataBuilder = new RoutingMetadataBuilder(this);
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
     this.multiProvider = core.multiProvider;
   }
 
   // assumes that all post dispatch hooks are included in dispatchTx logs
-  async build(
-    message: DispatchedMessage,
-    context: {
-      dispatchTx: TransactionReceipt;
-      hook: DerivedHookConfigWithAddress;
-      ism: DerivedIsmConfigWithAddress;
-    },
-    maxDepth = 10,
-  ): Promise<string> {
-    assert(maxDepth > 0, 'Max depth reached');
+  async build(context: MetadataContext, depth = 10): Promise<string> {
     this.logger.debug(
-      { maxDepth, context },
+      { context, depth },
       `Building ${context.ism.type} metadata`,
     );
+    assert(depth > 0, 'Max depth reached');
 
-    const { ism, hook, dispatchTx } = context;
-    const moduleType = ismTypeToModuleType(ism.type);
-    /* eslint-disable no-case-declarations */
-    switch (moduleType) {
-      case ModuleType.NULL:
-        const nullIsmConfig = ism as WithAddress<NullIsmConfig>;
-        return this.nullMetadataBuilder.build(message, { ism: nullIsmConfig });
+    const { ism, hook } = context;
+    switch (ism.type) {
+      case IsmType.TRUSTED_RELAYER:
+      case IsmType.TEST_ISM:
+      case IsmType.OP_STACK:
+      case IsmType.PAUSABLE:
+        return this.nullMetadataBuilder.build({ ...context, ism });
 
-      case ModuleType.MERKLE_ROOT_MULTISIG:
-      case ModuleType.MESSAGE_ID_MULTISIG:
-        const multisigIsmConfig = ism as WithAddress<MultisigIsmConfig>;
+      case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.MESSAGE_ID_MULTISIG:
         const merkleTreeHook = deepFind(
           hook,
           (v): v is WithAddress<MerkleTreeHookConfig> =>
             v.type === HookType.MERKLE_TREE && v.address !== undefined,
         );
         assert(merkleTreeHook, 'Merkle tree hook context not found');
-        return this.multisigMetadataBuilder.build(message, {
-          ism: multisigIsmConfig,
+        return this.multisigMetadataBuilder.build({
+          ...context,
+          ism,
           hook: merkleTreeHook,
-          dispatchTx,
         });
 
-      case ModuleType.ROUTING:
-        const routingIsmConfig = ism as WithAddress<RoutingIsmConfig>;
-        const originChain = this.multiProvider.getChainName(
-          message.parsed.origin,
+      case IsmType.ROUTING:
+        return this.routingMetadataBuilder.build(
+          {
+            ...context,
+            ism,
+          },
+          depth,
         );
-        const subModuleConfig = routingIsmConfig.domains[
-          originChain
-        ] as DerivedIsmConfigWithAddress;
-        const subContext = {
-          ...context,
-          ism: subModuleConfig,
-        };
-        return this.build(message, subContext, maxDepth - 1);
 
-      case ModuleType.AGGREGATION:
-        const aggregationIsmConfig = ism as WithAddress<AggregationIsmConfig>;
-        return this.aggregationIsmMetadataBuilder.build(
-          message,
-          { ...context, ism: aggregationIsmConfig },
-          maxDepth - 1,
+      case IsmType.AGGREGATION:
+        return this.aggregationMetadataBuilder.build(
+          { ...context, ism },
+          depth,
         );
 
       default:
-        throw new Error(`Unsupported ISM type: ${moduleType}`);
+        throw new Error(`Unsupported ISM type: ${ism.type}`);
     }
-    /* eslint-enable no-case-declarations */
+  }
+
+  static decode(
+    metadata: string,
+    message: ParsedMessage,
+    ism: Exclude<IsmConfig, Address>,
+  ): StructuredMetadata {
+    switch (ism.type) {
+      case IsmType.TRUSTED_RELAYER:
+        return NullMetadataBuilder.decode(ism);
+
+      case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.MESSAGE_ID_MULTISIG:
+        return MultisigMetadataBuilder.decode(metadata, ism.type);
+
+      case IsmType.AGGREGATION:
+        return AggregationMetadataBuilder.decode(metadata, message, ism);
+
+      case IsmType.ROUTING:
+        return RoutingMetadataBuilder.decode(metadata, message, ism);
+
+      default:
+        throw new Error(`Unsupported ISM type: ${ism.type}`);
+    }
   }
 }

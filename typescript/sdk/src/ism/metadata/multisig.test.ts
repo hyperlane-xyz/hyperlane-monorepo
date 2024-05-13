@@ -3,27 +3,27 @@ import { readFileSync, readdirSync } from 'fs';
 
 import { SignatureLike } from '@hyperlane-xyz/utils';
 
-import { ModuleType } from '../types.js';
+import { IsmType, ModuleType } from '../types.js';
 
-import { MultisigIsmMetadata, MultisigMetadataBuilder } from './multisig.js';
+import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 import { Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/multisig';
 const files = readdirSync(path);
-const fixtures: Fixture<MultisigIsmMetadata>[] = files
+const fixtures: Fixture<MultisigMetadata>[] = files
   .map((f) => JSON.parse(readFileSync(`${path}/${f}`, 'utf8')))
   .map((contents) => {
-    const type = contents.type as MultisigIsmMetadata['type'];
+    const type = contents.type as ModuleType;
 
     const { dummy: _dummy, ...signatureValues } = contents.signatures;
     const signatures = Object.values<SignatureLike>(signatureValues);
 
-    let decoded: MultisigIsmMetadata;
+    let decoded: MultisigMetadata;
     if (type === ModuleType.MERKLE_ROOT_MULTISIG) {
       const { dummy: _dummy, ...branchValues } = contents.prefix.proof;
       const branch = Object.values<string>(branchValues);
       decoded = {
-        type,
+        type: IsmType.MERKLE_ROOT_MULTISIG,
         proof: {
           branch,
           leaf: contents.prefix.id,
@@ -38,7 +38,7 @@ const fixtures: Fixture<MultisigIsmMetadata>[] = files
       };
     } else {
       decoded = {
-        type,
+        type: IsmType.MESSAGE_ID_MULTISIG,
         checkpoint: {
           root: contents.prefix.root,
           index: contents.prefix.signedIndex,

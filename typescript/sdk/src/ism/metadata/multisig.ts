@@ -1,4 +1,3 @@
-import { TransactionReceipt } from '@ethersproject/providers';
 import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
 
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
@@ -23,22 +22,21 @@ import {
 
 import { S3Validator } from '../../aws/validator.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { DispatchedMessage } from '../../core/types.js';
 import { MerkleTreeHookConfig } from '../../hook/types.js';
-import { ChainName, ChainNameOrId } from '../../types.js';
-import { IsmType, ModuleType, MultisigIsmConfig } from '../types.js';
+import { ChainName } from '../../types.js';
+import { IsmType, MultisigIsmConfig } from '../types.js';
 
-import { MetadataBuilder } from './builder.js';
+import { MetadataBuilder, MetadataContext } from './builder.js';
 
 interface MessageIdMultisigMetadata {
-  type: ModuleType.MESSAGE_ID_MULTISIG;
+  type: IsmType.MESSAGE_ID_MULTISIG;
   signatures: SignatureLike[];
   checkpoint: Omit<Checkpoint, 'mailbox_domain'>;
 }
 
 interface MerkleRootMultisigMetadata
   extends Omit<MessageIdMultisigMetadata, 'type'> {
-  type: ModuleType.MERKLE_ROOT_MULTISIG;
+  type: IsmType.MERKLE_ROOT_MULTISIG;
   proof: MerkleProof;
 }
 
@@ -46,17 +44,11 @@ const MerkleTreeInterface = MerkleTreeHook__factory.createInterface();
 
 const SIGNATURE_LENGTH = 65;
 
-export type MultisigIsmMetadata =
+export type MultisigMetadata =
   | MessageIdMultisigMetadata
   | MerkleRootMultisigMetadata;
 
-export class MultisigMetadataBuilder
-  implements
-    MetadataBuilder<
-      WithAddress<MultisigIsmConfig>,
-      WithAddress<MerkleTreeHookConfig>
-    >
-{
+export class MultisigMetadataBuilder implements MetadataBuilder {
   private validatorCache: Record<ChainName, Record<string, S3Validator>> = {};
 
   constructor(
@@ -100,10 +92,10 @@ export class MultisigMetadataBuilder
     return validators.map((v) => this.validatorCache[originChain][v]);
   }
 
-  private async getS3Checkpoints(
+  async getS3Checkpoints(
     validators: Address[],
     match: {
-      origin: ChainNameOrId;
+      origin: number;
       merkleTree: Address;
       messageId: string;
       index: number;
@@ -117,6 +109,11 @@ export class MultisigMetadataBuilder
     const results = await Promise.allSettled(
       s3Validators.map((v) => v.getCheckpoint(match.index)),
     );
+    results
+      .filter((r) => r.status === 'rejected')
+      .forEach((r) => {
+        this.logger.error({ error: r }, 'Failed to fetch checkpoint');
+      });
     const checkpoints = results
       .filter(
         (result): result is PromiseFulfilledResult<S3CheckpointWithId> =>
@@ -155,12 +152,10 @@ export class MultisigMetadataBuilder
   }
 
   async build(
-    message: DispatchedMessage,
-    context: {
-      ism: WithAddress<MultisigIsmConfig>;
-      hook: WithAddress<MerkleTreeHookConfig>;
-      dispatchTx: TransactionReceipt;
-    },
+    context: MetadataContext<
+      WithAddress<MultisigIsmConfig>,
+      WithAddress<MerkleTreeHookConfig>
+    >,
   ): Promise<string> {
     assert(
       context.ism.type === IsmType.MESSAGE_ID_MULTISIG,
@@ -172,17 +167,17 @@ export class MultisigMetadataBuilder
     const matchingInsertion = context.dispatchTx.logs
       .filter((log) => eqAddressEvm(log.address, merkleTree))
       .map((log) => MerkleTreeInterface.parseLog(log))
-      .find((event) => event.args.messageId === message.id);
+      .find((event) => event.args.messageId === context.message.id);
 
     assert(
       matchingInsertion,
-      `No merkle tree insertion of ${message.id} to ${merkleTree} found in dispatch tx`,
+      `No merkle tree insertion of ${context.message.id} to ${merkleTree} found in dispatch tx`,
     );
     this.logger.debug({ matchingInsertion }, 'Found matching insertion event');
 
     const checkpoints = await this.getS3Checkpoints(context.ism.validators, {
-      origin: message.parsed.origin,
-      messageId: message.id,
+      origin: context.message.parsed.origin,
+      messageId: context.message.id,
       merkleTree,
       index: matchingInsertion.args.index,
     });
@@ -193,7 +188,7 @@ export class MultisigMetadataBuilder
 
     this.logger.debug(
       { checkpoints },
-      `Found ${checkpoints.length} checkpoints for message ${message.id}`,
+      `Found ${checkpoints.length} checkpoints for message ${context.message.id}`,
     );
 
     const signatures = checkpoints
@@ -201,12 +196,12 @@ export class MultisigMetadataBuilder
       .slice(0, context.ism.threshold);
 
     this.logger.debug(
-      { signatures, message },
-      `Taking ${signatures.length} (threshold) signatures for message ${message.id}`,
+      { signatures, ...context },
+      `Taking ${signatures.length} (threshold) signatures for message ${context.message.id}`,
     );
 
     const metadata: MessageIdMultisigMetadata = {
-      type: ModuleType.MESSAGE_ID_MULTISIG,
+      type: IsmType.MESSAGE_ID_MULTISIG,
       checkpoint: checkpoints[0].value.checkpoint,
       signatures,
     };
@@ -237,7 +232,7 @@ export class MultisigMetadataBuilder
     };
     return {
       signatureOffset: 68,
-      type: ModuleType.MESSAGE_ID_MULTISIG,
+      type: IsmType.MESSAGE_ID_MULTISIG,
       checkpoint,
     };
   }
@@ -276,15 +271,15 @@ export class MultisigMetadataBuilder
     };
     return {
       signatureOffset: 1096,
-      type: ModuleType.MERKLE_ROOT_MULTISIG,
+      type: IsmType.MERKLE_ROOT_MULTISIG,
       checkpoint,
       proof,
     };
   }
 
-  static encode(metadata: MultisigIsmMetadata): string {
+  static encode(metadata: MultisigMetadata): string {
     let encoded =
-      metadata.type === ModuleType.MESSAGE_ID_MULTISIG
+      metadata.type === IsmType.MESSAGE_ID_MULTISIG
         ? this.encodeSimplePrefix(metadata)
         : this.encodeProofPrefix(metadata);
 
@@ -314,10 +309,10 @@ export class MultisigMetadataBuilder
 
   static decode(
     metadata: string,
-    type: ModuleType.MERKLE_ROOT_MULTISIG | ModuleType.MESSAGE_ID_MULTISIG,
-  ): MultisigIsmMetadata {
+    type: IsmType.MERKLE_ROOT_MULTISIG | IsmType.MESSAGE_ID_MULTISIG,
+  ): MultisigMetadata {
     const prefix: any =
-      type === ModuleType.MERKLE_ROOT_MULTISIG
+      type === IsmType.MERKLE_ROOT_MULTISIG
         ? this.decodeProofPrefix(metadata)
         : this.decodeSimplePrefix(metadata);
 

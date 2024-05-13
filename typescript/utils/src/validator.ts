@@ -24,14 +24,20 @@ export class BaseValidator {
     return domainHash(this.config.localDomain, this.config.mailbox);
   }
 
-  checkpointDomainHash(merkle_tree_address: Address) {
-    return domainHash(this.config.localDomain, merkle_tree_address);
+  static checkpointDomainHash(
+    localDomain: number,
+    merkle_tree_address: Address,
+  ) {
+    return domainHash(localDomain, merkle_tree_address);
   }
 
-  message(checkpoint: Checkpoint, messageId: HexString) {
+  static message(checkpoint: Checkpoint, messageId: HexString) {
     const types = ['bytes32', 'bytes32', 'uint32', 'bytes32'];
     const values = [
-      this.checkpointDomainHash(checkpoint.merkle_tree_hook_address),
+      this.checkpointDomainHash(
+        checkpoint.mailbox_domain,
+        checkpoint.merkle_tree_hook_address,
+      ),
       checkpoint.root,
       checkpoint.index,
       messageId,
@@ -39,12 +45,12 @@ export class BaseValidator {
     return ethers.utils.solidityPack(types, values);
   }
 
-  messageHash(checkpoint: Checkpoint, messageId: HexString) {
+  static messageHash(checkpoint: Checkpoint, messageId: HexString) {
     const message = this.message(checkpoint, messageId);
     return ethers.utils.arrayify(ethers.utils.keccak256(message));
   }
 
-  recoverAddressFromCheckpoint(
+  static recoverAddressFromCheckpoint(
     checkpoint: Checkpoint,
     signature: SignatureLike,
     messageId: HexString,
@@ -58,7 +64,7 @@ export class BaseValidator {
     signature: SignatureLike,
     messageId: HexString,
   ) {
-    const address = this.recoverAddressFromCheckpoint(
+    const address = BaseValidator.recoverAddressFromCheckpoint(
       checkpoint,
       signature,
       messageId,
