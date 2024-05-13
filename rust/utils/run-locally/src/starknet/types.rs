@@ -20,7 +20,7 @@ pub struct DeclaredClasses {
     pub hpl_validator_announce: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
 pub struct Deployments {
     pub hook_merkle: String,
     pub hook_routing: String,
@@ -34,4 +34,9 @@ pub struct Deployments {
     pub mock_hook: String,
     pub mock_ism: String,
     pub va: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct DeclareResponse {
+    pub class_hash: String,
 }

@@ -15,15 +15,19 @@ use crate::starknet::utils::{download, unzip};
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
+use self::cli::StarknetCLI;
 use self::source::{CLISource, CodeSource};
 use self::types::{DeclaredClasses, Deployments, StarknetEndpoint};
 
+mod cli;
 mod source;
 mod types;
 mod utils;
 
 const KATANA_CLI_GIT: &str = "https://github.com/dojoengine/dojo";
 const KATANA_CLI_VERSION: &str = "0.6.1-alpha.4";
+const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
+const STARKNET_CLI_VERSION: &str = "0.2.9";
 
 const KEY_HPL_VALIDATOR: (&str, &str) = (
     "hpl-validator",
@@ -79,17 +83,26 @@ const CAIRO_HYPERLANE_VERSION: &str = "v0.0.1";
 
 #[allow(dead_code)]
 pub fn install_starknet(
+    starknet_cli_dir: Option<PathBuf>,
+    starknet_cli_src: Option<CLISource>,
     cli_dir: Option<PathBuf>,
     cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
     codes_src: Option<CodeSource>,
-) -> (PathBuf, BTreeMap<String, PathBuf>) {
+) -> (PathBuf, PathBuf, BTreeMap<String, PathBuf>) {
     let katanad = cli_src
         .unwrap_or(CLISource::Remote {
             url: KATANA_CLI_GIT.to_string(),
             version: KATANA_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
+
+    let starklid = starknet_cli_src
+        .unwrap_or(CLISource::Remote {
+            url: STARKNET_CLI_GIT.to_string(),
+            version: STARKNET_CLI_VERSION.to_string(),
+        })
+        .install(starknet_cli_dir);
 
     let codes = codes_src
         .unwrap_or(CodeSource::Remote {
@@ -98,7 +111,7 @@ pub fn install_starknet(
         })
         .install(codes_dir);
 
-    (katanad, codes)
+    (starklid, katanad, codes)
 }
 
 #[derive(Clone)]
@@ -116,14 +129,13 @@ pub struct StarknetConfig {
 pub struct StarknetResp {
     pub node: AgentHandles,
     pub endpoint: StarknetEndpoint,
-    pub declared_classes: DeclaredClasses,
 }
 
-// impl StarknetResp {
-//     pub fn cli(&self, bin: &Path) -> StarknetCLI {
-//         StarknetCLI::new(bin.to_path_buf())
-//     }
-// }
+impl StarknetResp {
+    pub fn cli(&self, bin: &Path) -> StarknetCLI {
+        StarknetCLI::new(bin.to_path_buf())
+    }
+}
 
 pub struct StarknetNetwork {
     pub launch_resp: StarknetResp,
@@ -169,7 +181,7 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
     let cli = Program::new(config.cli_path);
 
     let node: AgentHandles = cli
-        .arg("--host", config.node_addr_base)
+        .arg("--host", config.node_addr_base.clone())
         .arg("--port", config.node_port_base.to_string())
         .spawn("STARKNET");
 
@@ -177,13 +189,7 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
         rpc_addr: config.node_addr_base,
     };
 
-    let declared_classes = hyperlane_starknet_rs::declare_all(config.sierra_classes);
-
-    StarknetResp {
-        node,
-        endpoint,
-        declared_classes,
-    }
+    StarknetResp { node, endpoint }
 }
 
 #[apply(as_task)]
@@ -254,6 +260,7 @@ fn launch_starknet_relayer(
 }
 
 const ENV_CLI_PATH_KEY: &str = "E2E_KATANA_CLI_PATH";
+const ENV_STARKNET_CLI_PATH_KEY: &str = "E2E_STARKLI_CLI_PATH";
 const ENV_HYPERLANE_STARKNET_PATH_KEY: &str = "E2E_HYPERLANE_STARKNET_PATH";
 
 #[allow(dead_code)]
@@ -281,6 +288,13 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
+    let starknet_cli_src = Some(
+        env::var(ENV_STARKNET_CLI_PATH_KEY)
+            .as_ref()
+            .map(|v| CLISource::local(v))
+            .unwrap_or_default(),
+    );
+
     let code_src = Some(
         env::var(ENV_HYPERLANE_STARKNET_PATH_KEY)
             .as_ref()
@@ -288,7 +302,8 @@ fn run_locally() {
             .unwrap_or_default(),
     );
 
-    let (katanad, sierra_classes) = install_starknet(None, cli_src, None, code_src);
+    let (starklid, katanad, sierra_classes) =
+        install_starknet(None, starknet_cli_src, None, cli_src, None, code_src);
 
     let addr_base = "http://0.0.0.0";
     let default_config = StarknetConfig {
@@ -331,11 +346,22 @@ fn run_locally() {
         .into_iter()
         .map(|v| (v.0.join(), v.1, v.2, v.3))
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
-            let deployments = hyperlane_starknet_rs::deploy_all(
+            let mut starknet_cli = launch_resp.cli(&starklid);
+
+            let declarations = utils::declare_all(
+                starknet_cli,
+                sierra_classes,
+                launch_resp.endpoint.clone(),
+                chain_id,
+            );
+
+            let deployments = utils::deploy_all(
+                starknet_cli,
                 launch_resp.endpoint.clone(),
                 deployer.to_string(),
-                launch_resp.declared_classes.clone(),
+                declarations,
                 domain,
+                chain_id,
             );
 
             (launch_resp, deployments, chain_id, metrics_port, domain)

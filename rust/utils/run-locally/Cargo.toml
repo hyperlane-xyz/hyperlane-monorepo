@@ -20,6 +20,7 @@ ripemd.workspace = true
 sha2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+starknet.workspace = true
 hex.workspace = true
 ctrlc.workspace = true
 eyre.workspace = true
@@ -36,6 +37,7 @@ macro_rules_attribute.workspace = true
 regex.workspace = true
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
+phf.workspace = true
 
 [features]
 cosmos = []

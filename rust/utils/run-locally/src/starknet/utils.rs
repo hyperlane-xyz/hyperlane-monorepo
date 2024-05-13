@@ -1,9 +1,17 @@
+use std::collections::BTreeMap;
 use std::{fs, path::PathBuf};
 
 use toml_edit::Document;
 
 use crate::program::Program;
 use crate::utils::TaskHandle;
+
+use super::cli::StarknetCLI;
+use super::types::{DeclaredClasses, Deployments, StarknetEndpoint};
+
+const STARKNET_KEYPAIR: &str = "config/test-starknet-keys/test_deployer-keypair.json";
+const STARKNET_ACCOUNT: &str = "config/test-starknet-keys/test_deployer-account.json";
+const KEYPAIR_PASSWORD: &str = "test";
 
 pub(crate) fn untar(output: &str, dir: &str) {
     Program::new("tar")
@@ -61,4 +69,85 @@ pub(crate) fn make_target() -> String {
     };
 
     format!("{}-{}", os, arch)
+}
+
+pub(crate) fn make_target_starkli() -> String {
+    let os = if cfg!(target_os = "linux") {
+        "linux-android"
+    } else if cfg!(target_os = "macos") {
+        "apple-darwin"
+    } else {
+        panic!("Current os is not supported by Katana")
+    };
+
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x86_64"
+    };
+
+    format!("{}-{}", arch, os)
+}
+
+pub(crate) fn declare_all(
+    mut cli: StarknetCLI,
+    sierra_classes: BTreeMap<String, PathBuf>,
+    endpoint: StarknetEndpoint,
+    chain_id: String,
+) -> DeclaredClasses {
+    cli.init(
+        STARKNET_KEYPAIR.into(),
+        STARKNET_ACCOUNT.into(),
+        KEYPAIR_PASSWORD.into(),
+        chain_id,
+        endpoint.rpc_addr,
+    );
+    for (class, path) in sierra_classes {
+        let declare_result = cli.declare(path);
+
+        println!("declare result: {:?}", declare_result);
+    }
+
+    DeclaredClasses {
+        hpl_hook_merkle: "".to_string(),
+        hpl_hook_routing: "".to_string(),
+        hpl_igp: "".to_string(),
+        hpl_igp_oracle: "".to_string(),
+        hpl_ism_aggregate: "".to_string(),
+        hpl_ism_multisig: "".to_string(),
+        hpl_ism_pausable: "".to_string(),
+        hpl_ism_routing: "".to_string(),
+        hpl_test_mock_ism: "".to_string(),
+        hpl_test_mock_hook: "".to_string(),
+        hpl_test_mock_msg_receiver: "".to_string(),
+        hpl_mailbox: "".to_string(),
+        hpl_validator_announce: "".to_string(),
+    }
+}
+
+pub(crate) fn deploy_all(
+    mut cli: StarknetCLI,
+    endpoint: StarknetEndpoint,
+    deployer: String,
+    declarations: DeclaredClasses,
+    domain: u32,
+    chain_id: String,
+) -> Deployments {
+    cli.init(
+        STARKNET_KEYPAIR.into(),
+        STARKNET_ACCOUNT.into(),
+        KEYPAIR_PASSWORD.into(),
+        chain_id,
+        endpoint.rpc_addr,
+    );
+
+    // deploy mailbox
+    let mailbox = cli.deploy(declarations.hpl_mailbox, vec![domain.to_string(), deployer]);
+
+    // ---------- mock area -----------
+
+    Deployments {
+        mailbox,
+        ..Default::default()
+    }
 }
