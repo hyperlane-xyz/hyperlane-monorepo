@@ -1,5 +1,4 @@
 import {
-  ParsedMessage,
   WithAddress,
   assert,
   fromHexString,
@@ -122,14 +121,16 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
 
   static decode(
     metadata: string,
-    message: ParsedMessage,
-    ism: AggregationIsmConfig,
+    context: MetadataContext<AggregationIsmConfig>,
   ): AggregationMetadata<StructuredMetadata | string> {
-    const submoduleMetadata = ism.modules.map((module, index) => {
+    const submoduleMetadata = context.ism.modules.map((ism, index) => {
       const range = this.metadataRange(metadata, index);
       if (range.start == 0) return null;
-      if (typeof module === 'string') return range.encoded;
-      return BaseMetadataBuilder.decode(range.encoded, message, module);
+      if (typeof ism === 'string') return range.encoded;
+      return BaseMetadataBuilder.decode(range.encoded, {
+        ...context,
+        ism: ism as DerivedIsmConfig,
+      });
     });
     return { type: IsmType.AGGREGATION, submoduleMetadata };
   }

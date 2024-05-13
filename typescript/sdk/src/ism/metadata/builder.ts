@@ -1,13 +1,7 @@
 /* eslint-disable no-case-declarations */
 import { TransactionReceipt } from '@ethersproject/providers';
 
-import {
-  Address,
-  ParsedMessage,
-  WithAddress,
-  assert,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
@@ -16,7 +10,7 @@ import { DerivedHookConfig } from '../../hook/EvmHookReader.js';
 import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { DerivedIsmConfig } from '../EvmIsmReader.js';
-import { IsmConfig, IsmType } from '../types.js';
+import { IsmType } from '../types.js';
 
 import {
   AggregationMetadata,
@@ -115,9 +109,9 @@ export class BaseMetadataBuilder implements MetadataBuilder {
 
   static decode(
     metadata: string,
-    message: ParsedMessage,
-    ism: Exclude<IsmConfig, Address>,
+    context: MetadataContext,
   ): StructuredMetadata {
+    const { ism } = context;
     switch (ism.type) {
       case IsmType.TRUSTED_RELAYER:
         return NullMetadataBuilder.decode(ism);
@@ -127,10 +121,10 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         return MultisigMetadataBuilder.decode(metadata, ism.type);
 
       case IsmType.AGGREGATION:
-        return AggregationMetadataBuilder.decode(metadata, message, ism);
+        return AggregationMetadataBuilder.decode(metadata, { ...context, ism });
 
       case IsmType.ROUTING:
-        return RoutingMetadataBuilder.decode(metadata, message, ism);
+        return RoutingMetadataBuilder.decode(metadata, { ...context, ism });
 
       default:
         throw new Error(`Unsupported ISM type: ${ism.type}`);

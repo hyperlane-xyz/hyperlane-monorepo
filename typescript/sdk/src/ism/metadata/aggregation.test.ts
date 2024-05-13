@@ -36,11 +36,13 @@ describe('AggregationMetadataBuilder', () => {
     it(`should decode fixture ${i}`, () => {
       const count = fixture.decoded.submoduleMetadata.length;
       expect(
-        AggregationMetadataBuilder.decode(fixture.encoded, {} as any, {
-          type: IsmType.AGGREGATION,
-          modules: new Array(count).fill(ethers.constants.AddressZero),
-          threshold: count,
-        }),
+        AggregationMetadataBuilder.decode(fixture.encoded, {
+          ism: {
+            type: IsmType.AGGREGATION,
+            modules: new Array(count).fill(ethers.constants.AddressZero),
+            threshold: count,
+          },
+        } as any),
       ).to.deep.equal(fixture.decoded);
     });
   });

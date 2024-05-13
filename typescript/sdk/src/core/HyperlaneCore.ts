@@ -1,3 +1,4 @@
+import { TransactionReceipt } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
@@ -127,14 +128,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     }
   }
 
-  async send(
+  async sendMessage(
     origin: ChainName,
     destination: ChainName,
     recipient: Address,
     body: string,
     hook?: Address,
     metadata?: string,
-  ): Promise<ethers.ContractReceipt> {
+  ): Promise<{ dispatchTx: TransactionReceipt; message: DispatchedMessage }> {
     const mailbox = this.getContracts(origin).mailbox;
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const recipientBytes32 = addressToBytes32(recipient);
@@ -146,7 +147,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       metadata,
       hook,
     );
-    return this.multiProvider.handleTx(
+    const dispatchTx = await this.multiProvider.handleTx(
       origin,
       mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
         destinationDomain,
@@ -157,6 +158,10 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         { value: quote },
       ),
     );
+    return {
+      dispatchTx,
+      message: this.getDispatchedMessages(dispatchTx)[0],
+    };
   }
 
   async relayMessage(

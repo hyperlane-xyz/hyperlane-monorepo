@@ -1,4 +1,4 @@
-import { ParsedMessage, WithAddress, assert } from '@hyperlane-xyz/utils';
+import { WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types.js';
 import { DerivedIsmConfig } from '../EvmIsmReader.js';
@@ -36,18 +36,22 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
 
   static decode(
     metadata: string,
-    message: ParsedMessage,
-    ism: RoutingIsmConfig,
+    context: MetadataContext<WithAddress<RoutingIsmConfig>>,
   ): RoutingMetadata<StructuredMetadata | string> {
-    assert(message.originChain, 'originChain is required');
-    const originModule = ism.domains[message.originChain];
+    // TODO: this is a naive implementation, we should support domain ID keys
+    assert(context.message.parsed.originChain, 'originChain is required');
+    const ism = context.ism.domains[context.message.parsed.originChain];
     const originMetadata =
-      typeof originModule === 'string'
+      typeof ism === 'string'
         ? metadata
-        : BaseMetadataBuilder.decode(metadata, message, originModule);
+        : BaseMetadataBuilder.decode(metadata, {
+            ...context,
+            ism: ism as DerivedIsmConfig,
+          });
+
     return {
       type: IsmType.ROUTING,
-      origin: message.originChain,
+      origin: context.message.parsed.originChain,
       metadata: originMetadata,
     };
   }
