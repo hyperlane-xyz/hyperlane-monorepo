@@ -51,12 +51,12 @@ const randomMultisigIsmConfig = (
 };
 
 export const randomIsmConfig = (
-  depth = 5,
+  maxDepth = 5,
   validatorAddresses?: string[],
   relayerAddress?: string,
 ): Exclude<IsmConfig, Address> => {
   const moduleType =
-    depth === 0 ? ModuleType.MESSAGE_ID_MULTISIG : randomModuleType();
+    maxDepth === 0 ? ModuleType.MESSAGE_ID_MULTISIG : randomModuleType();
   if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
     const n = randomInt(validatorAddresses?.length ?? 5, 1);
     return randomMultisigIsmConfig(randomInt(n, 1), n, validatorAddresses);
@@ -67,7 +67,7 @@ export const randomIsmConfig = (
       domains: Object.fromEntries(
         testChains.map((c) => [
           c,
-          randomIsmConfig(depth - 1, validatorAddresses, relayerAddress),
+          randomIsmConfig(maxDepth - 1, validatorAddresses, relayerAddress),
         ]),
       ),
     };
@@ -77,7 +77,7 @@ export const randomIsmConfig = (
     const modules = new Array<number>(n)
       .fill(0)
       .map(() =>
-        randomIsmConfig(depth - 1, validatorAddresses, relayerAddress),
+        randomIsmConfig(maxDepth - 1, validatorAddresses, relayerAddress),
       );
     const config: AggregationIsmConfig = {
       type: IsmType.AGGREGATION,

@@ -36,14 +36,14 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
 
   async build(
     context: MetadataContext<WithAddress<AggregationIsmConfig>>,
-    depth = 10,
-    timeoutMs = depth * 1000,
+    maxDepth = 10,
+    timeoutMs = maxDepth * 1000,
   ): Promise<string> {
     this.logger.debug(
-      { context, depth, timeoutMs },
+      { context, maxDepth, timeoutMs },
       'Building aggregation metadata',
     );
-    assert(depth > 0, 'Max depth reached');
+    assert(maxDepth > 0, 'Max depth reached');
     const promises = await Promise.allSettled(
       context.ism.modules.map((module) =>
         timeout(
@@ -52,7 +52,7 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
               ...context,
               ism: module as DerivedIsmConfig,
             },
-            depth - 1,
+            maxDepth - 1,
           ),
           timeoutMs,
         ),

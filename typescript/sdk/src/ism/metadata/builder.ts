@@ -58,12 +58,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   }
 
   // assumes that all post dispatch hooks are included in dispatchTx logs
-  async build(context: MetadataContext, depth = 10): Promise<string> {
+  async build(context: MetadataContext, maxDepth = 10): Promise<string> {
     this.logger.debug(
-      { context, depth },
+      { context, maxDepth },
       `Building ${context.ism.type} metadata`,
     );
-    assert(depth > 0, 'Max depth reached');
+    assert(maxDepth > 0, 'Max depth reached');
 
     const { ism, hook } = context;
     switch (ism.type) {
@@ -93,13 +93,13 @@ export class BaseMetadataBuilder implements MetadataBuilder {
             ...context,
             ism,
           },
-          depth,
+          maxDepth,
         );
 
       case IsmType.AGGREGATION:
         return this.aggregationMetadataBuilder.build(
           { ...context, ism },
-          depth,
+          maxDepth,
         );
 
       default:

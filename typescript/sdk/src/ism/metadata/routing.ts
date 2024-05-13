@@ -22,7 +22,7 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
 
   public async build(
     context: MetadataContext<WithAddress<RoutingIsmConfig>>,
-    depth = 10,
+    maxDepth = 10,
   ): Promise<string> {
     const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
       context.message.parsed.origin,
@@ -31,7 +31,7 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
       ...context,
       ism: context.ism.domains[originChain] as DerivedIsmConfig,
     };
-    return this.baseMetadataBuilder.build(originContext, depth - 1);
+    return this.baseMetadataBuilder.build(originContext, maxDepth - 1);
   }
 
   static decode(
