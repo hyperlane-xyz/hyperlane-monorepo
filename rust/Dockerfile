@@ -27,11 +27,11 @@ RUN \
   --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
   --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
   --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
-    RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
+    RUSTFLAGS="--cfg tokio_unstable" cargo build --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
-    cp /usr/src/target/release/validator /release && \
-    cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/scraper /release
+    cp /usr/src/target/debug/validator /release && \
+    cp /usr/src/target/debug/relayer /release && \
+    cp /usr/src/target/debug/scraper /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:22.04
