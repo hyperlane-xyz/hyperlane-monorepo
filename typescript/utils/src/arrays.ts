@@ -17,6 +17,6 @@ export function exclude<T>(item: T, list: T[]) {
   return list.filter((i) => i !== item);
 }
 
-export function randomChoice<T>(list: T[]) {
+export function randomElement<T>(list: T[]) {
   return list[randomInt(list.length)];
 }

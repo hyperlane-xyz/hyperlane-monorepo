@@ -5,6 +5,8 @@ import { IsmType, NullIsmConfig } from '../types.js';
 
 import { MetadataBuilder, MetadataContext } from './builder.js';
 
+export const NULL_METADATA = '0x';
+
 export type NullMetadata = {
   type: NullIsmConfig['type'];
 };
@@ -24,7 +26,7 @@ export class NullMetadataBuilder implements MetadataBuilder {
         `Destination signer ${destinationSigner} does not match trusted relayer ${context.ism.relayer}`,
       );
     }
-    return '0x';
+    return NULL_METADATA;
   }
 
   static decode(ism: NullIsmConfig): NullMetadata {

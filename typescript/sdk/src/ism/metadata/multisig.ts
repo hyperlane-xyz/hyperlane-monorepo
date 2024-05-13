@@ -49,7 +49,7 @@ export type MultisigMetadata =
   | MerkleRootMultisigMetadata;
 
 export class MultisigMetadataBuilder implements MetadataBuilder {
-  private validatorCache: Record<ChainName, Record<string, S3Validator>> = {};
+  protected validatorCache: Record<ChainName, Record<string, S3Validator>> = {};
 
   constructor(
     protected readonly core: HyperlaneCore,
@@ -58,7 +58,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     }),
   ) {}
 
-  private async s3Validators(
+  protected async s3Validators(
     originChain: ChainName,
     validators: string[],
   ): Promise<S3Validator[]> {
@@ -209,7 +209,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     return MultisigMetadataBuilder.encode(metadata);
   }
 
-  private static encodeSimplePrefix(
+  protected static encodeSimplePrefix(
     metadata: MessageIdMultisigMetadata,
   ): string {
     const checkpoint = metadata.checkpoint;

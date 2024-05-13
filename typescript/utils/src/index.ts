@@ -46,7 +46,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude, randomChoice } from './arrays.js';
+export { chunk, exclude, randomElement as randomChoice } from './arrays.js';
 export {
   concurrentMap,
   pollAsync,
@@ -88,7 +88,7 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
-export { mean, median, stdDev, sum, randomInt } from './math.js';
+export { mean, median, randomInt, stdDev, sum } from './math.js';
 export { formatMessage, messageId, parseMessage } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
@@ -115,12 +115,12 @@ export {
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {
   errorToString,
+  fromHexString,
   sanitizeString,
   streamToString,
+  toHexString,
   toTitleCase,
   trimToLength,
-  fromHexString,
-  toHexString,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
 export {
@@ -143,9 +143,9 @@ export {
   ProtocolSmallestUnit,
   ProtocolType,
   ProtocolTypeValue,
+  S3Announcement,
   S3Checkpoint,
   S3CheckpointWithId,
-  S3Announcement,
   SignatureLike,
   TokenCaip19Id,
   WithAddress,
