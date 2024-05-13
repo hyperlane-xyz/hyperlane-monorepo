@@ -102,7 +102,7 @@ export class InfraS3Validator extends S3Validator {
             actual.data.messageId,
           )
         ) {
-          const signerAddress = this.recoverAddressFromCheckpoint(
+          const signerAddress = InfraS3Validator.recoverAddressFromCheckpoint(
             actual.data.checkpoint,
             actual.data.signature,
             actual.data.messageId,
