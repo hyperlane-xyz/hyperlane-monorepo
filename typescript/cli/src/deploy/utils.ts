@@ -82,11 +82,7 @@ export async function runPreflightChecksForChains({
     chainsToGasCheck ?? chains,
     minGas,
   );
-  logGreen(
-    sufficient
-      ? '✅ Balances are sufficient'
-      : '⚠️ Balances may not be sufficient',
-  );
+  if (sufficient) logGreen('✅ Balances are sufficient');
 }
 
 // from parsed types
