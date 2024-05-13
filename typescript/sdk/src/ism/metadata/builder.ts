@@ -78,7 +78,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         const merkleTreeHook = deepFind(
           hook,
           (v): v is WithAddress<MerkleTreeHookConfig> =>
-            v.type === HookType.MERKLE_TREE && v.address !== undefined,
+            v.type === HookType.MERKLE_TREE && !!v.address,
         );
         assert(merkleTreeHook, 'Merkle tree hook context not found');
         return this.multisigMetadataBuilder.build({
