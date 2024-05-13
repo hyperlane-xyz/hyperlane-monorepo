@@ -81,7 +81,7 @@ async function executeDelivery({
   const chainAddresses = await registry.getAddresses();
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
-  let hook = chainAddresses[origin]?.customHook;
+  const hook = chainAddresses[origin]?.customHook;
   if (hook) {
     logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
   }
