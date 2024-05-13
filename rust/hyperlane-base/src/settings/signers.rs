@@ -35,6 +35,12 @@ pub enum SignerConf {
         /// Prefix for cosmos address
         prefix: String,
     },
+    StarkKey {
+        /// Private key value
+        key: H256,
+        /// Starknet address
+        address: String,
+    },
     /// Assume node will sign on RPC calls
     #[default]
     Node,
@@ -85,6 +91,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
+            }
+            SignerConf::StarkKey { .. } => {
+                bail!("starkKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
         })

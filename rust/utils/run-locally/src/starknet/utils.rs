@@ -92,18 +92,9 @@ pub(crate) fn make_target_starkli() -> String {
 
 #[apply(as_task)]
 pub(crate) fn declare_all(
-    cli: &mut StarknetCLI,
+    cli: StarknetCLI,
     sierra_classes: BTreeMap<String, PathBuf>,
-    endpoint: StarknetEndpoint,
-    chain_id: String,
 ) -> DeclaredClasses {
-    cli.init(
-        STARKNET_KEYPAIR.into(),
-        STARKNET_ACCOUNT.into(),
-        KEYPAIR_PASSWORD.into(),
-        chain_id,
-        endpoint.rpc_addr,
-    );
     for (class, path) in sierra_classes {
         let declare_result = cli.declare(path);
 
@@ -129,21 +120,11 @@ pub(crate) fn declare_all(
 
 #[apply(as_task)]
 pub(crate) fn deploy_all(
-    cli: &mut StarknetCLI,
-    endpoint: StarknetEndpoint,
+    cli: StarknetCLI,
     deployer: String,
     declarations: DeclaredClasses,
     domain: u32,
-    chain_id: String,
 ) -> Deployments {
-    cli.init(
-        STARKNET_KEYPAIR.into(),
-        STARKNET_ACCOUNT.into(),
-        KEYPAIR_PASSWORD.into(),
-        chain_id,
-        endpoint.rpc_addr,
-    );
-
     // deploy mailbox
     let mailbox = cli.deploy(declarations.hpl_mailbox, vec![domain.to_string(), deployer]);
 

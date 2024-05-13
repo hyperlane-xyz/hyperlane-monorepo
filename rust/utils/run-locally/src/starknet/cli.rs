@@ -1,15 +1,10 @@
 use std::path::PathBuf;
 
-use starknet::{macros::selector, signers::SigningKey};
+use crate::{program::Program, utils::TaskHandle};
 
-use crate::{
-    program::Program,
-    utils::{concat_path, AgentHandles, TaskHandle},
-};
+use super::types::DeclareResponse;
 
-use super::types::{DeclareResponse, KeyPair};
-
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct StarknetCLI {
     pub bin: PathBuf,
     rpc_addr: String,
@@ -52,10 +47,10 @@ impl StarknetCLI {
             .cli()
             .cmd("declare")
             .cmd(sierra_path.to_str().unwrap())
-            .arg("keystore", self.keystore_path)
-            .arg("account", self.account_path)
-            .arg("rpc-url", self.rpc_addr)
-            .arg("chain-id", self.chain_id)
+            .arg("keystore", self.keystore_path.clone())
+            .arg("account", self.account_path.clone())
+            .arg("rpc-url", self.rpc_addr.clone())
+            .arg("chain-id", self.chain_id.clone())
             .run_with_output()
             .join();
 
@@ -73,10 +68,10 @@ impl StarknetCLI {
             .cmd("deploy")
             .cmd(class_hash)
             .cmds(constructor_args)
-            .arg("keystore", self.keystore_path)
-            .arg("account", self.account_path)
-            .arg("rpc-url", self.rpc_addr)
-            .arg("chain-id", self.chain_id)
+            .arg("keystore", self.keystore_path.clone())
+            .arg("account", self.account_path.clone())
+            .arg("rpc-url", self.rpc_addr.clone())
+            .arg("chain-id", self.chain_id.clone())
             .run_with_output()
             .join();
 
@@ -92,10 +87,10 @@ impl StarknetCLI {
             .cmd(contract_address)
             .cmd(function_name)
             .cmds(args)
-            .arg("keystore", self.keystore_path)
-            .arg("account", self.account_path)
-            .arg("rpc-url", self.rpc_addr)
-            .arg("chain-id", self.chain_id)
+            .arg("keystore", self.keystore_path.clone())
+            .arg("account", self.account_path.clone())
+            .arg("rpc-url", self.rpc_addr.clone())
+            .arg("chain-id", self.chain_id.clone())
             .run_with_output()
             .join();
 

@@ -12,15 +12,13 @@ use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::starknet::types::AgentConfigOut;
-use crate::starknet::utils::{
-    download, unzip, KEYPAIR_PASSWORD, STARKNET_ACCOUNT, STARKNET_KEYPAIR,
-};
+use crate::starknet::utils::{KEYPAIR_PASSWORD, STARKNET_ACCOUNT, STARKNET_KEYPAIR};
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
 use self::cli::StarknetCLI;
 use self::source::{CLISource, CodeSource};
-use self::types::{AgentConfig, DeclaredClasses, Deployments, StarknetEndpoint};
+use self::types::{AgentConfig, Deployments, StarknetEndpoint};
 
 mod cli;
 mod source;
@@ -312,7 +310,7 @@ fn run_locally() {
     let default_config = StarknetConfig {
         cli_path: katanad.clone(),
 
-        sierra_classes,
+        sierra_classes: sierra_classes.clone(),
 
         node_addr_base: addr_base.to_string(),
         node_port_base: 5050,
@@ -341,7 +339,7 @@ fn run_locally() {
         .collect::<Vec<_>>();
 
     let deployer = "validator";
-    let linker = "validator";
+    let _linker = "validator";
     let validator = "hpl-validator";
     let _relayer = "hpl-relayer";
 
@@ -350,23 +348,19 @@ fn run_locally() {
         .map(|v| (v.0.join(), v.1, v.2, v.3))
         .map(|(launch_resp, chain_id, metrics_port, domain)| {
             let mut starknet_cli = launch_resp.cli(&starklid);
-
-            let declarations = utils::declare_all(
-                &mut starknet_cli,
-                sierra_classes,
-                launch_resp.endpoint.clone(),
-                chain_id,
-            )
-            .join();
-
-            let deployments = utils::deploy_all(
-                &mut starknet_cli,
-                launch_resp.endpoint.clone(),
-                deployer.to_string(),
-                declarations,
-                domain,
-                chain_id,
+            starknet_cli.init(
+                STARKNET_KEYPAIR.into(),
+                STARKNET_ACCOUNT.into(),
+                KEYPAIR_PASSWORD.into(),
+                chain_id.clone(),
+                launch_resp.endpoint.rpc_addr.clone(),
             );
+
+            let declarations =
+                utils::declare_all(starknet_cli.clone(), sierra_classes.clone()).join();
+
+            let deployments =
+                utils::deploy_all(starknet_cli, deployer.to_string(), declarations, domain);
 
             (launch_resp, deployments, chain_id, metrics_port, domain)
         })
@@ -478,16 +472,16 @@ fn run_locally() {
                 STARKNET_KEYPAIR.into(),
                 STARKNET_ACCOUNT.into(),
                 KEYPAIR_PASSWORD.into(),
-                node.launch_resp.endpoint.rpc_addr,
-                node.chain_id,
+                node.launch_resp.endpoint.rpc_addr.clone(),
+                node.chain_id.clone(),
             );
 
             cli.send_tx(
-                node.deployments.mailbox,
+                node.deployments.mailbox.clone(),
                 "dispatch".to_string(),
                 vec![
                     target.domain.to_string(),
-                    target.deployments.mock_receiver,
+                    target.deployments.mock_receiver.clone(),
                     hex::encode(msg_body),
                     "0".to_string(),
                     "0".to_string(),
