@@ -36,7 +36,7 @@ use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
 const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "22.0.5";
+const OSMOSIS_CLI_VERSION: &str = "25.0.0";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -58,7 +58,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 
 const CW_HYPERLANE_GIT: &str = "https://github.com/many-things/cw-hyperlane";
-const CW_HYPERLANE_VERSION: &str = "v0.0.6-rc8";
+const CW_HYPERLANE_VERSION: &str = "v0.0.6";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
