@@ -15,6 +15,7 @@ import {
   agentTargetsCommandOption,
   coreTargetsCommandOption,
   dryRunOption,
+  fromAddressCommandOption,
   hookCommandOption,
   ismCommandOption,
   originCommandOption,
@@ -73,6 +74,7 @@ const coreCommand: CommandModuleWithWriteContext<{
   ism?: string;
   hook?: string;
   'dry-run': string;
+  'from-address': string;
   agent: string;
 }> = {
   command: 'core',
@@ -83,12 +85,15 @@ const coreCommand: CommandModuleWithWriteContext<{
     hook: hookCommandOption,
     agent: agentConfigCommandOption(false, './configs/agent.json'),
     'dry-run': dryRunOption,
+    'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
     logGray(
       `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
     );
-    logGray('------------------------------------------------');
+    logGray(
+      `----------------------------------------${dryRun ? '--------' : ''}`,
+    );
 
     try {
       const chains = targets?.split(',').map((r: string) => r.trim());
@@ -113,12 +118,14 @@ const coreCommand: CommandModuleWithWriteContext<{
 const warpCommand: CommandModuleWithWriteContext<{
   config: string;
   'dry-run': string;
+  'from-address': string;
 }> = {
   command: 'warp',
   describe: 'Deploy Warp Route contracts',
   builder: {
     config: warpConfigCommandOption,
     'dry-run': dryRunOption,
+    'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {
     logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
