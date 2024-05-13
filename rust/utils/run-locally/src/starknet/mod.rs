@@ -11,13 +11,16 @@ use tempfile::tempdir;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
-use crate::starknet::utils::{download, unzip};
+use crate::starknet::types::AgentConfigOut;
+use crate::starknet::utils::{
+    download, unzip, KEYPAIR_PASSWORD, STARKNET_ACCOUNT, STARKNET_KEYPAIR,
+};
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
 use self::cli::StarknetCLI;
 use self::source::{CLISource, CodeSource};
-use self::types::{DeclaredClasses, Deployments, StarknetEndpoint};
+use self::types::{AgentConfig, DeclaredClasses, Deployments, StarknetEndpoint};
 
 mod cli;
 mod source;
@@ -349,14 +352,15 @@ fn run_locally() {
             let mut starknet_cli = launch_resp.cli(&starklid);
 
             let declarations = utils::declare_all(
-                starknet_cli,
+                &mut starknet_cli,
                 sierra_classes,
                 launch_resp.endpoint.clone(),
                 chain_id,
-            );
+            )
+            .join();
 
             let deployments = utils::deploy_all(
-                starknet_cli,
+                &mut starknet_cli,
                 launch_resp.endpoint.clone(),
                 deployer.to_string(),
                 declarations,
@@ -375,21 +379,22 @@ fn run_locally() {
         .map(|v| v.into())
         .collect::<Vec<StarknetNetwork>>();
 
-    for (i, node) in nodes.iter().enumerate() {
-        let targets = &nodes[(i + 1)..];
+    // TODO: what should be done here ?
+    // for (i, node) in nodes.iter().enumerate() {
+    //     let targets = &nodes[(i + 1)..];
 
-        if !targets.is_empty() {
-            println!(
-                "LINKING NODES: {} -> {:?}",
-                node.domain,
-                targets.iter().map(|v| v.domain).collect::<Vec<_>>()
-            );
-        }
+    //     if !targets.is_empty() {
+    //         println!(
+    //             "LINKING NODES: {} -> {:?}",
+    //             node.domain,
+    //             targets.iter().map(|v| v.domain).collect::<Vec<_>>()
+    //         );
+    //     }
 
-        for target in targets {
-            link_networks(&katanad, linker, validator, node, target);
-        }
-    }
+    //     for target in targets {
+    //         link_networks(&katanad, linker, validator, node, target);
+    //     }
+    // }
 
     // for debug
     println!(
@@ -411,8 +416,8 @@ fn run_locally() {
             .iter()
             .map(|v| {
                 (
-                    format!("cosmostest{}", v.domain),
-                    AgentConfig::new(katanad.clone(), validator, v),
+                    format!("starknettest{}", v.domain),
+                    AgentConfig::new(starklid.clone(), validator, v),
                 )
             })
             .collect::<BTreeMap<String, AgentConfig>>(),
@@ -465,37 +470,33 @@ fn run_locally() {
 
         for target in targets {
             dispatched_messages += 1;
-            let cli = OsmosisCLI::new(
-                osmosisd.clone(),
-                node.launch_resp.home_path.to_str().unwrap(),
-            );
+            let mut cli = StarknetCLI::new(starklid.clone());
 
             let msg_body: &[u8; 5] = b"hello";
 
-            cli.wasm_execute(
-                &node.launch_resp.endpoint,
-                linker,
-                &node.deployments.mailbox,
-                MockDispatch {
-                    dispatch: MockDispatchInner {
-                        dest_domain: target.domain,
-                        recipient_addr: hex::encode(
-                            bech32_decode(&target.deployments.mock_receiver).unwrap(),
-                        ),
-                        msg_body: hex::encode(msg_body),
-                        hook: None,
-                        metadata: "".to_string(),
-                    },
-                },
-                vec![RawCosmosAmount {
-                    denom: "uosmo".to_string(),
-                    amount: 25_000_000.to_string(),
-                }],
+            cli.init(
+                STARKNET_KEYPAIR.into(),
+                STARKNET_ACCOUNT.into(),
+                KEYPAIR_PASSWORD.into(),
+                node.launch_resp.endpoint.rpc_addr,
+                node.chain_id,
+            );
+
+            cli.send_tx(
+                node.deployments.mailbox,
+                "dispatch".to_string(),
+                vec![
+                    target.domain.to_string(),
+                    target.deployments.mock_receiver,
+                    hex::encode(msg_body),
+                    "0".to_string(),
+                    "0".to_string(),
+                ],
             );
         }
     }
 
-    let _stack = CosmosHyperlaneStack {
+    let _stack = StarknetHyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
     };

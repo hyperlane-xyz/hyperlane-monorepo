@@ -1,11 +1,13 @@
 use std::path::PathBuf;
 
+use starknet::{macros::selector, signers::SigningKey};
+
 use crate::{
     program::Program,
     utils::{concat_path, AgentHandles, TaskHandle},
 };
 
-use super::types::DeclareResponse;
+use super::types::{DeclareResponse, KeyPair};
 
 #[derive(Default)]
 pub struct StarknetCLI {
@@ -81,5 +83,22 @@ impl StarknetCLI {
         println!("deploy result: {:?}", run_result);
 
         run_result.first().unwrap().to_string()
+    }
+
+    pub fn send_tx(&self, contract_address: String, function_name: String, args: Vec<String>) {
+        let run_result = self
+            .cli()
+            .cmd("invoke")
+            .cmd(contract_address)
+            .cmd(function_name)
+            .cmds(args)
+            .arg("keystore", self.keystore_path)
+            .arg("account", self.account_path)
+            .arg("rpc-url", self.rpc_addr)
+            .arg("chain-id", self.chain_id)
+            .run_with_output()
+            .join();
+
+        println!("send-tx result: {:?}", run_result);
     }
 }

@@ -1,17 +1,18 @@
+use macro_rules_attribute::apply;
 use std::collections::BTreeMap;
 use std::{fs, path::PathBuf};
 
 use toml_edit::Document;
 
 use crate::program::Program;
-use crate::utils::TaskHandle;
+use crate::utils::{as_task, TaskHandle};
 
 use super::cli::StarknetCLI;
 use super::types::{DeclaredClasses, Deployments, StarknetEndpoint};
 
-const STARKNET_KEYPAIR: &str = "config/test-starknet-keys/test_deployer-keypair.json";
-const STARKNET_ACCOUNT: &str = "config/test-starknet-keys/test_deployer-account.json";
-const KEYPAIR_PASSWORD: &str = "test";
+pub(crate) const STARKNET_KEYPAIR: &str = "config/test-starknet-keys/test_deployer-keypair.json";
+pub(crate) const STARKNET_ACCOUNT: &str = "config/test-starknet-keys/test_deployer-account.json";
+pub(crate) const KEYPAIR_PASSWORD: &str = "test";
 
 pub(crate) fn untar(output: &str, dir: &str) {
     Program::new("tar")
@@ -89,8 +90,9 @@ pub(crate) fn make_target_starkli() -> String {
     format!("{}-{}", arch, os)
 }
 
+#[apply(as_task)]
 pub(crate) fn declare_all(
-    mut cli: StarknetCLI,
+    cli: &mut StarknetCLI,
     sierra_classes: BTreeMap<String, PathBuf>,
     endpoint: StarknetEndpoint,
     chain_id: String,
@@ -125,8 +127,9 @@ pub(crate) fn declare_all(
     }
 }
 
+#[apply(as_task)]
 pub(crate) fn deploy_all(
-    mut cli: StarknetCLI,
+    cli: &mut StarknetCLI,
     endpoint: StarknetEndpoint,
     deployer: String,
     declarations: DeclaredClasses,
