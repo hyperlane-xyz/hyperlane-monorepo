@@ -1,139 +1,80 @@
-import { input } from '@inquirer/prompts';
-import { BigNumber, ethers } from 'ethers';
-
-import {
-  ERC20__factory,
-  HypERC20Collateral__factory,
-  HypERC20__factory,
-} from '@hyperlane-xyz/core';
 import {
   ChainName,
-  EvmHypCollateralAdapter,
-  HyperlaneContractsMap,
   HyperlaneCore,
   MultiProtocolProvider,
-  MultiProvider,
-  TokenType,
+  ProviderType,
+  Token,
+  TokenAmount,
+  WarpCore,
+  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, timeout } from '@hyperlane-xyz/utils';
+import { timeout } from '@hyperlane-xyz/utils';
 
-import { log, logBlue, logGreen } from '../../logger.js';
+import { readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { getContext, getMergedContractAddresses } from '../context.js';
+import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecks } from '../deploy/utils.js';
-import { assertNativeBalances, assertTokenBalance } from '../utils/balances.js';
+import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export async function sendTestTransfer({
-  key,
-  chainConfigPath,
-  coreArtifactsPath,
+  context,
+  warpConfigPath,
   origin,
   destination,
-  routerAddress,
   wei,
   recipient,
   timeoutSec,
   skipWaitForDelivery,
+  selfRelay,
 }: {
-  key: string;
-  chainConfigPath: string;
-  coreArtifactsPath?: string;
+  context: WriteCommandContext;
+  warpConfigPath: string;
   origin?: ChainName;
   destination?: ChainName;
-  routerAddress?: Address;
   wei: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
+  selfRelay?: boolean;
 }) {
-  const { signer, multiProvider, customChains, coreArtifacts } =
-    await getContext({
-      chainConfigPath,
-      coreConfig: { coreArtifactsPath },
-      keyConfig: { key },
-    });
+  const { chainMetadata } = context;
+
+  const warpCoreConfig = readWarpRouteConfig(warpConfigPath);
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the origin chain',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the destination chain',
     );
   }
 
-  if (!routerAddress) {
-    routerAddress = await input({
-      message: 'Please specify the router address',
-    });
-  }
-
-  // TODO: move to SDK token router app
-  // deduce TokenType
-  // 1. decimals() call implies synthetic
-  // 2. wrappedToken() call implies collateral
-  // 3. if neither, it's native
-  let tokenAddress: Address | undefined;
-  let tokenType: TokenType;
-  const provider = multiProvider.getProvider(origin);
-  try {
-    const synthRouter = HypERC20__factory.connect(routerAddress, provider);
-    await synthRouter.decimals();
-    tokenType = TokenType.synthetic;
-    tokenAddress = routerAddress;
-  } catch (error) {
-    try {
-      const collateralRouter = HypERC20Collateral__factory.connect(
-        routerAddress,
-        provider,
-      );
-      tokenAddress = await collateralRouter.wrappedToken();
-      tokenType = TokenType.collateral;
-    } catch (error) {
-      tokenType = TokenType.native;
-    }
-  }
-
-  if (tokenAddress) {
-    // checks token balances for collateral and synthetic
-    await assertTokenBalance(
-      multiProvider,
-      signer,
-      origin,
-      tokenAddress,
-      wei.toString(),
-    );
-  } else {
-    await assertNativeBalances(multiProvider, signer, [origin], wei.toString());
-  }
-
   await runPreflightChecks({
+    context,
     origin,
     remotes: [destination],
-    multiProvider,
-    signer,
     minGas: MINIMUM_TEST_SEND_GAS,
     chainsToGasCheck: [origin],
   });
 
   await timeout(
     executeDelivery({
+      context,
       origin,
       destination,
-      routerAddress,
-      tokenType,
+      warpCoreConfig,
       wei,
       recipient,
-      signer,
-      multiProvider,
-      coreArtifacts,
       skipWaitForDelivery,
+      selfRelay,
     }),
     timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
@@ -141,97 +82,97 @@ export async function sendTestTransfer({
 }
 
 async function executeDelivery({
+  context,
   origin,
   destination,
-  routerAddress,
-  tokenType,
+  warpCoreConfig,
   wei,
   recipient,
-  multiProvider,
-  signer,
-  coreArtifacts,
   skipWaitForDelivery,
+  selfRelay,
 }: {
+  context: WriteCommandContext;
   origin: ChainName;
   destination: ChainName;
-  routerAddress: Address;
-  tokenType: TokenType;
+  warpCoreConfig: WarpCoreConfig;
   wei: string;
   recipient?: string;
-  multiProvider: MultiProvider;
-  signer: ethers.Signer;
-  coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
+  selfRelay?: boolean;
 }) {
+  const { signer, multiProvider, registry } = context;
+
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
 
-  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
+  const chainAddresses = await registry.getAddresses();
 
-  const core = HyperlaneCore.fromAddressesMap(
-    mergedContractAddrs,
-    multiProvider,
-  );
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
   const provider = multiProvider.getProvider(origin);
   const connectedSigner = signer.connect(provider);
 
-  if (tokenType === TokenType.collateral) {
-    const wrappedToken = await getWrappedToken(routerAddress, provider);
-    const token = ERC20__factory.connect(wrappedToken, connectedSigner);
-    const approval = await token.allowance(signerAddress, routerAddress);
-    if (approval.lt(wei)) {
-      const approveTx = await token.approve(routerAddress, wei);
-      await approveTx.wait();
+  const warpCore = WarpCore.FromConfig(
+    MultiProtocolProvider.fromMultiProvider(multiProvider),
+    warpCoreConfig,
+  );
+
+  let token: Token;
+  const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
+  if (tokensForRoute.length === 0) {
+    logRed(`No Warp Routes found from ${origin} to ${destination}`);
+    throw new Error('Error finding warp route');
+  } else if (tokensForRoute.length === 1) {
+    token = tokensForRoute[0];
+  } else {
+    logBlue(`Please select a token from the Warp config`);
+    const routerAddress = await runTokenSelectionStep(tokensForRoute);
+    token = warpCore.findToken(origin, routerAddress)!;
+  }
+
+  const senderAddress = await signer.getAddress();
+  const errors = await warpCore.validateTransfer({
+    originTokenAmount: token.amount(wei),
+    destination,
+    recipient: recipient ?? senderAddress,
+    sender: senderAddress,
+  });
+  if (errors) {
+    logRed('Error validating transfer', JSON.stringify(errors));
+    throw new Error('Error validating transfer');
+  }
+
+  const transferTxs = await warpCore.getTransferRemoteTxs({
+    originTokenAmount: new TokenAmount(wei, token),
+    destination,
+    sender: senderAddress,
+    recipient: recipient ?? senderAddress,
+  });
+
+  const txReceipts = [];
+  for (const tx of transferTxs) {
+    if (tx.type === ProviderType.EthersV5) {
+      const txResponse = await connectedSigner.sendTransaction(tx.transaction);
+      const txReceipt = await multiProvider.handleTx(origin, txResponse);
+      txReceipts.push(txReceipt);
     }
   }
 
-  // TODO move next section into MultiProtocolTokenApp when it exists
-  const adapter = new EvmHypCollateralAdapter(
-    origin,
-    MultiProtocolProvider.fromMultiProvider(multiProvider),
-    { token: routerAddress },
-  );
-  const destinationDomain = multiProvider.getDomainId(destination);
-  const gasPayment = await adapter.quoteGasPayment(destinationDomain);
-  const txValue =
-    tokenType === TokenType.native
-      ? BigNumber.from(gasPayment).add(wei).toString()
-      : gasPayment;
-  const transferTx = await adapter.populateTransferRemoteTx({
-    weiAmountOrId: wei,
-    destination: destinationDomain,
-    recipient,
-    txValue,
-  });
+  const transferTxReceipt = txReceipts[txReceipts.length - 1];
 
-  const txResponse = await connectedSigner.sendTransaction(transferTx);
-  const txReceipt = await multiProvider.handleTx(origin, txResponse);
-
-  const message = core.getDispatchedMessages(txReceipt)[0];
+  const message = core.getDispatchedMessages(transferTxReceipt)[0];
   logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
   logBlue(`Message ID: ${message.id}`);
+
+  if (selfRelay) {
+    await core.relayMessage(message);
+    logGreen('Message was self-relayed!');
+    return;
+  }
 
   if (skipWaitForDelivery) return;
 
   // Max wait 10 minutes
-  await core.waitForMessageProcessed(txReceipt, 10000, 60);
+  await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
   logGreen(`Transfer sent to destination chain!`);
-}
-
-async function getWrappedToken(
-  address: Address,
-  provider: ethers.providers.Provider,
-): Promise<Address> {
-  try {
-    const contract = HypERC20Collateral__factory.connect(address, provider);
-    const wrappedToken = await contract.wrappedToken();
-    if (ethers.utils.isAddress(wrappedToken)) return wrappedToken;
-    else throw new Error('Invalid wrapped token address');
-  } catch (error) {
-    log('Error getting wrapped token', error);
-    throw new Error(
-      `Could not get wrapped token from router address ${address}`,
-    );
-  }
 }

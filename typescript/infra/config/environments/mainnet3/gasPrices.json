@@ -1,0 +1,82 @@
+{
+  "arbitrum": {
+    "amount": "0.01",
+    "decimals": 9
+  },
+  "ancient8": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "avalanche": {
+    "amount": "43.212830197",
+    "decimals": 9
+  },
+  "base": {
+    "amount": "0.116871685",
+    "decimals": 9
+  },
+  "blast": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "bsc": {
+    "amount": "5.0",
+    "decimals": 9
+  },
+  "celo": {
+    "amount": "10.0",
+    "decimals": 9
+  },
+  "ethereum": {
+    "amount": "26.346912847",
+    "decimals": 9
+  },
+  "mantapacific": {
+    "amount": "0.100163166",
+    "decimals": 9
+  },
+  "mode": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "moonbeam": {
+    "amount": "125.0",
+    "decimals": 9
+  },
+  "optimism": {
+    "amount": "0.061126811",
+    "decimals": 9
+  },
+  "polygon": {
+    "amount": "101.76455238",
+    "decimals": 9
+  },
+  "gnosis": {
+    "amount": "3.236596353",
+    "decimals": 9
+  },
+  "scroll": {
+    "amount": "1.3231",
+    "decimals": 9
+  },
+  "polygonzkevm": {
+    "amount": "3.95",
+    "decimals": 9
+  },
+  "inevm": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "viction": {
+    "amount": "0.25",
+    "decimals": 9
+  },
+  "neutron": {
+    "amount": "0.0053",
+    "decimals": 1
+  },
+  "injective": {
+    "amount": "700000000",
+    "decimals": 1
+  }
+}

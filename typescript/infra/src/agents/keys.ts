@@ -3,12 +3,12 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { DeployEnvironment } from '../config';
-import { Role } from '../roles';
-import { assertChain, assertContext, assertRole } from '../utils/utils';
+import { Contexts } from '../../config/contexts.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { Role } from '../roles.js';
+import { assertChain, assertContext, assertRole } from '../utils/utils.js';
 
-import { parseKeyIdentifier } from './agent';
+import { parseKeyIdentifier } from './agent.js';
 
 // Base class to represent keys used to run Hyperlane agents.
 export abstract class BaseAgentKey {

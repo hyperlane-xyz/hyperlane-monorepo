@@ -1,37 +1,42 @@
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
-import { MinimalTokenMetadata } from '../config';
+import { MinimalTokenMetadata } from '../config.js';
 
 export interface TransferParams {
-  weiAmountOrId: string | number;
+  weiAmountOrId: Numberish;
   recipient: Address;
-
-  // Solana-specific params
-  // Included here optionally to keep Adapter types simple
-  fromTokenAccount?: Address;
+  // Required for Cosmos + Solana
   fromAccountOwner?: Address;
+  // Required for Solana
+  fromTokenAccount?: Address;
 }
 
 export interface TransferRemoteParams extends TransferParams {
   destination: Domain;
-  txValue?: string;
+  interchainGas?: InterchainGasQuote;
 }
 
-export interface ITokenAdapter {
-  getBalance(address: Address): Promise<string>;
+export interface InterchainGasQuote {
+  addressOrDenom?: string; // undefined values represent default native tokens
+  amount: bigint;
+}
+
+export interface ITokenAdapter<Tx> {
+  getBalance(address: Address): Promise<bigint>;
   getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata>;
-  populateApproveTx(TransferParams: TransferParams): unknown | Promise<unknown>;
-  populateTransferTx(
-    TransferParams: TransferParams,
-  ): unknown | Promise<unknown>;
+  isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean>;
+  populateApproveTx(params: TransferParams): Promise<Tx>;
+  populateTransferTx(params: TransferParams): Promise<Tx>;
 }
 
-export interface IHypTokenAdapter extends ITokenAdapter {
+export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;
   getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
-  quoteGasPayment(destination: Domain): Promise<string>;
-  populateTransferRemoteTx(
-    TransferParams: TransferRemoteParams,
-  ): unknown | Promise<unknown>;
+  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote>;
+  populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }

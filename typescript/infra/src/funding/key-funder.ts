@@ -1,7 +1,8 @@
-import { AgentContextConfig, EnvironmentConfig } from '../config';
-import { KeyFunderConfig } from '../config/funding';
-import { HelmCommand, helmifyValues } from '../utils/helm';
-import { execCmd } from '../utils/utils';
+import { AgentContextConfig } from '../config/agent/agent.js';
+import { EnvironmentConfig } from '../config/environment.js';
+import { KeyFunderConfig } from '../config/funding.js';
+import { HelmCommand, helmifyValues } from '../utils/helm.js';
+import { execCmd } from '../utils/utils.js';
 
 export async function runKeyFunderHelmCommand(
   helmCommand: HelmCommand,
@@ -48,6 +49,8 @@ function getKeyFunderHelmValues(
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
       connectionType: keyFunderConfig.connectionType,
+      desiredBalancePerChain: keyFunderConfig.desiredBalancePerChain,
+      desiredKathyBalancePerChain: keyFunderConfig.desiredKathyBalancePerChain,
     },
     image: {
       repository: keyFunderConfig.docker.repo,

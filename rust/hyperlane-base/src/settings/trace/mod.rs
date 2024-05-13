@@ -24,7 +24,7 @@ pub enum Level {
     /// Warn
     Warn = 2,
     /// Debug
-    Debug = 3,
+    Debug = 4,
     /// Trace
     Trace = 5,
     /// Trace + Additional logs from dependencies
@@ -32,7 +32,7 @@ pub enum Level {
     /// Info
     #[serde(other)]
     #[default]
-    Info = 4,
+    Info = 3,
 }
 
 impl From<Level> for LevelFilter {
@@ -68,6 +68,7 @@ impl TracingConfig {
             target_layer = target_layer
                 .with_target("hyper", Level::Info)
                 .with_target("rusoto_core", Level::Info)
+                .with_target("rustls", Level::Info)
                 .with_target("reqwest", Level::Info)
                 .with_target("h2", Level::Info)
                 .with_target("tower", Level::Info)

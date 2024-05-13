@@ -75,7 +75,7 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
     let solana_tools_dir = tempdir().unwrap();
     log!("Downloading solana cli release v{}", SOLANA_CLI_VERSION);
     let solana_release_name = {
-        // best effort ot pick one of the supported targets
+        // best effort to pick one of the supported targets
         let target = if cfg!(target_os = "linux") {
             "x86_64-unknown-linux-gnu"
         } else if cfg!(target_os = "macos") {
@@ -309,7 +309,10 @@ pub fn initiate_solana_hyperlane_transfer(
         .run_with_output()
         .join();
 
-    let message_id = get_message_id_from_logs(output).expect("failed to get message id from logs");
+    let message_id = get_message_id_from_logs(output.clone())
+        .unwrap_or_else(|| panic!("failed to get message id from logs: {:?}", output));
+
+    log!("found message id: {}", message_id);
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("igp")
         .cmd("pay-for-gas")

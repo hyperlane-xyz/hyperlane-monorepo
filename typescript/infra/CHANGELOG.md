@@ -1,5 +1,121 @@
 # @hyperlane-xyz/infra
 
+## 3.11.1
+
+### Patch Changes
+
+- Updated dependencies [c900da187]
+  - @hyperlane-xyz/sdk@3.11.1
+  - @hyperlane-xyz/helloworld@3.11.1
+  - @hyperlane-xyz/utils@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- af2634207: Moved Hook/ISM reading into CLI.
+
+### Patch Changes
+
+- a86a8296b: Removes Gnosis safe util from infra in favor of SDK
+- Updated dependencies [811ecfbba]
+- Updated dependencies [f8b6ea467]
+- Updated dependencies [d37cbab72]
+- Updated dependencies [b6fdf2f7f]
+- Updated dependencies [a86a8296b]
+- Updated dependencies [2db77f177]
+- Updated dependencies [3a08e31b6]
+- Updated dependencies [917266dce]
+- Updated dependencies [aab63d466]
+- Updated dependencies [2e439423e]
+- Updated dependencies [b63714ede]
+- Updated dependencies [3528b281e]
+- Updated dependencies [450e8e0d5]
+- Updated dependencies [2b3f75836]
+- Updated dependencies [af2634207]
+  - @hyperlane-xyz/sdk@3.11.0
+  - @hyperlane-xyz/helloworld@3.11.0
+  - @hyperlane-xyz/utils@3.11.0
+
+## 3.10.0
+
+### Minor Changes
+
+- 96485144a: SDK support for ICA deployment and operation.
+- 38358ecec: Deprecate Polygon Mumbai testnet (soon to be replaced by Polygon Amoy testnet)
+- 4e7a43be6: Replace Debug logger with Pino
+
+### Patch Changes
+
+- Updated dependencies [96485144a]
+- Updated dependencies [38358ecec]
+- Updated dependencies [ed0d4188c]
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/helloworld@3.10.0
+  - @hyperlane-xyz/utils@3.10.0
+  - @hyperlane-xyz/sdk@3.10.0
+
+## 3.9.0
+
+### Patch Changes
+
+- Updated dependencies [11f257ebc]
+  - @hyperlane-xyz/sdk@3.9.0
+  - @hyperlane-xyz/helloworld@3.9.0
+  - @hyperlane-xyz/utils@3.9.0
+
+## 3.8.2
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@3.8.2
+- @hyperlane-xyz/sdk@3.8.2
+- @hyperlane-xyz/utils@3.8.2
+
+## 3.8.1
+
+### Patch Changes
+
+- Updated dependencies [5daaae274]
+  - @hyperlane-xyz/utils@3.8.1
+  - @hyperlane-xyz/sdk@3.8.1
+  - @hyperlane-xyz/helloworld@3.8.1
+
+## 3.8.0
+
+### Minor Changes
+
+- 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
+- 9681df08d: Enabled verification of contracts as part of the deployment flow.
+
+  - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
+  - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
+  - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
+  - Minor logging improvements throughout deployers.
+
+### Patch Changes
+
+- 9681df08d: Removed basegoerli and moonbasealpha testnets
+- 9681df08d: Add logos for plume to SDK
+- 9681df08d: TestRecipient as part of core deployer
+- 9681df08d: Update viction validator set
+- 9681df08d: Patch transfer ownership in hook deployer
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+  - @hyperlane-xyz/sdk@3.8.0
+  - @hyperlane-xyz/helloworld@3.8.0
+  - @hyperlane-xyz/utils@3.8.0
+
 ## 3.7.0
 
 ### Minor Changes

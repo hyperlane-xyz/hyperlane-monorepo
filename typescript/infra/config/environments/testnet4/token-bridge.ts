@@ -2,58 +2,31 @@ import {
   BridgeAdapterConfig,
   BridgeAdapterType,
   ChainMap,
-  Chains,
-  chainMetadata,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
+import { getDomainId } from '../../registry.js';
+
 const circleDomainMapping = [
-  {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
-    circleDomain: 0,
-  },
-  { hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]), circleDomain: 1 },
+  { hyperlaneDomain: getDomainId('fuji'), circleDomain: 1 },
 ];
 
 const wormholeDomainMapping = [
   {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.goerli]),
-    wormholeDomain: 2,
-  },
-  {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.fuji]),
+    hyperlaneDomain: getDomainId('fuji'),
     wormholeDomain: 6,
   },
   {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.mumbai]),
-    wormholeDomain: 5,
-  },
-  {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.bsctestnet]),
+    hyperlaneDomain: getDomainId('bsctestnet'),
     wormholeDomain: 4,
   },
   {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.alfajores]),
+    hyperlaneDomain: getDomainId('alfajores'),
     wormholeDomain: 14,
   },
 ];
 
 export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
-  [Chains.goerli]: {
-    portal: {
-      type: BridgeAdapterType.Portal,
-      portalBridgeAddress: '0xF890982f9310df57d00f659cf4fd87e65adEd8d7',
-      wormholeDomainMapping,
-    },
-    circle: {
-      type: BridgeAdapterType.Circle,
-      tokenMessengerAddress: '0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8',
-      messageTransmitterAddress: '0x26413e8157cd32011e726065a5462e97dd4d03d9',
-      usdcAddress: '0x07865c6e87b9f70255377e024ace6630c1eaa37f',
-      circleDomainMapping,
-    },
-  },
-  [Chains.fuji]: {
+  fuji: {
     portal: {
       type: BridgeAdapterType.Portal,
       portalBridgeAddress: '0x61E44E506Ca5659E6c0bba9b678586fA2d729756',
@@ -67,21 +40,14 @@ export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
       circleDomainMapping,
     },
   },
-  [Chains.mumbai]: {
-    portal: {
-      type: BridgeAdapterType.Portal,
-      portalBridgeAddress: '0x377D55a7928c046E18eEbb61977e714d2a76472a',
-      wormholeDomainMapping,
-    },
-  },
-  [Chains.bsctestnet]: {
+  bsctestnet: {
     portal: {
       type: BridgeAdapterType.Portal,
       portalBridgeAddress: '0x9dcF9D205C9De35334D646BeE44b2D2859712A09',
       wormholeDomainMapping,
     },
   },
-  [Chains.alfajores]: {
+  alfajores: {
     portal: {
       type: BridgeAdapterType.Portal,
       portalBridgeAddress: '0x05ca6037eC51F8b712eD2E6Fa72219FEaE74E153',

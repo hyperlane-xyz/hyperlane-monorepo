@@ -10,9 +10,8 @@ use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
-use crate::Error as PrimitiveTypeError;
 use crate::HyperlaneProviderError;
-use crate::H256;
+use crate::{Error as PrimitiveTypeError, HyperlaneSignerError, H256, U256};
 
 /// The result of interacting with a chain.
 pub type ChainResult<T> = Result<T, ChainCommunicationError>;
@@ -83,6 +82,12 @@ pub enum ChainCommunicationError {
     /// No signer is available and was required for the operation
     #[error("Signer unavailable")]
     SignerUnavailable,
+    /// Batching transaction failed
+    #[error("Batching transaction failed")]
+    BatchingFailed,
+    /// Cannot submit empty batch
+    #[error("Cannot submit empty batch")]
+    BatchIsEmpty,
     /// Failed to parse strings or integers
     #[error("Data parsing error {0:?}")]
     StrOrIntParseError(#[from] StrOrIntParseError),
@@ -122,9 +127,14 @@ pub enum ChainCommunicationError {
         /// Error message
         msg: String,
     },
-    /// Failed to estimate transaction gas cost.
-    #[error("Failed to estimate transaction gas cost {0}")]
-    TxCostEstimateError(String),
+    /// Insufficient funds.
+    #[error("Insufficient funds. Required: {required:?}, available: {available:?}")]
+    InsufficientFunds {
+        /// The required amount of funds.
+        required: U256,
+        /// The available amount of funds.
+        available: U256,
+    },
     /// Primitive type error
     #[error(transparent)]
     PrimitiveTypeError(#[from] PrimitiveTypeError),
@@ -134,6 +144,19 @@ pub enum ChainCommunicationError {
     /// Rpc client error
     #[error(transparent)]
     RpcClientError(#[from] RpcClientError),
+    /// Tokio join error
+    #[cfg(feature = "async")]
+    #[error(transparent)]
+    TokioJoinError(#[from] tokio::task::JoinError),
+    /// Custom error
+    #[error("{0}")]
+    CustomError(String),
+    /// Eyre error
+    #[error("{0}")]
+    EyreError(#[from] eyre::Report),
+    /// Hyperlane signer error
+    #[error("{0}")]
+    HyperlaneSignerError(#[from] HyperlaneSignerError),
 }
 
 impl ChainCommunicationError {

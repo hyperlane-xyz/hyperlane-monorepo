@@ -11,6 +11,7 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+axum.workspace = true
 bs58.workspace = true
 color-eyre = { workspace = true, optional = true }
 config.workspace = true
@@ -21,9 +22,11 @@ ed25519-dalek.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 fuels.workspace = true
+futures.worksapce = true
 futures-util.workspace = true
 itertools.workspace = true
 maplit.workspace = true
+mockall.worksapce = true
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true
@@ -42,6 +45,7 @@ url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
 
+
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
@@ -53,6 +57,7 @@ hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos"}
 hyperlane-test = { path = "../hyperlane-test" }
 
+
 # dependency version is determined by etheres
 rusoto_core = "*"
 rusoto_kms = "*"
@@ -61,7 +66,9 @@ rusoto_sts = "*"
 
 [dev-dependencies]
 color-eyre.workspace = true
+reqwest.workspace = true
 tempfile.workspace = true
+tracing-test.workspace = true
 walkdir.workspace = true
 
 [features]

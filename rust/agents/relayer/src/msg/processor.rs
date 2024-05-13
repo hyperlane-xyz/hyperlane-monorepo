@@ -14,12 +14,12 @@ use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, trace};
 
-use super::pending_message::*;
-use crate::msg::pending_operation::DynPendingOperation;
+use super::{metadata::AppContextClassifier, op_queue::QueueOperation, pending_message::*};
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
+#[allow(clippy::too_many_arguments)]
 #[derive(new)]
 pub struct MessageProcessor {
     db: HyperlaneRocksDB,
@@ -28,9 +28,10 @@ pub struct MessageProcessor {
     metrics: MessageProcessorMetrics,
     /// channel for each destination chain to send operations (i.e. message
     /// submissions) to
-    send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
+    send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
+    metric_app_contexts: Vec<(MatchingList, String)>,
     #[new(default)]
     message_nonce: u32,
 }
@@ -94,12 +95,17 @@ impl ProcessorExt for MessageProcessor {
 
             debug!(%msg, "Sending message to submitter");
 
+            let app_context_classifier =
+                AppContextClassifier::new(self.metric_app_contexts.clone());
+
+            let app_context = app_context_classifier.get_app_context(&msg).await?;
             // Finally, build the submit arg and dispatch it to the submitter.
             let pending_msg = PendingMessage::from_persisted_retries(
                 msg,
                 self.destination_ctxs[&destination].clone(),
+                app_context,
             );
-            self.send_channels[&destination].send(Box::new(pending_msg.into()))?;
+            self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
             self.message_nonce += 1;
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -184,8 +190,7 @@ mod test {
         merkle_tree::builder::MerkleTreeBuilder,
         msg::{
             gas_payment::GasPaymentEnforcer,
-            metadata::{AppContextClassifier, BaseMetadataBuilder},
-            pending_operation::PendingOperation,
+            metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
         },
         processor::Processor,
     };
@@ -232,8 +237,12 @@ mod test {
             signer: Default::default(),
             reorg_period: Default::default(),
             addresses: Default::default(),
-            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf::Http {
-                url: "http://example.com".parse().unwrap(),
+            connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
+                rpc_connection: hyperlane_ethereum::RpcConnectionConf::Http {
+                    url: "http://example.com".parse().unwrap(),
+                },
+                transaction_overrides: Default::default(),
+                operation_batch: Default::default(),
             }),
             metrics_conf: Default::default(),
             index: Default::default(),
@@ -265,7 +274,7 @@ mod test {
             Arc::new(core_metrics),
             db.clone(),
             5,
-            AppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
+            IsmAwareAppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
         )
     }
 
@@ -273,10 +282,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-    ) -> (
-        MessageProcessor,
-        UnboundedReceiver<Box<DynPendingOperation>>,
-    ) {
+    ) -> (MessageProcessor, UnboundedReceiver<QueueOperation>) {
         let base_metadata_builder = dummy_metadata_builder(origin_domain, destination_domain, db);
         let message_context = Arc::new(MessageContext {
             destination_mailbox: Arc::new(MockMailboxContract::default()),
@@ -287,7 +293,7 @@ mod test {
             metrics: dummy_submission_metrics(),
         });
 
-        let (send_channel, receive_channel) = mpsc::unbounded_channel::<Box<DynPendingOperation>>();
+        let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
         (
             MessageProcessor::new(
                 db.clone(),
@@ -296,6 +302,7 @@ mod test {
                 dummy_processor_metrics(origin_domain.id()),
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
+                vec![],
             ),
             receive_channel,
         )
@@ -329,6 +336,7 @@ mod test {
             domain_name: name.to_owned(),
             domain_type: test_domain.domain_type(),
             domain_protocol: test_domain.domain_protocol(),
+            domain_technical_stack: test_domain.domain_technical_stack(),
         }
     }
 
@@ -355,7 +363,7 @@ mod test {
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
         num_operations: usize,
-    ) -> Vec<Box<DynPendingOperation>> {
+    ) -> Vec<QueueOperation> {
         let (message_processor, mut receive_channel) =
             dummy_message_processor(origin_domain, destination_domain, db);
 
@@ -424,7 +432,7 @@ mod test {
                     // Round up the actual backoff because it was calculated with an `Instant::now()` that was a fraction of a second ago
                     let expected_backoff = PendingMessage::calculate_msg_backoff(*expected_retries)
                         .map(|b| b.as_secs_f32().round());
-                    let actual_backoff = pm._next_attempt_after().map(|instant| {
+                    let actual_backoff = pm.next_attempt_after().map(|instant| {
                         instant.duration_since(Instant::now()).as_secs_f32().round()
                     });
                     assert_eq!(expected_backoff, actual_backoff);

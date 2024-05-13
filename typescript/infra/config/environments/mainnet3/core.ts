@@ -18,15 +18,18 @@ import {
   RoutingIsmConfig,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains';
-import { igp } from './igp';
-import { owners } from './owners';
+import { getChain } from '../../registry.js';
+
+import { igp } from './igp.js';
+import { DEPLOYER, owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
     supportedChainNames
+      .filter((chain) => getChain(chain).protocol === ProtocolType.Ethereum)
       .filter((chain) => chain !== local)
       .map((origin) => [origin, defaultMultisigConfigs[origin]]),
   );
@@ -56,7 +59,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   const pausableIsm: PausableIsmConfig = {
     type: IsmType.PAUSABLE,
-    ...owner,
+    owner: DEPLOYER, // keep pausable hot
   };
 
   const defaultIsm: AggregationIsmConfig = {
@@ -76,7 +79,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   const pausableHook: PausableHookConfig = {
     type: HookType.PAUSABLE,
-    ...owner,
+    owner: DEPLOYER, // keep pausable hot
   };
   const aggregationHooks = objMap(
     originMultisigs,
@@ -92,11 +95,14 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     fallback: merkleHook,
   };
 
+  if (typeof owner.owner !== 'string') {
+    throw new Error('beneficiary must be a string');
+  }
   const requiredHook: ProtocolFeeHookConfig = {
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
     protocolFee: BigNumber.from(0).toString(), // 0 wei
-    beneficiary: owner.owner,
+    beneficiary: owner.owner as Address, // Owner can be AccountConfig
     ...owner,
   };
 

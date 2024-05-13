@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, LogMeta};
+use crate::{ChainResult, Indexed, LogMeta};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -29,16 +29,22 @@ pub enum IndexMode {
 #[auto_impl(&, Box, Arc,)]
 pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(T, LogMeta)>>;
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>;
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
 }
 
 /// Interface for indexing data in sequence.
+/// SequenceAwareIndexer is an umbrella trait for all indexers types (sequence-aware and rate-limited).
+/// The rate-limited indexer doesn't need `SequenceAwareIndexer`, so impls of `SequenceAwareIndexer` just return nullish values.
+/// TODO: Refactor such that indexers aren't required to implement `SequenceAwareIndexer`
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait SequenceIndexer<T>: Indexer<T> {
+pub trait SequenceAwareIndexer<T>: Indexer<T> {
     /// Return the latest finalized sequence (if any) and block number
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
 }

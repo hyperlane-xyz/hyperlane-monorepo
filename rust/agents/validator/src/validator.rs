@@ -1,19 +1,19 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
+use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
-use futures_util::future::ready;
 
+use futures_util::future::try_join_all;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
-    run_all,
     settings::ChainConf,
-    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
+    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
@@ -97,14 +97,13 @@ impl BaseAgent for Validator {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let merkle_tree_hook_sync = settings
-            .build_merkle_tree_hook_indexer(
+            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
                 &settings.origin_chain,
                 &metrics,
                 &contract_sync_metrics,
-                Arc::new(msg_db.clone()),
+                msg_db.clone().into(),
             )
-            .await?
-            .into();
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -127,14 +126,27 @@ impl BaseAgent for Validator {
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(mut self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run(mut self) {
         let mut tasks = vec![];
+
+        // run server
+        let custom_routes =
+            validator_server::routes(self.origin_chain.clone(), self.core.metrics.clone());
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = tokio::spawn(async move {
+            server.run_with_custom_routes(custom_routes);
+        })
+        .instrument(info_span!("Validator server"));
+        tasks.push(server_task);
 
         if let Some(signer_instance) = self.signer_instance.take() {
             tasks.push(
                 tokio::spawn(async move {
                     signer_instance.run().await;
-                    Ok(())
                 })
                 .instrument(info_span!("SingletonSigner")),
             );
@@ -149,7 +161,12 @@ impl BaseAgent for Validator {
         )
         .await
         .unwrap();
-        tasks.push(metrics_updater.spawn());
+        tasks.push(
+            tokio::spawn(async move {
+                metrics_updater.spawn().await.unwrap();
+            })
+            .instrument(info_span!("MetricsUpdater")),
+        );
 
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
@@ -173,28 +190,31 @@ impl BaseAgent for Validator {
                 }
                 _ => {
                     // Future that immediately resolves
-                    return tokio::spawn(ready(Ok(()))).instrument(info_span!("Validator"));
+                    return;
                 }
             }
         }
 
-        run_all(tasks)
+        // Note that this only returns an error if one of the tasks panics
+        if let Err(err) = try_join_all(tasks).await {
+            error!(?err, "One of the validator tasks returned an error");
+        }
     }
 }
 
 impl Validator {
-    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    async fn run_merkle_tree_hook_sync(&self) -> Instrumented<JoinHandle<()>> {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
-        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
-            .instrument(info_span!("MerkleTreeHookSyncer"))
+        let cursor = contract_sync.cursor(index_settings).await;
+        tokio::spawn(async move {
+            contract_sync.clone().sync("merkle_tree_hook", cursor).await;
+        })
+        .instrument(info_span!("MerkleTreeHookSyncer"))
     }
 
-    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<Result<()>>>> {
+    async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<()>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
@@ -329,7 +349,7 @@ impl Validator {
                     } else {
                         let result = self
                             .validator_announce
-                            .announce(signed_announcement.clone(), None)
+                            .announce(signed_announcement.clone())
                             .await;
                         Self::log_on_announce_failure(result, &chain_signer);
                     }

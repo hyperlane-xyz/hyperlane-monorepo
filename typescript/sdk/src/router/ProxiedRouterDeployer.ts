@@ -7,29 +7,47 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
-import { ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { resolveOrDeployAccountOwner } from '../deploy/types.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { ProxiedFactories, ProxiedRouterConfig } from './types';
+import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer.js';
+import { ProxiedFactories, ProxiedRouterConfig } from './types.js';
 
 export abstract class ProxiedRouterDeployer<
   Config extends ProxiedRouterConfig,
   Factories extends ProxiedFactories,
-  RouterKey extends keyof Factories,
 > extends HyperlaneRouterDeployer<Config, Factories> {
-  abstract routerContractName: RouterKey;
+  abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
-  router(contracts: HyperlaneContracts<Factories>): Router {
-    return contracts[this.routerContractName] as Router;
-  }
+  /**
+   * Returns the contract name
+   * @param config Router config
+   */
+  abstract routerContractName(config: Config): string;
 
-  abstract constructorArgs(
+  /**
+   * Returns the contract key
+   * @param config Router config
+   */
+  abstract routerContractKey(config: Config): keyof Factories;
+
+  /**
+   * Returns the constructor arguments for the proxy
+   * @param chain Name of chain
+   * @param config Router config
+   */
+  abstract constructorArgs<RouterKey extends keyof Factories>(
     chain: ChainName,
     config: Config,
   ): Promise<Parameters<Factories[RouterKey]['deploy']>>;
 
-  abstract initializeArgs(
+  /**
+   * Returns the initialize arguments for the proxy
+   * @param chain Name of chain
+   * @param config Router config
+   */
+  abstract initializeArgs<RouterKey extends keyof Factories>(
     chain: ChainName,
     config: Config,
   ): Promise<
@@ -59,14 +77,20 @@ export abstract class ProxiedRouterDeployer<
         constants.AddressZero,
         this.multiProvider.getProvider(chain),
       );
-      adminOwner = config.owner;
+      adminOwner = await resolveOrDeployAccountOwner(
+        this.multiProvider,
+        chain,
+        config.owner,
+      );
     }
 
     await super.runIfOwner(chain, proxyAdmin, async () => {
-      this.logger(`Checking ownership of proxy admin to ${adminOwner}`);
+      this.logger.debug(`Checking ownership of proxy admin to ${adminOwner}`);
 
       if (!eqAddress(await proxyAdmin.owner(), adminOwner)) {
-        this.logger(`Transferring ownership of proxy admin to ${adminOwner}`);
+        this.logger.debug(
+          `Transferring ownership of proxy admin to ${adminOwner}`,
+        );
         return this.multiProvider.handleTx(
           chain,
           proxyAdmin.transferOwnership(adminOwner),
@@ -77,14 +101,15 @@ export abstract class ProxiedRouterDeployer<
 
     const proxiedRouter = await this.deployProxiedContract(
       chain,
-      this.routerContractName,
+      this.routerContractKey(config),
+      this.routerContractName(config),
       proxyAdmin.address,
       await this.constructorArgs(chain, config),
       await this.initializeArgs(chain, config),
     );
 
     return {
-      [this.routerContractName]: proxiedRouter,
+      [this.routerContractKey(config)]: proxiedRouter,
       proxyAdmin,
       timelockController,
     } as HyperlaneContracts<Factories>;

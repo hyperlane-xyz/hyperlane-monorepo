@@ -1,49 +1,20 @@
 // @ts-ignore
-import * as asn1 from 'asn1.js';
+import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
 import fs from 'fs';
-import path from 'path';
+import stringify from 'json-stable-stringify';
+import path, { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
-import {
-  AllChains,
-  ChainName,
-  CoreChainName,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { FundableRole, Role } from '../roles';
-
-export function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Map an async function over a list xs with a given concurrency level
- *
- * @param concurrency number of `mapFn` concurrent executions
- * @param xs list of value
- * @param mapFn mapping function
- */
-export async function concurrentMap<A, B>(
-  concurrency: number,
-  xs: A[],
-  mapFn: (val: A, idx: number) => Promise<B>,
-): Promise<B[]> {
-  let res: B[] = [];
-  for (let i = 0; i < xs.length; i += concurrency) {
-    const remaining = xs.length - i;
-    const sliceSize = Math.min(remaining, concurrency);
-    const slice = xs.slice(i, i + sliceSize);
-    res = res.concat(
-      await Promise.all(slice.map((elem, index) => mapFn(elem, i + index))),
-    );
-  }
-  return res;
-}
+import { Contexts } from '../../config/contexts.js';
+import { testChainNames } from '../../config/environments/test/chains.js';
+import { getChain, getChains } from '../../config/registry.js';
+import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {
   return condition ? data : {};
@@ -179,7 +150,7 @@ export function writeJsonAtPath(filepath: string, obj: any) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filepath, JSON.stringify(obj, null, 2) + '\n');
+  fs.writeFileSync(filepath, stringify(obj, { space: '  ' }) + '\n');
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
@@ -221,9 +192,8 @@ export function assertFundableRole(roleStr: string): FundableRole {
   return role;
 }
 
-export function assertChain(chainStr: string) {
-  const chain = chainStr as ChainName;
-  if (!AllChains.includes(chain as CoreChainName)) {
+export function assertChain(chain: ChainName) {
+  if (!getChains().includes(chain) && !testChainNames.includes(chain)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
@@ -279,15 +249,23 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
   return diagonalized;
 }
 
-export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
-  const metadata = chainMetadata[chain];
+export function mustGetChainNativeToken(chain: ChainName): NativeToken {
+  const metadata = getChain(chain);
   if (!metadata.nativeToken) {
     throw new Error(`No native token for chain ${chain}`);
   }
-  return metadata.nativeToken.decimals;
+  return metadata.nativeToken;
+}
+
+export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
+  if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
+  return getChain(chainName).protocol === protocol;
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {
-  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
+  return chainIsProtocol(chainName, ProtocolType.Ethereum);
+}
+
+export function getInfraPath() {
+  return join(dirname(fileURLToPath(import.meta.url)), '../../');
 }

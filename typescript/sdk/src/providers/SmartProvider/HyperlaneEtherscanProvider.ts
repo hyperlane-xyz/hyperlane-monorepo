@@ -1,15 +1,14 @@
-import debug from 'debug';
 import { providers } from 'ethers';
 
-import { objFilter, sleep } from '@hyperlane-xyz/utils';
+import { objFilter, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { BlockExplorer } from '../../metadata/chainMetadataTypes';
+import { BlockExplorer } from '../../metadata/chainMetadataTypes.js';
 
 import {
   IProviderMethods,
   ProviderMethod,
   excludeProviderMethods,
-} from './ProviderMethods';
+} from './ProviderMethods.js';
 
 // Used for crude rate-limiting of explorer queries without API keys
 const hostToLastQueried: Record<string, number> = {};
@@ -19,7 +18,7 @@ export class HyperlaneEtherscanProvider
   extends providers.EtherscanProvider
   implements IProviderMethods
 {
-  protected readonly logger = debug('hyperlane:EtherscanProvider');
+  protected readonly logger = rootLogger.child({ module: 'EtherscanProvider' });
   // Seeing problems with these two methods even though etherscan api claims to support them
   public readonly supportedMethods = excludeProviderMethods([
     ProviderMethod.Call,
@@ -34,7 +33,7 @@ export class HyperlaneEtherscanProvider
   ) {
     super(network, explorerConfig.apiKey);
     if (!explorerConfig.apiKey) {
-      this.logger(
+      this.logger.warn(
         'HyperlaneEtherscanProviders created without an API key will be severely rate limited. Consider using an API key for better reliability.',
       );
     }
@@ -82,7 +81,7 @@ export class HyperlaneEtherscanProvider
     let waitTime = this.getQueryWaitTime();
     while (waitTime > 0) {
       if (this.options?.debug)
-        this.logger(
+        this.logger.debug(
           `HyperlaneEtherscanProvider waiting ${waitTime}ms to avoid rate limit`,
         );
       await sleep(waitTime);
@@ -95,7 +94,7 @@ export class HyperlaneEtherscanProvider
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
     if (this.options?.debug)
-      this.logger(
+      this.logger.debug(
         `HyperlaneEtherscanProvider performing method ${method} for reqId ${reqId}`,
       );
     if (!this.supportedMethods.includes(method as ProviderMethod))

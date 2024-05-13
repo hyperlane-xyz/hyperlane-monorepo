@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers';
+
 import {
   ConnectionClientViolation,
   ConnectionClientViolationType,
@@ -9,7 +11,7 @@ import {
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 
-import { HyperlaneAppGovernor } from './HyperlaneAppGovernor';
+import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 
 export class ProxiedRouterGovernor<
   App extends RouterApp<any>,
@@ -40,6 +42,7 @@ export class ProxiedRouterGovernor<
         'setInterchainSecurityModule',
         [violation.expected],
       ),
+      value: BigNumber.from(0),
       description: `Set ISM of ${violation.contract.address} to ${violation.expected}`,
     });
   }
@@ -54,6 +57,7 @@ export class ProxiedRouterGovernor<
         'enrollRemoteRouter',
         [remoteDomain, violation.expected],
       ),
+      value: BigNumber.from(0),
       description: `Enroll router for remote chain ${violation.remoteChain} (${remoteDomain}) ${violation.expected} in ${violation.contract.address}`,
     });
   }

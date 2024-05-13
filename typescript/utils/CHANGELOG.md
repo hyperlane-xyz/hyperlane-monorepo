@@ -1,5 +1,43 @@
 # @hyperlane-xyz/utils
 
+## 3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+- af2634207: Moved Hook/ISM config stringify into a general object stringify utility.
+
+### Patch Changes
+
+- 2b3f75836: Add objLength and isObjEmpty utils
+
+## 3.10.0
+
+### Minor Changes
+
+- 96485144a: SDK support for ICA deployment and operation.
+- 4e7a43be6: Replace Debug logger with Pino
+
+## 3.9.0
+
+## 3.8.2
+
+## 3.8.1
+
+### Patch Changes
+
+- 5daaae274: Prevent warp transfers to zero-ish addresses
+
+## 3.8.0
+
+### Minor Changes
+
+- 9681df08d: Add `WarpCore`, `Token`, and `TokenAmount` classes for interacting with Warp Route instances.
+
+  _Breaking change_: The params to the `IHypTokenAdapter` `populateTransferRemoteTx` method have changed. `txValue` has been replaced with `interchainGas`.
+
 ## 3.7.0
 
 ## 3.6.2

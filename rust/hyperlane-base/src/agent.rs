@@ -1,11 +1,9 @@
 use std::{env, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use eyre::{Report, Result};
-use futures_util::future::select_all;
+use eyre::Result;
 use hyperlane_core::config::*;
-use tokio::task::JoinHandle;
-use tracing::{debug_span, instrument::Instrumented, Instrument};
+use tracing::info;
 
 use crate::{
     create_chain_metrics,
@@ -52,7 +50,7 @@ pub trait BaseAgent: Send + Sync + Debug {
 
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Instrumented<JoinHandle<Result<()>>>;
+    async fn run(self);
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire
@@ -81,28 +79,9 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let agent_metrics = create_agent_metrics(&metrics)?;
     let chain_metrics = create_chain_metrics(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone(), agent_metrics, chain_metrics).await?;
-    metrics.run_http_server();
 
-    agent.run().await.await?
-}
-
-/// Utility to run multiple tasks and shutdown if any one task ends.
-#[allow(clippy::unit_arg, unused_must_use)]
-pub fn run_all(
-    tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
-) -> Instrumented<JoinHandle<Result<()>>> {
-    debug_assert!(!tasks.is_empty(), "No tasks submitted");
-    let span = debug_span!("run_all");
-    tokio::spawn(async move {
-        let (res, _, remaining) = select_all(tasks).await;
-
-        for task in remaining.into_iter() {
-            let t = task.into_inner();
-            t.abort();
-            t.await;
-        }
-
-        res?
-    })
-    .instrument(span)
+    // This await will only end if a panic happens. We won't crash, but instead gracefully shut down
+    agent.run().await;
+    info!(agent = A::AGENT_NAME, "Shutting down agent...");
+    Ok(())
 }

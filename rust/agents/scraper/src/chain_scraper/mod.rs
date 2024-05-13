@@ -8,8 +8,8 @@ use eyre::Result;
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     unwrap_or_none_result, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
-    HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceIndexerStore,
-    HyperlaneWatermarkedLogStore, InterchainGasPayment, LogMeta, H256,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceAwareIndexerStoreReader,
+    HyperlaneWatermarkedLogStore, Indexed, InterchainGasPayment, LogMeta, H256,
 };
 use itertools::Itertools;
 use tracing::trace;
@@ -269,7 +269,7 @@ impl HyperlaneSqlDb {
 #[async_trait]
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
     /// Store messages from the origin mailbox into the database.
-    async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         if messages.is_empty() {
             return Ok(0);
         }
@@ -287,7 +287,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
                 )
                 .unwrap();
             StorableMessage {
-                msg: m.0.clone(),
+                msg: m.0.inner().clone(),
                 meta: &m.1,
                 txn_id: txn.id,
             }
@@ -302,7 +302,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
 
 #[async_trait]
 impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
-    async fn store_logs(&self, deliveries: &[(Delivery, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, deliveries: &[(Indexed<Delivery>, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
         }
@@ -322,7 +322,7 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
                 .unwrap()
                 .id;
             StorableDelivery {
-                message_id: *message_id,
+                message_id: *message_id.inner(),
                 meta,
                 txn_id,
             }
@@ -338,7 +338,10 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
 
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
-    async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
+    async fn store_logs(
+        &self,
+        payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
+    ) -> Result<u32> {
         if payments.is_empty() {
             return Ok(0);
         }
@@ -358,7 +361,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
                 .unwrap()
                 .id;
             StorablePayment {
-                payment,
+                payment: payment.inner(),
                 meta,
                 txn_id,
             }
@@ -370,7 +373,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
 }
 
 #[async_trait]
-impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
+impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneSqlDb {
     /// Gets a message by its nonce.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self
@@ -381,7 +384,7 @@ impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneSqlDb {
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
         let tx_id = unwrap_or_none_result!(
             self.db
                 .retrieve_dispatched_tx_id(self.domain().id(), &self.mailbox_address, sequence)

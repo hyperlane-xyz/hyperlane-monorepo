@@ -1,9 +1,9 @@
 import {
   HelmChartConfig,
   HelmChartRepositoryConfig,
-} from '../config/infrastructure';
+} from '../config/infrastructure.js';
 
-import { execCmd } from './utils';
+import { execCmd } from './utils.js';
 
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',

@@ -1,17 +1,19 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { utils } from 'ethers';
+import hre from 'hardhat';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 
-import { MultiProvider } from '../../providers/MultiProvider';
-import { testIgpConfig } from '../../test/testUtils';
-import { ChainMap } from '../../types';
-import { HyperlaneIgpDeployer } from '../HyperlaneIgpDeployer';
-import { IgpConfig } from '../types';
+import { TestChainName } from '../../consts/testChains.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { testIgpConfig } from '../../test/testUtils.js';
+import { ChainMap } from '../../types.js';
+import { HyperlaneIgpDeployer } from '../HyperlaneIgpDeployer.js';
+import { IgpConfig } from '../types.js';
 
 describe('HyperlaneIgpDeployer', () => {
-  const local = 'test1';
-  const remote = 'test2';
+  const local = TestChainName.test1;
+  const remote = TestChainName.test2;
   let remoteId: number;
   let deployer: HyperlaneIgpDeployer;
   let igp: InterchainGasPaymaster;
@@ -19,7 +21,7 @@ describe('HyperlaneIgpDeployer', () => {
   let testConfig: ChainMap<IgpConfig>;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     remoteId = multiProvider.getDomainId(remote);
     deployer = new HyperlaneIgpDeployer(multiProvider);
@@ -39,8 +41,8 @@ describe('HyperlaneIgpDeployer', () => {
 
   it('should configure new oracle config', async () => {
     testConfig[local].oracleConfig![remote] = {
-      tokenExchangeRate: ethers.utils.parseUnits('2', 'gwei'),
-      gasPrice: ethers.utils.parseUnits('3', 'gwei'),
+      tokenExchangeRate: utils.parseUnits('2', 'gwei'),
+      gasPrice: utils.parseUnits('3', 'gwei'),
     };
 
     const localContracts = await deployer.deployContracts(

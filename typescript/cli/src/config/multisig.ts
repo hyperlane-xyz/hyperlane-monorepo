@@ -9,12 +9,10 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
-import { errorRed, log, logBlue, logGreen } from '../../logger.js';
-import { sdkContractAddressesMap } from '../context.js';
+import { CommandContext } from '../context/types.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
-
-import { readChainConfigsIfExists } from './chain.js';
+import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 const MultisigConfigMapSchema = z.object({}).catchall(
   z.object({
@@ -64,21 +62,19 @@ export function isValidMultisigConfig(config: any) {
 }
 
 export async function createMultisigConfig({
-  format,
+  context,
   outPath,
-  chainConfigPath,
 }: {
-  format: FileFormat;
+  context: CommandContext;
   outPath: string;
-  chainConfigPath: string;
 }) {
   logBlue('Creating a new multisig config');
   log(
     'Select your own chain below to run your own validators. If you want to reuse existing Hyperlane validators instead of running your own, do not select additional mainnet or testnet chains.',
   );
-  const customChains = readChainConfigsIfExists(chainConfigPath);
-  const chains = await runMultiChainSelectionStep(customChains);
+  const chains = await runMultiChainSelectionStep(context.chainMetadata);
 
+  const chainAddresses = await context.registry.getAddresses();
   const result: MultisigConfigMap = {};
   let lastConfig: MultisigConfigMap['string'] | undefined = undefined;
   const repeat = false;
@@ -88,7 +84,7 @@ export async function createMultisigConfig({
       result[chain] = lastConfig;
       continue;
     }
-    if (Object.keys(sdkContractAddressesMap).includes(chain)) {
+    if (Object.keys(chainAddresses).includes(chain)) {
       const reuseCoreConfig = await confirm({
         message: 'Use existing Hyperlane validators for this chain?',
       });
@@ -118,7 +114,7 @@ export async function createMultisigConfig({
 
   if (isValidMultisigConfig(result)) {
     logGreen(`Multisig config is valid, writing to file ${outPath}`);
-    mergeYamlOrJson(outPath, result, format);
+    mergeYamlOrJson(outPath, result);
   } else {
     errorRed(
       `Multisig config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/ism.yaml for an example`,

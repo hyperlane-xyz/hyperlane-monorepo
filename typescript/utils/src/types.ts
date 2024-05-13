@@ -1,9 +1,8 @@
-import type { ethers } from 'ethers';
+import type { BigNumber, ethers } from 'ethers';
 
 export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
-  Fuel = 'fuel',
   Cosmos = 'cosmos',
 }
 // A type that also allows for literal values of the enum
@@ -17,11 +16,17 @@ export const ProtocolSmallestUnit = {
 
 /********* BASIC TYPES *********/
 export type Domain = number;
+export type ChainId = string | number;
 export type Address = string;
 export type AddressBytes32 = string;
 export type ChainCaip2Id = `${string}:${string}`; // e.g. ethereum:1 or sealevel:1399811149
 export type TokenCaip19Id = `${string}:${string}/${string}:${string}`; // e.g. ethereum:1/erc20:0x6b175474e89094c44da98b954eedeac495271d0f
 export type HexString = string;
+export type Numberish = number | string | bigint;
+
+export type WithAddress<T> = T & {
+  address: Address;
+};
 
 // copied from node_modules/@ethersproject/bytes/src.ts/index.ts
 export type SignatureLike =
@@ -67,6 +72,7 @@ export type S3Checkpoint = {
 export type CallData = {
   to: Address;
   data: string;
+  value?: BigNumber;
 };
 
 export enum MessageStatus {
@@ -96,3 +102,7 @@ export type ParsedLegacyMultisigIsmMetadata = {
 export enum InterchainSecurityModuleType {
   MULTISIG = 3,
 }
+
+export type Annotated<T> = T & {
+  annotation?: string;
+};

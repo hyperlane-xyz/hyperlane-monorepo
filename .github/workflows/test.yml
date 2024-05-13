@@ -5,7 +5,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches:
+      - '*' # run against all branches
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -14,9 +15,11 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 env:
-  DEBUG: 'hyperlane:*'
+  LOG_LEVEL: DEBUG
+  LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  REGISTRY_URI: ../../node_modules/@hyperlane-xyz/registry/dist
 
 jobs:
   yarn-install:
@@ -132,14 +135,17 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
-  metadata-check:
+  agent-configs:
     runs-on: ubuntu-latest
     needs: [yarn-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [mainnet3, testnet4]
     steps:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
           fetch-depth: 0
 
       - name: yarn-cache
@@ -158,12 +164,23 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Metadata Health Check
-        run: DEBUG=hyperlane yarn workspace @hyperlane-xyz/sdk run test:metadata
+      - name: Generate ${{ matrix.environment }} agent config
+        run: |
+          cd typescript/infra
+          yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
+          CHANGES=$(git status -s)
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found in agent config: $CHANGES"
+            exit 1
+          fi
 
-  e2e:
+  e2e-matrix:
     runs-on: larger-runner
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     needs: [yarn-build]
+    strategy:
+      matrix:
+        e2e-type: [cosmwasm, non-cosmwasm]
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -220,30 +237,43 @@ jobs:
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
-      - name: agent build
-        run: cargo build --release --bin run-locally
-        working-directory: ./rust
-
       - name: agent tests with CosmWasm
-        run: RUST_BACKTRACE=1 cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
+        env:
+          RUST_BACKTRACE: 'full'
 
       - name: agent tests excluding CosmWasm
-        run: ./target/release/run-locally
+        run: cargo run --release --bin run-locally
+        if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
+          RUST_BACKTRACE: 'full'
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [e2e-matrix]
+    if: always() # This ensures that the job runs even if the e2e jobs fail
+    steps:
+      - name: Report Matrix Result
+        run: |
+          echo "All e2e-matrix jobs have completed."
+          # You can add additional commands here to report the result as needed
 
   cli-e2e:
     runs-on: larger-runner
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     needs: [yarn-build]
     strategy:
       matrix:
         include:
-          - hook: preset_hook_enabled
-          - hook: configure_hook_enabled
+          - test-type: preset_hook_enabled
+          - test-type: configure_hook_enabled
+          - test-type: pi_with_core_chain
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -300,31 +330,21 @@ jobs:
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
-      - name: cli e2e tests with preset hook config
-        run: ./typescript/cli/ci-test.sh false
-        if: matrix.hook == 'preset_hook_enabled'
-
-      - name: cli e2e tests with configured hook config
-        run: ./typescript/cli/ci-test.sh true
-        if: matrix.hook == 'configure_hook_enabled'
+      - name: cli e2e tests
+        run: ./typescript/cli/ci-test.sh ${{ matrix.test-type }}
 
   env-test:
     runs-on: ubuntu-latest
     needs: [yarn-build]
     strategy:
+      fail-fast: false
       matrix:
+        environment: [mainnet3]
+        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        module: [core, igp]
         include:
           - environment: testnet4
             chain: sepolia
-            module: core
-          - environment: mainnet3
-            chain: arbitrum
-            module: core
-          - environment: mainnet3
-            chain: inevm
-            module: core
-          - environment: mainnet3
-            chain: viction
             module: core
 
     steps:

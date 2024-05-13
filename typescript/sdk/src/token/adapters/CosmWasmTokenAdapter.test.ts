@@ -13,16 +13,15 @@ import { Tendermint37Client } from '@cosmjs/tendermint-rpc';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
-import { Chains } from '../../consts/chains';
-import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter';
+import { TestChainName, testCosmosChain } from '../../consts/testChains.js';
+import { CosmWasmCoreAdapter } from '../../core/adapters/CosmWasmCoreAdapter.js';
 import {
   MailboxResponse,
   QueryMsg as MerkleQuery,
   OwnerResponse,
-} from '../../cw-types/HookMerkle.types';
-import { CosmWasmMultisigAdapter } from '../../ism/adapters/CosmWasmMultisigAdapter';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+} from '../../cw-types/HookMerkle.types.js';
+import { CosmWasmMultisigAdapter } from '../../ism/adapters/CosmWasmMultisigAdapter.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 
 const neutronAddresses = {
   mailbox: 'neutron1sjzzd4gwkggy6hrrs8kxxatexzcuz3jecsxm3wqgregkulzj8r7qlnuef4',
@@ -30,13 +29,11 @@ const neutronAddresses = {
     'neutron17w4q6efzym3p4c6umyp4cjf2ustjtmwfqdhd7rt2fpcpk9fmjzsq0kj0f8',
 };
 
-const neutron = chainMetadata.neutron;
-const mantapacific = chainMetadata.mantapacific;
-
-const multiProtocolProvider = new MultiProtocolProvider();
+const multiProtocolProvider =
+  MultiProtocolProvider.createTestMultiProtocolProvider();
 
 const adapter = new CosmWasmCoreAdapter(
-  Chains.neutron,
+  testCosmosChain.name,
   multiProtocolProvider,
   neutronAddresses,
 );
@@ -44,12 +41,14 @@ const adapter = new CosmWasmCoreAdapter(
 export async function getSigningClient(pkey: string) {
   const wallet = await DirectSecp256k1Wallet.fromKey(
     Buffer.from(pkey, 'hex'),
-    neutron.bech32Prefix!,
+    testCosmosChain.bech32Prefix!,
   );
 
   const [account] = await wallet.getAccounts();
 
-  const clientBase = await Tendermint37Client.connect(neutron.rpcUrls[0].http);
+  const clientBase = await Tendermint37Client.connect(
+    testCosmosChain.rpcUrls[0].http,
+  );
 
   const gasPrice = GasPrice.fromString('0.1untrn');
 
@@ -263,11 +262,11 @@ export async function summary() {
 
   if (defaultIsmContract.label === 'hpl_ism_multisig') {
     const multisigAdapter = new CosmWasmMultisigAdapter(
-      neutron.name,
+      testCosmosChain.name,
       multiProtocolProvider,
       { multisig: defaultIsm },
     );
-    const multisigConfig = await multisigAdapter.getConfig(mantapacific.name);
+    const multisigConfig = await multisigAdapter.getConfig(TestChainName.test1);
     const owner = await getOwner(defaultIsm);
     summary.defaultIsm = {
       ...multisigConfig,
@@ -362,7 +361,7 @@ export async function summary() {
 
 export async function rotateValidators() {
   const multisigAdapter = new CosmWasmMultisigAdapter(
-    neutron.name,
+    testCosmosChain.name,
     multiProtocolProvider,
     {
       multisig:
@@ -370,7 +369,7 @@ export async function rotateValidators() {
     },
   );
   const instructions = await multisigAdapter.configureMultisig({
-    [mantapacific.name]: {
+    [TestChainName.test1]: {
       threshold: 5,
       validators: [
         '8e668c97ad76d0e28375275c41ece4972ab8a5bc', // hyperlane
@@ -395,4 +394,4 @@ export async function rotateValidators() {
   // console.log(tx);
 }
 
-summary().catch(console.error);
+// summary().catch(console.error);

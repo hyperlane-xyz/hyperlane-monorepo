@@ -6,11 +6,17 @@ import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ZNzUint, ZUint } from './customZodTypes';
+import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
+  Routescan = 'routescan',
+  Other = 'other',
+}
+
+export enum ChainTechnicalStack {
+  ArbitrumNitro = 'arbitrumnitro',
   Other = 'other',
 }
 
@@ -22,6 +28,12 @@ export const RpcUrlSchema = z.object({
     .string()
     .url()
     .describe('The HTTP URL of the RPC endpoint (preferably HTTPS).'),
+  concurrency: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Maximum number of concurrent RPC requests.'),
   webSocket: z
     .string()
     .optional()
@@ -55,17 +67,23 @@ export const RpcUrlSchema = z.object({
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;
 
+export const NativeTokenSchema = z.object({
+  name: z.string(),
+  symbol: z.string(),
+  decimals: ZUint.lt(256),
+  denom: z.string().optional(),
+});
+
+export type NativeToken = z.infer<typeof NativeTokenSchema>;
+
 /**
  * A collection of useful properties and settings for chains using Hyperlane
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
-  name: z
-    .string()
-    .regex(/^[a-z][a-z0-9]*$/)
-    .describe(
-      'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
-    ),
+  name: ZChainName.describe(
+    'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
+  ),
   protocol: z
     .nativeEnum(ProtocolType)
     .describe(
@@ -87,22 +105,21 @@ export const ChainMetadataSchemaObject = z.object({
     .describe(
       'A shorter human-readable name of the chain for use in user interfaces.',
     ),
+  technicalStack: z
+    .nativeEnum(ChainTechnicalStack)
+    .optional()
+    .describe(
+      'The technical stack of the chain. See ChainTechnicalStack for valid values.',
+    ),
   logoURI: z
     .string()
     .optional()
     .describe(
       'A URI to a logo image for this chain for use in user interfaces.',
     ),
-  nativeToken: z
-    .object({
-      name: z.string(),
-      symbol: z.string(),
-      decimals: ZUint.lt(256),
-    })
-    .optional()
-    .describe(
-      'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
-    ),
+  nativeToken: NativeTokenSchema.optional().describe(
+    'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
+  ),
   rpcUrls: z
     .array(RpcUrlSchema)
     .nonempty()
@@ -164,7 +181,7 @@ export const ChainMetadataSchemaObject = z.object({
     .optional()
     .describe('Block settings for the chain/deployment.'),
   transactionOverrides: z
-    .object({})
+    .record(z.any())
     .optional()
     .describe('Properties to include when forming transaction requests.'),
   gasCurrencyCoinGeckoId: z
@@ -184,6 +201,15 @@ export const ChainMetadataSchemaObject = z.object({
     .boolean()
     .optional()
     .describe('Whether the chain is considered a testnet or a mainnet.'),
+  index: z
+    .object({
+      from: z
+        .number()
+        .optional()
+        .describe('The block to start any indexing from.'),
+    })
+    .optional()
+    .describe('Indexing settings for the chain.'),
 });
 
 // Add refinements to the object schema to conditionally validate certain fields
@@ -239,6 +265,35 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
     {
       message: 'Rest and gRPC URLs required for Cosmos chains',
       path: ['restUrls', 'grpcUrls'],
+    },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.protocol === ProtocolType.Cosmos &&
+        metadata.nativeToken &&
+        !metadata.nativeToken.denom
+      )
+        return false;
+      else return true;
+    },
+    {
+      message: 'Denom values are required for Cosmos native tokens',
+      path: ['nativeToken', 'denom'],
+    },
+  )
+  .refine(
+    (metadata) => {
+      if (
+        metadata.technicalStack === ChainTechnicalStack.ArbitrumNitro &&
+        metadata.index?.from === undefined
+      ) {
+        return false;
+      } else return true;
+    },
+    {
+      message: 'An index.from value is required for Arbitrum Nitro chains',
+      path: ['index', 'from'],
     },
   );
 

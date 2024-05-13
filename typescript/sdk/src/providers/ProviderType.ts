@@ -23,6 +23,8 @@ import type {
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
   // EthersV6 = 'ethers-v6', Disabled for now to simplify build tooling
@@ -32,7 +34,59 @@ export enum ProviderType {
   CosmJsWasm = 'cosmjs-wasm',
 }
 
+export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
+  ProtocolType,
+  ProviderType
+> = {
+  [ProtocolType.Ethereum]: ProviderType.EthersV5,
+  [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
+  [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+};
+
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
+
+type ProtocolTypesMapping = {
+  [ProtocolType.Ethereum]: {
+    transaction: EthersV5Transaction;
+    provider: EthersV5Provider;
+    contract: EthersV5Contract;
+    receipt: EthersV5TransactionReceipt;
+  };
+  [ProtocolType.Sealevel]: {
+    transaction: SolanaWeb3Transaction;
+    provider: SolanaWeb3Provider;
+    contract: SolanaWeb3Contract;
+    receipt: SolanaWeb3TransactionReceipt;
+  };
+  [ProtocolType.Cosmos]: {
+    transaction: CosmJsWasmTransaction;
+    provider: CosmJsWasmProvider;
+    contract: CosmJsWasmContract;
+    receipt: CosmJsWasmTransactionReceipt;
+  };
+};
+
+type ProtocolTyped<
+  T extends ProtocolType,
+  K extends keyof ProtocolTypesMapping[T],
+> = ProtocolTypesMapping[T][K];
+
+export type ProtocolTypedTransaction<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'transaction'
+>;
+export type ProtocolTypedProvider<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'provider'
+>;
+export type ProtocolTypedContract<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'contract'
+>;
+export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'receipt'
+>;
 
 /**
  * Providers with discriminated union of type
@@ -172,7 +226,7 @@ export interface CosmJsTransaction extends TypedTransactionBase<CmTransaction> {
 
 export interface CosmJsWasmTransaction
   extends TypedTransactionBase<ExecuteInstruction> {
-  type: ProviderType.CosmJs;
+  type: ProviderType.CosmJsWasm;
   transaction: ExecuteInstruction;
 }
 

@@ -9,17 +9,18 @@ import {
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../../config/contexts';
-import { AgentContextConfig, DeployEnvironment } from '../../config';
-import { Role } from '../../roles';
+import { Contexts } from '../../../config/contexts.js';
+import { AgentContextConfig } from '../../config/agent/agent.js';
+import { DeployEnvironment } from '../../config/environment.js';
+import { Role } from '../../roles.js';
 import {
   fetchGCPSecret,
   gcpSecretExists,
   setGCPSecret,
-} from '../../utils/gcloud';
-import { userIdentifier } from '../agent';
+} from '../../utils/gcloud.js';
+import { userIdentifier } from '../agent.js';
 
-import { AgentAwsKey } from './key';
+import { AgentAwsKey } from './key.js';
 
 export class AgentAwsUser {
   private adminIamClient: IAMClient;

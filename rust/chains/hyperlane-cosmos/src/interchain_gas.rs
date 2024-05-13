@@ -1,13 +1,15 @@
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use cosmrs::tendermint::abci::EventAttribute;
+use futures::future;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    LogMeta, SequenceIndexer, H256, U256,
+    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
 };
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
+use tendermint::abci::EventAttribute;
+use tracing::{instrument, warn};
 
 use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
@@ -83,7 +85,7 @@ static DESTINATION_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(DESTINATION_ATTRIBUTE_KEY));
 
 /// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CosmosInterchainGasPaymasterIndexer {
     indexer: Box<CosmosWasmIndexer>,
 }
@@ -110,6 +112,7 @@ impl CosmosInterchainGasPaymasterIndexer {
         })
     }
 
+    #[instrument(err)]
     fn interchain_gas_payment_parser(
         attrs: &Vec<EventAttribute>,
     ) -> ChainResult<ParsedEvent<InterchainGasPayment>> {
@@ -202,11 +205,43 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
-        let result = self
-            .indexer
-            .get_range_event_logs(range, Self::interchain_gas_payment_parser)
-            .await?;
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        let logs_futures: Vec<_> = range
+            .map(|block_number| {
+                let self_clone = self.clone();
+                tokio::spawn(async move {
+                    let logs = self_clone
+                        .indexer
+                        .get_logs_in_block(
+                            block_number,
+                            Self::interchain_gas_payment_parser,
+                            "InterchainGasPaymentCursor",
+                        )
+                        .await;
+                    (logs, block_number)
+                })
+            })
+            .collect();
+
+        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
+        let result = future::join_all(logs_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .map(|(logs, block_number)| {
+                if let Err(err) = &logs {
+                    warn!(?err, ?block_number, "Failed to fetch logs for block");
+                }
+                logs
+            })
+            // Propagate errors from any of the queries. This will cause the entire range to be retried,
+            // including successful ones, but we don't have a way to handle partial failures in a range for now.
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .map(|(log, meta)| (Indexed::new(log), meta))
+            .collect();
+
         Ok(result)
     }
 
@@ -216,8 +251,8 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+impl SequenceAwareIndexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when cosmwasm scraper support is implemented
         let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))
@@ -260,7 +295,6 @@ impl TryInto<InterchainGasPayment> for IncompleteInterchainGasPayment {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::tendermint::abci::EventAttribute;
     use hyperlane_core::{InterchainGasPayment, H256, U256};
     use std::str::FromStr;
 

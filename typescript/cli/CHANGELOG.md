@@ -1,5 +1,118 @@
 # @hyperlane-xyz/cli
 
+## 3.11.1
+
+### Patch Changes
+
+- 78b77eecf: Fixes for CLI dry-runs
+- Updated dependencies [c900da187]
+  - @hyperlane-xyz/sdk@3.11.1
+  - @hyperlane-xyz/utils@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- f8b6ea467: Update the warp-route-deployment.yaml to a more sensible schema. This schema sets us up to allow multi-chain collateral deployments. Removes intermediary config objects by using zod instead.
+- b6fdf2f7f: Implement XERC20 and FiatToken collateral warp routes
+- aea79c686: Adds single-chain dry-run support for deploying warp routes & gas estimation for core and warp route dry-run deployments.
+- 917266dce: Add --self-relay to CLI commands
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+- 450e8e0d5: Migrate fork util from CLI to SDK. Anvil IP & Port are now optionally passed into fork util by client.
+- 3528b281e: Restructure CLI params around registries
+- af2634207: Introduces `hyperlane hook read` and `hyperlane ism read` commands for deriving onchain Hook/ISM configs from an address on a given chain.
+
+### Patch Changes
+
+- 8246f14d6: Adds defaultDescription to yargs --key option.
+- Updated dependencies [811ecfbba]
+- Updated dependencies [f8b6ea467]
+- Updated dependencies [d37cbab72]
+- Updated dependencies [b6fdf2f7f]
+- Updated dependencies [a86a8296b]
+- Updated dependencies [2db77f177]
+- Updated dependencies [3a08e31b6]
+- Updated dependencies [917266dce]
+- Updated dependencies [aab63d466]
+- Updated dependencies [2e439423e]
+- Updated dependencies [b63714ede]
+- Updated dependencies [3528b281e]
+- Updated dependencies [450e8e0d5]
+- Updated dependencies [2b3f75836]
+- Updated dependencies [af2634207]
+  - @hyperlane-xyz/sdk@3.11.0
+  - @hyperlane-xyz/utils@3.11.0
+
+## 3.10.0
+
+### Minor Changes
+
+- 3ec81081c: Breaking: Update the `hyperlane chains list` command to accept an `env` (either 'mainnet' or 'testnet') to list chains for.
+
+  Update `hyperlane chains list` command to pull the set of core chains from the contract addresses constant in the SDK.
+
+- 96485144a: SDK support for ICA deployment and operation.
+- 4e7a43be6: Replace Debug logger with Pino
+
+### Patch Changes
+
+- 5373d54ca: Add --log and --verbosity settings to CLI
+- Updated dependencies [96485144a]
+- Updated dependencies [38358ecec]
+- Updated dependencies [ed0d4188c]
+- Updated dependencies [4e7a43be6]
+  - @hyperlane-xyz/utils@3.10.0
+  - @hyperlane-xyz/sdk@3.10.0
+
+## 3.9.0
+
+### Minor Changes
+
+- 11f257ebc: Add Yield Routes to CLI
+
+### Patch Changes
+
+- Updated dependencies [11f257ebc]
+  - @hyperlane-xyz/sdk@3.9.0
+  - @hyperlane-xyz/utils@3.9.0
+
+## 3.8.2
+
+### Patch Changes
+
+- bfc2b792b: Fix bug with HypCollateral warp route deployments
+  - @hyperlane-xyz/sdk@3.8.2
+  - @hyperlane-xyz/utils@3.8.2
+
+## 3.8.1
+
+### Patch Changes
+
+- Updated dependencies [5daaae274]
+  - @hyperlane-xyz/utils@3.8.1
+  - @hyperlane-xyz/sdk@3.8.1
+
+## 3.8.0
+
+### Patch Changes
+
+- 9681df08d: TestRecipient as part of core deployer
+- 9681df08d: Update CLI Warp route deployment output shape to new WarpCore config
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+- Updated dependencies [9681df08d]
+  - @hyperlane-xyz/sdk@3.8.0
+  - @hyperlane-xyz/utils@3.8.0
+
 ## 3.7.0
 
 ### Minor Changes

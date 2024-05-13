@@ -14,21 +14,32 @@ pragma solidity ^0.8.13;
 @@@@@@@@@       @@@@@@@@*/
 
 import "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
+import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {XERC20Test, FiatTokenTest, ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
+import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
+import {IFiatToken} from "../../contracts/token/interfaces/IFiatToken.sol";
+import {HypXERC20Collateral} from "../../contracts/token/extensions/HypXERC20Collateral.sol";
+import {HypFiatTokenCollateral} from "../../contracts/token/extensions/HypFiatTokenCollateral.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
+import {Message} from "../../contracts/libs/Message.sol";
 
 abstract contract HypTokenTest is Test {
     using TypeCasts for address;
+    using TokenMessage for bytes;
+    using Message for bytes;
+
     uint32 internal constant ORIGIN = 11;
     uint32 internal constant DESTINATION = 12;
     uint8 internal constant DECIMALS = 18;
@@ -40,6 +51,7 @@ abstract contract HypTokenTest is Test {
     string internal constant SYMBOL = "HYP";
     address internal constant ALICE = address(0x1);
     address internal constant BOB = address(0x2);
+    address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
     TokenRouter internal localToken;
@@ -73,8 +85,24 @@ abstract contract HypTokenTest is Test {
 
         REQUIRED_VALUE = noopHook.quoteDispatch("", "");
 
-        remoteToken = new HypERC20(DECIMALS, address(remoteMailbox));
-        remoteToken.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
+        HypERC20 implementation = new HypERC20(
+            DECIMALS,
+            address(remoteMailbox)
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20.initialize.selector,
+                TOTAL_SUPPLY,
+                NAME,
+                SYMBOL,
+                address(noopHook),
+                address(igp),
+                address(this)
+            )
+        );
+        remoteToken = HypERC20(address(proxy));
         remoteToken.enrollRemoteRouter(
             ORIGIN,
             address(localToken).addressToBytes32()
@@ -101,6 +129,20 @@ abstract contract HypTokenTest is Test {
             address(localToken).addressToBytes32(),
             abi.encodePacked(_recipient.addressToBytes32(), _amount)
         );
+    }
+
+    function _handleLocalTransfer(uint256 _transferAmount) internal {
+        vm.prank(address(localMailbox));
+        localToken.handle(
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            abi.encodePacked(ALICE.addressToBytes32(), _transferAmount)
+        );
+    }
+
+    function _mintAndApprove(uint256 _amount, address _account) internal {
+        primaryToken.mint(_amount);
+        primaryToken.approve(_account, _amount);
     }
 
     function _setCustomGasConfig() internal {
@@ -153,7 +195,43 @@ abstract contract HypTokenTest is Test {
         _performRemoteTransferAndGas(_msgValue, _amount, _gasOverhead);
     }
 
-    function testBenchmark_overheadGasUsage() public {
+    function _performRemoteTransferWithHook(
+        uint256 _msgValue,
+        uint256 _amount
+    ) internal returns (bytes32 messageId) {
+        vm.prank(ALICE);
+        messageId = localToken.transferRemote{value: _msgValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            _amount,
+            bytes(""),
+            address(noopHook)
+        );
+        _processTransfers(BOB, _amount);
+        assertEq(remoteToken.balanceOf(BOB), _amount);
+    }
+
+    function testTransfer_withHookSpecified() public {
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        bytes32 messageId = _performRemoteTransferWithHook(
+            REQUIRED_VALUE,
+            TRANSFER_AMT
+        );
+        assertTrue(noopHook.messageDispatched(messageId));
+        /// @dev Using this test would be ideal, but vm.expectCall with nested functions more than 1 level deep is broken
+        /// In other words, the call graph of Route.transferRemote() -> Mailbox.dispatch() -> Hook.postDispatch() does not work with expectCall
+        // vm.expectCall(
+        //     address(noopHook),
+        //     abi.encodeCall(
+        //         IPostDispatchHook.postDispatch,
+        //         (bytes(""), outboundMessage)
+        //     )
+        // );
+        /// @dev Also, using expectedCall with Mailbox.dispatch() won't work either because overloaded function selection is broken, see https://github.com/ethereum/solidity/issues/13815
+    }
+
+    function testBenchmark_overheadGasUsage() public virtual {
         vm.prank(address(localMailbox));
 
         uint256 gasBefore = gasleft();
@@ -174,10 +252,22 @@ contract HypERC20Test is HypTokenTest {
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypERC20(DECIMALS, address(localMailbox));
-        erc20Token = HypERC20(address(localToken));
-
-        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
+        HypERC20 implementation = new HypERC20(DECIMALS, address(localMailbox));
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20.initialize.selector,
+                TOTAL_SUPPLY,
+                NAME,
+                SYMBOL,
+                address(address(noopHook)),
+                address(igp),
+                address(this)
+            )
+        );
+        localToken = HypERC20(address(proxy));
+        erc20Token = HypERC20(address(proxy));
 
         erc20Token.enrollRemoteRouter(
             DESTINATION,
@@ -190,7 +280,14 @@ contract HypERC20Test is HypTokenTest {
 
     function testInitialize_revert_ifAlreadyInitialized() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        erc20Token.initialize(TOTAL_SUPPLY, NAME, SYMBOL);
+        erc20Token.initialize(
+            TOTAL_SUPPLY,
+            NAME,
+            SYMBOL,
+            address(address(noopHook)),
+            address(igp),
+            BOB
+        );
     }
 
     function testTotalSupply() public {
@@ -294,6 +391,108 @@ contract HypERC20CollateralTest is HypTokenTest {
             GAS_LIMIT * igp.gasPrice()
         );
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+}
+
+contract HypXERC20CollateralTest is HypTokenTest {
+    using TypeCasts for address;
+    HypXERC20Collateral internal xerc20Collateral;
+
+    function setUp() public override {
+        super.setUp();
+
+        primaryToken = new XERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
+
+        localToken = new HypXERC20Collateral(
+            address(primaryToken),
+            address(localMailbox)
+        );
+        xerc20Collateral = HypXERC20Collateral(address(localToken));
+
+        xerc20Collateral.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        primaryToken.transfer(address(localToken), 1000e18);
+        primaryToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testRemoteTransfer() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        vm.expectCall(
+            address(primaryToken),
+            abi.encodeCall(IXERC20.burn, (ALICE, TRANSFER_AMT))
+        );
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+
+    function testHandle() public {
+        vm.expectCall(
+            address(primaryToken),
+            abi.encodeCall(IXERC20.mint, (ALICE, TRANSFER_AMT))
+        );
+        _handleLocalTransfer(TRANSFER_AMT);
+    }
+}
+
+contract HypFiatTokenCollateralTest is HypTokenTest {
+    using TypeCasts for address;
+    HypFiatTokenCollateral internal fiatTokenCollateral;
+
+    function setUp() public override {
+        super.setUp();
+
+        primaryToken = new FiatTokenTest(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
+
+        localToken = new HypFiatTokenCollateral(
+            address(primaryToken),
+            address(localMailbox)
+        );
+        fiatTokenCollateral = HypFiatTokenCollateral(address(localToken));
+
+        fiatTokenCollateral.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        primaryToken.transfer(address(localToken), 1000e18);
+        primaryToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testRemoteTransfer() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        vm.expectCall(
+            address(primaryToken),
+            abi.encodeCall(IFiatToken.burn, (TRANSFER_AMT))
+        );
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+
+    function testHandle() public {
+        bytes memory data = abi.encodeCall(
+            IFiatToken.mint,
+            (ALICE, TRANSFER_AMT)
+        );
+        vm.mockCall(address(primaryToken), 0, data, abi.encode(false));
+        vm.expectRevert("FiatToken mint failed");
+        _handleLocalTransfer(TRANSFER_AMT);
+        vm.clearMockedCalls();
+
+        vm.expectCall(address(primaryToken), data);
+        _handleLocalTransfer(TRANSFER_AMT);
     }
 }
 

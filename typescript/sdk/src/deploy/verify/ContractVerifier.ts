@@ -1,126 +1,164 @@
 import fetch from 'cross-fetch';
-import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
+import { Logger } from 'pino';
 
-import { sleep, strip0x } from '@hyperlane-xyz/utils';
+import { rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ChainMap, ChainName } from '../../types';
-import { MultiGeneric } from '../../utils/MultiGeneric';
+import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../../types.js';
 
 import {
+  BuildArtifact,
   CompilerOptions,
   ContractVerificationInput,
-  VerificationInput,
-} from './types';
+  EXPLORER_GET_ACTIONS,
+  ExplorerApiActions,
+  ExplorerApiErrors,
+  FormOptions,
+} from './types.js';
 
-enum ExplorerApiActions {
-  GETSOURCECODE = 'getsourcecode',
-  VERIFY_IMPLEMENTATION = 'verifysourcecode',
-  MARK_PROXY = 'verifyproxycontract',
-  CHECK_STATUS = 'checkverifystatus',
-  CHECK_PROXY_STATUS = 'checkproxyverification',
-}
+export class ContractVerifier {
+  protected logger = rootLogger.child({ module: 'ContractVerifier' });
 
-enum ExplorerApiErrors {
-  ALREADY_VERIFIED = 'Contract source code already verified',
-  ALREADY_VERIFIED_ALT = 'Already Verified',
-  VERIFICATION_PENDING = 'Pending in queue',
-  PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
-  BYTECODE_MISMATCH = 'Fail - Unable to verify. Compiled contract deployment bytecode does NOT match the transaction deployment bytecode.',
-}
+  protected contractSourceMap: { [contractName: string]: string } = {};
 
-export class ContractVerifier extends MultiGeneric<VerificationInput> {
-  protected logger: Debugger;
+  protected readonly standardInputJson: string;
+  protected readonly compilerOptions: CompilerOptions;
 
   constructor(
-    verificationInputs: ChainMap<VerificationInput>,
     protected readonly multiProvider: MultiProvider,
     protected readonly apiKeys: ChainMap<string>,
-    protected readonly flattenedSource: string, // flattened source code from eg `hardhat flatten`
-    protected readonly compilerOptions: CompilerOptions,
+    buildArtifact: BuildArtifact,
+    licenseType: CompilerOptions['licenseType'],
   ) {
-    super(verificationInputs);
-    this.logger = debug('hyperlane:ContractVerifier');
-  }
+    // Extract the standard input json and compiler version from the build artifact
+    this.standardInputJson = JSON.stringify(buildArtifact.input);
+    const compilerversion = `v${buildArtifact.solcLongVersion}`;
 
-  verify(targets = this.chains()): Promise<PromiseSettledResult<void>[]> {
-    return Promise.allSettled(
-      targets.map((chain) => this.verifyChain(chain, this.get(chain))),
-    );
-  }
-
-  async verifyChain(
-    chain: ChainName,
-    inputs: VerificationInput,
-  ): Promise<void> {
-    this.logger(`Verifying ${chain}...`);
-    for (const input of inputs) {
-      await this.verifyContract(chain, input);
+    // double check compiler version matches expected format
+    const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
+    const matches = versionRegex.exec(compilerversion);
+    if (!matches) {
+      throw new Error(`Invalid compiler version ${compilerversion}`);
     }
+
+    // set compiler options
+    // only license type is configurable, empty if not provided
+    this.compilerOptions = {
+      codeformat: 'solidity-standard-json-input',
+      compilerversion,
+      licenseType,
+    };
+
+    // process input to create mapping of contract names to source names
+    // this is required to construct the fully qualified contract name
+    const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
+    Object.entries(buildArtifact.input.sources).forEach(
+      ([sourceName, { content }]) => {
+        const matches = content.matchAll(contractRegex);
+        for (const match of matches) {
+          const contractName = match[1];
+          if (contractName) {
+            this.contractSourceMap[contractName] = sourceName;
+          }
+        }
+      },
+    );
   }
 
   private async submitForm(
     chain: ChainName,
     action: ExplorerApiActions,
-    options?: Record<string, string>,
+    verificationLogger: Logger,
+    options?: FormOptions<typeof action>,
   ): Promise<any> {
-    const apiUrl = new URL(this.multiProvider.getExplorerApiUrl(chain));
-    const isGetRequest =
-      action === ExplorerApiActions.CHECK_STATUS ||
-      action === ExplorerApiActions.CHECK_PROXY_STATUS ||
-      action === ExplorerApiActions.GETSOURCECODE;
-    const params = new URLSearchParams({
-      apikey: this.apiKeys[chain],
-      module: 'contract',
-      action,
-      ...options,
-    });
+    const {
+      apiUrl,
+      family,
+      apiKey = this.apiKeys[chain],
+    } = this.multiProvider.getExplorerApi(chain);
+    const params = new URLSearchParams();
+    params.set('module', 'contract');
+    params.set('action', action);
 
-    let response: Response;
+    // no need to provide every argument for every request
+    for (const [key, value] of Object.entries(options ?? {})) {
+      params.set(key, value);
+    }
+
+    // only include apikey if provided & not blockscout
+    if (family !== ExplorerFamily.Blockscout && apiKey) {
+      params.set('apikey', apiKey);
+    }
+
+    const url = new URL(apiUrl);
+    const isGetRequest = EXPLORER_GET_ACTIONS.includes(action);
     if (isGetRequest) {
-      response = await fetch(`${apiUrl}?${params}`);
+      url.search = params.toString();
+    } else if (family === ExplorerFamily.Blockscout) {
+      // Blockscout requires module and action to be query params
+      url.searchParams.set('module', 'contract');
+      url.searchParams.set('action', action);
+    }
+
+    let response;
+    if (isGetRequest) {
+      response = await fetch(url.toString(), {
+        method: 'GET',
+      });
     } else {
-      response = await fetch(apiUrl, {
+      response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params,
       });
     }
 
-    let result;
-    let responseText;
-    try {
-      responseText = await response.text();
-      result = JSON.parse(responseText);
-    } catch (e) {
-      this.logger(`Failed to parse response from ${responseText}`, e);
-    }
-    if (result.message === 'NOTOK') {
+    const responseText = await response.text();
+    const result = JSON.parse(responseText);
+
+    if (result.message !== 'OK') {
+      let errorMessage;
+
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
           await sleep(5000); // wait 5 seconds
-          return this.submitForm(chain, action, options);
+          return this.submitForm(chain, action, verificationLogger, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
           return;
         case ExplorerApiErrors.PROXY_FAILED:
-          this.logger(`Proxy verification failed for, try manually?`);
-          return;
+          errorMessage = 'Proxy verification failed, try manually?';
+          break;
         case ExplorerApiErrors.BYTECODE_MISMATCH:
-          this.logger(
-            `Compiled bytecode does not match deployed bytecode, check constructor arguments?`,
-          );
-          return;
+          errorMessage =
+            'Compiled bytecode does not match deployed bytecode, check constructor arguments?';
+          break;
         default:
-          this.logger(
-            `Verification failed for some unknown reason on ${chain}`,
-            result,
-          );
-          throw new Error(`Verification failed: ${result.result}`);
+          errorMessage = `Verification failed. ${
+            result.result ?? response.statusText
+          }`;
+          break;
       }
+
+      if (errorMessage) {
+        verificationLogger.debug(errorMessage);
+        throw new Error(`[${chain}] ${errorMessage}`);
+      }
+    }
+
+    if (result.result === ExplorerApiErrors.UNKNOWN_UID) {
+      await sleep(1000); // wait 1 second
+      return this.submitForm(chain, action, verificationLogger, options);
+    }
+
+    if (result.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
+      const errorMessage = `Verification failed. ${
+        result.result ?? response.statusText
+      }`;
+      verificationLogger.debug(errorMessage);
+      throw new Error(`[${chain}] ${errorMessage}`);
     }
 
     return result.result;
@@ -129,71 +167,82 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
   private async isAlreadyVerified(
     chain: ChainName,
     input: ContractVerificationInput,
-  ) {
+    verificationLogger: Logger,
+  ): Promise<boolean> {
     try {
       const result = await this.submitForm(
         chain,
         ExplorerApiActions.GETSOURCECODE,
+        verificationLogger,
         {
-          ...this.compilerOptions,
           address: input.address,
         },
       );
-      return result[0].SourceCode !== '';
+      return !!result[0]?.SourceCode;
     } catch (error) {
-      this.logger(`Error checking if contract is already verified: ${error}`);
+      verificationLogger.debug(
+        `Error checking if contract is already verified: ${error}`,
+      );
       return false;
     }
   }
 
-  async verifyProxy(
+  private async verifyProxy(
     chain: ChainName,
     input: ContractVerificationInput,
+    verificationLogger: Logger,
   ): Promise<void> {
-    if (input.isProxy) {
-      try {
-        const proxyGuid = await this.submitForm(
-          chain,
-          ExplorerApiActions.MARK_PROXY,
-          {
-            address: input.address,
-          },
-        );
+    if (!input.isProxy) return;
 
-        const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-          chain,
-          input.address,
-        );
+    try {
+      const proxyGuid = await this.submitForm(
+        chain,
+        ExplorerApiActions.MARK_PROXY,
+        verificationLogger,
+        { address: input.address },
+      );
+      if (!proxyGuid) return;
 
-        // poll for verified proxy status
-        if (proxyGuid) {
-          await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
-            guid: proxyGuid,
-          });
-          this.logger(
-            `Successfully verified proxy ${addressUrl}#readProxyContract`,
-          );
-        }
-      } catch (error) {
-        console.error(
-          `Verification of proxy at ${input.address} failed on ${chain}`,
-        );
-        throw error;
-      }
+      await this.submitForm(
+        chain,
+        ExplorerApiActions.CHECK_PROXY_STATUS,
+        verificationLogger,
+        {
+          guid: proxyGuid,
+        },
+      );
+      const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+        input.address,
+      );
+      verificationLogger.debug(
+        `Successfully verified proxy ${addressUrl}#readProxyContract`,
+      );
+    } catch (error) {
+      verificationLogger.debug(
+        `Verification of proxy at ${input.address} failed: ${error}`,
+      );
+      throw error;
     }
   }
 
-  async verifyImplementation(
+  private async verifyImplementation(
     chain: ChainName,
     input: ContractVerificationInput,
+    verificationLogger: Logger,
   ): Promise<void> {
-    this.logger(
-      `Verifying ${input.name} implementation at ${input.address} on ${chain}`,
-    );
+    verificationLogger.debug(`Verifying implementation at ${input.address}`);
+
+    const sourceName = this.contractSourceMap[input.name];
+    if (!sourceName) {
+      const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
+      verificationLogger.error(errorMessage);
+      throw new Error(`[${chain}] ${errorMessage}`);
+    }
 
     const data = {
-      sourceCode: this.flattenedSource,
-      contractname: input.name,
+      sourceCode: this.standardInputJson,
+      contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
       constructorArguements: strip0x(input.constructorArguments ?? ''),
@@ -203,55 +252,75 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     const guid = await this.submitForm(
       chain,
       ExplorerApiActions.VERIFY_IMPLEMENTATION,
+      verificationLogger,
       data,
     );
+    if (!guid) return;
 
+    await this.submitForm(
+      chain,
+      ExplorerApiActions.CHECK_STATUS,
+      verificationLogger,
+      { guid },
+    );
     const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
       chain,
       input.address,
     );
-
-    // poll for verified status
-    if (guid) {
-      try {
-        await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
-        this.logger(`Successfully verified ${addressUrl}#code`);
-      } catch (error) {
-        console.error(
-          `Verifying implementation at ${input.address} failed on ${chain}`,
-        );
-        throw error;
-      }
-    }
+    verificationLogger.debug(`Successfully verified ${addressUrl}#code`);
   }
 
   async verifyContract(
     chain: ChainName,
     input: ContractVerificationInput,
+    logger = this.logger,
   ): Promise<void> {
-    if (input.address === ethers.constants.AddressZero) {
+    const verificationLogger = logger.child({ chain, name: input.name });
+
+    const metadata = this.multiProvider.tryGetChainMetadata(chain);
+    const rpcUrl = metadata?.rpcUrls[0].http ?? '';
+    if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
+      verificationLogger.debug('Skipping verification for local endpoints');
       return;
     }
 
+    const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
+    if (!explorerApi) {
+      verificationLogger.debug('No explorer API set, skipping');
+      return;
+    }
+
+    if (!explorerApi.family) {
+      verificationLogger.debug(`No explorer family set, skipping`);
+      return;
+    }
+
+    if (explorerApi.family === ExplorerFamily.Other) {
+      verificationLogger.debug(`Unsupported explorer family, skipping`);
+      return;
+    }
+
+    if (input.address === ethers.constants.AddressZero) return;
     if (Array.isArray(input.constructorArguments)) {
-      this.logger('Constructor arguments in legacy format, skipping');
+      verificationLogger.debug(
+        'Constructor arguments in legacy format, skipping',
+      );
       return;
     }
 
-    if (await this.isAlreadyVerified(chain, input)) {
+    if (await this.isAlreadyVerified(chain, input, verificationLogger)) {
       const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
         input.address,
       );
-      this.logger(
-        `Contract ${input.name} already verified on ${chain} at ${addressUrl}#code`,
+      verificationLogger.debug(
+        `Contract already verified at ${addressUrl}#code`,
       );
-      // There is a rate limit of 5 requests per second
-      await sleep(200);
+      await sleep(200); // There is a rate limit of 5 requests per second
       return;
-    } else {
-      await this.verifyImplementation(chain, input);
     }
-    await this.verifyProxy(chain, input);
+
+    await this.verifyImplementation(chain, input, verificationLogger);
+    await this.verifyProxy(chain, input, verificationLogger);
   }
 }

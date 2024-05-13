@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    HyperlaneChain, HyperlaneMessage, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
-    SequenceIndexer,
+    HyperlaneChain, HyperlaneMessage, Indexed, Indexer, LogMeta, MerkleTreeHook,
+    MerkleTreeInsertion, SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -86,11 +86,11 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
         let messages = Indexer::<HyperlaneMessage>::fetch_logs(&self.0, range).await?;
         let merkle_tree_insertions = messages
             .into_iter()
-            .map(|(m, meta)| (message_to_merkle_tree_insertion(&m), meta))
+            .map(|(m, meta)| (message_to_merkle_tree_insertion(m.inner()).into(), meta))
             .collect();
         Ok(merkle_tree_insertions)
     }
@@ -101,9 +101,9 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        SequenceIndexer::<HyperlaneMessage>::sequence_and_tip(&self.0).await
+impl SequenceAwareIndexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        SequenceAwareIndexer::<HyperlaneMessage>::latest_sequence_count_and_tip(&self.0).await
     }
 }
 

@@ -1,15 +1,22 @@
 import { ethers } from 'ethers';
+import z from 'zod';
 
-import { GasRouterConfig } from '../router/types';
+import { GasRouterConfig } from '../router/types.js';
+
+import { SyntheticConfigSchema } from './schemas.js';
 
 export enum TokenType {
   synthetic = 'synthetic',
   fastSynthetic = 'fastSynthetic',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
+  collateralVault = 'collateralVault',
+  collateralXERC20 = 'collateralXERC20',
+  collateralFiat = 'collateralFiat',
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
+  nativeScaled = 'nativeScaled',
 }
 
 export type TokenMetadata = {
@@ -32,14 +39,16 @@ export const isTokenMetadata = (metadata: any): metadata is TokenMetadata =>
 export const isErc20Metadata = (metadata: any): metadata is ERC20Metadata =>
   metadata.decimals && isTokenMetadata(metadata);
 
-export type SyntheticConfig = TokenMetadata & {
-  type: TokenType.synthetic | TokenType.syntheticUri | TokenType.fastSynthetic;
-};
+export type SyntheticConfig = z.infer<typeof SyntheticConfigSchema>;
 export type CollateralConfig = {
   type:
     | TokenType.collateral
+    | TokenType.collateralXERC20
+    | TokenType.collateralFiat
     | TokenType.collateralUri
-    | TokenType.fastCollateral;
+    | TokenType.fastCollateral
+    | TokenType.fastSynthetic
+    | TokenType.collateralVault;
   token: string;
 } & Partial<ERC20Metadata>;
 export type NativeConfig = {
@@ -52,8 +61,15 @@ export const isCollateralConfig = (
   config: TokenConfig,
 ): config is CollateralConfig =>
   config.type === TokenType.collateral ||
+  config.type === TokenType.collateralXERC20 ||
+  config.type === TokenType.collateralFiat ||
   config.type === TokenType.collateralUri ||
-  config.type === TokenType.fastCollateral;
+  config.type === TokenType.fastCollateral ||
+  config.type == TokenType.collateralVault;
+
+export const isCollateralVaultConfig = (
+  config: TokenConfig,
+): config is CollateralConfig => config.type === TokenType.collateralVault;
 
 export const isSyntheticConfig = (
   config: TokenConfig,

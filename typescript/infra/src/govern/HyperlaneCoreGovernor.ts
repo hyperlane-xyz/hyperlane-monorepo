@@ -1,15 +1,18 @@
+import { BigNumber } from 'ethers';
+
 import {
   CoreConfig,
   CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  HyperlaneCoreDeployer,
   MailboxViolation,
   MailboxViolationType,
   OwnerViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 
-import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
+import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor.js';
 
 export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
@@ -24,6 +27,11 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
       case MailboxViolationType.DefaultIsm: {
         let ismAddress: string;
         if (typeof violation.expected === 'object') {
+          // hack to bind the ISM factory to the deployer for verification
+          new HyperlaneCoreDeployer(
+            this.checker.multiProvider,
+            this.checker.ismFactory,
+          );
           const ism = await this.checker.ismFactory.deploy({
             destination: violation.chain,
             config: violation.expected,
@@ -41,6 +49,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
             'setDefaultIsm',
             [ismAddress],
           ),
+          value: BigNumber.from(0),
           description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
         });
         break;

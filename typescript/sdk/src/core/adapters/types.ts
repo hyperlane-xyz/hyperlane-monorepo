@@ -1,8 +1,8 @@
 import type { HexString } from '@hyperlane-xyz/utils';
 
-import type { BaseAppAdapter } from '../../app/MultiProtocolApp';
-import type { TypedTransactionReceipt } from '../../providers/ProviderType';
-import type { ChainName } from '../../types';
+import type { BaseAppAdapter } from '../../app/MultiProtocolApp.js';
+import type { TypedTransactionReceipt } from '../../providers/ProviderType.js';
+import type { ChainName } from '../../types.js';
 
 export interface ICoreAdapter extends BaseAppAdapter {
   extractMessageIds(

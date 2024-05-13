@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { ChainMap, ChainName, IsmType, ZHash } from '@hyperlane-xyz/sdk';
 
+import { CommandContext } from '../context/types.js';
 import {
   errorRed,
   log,
@@ -10,11 +11,9 @@ import {
   logBoldUnderlinedRed,
   logGreen,
   logRed,
-} from '../../logger.js';
+} from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { FileFormat, mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
-
-import { readChainConfigsIfExists } from './chain.js';
+import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 const MultisigIsmConfigSchema = z.object({
   type: z.union([
@@ -58,11 +57,17 @@ const TestIsmConfigSchema = z.object({
   type: z.literal(IsmType.TEST_ISM),
 });
 
+const TrustedRelayerIsmConfigSchema = z.object({
+  type: z.literal(IsmType.TRUSTED_RELAYER),
+  relayer: ZHash,
+});
+
 const IsmConfigSchema = z.union([
   MultisigIsmConfigSchema,
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   TestIsmConfigSchema,
+  TrustedRelayerIsmConfigSchema,
 ]);
 const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
   (ismConfigMap) => {
@@ -107,22 +112,19 @@ export function isValildIsmConfig(config: any) {
 }
 
 export async function createIsmConfigMap({
-  format,
+  context,
   outPath,
-  chainConfigPath,
 }: {
-  format: FileFormat;
+  context: CommandContext;
   outPath: string;
-  chainConfigPath: string;
 }) {
   logBlue('Creating a new advanced ISM config');
   logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
   logRed(
     'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
   );
-  const customChains = readChainConfigsIfExists(chainConfigPath);
   const chains = await runMultiChainSelectionStep(
-    customChains,
+    context.chainMetadata,
     'Select chains to configure ISM for',
     true,
   );
@@ -140,7 +142,7 @@ export async function createIsmConfigMap({
 
   if (isValildIsmConfig(result)) {
     logGreen(`ISM config is valid, writing to file ${outPath}`);
-    mergeYamlOrJson(outPath, result, format);
+    mergeYamlOrJson(outPath, result);
   } else {
     errorRed(
       `ISM config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/ism.yaml for an example`,
@@ -159,36 +161,34 @@ export async function createIsmConfig(
     choices: [
       {
         value: IsmType.MESSAGE_ID_MULTISIG,
-        name: IsmType.MESSAGE_ID_MULTISIG,
         description: 'Validators need to sign just this messageId',
       },
       {
         value: IsmType.MERKLE_ROOT_MULTISIG,
-        name: IsmType.MERKLE_ROOT_MULTISIG,
         description:
           'Validators need to sign the root of the merkle tree of all messages from origin chain',
       },
       {
         value: IsmType.ROUTING,
-        name: IsmType.ROUTING,
         description:
           'Each origin chain can be verified by the specified ISM type via RoutingISM',
       },
       {
         value: IsmType.FALLBACK_ROUTING,
-        name: IsmType.FALLBACK_ROUTING,
         description:
           "You can specify ISM type for specific chains you like and fallback to mailbox's default ISM for other chains via DefaultFallbackRoutingISM",
       },
       {
         value: IsmType.AGGREGATION,
-        name: IsmType.AGGREGATION,
         description:
           'You can aggregate multiple ISMs into one ISM via AggregationISM',
       },
       {
+        value: IsmType.TRUSTED_RELAYER,
+        description: 'Deliver messages from an authorized address',
+      },
+      {
         value: IsmType.TEST_ISM,
-        name: IsmType.TEST_ISM,
         description:
           'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
       },
@@ -209,6 +209,8 @@ export async function createIsmConfig(
     lastConfig = await createAggregationConfig(remote, origins);
   } else if (moduleType === IsmType.TEST_ISM) {
     lastConfig = { type: IsmType.TEST_ISM };
+  } else if (moduleType === IsmType.TRUSTED_RELAYER) {
+    lastConfig = await createTrustedRelayerConfig();
   } else {
     throw new Error(`Invalid ISM type: ${moduleType}}`);
   }
@@ -219,7 +221,7 @@ export async function createMultisigConfig(
   type: IsmType.MERKLE_ROOT_MULTISIG | IsmType.MESSAGE_ID_MULTISIG,
 ): Promise<ZodIsmConfig> {
   const thresholdInput = await input({
-    message: 'Enter threshold of signers (number)',
+    message: 'Enter threshold of validators (number)',
   });
   const threshold = parseInt(thresholdInput, 10);
 
@@ -231,6 +233,16 @@ export async function createMultisigConfig(
     type,
     threshold,
     validators,
+  };
+}
+
+async function createTrustedRelayerConfig(): Promise<ZodIsmConfig> {
+  const relayer = await input({
+    message: 'Enter relayer address',
+  });
+  return {
+    type: IsmType.TRUSTED_RELAYER,
+    relayer,
   };
 }
 

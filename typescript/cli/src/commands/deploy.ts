@@ -1,17 +1,24 @@
 import { CommandModule } from 'yargs';
 
-import { log, logGray } from '../../logger.js';
+import {
+  CommandModuleWithContext,
+  CommandModuleWithWriteContext,
+} from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
-import { runWarpDeploy } from '../deploy/warp.js';
+import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
+import { runWarpRouteDeploy } from '../deploy/warp.js';
+import { log, logGray } from '../logger.js';
 
 import {
-  agentConfigurationOption,
-  chainsCommandOption,
-  coreArtifactsOption,
-  keyCommandOption,
-  outDirCommandOption,
-  skipConfirmationOption,
+  agentConfigCommandOption,
+  agentTargetsCommandOption,
+  coreTargetsCommandOption,
+  dryRunOption,
+  hookCommandOption,
+  ismCommandOption,
+  originCommandOption,
+  warpConfigCommandOption,
 } from './options.js';
 
 /**
@@ -33,34 +40,26 @@ export const deployCommand: CommandModule = {
 /**
  * Agent command
  */
-const agentCommand: CommandModule = {
+const agentCommand: CommandModuleWithContext<{
+  origin?: string;
+  targets?: string;
+  config?: string;
+}> = {
   command: 'kurtosis-agents',
   describe: 'Deploy Hyperlane agents with Kurtosis',
-  builder: (yargs) =>
-    yargs.options({
-      origin: {
-        type: 'string',
-        description: 'The name of the origin chain to deploy to',
-      },
-      targets: {
-        type: 'string',
-        description: 'Comma separated list of chains to relay between',
-      },
-      chains: chainsCommandOption,
-      config: agentConfigurationOption,
-    }),
-  handler: async (argv: any) => {
+  builder: {
+    origin: originCommandOption,
+    targets: agentTargetsCommandOption,
+    config: agentConfigCommandOption(true),
+  },
+  handler: async ({ context, origin, targets, config }) => {
     logGray('Hyperlane Agent Deployment with Kurtosis');
     logGray('----------------------------------------');
-    const chainConfigPath: string = argv.chains;
-    const originChain: string = argv.origin;
-    const agentConfigurationPath: string = argv.config;
-    const relayChains: string = argv.targets;
     await runKurtosisAgentDeploy({
-      originChain,
-      relayChains,
-      chainConfigPath,
-      agentConfigurationPath,
+      context,
+      originChain: origin,
+      relayChains: targets,
+      agentConfigurationPath: config,
     });
     process.exit(0);
   },
@@ -69,55 +68,41 @@ const agentCommand: CommandModule = {
 /**
  * Core command
  */
-const coreCommand: CommandModule = {
+const coreCommand: CommandModuleWithWriteContext<{
+  targets: string;
+  ism?: string;
+  hook?: string;
+  'dry-run': string;
+  agent: string;
+}> = {
   command: 'core',
   describe: 'Deploy core Hyperlane contracts',
-  builder: (yargs) =>
-    yargs.options({
-      targets: {
-        type: 'string',
-        description:
-          'Comma separated list of chain names to which contracts will be deployed',
-      },
-      chains: chainsCommandOption,
-      artifacts: coreArtifactsOption,
-      ism: {
-        type: 'string',
-        description:
-          'A path to a JSON or YAML file with basic or advanced ISM configs (e.g. Multisig)',
-      },
-      hook: {
-        type: 'string',
-        description:
-          'A path to a JSON or YAML file with Hook configs (for every chain)',
-      },
-      out: outDirCommandOption,
-      key: keyCommandOption,
-      yes: skipConfirmationOption,
-    }),
-  handler: async (argv: any) => {
-    logGray('Hyperlane permissionless core deployment');
-    logGray('----------------------------------------');
-    const key: string = argv.key || process.env.HYP_KEY;
-    const chainConfigPath: string = argv.chains;
-    const outPath: string = argv.out;
-    const chains: string[] | undefined = argv.targets
-      ?.split(',')
-      .map((r: string) => r.trim());
-    const artifactsPath: string = argv.artifacts;
-    const ismConfigPath: string = argv.ism;
-    const hookConfigPath: string = argv.hook;
-    const skipConfirmation: boolean = argv.yes;
-    await runCoreDeploy({
-      key,
-      chainConfigPath,
-      chains,
-      artifactsPath,
-      ismConfigPath,
-      hookConfigPath,
-      outPath,
-      skipConfirmation,
-    });
+  builder: {
+    targets: coreTargetsCommandOption,
+    ism: ismCommandOption,
+    hook: hookCommandOption,
+    agent: agentConfigCommandOption(false, './configs/agent.json'),
+    'dry-run': dryRunOption,
+  },
+  handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
+    logGray(
+      `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
+    );
+    logGray('------------------------------------------------');
+
+    try {
+      const chains = targets?.split(',').map((r: string) => r.trim());
+      await runCoreDeploy({
+        context,
+        chains,
+        ismConfigPath: ism,
+        hookConfigPath: hook,
+        agentOutPath: agent,
+      });
+    } catch (error: any) {
+      evaluateIfDryRunFailure(error, dryRun);
+      throw error;
+    }
     process.exit(0);
   },
 };
@@ -125,37 +110,29 @@ const coreCommand: CommandModule = {
 /**
  * Warp command
  */
-const warpCommand: CommandModule = {
+const warpCommand: CommandModuleWithWriteContext<{
+  config: string;
+  'dry-run': string;
+}> = {
   command: 'warp',
   describe: 'Deploy Warp Route contracts',
-  builder: (yargs) =>
-    yargs.options({
-      config: {
-        type: 'string',
-        description: 'A path to a JSON or YAML file with a warp config.',
-        default: './configs/warp-tokens.yaml',
-      },
-      core: coreArtifactsOption,
-      chains: chainsCommandOption,
-      out: outDirCommandOption,
-      key: keyCommandOption,
-      yes: skipConfirmationOption,
-    }),
-  handler: async (argv: any) => {
-    const key: string = argv.key || process.env.HYP_KEY;
-    const chainConfigPath: string = argv.chains;
-    const warpConfigPath: string | undefined = argv.config;
-    const coreArtifactsPath: string | undefined = argv.core;
-    const outPath: string = argv.out;
-    const skipConfirmation: boolean = argv.yes;
-    await runWarpDeploy({
-      key,
-      chainConfigPath,
-      warpConfigPath,
-      coreArtifactsPath,
-      outPath,
-      skipConfirmation,
-    });
+  builder: {
+    config: warpConfigCommandOption,
+    'dry-run': dryRunOption,
+  },
+  handler: async ({ context, config, dryRun }) => {
+    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
+    logGray('------------------------------------------------');
+
+    try {
+      await runWarpRouteDeploy({
+        context,
+        warpRouteDeploymentConfigPath: config,
+      });
+    } catch (error: any) {
+      evaluateIfDryRunFailure(error, dryRun);
+      throw error;
+    }
     process.exit(0);
   },
 };

@@ -8,10 +8,11 @@ use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta,
-    Mailbox, MerkleTreeHook, SequenceIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
+    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError, ChainResult,
+    Checkpoint, ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Indexed, Indexer, LogMeta, Mailbox, MerkleTreeHook, SequenceAwareIndexer, TxCostEstimate,
+    TxOutcome, H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -527,7 +528,10 @@ impl SealevelMailboxIndexer {
         Ok(height)
     }
 
-    async fn get_message_with_nonce(&self, nonce: u32) -> ChainResult<(HyperlaneMessage, LogMeta)> {
+    async fn get_message_with_nonce(
+        &self,
+        nonce: u32,
+    ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
         let target_message_account_bytes = &[
             &hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR[..],
             &nonce.to_le_bytes()[..],
@@ -614,7 +618,7 @@ impl SealevelMailboxIndexer {
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
         Ok((
-            hyperlane_message,
+            hyperlane_message.into(),
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
@@ -630,9 +634,9 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
+impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     #[instrument(err, skip(self))]
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // TODO: need to make sure the call and tip are at the same height?
         let count = Mailbox::count(&self.mailbox, None).await?;
@@ -645,7 +649,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         info!(
             ?range,
             "Fetching SealevelMailboxIndexer HyperlaneMessage logs"
@@ -666,7 +670,10 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for SealevelMailboxIndexer {
-    async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(
+        &self,
+        _range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         todo!()
     }
 
@@ -676,8 +683,8 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceIndexer<H256> for SealevelMailboxIndexer {
-    async fn sequence_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;

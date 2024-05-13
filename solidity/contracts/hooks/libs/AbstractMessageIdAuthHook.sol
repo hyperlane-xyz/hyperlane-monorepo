@@ -78,6 +78,10 @@ abstract contract AbstractMessageIdAuthHook is
             message.destination() == destinationDomain,
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
+        require(
+            metadata.msgValue(0) < 2 ** 255,
+            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
+        );
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             id

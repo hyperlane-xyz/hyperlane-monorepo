@@ -1,3 +1,7 @@
+import { stringify as yamlStringify } from 'yaml';
+
+import { ethersBigNumberSerializer } from './logging.js';
+
 export function isObject(item: any) {
   return item && typeof item === 'object' && !Array.isArray(item);
 }
@@ -11,6 +15,19 @@ export function deepCopy(v: any) {
 }
 
 export type ValueOf<T> = T[keyof T];
+
+// Useful for maintaining type safety when using Object.keys
+export function objKeys<T extends string | number>(obj: Record<T, any>): T[] {
+  return Object.keys(obj) as T[];
+}
+
+export function objLength(obj: Record<any, any>) {
+  return Object.keys(obj).length;
+}
+
+export function isObjEmpty(obj: Record<any, any>) {
+  return objLength(obj) === 0;
+}
 
 export function objMapEntries<
   M extends Record<K, I>,
@@ -104,4 +121,18 @@ export function arrayToObject(keys: Array<string>, val = true) {
     result[k] = val;
     return result;
   }, {});
+}
+
+export function stringifyObject(
+  object: object,
+  format: 'json' | 'yaml' = 'yaml',
+  space?: number,
+): string {
+  // run through JSON first because ethersBigNumberSerializer does not play nice with yamlStringify
+  // so we fix up in JSON, then parse and if required return yaml on processed JSON after
+  const json = JSON.stringify(object, ethersBigNumberSerializer, space);
+  if (format === 'json') {
+    return json;
+  }
+  return yamlStringify(JSON.parse(json), null, space);
 }

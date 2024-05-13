@@ -46,6 +46,25 @@ foundryup
 
 Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
 
+### Node
+
+This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+
+To install nvm
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+```
+
+To install version 20
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+You should change versions automatically with the `.nvmrc` file.
+
 ### Workspaces
 
 This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.
@@ -63,6 +82,16 @@ This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). I
   ```
 
 If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
+
+### Logging
+
+The typescript tooling uses [Pino](https://github.com/pinojs/pino) based logging, which outputs structured JSON logs by default.
+The verbosity level and style can be configured with environment variables:
+
+```sh
+LOG_LEVEL=DEBUG|INFO|WARN|ERROR|OFF
+LOG_FORMAT=PRETTY|JSON
+```
 
 ### Rust
 

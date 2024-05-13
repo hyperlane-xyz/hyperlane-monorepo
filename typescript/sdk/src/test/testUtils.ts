@@ -2,22 +2,15 @@ import { BigNumber, ethers } from 'ethers';
 
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContractsMap } from '../contracts/types';
-import { CoreFactories } from '../core/contracts';
-import { CoreConfig } from '../core/types';
-import { IgpFactories } from '../gas/contracts';
-import {
-  CoinGeckoInterface,
-  CoinGeckoResponse,
-  CoinGeckoSimpleInterface,
-  CoinGeckoSimplePriceParams,
-} from '../gas/token-prices';
-import { IgpConfig } from '../gas/types';
-import { HookType } from '../hook/types';
-import { IsmType } from '../ism/types';
-import { RouterConfig } from '../router/types';
-import { ChainMap, ChainName } from '../types';
+import { HyperlaneContractsMap } from '../contracts/types.js';
+import { CoreFactories } from '../core/contracts.js';
+import { CoreConfig } from '../core/types.js';
+import { IgpFactories } from '../gas/contracts.js';
+import { IgpConfig } from '../gas/types.js';
+import { HookType } from '../hook/types.js';
+import { IsmType } from '../ism/types.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export function randomInt(max: number, min = 0): number {
   return Math.floor(Math.random() * (max - min)) + min;
@@ -95,49 +88,4 @@ export function testIgpConfig(
       },
     ]),
   );
-}
-
-// A mock CoinGecko intended to be used by tests
-export class MockCoinGecko implements CoinGeckoInterface {
-  // Prices keyed by coingecko id
-  private tokenPrices: Record<string, number>;
-  // Whether or not to fail to return a response, keyed by coingecko id
-  private fail: Record<string, boolean>;
-
-  constructor() {
-    this.tokenPrices = {};
-    this.fail = {};
-  }
-
-  price(params: CoinGeckoSimplePriceParams): CoinGeckoResponse {
-    const data: any = {};
-    for (const id of params.ids) {
-      if (this.fail[id]) {
-        return Promise.reject(`Failed to fetch price for ${id}`);
-      }
-      data[id] = {
-        usd: this.tokenPrices[id],
-      };
-    }
-    return Promise.resolve({
-      success: true,
-      message: '',
-      code: 200,
-      data,
-    });
-  }
-
-  get simple(): CoinGeckoSimpleInterface {
-    return this;
-  }
-
-  setTokenPrice(chain: ChainName, price: number): void {
-    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
-    this.tokenPrices[id] = price;
-  }
-
-  setFail(chain: ChainName, fail: boolean): void {
-    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
-    this.fail[id] = fail;
-  }
 }

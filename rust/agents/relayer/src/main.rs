@@ -18,9 +18,10 @@ mod msg;
 mod processor;
 mod prover;
 mod relayer;
+mod server;
 mod settings;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread", worker_threads = 20)]
 async fn main() -> Result<()> {
     agent_main::<Relayer>().await
 }

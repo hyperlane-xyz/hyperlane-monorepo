@@ -1,5 +1,5 @@
 import { formatUnits, parseUnits } from '@ethersproject/units';
-import BigNumber from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
 
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;

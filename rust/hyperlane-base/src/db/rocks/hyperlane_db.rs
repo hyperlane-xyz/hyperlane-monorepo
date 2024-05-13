@@ -1,12 +1,13 @@
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{bail, Result};
 use paste::paste;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
-    HyperlaneSequenceIndexerStore, HyperlaneWatermarkedLogStore, InterchainGasExpenditure,
-    InterchainGasPayment, InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, H256,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
+    InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
+    MerkleTreeInsertion, H256,
 };
 
 use super::{
@@ -21,7 +22,8 @@ const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
-const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
+const GAS_PAYMENT_BY_SEQUENCE: &str = "gas_payment_by_sequence_";
+const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
@@ -109,6 +111,38 @@ impl HyperlaneRocksDB {
     /// If the provided gas payment, identified by its metadata, has not been
     /// processed, processes the gas payment and records it as processed.
     /// Returns whether the gas payment was processed for the first time.
+    pub fn process_indexed_gas_payment(
+        &self,
+        indexed_payment: Indexed<InterchainGasPayment>,
+        log_meta: &LogMeta,
+    ) -> DbResult<bool> {
+        let payment = *(indexed_payment.inner());
+        let gas_processing_successful = self.process_gas_payment(payment, log_meta)?;
+
+        // only store the payment and return early if there's no sequence
+        let Some(gas_payment_sequence) = indexed_payment.sequence else {
+            return Ok(gas_processing_successful);
+        };
+        // otherwise store the indexing decorator as well
+        if let Ok(Some(_)) = self.retrieve_gas_payment_by_sequence(&gas_payment_sequence) {
+            trace!(
+                ?indexed_payment,
+                ?log_meta,
+                "Attempted to process an already-processed indexed gas payment"
+            );
+            // Return false to indicate the gas payment was already processed
+            return Ok(false);
+        }
+
+        self.store_gas_payment_by_sequence(&gas_payment_sequence, indexed_payment.inner())?;
+        self.store_gas_payment_block_by_sequence(&gas_payment_sequence, &log_meta.block_number)?;
+
+        Ok(gas_processing_successful)
+    }
+
+    /// If the provided gas payment, identified by its metadata, has not been
+    /// processed, processes the gas payment and records it as processed.
+    /// Returns whether the gas payment was processed for the first time.
     pub fn process_gas_payment(
         &self,
         payment: InterchainGasPayment,
@@ -173,10 +207,7 @@ impl HyperlaneRocksDB {
 
     /// Update the total gas payment for a message to include gas_payment
     fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
-        let gas_payment_key = GasPaymentKey {
-            message_id: event.message_id,
-            destination: event.destination,
-        };
+        let gas_payment_key = event.into();
         let existing_payment = self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
         let total = existing_payment + event;
 
@@ -232,10 +263,10 @@ impl HyperlaneRocksDB {
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     /// Store a list of dispatched messages and their associated metadata.
     #[instrument(skip_all)]
-    async fn store_logs(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored = 0;
         for (message, meta) in messages {
-            let stored_message = self.store_message(message, meta.block_number)?;
+            let stored_message = self.store_message(message.inner(), meta.block_number)?;
             if stored_message {
                 stored += 1;
             }
@@ -247,21 +278,39 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     }
 }
 
+async fn store_and_count_new<T: Copy>(
+    store: &HyperlaneRocksDB,
+    logs: &[(T, LogMeta)],
+    log_type: &str,
+    process: impl Fn(&HyperlaneRocksDB, T, &LogMeta) -> DbResult<bool>,
+) -> Result<u32> {
+    let mut new_logs = 0;
+    for (log, meta) in logs {
+        if process(store, *log, meta)? {
+            new_logs += 1;
+        }
+    }
+    if new_logs > 0 {
+        debug!(new_logs, log_type, "Wrote new logs to database");
+    }
+    Ok(new_logs)
+}
+
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Store a list of interchain gas payments and their associated metadata.
     #[instrument(skip_all)]
-    async fn store_logs(&self, payments: &[(InterchainGasPayment, LogMeta)]) -> Result<u32> {
-        let mut new = 0;
-        for (payment, meta) in payments {
-            if self.process_gas_payment(*payment, meta)? {
-                new += 1;
-            }
-        }
-        if new > 0 {
-            debug!(payments = new, "Wrote new gas payments to database");
-        }
-        Ok(new)
+    async fn store_logs(
+        &self,
+        payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
+    ) -> Result<u32> {
+        store_and_count_new(
+            self,
+            payments,
+            "gas payments",
+            HyperlaneRocksDB::process_indexed_gas_payment,
+        )
+        .await
     }
 }
 
@@ -269,10 +318,10 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
 impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Store every tree insertion event
     #[instrument(skip_all)]
-    async fn store_logs(&self, leaves: &[(MerkleTreeInsertion, LogMeta)]) -> Result<u32> {
+    async fn store_logs(&self, leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)]) -> Result<u32> {
         let mut insertions = 0;
         for (insertion, meta) in leaves {
-            if self.process_tree_insertion(insertion, meta.block_number)? {
+            if self.process_tree_insertion(insertion.inner(), meta.block_number)? {
                 insertions += 1;
             }
         }
@@ -281,7 +330,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 #[async_trait]
-impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
+impl HyperlaneSequenceAwareIndexerStoreReader<HyperlaneMessage> for HyperlaneRocksDB {
     /// Gets data by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<HyperlaneMessage>> {
         let message = self.retrieve_message_by_nonce(sequence)?;
@@ -289,14 +338,14 @@ impl HyperlaneSequenceIndexerStore<HyperlaneMessage> for HyperlaneRocksDB {
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
         let number = self.retrieve_dispatched_block_number_by_nonce(&sequence)?;
         Ok(number)
     }
 }
 
 #[async_trait]
-impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Gets data by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<MerkleTreeInsertion>> {
         let insertion = self.retrieve_merkle_tree_insertion_by_leaf_index(&sequence)?;
@@ -304,28 +353,66 @@ impl HyperlaneSequenceIndexerStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     }
 
     /// Gets the block number at which the log occurred.
-    async fn retrieve_log_block_number(&self, sequence: u32) -> Result<Option<u64>> {
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
         let number = self.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&sequence)?;
         Ok(number)
     }
 }
 
-/// Note that for legacy reasons this watermark may be shared across multiple cursors, some of which may not have anything to do with gas payments
-/// The high watermark cursor is relatively conservative in writing block numbers, so this shouldn't result in any events being missed.
+// TODO: replace this blanket implementation to be able to do sequence-aware indexing
 #[async_trait]
-impl<T> HyperlaneWatermarkedLogStore<T> for HyperlaneRocksDB
-where
-    HyperlaneRocksDB: HyperlaneLogStore<T>,
-{
+impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for HyperlaneRocksDB {
+    /// Gets data by its sequence.
+    async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<InterchainGasPayment>> {
+        Ok(self.retrieve_gas_payment_by_sequence(&sequence)?)
+    }
+
+    /// Gets the block number at which the log occurred.
+    async fn retrieve_log_block_number_by_sequence(&self, sequence: u32) -> Result<Option<u64>> {
+        Ok(self.retrieve_gas_payment_block_by_sequence(&sequence)?)
+    }
+}
+
+#[async_trait]
+impl HyperlaneWatermarkedLogStore<InterchainGasPayment> for HyperlaneRocksDB {
     /// Gets the block number high watermark
     async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
         let watermark = self.retrieve_decodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK)?;
         Ok(watermark)
     }
+
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()> {
         let result = self.store_encodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK, &block_number)?;
         Ok(result)
+    }
+}
+
+// Keep this implementation for type compatibility with the `contract_syncs` sync builder
+#[async_trait]
+impl HyperlaneWatermarkedLogStore<HyperlaneMessage> for HyperlaneRocksDB {
+    /// Gets the block number high watermark
+    async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
+        bail!("Not implemented")
+    }
+
+    /// Stores the block number high watermark
+    async fn store_high_watermark(&self, _block_number: u32) -> Result<()> {
+        bail!("Not implemented")
+    }
+}
+
+// Keep this implementation for type compatibility with the `contract_syncs` sync builder
+#[async_trait]
+impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
+    /// Gets the block number high watermark
+    async fn retrieve_high_watermark(&self) -> Result<Option<u32>> {
+        bail!("Not implemented")
+    }
+
+    /// Stores the block number high watermark
+    async fn store_high_watermark(&self, _block_number: u32) -> Result<()> {
+        bail!("Not implemented")
     }
 }
 
@@ -362,6 +449,8 @@ make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
 make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
 make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
 make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_gas_payment_key, GAS_PAYMENT_FOR_MESSAGE_ID, GasPaymentKey, InterchainGasPaymentData);
+make_store_and_retrieve!(pub(self), gas_payment_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, InterchainGasPayment);
+make_store_and_retrieve!(pub(self), gas_payment_block_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, u64);
 make_store_and_retrieve!(
     pub,
     pending_message_retry_count_by_message_id,

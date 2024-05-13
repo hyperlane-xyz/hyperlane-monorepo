@@ -25,6 +25,14 @@ contract HypERC20Collateral is TokenRouter {
         wrappedToken = IERC20(erc20);
     }
 
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public virtual initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
     function balanceOf(
         address _account
     ) external view override returns (uint256) {
@@ -37,7 +45,7 @@ contract HypERC20Collateral is TokenRouter {
      */
     function _transferFromSender(
         uint256 _amount
-    ) internal override returns (bytes memory) {
+    ) internal virtual override returns (bytes memory) {
         wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
         return bytes(""); // no metadata
     }

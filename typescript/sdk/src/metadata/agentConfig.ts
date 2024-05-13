@@ -6,16 +6,16 @@ import { z } from 'zod';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { ChainMetadata, ChainMetadataSchemaObject } from './chainMetadataTypes';
-import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes';
+import { ChainMetadataSchemaObject } from './chainMetadataTypes.js';
+import { ZHash, ZNzUint, ZUWei, ZUint } from './customZodTypes.js';
 import {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
-} from './deploymentArtifacts';
-import { MatchingListSchema } from './matchingList';
+} from './deploymentArtifacts.js';
+import { MatchingListSchema } from './matchingList.js';
 
 export enum RpcConsensusType {
   Single = 'single',
@@ -116,6 +116,10 @@ const AgentCosmosChainMetadataSchema = z.object({
     .describe('The number of bytes used to represent a contract address.'),
 });
 
+export type AgentCosmosGasPrice = z.infer<
+  typeof AgentCosmosChainMetadataSchema
+>['gasPrice'];
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )
@@ -181,12 +185,6 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
         break;
 
       case ProtocolType.Sealevel:
-        if (![AgentSignerKeyType.Hex].includes(signerType)) {
-          return false;
-        }
-        break;
-
-      case ProtocolType.Fuel:
         if (![AgentSignerKeyType.Hex].includes(signerType)) {
           return false;
         }
@@ -296,7 +294,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .optional()
     .describe('The path to the relayer database.'),
   relayChains: CommaSeperatedChainList.describe(
-    'Comma seperated list of chains to relay messages between.',
+    'Comma separated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
     .union([z.array(GasPaymentEnforcementSchema), z.string().min(1)])
@@ -396,13 +394,15 @@ export function buildAgentConfig(
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
   startBlocks: ChainMap<number>,
+  additionalConfig?: ChainMap<any>,
 ): AgentConfig {
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
-    const metadata: ChainMetadata = multiProvider.getChainMetadata(chain);
+    const metadata = multiProvider.tryGetChainMetadata(chain);
     const chainConfig: AgentChainMetadata = {
       ...metadata,
       ...addresses[chain],
+      ...(additionalConfig ? additionalConfig[chain] : {}),
       index: {
         from: startBlocks[chain],
       },

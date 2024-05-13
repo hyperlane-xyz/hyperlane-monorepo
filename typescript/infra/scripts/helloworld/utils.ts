@@ -4,7 +4,6 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  HyperlaneCore,
   HyperlaneIgp,
   MultiProtocolCore,
   MultiProtocolProvider,
@@ -13,16 +12,16 @@ import {
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
   filterChainMapToProtocol,
-  hyperlaneEnvironments,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { EnvironmentConfig } from '../../src/config';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { HelloWorldConfig } from '../../src/config/helloworld/types';
-import { Role } from '../../src/roles';
+import { Contexts } from '../../config/contexts.js';
+import { getEnvAddresses } from '../../config/registry.js';
+import { EnvironmentConfig } from '../../src/config/environment.js';
+import { HelloWorldConfig } from '../../src/config/helloworld/types.js';
+import { Role } from '../../src/roles.js';
+import { getHyperlaneCore } from '../core-utils.js';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
@@ -45,8 +44,8 @@ export async function getHelloWorldApp(
       multiProvider,
     );
 
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[coreConfig.environment],
+  const { core } = await getHyperlaneCore(
+    coreConfig.environment,
     multiProvider,
   );
   return new HelloWorldApp(
@@ -69,8 +68,8 @@ export async function getHelloWorldMultiProtocolApp(
     keyRole,
     connectionType,
   );
-  const sdkEnvName = deployEnvToSdkEnv[coreConfig.environment];
-  const envAddresses = hyperlaneEnvironments[sdkEnvName];
+
+  const envAddresses = getEnvAddresses(coreConfig.environment);
   const keys = await coreConfig.getKeys(keyContext, keyRole);
 
   // Fetch all the keys, which is required to get the address for
@@ -115,7 +114,7 @@ export async function getHelloWorldMultiProtocolApp(
   // }
 
   const core = MultiProtocolCore.fromAddressesMap(
-    envAddresses,
+    envAddresses as any,
     multiProtocolProvider,
   );
 
