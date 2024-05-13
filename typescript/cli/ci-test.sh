@@ -144,12 +144,11 @@ run_hyperlane_deploy_core_dry_run() {
     echo -e "\nDry-running contract deployments to Alfajores"
     yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
         --dry-run alfajores \
-        --targets alfajores \
         --registry ${TEST_CONFIGS_PATH}/dry-run \
         --overrides " " \
         $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
         --ism ${TEST_CONFIGS_PATH}/dry-run/ism.yaml \
-        --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
+        --from-address 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
 
     check_deployer_balance;
@@ -167,7 +166,7 @@ run_hyperlane_deploy_warp_dry_run() {
         --dry-run alfajores \
         --overrides ${TEST_CONFIGS_PATH}/dry-run \
         --config ${TEST_CONFIGS_PATH}/dry-run/warp-route-deployment.yaml \
-        --key 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
+        --from-address 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
 
     check_deployer_balance;
