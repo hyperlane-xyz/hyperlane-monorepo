@@ -91,9 +91,7 @@ const coreCommand: CommandModuleWithWriteContext<{
     logGray(
       `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
     );
-    logGray(
-      `----------------------------------------${dryRun ? '--------' : ''}`,
-    );
+    logGray(`------------------------------------------------`);
 
     try {
       const chains = targets?.split(',').map((r: string) => r.trim());

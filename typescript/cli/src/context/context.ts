@@ -28,6 +28,10 @@ export async function contextMiddleware(argv: Record<string, any>) {
     requiresKey,
     skipConfirmation: argv.yes,
   };
+  if (!isDryRun && settings.fromAddress)
+    throw new Error(
+      "'--from-address' or '-f' should only be used for dry-runs",
+    );
   const context = isDryRun
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
