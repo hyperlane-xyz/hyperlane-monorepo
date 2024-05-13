@@ -2,42 +2,47 @@ import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { attachContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
+import {
+  HyperlaneModule,
+  HyperlaneModuleArgs,
+} from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   EthersV5Transaction,
   ProviderType,
 } from '../providers/ProviderType.js';
 import { RouterConfig } from '../router/types.js';
-import { TokenConfig } from '../token/config.js';
-import { HypERC20Factories } from '../token/contracts.js';
-import { HypERC20Deployer } from '../token/deploy.js';
+import { ChainMap, ChainNameOrId } from '../types.js';
+
 import {
   DerivedTokenRouterConfig,
   EvmERC20WarpRouteReader,
-} from '../token/read.js';
-import { ChainMap, ChainNameOrId } from '../types.js';
+} from './EvmERC20WarpRouteReader.js';
+import { TokenConfig } from './config.js';
+import { HypERC20Factories } from './contracts.js';
+import { HypERC20Deployer } from './deploy.js';
 
-import { CrudModule, CrudModuleArgs } from './AbstractCrudModule.js';
-import { EvmIsmModule } from './EvmIsmModule.js';
-
-export class EvmERC20WarpCrudModule extends CrudModule<
+export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   DerivedTokenRouterConfig,
   HyperlaneContracts<HypERC20Factories> & {
     deployedWarpRoute: Address;
   }
 > {
-  protected logger = rootLogger.child({ module: 'EvmERC20WarpCrudModule' });
+  protected logger = rootLogger.child({
+    module: 'EvmERC20WarpHyperlaneModule',
+  });
   reader: EvmERC20WarpRouteReader;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: CrudModuleArgs<
+    args: HyperlaneModuleArgs<
       DerivedTokenRouterConfig,
       HyperlaneContracts<HypERC20Factories> & {
         deployedWarpRoute: Address;
@@ -188,7 +193,7 @@ export class EvmERC20WarpCrudModule extends CrudModule<
    * @param chain - The chain to deploy the module on.
    * @param config - The configuration for the token router.
    * @param multiProvider - The multi-provider instance to use.
-   * @returns A new instance of the EvmERC20WarpCrudModule.
+   * @returns A new instance of the EvmERC20WarpHyperlaneModule.
    */
   public static async create({
     chain,
@@ -198,13 +203,13 @@ export class EvmERC20WarpCrudModule extends CrudModule<
     chain: ChainNameOrId;
     config: DerivedTokenRouterConfig;
     multiProvider: MultiProvider;
-  }): Promise<EvmERC20WarpCrudModule> {
+  }): Promise<EvmERC20WarpHyperlaneModule> {
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deploy({
       [chain]: config,
     } as ChainMap<TokenConfig & RouterConfig>);
 
-    return new EvmERC20WarpCrudModule(multiProvider, {
+    return new EvmERC20WarpHyperlaneModule(multiProvider, {
       addresses: {
         ...deployedContracts[chain],
         deployedWarpRoute: deployedContracts[chain][config.type].address,

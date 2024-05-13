@@ -19,7 +19,6 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
-import { EvmERC20WarpCrudModule } from '../crud/EvmWarpCrudModule.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
@@ -28,17 +27,18 @@ import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
 import {
+  DerivedTokenRouterConfig,
+  DerivedTokenType,
+  EvmERC20WarpRouteReader,
+} from './EvmERC20WarpRouteReader.js';
+import { EvmERC20WarpHyperlaneModule } from './EvmWarpHyperlaneModule.js';
+import {
   CollateralConfig,
   HypERC20Config,
   TokenConfig,
   TokenType,
 } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import {
-  DerivedTokenRouterConfig,
-  DerivedTokenType,
-  EvmERC20WarpRouteReader,
-} from './read.js';
 import { WarpRouteDeployConfig } from './types.js';
 
 describe('TokenDeployer', async () => {
@@ -183,7 +183,7 @@ describe('TokenDeployer', async () => {
     });
   });
 
-  describe('EvmERC20WarpCrudModule', async () => {
+  describe('EvmERC20WarpHyperlaneModule', async () => {
     let config: any;
     let mailbox: Mailbox;
 
@@ -199,11 +199,13 @@ describe('TokenDeployer', async () => {
     describe('Create', async () => {
       it('should create with a config', async () => {
         // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpCrudModule.create({
-          chain,
-          config,
-          multiProvider,
-        });
+        const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create(
+          {
+            chain,
+            config,
+            multiProvider,
+          },
+        );
 
         // Let's derive it's onchain token type
         const { collateral } = evmERC20WarpCrudModule.serialize();
@@ -227,11 +229,13 @@ describe('TokenDeployer', async () => {
       });
       it('should update existing ISM when provided an ISM string', async () => {
         // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpCrudModule.create({
-          chain,
-          config,
-          multiProvider,
-        });
+        const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create(
+          {
+            chain,
+            config,
+            multiProvider,
+          },
+        );
 
         // Update ISM and compare onchain values
         const ismToUpdate = await mailbox.defaultIsm();
@@ -248,11 +252,13 @@ describe('TokenDeployer', async () => {
 
       it('should deploy given with an ISM object with a type different than onchain', async () => {
         // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpCrudModule.create({
-          chain,
-          config,
-          multiProvider,
-        });
+        const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create(
+          {
+            chain,
+            config,
+            multiProvider,
+          },
+        );
 
         // Update ISM as string and compare onchain values
         const ismToUpdate = await mailbox.defaultIsm();
@@ -297,7 +303,7 @@ describe('TokenDeployer', async () => {
 
     it('should update existing Hook when provided an Hook string', async () => {
       // Deploy using WarpCrudModule
-      const evmERC20WarpCrudModule = await EvmERC20WarpCrudModule.create({
+      const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create({
         chain,
         config,
         multiProvider,
