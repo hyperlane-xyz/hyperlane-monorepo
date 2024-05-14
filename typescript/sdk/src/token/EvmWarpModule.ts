@@ -36,7 +36,7 @@ import { TokenConfig } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 
-export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
+export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   DerivedTokenRouterConfig,
   HyperlaneContracts<HypERC20Factories> & {
@@ -226,13 +226,13 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: DerivedTokenRouterConfig;
     multiProvider: MultiProvider;
-  }): Promise<EvmERC20WarpHyperlaneModule> {
+  }): Promise<EvmERC20WarpModule> {
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deploy({
       [chain]: config,
     } as ChainMap<TokenConfig & RouterConfig>);
 
-    return new EvmERC20WarpHyperlaneModule(multiProvider, {
+    return new EvmERC20WarpModule(multiProvider, {
       addresses: {
         ...deployedContracts[chain],
         deployedTokenRoute: deployedContracts[chain][config.type].address,

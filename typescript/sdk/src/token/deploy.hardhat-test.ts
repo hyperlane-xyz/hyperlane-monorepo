@@ -31,7 +31,7 @@ import {
   DerivedTokenType,
   EvmERC20WarpRouteReader,
 } from './EvmERC20WarpRouteReader.js';
-import { EvmERC20WarpHyperlaneModule } from './EvmWarpHyperlaneModule.js';
+import { EvmERC20WarpModule } from './EvmWarpModule.js';
 import {
   CollateralConfig,
   HypERC20Config,
@@ -199,13 +199,11 @@ describe('TokenDeployer', async () => {
     describe('Create', async () => {
       it('should create with a config', async () => {
         // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create(
-          {
-            chain,
-            config,
-            multiProvider,
-          },
-        );
+        const evmERC20WarpCrudModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+        });
 
         // Let's derive it's onchain token type
         const { collateral } = evmERC20WarpCrudModule.serialize();
@@ -229,13 +227,11 @@ describe('TokenDeployer', async () => {
       });
       it('should update existing ISM when provided an ISM string', async () => {
         // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create(
-          {
-            chain,
-            config,
-            multiProvider,
-          },
-        );
+        const evmERC20WarpCrudModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+        });
 
         // Update ISM and compare onchain values
         const ismToUpdate = await mailbox.defaultIsm();
@@ -256,13 +252,11 @@ describe('TokenDeployer', async () => {
 
       it('should deploy given with an ISM object with a type different than onchain', async () => {
         // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create(
-          {
-            chain,
-            config,
-            multiProvider,
-          },
-        );
+        const evmERC20WarpCrudModule = await EvmERC20WarpModule.create({
+          chain,
+          config,
+          multiProvider,
+        });
 
         // Update ISM as string and compare onchain values
         const ismToUpdate = await mailbox.defaultIsm();
