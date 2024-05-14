@@ -89,7 +89,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         expectedOverhead = 0;
       }
       // TODO: add back support for non-EVM remotes.
-      let remoteId = this.multiProvider.tryGetDomainId(remote);
+      const remoteId = this.multiProvider.tryGetDomainId(remote);
       if (remoteId === null) {
         this.app.logger.warn(
           `Skipping checking IGP ${local} -> ${remote}. Expected if the remote is a non-EVM chain.`,
@@ -135,7 +135,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     );
     for (const remote of remotes) {
       // TODO: add back support for non-EVM remotes.
-      let remoteId = this.multiProvider.tryGetDomainId(remote);
+      const remoteId = this.multiProvider.tryGetDomainId(remote);
       if (remoteId === null) {
         this.app.logger.warn(
           `Skipping checking IGP ${local} -> ${remote}. Expected if the remote is a non-EVM chain.`,
