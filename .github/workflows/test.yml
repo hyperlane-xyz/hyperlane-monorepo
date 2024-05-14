@@ -180,7 +180,7 @@ jobs:
     needs: [yarn-build]
     strategy:
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [starknet, cosmwasm, non-cosmwasm]
     steps:
       - uses: actions/setup-node@v3
         with:
@@ -240,6 +240,13 @@ jobs:
       - name: agent tests with CosmWasm
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
+        working-directory: ./rust
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests with Starknet
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        if: matrix.e2e-type == 'starknet'
         working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'

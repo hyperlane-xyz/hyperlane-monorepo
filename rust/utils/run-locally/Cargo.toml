@@ -41,3 +41,4 @@ phf.workspace = true
 
 [features]
 cosmos = []
+starknet = []
