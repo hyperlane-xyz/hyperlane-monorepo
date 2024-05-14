@@ -79,16 +79,18 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    *
    * @remark Currently only supports updating ISM or hook
    *
-   * @param config - The configuration for the token router to be updated.
+   * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
   public async update(
-    config: DerivedTokenRouterConfig,
+    expectedConfig: DerivedTokenRouterConfig,
   ): Promise<EthersV5Transaction[]> {
-    return [
-      ...(await this.updateIsm(config)),
-      ...(await this.updateHook(config)),
-    ];
+    const actualConfig = await this.read();
+
+    return Promise.all([
+      ...(await this.updateIsm(expectedConfig, actualConfig)),
+      ...(await this.updateHook(expectedConfig, actualConfig)),
+    ]);
   }
 
   /**
@@ -102,27 +104,28 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    *  - Checks if the current onchain ISM configuration matches the provided configuration.
    *  - Updates the contract's ISM.
    *
-   * @param config - The token router configuration, including the ISM configuration.
+   * @param expectedconfig - The expected token router configuration, including the ISM configuration.
+   * @param actualConfig - The on-chain router configuration, including the ISM configuration.
    * @returns An array of Ethereum transactions that need to be executed to update the ISM configuration.
    */
   async updateIsm(
-    config: DerivedTokenRouterConfig,
+    expectedconfig: DerivedTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
   ): Promise<EthersV5Transaction[]> {
     const transactions: EthersV5Transaction[] = [];
-    if (config.interchainSecurityModule) {
+    if (expectedconfig.interchainSecurityModule) {
       const contractToUpdate = await this.args.addresses[
-        config.type
+        expectedconfig.type
       ].deployed();
 
       // If an address is not defined, deploy a new Ism
-      const expectedIsmConfig = !config.interchainSecurityModule.address
+      const expectedIsmConfig = !expectedconfig.interchainSecurityModule.address
         ? await this.deployIsm(
-            config.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
-            config.interchainSecurityModule,
+            expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
+            expectedconfig.interchainSecurityModule,
           )
-        : config.interchainSecurityModule;
-
-      const actualIsmConfig = await this.read();
+        : expectedconfig.interchainSecurityModule;
+      const actualIsmConfig = actualConfig.interchainSecurityModule;
 
       if (!deepEquals(expectedIsmConfig, actualIsmConfig)) {
         transactions.push({
@@ -168,14 +171,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   /**
    * Updates an existing Warp route Hook with a given configuration.
    *
-   * @param config - The token router configuration, including the hook configuration to update.
+   * @param expectedConfig - The token router configuration, including the hook configuration to update.
+   * @param actualConfig - The on-chain router configuration, including the hook configuration to update.
    * @returns An array of Ethereum transactions that can be executed to update the hook.
    */
   async updateHook(
-    config: DerivedTokenRouterConfig,
+    expectedConfig: DerivedTokenRouterConfig,
+    actualConfig: DerivedTokenRouterConfig,
   ): Promise<EthersV5Transaction[]> {
     const transactions: EthersV5Transaction[] = [];
-    if (config.hook) {
+    if (expectedConfig.hook) {
       // @todo Uncomment after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
       // const contractToUpdate = await this.args.addresses[
       //   config.type
@@ -184,7 +189,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // const expectedHookConfig = !(config.hook as any).address // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
       //   ? await this.deployHook(config.hook)
       //   : config.hook;
-      // const actualHookConfig = await this.read();
+      // const actualHookConfig = actualConfig.hook;
       // if (!deepEquals(expectedHookConfig, actualHookConfig)) {
       //   transactions.push({
       //     transaction: await contractToUpdate.populateTransaction.setHook(
