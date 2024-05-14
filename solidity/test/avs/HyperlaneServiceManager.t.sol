@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
 import {ISlasher} from "../../contracts/interfaces/avs/vendored/ISlasher.sol";
 
@@ -474,5 +477,79 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
             operatorSignature.signature = abi.encodePacked(r, s, v);
         }
         return operatorSignature;
+    }
+
+    bytes32 public constant OPERATOR_AVS_REGISTRATION_TYPEHASH =
+        keccak256(
+            "OperatorAVSRegistration(address operator,address avs,bytes32 salt,uint256 expiry)"
+        );
+    bytes32 public constant DOMAIN_TYPEHASH =
+        keccak256(
+            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
+        );
+
+    function calculateOperatorAVSRegistrationDigestHash(
+        address _operator,
+        address avs,
+        bytes32 salt,
+        uint256 expiry
+    ) public view returns (bytes32) {
+        // calculate the struct hash
+        console.logBytes(
+            abi.encode(
+                OPERATOR_AVS_REGISTRATION_TYPEHASH,
+                _operator,
+                avs,
+                salt,
+                expiry
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                OPERATOR_AVS_REGISTRATION_TYPEHASH,
+                _operator,
+                avs,
+                salt,
+                expiry
+            )
+        );
+        // calculate the digest hash
+        bytes32 digestHash = keccak256(
+            abi.encodePacked("\x19\x01", domainSeparator(), structHash)
+        );
+        return digestHash;
+    }
+
+    function domainSeparator() public view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    DOMAIN_TYPEHASH,
+                    keccak256(bytes("EigenLayer")),
+                    block.chainid,
+                    address(this)
+                )
+            );
+    }
+
+    function test_signature() public {
+        uint256 operatorPK = 1;
+        address hsm = address(0x2);
+        bytes32 _emptySalt = 0;
+        uint256 _maxExpiry = type(uint256).max;
+        bytes32 digestHash = calculateOperatorAVSRegistrationDigestHash(
+            operator,
+            address(hsm),
+            _emptySalt,
+            _maxExpiry
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            operatorPrivateKey,
+            digestHash
+        );
+        assertEq(
+            ECDSA.recover(digestHash, abi.encodePacked(r, s, v)),
+            operator
+        );
     }
 }

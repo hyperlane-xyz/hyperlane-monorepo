@@ -5,6 +5,7 @@ export const supportedChainNames = [
   'bsctestnet',
   'eclipsetestnet',
   'fuji',
+  'holesky',
   'plumetestnet',
   'scrollsepolia',
   'sepolia',

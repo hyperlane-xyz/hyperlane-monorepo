@@ -5,6 +5,7 @@ import yargs from 'yargs';
 import type { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import './env.js';
+import { avsCommand } from './src/commands/avs.js';
 import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { deployCommand } from './src/commands/deploy.js';
@@ -48,6 +49,7 @@ try {
       },
       contextMiddleware,
     ])
+    .command(avsCommand)
     .command(chainsCommand)
     .command(configCommand)
     .command(deployCommand)
