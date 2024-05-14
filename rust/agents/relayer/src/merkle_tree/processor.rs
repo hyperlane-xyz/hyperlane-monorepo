@@ -5,7 +5,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use derive_new::new;
 use eyre::Result;
 use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{HyperlaneDomain, MerkleTreeInsertion};
@@ -18,12 +17,10 @@ use crate::processor::ProcessorExt;
 use super::builder::MerkleTreeBuilder;
 
 /// Finds unprocessed merkle tree insertions and adds them to the prover sync
-#[derive(new)]
 pub struct MerkleTreeProcessor {
     db: HyperlaneRocksDB,
     metrics: MerkleTreeProcessorMetrics,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    #[new(default)]
     leaf_index: u32,
 }
 
@@ -65,6 +62,23 @@ impl ProcessorExt for MerkleTreeProcessor {
 }
 
 impl MerkleTreeProcessor {
+    pub fn new(
+        db: HyperlaneRocksDB,
+        prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+        metrics: MerkleTreeProcessorMetrics,
+    ) -> Self {
+        Self {
+            db,
+            prover_sync,
+            metrics,
+            leaf_index: db
+                .retrieve_highest_processed_igp_sequence()
+                .ok()
+                .flatten()
+                .unwrap_or(0),
+        }
+    }
+
     fn next_unprocessed_leaf(&mut self) -> Result<Option<MerkleTreeInsertion>> {
         let leaf = if let Some(insertion) = self
             .db
