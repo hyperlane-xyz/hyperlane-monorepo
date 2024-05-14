@@ -7,6 +7,7 @@
 pub use error::*;
 pub use indexer::*;
 pub use mailbox::*;
+pub use multisig_ism::*;
 pub use provider::*;
 pub use signers::*;
 pub use trait_builder::*;
@@ -20,6 +21,7 @@ mod contracts;
 mod error;
 mod indexer;
 mod mailbox;
+mod multisig_ism;
 mod provider;
 mod signers;
 mod trait_builder;
