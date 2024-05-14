@@ -87,7 +87,6 @@ export const warpDeploymentConfigCommandOption: Options = {
   alias: 'w',
 };
 
-//
 export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
