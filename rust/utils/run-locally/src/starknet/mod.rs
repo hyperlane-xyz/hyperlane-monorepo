@@ -17,7 +17,7 @@ use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 
 use self::cli::StarknetCLI;
-use self::source::{CLISource, CodeSource};
+use self::source::{CLISource, CodeSource, StarknetCLISource};
 use self::types::{AgentConfig, Deployments, StarknetEndpoint};
 
 mod cli;
@@ -85,7 +85,7 @@ const CAIRO_HYPERLANE_VERSION: &str = "v0.0.1";
 #[allow(dead_code)]
 pub fn install_starknet(
     starknet_cli_dir: Option<PathBuf>,
-    starknet_cli_src: Option<CLISource>,
+    starknet_cli_src: Option<StarknetCLISource>,
     cli_dir: Option<PathBuf>,
     cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
@@ -99,7 +99,7 @@ pub fn install_starknet(
         .install(cli_dir);
 
     let starklid = starknet_cli_src
-        .unwrap_or(CLISource::Remote {
+        .unwrap_or(StarknetCLISource::Remote {
             url: STARKNET_CLI_GIT.to_string(),
             version: STARKNET_CLI_VERSION.to_string(),
         })
@@ -292,7 +292,7 @@ fn run_locally() {
     let starknet_cli_src = Some(
         env::var(ENV_STARKNET_CLI_PATH_KEY)
             .as_ref()
-            .map(|v| CLISource::local(v))
+            .map(|v| StarknetCLISource::local(v))
             .unwrap_or_default(),
     );
 
