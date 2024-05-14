@@ -81,7 +81,7 @@ export class EvmIsmCreator {
       }`,
     );
 
-    let contract: DeployedIsmType[typeof ismType];
+    let contract: DeployedIsmType[Exclude<typeof ismType, 'address'>];
     switch (ismType) {
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
@@ -125,7 +125,7 @@ export class EvmIsmCreator {
       }`,
     );
 
-    let contract: DeployedIsmType[typeof ismType];
+    let contract: DeployedIsmType[Exclude<typeof ismType, 'address'>];
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:

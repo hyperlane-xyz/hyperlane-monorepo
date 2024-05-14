@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { ethers, providers } from 'ethers';
 
 import {
   ERC20__factory,
@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ERC20Metadata,
+  IsmType,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -40,7 +41,7 @@ export type DerivedTokenRouterConfig = Exclude<
   TokenRouterConfig,
   'type' | 'interchainSecurityModule'
 > & {
-  type: DerivedTokenType;
+  type?: DerivedTokenType;
   interchainSecurityModule?: DerivedIsmConfigWithAddress;
 };
 
@@ -157,17 +158,22 @@ export class EvmERC20WarpRouteReader {
       hook,
     };
 
-    if (!isZeroishAddress(interchainSecurityModule)) {
-      metadata.interchainSecurityModule =
-        await this.evmIsmReader.deriveIsmConfig(interchainSecurityModule);
-    }
+    isZeroishAddress(interchainSecurityModule)
+      ? (metadata.interchainSecurityModule = {
+          type: IsmType.ADDRESS,
+          address: ethers.constants.AddressZero,
+        })
+      : (metadata.interchainSecurityModule =
+          await this.evmIsmReader.deriveIsmConfig(interchainSecurityModule));
 
     // @todo add after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
-    // if (fetchedBaseMetadata.hook !== ethers.constants.AddressZero) {
-    //   results.hook = await this.evmHookReader.deriveHookConfig(
-    //     fetchedBaseMetadata.hook,
-    //   );
-    // }
+    // isZeroishAddress(interchainSecurityModule)
+    //   ? (metadata.hook = {
+    //       type: IsmType.ADDRESS,
+    //       address: ethers.constants.AddressZero,
+    //     })
+    //   : (metadata.hook =
+    //       await this.evmIsmReader.deriveHookConfig(hook));
 
     return metadata;
   }

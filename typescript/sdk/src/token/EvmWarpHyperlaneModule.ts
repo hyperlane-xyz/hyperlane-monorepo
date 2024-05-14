@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   Address,
   ProtocolType,
@@ -18,8 +16,10 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { EvmHookModule } from '../hook/EvmHookModule.js';
+import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { DerivedIsmConfigWithAddress } from '../ism/EvmIsmReader.js';
+import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   EthersV5Transaction,
@@ -95,11 +95,12 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
    * Updates an existing Warp route ISM with a given configuration.
    *
    * This method handles two cases:
-   * 1. If the `config.interchainSecurityModule` is a string
-   *  - It attempts to derive the ISM from the provided string, and updates the contract's ISM.
-   * 2. If the `config.interchainSecurityModule` is an object,
+   * 1. If the `config.interchainSecurityModule.address` is undefined
+   *  - Deploys a new ISM module
+   *  - Updates the contract's ISM.
+   * 2. If the `config.interchainSecurityModule.address` is defined.
    *  - Checks if the current onchain ISM configuration matches the provided configuration.
-   *  - If not, it deploys a new ISM module, and updates the contract's ISM.
+   *  - Updates the contract's ISM.
    *
    * @param config - The token router configuration, including the ISM configuration.
    * @returns An array of Ethereum transactions that need to be executed to update the ISM configuration.
@@ -113,24 +114,21 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
         config.type
       ].deployed();
 
-      // Attempt to derive the config.interchainSecurityModule if its a string, or deploy it if its an IsmConfig
-      const expectedIsm =
-        typeof config.interchainSecurityModule === 'string'
-          ? await this.reader.evmIsmReader.deriveIsmConfig(
-              config.interchainSecurityModule,
-            )
-          : await this.deployIsm(config);
+      // If an address is not defined, deploy a new Ism
+      const expectedIsmConfig = !config.interchainSecurityModule.address
+        ? await this.deployIsm(
+            config.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
+            config.interchainSecurityModule,
+          )
+        : config.interchainSecurityModule;
 
-      // read() will return undefined if no ISM is set, so make it an IsmConfig-ish object
-      const actualIsm = (await this.read()).interchainSecurityModule ?? {
-        address: ethers.constants.AddressZero,
-      };
+      const actualIsmConfig = await this.read();
 
-      if (!deepEquals(expectedIsm, actualIsm)) {
+      if (!deepEquals(expectedIsmConfig, actualIsmConfig)) {
         transactions.push({
           transaction:
             await contractToUpdate.populateTransaction.setInterchainSecurityModule(
-              expectedIsm.address,
+              (expectedIsmConfig as any).address, // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
             ),
           type: ProviderType.EthersV5,
         });
@@ -144,24 +142,27 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
    * Deploys the ISM using the provided configuration.
    *
    * @param config - The configuration for the ISM to be deployed.
-   * @returns The deployed ISM contract address.
+   * @returns The config used to deploy the Ism with address attached
    */
   public async deployIsm(
-    config: DerivedTokenRouterConfig,
-  ): Promise<DerivedIsmConfigWithAddress> {
+    ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
+    interchainSecurityModule: IsmConfig,
+  ): Promise<IsmConfig> {
     // Take the config.ismFactoryAddresses, de-serialize them into Contracts, and pass into EvmIsmModule.create
     const factories = attachContracts(
-      config.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
+      ismFactoryAddresses,
       proxyFactoryFactories,
     );
-    const evmIsmModule = await EvmIsmModule.create({
+    const ism = await EvmIsmModule.create({
       chain: this.args.chain,
-      config: config.interchainSecurityModule!,
+      config: interchainSecurityModule!,
       deployer: new HyperlaneProxyFactoryDeployer(this.multiProvider),
       factories,
       multiProvider: this.multiProvider,
     });
-    return evmIsmModule.read();
+
+    (interchainSecurityModule as any).address = ism.serialize().deployedIsm; // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+    return interchainSecurityModule;
   }
 
   /**
@@ -174,23 +175,39 @@ export class EvmERC20WarpHyperlaneModule extends HyperlaneModule<
     config: DerivedTokenRouterConfig,
   ): Promise<EthersV5Transaction[]> {
     const transactions: EthersV5Transaction[] = [];
-
-    const contractToUpdate = await this.args.addresses[config.type].deployed();
-
-    if (typeof config.hook === 'string') {
-      // Derive & set Hook
-      const hook = await this.reader.evmHookReader.deriveHookConfig(
-        config.hook,
-      );
-      transactions.push({
-        transaction: await contractToUpdate.populateTransaction.setHook(
-          hook.address,
-        ),
-        type: ProviderType.EthersV5,
-      });
+    if (config.hook) {
+      // @todo Uncomment after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+      // const contractToUpdate = await this.args.addresses[
+      //   config.type
+      // ].deployed();
+      // // If an address is not defined, deploy a new Hook
+      // const expectedHookConfig = !(config.hook as any).address // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+      //   ? await this.deployHook(config.hook)
+      //   : config.hook;
+      // const actualHookConfig = await this.read();
+      // if (!deepEquals(expectedHookConfig, actualHookConfig)) {
+      //   transactions.push({
+      //     transaction: await contractToUpdate.populateTransaction.setHook(
+      //       (expectedHookConfig as any).address, // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+      //     ),
+      //     type: ProviderType.EthersV5,
+      //   });
+      // }
     }
-
     return transactions;
+  }
+
+  /**
+   * Deploys the Hook using the provided configuration.
+   *
+   * @param config - The configuration for the Hook to be deployed.
+   * @returns The config used to deploy the Hook with address attached
+   */
+  public async deployHook(hook: HookConfig): Promise<HookConfig> {
+    const ism = await EvmHookModule.create(hook);
+
+    (hook as any).address = ism.serialize().deployedHook; // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+    return hook;
   }
 
   /**
