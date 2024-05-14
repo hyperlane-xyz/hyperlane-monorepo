@@ -51,12 +51,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
       // TODO: add back support for non-EVM remotes.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      let remoteId: number;
-      try {
-        remoteId = this.multiProvider.getDomainId(remote);
-      } catch (err) {
+      let remoteId = this.multiProvider.tryGetDomainId(remote);
+      if (remoteId === null) {
         this.logger.warn(
-          `Skipping overhead ${chain} -> ${remote}: ${err} (not an EVM chain?)`,
+          `Skipping overhead ${chain} -> ${remote}. Expected if the remote is a non-EVM chain.`,
         );
         continue;
       }
@@ -112,12 +110,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
       // TODO: add back support for non-EVM remotes.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      let remoteDomain: number;
-      try {
-        remoteDomain = this.multiProvider.getDomainId(remote);
-      } catch (err) {
+      let remoteDomain = this.multiProvider.tryGetDomainId(remote);
+      if (remoteDomain === null) {
         this.logger.warn(
-          `Skipping gas oracle ${chain} -> ${remote}: ${err} (not an EVM chain?)`,
+          `Skipping gas oracle ${chain} -> ${remote}. Expected if the remote is a non-EVM chain.`,
         );
         continue;
       }
