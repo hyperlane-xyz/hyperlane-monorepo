@@ -7,7 +7,7 @@ import { log } from '../logger.js';
 import {
   addressCommandOption,
   chainCommandOption,
-  outputFileOption,
+  outputFileCommandOption,
 } from './options.js';
 
 /**
@@ -43,7 +43,7 @@ export const read: CommandModuleWithContext<{
       'Address of the Interchain Security Module to read.',
       true,
     ),
-    out: outputFileOption(),
+    out: outputFileCommandOption(),
   },
   handler: async (argv) => {
     await readIsmConfig(argv);
