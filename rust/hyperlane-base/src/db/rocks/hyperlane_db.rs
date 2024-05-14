@@ -23,6 +23,8 @@ const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_"
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_BY_SEQUENCE: &str = "gas_payment_by_sequence_";
+const HIGHEST_PROCESSED_IGP_SEQUENCE: &str = "highest_processed_igp_sequence_";
+const HIGHEST_PROCESSED_MESSAGE_NONCE: &str = "highest_processed_message_nonce_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
@@ -106,6 +108,38 @@ impl HyperlaneRocksDB {
             None => Ok(None),
             Some(id) => self.retrieve_message_by_id(&id),
         }
+    }
+
+    /// Update the nonce of the highest processed message we're aware of
+    pub fn update_max_seen_message_nonce(&self, nonce: u32) -> DbResult<()> {
+        let current_max = self.retrieve_highest_processed_message_nonce()?;
+        if let Some(current_max) = current_max {
+            if nonce > current_max {
+                self.store_highest_processed_message_nonce_number(&Default::default(), &nonce)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Retrieve the nonce of the highest processed message we're aware of
+    pub fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_processed_message_nonce_number(&Default::default())
+    }
+
+    /// Update the nonce of the highest processed message we're aware of
+    pub fn update_max_seen_igp_sequence(&self, nonce: u32) -> DbResult<()> {
+        let current_max = self.retrieve_highest_processed_igp_sequence()?;
+        if let Some(current_max) = current_max {
+            if nonce > current_max {
+                self.store_highest_processed_igp_sequence_number(&Default::default(), &nonce)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Retrieve the nonce of the highest processed message we're aware of
+    pub fn retrieve_highest_processed_igp_sequence(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_processed_igp_sequence_number(&Default::default())
     }
 
     /// If the provided gas payment, identified by its metadata, has not been
@@ -479,3 +513,7 @@ make_store_and_retrieve!(
     u32,
     u64
 );
+// There's no unit struct Encode/Decode impl, so just use `bool`, have visibility be private (by omitting the first argument), and wrap
+// with a function that always uses the `Default::default()` key
+make_store_and_retrieve!(, highest_processed_igp_sequence_number, HIGHEST_PROCESSED_IGP_SEQUENCE, bool, u32);
+make_store_and_retrieve!(, highest_processed_message_nonce_number, HIGHEST_PROCESSED_MESSAGE_NONCE, bool, u32);
