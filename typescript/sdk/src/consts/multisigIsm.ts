@@ -124,6 +124,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  holesky: {
+    threshold: 1,
+    validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
+  },
+
   gnosis: {
     threshold: 2,
     validators: [
