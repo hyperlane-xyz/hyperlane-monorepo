@@ -99,6 +99,13 @@ async function getOperatorSignature(
   // give a expiry timestamp 1 week from now
   const expiry = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7;
 
+  console.log();
+
+  console.log(
+    'encoded',
+    ethers.utils.solidityPack(['bytes32'], [operatorRegistrationTypehash]),
+  );
+
   const structHash = keccak256(
     ethers.utils.solidityPack(
       ['bytes32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],

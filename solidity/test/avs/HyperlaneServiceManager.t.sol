@@ -513,6 +513,17 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 expiry
             )
         );
+        console.log("structHash");
+        console.logBytes(
+            abi.encode(
+                OPERATOR_AVS_REGISTRATION_TYPEHASH,
+                _operator,
+                avs,
+                salt,
+                expiry
+            )
+        );
+        console.logBytes32(structHash);
         // calculate the digest hash
         bytes32 digestHash = keccak256(
             abi.encodePacked("\x19\x01", domainSeparator(), structHash)
