@@ -183,17 +183,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     if (expectedConfig.hook) {
       // @todo Uncomment after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
       // const contractToUpdate = await this.args.addresses[
-      //   config.type
+      //   expectedConfig.type
       // ].deployed();
       // // If an address is not defined, deploy a new Hook
-      // const expectedHookConfig = !(config.hook as any).address // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
-      //   ? await this.deployHook(config.hook)
-      //   : config.hook;
+      // const expectedHookConfig = !expectedConfig.hook.address
+      //   ? await this.deployHook(expectedConfig.hook)
+      //   : expectedConfig.hook;
       // const actualHookConfig = actualConfig.hook;
       // if (!deepEquals(expectedHookConfig, actualHookConfig)) {
       //   transactions.push({
       //     transaction: await contractToUpdate.populateTransaction.setHook(
-      //       (expectedHookConfig as any).address, // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+      //       expectedHookConfig.address,
       //     ),
       //     type: ProviderType.EthersV5,
       //   });
