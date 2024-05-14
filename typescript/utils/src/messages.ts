@@ -1,7 +1,7 @@
 import { BigNumber, ethers, utils } from 'ethers';
 
 import { addressToBytes32 } from './addresses.js';
-import { toHexString } from './strings.js';
+import { fromHexString, toHexString } from './strings.js';
 import {
   Address,
   Domain,
@@ -78,7 +78,7 @@ export function parseMessage(message: string): ParsedMessage {
 export function parseTokenMessage(messageBody: string): ParsedTokenMessage {
   const RECIPIENT_OFFSET = 0;
   const AMOUNT_OFFSET = 32;
-  const buf = Buffer.from(utils.arrayify(messageBody));
+  const buf = fromHexString(messageBody);
   const recipient = toHexString(
     buf.slice(RECIPIENT_OFFSET, RECIPIENT_OFFSET + 32),
   );
