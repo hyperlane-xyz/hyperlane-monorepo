@@ -36,6 +36,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsctestnet: true,
     eclipsetestnet: false,
     fuji: true,
+    holesky: false,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
@@ -46,6 +47,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsctestnet: true,
     eclipsetestnet: false,
     fuji: true,
+    holesky: false,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
@@ -57,6 +59,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     fuji: true,
+    holesky: false,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
