@@ -22,6 +22,7 @@ import { supportedChainNames } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import arbitrumNeutronEclipAddresses from './warp/arbitrum-neutron-eclip-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
@@ -202,7 +203,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3012392-20240507-130024',
+      tag: 'c9c5d37-20240510-014327',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -210,7 +211,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'c9c5d37-20240510-014327',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -219,7 +220,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'c9c5d37-20240510-014327',
     },
   },
 };
@@ -233,7 +234,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3012392-20240507-130024',
+      tag: 'c9c5d37-20240510-014327',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -244,7 +245,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'c9c5d37-20240510-014327',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -264,7 +265,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'c9c5d37-20240510-014327',
     },
     gasPaymentEnforcement: [
       {
@@ -272,6 +273,7 @@ const neutron: RootAgentConfig = {
         matchingList: [
           ...routerMatchingList(mantaTIAAddresses),
           ...routerMatchingList(arbitrumTIAAddresses),
+          ...routerMatchingList(arbitrumNeutronEclipAddresses),
         ],
       },
       ...gasPaymentEnforcement,
@@ -284,6 +286,10 @@ const neutron: RootAgentConfig = {
       {
         name: 'arbitrum_tia',
         matchingList: routerMatchingList(arbitrumTIAAddresses),
+      },
+      {
+        name: 'arbitrum_neutron_eclip',
+        matchingList: routerMatchingList(arbitrumNeutronEclipAddresses),
       },
     ],
   },

@@ -42,9 +42,9 @@ export const skipConfirmationOption: Options = {
 
 export const keyCommandOption: Options = {
   type: 'string',
-  description: `A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
-Dry-run: An address to simulate transaction signing on a forked network`,
-  alias: 'k',
+  description:
+    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.',
+  alias: ['k', 'private-key', 'seed-phrase'],
   default: ENV.HYP_KEY,
   defaultDescription: 'process.env.HYP_KEY',
 };
@@ -118,6 +118,12 @@ export const inputFileOption: Options = {
   description: 'Input file path',
   alias: 'i',
   demandOption: true,
+};
+
+export const fromAddressCommandOption: Options = {
+  type: 'string',
+  description: `An address to simulate transaction signing on a forked network`,
+  alias: 'f',
 };
 
 export const dryRunOption: Options = {
