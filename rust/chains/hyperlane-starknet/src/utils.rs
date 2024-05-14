@@ -104,6 +104,7 @@ pub fn build_single_owner_account(
     )
 }
 
+/// Converts a starknet module type to a hyperlane module type.
 pub fn to_hpl_module_type(module_type: StarknetModuleType) -> ModuleType {
     match module_type {
         StarknetModuleType::UNUSED(_) => ModuleType::Unused,
