@@ -65,7 +65,7 @@ export async function runKurtosisAgentDeploy({
   const kurtosisCloudUrl = getKurtosisCloudUrl(base64EncodedPackageConfig);
 
   const kurtosisCloudLink = terminalLink(
-    'Cmd+Click or Ctrl+Click here',
+    'Kurtosis Cloud Link 🔗 (cmd+click or ctrl+click here)',
     kurtosisCloudUrl,
     { fallback: () => kurtosisCloudUrl },
   );
