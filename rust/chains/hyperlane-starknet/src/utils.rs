@@ -1,5 +1,6 @@
 use std::future::Future;
 
+use hyperlane_core::ModuleType;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -10,6 +11,8 @@ use starknet::{
     signers::LocalWallet,
 };
 use url::Url;
+
+use crate::contracts::interchain_security_module::ModuleType as StarknetModuleType;
 
 /// Polls a function until it returns true or the max poll count is exceeded.
 pub async fn assert_poll<F, Fut>(f: F, polling_time_ms: u64, max_poll_count: u32)
@@ -99,4 +102,17 @@ pub fn build_single_owner_account(
         chain_id,
         execution_encoding,
     )
+}
+
+pub fn to_hpl_module_type(module_type: StarknetModuleType) -> ModuleType {
+    match module_type {
+        StarknetModuleType::UNUSED(_) => ModuleType::Unused,
+        StarknetModuleType::ROUTING(_) => ModuleType::Routing,
+        StarknetModuleType::AGGREGATION(_) => ModuleType::Aggregation,
+        StarknetModuleType::LEGACY_MULTISIG(_) => ModuleType::LegacyMultisig,
+        StarknetModuleType::MERKLE_ROOT_MULTISIG(_) => ModuleType::MerkleRootMultisig,
+        StarknetModuleType::MESSAGE_ID_MULTISIG(_) => ModuleType::MessageIdMultisig,
+        StarknetModuleType::NULL => ModuleType::Null,
+        StarknetModuleType::CCIP_READ(_) => ModuleType::CcipRead,
+    }
 }
