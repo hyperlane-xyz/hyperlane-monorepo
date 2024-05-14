@@ -43,6 +43,7 @@ import {
 import { getAgentConfig, getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+import Gravity from './utils/Gravity.json';
 import L1ETHGateway from './utils/L1ETHGateway.json';
 import L1MessageQueue from './utils/L1MessageQueue.json';
 import L1ScrollMessenger from './utils/L1ScrollMessenger.json';
@@ -54,8 +55,14 @@ const nativeBridges = {
     l1ETHGateway: '0x8A54A2347Da2562917304141ab67324615e9866d',
     l1Messenger: '0x50c7d3e7f7c656493D1D76aaa1a836CedfCBB16A',
   },
+  cosmos: {
+    gravity: '0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906',
+  },
 };
 
+const wethContract = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
+
+const L1Chains: ChainName[] = ['cosmos'];
 const L2Chains: ChainName[] = ['optimism', 'arbitrum', 'base'];
 
 const L2ToL1: ChainMap<ChainName> = {
@@ -438,6 +445,12 @@ class ContextFunder {
         }
 
         failureOccurred ||= await gracefullyHandleError(
+          () => this.bridgeIfL1(chain),
+          chain,
+          'Error bridging to L1',
+        );
+
+        failureOccurred ||= await gracefullyHandleError(
           () => this.bridgeIfL2(chain),
           chain,
           'Error bridging to L2',
@@ -503,6 +516,24 @@ class ContextFunder {
     await this.updateWalletBalanceGauge(chain);
 
     return failureOccurred;
+  }
+
+  private async bridgeIfL1(chain: ChainName) {
+    if (L1Chains.includes(chain)) {
+      const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
+      const desiredBalanceEther = ethers.utils.parseUnits(
+        this.desiredBalancePerChain[chain],
+        'ether',
+      );
+      const bridgeAmount = await this.getFundingAmount(
+        chain,
+        funderAddress,
+        desiredBalanceEther.mul(5),
+      );
+      if (bridgeAmount.gt(0)) {
+        await this.bridgeToL1(chain, funderAddress, bridgeAmount);
+      }
+    }
   }
 
   private async bridgeIfL2(chain: ChainName) {
@@ -649,6 +680,21 @@ class ContextFunder {
     });
   }
 
+  private async bridgeToL1(l1Chain: ChainName, to: string, amount: BigNumber) {
+    // Logger info here, then put the wrapped eth logic in the bridgeToCosmos function.
+    logger.info('Bridging ETH to alternative L1', {
+      amount: ethers.utils.formatEther(amount),
+      l1Funder: await getAddressInfo(
+        await this.multiProvider.getSignerAddress(l1Chain),
+        l1Chain,
+        this.multiProvider.getProvider(l1Chain),
+      ),
+    });
+
+    const tx = await this.bridgeToCosmos(l1Chain, wethContract, amount, to);
+    await this.multiProvider.handleTx(l1Chain, tx);
+  }
+
   private async bridgeToL2(l2Chain: ChainName, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
     logger.info('Bridging ETH to L2', {
@@ -744,6 +790,37 @@ class ContextFunder {
         value: totalAmount,
       },
     );
+  }
+
+  private async bridgeToCosmos(
+    l1Chain: ChainName,
+    tokenContract: Address,
+    amount: BigNumber,
+    to: String,
+  ) {
+
+    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
+
+    const gravityBridge = new ethers.Contract(
+      nativeBridges.cosmos.gravity,
+      Gravity.abi,
+      l1ChainSigner,
+    );
+
+    const approvalIface = new ethers.utils.Interface([
+      'function approve(address spender, uint256 amount) returns bool',
+    ]);
+    approvalIface.encodeFunctionData('approve', [tokenContract, amount]);
+
+    const ercContract = new ethers.Contract(
+      tokenContract,
+      approvalIface,
+      l1ChainSigner,
+    );
+
+    const approval = await ercContract.approve(tokenContract, amount);
+
+    return gravityBridge.sendToCosmos(tokenContract, to, amount);
   }
 
   private async updateWalletBalanceGauge(chain: ChainName) {
