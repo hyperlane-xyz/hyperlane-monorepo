@@ -90,6 +90,11 @@ export type ParsedMessage = {
   body: string;
 };
 
+export type ParsedTokenMessage = {
+  recipient: string;
+  amount: BigNumber;
+};
+
 export type ParsedLegacyMultisigIsmMetadata = {
   checkpointRoot: string;
   checkpointIndex: number;

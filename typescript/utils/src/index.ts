@@ -89,7 +89,12 @@ export {
   setRootLogger,
 } from './logging.js';
 export { mean, median, stdDev, sum } from './math.js';
-export { formatMessage, messageId, parseMessage } from './messages.js';
+export {
+  formatMessage,
+  messageId,
+  parseMessage,
+  parseTokenMessage,
+} from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
   parseLegacyMultisigIsmMetadata,
