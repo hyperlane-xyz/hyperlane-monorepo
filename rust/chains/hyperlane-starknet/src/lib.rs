@@ -11,6 +11,7 @@ pub use provider::*;
 pub use signers::*;
 pub use trait_builder::*;
 pub use utils::*;
+pub use validator_announce::*;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]
@@ -23,3 +24,4 @@ mod provider;
 mod signers;
 mod trait_builder;
 mod utils;
+mod validator_announce;
