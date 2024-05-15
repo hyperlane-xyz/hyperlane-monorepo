@@ -23,7 +23,7 @@ import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   EthersV5Transaction,
-  ProviderType,
+  createAnnotatedEthersV5Transaction,
 } from '../providers/ProviderType.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainNameOrId } from '../types.js';
@@ -126,18 +126,22 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           )
         : expectedconfig.interchainSecurityModule;
       const actualIsmConfig = actualConfig.interchainSecurityModule;
-
       if (!deepEquals(expectedIsmConfig, actualIsmConfig)) {
-        transactions.push({
-          transaction:
-            await contractToUpdate.populateTransaction.setInterchainSecurityModule(
-              (expectedIsmConfig as any).address, // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+        transactions.push(
+          createAnnotatedEthersV5Transaction({
+            annotation: `Setting ISM for Warp Route to ${
+              (expectedIsmConfig as any).address
+            }`,
+            chainId: Number(this.multiProvider.getChainId(this.args.chain)),
+            to: contractToUpdate.address,
+            data: contractToUpdate.interface.encodeFunctionData(
+              'setInterchainSecurityModule',
+              [(expectedIsmConfig as any).address], // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
             ),
-          type: ProviderType.EthersV5,
-        });
+          }),
+        );
       }
     }
-
     return transactions;
   }
 
