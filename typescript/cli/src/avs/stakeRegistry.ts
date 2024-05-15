@@ -1,18 +1,12 @@
 import { password } from '@inquirer/prompts';
-import {
-  BigNumber,
-  BigNumberish,
-  Wallet,
-  constants,
-  ethers,
-  utils,
-} from 'ethers';
-import { BytesLike, keccak256 } from 'ethers/lib/utils.js';
+import { BigNumberish, Wallet, ethers, utils } from 'ethers';
+import { BytesLike, joinSignature, keccak256 } from 'ethers/lib/utils.js';
 
 import { ECDSAStakeRegistry__factory } from '@hyperlane-xyz/core';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
+import { MINIMUM_AVS_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue } from '../logger.js';
@@ -40,7 +34,7 @@ export async function registerOperatorWithSignature({
   await runPreflightChecksForChains({
     context,
     chains: [chain],
-    minGas: '0',
+    minGas: MINIMUM_AVS_GAS,
   });
 
   const provider = multiProvider.getProvider(chain);
@@ -100,7 +94,7 @@ export async function deregisterOperator({
   await runPreflightChecksForChains({
     context,
     chains: [chain],
-    minGas: '0',
+    minGas: MINIMUM_AVS_GAS,
   });
 
   // Read the encrypted JSON key from the file
@@ -127,11 +121,11 @@ export async function deregisterOperator({
     connectedSigner,
   );
 
-  log(
-    `Registering operator ${operatorAsSigner.address} with signature on ${chain}...`,
-  );
+  log(`Deregistering operator ${operatorAsSigner.address} on ${chain}...`);
   await multiProvider.handleTx(chain, ecdsaStakeRegistry.deregisterOperator());
-  logBlue(`Operator ${operatorAsSigner.address} registered to Hyperlane AVS`);
+  logBlue(
+    `Operator ${operatorAsSigner.address} deregistered from Hyperlane AVS`,
+  );
 }
 
 async function getOperatorSignature(
@@ -146,18 +140,13 @@ async function getOperatorSignature(
     ),
   );
 
-  const salt = constants.HashZero;
+  const salt = utils.hexZeroPad(utils.randomBytes(32), 32);
 
   // give a expiry timestamp 1 week from now
-  // const expiry = utils.hexZeroPad(
-  //   utils.hexlify(Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7),
-  //   32,
-  // );
-  const maxExpiration = utils.hexZeroPad(
-    utils.hexlify(BigNumber.from(2).pow(256).sub(1)),
+  const expiry = utils.hexZeroPad(
+    utils.hexlify(Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7),
     32,
   );
-
   const structHash = keccak256(
     ethers.utils.solidityPack(
       ['bytes32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
@@ -166,7 +155,7 @@ async function getOperatorSignature(
         addressToBytes32(operator.address),
         addressToBytes32(serviceManager),
         salt,
-        maxExpiration,
+        expiry,
       ],
     ),
   );
@@ -180,14 +169,16 @@ async function getOperatorSignature(
     ),
   );
 
-  const signature = await operator.signMessage(
-    ethers.utils.arrayify(signingHash),
-  );
+  // Eigenlayer's AVSDirectory expects the signature over raw signed hash instead of EIP-191 compatible toEthSignedMessageHash
+  // see https://github.com/Layr-Labs/eigenlayer-contracts/blob/ef2ea4a7459884f381057aa9bbcd29c7148cfb63/src/contracts/libraries/EIP1271SignatureUtils.sol#L22
+  const signature = operator
+    ._signingKey()
+    .signDigest(ethers.utils.arrayify(signingHash));
 
   return {
-    signature,
+    signature: joinSignature(signature),
     salt,
-    expiry: maxExpiration,
+    expiry,
   };
 }
 
