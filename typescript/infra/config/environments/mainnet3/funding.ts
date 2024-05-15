@@ -44,6 +44,8 @@ export const keyFunderConfig: KeyFunderConfig = {
     polygonzkevm: '0.5',
     scroll: '0.5',
     ancient8: '0.5',
+    redstone: '0.2',
+    zetachain: '20',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',

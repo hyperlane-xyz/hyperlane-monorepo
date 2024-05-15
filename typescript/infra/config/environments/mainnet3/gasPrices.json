@@ -63,6 +63,10 @@
     "amount": "3.95",
     "decimals": 9
   },
+  "redstone": {
+    "amount": "0.0003",
+    "decimals": 9
+  },
   "inevm": {
     "amount": "0.1",
     "decimals": 9
@@ -78,5 +82,9 @@
   "injective": {
     "amount": "700000000",
     "decimals": 1
+  },
+  "zetachain": {
+    "amount": "0.0001",
+    "decimals": 9
   }
 }

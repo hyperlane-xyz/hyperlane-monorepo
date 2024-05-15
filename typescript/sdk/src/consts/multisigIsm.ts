@@ -281,4 +281,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
     ],
   },
+
+  redstone: {
+    threshold: 1,
+    validators: ['0x1400b9737007f7978d8b4bbafb4a69c83f0641a7'],
+  },
+
+  zetachain: {
+    threshold: 1,
+    validators: ['0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef'],
+  },
 };

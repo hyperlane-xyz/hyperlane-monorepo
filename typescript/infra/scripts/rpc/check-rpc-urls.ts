@@ -2,16 +2,13 @@ import { ethers } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { getSecretRpcEndpoint } from '../src/agents/index.js';
+import { getSecretRpcEndpoint } from '../../src/agents/index.js';
+import { getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
-import { getArgs } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
-
-// TODO remove this script as part of migration to CLI
-// It's redundant with metadata-check.ts in the SDK
 async function main() {
   const { environment } = await getArgs().argv;
-  const config = await getEnvironmentConfig(environment);
+  const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const chains = multiProvider.getKnownChainNames();
   const providers: [string, ethers.providers.JsonRpcProvider][] = [];
