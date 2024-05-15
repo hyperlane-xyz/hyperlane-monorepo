@@ -44,7 +44,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 > {
   protected logger = rootLogger.child({
-    module: 'EvmERC20WarpHyperlaneModule',
+    module: 'EvmERC20WarpModule',
   });
   reader: EvmERC20WarpRouteReader;
 

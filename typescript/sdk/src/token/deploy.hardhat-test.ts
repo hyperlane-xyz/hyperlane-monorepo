@@ -46,7 +46,7 @@ describe('TokenDeployer', async () => {
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
   const GAS = 65_000;
-  const chain = TestChainName.test1;
+  const chain = TestChainName.test4;
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
