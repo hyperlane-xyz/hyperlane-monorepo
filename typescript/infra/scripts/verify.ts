@@ -5,18 +5,14 @@ import {
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
 
+import { assertEnvironment } from '../src/config/environment.js';
 import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
 import { readJSONAtPath } from '../src/utils/utils.js';
 
-import {
-  assertEnvironment,
-  getArgs,
-  withBuildArtifactPath,
-  withNetwork,
-} from './agent-utils.js';
+import { getArgs, withBuildArtifactPath, withNetwork } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {

@@ -242,6 +242,7 @@ mod test {
                     url: "http://example.com".parse().unwrap(),
                 },
                 transaction_overrides: Default::default(),
+                operation_batch: Default::default(),
             }),
             metrics_conf: Default::default(),
             index: Default::default(),

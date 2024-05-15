@@ -25,8 +25,8 @@ use tendermint::abci::EventAttribute;
 use crate::utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64};
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome,
-    H256, U256,
+    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, TxCostEstimate,
+    TxOutcome, H256, U256,
 };
 use hyperlane_core::{
     ChainCommunicationError, ContractLocator, Decode, RawHyperlaneMessage, SequenceAwareIndexer,
@@ -93,7 +93,6 @@ impl HyperlaneChain for CosmosMailbox {
 
 impl Debug for CosmosMailbox {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        // Debug::fmt(&(self as &dyn HyperlaneContract), f)
         todo!()
     }
 }
@@ -354,7 +353,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         let logs_futures: Vec<_> = range
             .map(|block_number| {
                 let self_clone = self.clone();
@@ -385,6 +384,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
                 }
             })
             .flatten()
+            .map(|(log, meta)| (log.into(), meta))
             .collect();
 
         Ok(result)
@@ -397,7 +397,10 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for CosmosMailboxIndexer {
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         // TODO: implement when implementing Cosmos scraping
         todo!()
     }

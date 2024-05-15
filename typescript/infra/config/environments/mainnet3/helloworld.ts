@@ -6,7 +6,7 @@ import {
 } from '../../../src/config/helloworld/types.js';
 import { Contexts } from '../../contexts.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
@@ -22,7 +22,7 @@ export const hyperlane: HelloWorldConfig = {
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 24 * 5, // every 5 days, 13 * 12 messages = 156 messages is little less than once an hour
+      fullCycleTime: 1000 * 60 * 60 * 24 * 7, // every 7 days, 15 * 14 messages = 210 messages is every ~45 mins
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min

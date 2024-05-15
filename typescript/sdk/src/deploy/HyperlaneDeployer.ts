@@ -13,7 +13,7 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import SdkBuildArtifact from '@hyperlane-xyz/core/buildArtifact.json' assert { type: 'json' };
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   ProtocolType,
@@ -91,11 +91,11 @@ export abstract class HyperlaneDeployer<
       );
     }
 
-    // if none provided, instantiate a default verifier with SDK's included build artifact
+    // if none provided, instantiate a default verifier with the default core contract build artifact
     this.options.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
-      SdkBuildArtifact,
+      coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
   }
@@ -714,7 +714,10 @@ export abstract class HyperlaneDeployer<
         config.ownerOverrides?.[contractName as K] ?? config.owner,
       );
       if (!eqAddress(current, owner)) {
-        this.logger.debug('Current owner and config owner to not match');
+        this.logger.debug(
+          { contractName },
+          'Current owner and config owner do not match',
+        );
         const receipt = await this.runIfOwner(chain, ownable, () => {
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,

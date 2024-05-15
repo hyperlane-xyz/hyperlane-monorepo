@@ -2,7 +2,7 @@ use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::utils::{fmt_address_for_domain, fmt_domain};
-use crate::{Decode, Encode, HyperlaneProtocolError, Sequenced, H256};
+use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
@@ -51,12 +51,6 @@ impl Default for HyperlaneMessage {
             recipient: H256::zero(),
             body: vec![],
         }
-    }
-}
-
-impl Sequenced for HyperlaneMessage {
-    fn sequence(&self) -> u32 {
-        self.nonce
     }
 }
 

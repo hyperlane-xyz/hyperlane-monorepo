@@ -1,13 +1,14 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "3.10.0",
+  "version": "3.11.1",
   "dependencies": {
     "@cosmjs/encoding": "^0.31.3",
     "@solana/web3.js": "^1.78.0",
     "bignumber.js": "^9.1.1",
     "ethers": "^5.7.2",
-    "pino": "^8.19.0"
+    "pino": "^8.19.0",
+    "yaml": "^2.4.1"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.1",
@@ -26,6 +27,7 @@
   "license": "Apache-2.0",
   "prepublish": "yarn build",
   "scripts": {
+    "dev": "tsc -w",
     "build": "tsc",
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",

@@ -110,6 +110,7 @@ export {
   objMerge,
   pick,
   promiseObjAll,
+  stringifyObject,
 } from './objects.js';
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {
@@ -118,11 +119,14 @@ export {
   streamToString,
   toTitleCase,
   trimToLength,
+  fromHexString,
+  toHexString,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
 export {
   Address,
   AddressBytes32,
+  Annotated,
   CallData,
   ChainCaip2Id,
   ChainId,
@@ -144,5 +148,6 @@ export {
   TokenCaip19Id,
   WithAddress,
 } from './types.js';
+export { isHttpsUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator } from './validator.js';
