@@ -1,5 +1,4 @@
 import {
-  Chains,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
@@ -14,8 +13,9 @@ import { routerMatchingList } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
-import { environment, supportedChainNames } from './chains.js';
+import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
+import { supportedChainNames } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
@@ -32,36 +32,36 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 // to allow for more fine-grained control over which chains are enabled for each agent role.
 export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   [Role.Validator]: {
-    [Chains.alfajores]: true,
-    [Chains.bsctestnet]: true,
-    [Chains.eclipsetestnet]: true,
-    [Chains.fuji]: true,
-    [Chains.plumetestnet]: true,
-    [Chains.scrollsepolia]: true,
-    [Chains.sepolia]: true,
-    [Chains.solanatestnet]: true,
+    alfajores: true,
+    bsctestnet: true,
+    eclipsetestnet: false,
+    fuji: true,
+    plumetestnet: true,
+    scrollsepolia: true,
+    sepolia: true,
+    solanatestnet: true,
   },
   [Role.Relayer]: {
-    [Chains.alfajores]: true,
-    [Chains.bsctestnet]: true,
-    [Chains.eclipsetestnet]: true,
-    [Chains.fuji]: true,
-    [Chains.plumetestnet]: true,
-    [Chains.scrollsepolia]: true,
-    [Chains.sepolia]: true,
-    [Chains.solanatestnet]: true,
+    alfajores: true,
+    bsctestnet: true,
+    eclipsetestnet: false,
+    fuji: true,
+    plumetestnet: true,
+    scrollsepolia: true,
+    sepolia: true,
+    solanatestnet: true,
   },
   [Role.Scraper]: {
-    [Chains.alfajores]: true,
-    [Chains.bsctestnet]: true,
+    alfajores: true,
+    bsctestnet: true,
     // Cannot scrape non-EVM chains
-    [Chains.eclipsetestnet]: false,
-    [Chains.fuji]: true,
-    [Chains.plumetestnet]: true,
-    [Chains.scrollsepolia]: true,
-    [Chains.sepolia]: true,
+    eclipsetestnet: false,
+    fuji: true,
+    plumetestnet: true,
+    scrollsepolia: true,
+    sepolia: true,
     // Cannot scrape non-EVM chains
-    [Chains.solanatestnet]: false,
+    solanatestnet: false,
   },
 };
 
@@ -95,7 +95,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '17ac515-20240402-171933',
+      tag: 'c9c5d37-20240510-014327',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -124,7 +124,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '17ac515-20240402-171933',
+      tag: 'c9c5d37-20240510-014327',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -132,7 +132,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '17ac515-20240402-171933',
+      tag: 'c9c5d37-20240510-014327',
     },
   },
 };
@@ -146,7 +146,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '17ac515-20240402-171933',
+      tag: 'c9c5d37-20240510-014327',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -156,7 +156,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '17ac515-20240402-171933',
+      tag: 'c9c5d37-20240510-014327',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

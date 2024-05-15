@@ -6,8 +6,8 @@
     "outDir": "./dist/",
     "rootDir": "./",
     "noUnusedLocals": false,
-    "module": "es2022",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
   "include": [

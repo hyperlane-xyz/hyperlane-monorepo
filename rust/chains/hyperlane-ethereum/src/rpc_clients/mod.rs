@@ -1,10 +1,12 @@
 use ethers::providers::HttpClientError;
 use tracing::{info, trace, warn};
 
-pub use self::{fallback::*, retrying::*};
+pub use self::{fallback::*, provider::*, retrying::*, trait_builder::*};
 
 mod fallback;
+mod provider;
 mod retrying;
+mod trait_builder;
 
 enum CategorizedResponse<R> {
     IsOk(R),

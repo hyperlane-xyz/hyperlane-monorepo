@@ -1,6 +1,7 @@
 import { MultisigConfig } from '../ism/types.js';
 import { ChainMap } from '../types.js';
 
+// TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alfajores: {
     threshold: 2,
@@ -48,6 +49,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x41188cb5a5493a961c467ba38a3f8b1f1d35ee63', // everstake
       '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+    ],
+  },
+
+  blast: {
+    threshold: 2,
+    validators: [
+      '0xf20c0b09f597597c8d2430d3d72dfddaf09177d1',
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -153,6 +162,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xa0eE95e280D46C14921e524B075d0C341e7ad1C8', //cosmos spaces
       '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
       '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
+    ],
+  },
+
+  mode: {
+    threshold: 2,
+    validators: [
+      '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 

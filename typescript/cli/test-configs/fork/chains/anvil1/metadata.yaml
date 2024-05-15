@@ -1,0 +1,11 @@
+---
+chainId: 31337
+domainId: 31337
+name: anvil1
+protocol: ethereum
+rpcUrls:
+  - http: http://127.0.0.1:8545
+nativeToken:
+  name: Ether
+  symbol: ETH
+  decimals: 18

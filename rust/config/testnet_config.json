@@ -79,6 +79,7 @@
       "domainId": 97,
       "fallbackRoutingHook": "0x2670ED2EC08cAd135307556685a96bD4c16b007b",
       "index": {
+        "chunk": 1000,
         "from": 34323977
       },
       "interchainAccountIsm": "0xa9D8Ec959F34272B1a56D09AF00eeee58970d3AE",
@@ -227,7 +228,7 @@
       "domainRoutingIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
       "fallbackRoutingHook": "0x19Be55D859368e02d7b9C00803Eb677BDC1359Bd",
       "index": {
-        "from": 4206
+        "from": 5284139
       },
       "interchainAccountIsm": "0x7c115c16E34c74afdb88bd268EaB19bC705891FE",
       "interchainAccountRouter": "0xB6F8aA9B1b314A6E6DFB465DD3e0E95936347517",
@@ -382,10 +383,10 @@
     "solanatestnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.solana.com",
+          "apiUrl": "https://explorer.solana.com?cluster=testnet",
           "family": "other",
           "name": "Solana Explorer",
-          "url": "https://explorer.solana.com"
+          "url": "https://explorer.solana.com?cluster=testnet"
         }
       ],
       "blocks": {

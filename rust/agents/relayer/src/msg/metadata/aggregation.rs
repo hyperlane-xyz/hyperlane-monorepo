@@ -108,7 +108,7 @@ impl AggregationIsmMetadataBuilder {
 
         let metas_and_gas_count = metas_and_gas.len();
         if metas_and_gas_count < threshold {
-            info!(?err_isms, %metas_and_gas_count, %threshold, message_id=message.id().to_string(), "Could not fetch all metadata, ISM metadata count did not reach aggregation threshold");
+            info!(?err_isms, %metas_and_gas_count, %threshold, message_id=?message.id(), "Could not fetch all metadata, ISM metadata count did not reach aggregation threshold");
             return None;
         }
         Some(Self::n_cheapest_metas(metas_and_gas, threshold))
@@ -117,7 +117,7 @@ impl AggregationIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for AggregationIsmMetadataBuilder {
-    #[instrument(err, skip(self))]
+    #[instrument(err, skip(self), ret)]
     async fn build(
         &self,
         ism_address: H256,
