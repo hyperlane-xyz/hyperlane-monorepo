@@ -15,9 +15,7 @@ export const MailboxClientConfigSchema = z.object({
   mailbox: ZHash,
   hook: ZHash.optional(),
   interchainSecurityModule: IsmConfigSchema.optional(),
-  ismFactoryAddresses: z
-    .record(ProxyFactoryFactoriesSchema.keyof(), ZHash)
-    .optional(),
+  ismFactoryAddresses: ProxyFactoryFactoriesSchema.optional(),
 });
 
 export const routerConfigSchema = MailboxClientConfigSchema.merge(
