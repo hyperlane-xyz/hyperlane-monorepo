@@ -60,7 +60,9 @@ impl StarknetValidatorAnnounce {
         );
 
         let contract = StarknetValidatorAnnounceInternal::new(
-            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes())
+            locator
+                .address
+                .try_into()
                 .map_err(HyperlaneStarknetError::BytesConversionError)?,
             account,
         );
@@ -125,7 +127,7 @@ impl HyperlaneChain for StarknetValidatorAnnounce {
 
 impl HyperlaneContract for StarknetValidatorAnnounce {
     fn address(&self) -> H256 {
-        H256::from_slice(self.contract.address.to_bytes_be().as_slice())
+        self.contract.address.into()
     }
 }
 
@@ -136,10 +138,9 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
         let validators_calldata: Vec<EthAddress> = validators
-            .iter()
+            .into_iter()
             .map(|v| {
-                FieldElement::from_bytes_be(&v.to_fixed_bytes())
-                    .map_err(Into::<HyperlaneStarknetError>::into)
+                TryInto::<FieldElement>::try_into(*v).map_err(Into::<HyperlaneStarknetError>::into)
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
@@ -177,7 +178,7 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             return None;
         };
 
-        let max_cost_u256 = U256::from_big_endian(max_cost.to_bytes_be().as_slice());
+        let max_cost_u256: U256 = max_cost.into();
 
         Some(max_cost_u256.saturating_sub(balance).into())
     }

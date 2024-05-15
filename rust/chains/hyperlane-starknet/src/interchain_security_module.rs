@@ -61,8 +61,10 @@ impl StarknetInterchainSecurityModule {
         );
 
         let contract = StarknetInterchainSecurityModuleInternal::new(
-            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes())
-                .map_err(HyperlaneStarknetError::BytesConversionError)?,
+            locator
+                .address
+                .try_into()
+                .map_err(Into::<HyperlaneStarknetError>::into)?,
             account,
         );
 
@@ -94,7 +96,7 @@ impl HyperlaneChain for StarknetInterchainSecurityModule {
 
 impl HyperlaneContract for StarknetInterchainSecurityModule {
     fn address(&self) -> H256 {
-        H256::from_slice(self.contract.address.to_bytes_be().as_slice())
+        self.contract.address.into()
     }
 }
 
@@ -122,12 +124,16 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
             nonce: message.nonce,
             origin: message.origin,
             sender: cainome::cairo_serde::ContractAddress(
-                FieldElement::from_bytes_be(&message.sender.to_fixed_bytes())
+                message
+                    .sender
+                    .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             ),
             destination: message.destination,
             recipient: cainome::cairo_serde::ContractAddress(
-                FieldElement::from_bytes_be(&message.recipient.to_fixed_bytes())
+                message
+                    .recipient
+                    .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             ),
             body: StarknetBytes {

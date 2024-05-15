@@ -63,7 +63,9 @@ impl StarknetMailbox {
         );
 
         let contract = StarknetMailboxInternal::new(
-            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes())
+            locator
+                .address
+                .try_into()
                 .map_err(HyperlaneStarknetError::BytesConversionError)?,
             account,
         );
@@ -93,12 +95,16 @@ impl StarknetMailbox {
                 nonce: message.nonce,
                 origin: message.origin,
                 sender: cainome::cairo_serde::ContractAddress(
-                    FieldElement::from_bytes_be(&message.sender.to_fixed_bytes())
+                    message
+                        .sender
+                        .try_into()
                         .map_err(Into::<HyperlaneStarknetError>::into)?,
                 ),
                 destination: message.destination,
                 recipient: cainome::cairo_serde::ContractAddress(
-                    FieldElement::from_bytes_be(&message.recipient.to_fixed_bytes())
+                    message
+                        .recipient
+                        .try_into()
                         .map_err(Into::<HyperlaneStarknetError>::into)?,
                 ),
                 body: StarknetBytes {
@@ -109,7 +115,8 @@ impl StarknetMailbox {
         );
 
         let gas_estimate = match tx_gas_estimate {
-            Some(estimate) => FieldElement::from_dec_str(estimate.to_string().as_str())
+            Some(estimate) => estimate
+                .try_into()
                 .map_err(Into::<HyperlaneStarknetError>::into)?,
             None => {
                 tx.estimate_fee()
@@ -141,7 +148,7 @@ impl HyperlaneChain for StarknetMailbox {
 
 impl HyperlaneContract for StarknetMailbox {
     fn address(&self) -> H256 {
-        H256::from_slice(self.contract.address.to_bytes_be().as_slice())
+        self.contract.address.into()
     }
 }
 
@@ -199,21 +206,22 @@ impl Mailbox for StarknetMailbox {
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-        Ok(H256::from_slice(address.0.to_bytes_be().as_slice()))
+        Ok(address.0.into())
     }
 
     #[instrument(skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let res = self
+        let address = self
             .contract
             .recipient_ism(&cainome::cairo_serde::ContractAddress(
-                FieldElement::from_bytes_be(&recipient.to_fixed_bytes())
+                recipient
+                    .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             ))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-        Ok(H256::from_slice(res.0.to_bytes_be().as_slice()))
+        Ok(address.0.into())
     }
 
     #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]

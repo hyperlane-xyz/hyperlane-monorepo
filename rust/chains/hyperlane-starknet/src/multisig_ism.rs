@@ -11,7 +11,6 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
-use starknet::core::types::FieldElement;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -57,7 +56,9 @@ impl StarknetMultisigIsm {
         );
 
         let contract = StarknetMultisigIsmInternal::new(
-            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes())
+            locator
+                .address
+                .try_into()
                 .map_err(HyperlaneStarknetError::BytesConversionError)?,
             account,
         );
@@ -89,7 +90,7 @@ impl HyperlaneChain for StarknetMultisigIsm {
 
 impl HyperlaneContract for StarknetMultisigIsm {
     fn address(&self) -> H256 {
-        H256::from_slice(self.contract.address.to_bytes_be().as_slice())
+        self.contract.address.into()
     }
 }
 
@@ -105,12 +106,16 @@ impl MultisigIsm for StarknetMultisigIsm {
             nonce: message.nonce,
             origin: message.origin,
             sender: cainome::cairo_serde::ContractAddress(
-                FieldElement::from_bytes_be(&message.sender.to_fixed_bytes())
+                message
+                    .sender
+                    .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             ),
             destination: message.destination,
             recipient: cainome::cairo_serde::ContractAddress(
-                FieldElement::from_bytes_be(&message.recipient.to_fixed_bytes())
+                message
+                    .recipient
+                    .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             ),
             body: StarknetBytes {
@@ -128,7 +133,7 @@ impl MultisigIsm for StarknetMultisigIsm {
         Ok((
             validator_addresses
                 .iter()
-                .map(|v| H256::from_slice(v.address.0.to_bytes_be().as_slice()))
+                .map(|v| v.address.0.into())
                 .collect(),
             threshold as u8,
         ))
