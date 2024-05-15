@@ -131,10 +131,7 @@ impl MultisigIsm for StarknetMultisigIsm {
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok((
-            validator_addresses
-                .iter()
-                .map(|v| v.address.0.into())
-                .collect(),
+            validator_addresses.iter().map(|v| v.0.into()).collect(),
             threshold as u8,
         ))
     }

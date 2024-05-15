@@ -5,13 +5,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use cainome::cairo_serde::ContractAddress;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
 use starknet::accounts::SingleOwnerAccount;
-use starknet::core::types::FieldElement;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -148,7 +146,6 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
                 data: metadata.iter().map(|b| *b as u128).collect(),
             },
             message,
-            &ContractAddress(FieldElement::ZERO), // TODO: what should go here ?
         );
 
         let response = tx
