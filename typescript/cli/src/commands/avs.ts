@@ -2,7 +2,10 @@ import { CommandModule, Options } from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { registerOperatorWithSignature } from '../avs/stakeRegistry.js';
+import {
+  deregisterOperator,
+  registerOperatorWithSignature,
+} from '../avs/stakeRegistry.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
 import { log } from '../logger.js';
 
@@ -13,22 +16,27 @@ export const avsCommand: CommandModule = {
   command: 'avs',
   describe: 'Interact with the Hyperlane AVS',
   builder: (yargs) =>
-    yargs.command(registerCommand).version(false).demandCommand(),
+    yargs
+      .command(registerCommand)
+      .command(deregisterCommand)
+      .version(false)
+      .demandCommand(),
   handler: () => log('Command required'),
 };
 
 /**
- * Register command
+ * Registration command
  */
-export const registerOptions: { [k: string]: Options } = {
+export const registrationOptions: { [k: string]: Options } = {
   chain: {
     type: 'string',
-    description: 'Origin chain to send message from',
+    description: 'Chain to interact with the AVS on',
     demandOption: true,
+    choices: ['holesky', 'ethereum'],
   },
   operatorKeyPath: {
     type: 'string',
-    description: 'Destination chain to send message to',
+    description: 'Path to the operator key file',
     demandOption: true,
   },
 };
@@ -38,12 +46,31 @@ const registerCommand: CommandModuleWithWriteContext<{
   operatorKeyPath: string;
 }> = {
   command: 'register',
-  describe: 'Register yourself with the AVS',
+  describe: 'Register operator with the AVS',
   builder: {
-    ...registerOptions,
+    ...registrationOptions,
   },
   handler: async ({ context, chain, operatorKeyPath }) => {
     await registerOperatorWithSignature({
+      context,
+      chain,
+      operatorKeyPath,
+    });
+    process.exit(0);
+  },
+};
+
+const deregisterCommand: CommandModuleWithWriteContext<{
+  chain: ChainName;
+  operatorKeyPath: string;
+}> = {
+  command: 'deregister',
+  describe: 'Deregister yourself with the AVS',
+  builder: {
+    ...registrationOptions,
+  },
+  handler: async ({ context, chain, operatorKeyPath }) => {
+    await deregisterOperator({
       context,
       chain,
       operatorKeyPath,
