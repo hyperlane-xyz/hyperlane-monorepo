@@ -1,14 +1,12 @@
 use macro_rules_attribute::apply;
 use std::collections::BTreeMap;
-use std::{fs, path::PathBuf};
-
-use toml_edit::Document;
+use std::path::PathBuf;
 
 use crate::program::Program;
 use crate::utils::{as_task, TaskHandle};
 
 use super::cli::StarknetCLI;
-use super::types::{DeclaredClasses, Deployments, StarknetEndpoint};
+use super::types::{DeclaredClasses, Deployments};
 
 pub(crate) const STARKNET_KEYPAIR: &str = "config/test-starknet-keys/test_deployer-keypair.json";
 pub(crate) const STARKNET_ACCOUNT: &str = "config/test-starknet-keys/test_deployer-account.json";
@@ -23,14 +21,6 @@ pub(crate) fn untar(output: &str, dir: &str) {
         .join();
 }
 
-pub(crate) fn unzip(output: &str, dir: &str) {
-    Program::new("unzip")
-        .cmd(output)
-        .working_dir(dir)
-        .run()
-        .join();
-}
-
 pub(crate) fn download(output: &str, uri: &str, dir: &str) {
     Program::new("curl")
         .arg("output", output)
@@ -40,18 +30,6 @@ pub(crate) fn download(output: &str, uri: &str, dir: &str) {
         .working_dir(dir)
         .run()
         .join();
-}
-
-pub(crate) fn modify_toml(file: impl Into<PathBuf>, modifier: Box<dyn Fn(&mut Document)>) {
-    let path = file.into();
-    let mut config = fs::read_to_string(&path)
-        .unwrap()
-        .parse::<Document>()
-        .unwrap();
-
-    modifier(&mut config);
-
-    fs::write(path, config.to_string()).unwrap();
 }
 
 pub(crate) fn make_target() -> String {
@@ -95,7 +73,7 @@ pub(crate) fn declare_all(
     cli: StarknetCLI,
     sierra_classes: BTreeMap<String, PathBuf>,
 ) -> DeclaredClasses {
-    for (class, path) in sierra_classes {
+    for (_class, path) in sierra_classes {
         let declare_result = cli.declare(path);
 
         println!("declare result: {:?}", declare_result);

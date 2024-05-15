@@ -30,55 +30,6 @@ const KATANA_CLI_VERSION: &str = "0.6.1-alpha.4";
 const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
 const STARKNET_CLI_VERSION: &str = "0.2.9";
 
-const KEY_HPL_VALIDATOR: (&str, &str) = (
-    "hpl-validator",
-    "0x2bbf4f9fd0bbb2e60b0316c1fe0b76cf7a4d0198bd493ced9b8df2a3a24d68a",
-);
-const KEY_HPL_RELAYER: (&str, &str) = (
-    "hpl-relayer",
-    "0x14d6672dcb4b77ca36a887e9a11cd9d637d5012468175829e9c6e770c61642",
-);
-
-const KEY_VALIDATOR: (&str, &str) = (
-    "validator",
-    "0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912",
-);
-const KEY_ACCOUNTS1: (&str, &str) = (
-    "account1",
-    "0x33003003001800009900180300d206308b0070db00121318d17b5e6262150b",
-);
-const KEY_ACCOUNTS2: (&str, &str) = (
-    "account2",
-    "0x3e3979c1ed728490308054fe357a9f49cf67f80f9721f44cc57235129e090f4",
-);
-const KEY_ACCOUNTS3: (&str, &str) = (
-    "account3",
-    "0x736adbbcdac7cc600f89051db1abbc16b9996b46f6b58a9752a11c1028a8ec8",
-);
-
-fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
-    [
-        KEY_HPL_VALIDATOR,
-        KEY_HPL_RELAYER,
-        KEY_VALIDATOR,
-        KEY_ACCOUNTS1,
-        KEY_ACCOUNTS2,
-        KEY_ACCOUNTS3,
-    ]
-}
-
-pub struct MockDispatch {
-    pub dispatch: MockDispatchInner,
-}
-
-pub struct MockDispatchInner {
-    pub dest_domain: u32,
-    pub recipient_addr: String,
-    pub msg_body: String,
-    pub hook: Option<String>,
-    pub metadata: String,
-}
-
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/astraly-labs/hyperlane_starknet";
 const CAIRO_HYPERLANE_VERSION: &str = "v0.0.1";
 

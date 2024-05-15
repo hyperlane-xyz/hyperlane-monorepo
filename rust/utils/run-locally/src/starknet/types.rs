@@ -1,7 +1,5 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use starknet::signers::{SigningKey, VerifyingKey};
-
 use super::{cli::StarknetCLI, StarknetNetwork};
 
 #[derive(Clone)]
@@ -89,14 +87,9 @@ pub struct AgentConfigOut {
     pub chains: BTreeMap<String, AgentConfig>,
 }
 
-pub struct KeyPair {
-    pub private_key: SigningKey,
-    pub public_key: VerifyingKey,
-}
-
 impl AgentConfig {
-    pub fn new(bin: PathBuf, validator: &str, network: &StarknetNetwork) -> Self {
-        let cli = StarknetCLI::new(bin);
+    pub fn new(bin: PathBuf, _validator: &str, network: &StarknetNetwork) -> Self {
+        let _cli = StarknetCLI::new(bin);
 
         AgentConfig {
             name: format!("starknettest{}", network.domain),
