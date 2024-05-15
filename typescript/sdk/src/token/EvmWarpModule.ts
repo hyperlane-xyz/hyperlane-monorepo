@@ -227,15 +227,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param multiProvider - The multi-provider instance to use.
    * @returns A new instance of the EvmERC20WarpHyperlaneModule.
    */
-  public static async create({
-    chain,
-    config,
-    multiProvider,
-  }: {
+  public static async create(params: {
     chain: ChainNameOrId;
     config: DerivedTokenRouterConfig;
     multiProvider: MultiProvider;
   }): Promise<EvmERC20WarpModule> {
+    const { chain, config, multiProvider } = params;
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deploy({
       [chain]: config,

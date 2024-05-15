@@ -90,7 +90,7 @@ describe('TokenDeployer', async () => {
       TOKEN_DECIMALS,
     );
 
-    baseConfig = routerConfigMap[TestChainName.test1];
+    baseConfig = routerConfigMap[chain];
   });
 
   beforeEach(async () => {
@@ -125,7 +125,7 @@ describe('TokenDeployer', async () => {
         typesToDerive.map(async (type) => {
           // Create config
           const config = {
-            [TestChainName.test1]: {
+            [chain]: {
               type,
               token: token.address,
               hook: await mailbox.defaultHook(),
@@ -153,7 +153,7 @@ describe('TokenDeployer', async () => {
     it('should derive config from collateral correctly', async () => {
       // Create config
       const config = {
-        [TestChainName.test1]: {
+        [chain]: {
           type: TokenType.collateral,
           token: token.address,
           hook: await mailbox.defaultHook(),
@@ -168,11 +168,11 @@ describe('TokenDeployer', async () => {
       // Derive config and check if each value matches
       const derivedConfig =
         (await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-          warpRoute[TestChainName.test1].collateral.address,
+          warpRoute[chain].collateral.address,
         )) as CollateralConfig;
 
       for (const [key, value] of Object.entries(derivedConfig)) {
-        const deployedValue = (config[TestChainName.test1] as any)[key];
+        const deployedValue = (config[chain] as any)[key];
         if (deployedValue) expect(deployedValue).to.equal(value);
       }
 
