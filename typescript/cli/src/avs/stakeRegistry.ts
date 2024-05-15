@@ -53,7 +53,6 @@ export async function registerOperatorWithSignature({
     keyFilePassword,
   );
 
-  // TODO: use registry for AVS contract addresses
   const stakeRegistryAddress = avsAddresses[chain].ecdsaStakeRegistry;
 
   const ecdsaStakeRegistry = ECDSAStakeRegistry__factory.connect(
@@ -91,12 +90,6 @@ export async function deregisterOperator({
 }) {
   const { multiProvider } = context;
 
-  await runPreflightChecksForChains({
-    context,
-    chains: [chain],
-    minGas: MINIMUM_AVS_GAS,
-  });
-
   // Read the encrypted JSON key from the file
   const encryptedJson = readFileAtPath(resolvePath(operatorKeyPath));
 
@@ -113,7 +106,6 @@ export async function deregisterOperator({
   const provider = multiProvider.getProvider(chain);
   const connectedSigner = operatorAsSigner.connect(provider);
 
-  // TODO: use registry for AVS contract addresses
   const stakeRegistryAddress = avsAddresses[chain].ecdsaStakeRegistry;
 
   const ecdsaStakeRegistry = ECDSAStakeRegistry__factory.connect(

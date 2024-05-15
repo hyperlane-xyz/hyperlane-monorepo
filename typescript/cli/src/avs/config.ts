@@ -8,6 +8,7 @@ interface AVSContracts {
   hyperlaneServiceManager: Address;
 }
 
+// TODO: move to registry
 export const avsAddresses: ChainMap<AVSContracts> = {
   holesky: {
     avsDirectory: '0x055733000064333CaDDbC92763c58BF0192fFeBf',
