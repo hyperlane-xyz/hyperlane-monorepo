@@ -7,7 +7,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::{eyre, Result};
+use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, ProcessMessage},
     CoreMetrics,
@@ -112,11 +112,21 @@ enum NonceDirection {
     Low,
 }
 
-#[derive(new, Debug)]
+#[derive(new)]
 struct DirectionalNonceIterator {
     nonce: Option<u32>,
     direction: NonceDirection,
     db: Arc<dyn ProcessMessage>,
+}
+
+impl Debug for DirectionalNonceIterator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "DirectionalNonceIterator {{ nonce: {:?}, direction: {:?} }}",
+            self.nonce, self.direction
+        )
+    }
 }
 
 impl DirectionalNonceIterator {
@@ -300,7 +310,7 @@ impl MessageProcessor {
 
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
         loop {
-            debug!(nonce_iterator=?self.nonce_iterator, "Trying to get next message");
+            debug!(nonce_iterator=?self.nonce_iterator, "Trying to get the next processor message");
             match self.nonce_iterator.try_get_next_message(&self.metrics)? {
                 MessageStatus::Processable(msg) => return Ok(Some(msg)),
                 MessageStatus::Processed => self.nonce_iterator.iterate(),

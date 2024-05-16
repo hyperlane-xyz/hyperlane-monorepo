@@ -35,6 +35,7 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
+/// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
@@ -435,9 +436,15 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     }
 }
 
-pub trait ProcessMessage: Send + Sync + std::fmt::Debug {
+/// Database interface required for processing messages
+pub trait ProcessMessage: Send + Sync {
+    /// Retrieve a message by its nonce
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
+
+    /// Retrieve whether a message has been processed
     fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
+
+    /// Get the origin domain of the database
     fn domain(&self) -> &HyperlaneDomain;
 }
 
@@ -447,7 +454,7 @@ impl ProcessMessage for HyperlaneRocksDB {
     }
 
     fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>> {
-        self.retrieve_processed_by_nonce(&nonce)
+        self.retrieve_processed_by_nonce(nonce)
     }
 
     fn domain(&self) -> &HyperlaneDomain {
