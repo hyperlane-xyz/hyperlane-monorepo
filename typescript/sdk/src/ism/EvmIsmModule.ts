@@ -1,6 +1,6 @@
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
   HyperlaneModuleArgs,
@@ -11,79 +11,49 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
-import { EvmIsmCreator } from './EvmIsmCreator.js';
 import { DerivedIsmConfigWithAddress, EvmIsmReader } from './EvmIsmReader.js';
 import { IsmConfig } from './types.js';
 
 export class EvmIsmModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   IsmConfig,
-  HyperlaneContracts<ProxyFactoryFactories> & {
+  HyperlaneAddresses<ProxyFactoryFactories> & {
     deployedIsm: Address;
   }
 > {
   protected logger = rootLogger.child({ module: 'EvmIsmModule' });
   protected reader: EvmIsmReader;
-  protected creator: EvmIsmCreator;
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly deployer: HyperlaneDeployer<any, any>,
     args: HyperlaneModuleArgs<
       IsmConfig,
-      HyperlaneContracts<ProxyFactoryFactories> & {
+      HyperlaneAddresses<ProxyFactoryFactories> & {
         deployedIsm: Address;
       }
     >,
   ) {
     super(args);
     this.reader = new EvmIsmReader(multiProvider, args.chain);
-    this.creator = new EvmIsmCreator(deployer, multiProvider, args.addresses);
   }
 
   public async read(): Promise<DerivedIsmConfigWithAddress> {
     return await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 
-  public async update(config: IsmConfig): Promise<EthersV5Transaction[]> {
+  public async update(_config: IsmConfig): Promise<EthersV5Transaction[]> {
     throw new Error('Method not implemented.');
-
-    const destination = this.multiProvider.getChainName(this.args.chain);
-    await this.creator.update({
-      destination,
-      config,
-      existingIsmAddress: this.args.addresses.deployedIsm,
-    });
-    return [];
   }
 
   // manually write static create function
-  public static async create({
-    chain,
-    config,
-    deployer,
-    factories,
-    multiProvider,
-  }: {
+  public static async create(_params: {
     chain: ChainNameOrId;
     config: IsmConfig;
     deployer: HyperlaneDeployer<any, any>;
-    factories: HyperlaneContracts<ProxyFactoryFactories>;
+    factories: HyperlaneAddresses<ProxyFactoryFactories>;
     multiProvider: MultiProvider;
   }): Promise<EvmIsmModule> {
-    const destination = multiProvider.getChainName(chain);
-    const ismCreator = new EvmIsmCreator(deployer, multiProvider, factories);
-    const deployedIsm = await ismCreator.deploy({
-      config,
-      destination,
-    });
-    return new EvmIsmModule(multiProvider, deployer, {
-      addresses: {
-        ...factories,
-        deployedIsm: deployedIsm.address,
-      },
-      chain,
-      config,
-    });
+    throw new Error('Method not implemented.');
   }
 }
