@@ -3,7 +3,6 @@ import { Logger } from 'pino';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../../../types.js';
 import {
   ProtocolTypedReceipt,
   ProtocolTypedTransaction,
@@ -35,7 +34,6 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
   implements TxSubmitterInterface<TProtocol>
 {
   public readonly txSubmitterType: TxSubmitterType;
-  public readonly chain: ChainName;
 
   protected readonly logger: Logger = rootLogger.child({
     module: 'submitter-builder',
@@ -46,7 +44,6 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
     private currentTransformers: TxTransformerInterface<TProtocol>[] = [],
   ) {
     this.txSubmitterType = this.currentSubmitter.txSubmitterType;
-    this.chain = this.currentSubmitter.chain;
   }
 
   /**

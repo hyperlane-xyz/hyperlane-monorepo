@@ -88,8 +88,14 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         );
         expectedOverhead = 0;
       }
-
-      const remoteId = this.multiProvider.getDomainId(remote);
+      // TODO: add back support for non-EVM remotes.
+      const remoteId = this.multiProvider.tryGetDomainId(remote);
+      if (remoteId === null) {
+        this.app.logger.warn(
+          `Skipping checking IGP ${local} -> ${remote}. Expected if the remote is a non-EVM chain.`,
+        );
+        continue;
+      }
       const existingOverhead = await defaultIsmIgp.destinationGasLimit(
         remoteId,
         0,
@@ -128,7 +134,14 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       Object.keys(this.configMap[local].oracleConfig ?? {}),
     );
     for (const remote of remotes) {
-      const remoteId = this.multiProvider.getDomainId(remote);
+      // TODO: add back support for non-EVM remotes.
+      const remoteId = this.multiProvider.tryGetDomainId(remote);
+      if (remoteId === null) {
+        this.app.logger.warn(
+          `Skipping checking IGP ${local} -> ${remote}. Expected if the remote is a non-EVM chain.`,
+        );
+        continue;
+      }
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
       const actualGasOracle = destinationGasConfigs.gasOracle;
       const expectedGasOracle = coreContracts.storageGasOracle.address;
