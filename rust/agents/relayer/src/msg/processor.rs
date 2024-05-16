@@ -97,7 +97,7 @@ impl ForwardBackwardIterator {
     }
 
     fn iterate(&mut self) {
-        // set `last_nonce_returned_from` to None to avoid double iteration by mistake
+        // set `last_nonce_returned_from` to None to avoid double iterating and skipping a message
         let Some(last_nonce_returned_from) = self.last_nonce_returned_from.take() else {
             return;
         };
