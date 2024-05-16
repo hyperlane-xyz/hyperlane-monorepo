@@ -2,30 +2,35 @@ import { CommandModule } from 'yargs';
 
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
-import { getAddressFromBucket } from '../validator/address.js';
+import { getValidatorAddress } from '../validator/address.js';
 
-// Parent command to eventually setup Hyperlane validators with
+// Parent command to help configure and set up Hyperlane validators
 export const validatorCommand: CommandModule = {
   command: 'validator',
-  describe: 'Configure and set up Hyperlane validators',
+  describe: 'Configure and manage Hyperlane validators',
   builder: (yargs) => yargs.command(addressCommand).demandCommand(),
   handler: () => log('Command required'),
 };
 
 const addressCommand: CommandModuleWithContext<{
   bucket: string;
+  keyId: string;
 }> = {
   command: 'address',
-  describe: 'Get the address of a validator',
+  describe: 'Get the validator address from S3 bucket or KMS key ID',
   builder: {
     bucket: {
       type: 'string',
       describe:
         'AWS S3 bucket containing validator signatures and announcement',
     },
+    'key-id': {
+      type: 'string',
+      describe: 'Key ID from AWS KMS',
+    },
   },
-  handler: async ({ context, bucket }) => {
-    await getAddressFromBucket({ context, bucket });
+  handler: async ({ context, bucket, keyId }) => {
+    await getValidatorAddress({ context, bucket, keyId });
     process.exit(0);
   },
 };

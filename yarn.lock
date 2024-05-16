@@ -436,6 +436,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws-sdk/client-kms@npm:^3.577.0":
+  version: 3.577.0
+  resolution: "@aws-sdk/client-kms@npm:3.577.0"
+  dependencies:
+    "@aws-crypto/sha256-browser": "npm:3.0.0"
+    "@aws-crypto/sha256-js": "npm:3.0.0"
+    "@aws-sdk/client-sso-oidc": "npm:3.577.0"
+    "@aws-sdk/client-sts": "npm:3.577.0"
+    "@aws-sdk/core": "npm:3.576.0"
+    "@aws-sdk/credential-provider-node": "npm:3.577.0"
+    "@aws-sdk/middleware-host-header": "npm:3.577.0"
+    "@aws-sdk/middleware-logger": "npm:3.577.0"
+    "@aws-sdk/middleware-recursion-detection": "npm:3.577.0"
+    "@aws-sdk/middleware-user-agent": "npm:3.577.0"
+    "@aws-sdk/region-config-resolver": "npm:3.577.0"
+    "@aws-sdk/types": "npm:3.577.0"
+    "@aws-sdk/util-endpoints": "npm:3.577.0"
+    "@aws-sdk/util-user-agent-browser": "npm:3.577.0"
+    "@aws-sdk/util-user-agent-node": "npm:3.577.0"
+    "@smithy/config-resolver": "npm:^3.0.0"
+    "@smithy/core": "npm:^2.0.0"
+    "@smithy/fetch-http-handler": "npm:^3.0.0"
+    "@smithy/hash-node": "npm:^3.0.0"
+    "@smithy/invalid-dependency": "npm:^3.0.0"
+    "@smithy/middleware-content-length": "npm:^3.0.0"
+    "@smithy/middleware-endpoint": "npm:^3.0.0"
+    "@smithy/middleware-retry": "npm:^3.0.0"
+    "@smithy/middleware-serde": "npm:^3.0.0"
+    "@smithy/middleware-stack": "npm:^3.0.0"
+    "@smithy/node-config-provider": "npm:^3.0.0"
+    "@smithy/node-http-handler": "npm:^3.0.0"
+    "@smithy/protocol-http": "npm:^4.0.0"
+    "@smithy/smithy-client": "npm:^3.0.0"
+    "@smithy/types": "npm:^3.0.0"
+    "@smithy/url-parser": "npm:^3.0.0"
+    "@smithy/util-base64": "npm:^3.0.0"
+    "@smithy/util-body-length-browser": "npm:^3.0.0"
+    "@smithy/util-body-length-node": "npm:^3.0.0"
+    "@smithy/util-defaults-mode-browser": "npm:^3.0.0"
+    "@smithy/util-defaults-mode-node": "npm:^3.0.0"
+    "@smithy/util-endpoints": "npm:^2.0.0"
+    "@smithy/util-middleware": "npm:^3.0.0"
+    "@smithy/util-retry": "npm:^3.0.0"
+    "@smithy/util-utf8": "npm:^3.0.0"
+    tslib: "npm:^2.6.2"
+  checksum: 2d4e4bb8c05e711c588cca4c7fa2737ffcb0f778c013cb97093b9b8d71b7e0e6a67d3354f50a0d230e2c0d54abcf7c19288c4750c71b734bd0b01f24d816ebcf
+  languageName: node
+  linkType: hard
+
 "@aws-sdk/client-s3@npm:^3.577.0":
   version: 3.577.0
   resolution: "@aws-sdk/client-s3@npm:3.577.0"
@@ -5639,6 +5688,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
+    "@aws-sdk/client-kms": "npm:^3.577.0"
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@hyperlane-xyz/registry": "npm:^1.0.7"
     "@hyperlane-xyz/sdk": "npm:3.11.1"
@@ -5649,6 +5699,7 @@ __metadata:
     "@types/yargs": "npm:^17.0.24"
     "@typescript-eslint/eslint-plugin": "npm:^7.4.0"
     "@typescript-eslint/parser": "npm:^7.4.0"
+    asn1.js: "npm:^5.4.1"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.3.6"
     chalk: "npm:^5.3.0"
@@ -11251,7 +11302,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"asn1.js@npm:5.4.1":
+"asn1.js@npm:5.4.1, asn1.js@npm:^5.4.1":
   version: 5.4.1
   resolution: "asn1.js@npm:5.4.1"
   dependencies:
