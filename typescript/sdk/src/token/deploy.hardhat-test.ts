@@ -26,12 +26,12 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
+import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import {
   DerivedTokenRouterConfig,
   DerivedTokenType,
   EvmERC20WarpRouteReader,
 } from './EvmERC20WarpRouteReader.js';
-import { EvmERC20WarpModule } from './EvmWarpModule.js';
 import {
   CollateralConfig,
   HypERC20Config,
@@ -198,19 +198,17 @@ describe('TokenDeployer', async () => {
     });
     describe('Create', async () => {
       it('should create with a config', async () => {
-        // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpModule.create({
+        // Deploy using WarpModule
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
           config,
           multiProvider,
         });
 
         // Let's derive it's onchain token type
-        const { collateral } = evmERC20WarpCrudModule.serialize();
+        const { collateral } = evmERC20WarpModule.serialize();
         const tokenType: TokenType =
-          await evmERC20WarpCrudModule.reader.deriveTokenType(
-            collateral.address,
-          );
+          await evmERC20WarpModule.reader.deriveTokenType(collateral.address);
         expect(tokenType).to.equal(TokenType.collateral);
       });
     });
@@ -226,8 +224,8 @@ describe('TokenDeployer', async () => {
         sandbox.restore();
       });
       it('should update existing ISM when provided an ISM string', async () => {
-        // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpModule.create({
+        // Deploy using WarpModule
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
           config,
           multiProvider,
@@ -235,24 +233,23 @@ describe('TokenDeployer', async () => {
 
         // Update ISM and compare onchain values
         const ismToUpdate = await mailbox.defaultIsm();
-        const tx = await evmERC20WarpCrudModule.update({
+        const tx = await evmERC20WarpModule.update({
           ...config,
           interchainSecurityModule: {
             type: IsmType.ADDRESS,
             address: ismToUpdate,
           },
         });
-        console.log('ismToUpdate', ismToUpdate);
 
         await multiProvider.sendTransaction(chain, tx[0].transaction);
-        const updatedIsm = (await evmERC20WarpCrudModule.read())
+        const updatedIsm = (await evmERC20WarpModule.read())
           .interchainSecurityModule;
         expect(updatedIsm?.address).to.equal(ismToUpdate);
       });
 
-      it('should deploy given with an ISM object with a type different than onchain', async () => {
-        // Deploy using WarpCrudModule
-        const evmERC20WarpCrudModule = await EvmERC20WarpModule.create({
+      it('should deploy an ISM given a different config than onchain', async () => {
+        // Deploy using WarpModule
+        const evmERC20WarpModule = await EvmERC20WarpModule.create({
           chain,
           config,
           multiProvider,
@@ -260,7 +257,7 @@ describe('TokenDeployer', async () => {
 
         // Update ISM as string and compare onchain values
         const ismToUpdate = await mailbox.defaultIsm();
-        let tx = await evmERC20WarpCrudModule.update({
+        let tx = await evmERC20WarpModule.update({
           ...config,
           interchainSecurityModule: {
             type: IsmType.ADDRESS,
@@ -269,7 +266,7 @@ describe('TokenDeployer', async () => {
         });
 
         await multiProvider.sendTransaction(chain, tx[0].transaction);
-        let updatedIsm = (await evmERC20WarpCrudModule.read())
+        let updatedIsm = (await evmERC20WarpModule.read())
           .interchainSecurityModule;
         expect(updatedIsm?.address).to.equal(ismToUpdate);
 
@@ -281,7 +278,7 @@ describe('TokenDeployer', async () => {
         const newDefaultIsmAddr = await newCoreApp
           .getContracts(chain)
           .mailbox.defaultIsm();
-        sandbox.stub(evmERC20WarpCrudModule, 'deployIsm').returns(
+        sandbox.stub(evmERC20WarpModule, 'deployIsm').returns(
           Promise.resolve({
             owner: randomAddress(),
             type: IsmType.PAUSABLE,
@@ -290,7 +287,7 @@ describe('TokenDeployer', async () => {
         );
 
         // Update to a different ISM type using an object
-        tx = await evmERC20WarpCrudModule.update({
+        tx = await evmERC20WarpModule.update({
           ...config,
           interchainSecurityModule: {
             type: IsmType.PAUSABLE,
@@ -300,15 +297,14 @@ describe('TokenDeployer', async () => {
         });
 
         await multiProvider.sendTransaction(chain, tx[0].transaction);
-        updatedIsm = (await evmERC20WarpCrudModule.read())
-          .interchainSecurityModule;
+        updatedIsm = (await evmERC20WarpModule.read()).interchainSecurityModule;
         expect(updatedIsm?.address).to.equal(newDefaultIsmAddr);
       });
     });
 
     // it('should update existing Hook when provided an Hook string', async () => {
-    //   // Deploy using WarpCrudModule
-    //   const evmERC20WarpCrudModule = await EvmERC20WarpHyperlaneModule.create({
+    //   // Deploy using WarpModule
+    //   const evmERC20WarpModule = await EvmERC20WarpHyperlaneModule.create({
     //     chain,
     //     config,
     //     multiProvider,
@@ -316,13 +312,13 @@ describe('TokenDeployer', async () => {
 
     //   // Update Hook and compare onchain values
     //   const hookToUpdate = await mailbox.defaultHook();
-    //   const tx = await evmERC20WarpCrudModule.update({
+    //   const tx = await evmERC20WarpModule.update({
     //     ...config,
     //     hook: hookToUpdate,
     //   });
 
     //   await multiProvider.sendTransaction(chain, tx[0].transaction);
-    //   const updatedHook = (await evmERC20WarpCrudModule.read()).hook;
+    //   const updatedHook = (await evmERC20WarpModule.read()).hook;
     //   expect(updatedHook).to.equal(hookToUpdate);
     // });
   });

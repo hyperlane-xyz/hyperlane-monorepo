@@ -5,17 +5,13 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { attachContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
 import {
   HyperlaneModule,
   HyperlaneModuleArgs,
 } from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import {
-  ProxyFactoryFactories,
-  proxyFactoryFactories,
-} from '../deploy/contracts.js';
+import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -155,19 +151,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
     interchainSecurityModule: IsmConfig,
   ): Promise<IsmConfig> {
-    // Take the config.ismFactoryAddresses, de-serialize them into Contracts, and pass into EvmIsmModule.create
-    const factories = attachContracts(
-      ismFactoryAddresses,
-      proxyFactoryFactories,
-    );
     const ism = await EvmIsmModule.create({
       chain: this.args.chain,
-      config: interchainSecurityModule!,
+      config: interchainSecurityModule,
       deployer: new HyperlaneProxyFactoryDeployer(this.multiProvider),
-      factories,
+      factories: ismFactoryAddresses,
       multiProvider: this.multiProvider,
     });
 
+    // Attach the deployedIsm address
     (interchainSecurityModule as any).address = ism.serialize().deployedIsm; // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
     return interchainSecurityModule;
   }
