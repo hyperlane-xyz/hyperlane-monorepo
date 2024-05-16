@@ -1,6 +1,7 @@
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
+import { serializeContracts } from '../contracts/contracts.js';
+import { HyperlaneAddresses } from '../contracts/types.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -8,14 +9,17 @@ import { EthersV5Transaction } from '../providers/ProviderType.js';
 import { ProxiedRouterConfig } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 
-import { HyperlaneModule, HyperlaneModuleArgs } from './AbstractHyperlaneModule.js';
+import {
+  HyperlaneModule,
+  HyperlaneModuleArgs,
+} from './AbstractHyperlaneModule.js';
 
 export type InterchainAccountConfig = ProxiedRouterConfig;
 
 export class EvmIcaModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   InterchainAccountConfig,
-  HyperlaneContracts<InterchainAccountFactories>
+  HyperlaneAddresses<InterchainAccountFactories>
 > {
   protected logger = rootLogger.child({ module: 'EvmIcaModule' });
 
@@ -23,7 +27,7 @@ export class EvmIcaModule extends HyperlaneModule<
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleArgs<
       InterchainAccountConfig,
-      HyperlaneContracts<InterchainAccountFactories>
+      HyperlaneAddresses<InterchainAccountFactories>
     >,
   ) {
     super(args);
@@ -65,7 +69,7 @@ export class EvmIcaModule extends HyperlaneModule<
     );
 
     return new EvmIcaModule(multiProvider, {
-      addresses: deployedContracts,
+      addresses: serializeContracts(deployedContracts),
       chain,
       config,
     });
