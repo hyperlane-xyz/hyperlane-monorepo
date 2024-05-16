@@ -73,24 +73,27 @@ impl ForwardBackwardIterator {
         }
         let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
         let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
-        if let MessageStatus::Processable(message) = high_nonce_message_status {
-            self.last_nonce_returned_from = Some(NonceDirection::High);
-            return Ok(MessageStatus::Processable(message));
-        } else if let MessageStatus::Processable(message) = low_nonce_message_status {
-            self.last_nonce_returned_from = Some(NonceDirection::Low);
-            return Ok(MessageStatus::Processable(message));
-        }
 
-        if let MessageStatus::Processed = high_nonce_message_status {
-            self.last_nonce_returned_from = Some(NonceDirection::High);
-            return Ok(MessageStatus::Processed);
+        // Always prioritize the high nonce message
+        match (high_nonce_message_status, low_nonce_message_status) {
+            (MessageStatus::Processable(high_nonce_message), _) => {
+                self.last_nonce_returned_from = Some(NonceDirection::High);
+                Ok(MessageStatus::Processable(high_nonce_message))
+            }
+            (_, MessageStatus::Processable(low_nonce_message)) => {
+                self.last_nonce_returned_from = Some(NonceDirection::Low);
+                Ok(MessageStatus::Processable(low_nonce_message))
+            }
+            (MessageStatus::Processed, _) => {
+                self.last_nonce_returned_from = Some(NonceDirection::High);
+                Ok(MessageStatus::Processed)
+            }
+            (_, MessageStatus::Processed) => {
+                self.last_nonce_returned_from = Some(NonceDirection::Low);
+                Ok(MessageStatus::Processed)
+            }
+            (MessageStatus::Unindexed, MessageStatus::Unindexed) => Ok(MessageStatus::Unindexed),
         }
-        if let MessageStatus::Processed = low_nonce_message_status {
-            self.last_nonce_returned_from = Some(NonceDirection::Low);
-            return Ok(MessageStatus::Processed);
-        }
-
-        Ok(MessageStatus::Unindexed)
     }
 
     fn iterate(&mut self) {
@@ -132,14 +135,14 @@ impl Debug for DirectionalNonceIterator {
 impl DirectionalNonceIterator {
     fn iterate(&mut self) {
         match self.direction {
-            NonceDirection::High => self.nonce = self.nonce.map(|n| n + 1),
+            NonceDirection::High => self.nonce = self.nonce.map(|n| n.saturating_add(1)),
             NonceDirection::Low => {
                 if let Some(nonce) = self.nonce {
                     // once the message with nonce zero is processed, we should stop going backwards
                     self.nonce = if nonce.is_zero() {
                         None
                     } else {
-                        Some(nonce - 1)
+                        Some(nonce.saturating_sub(1))
                     };
                 }
             }
@@ -202,7 +205,7 @@ impl DirectionalNonceIterator {
 
 #[derive(Debug)]
 enum MessageStatus<T> {
-    /// Base case. The message wasn't indexed yet so can't be processed.
+    /// The message wasn't indexed yet so can't be processed.
     Unindexed,
     // The message was indexed and is ready to be processed.
     Processable(T),
@@ -687,11 +690,11 @@ mod test {
         }
 
         // we start with 2 (MOCK_HIGHEST_SEEN_NONCE) as the highest seen nonce,
-        // so we go forward and get 3
-        // then we try going forward again but get a `None` (not indexed yet), for nonce 4 (MAX_ONCHAIN_NONCE)
-        // then we go backwards once and get 1
-        // then retry the forward iteration, which should return a message the second time, for nonce 4
-        // finally, going forward again returns None so we go backward and get 0
+        // so we go forward and get 3.
+        // then we try going forward again but get a `None` (not indexed yet), for nonce 4 (MAX_ONCHAIN_NONCE).
+        // then we go backwards once and get 1.
+        // then retry the forward iteration, which should return a message the second time, for nonce 4.
+        // finally, going forward again returns None so we go backward and get 0.
         assert_eq!(messages, vec![2, 3, 1, 4, 0]);
 
         // the final bounds of the iterator are (None, MAX_ONCHAIN_NONCE + 1), where None means
