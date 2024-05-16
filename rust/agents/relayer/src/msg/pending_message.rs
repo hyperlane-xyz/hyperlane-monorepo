@@ -136,7 +136,7 @@ impl PendingOperation for PendingMessage {
         self.app_context.clone()
     }
 
-    #[instrument(skip(self), ret, fields(id=%self.id()), level = "debug")]
+    #[instrument(skip(self), ret, fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
         make_op_try!(|| self.on_reprepare());
 
@@ -232,10 +232,9 @@ impl PendingOperation for PendingMessage {
         // Go ahead and attempt processing of message to destination chain.
         debug!(
             ?gas_limit,
+            ?tx_cost_estimate,
             "Gas payment requirement met, ready to process message"
         );
-
-        let gas_limit = tx_cost_estimate.gas_limit;
 
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {

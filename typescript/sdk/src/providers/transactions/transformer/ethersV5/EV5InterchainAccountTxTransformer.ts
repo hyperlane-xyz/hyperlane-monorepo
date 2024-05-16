@@ -3,19 +3,12 @@ import { Logger } from 'pino';
 
 import { CallData, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { InterchainAccount } from '../../../../middleware/account/InterchainAccount.js';
-import { AccountConfig } from '../../../../middleware/account/types.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
-
-interface EV5InterchainAccountTxTransformerProps {
-  interchainAccount: InterchainAccount;
-  accountConfig: AccountConfig;
-  hookMetadata?: string;
-}
+import { EV5InterchainAccountTxTransformerProps } from './EV5TxTransformerTypes.js';
 
 export class EV5InterchainAccountTxTransformer
   implements EV5TxTransformerInterface
@@ -27,35 +20,36 @@ export class EV5InterchainAccountTxTransformer
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly chain: ChainName,
     public readonly props: EV5InterchainAccountTxTransformerProps,
   ) {}
 
   public async transform(
     ...txs: PopulatedTransaction[]
   ): Promise<PopulatedTransaction[]> {
-    const destinationChainId = txs[0].chainId;
-    assert(
-      destinationChainId,
-      'Missing destination chainId in PopulatedTransaction.',
-    );
+    const txChainsToInnerCalls: Record<ChainName, CallData[]> = {};
 
-    const innerCalls: CallData[] = txs.map(
-      ({ to, data, value }: PopulatedTransaction) => {
-        assert(to, 'Invalid PopulatedTransaction: Missing to field');
-        assert(data, 'Invalid PopulatedTransaction: Missing data field');
-        return { to, data, value };
-      },
-    );
+    txs.map(({ to, data, value, chainId }: PopulatedTransaction) => {
+      assert(to, 'Invalid PopulatedTransaction: Missing to field');
+      assert(data, 'Invalid PopulatedTransaction: Missing data field');
+      assert(chainId, 'Invalid PopulatedTransaction: Missing chainId field');
+      const txChain = this.multiProvider.getChainName(chainId);
+      if (!txChainsToInnerCalls[txChain]) txChainsToInnerCalls[txChain] = [];
+      txChainsToInnerCalls[txChain].push({ to, data, value });
+    });
 
-    return [
-      await this.props.interchainAccount.getCallRemote(
-        this.chain,
-        this.multiProvider.getChainName(this.chain), //chainIdToMetadata[destinationChainId].name,
-        innerCalls,
-        this.props.accountConfig,
-        this.props.hookMetadata,
-      ),
-    ];
+    const transformedTxs: Promise<PopulatedTransaction>[] = [];
+    Object.keys(txChainsToInnerCalls).map((txChain: ChainName) => {
+      transformedTxs.push(
+        this.props.interchainAccount.getCallRemote(
+          this.props.chain,
+          txChain,
+          txChainsToInnerCalls[txChain],
+          this.props.accountConfig,
+          this.props.hookMetadata,
+        ),
+      );
+    });
+
+    return Promise.all(transformedTxs);
   }
 }
