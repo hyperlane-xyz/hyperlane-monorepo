@@ -28,7 +28,7 @@ export enum ModuleType {
 // this enum can be adjusted as per deployments necessary
 // meant for the deployer and checker
 export enum IsmType {
-  ADDRESS = 'address',
+  CUSTOM = 'custom',
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
@@ -102,14 +102,14 @@ export type TrustedRelayerIsmConfig = {
   relayer: Address;
 };
 
-export type AddressIsmConfig = {
-  type: IsmType.ADDRESS;
+export type CustomIsmConfig = {
+  type: IsmType.CUSTOM;
   address: Address;
 };
 
 export type IsmConfig =
   | Address // @todo Remove after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented
-  | AddressIsmConfig
+  | CustomIsmConfig
   | RoutingIsmConfig
   | MultisigIsmConfig
   | AggregationIsmConfig
