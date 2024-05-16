@@ -6957,6 +6957,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-test",
  "itertools 0.12.0",
+ "mockall",
  "num-derive 0.4.1",
  "num-traits",
  "once_cell",

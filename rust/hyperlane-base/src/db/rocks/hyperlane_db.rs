@@ -35,7 +35,7 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
-type DbResult<T> = std::result::Result<T, DbError>;
+pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
@@ -432,6 +432,26 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, _block_number: u32) -> Result<()> {
         bail!("Not implemented")
+    }
+}
+
+pub trait ProcessMessage: Send + Sync + std::fmt::Debug {
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
+    fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
+    fn domain(&self) -> &HyperlaneDomain;
+}
+
+impl ProcessMessage for HyperlaneRocksDB {
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
+        self.retrieve_message_by_nonce(nonce)
+    }
+
+    fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>> {
+        self.retrieve_processed_by_nonce(&nonce)
+    }
+
+    fn domain(&self) -> &HyperlaneDomain {
+        self.domain()
     }
 }
 

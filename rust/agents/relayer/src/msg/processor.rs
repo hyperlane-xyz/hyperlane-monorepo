@@ -8,7 +8,10 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
+use hyperlane_base::{
+    db::{HyperlaneRocksDB, ProcessMessage},
+    CoreMetrics,
+};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 use num_traits::Zero;
 use prometheus::IntGauge;
@@ -42,14 +45,14 @@ struct ForwardBackwardIterator {
 }
 
 impl ForwardBackwardIterator {
-    fn new(db: HyperlaneRocksDB, high_nonce: Option<u32>) -> Self {
+    fn new(db: Arc<dyn ProcessMessage>, high_nonce: Option<u32>) -> Self {
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
             high_nonce.unwrap_or_default().into(),
             NonceDirection::High,
             db.clone(),
         );
-        let mut low_nonce_iter = DirectionalNonceIterator::new(None, NonceDirection::Low, db);
+        let mut low_nonce_iter = DirectionalNonceIterator::new(high_nonce, NonceDirection::Low, db);
         // Decrement the low nonce to avoid processing the same message twice, which causes double counts in metrics
         low_nonce_iter.iterate();
         Self {
@@ -97,7 +100,7 @@ impl ForwardBackwardIterator {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 enum NonceDirection {
     #[default]
     High,
@@ -108,7 +111,7 @@ enum NonceDirection {
 struct DirectionalNonceIterator {
     nonce: Option<u32>,
     direction: NonceDirection,
-    db: HyperlaneRocksDB,
+    db: Arc<dyn ProcessMessage>,
 }
 
 impl DirectionalNonceIterator {
@@ -182,6 +185,7 @@ impl DirectionalNonceIterator {
     }
 }
 
+#[derive(Debug)]
 enum MessageStatus<T> {
     /// Base case. The message wasn't indexed yet so can't be processed.
     Unindexed,
@@ -288,7 +292,10 @@ impl MessageProcessor {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            nonce_iterator: ForwardBackwardIterator::new(db, high_message_nonce),
+            nonce_iterator: ForwardBackwardIterator::new(
+                Arc::new(db) as Arc<dyn ProcessMessage>,
+                high_message_nonce,
+            ),
         }
     }
 
@@ -358,7 +365,7 @@ mod test {
 
     use super::*;
     use hyperlane_base::{
-        db::{test_utils, HyperlaneRocksDB},
+        db::{test_utils, DbResult, HyperlaneRocksDB},
         settings::{ChainConf, ChainConnectionConf, Settings},
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
@@ -547,6 +554,20 @@ mod test {
         pending_messages
     }
 
+    mockall::mock! {
+        pub Db {}
+
+        impl Debug for Db {
+            fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
+        }
+
+        impl ProcessMessage for Db {
+            fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
+            fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
+            fn domain(&self) -> &HyperlaneDomain;
+        }
+    }
+
     #[tokio::test]
     async fn test_full_pending_message_persistence_flow() {
         test_utils::run_test_db(|db| async move {
@@ -600,5 +621,85 @@ mod test {
                 });
         })
         .await;
+    }
+
+    #[tokio::test]
+    async fn test_forward_backward_iterator() {
+        let mut mock_db = MockDb::new();
+        const MAX_ONCHAIN_NONCE: u32 = 4;
+        const MOCK_HIGHEST_SEEN_NONCE: u32 = 2;
+
+        // How many times the db was queried for the max onchain nonce message
+        let mut retrieve_calls_for_max_onchain_nonce = 0;
+
+        mock_db
+            .expect_domain()
+            .return_const(dummy_domain(0, "dummy_domain"));
+        mock_db
+            .expect_retrieve_message_by_nonce()
+            .returning(move |nonce| {
+                // return `None` the first time we get a query for the last message
+                // (the `MAX_ONCHAIN_NONCE`th one), to simulate an ongoing indexing that hasn't finished
+                if nonce == MAX_ONCHAIN_NONCE && retrieve_calls_for_max_onchain_nonce == 0 {
+                    retrieve_calls_for_max_onchain_nonce += 1;
+                    return Ok(None);
+                }
+
+                // otherwise return a message for every nonce in the closed
+                // interval [0, MAX_ONCHAIN_NONCE]
+                if nonce > MAX_ONCHAIN_NONCE {
+                    Ok(None)
+                } else {
+                    Ok(Some(dummy_hyperlane_message(
+                        &dummy_domain(1, "dummy_domain"),
+                        nonce,
+                    )))
+                }
+            });
+
+        // The messages must be marked as "not processed" in the db for them to be returned
+        // when the iterator queries them
+        mock_db
+            .expect_retrieve_processed_by_nonce()
+            .returning(|_| Ok(Some(false)));
+        let dummy_metrics = dummy_processor_metrics(0);
+        let db = Arc::new(mock_db);
+
+        // Initialize the iterator with the highest seen nonce (which is smaller than the onchain nonce)
+        let mut forward_backward_iterator =
+            ForwardBackwardIterator::new(db.clone(), Some(MOCK_HIGHEST_SEEN_NONCE));
+
+        let mut messages = vec![];
+        while let MessageStatus::Processable(msg) = forward_backward_iterator
+            .try_get_next_message(&dummy_metrics)
+            .unwrap()
+        {
+            messages.push(msg.nonce);
+            assert!(matches!(
+                forward_backward_iterator.last_nonce_returned_from,
+                Some(_)
+            ));
+            forward_backward_iterator.iterate();
+            assert!(matches!(
+                forward_backward_iterator.last_nonce_returned_from,
+                None
+            ));
+        }
+
+        // we start with 2 (MOCK_HIGHEST_SEEN_NONCE) as the highest seen nonce,
+        // so we go forward and get 3
+        // then we try going forward again but get a `None` (not indexed yet), for nonce 4 (MAX_ONCHAIN_NONCE)
+        // then we go backwards once and get 1
+        // then retry the forward iteration, which should return a message the second time, for nonce 4
+        // finally, going forward again returns None so we go backward and get 0
+        assert_eq!(messages, vec![2, 3, 1, 4, 0]);
+
+        // the final bounds of the iterator are (None, MAX_ONCHAIN_NONCE + 1), where None means
+        // the backward iterator has reached the beginning (iterated past nonce 0)
+        assert_eq!(forward_backward_iterator.low_nonce_iter.nonce, None);
+        assert_eq!(
+            forward_backward_iterator.high_nonce_iter.nonce,
+            Some(MAX_ONCHAIN_NONCE + 1)
+        );
     }
 }
