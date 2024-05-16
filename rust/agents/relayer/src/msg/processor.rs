@@ -7,7 +7,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use eyre::Result;
+use eyre::{eyre, Result};
 use hyperlane_base::{
     db::{HyperlaneRocksDB, ProcessMessage},
     CoreMetrics,
@@ -66,6 +66,11 @@ impl ForwardBackwardIterator {
         &mut self,
         metrics: &MessageProcessorMetrics,
     ) -> Result<MessageStatus<HyperlaneMessage>> {
+        if self.last_nonce_returned_from.is_some() {
+            // `iterate()` must be called before trying to get the next message, but if it wasn't
+            // already called manually, we call it here to avoid returning the same message twice
+            self.iterate();
+        }
         let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
         let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
         if let MessageStatus::Processable(message) = high_nonce_message_status {
@@ -227,28 +232,24 @@ impl ProcessorExt for MessageProcessor {
             // Skip if not whitelisted.
             if !self.whitelist.msg_matches(&msg, true) {
                 debug!(?msg, whitelist=?self.whitelist, "Message not whitelisted, skipping");
-                self.nonce_iterator.iterate();
                 return Ok(());
             }
 
             // Skip if the message is blacklisted
             if self.blacklist.msg_matches(&msg, false) {
                 debug!(?msg, blacklist=?self.blacklist, "Message blacklisted, skipping");
-                self.nonce_iterator.iterate();
                 return Ok(());
             }
 
             // Skip if the message is intended for this origin
             if destination == self.domain().id() {
                 debug!(?msg, "Message destined for self, skipping");
-                self.nonce_iterator.iterate();
                 return Ok(());
             }
 
             // Skip if the message is intended for a destination we do not service
             if !self.send_channels.contains_key(&destination) {
                 debug!(?msg, "Message destined for unknown domain, skipping");
-                self.nonce_iterator.iterate();
                 return Ok(());
             }
 
@@ -265,8 +266,6 @@ impl ProcessorExt for MessageProcessor {
                 app_context,
             );
             self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
-            // iterate to the next nonce to process
-            self.nonce_iterator.iterate();
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -675,15 +674,6 @@ mod test {
             .unwrap()
         {
             messages.push(msg.nonce);
-            assert!(matches!(
-                forward_backward_iterator.last_nonce_returned_from,
-                Some(_)
-            ));
-            forward_backward_iterator.iterate();
-            assert!(matches!(
-                forward_backward_iterator.last_nonce_returned_from,
-                None
-            ));
         }
 
         // we start with 2 (MOCK_HIGHEST_SEEN_NONCE) as the highest seen nonce,
