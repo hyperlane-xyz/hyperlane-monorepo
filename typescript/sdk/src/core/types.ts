@@ -13,8 +13,8 @@ export type CoreConfig = OwnableConfig<keyof CoreFactories> & {
   defaultIsm: IsmConfig;
   defaultHook: HookConfig;
   requiredHook: HookConfig;
-  remove?: boolean; // Unused
-  upgrade?: UpgradeConfig; // Unused when deployer is removed
+  remove?: boolean;
+  upgrade?: UpgradeConfig;
 };
 
 export enum CoreViolationType {
