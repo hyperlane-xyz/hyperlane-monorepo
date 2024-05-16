@@ -1,4 +1,7 @@
 import { expect } from 'chai';
+import logger from 'pino';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent.js';
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
@@ -7,6 +10,7 @@ import { supportedChainNames as testnet4SupportedChainNames } from '../config/en
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import { ensureAgentChainConfigIncludesAllChainNames } from '../src/config/agent/agent.js';
 import { AgentEnvironment } from '../src/config/environment.js';
+import { GcpSecretRpcUrlRegistry } from '../src/gcp-registry.js';
 import { readJSONAtPath } from '../src/utils/utils.js';
 
 const environmentChainConfigs = {
@@ -48,5 +52,10 @@ describe('Agent configs', () => {
         );
       });
     });
+  });
+
+  it('testing gcp registry', async () => {
+    const gcpRegistry = new GcpSecretRpcUrlRegistry('mainnet3', rootLogger);
+    await gcpRegistry.listRegistryContent();
   });
 });

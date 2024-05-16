@@ -62,7 +62,7 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
   }
 
   async getChains(): Promise<Array<ChainName>> {
-    return objKeys(await this.getMetadata);
+    return objKeys(await this.getMetadata());
   }
 
   async getMetadata(): Promise<ChainMap<ChainMetadata>> {
