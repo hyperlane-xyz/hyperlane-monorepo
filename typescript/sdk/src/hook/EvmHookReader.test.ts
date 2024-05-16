@@ -19,7 +19,7 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { EvmHookReader } from './read.js';
+import { EvmHookReader } from './EvmHookReader.js';
 import {
   HookType,
   MerkleTreeHookConfig,

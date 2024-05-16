@@ -13,9 +13,6 @@
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
   },
-  "eclipsetestnet": {
-    "validators": ["0xf344f34abca9a444545b5295066348a0ae22dda3"]
-  },
   "fuji": {
     "validators": [
       "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",

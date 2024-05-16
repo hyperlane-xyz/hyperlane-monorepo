@@ -89,7 +89,7 @@ export abstract class HyperlaneAppGovernor<
     ): Promise<boolean> => {
       if (calls.length > 0) {
         console.log(
-          `> ${calls.length} calls will be submitted via ${submissionType}`,
+          `> ${calls.length} calls will be submitted via ${SubmissionType[submissionType]}`,
         );
         calls.map((c) =>
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
