@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
@@ -34,8 +35,10 @@ describe('EvmIcaModule', async () => {
 
       const { interchainAccountRouter, interchainAccountIsm } =
         evmIcaModule.serialize();
-      expect(interchainAccountIsm).to.exist;
-      expect(interchainAccountRouter).to.exist;
+      expect(interchainAccountIsm).to.not.equal(ethers.constants.AddressZero);
+      expect(interchainAccountRouter).to.not.equal(
+        ethers.constants.AddressZero,
+      );
     });
   });
 });
