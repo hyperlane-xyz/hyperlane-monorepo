@@ -19,7 +19,10 @@ import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
-import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
+import {
+  DerivedIsmConfigWithAddress,
+  EvmIsmReader,
+} from '../ism/EvmIsmReader.js';
 import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
