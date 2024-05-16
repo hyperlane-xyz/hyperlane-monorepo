@@ -95,6 +95,8 @@ impl HyperlaneRocksDB {
         self.store_message_by_id(&id, message)?;
         // - `nonce` --> `id`
         self.store_message_id_by_nonce(&message.nonce, &id)?;
+        // Update the max seen nonce to allow forward-backward iteration in the processor
+        self.try_update_max_seen_message_nonce(message.nonce)?;
         // - `nonce` --> `dispatched block number`
         self.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)?;
         Ok(true)
@@ -110,12 +112,12 @@ impl HyperlaneRocksDB {
     }
 
     /// Update the nonce of the highest processed message we're aware of
-    pub fn update_max_seen_message_nonce(&self, nonce: u32) -> DbResult<()> {
-        let current_max = self.retrieve_highest_processed_message_nonce()?;
-        if let Some(current_max) = current_max {
-            if nonce > current_max {
-                self.store_highest_processed_message_nonce_number(&Default::default(), &nonce)?;
-            }
+    pub fn try_update_max_seen_message_nonce(&self, nonce: u32) -> DbResult<()> {
+        let current_max = self
+            .retrieve_highest_processed_message_nonce()?
+            .unwrap_or_default();
+        if nonce >= current_max {
+            self.store_highest_processed_message_nonce_number(&Default::default(), &nonce)?;
         }
         Ok(())
     }
