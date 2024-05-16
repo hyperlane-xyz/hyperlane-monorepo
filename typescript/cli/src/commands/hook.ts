@@ -7,7 +7,7 @@ import { log } from '../logger.js';
 import {
   addressCommandOption,
   chainCommandOption,
-  outputFileOption,
+  outputFileCommandOption,
 } from './options.js';
 
 /**
@@ -38,7 +38,7 @@ export const read: CommandModuleWithContext<{
       demandOption: true,
     },
     address: addressCommandOption('Address of the Hook to read.', true),
-    out: outputFileOption(),
+    out: outputFileCommandOption(),
   },
   handler: async (args) => {
     await readHookConfig(args);

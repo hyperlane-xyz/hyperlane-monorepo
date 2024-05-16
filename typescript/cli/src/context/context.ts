@@ -24,9 +24,14 @@ export async function contextMiddleware(argv: Record<string, any>) {
     registryUri: argv.registry,
     registryOverrideUri: argv.overrides,
     key: argv.key,
+    fromAddress: argv.fromAddress,
     requiresKey,
     skipConfirmation: argv.yes,
   };
+  if (!isDryRun && settings.fromAddress)
+    throw new Error(
+      "'--from-address' or '-f' should only be used for dry-runs",
+    );
   const context = isDryRun
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
@@ -67,7 +72,13 @@ export async function getContext({
  * @returns dry-run context for the current command
  */
 export async function getDryRunContext(
-  { registryUri, registryOverrideUri, key, skipConfirmation }: ContextSettings,
+  {
+    registryUri,
+    registryOverrideUri,
+    key,
+    fromAddress,
+    skipConfirmation,
+  }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, true);
@@ -86,11 +97,12 @@ export async function getDryRunContext(
 
   const multiProvider = await getMultiProvider(registry);
   await forkNetworkToMultiProvider(multiProvider, chain);
-  const { key: impersonatedKey, signer: impersonatedSigner } =
-    await getImpersonatedSigner({
-      key,
-      skipConfirmation,
-    });
+
+  const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
+    fromAddress,
+    key,
+    skipConfirmation,
+  });
   multiProvider.setSharedSigner(impersonatedSigner);
 
   return {
