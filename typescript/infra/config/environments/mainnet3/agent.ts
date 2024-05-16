@@ -63,10 +63,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     optimism: true,
     polygon: true,
     polygonzkevm: true,
-    redstone: false,
+    redstone: true,
     scroll: true,
     viction: true,
-    zetachain: false,
+    zetachain: true,
   },
   [Role.Relayer]: {
     arbitrum: true,
@@ -209,7 +209,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: 'de8c2a7-20240515-135254',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -217,7 +217,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: 'de8c2a7-20240515-135254',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
