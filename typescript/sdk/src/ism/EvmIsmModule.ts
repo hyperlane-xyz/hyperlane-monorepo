@@ -15,8 +15,10 @@ import {
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
+  StaticAggregationIsmFactory__factory,
+  StaticMerkleRootMultisigIsmFactory__factory,
+  StaticMessageIdMultisigIsmFactory__factory,
   StaticThresholdAddressSetFactory,
-  StaticThresholdAddressSetFactory__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -41,7 +43,9 @@ import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
+  proxyFactoryImplementations,
 } from '../deploy/contracts.js';
+import { getContractVerificationInput } from '../deploy/verify/utils.js';
 import { resolveOrDeployAccountOwner } from '../index.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
@@ -74,9 +78,9 @@ export class EvmIsmModule extends HyperlaneModule<
   IsmConfig,
   HyperlaneAddresses<ProxyFactoryFactories> & ExtraArgs
 > {
-  protected logger = rootLogger.child({ module: 'EvmIsmModule' });
-  protected reader: EvmIsmReader;
-  protected factories: HyperlaneContracts<ProxyFactoryFactories>;
+  protected readonly logger = rootLogger.child({ module: 'EvmIsmModule' });
+  protected readonly reader: EvmIsmReader;
+  protected readonly factories: HyperlaneContracts<ProxyFactoryFactories>;
 
   // Adding these to reduce how often we need to grab from MultiProvider.
   public readonly chainName: string;
@@ -143,10 +147,11 @@ export class EvmIsmModule extends HyperlaneModule<
     const { deployedIsm, mailbox } = this.args.addresses;
 
     // filter for known domains
-    const { domains, safeConfigDomains } = this.filterRoutingIsmDomains({
-      config: targetConfig,
-    });
-    targetConfig.domains = domains;
+    const { availableDomains, availableDomainIds } =
+      this.filterRoutingIsmDomains({
+        config: targetConfig,
+      });
+    targetConfig.domains = availableDomains;
 
     // compute the delta
     const delta: RoutingIsmDelta = await routingModuleDelta(
@@ -194,7 +199,7 @@ export class EvmIsmModule extends HyperlaneModule<
     if (targetConfig.type === IsmType.FALLBACK_ROUTING) {
       return this.updateFallbackRoutingIsm({
         owner: targetOwner,
-        safeConfigDomains,
+        domainIds: availableDomainIds,
         submoduleAddresses,
         signer,
         logger,
@@ -204,7 +209,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // else, deploy a new domain routing ISM
     const newIsm = await this.deployDomainRoutingIsm({
       owner: targetOwner,
-      safeConfigDomains,
+      domainIds: availableDomainIds,
       submoduleAddresses,
     });
 
@@ -314,12 +319,12 @@ export class EvmIsmModule extends HyperlaneModule<
 
   protected updateFallbackRoutingIsm(params: {
     owner: Address;
-    safeConfigDomains: Domain[];
+    domainIds: Domain[];
     submoduleAddresses: Address[];
     signer: Signer;
     logger: Logger;
   }): Annotated<EthersV5Transaction>[] {
-    const { owner, safeConfigDomains, submoduleAddresses } = params;
+    const { owner, domainIds, submoduleAddresses } = params;
     const routingIsmInterface =
       DefaultFallbackRoutingIsm__factory.createInterface();
 
@@ -329,7 +334,7 @@ export class EvmIsmModule extends HyperlaneModule<
       to: this.args.addresses.deployedIsm,
       data: routingIsmInterface.encodeFunctionData(
         'initialize(address,uint32[],address[])',
-        [owner, safeConfigDomains, submoduleAddresses],
+        [owner, domainIds, submoduleAddresses],
       ),
     });
     return [updateTx];
@@ -452,26 +457,38 @@ export class EvmIsmModule extends HyperlaneModule<
     logger: Logger;
   }): Promise<IMultisigIsm> {
     const signer = this.multiProvider.getSigner(this.chainName);
-    const multisigIsmFactory =
+    const factoryName =
       config.type === IsmType.MERKLE_ROOT_MULTISIG
-        ? this.args.addresses.staticMerkleRootMultisigIsmFactory
-        : this.args.addresses.staticMessageIdMultisigIsmFactory;
-    const factory: StaticThresholdAddressSetFactory =
-      StaticThresholdAddressSetFactory__factory.connect(
-        multisigIsmFactory,
-        signer,
-      );
+        ? 'staticMerkleRootMultisigIsmFactory'
+        : 'staticMessageIdMultisigIsmFactory';
 
     const address = await EvmIsmModule.deployStaticAddressSet({
       chain: this.chainName,
-      factory,
+      factory: this.factories[factoryName],
       values: config.validators,
       logger,
       threshold: config.threshold,
       multiProvider: this.multiProvider,
     });
 
-    return IMultisigIsm__factory.connect(address, signer);
+    const contract = IMultisigIsm__factory.connect(address, signer);
+    const bytecode =
+      config.type === IsmType.MERKLE_ROOT_MULTISIG
+        ? StaticMerkleRootMultisigIsmFactory__factory.bytecode
+        : StaticMessageIdMultisigIsmFactory__factory.bytecode;
+    const verificationInput = getContractVerificationInput(
+      proxyFactoryImplementations[factoryName],
+      contract,
+      bytecode,
+    );
+
+    await this.deployer.verifyContract(
+      this.chainName,
+      verificationInput,
+      logger,
+    );
+
+    return contract;
   }
 
   protected async deployRoutingIsm({
@@ -481,10 +498,11 @@ export class EvmIsmModule extends HyperlaneModule<
     config: RoutingIsmConfig;
     logger: Logger;
   }): Promise<IRoutingIsm> {
-    const { domains, safeConfigDomains } = this.filterRoutingIsmDomains({
-      config,
-    });
-    config.domains = domains;
+    const { availableDomains, availableDomainIds } =
+      this.filterRoutingIsmDomains({
+        config,
+      });
+    config.domains = availableDomains;
 
     const isms: ChainMap<Address> = {};
     const owner = await resolveOrDeployAccountOwner(
@@ -514,18 +532,18 @@ export class EvmIsmModule extends HyperlaneModule<
     logger.debug('Deploying domain routing ISM ...');
     return this.deployDomainRoutingIsm({
       owner,
-      safeConfigDomains,
+      domainIds: availableDomainIds,
       submoduleAddresses,
     });
   }
 
   protected async deployDomainRoutingIsm({
     owner,
-    safeConfigDomains,
+    domainIds,
     submoduleAddresses,
   }: {
     owner: string;
-    safeConfigDomains: number[];
+    domainIds: number[];
     submoduleAddresses: string[];
   }): Promise<DomainRoutingIsm> {
     const overrides = this.multiProvider.getTransactionOverrides(
@@ -541,7 +559,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // deploying new domain routing ISM
     const tx = await domainRoutingIsmFactory.deploy(
       owner,
-      safeConfigDomains,
+      domainIds,
       submoduleAddresses,
       overrides,
     );
@@ -584,9 +602,10 @@ export class EvmIsmModule extends HyperlaneModule<
       addresses.push(submodule.address);
     }
 
+    const factoryName = 'staticAggregationIsmFactory';
     const address = await EvmIsmModule.deployStaticAddressSet({
       chain: this.chainName,
-      factory: this.factories.staticAggregationIsmFactory,
+      factory: this.factories[factoryName],
       values: addresses,
       logger: logger,
       threshold: config.threshold,
@@ -594,10 +613,26 @@ export class EvmIsmModule extends HyperlaneModule<
     });
 
     const signer = this.multiProvider.getSigner(this.args.chain);
-    return IAggregationIsm__factory.connect(address, signer);
+    const contract = IAggregationIsm__factory.connect(address, signer);
+
+    const verificationInput = getContractVerificationInput(
+      proxyFactoryImplementations[factoryName],
+      contract,
+      StaticAggregationIsmFactory__factory.bytecode,
+    );
+
+    await this.deployer.verifyContract(
+      this.chainName,
+      verificationInput,
+      logger,
+    );
+
+    return contract;
   }
 
-  // keep public so it can be reused by the hook module
+  // Public so it can be reused by the hook module.
+  // Caller of this function is responsible for verifying the contract
+  // because they know exactly which factory is being called.
   public static async deployStaticAddressSet(params: {
     chain: ChainName;
     factory: StaticThresholdAddressSetFactory | StaticAddressSetFactory;
@@ -632,25 +667,26 @@ export class EvmIsmModule extends HyperlaneModule<
         overrides,
       );
       await multiProvider.handleTx(chain, hash);
-      // TODO: add proxy verification artifact?
     } else {
       logger.debug(
         `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
       );
     }
+
     return address;
   }
 
   // filtering out domains which are not part of the multiprovider
   private filterRoutingIsmDomains({ config }: { config: RoutingIsmConfig }) {
-    const domains = objFilter(config.domains, (domain, _): _ is IsmConfig =>
-      this.multiProvider.hasChain(domain),
+    const availableDomains = objFilter(
+      config.domains,
+      (domain, _): _ is IsmConfig => this.multiProvider.hasChain(domain),
     );
 
-    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
+    const availableDomainIds = Object.keys(config.domains).map((domain) =>
       this.multiProvider.getDomainId(domain),
     );
 
-    return { domains, safeConfigDomains };
+    return { availableDomains, availableDomainIds };
   }
 }

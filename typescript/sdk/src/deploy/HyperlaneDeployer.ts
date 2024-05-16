@@ -104,6 +104,14 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses = addressesMap;
   }
 
+  async verifyContract(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    logger = this.logger,
+  ): Promise<void> {
+    return this.options.contractVerifier?.verifyContract(chain, input, logger);
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
