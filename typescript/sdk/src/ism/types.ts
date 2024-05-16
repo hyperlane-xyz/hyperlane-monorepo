@@ -1,5 +1,6 @@
 import {
   IAggregationIsm,
+  IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
@@ -119,6 +120,7 @@ export type IsmConfig =
   | TrustedRelayerIsmConfig;
 
 export type DeployedIsmType = {
+  [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
