@@ -81,7 +81,7 @@ export class EvmIsmCreator {
       }`,
     );
 
-    let contract: DeployedIsmType[Exclude<typeof ismType, 'address'>];
+    let contract: DeployedIsmType[Exclude<typeof ismType, 'custom'>]; // @todo Remove after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented
     switch (ismType) {
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
@@ -125,7 +125,7 @@ export class EvmIsmCreator {
       }`,
     );
 
-    let contract: DeployedIsmType[Exclude<typeof ismType, 'address'>];
+    let contract: DeployedIsmType[Exclude<typeof ismType, 'custom'>]; // @todo Remove after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:

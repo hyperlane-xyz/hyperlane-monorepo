@@ -56,7 +56,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.OP_STACK:
     case IsmType.TEST_ISM:
     case IsmType.PAUSABLE:
-    case IsmType.ADDRESS:
+    case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
       return ModuleType.NULL;
   }

@@ -236,7 +236,7 @@ describe('TokenDeployer', async () => {
         const tx = await evmERC20WarpModule.update({
           ...config,
           interchainSecurityModule: {
-            type: IsmType.ADDRESS,
+            type: IsmType.CUSTOM,
             address: ismToUpdate,
           },
         });
@@ -260,7 +260,7 @@ describe('TokenDeployer', async () => {
         let tx = await evmERC20WarpModule.update({
           ...config,
           interchainSecurityModule: {
-            type: IsmType.ADDRESS,
+            type: IsmType.CUSTOM,
             address: ismToUpdate,
           },
         });

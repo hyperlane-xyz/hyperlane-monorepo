@@ -160,7 +160,7 @@ export class EvmERC20WarpRouteReader {
 
     isZeroishAddress(interchainSecurityModule)
       ? (metadata.interchainSecurityModule = {
-          type: IsmType.ADDRESS,
+          type: IsmType.CUSTOM,
           address: ethers.constants.AddressZero,
         })
       : (metadata.interchainSecurityModule =

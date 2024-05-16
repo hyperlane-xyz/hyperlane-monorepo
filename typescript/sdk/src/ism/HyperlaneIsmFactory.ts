@@ -104,7 +104,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }`,
     );
 
-    let contract: DeployedIsmType[Exclude<typeof ismType, 'address'>];
+    let contract: DeployedIsmType[Exclude<typeof ismType, 'custom'>];
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:
