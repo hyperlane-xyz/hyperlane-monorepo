@@ -78,8 +78,10 @@ export class EvmIsmModule extends HyperlaneModule<
   protected reader: EvmIsmReader;
   protected factories: HyperlaneContracts<ProxyFactoryFactories>;
 
-  // adding these to reduce how often we need to grab from multiprovider
+  // Adding these to reduce how often we need to grab from MultiProvider.
   public readonly chainName: string;
+  // We use domainId here because MultiProvider.getDomainId() will always
+  // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: number;
 
   protected constructor(
@@ -351,12 +353,11 @@ export class EvmIsmModule extends HyperlaneModule<
     return Object.values(isms);
   }
 
-  protected async deploy<C extends IsmConfig>(params: {
+  protected async deploy<C extends IsmConfig>({
+    config,
+  }: {
     config: C;
   }): Promise<DeployedIsm> {
-    const config = params.config ?? this.args.config;
-    const multiProvider = this.multiProvider;
-
     // If it's a custom ISM, just return a base ISM
     if (typeof config === 'string') {
       // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
@@ -364,7 +365,7 @@ export class EvmIsmModule extends HyperlaneModule<
       // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
         config,
-        multiProvider.getSignerOrProvider(this.args.chain),
+        this.multiProvider.getSignerOrProvider(this.args.chain),
       );
     }
 
@@ -406,7 +407,7 @@ export class EvmIsmModule extends HyperlaneModule<
           IsmType.PAUSABLE,
           [
             await resolveOrDeployAccountOwner(
-              multiProvider,
+              this.multiProvider,
               this.chainName,
               config.owner,
             ),
@@ -443,12 +444,13 @@ export class EvmIsmModule extends HyperlaneModule<
     }
   }
 
-  protected async deployMultisigIsm(params: {
+  protected async deployMultisigIsm({
+    config,
+    logger,
+  }: {
     config: MultisigIsmConfig;
     logger: Logger;
   }): Promise<IMultisigIsm> {
-    const { config, logger } = params;
-
     const signer = this.multiProvider.getSigner(this.chainName);
     const multisigIsmFactory =
       config.type === IsmType.MERKLE_ROOT_MULTISIG
@@ -472,12 +474,13 @@ export class EvmIsmModule extends HyperlaneModule<
     return IMultisigIsm__factory.connect(address, signer);
   }
 
-  protected async deployRoutingIsm(params: {
+  protected async deployRoutingIsm({
+    config,
+    logger,
+  }: {
     config: RoutingIsmConfig;
     logger: Logger;
   }): Promise<IRoutingIsm> {
-    const { config, logger } = params;
-
     const { domains, safeConfigDomains } = this.filterRoutingIsmDomains({
       config,
     });
@@ -516,12 +519,15 @@ export class EvmIsmModule extends HyperlaneModule<
     });
   }
 
-  protected async deployDomainRoutingIsm(params: {
+  protected async deployDomainRoutingIsm({
+    owner,
+    safeConfigDomains,
+    submoduleAddresses,
+  }: {
     owner: string;
     safeConfigDomains: number[];
     submoduleAddresses: string[];
   }): Promise<DomainRoutingIsm> {
-    const { owner, safeConfigDomains, submoduleAddresses } = params;
     const overrides = this.multiProvider.getTransactionOverrides(
       this.args.chain,
     );
@@ -563,12 +569,13 @@ export class EvmIsmModule extends HyperlaneModule<
     return DomainRoutingIsm__factory.connect(moduleAddress, signer);
   }
 
-  protected async deployAggregationIsm(params: {
+  protected async deployAggregationIsm({
+    config,
+    logger,
+  }: {
     config: AggregationIsmConfig;
     logger: Logger;
   }): Promise<IAggregationIsm> {
-    const { config, logger } = params;
-
     const addresses: Address[] = [];
     for (const module of config.modules) {
       const submodule = await this.deploy({
@@ -635,9 +642,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }
 
   // filtering out domains which are not part of the multiprovider
-  private filterRoutingIsmDomains(params: { config: RoutingIsmConfig }) {
-    const { config } = params;
-
+  private filterRoutingIsmDomains({ config }: { config: RoutingIsmConfig }) {
     const domains = objFilter(config.domains, (domain, _): _ is IsmConfig =>
       this.multiProvider.hasChain(domain),
     );
