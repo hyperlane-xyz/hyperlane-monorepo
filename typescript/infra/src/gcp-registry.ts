@@ -62,18 +62,14 @@ export class GcpSecretRpcUrlRegistry extends BaseRegistry implements IRegistry {
         continue;
       }
       const match = secret.name.match(chainNameRegex);
-      if (!match) {
+      if (!match || match[1] === undefined) {
         this.logger.warn('Secret name does not match expected format', secret);
         continue;
       }
       const chainName = match[1];
-      if (!chainName) {
-        this.logger.warn('Secret name does not contain chain name', secret);
-        continue;
-      }
 
       content.chains[chainName] = {
-        metadata: `projects/${projectId}/secrets/${secret.name}/versions/latest`,
+        metadata: this.getSecretVersionPath(projectId, secret.name),
       };
 
       //   const [secretVersion] = await this.client.accessSecretVersion({
@@ -98,7 +94,7 @@ export class GcpSecretRpcUrlRegistry extends BaseRegistry implements IRegistry {
 
     // throw new Error("Method not implemented.");
 
-    return content;
+    return (this.listContentCache = content);
   }
 
   async getChains(): Promise<Array<ChainName>> {
@@ -110,31 +106,39 @@ export class GcpSecretRpcUrlRegistry extends BaseRegistry implements IRegistry {
     if (this.metadataCache) return this.metadataCache;
 
     const registryContent = await this.listRegistryContent();
-    await promiseObjAll(
+
+    const chainMetadata: ChainMap<Partial<ChainMetadata>> = await promiseObjAll(
       objMap(registryContent.chains, async (_, chainFiles) => {
         if (!chainFiles.metadata) {
-          return undefined;
+          return {};
         }
         const data = await this.getSecretData(chainFiles.metadata);
-        return JSON.parse(data);
+        const rpcUrls = JSON.parse(data);
+        return {
+          rpcUrls: rpcUrls.map((rpcUrl: string) => ({
+            http: rpcUrl,
+          })),
+        };
       }),
     );
 
-    throw new Error('Method not implemented.');
+    return (this.metadataCache = chainMetadata as ChainMap<ChainMetadata>);
   }
 
   async getChainMetadata(chainName: ChainName): Promise<ChainMetadata | null> {
+    if (this.metadataCache?.[chainName]) return this.metadataCache[chainName];
+
     throw new Error('Method not implemented.');
   }
 
   async getAddresses(): Promise<ChainMap<ChainAddresses>> {
-    throw new Error('Method not implemented.');
+    return {};
   }
 
   async getChainAddresses(
     chainName: ChainName,
   ): Promise<ChainAddresses | null> {
-    throw new Error('Method not implemented.');
+    return null;
   }
 
   async addChain(chain: {
@@ -142,7 +146,7 @@ export class GcpSecretRpcUrlRegistry extends BaseRegistry implements IRegistry {
     metadata?: ChainMetadata;
     addresses?: ChainAddresses;
   }): Promise<void> {
-    throw new Error('Method not implemented.');
+    // Do nothing
   }
 
   async updateChain(chain: {
@@ -150,15 +154,15 @@ export class GcpSecretRpcUrlRegistry extends BaseRegistry implements IRegistry {
     metadata?: ChainMetadata;
     addresses?: ChainAddresses;
   }): Promise<void> {
-    throw new Error('Method not implemented.');
+    // Do nothing
   }
 
   async removeChain(chain: ChainName): Promise<void> {
-    throw new Error('Method not implemented.');
+    // Do nothing
   }
 
   async addWarpRoute(config: WarpCoreConfig): Promise<void> {
-    throw new Error('Method not implemented.');
+    // Do nothing
   }
 
   async getSecretData(secretPath: string): Promise<string> {
@@ -175,5 +179,16 @@ export class GcpSecretRpcUrlRegistry extends BaseRegistry implements IRegistry {
       return secretData;
     }
     return new TextDecoder().decode(secretData);
+  }
+
+  getRpcUrlSecretVersionPath(projectId: string, chain: string): string {
+    return this.getSecretVersionPath(
+      projectId,
+      `${this.env}-rpc-endpoints-${chain}`,
+    );
+  }
+
+  getSecretVersionPath(projectId: string, secretName: string): string {
+    return `projects/${projectId}/secrets/${secretName}/versions/latest`;
   }
 }
