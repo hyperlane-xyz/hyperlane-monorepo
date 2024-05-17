@@ -95,7 +95,12 @@ describe('InterchainAccounts', async () => {
       owner: signer.address,
       localRouter: local.address,
     };
-    await app.callRemote(localChain, remoteChain, [call], config);
+    await app.callRemote({
+      chain: localChain,
+      destination: remoteChain,
+      innerCalls: [call],
+      config,
+    });
     const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
     expect(balanceAfter).to.lte(balanceBefore.sub(quote));

@@ -1,10 +1,12 @@
-import { PopulatedTransaction } from 'ethers';
+import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import { CallData, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+import { getInterchainAccount } from '../../../../middleware/account/InterchainAccount.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
+import { PopulatedTransaction } from '../../types.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
@@ -25,29 +27,36 @@ export class EV5InterchainAccountTxTransformer
 
   public async transform(
     ...txs: PopulatedTransaction[]
-  ): Promise<PopulatedTransaction[]> {
+  ): Promise<ethers.PopulatedTransaction[]> {
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = {};
 
     txs.map(({ to, data, value, chainId }: PopulatedTransaction) => {
-      assert(to, 'Invalid PopulatedTransaction: Missing to field');
-      assert(data, 'Invalid PopulatedTransaction: Missing data field');
-      assert(chainId, 'Invalid PopulatedTransaction: Missing chainId field');
       const txChain = this.multiProvider.getChainName(chainId);
       if (!txChainsToInnerCalls[txChain]) txChainsToInnerCalls[txChain] = [];
       txChainsToInnerCalls[txChain].push({ to, data, value });
     });
 
-    const transformedTxs: Promise<PopulatedTransaction>[] = [];
+    assert(
+      this.props.config.localRouter,
+      'Invalid AccountConfig: Cannot retrieve InterchainAccount.',
+    );
+
+    const interchainAccount = getInterchainAccount(
+      this.multiProvider,
+      this.props.chain,
+      this.props.config,
+    );
+
+    const transformedTxs: Promise<ethers.PopulatedTransaction>[] = [];
     Object.keys(txChainsToInnerCalls).map((txChain: ChainName) => {
-      transformedTxs.push(
-        this.props.interchainAccount.getCallRemote(
-          this.props.chain,
-          txChain,
-          txChainsToInnerCalls[txChain],
-          this.props.accountConfig,
-          this.props.hookMetadata,
-        ),
-      );
+      const transformedTx = interchainAccount.getCallRemote({
+        chain: this.props.chain,
+        destination: txChain,
+        innerCalls: txChainsToInnerCalls[txChain],
+        config: this.props.config,
+        hookMetadata: this.props.hookMetadata,
+      });
+      transformedTxs.push(transformedTx);
     });
 
     return Promise.all(transformedTxs);
