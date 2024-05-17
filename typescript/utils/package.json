@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "3.11.1",
+  "version": "3.12.2",
   "dependencies": {
     "@cosmjs/encoding": "^0.31.3",
     "@solana/web3.js": "^1.78.0",
@@ -27,6 +27,7 @@
   "license": "Apache-2.0",
   "prepublish": "yarn build",
   "scripts": {
+    "dev": "tsc -w",
     "build": "tsc",
     "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",

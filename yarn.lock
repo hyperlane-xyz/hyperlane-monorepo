@@ -4955,8 +4955,8 @@ __metadata:
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
     "@hyperlane-xyz/registry": "npm:^1.0.7"
-    "@hyperlane-xyz/sdk": "npm:3.11.1"
-    "@hyperlane-xyz/utils": "npm:3.11.1"
+    "@hyperlane-xyz/sdk": "npm:3.12.2"
+    "@hyperlane-xyz/utils": "npm:3.12.2"
     "@inquirer/prompts": "npm:^3.0.0"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -4983,12 +4983,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:3.11.1, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:3.12.2, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:3.11.1"
+    "@hyperlane-xyz/utils": "npm:3.12.2"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -5000,8 +5000,10 @@ __metadata:
     chai: "npm:^4.3.6"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
+    fx-portal: "npm:^1.0.3"
     hardhat: "npm:^2.22.2"
     hardhat-gas-reporter: "npm:^1.0.9"
+    hardhat-ignore-warnings: "npm:^0.2.11"
     prettier: "npm:^2.8.8"
     prettier-plugin-solidity: "npm:^1.1.3"
     solhint: "npm:^4.5.4"
@@ -5034,13 +5036,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/helloworld@npm:3.11.1, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:3.12.2, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/core": "npm:3.11.1"
+    "@hyperlane-xyz/core": "npm:3.12.2"
     "@hyperlane-xyz/registry": "npm:^1.0.7"
-    "@hyperlane-xyz/sdk": "npm:3.11.1"
+    "@hyperlane-xyz/sdk": "npm:3.12.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -5085,10 +5087,10 @@ __metadata:
     "@ethersproject/experimental": "npm:^5.7.0"
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:^5.7.2"
-    "@hyperlane-xyz/helloworld": "npm:3.11.1"
+    "@hyperlane-xyz/helloworld": "npm:3.12.2"
     "@hyperlane-xyz/registry": "npm:^1.0.7"
-    "@hyperlane-xyz/sdk": "npm:3.11.1"
-    "@hyperlane-xyz/utils": "npm:3.11.1"
+    "@hyperlane-xyz/sdk": "npm:3.12.2"
+    "@hyperlane-xyz/utils": "npm:3.12.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -5148,14 +5150,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:3.11.1, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:3.12.2, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
     "@cosmjs/cosmwasm-stargate": "npm:^0.31.3"
     "@cosmjs/stargate": "npm:^0.31.3"
-    "@hyperlane-xyz/core": "npm:3.11.1"
-    "@hyperlane-xyz/utils": "npm:3.11.1"
+    "@hyperlane-xyz/core": "npm:3.12.2"
+    "@hyperlane-xyz/utils": "npm:3.12.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -5223,7 +5225,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:3.11.1, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:3.12.2, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -6839,6 +6841,13 @@ __metadata:
   version: 3.4.2-solc-0.7
   resolution: "@openzeppelin/contracts@npm:3.4.2-solc-0.7"
   checksum: a21aa0a623f020cb32cd3c6b7903d806ec458b2a750feb86f5e3bcf0b7ae124d844b9d1c029f9e0707d6263b561f35a694bafc1b0bff30c3e95541124f8fd41c
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts@npm:^4.2.0":
+  version: 4.9.6
+  resolution: "@openzeppelin/contracts@npm:4.9.6"
+  checksum: 71f45ad42e68c0559be4ba502115462a01c76fc805c08d3005c10b5550a093f1a2b00b2d7e9d6d1f331e147c50fd4ad832f71c4470ec5b34f5a2d0751cd19a47
   languageName: node
   linkType: hard
 
@@ -14277,6 +14286,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fx-portal@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "fx-portal@npm:1.0.3"
+  dependencies:
+    "@openzeppelin/contracts": "npm:^4.2.0"
+  checksum: 89309e03da57238d153b41fd9fd492d582d41a90da51fc18b4cdd939a8713736572ed1ba034210888ad1b2e81596a860f157785f6911e6d265e2fd0730aa94c2
+  languageName: node
+  linkType: hard
+
 "ganache@npm:7.4.3":
   version: 7.4.3
   resolution: "ganache@npm:7.4.3"
@@ -14960,6 +14978,17 @@ __metadata:
   peerDependencies:
     hardhat: ^2.0.2
   checksum: c18af3b6ca9e26480679703453c769c10cc7fe290b6dfdd673010112b22be1bd5872ce74c02b71275cc5e0f99fc3c47fadec912bababe7564393191aab6a3f64
+  languageName: node
+  linkType: hard
+
+"hardhat-ignore-warnings@npm:^0.2.11":
+  version: 0.2.11
+  resolution: "hardhat-ignore-warnings@npm:0.2.11"
+  dependencies:
+    minimatch: "npm:^5.1.0"
+    node-interval-tree: "npm:^2.0.1"
+    solidity-comments: "npm:^0.0.2"
+  checksum: b249e02dbc207a40cb3090577c0f972b52f233b062ebafed413e70454ad389f991f32a8fda582f32d87f6057886e529a9f58ff6abb604d3294f7f4697a6dcb16
   languageName: node
   linkType: hard
 
@@ -18086,6 +18115,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"minimatch@npm:^5.1.0":
+  version: 5.1.6
+  resolution: "minimatch@npm:5.1.6"
+  dependencies:
+    brace-expansion: "npm:^2.0.1"
+  checksum: 126b36485b821daf96d33b5c821dac600cc1ab36c87e7a532594f9b1652b1fa89a1eebcaad4dff17c764dce1a7ac1531327f190fed5f97d8f6e5f889c116c429
+  languageName: node
+  linkType: hard
+
 "minimist-options@npm:^4.0.2":
   version: 4.1.0
   resolution: "minimist-options@npm:4.1.0"
@@ -18872,6 +18910,15 @@ __metadata:
   version: 0.4.0
   resolution: "node-int64@npm:0.4.0"
   checksum: b7afc2b65e56f7035b1a2eec57ae0fbdee7d742b1cdcd0f4387562b6527a011ab1cbe9f64cc8b3cca61e3297c9637c8bf61cec2e6b8d3a711d4b5267dfafbe02
+  languageName: node
+  linkType: hard
+
+"node-interval-tree@npm:^2.0.1":
+  version: 2.1.2
+  resolution: "node-interval-tree@npm:2.1.2"
+  dependencies:
+    shallowequal: "npm:^1.1.0"
+  checksum: da3b54b12720fa20a939a24dfb890b54f29c1c939a837e89d6197cbb96701f65279786a05843ac99ded60e8362cc48fda4ac2466a2e65a34b3fb84b648487d9f
   languageName: node
   linkType: hard
 
@@ -21365,6 +21412,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"shallowequal@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "shallowequal@npm:1.1.0"
+  checksum: f4c1de0837f106d2dbbfd5d0720a5d059d1c66b42b580965c8f06bb1db684be8783538b684092648c981294bf817869f743a066538771dbecb293df78f765e00
+  languageName: node
+  linkType: hard
+
 "shebang-command@npm:^1.2.0":
   version: 1.2.0
   resolution: "shebang-command@npm:1.2.0"
@@ -21666,10 +21720,119 @@ __metadata:
   languageName: node
   linkType: hard
 
+"solidity-comments-darwin-arm64@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-darwin-arm64@npm:0.0.2"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"solidity-comments-darwin-x64@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-darwin-x64@npm:0.0.2"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
 "solidity-comments-extractor@npm:^0.0.7":
   version: 0.0.7
   resolution: "solidity-comments-extractor@npm:0.0.7"
   checksum: a5cedf2310709969bc1783a6c336171478536f2f0ea96ad88437e0ef1e8844c0b37dd75591b0a824ec9c30640ea7e31b5f03128e871e6235bef3426617ce96c4
+  languageName: node
+  linkType: hard
+
+"solidity-comments-freebsd-x64@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-freebsd-x64@npm:0.0.2"
+  conditions: os=freebsd & cpu=x64
+  languageName: node
+  linkType: hard
+
+"solidity-comments-linux-arm64-gnu@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-linux-arm64-gnu@npm:0.0.2"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"solidity-comments-linux-arm64-musl@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-linux-arm64-musl@npm:0.0.2"
+  conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"solidity-comments-linux-x64-gnu@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-linux-x64-gnu@npm:0.0.2"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"solidity-comments-linux-x64-musl@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-linux-x64-musl@npm:0.0.2"
+  conditions: os=linux & cpu=x64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"solidity-comments-win32-arm64-msvc@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-win32-arm64-msvc@npm:0.0.2"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"solidity-comments-win32-ia32-msvc@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-win32-ia32-msvc@npm:0.0.2"
+  conditions: os=win32 & cpu=ia32
+  languageName: node
+  linkType: hard
+
+"solidity-comments-win32-x64-msvc@npm:0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments-win32-x64-msvc@npm:0.0.2"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"solidity-comments@npm:^0.0.2":
+  version: 0.0.2
+  resolution: "solidity-comments@npm:0.0.2"
+  dependencies:
+    solidity-comments-darwin-arm64: "npm:0.0.2"
+    solidity-comments-darwin-x64: "npm:0.0.2"
+    solidity-comments-freebsd-x64: "npm:0.0.2"
+    solidity-comments-linux-arm64-gnu: "npm:0.0.2"
+    solidity-comments-linux-arm64-musl: "npm:0.0.2"
+    solidity-comments-linux-x64-gnu: "npm:0.0.2"
+    solidity-comments-linux-x64-musl: "npm:0.0.2"
+    solidity-comments-win32-arm64-msvc: "npm:0.0.2"
+    solidity-comments-win32-ia32-msvc: "npm:0.0.2"
+    solidity-comments-win32-x64-msvc: "npm:0.0.2"
+  dependenciesMeta:
+    solidity-comments-darwin-arm64:
+      optional: true
+    solidity-comments-darwin-x64:
+      optional: true
+    solidity-comments-freebsd-x64:
+      optional: true
+    solidity-comments-linux-arm64-gnu:
+      optional: true
+    solidity-comments-linux-arm64-musl:
+      optional: true
+    solidity-comments-linux-x64-gnu:
+      optional: true
+    solidity-comments-linux-x64-musl:
+      optional: true
+    solidity-comments-win32-arm64-msvc:
+      optional: true
+    solidity-comments-win32-ia32-msvc:
+      optional: true
+    solidity-comments-win32-x64-msvc:
+      optional: true
+  checksum: a39b0340c964f2a13594bc34c36656072abfb3cac459f6ca3611aedbbb2ff82d2821e99bfa2cff083af10409b49396c844e55b13acde81ba2758363fa82a6ea8
   languageName: node
   linkType: hard
 

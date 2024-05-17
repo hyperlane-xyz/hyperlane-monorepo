@@ -79,6 +79,7 @@
       "domainId": 97,
       "fallbackRoutingHook": "0x2670ED2EC08cAd135307556685a96bD4c16b007b",
       "index": {
+        "chunk": 1000,
         "from": 34323977
       },
       "interchainAccountIsm": "0xa9D8Ec959F34272B1a56D09AF00eeee58970d3AE",
