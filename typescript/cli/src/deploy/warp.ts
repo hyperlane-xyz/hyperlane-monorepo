@@ -247,7 +247,7 @@ async function fetchBaseTokenMetadata(
   } else if (
     config.type === TokenType.collateralVault ||
     config.type === TokenType.collateral ||
-    config.type === TokenType.collateralXERC20 ||
+    config.type === TokenType.XERC20 ||
     config.type === TokenType.collateralFiat
   ) {
     // If it's a collateral type, use a TokenAdapter to query for its metadata

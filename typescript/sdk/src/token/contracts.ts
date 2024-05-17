@@ -11,7 +11,7 @@ import {
   HypFiatTokenCollateral__factory,
   HypNativeScaled__factory,
   HypNative__factory,
-  HypXERC20Collateral__factory,
+  HypXERC20__factory,
 } from '@hyperlane-xyz/core';
 
 import { proxiedFactories } from '../router/types.js';
@@ -24,7 +24,7 @@ export const hypERC20contracts = {
   [TokenType.synthetic]: 'HypERC20',
   [TokenType.collateral]: 'HypERC20Collateral',
   [TokenType.collateralFiat]: 'HypFiatTokenCollateral',
-  [TokenType.collateralXERC20]: 'HypXERC20Collateral',
+  [TokenType.XERC20]: 'HypXERC20',
   [TokenType.collateralVault]: 'HypERC20CollateralVaultDeposit',
   [TokenType.native]: 'HypNative',
   [TokenType.nativeScaled]: 'HypNativeScaled',
@@ -38,7 +38,7 @@ export const hypERC20Tokenfactories = {
   [TokenType.collateral]: new HypERC20Collateral__factory(),
   [TokenType.collateralVault]: new HypERC20CollateralVaultDeposit__factory(),
   [TokenType.collateralFiat]: new HypFiatTokenCollateral__factory(),
-  [TokenType.collateralXERC20]: new HypXERC20Collateral__factory(),
+  [TokenType.XERC20]: new HypXERC20__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNativeScaled__factory(),
 };

@@ -208,7 +208,7 @@ export class Token implements IToken {
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
       standard === TokenStandard.EvmHypCollateralVault ||
-      standard === TokenStandard.EvmHypXERC20Collateral ||
+      standard === TokenStandard.EvmHypXERC20 ||
       standard === TokenStandard.EvmHypFiatCollateral
     ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
