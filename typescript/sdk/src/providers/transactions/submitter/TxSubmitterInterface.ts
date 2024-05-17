@@ -1,6 +1,5 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../../types.js';
 import {
   ProtocolTypedProvider,
   ProtocolTypedReceipt,
@@ -14,10 +13,6 @@ export interface TxSubmitterInterface<TProtocol extends ProtocolType> {
    * Defines the type of tx submitter.
    */
   txSubmitterType: TxSubmitterType;
-  /**
-   * The chain to submit transactions on.
-   */
-  chain: ChainName;
   /**
    * The provider to use for transaction submission.
    */
