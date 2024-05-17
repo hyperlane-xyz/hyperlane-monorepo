@@ -203,12 +203,14 @@ export interface EthersV5Transaction
   transaction: EV5Transaction;
 }
 
+export type AnnotatedEthersV5Transaction = Annotated<EthersV5Transaction>;
+
 export function createAnnotatedEthersV5Transaction(params: {
   annotation: string;
   chainId: number;
   to: string;
   data: string;
-}): Annotated<EthersV5Transaction> {
+}): AnnotatedEthersV5Transaction {
   return {
     annotation: params.annotation,
     type: ProviderType.EthersV5,
