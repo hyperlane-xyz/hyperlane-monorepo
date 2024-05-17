@@ -45,7 +45,8 @@ struct ForwardBackwardIterator {
 }
 
 impl ForwardBackwardIterator {
-    fn new(db: Arc<dyn ProcessMessage>, high_nonce: Option<u32>) -> Self {
+    fn new(db: Arc<dyn ProcessMessage>) -> Self {
+        let high_nonce = db.retrieve_highest_processed_message_nonce().ok().flatten();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
             high_nonce.unwrap_or_default().into(),
@@ -55,6 +56,11 @@ impl ForwardBackwardIterator {
         let mut low_nonce_iter = DirectionalNonceIterator::new(high_nonce, NonceDirection::Low, db);
         // Decrement the low nonce to avoid processing the same message twice, which causes double counts in metrics
         low_nonce_iter.iterate();
+        debug!(
+            ?low_nonce_iter,
+            ?high_nonce_iter,
+            "Initialized ForwardBackwardIterator"
+        );
         Self {
             low_nonce_iter,
             high_nonce_iter,
@@ -296,7 +302,6 @@ impl MessageProcessor {
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Vec<(MatchingList, String)>,
     ) -> Self {
-        let high_message_nonce = db.retrieve_highest_processed_message_nonce().ok().flatten();
         Self {
             whitelist,
             blacklist,
@@ -304,10 +309,7 @@ impl MessageProcessor {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            nonce_iterator: ForwardBackwardIterator::new(
-                Arc::new(db) as Arc<dyn ProcessMessage>,
-                high_message_nonce,
-            ),
+            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn ProcessMessage>),
         }
     }
 
@@ -574,6 +576,7 @@ mod test {
         }
 
         impl ProcessMessage for Db {
+            fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>>;
             fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
             fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
             fn domain(&self) -> &HyperlaneDomain;
@@ -648,6 +651,9 @@ mod test {
             .expect_domain()
             .return_const(dummy_domain(0, "dummy_domain"));
         mock_db
+            .expect_retrieve_highest_processed_message_nonce()
+            .returning(|| Ok(Some(MOCK_HIGHEST_SEEN_NONCE)));
+        mock_db
             .expect_retrieve_message_by_nonce()
             .returning(move |nonce| {
                 // return `None` the first time we get a query for the last message
@@ -677,9 +683,7 @@ mod test {
         let dummy_metrics = dummy_processor_metrics(0);
         let db = Arc::new(mock_db);
 
-        // Initialize the iterator with the highest seen nonce (which is smaller than the onchain nonce)
-        let mut forward_backward_iterator =
-            ForwardBackwardIterator::new(db.clone(), Some(MOCK_HIGHEST_SEEN_NONCE));
+        let mut forward_backward_iterator = ForwardBackwardIterator::new(db.clone());
 
         let mut messages = vec![];
         while let MessageStatus::Processable(msg) = forward_backward_iterator

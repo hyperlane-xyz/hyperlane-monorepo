@@ -438,6 +438,9 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 
 /// Database interface required for processing messages
 pub trait ProcessMessage: Send + Sync {
+    /// Retrieve the nonce of the highest processed message we're aware of
+    fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>>;
+
     /// Retrieve a message by its nonce
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
 
@@ -449,6 +452,10 @@ pub trait ProcessMessage: Send + Sync {
 }
 
 impl ProcessMessage for HyperlaneRocksDB {
+    fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_processed_message_nonce()
+    }
+
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
         self.retrieve_message_by_nonce(nonce)
     }
