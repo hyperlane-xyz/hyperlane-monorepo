@@ -715,7 +715,7 @@ export abstract class HyperlaneDeployer<
       );
       if (!eqAddress(current, owner)) {
         this.logger.debug(
-          { contractName },
+          { contractName, current, desiredOwner: owner },
           'Current owner and config owner do not match',
         );
         const receipt = await this.runIfOwner(chain, ownable, () => {

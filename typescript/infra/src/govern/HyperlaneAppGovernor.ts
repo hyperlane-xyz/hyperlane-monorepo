@@ -115,7 +115,9 @@ export abstract class HyperlaneAppGovernor<
       if (calls.length > 0) {
         const confirmed = await summarizeCalls(submissionType, calls);
         if (confirmed) {
-          console.log(`Submitting calls on ${chain} via ${submissionType}`);
+          console.log(
+            `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+          );
           await multiSend.sendTransactions(
             calls.map((call) => ({
               to: call.to,
@@ -125,7 +127,7 @@ export abstract class HyperlaneAppGovernor<
           );
         } else {
           console.log(
-            `Skipping submission of calls on ${chain} via ${submissionType}`,
+            `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
         }
       }
@@ -238,10 +240,13 @@ export abstract class HyperlaneAppGovernor<
       chain: ChainName,
       submitterAddress: Address,
     ): Promise<boolean> => {
+      console.log('trying to estimate gas', chain, call, submitterAddress);
       try {
         await multiProvider.estimateGas(chain, call, submitterAddress);
+        console.log('success');
         return true;
       } catch (e) {} // eslint-disable-line no-empty
+      console.log('no success');
       return false;
     };
 

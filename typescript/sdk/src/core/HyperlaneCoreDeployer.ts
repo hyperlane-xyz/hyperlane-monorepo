@@ -146,8 +146,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         mailbox,
         defaultHook,
         (_mailbox) => _mailbox.defaultHook(),
-        (_mailbox, _hook) =>
-          _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
+        (_mailbox, _hook) => {
+          console.log('setting default hook');
+          return _mailbox.populateTransaction.setDefaultHook(_hook, {
+            ...overrides,
+          });
+        },
       );
 
       await this.configureHook(
@@ -164,8 +168,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         mailbox,
         defaultIsm,
         (_mailbox) => _mailbox.defaultIsm(),
-        (_mailbox, _module) =>
-          _mailbox.populateTransaction.setDefaultIsm(_module),
+        (_mailbox, _module) => {
+          console.log('setting default ISM');
+          return _mailbox.populateTransaction.setDefaultIsm(_module);
+        },
       );
     }
 
