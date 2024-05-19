@@ -3,17 +3,13 @@ import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../../../types.js';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-
-interface EV5GnosisSafeTxSubmitterProps {
-  safeAddress: Address;
-}
+import { EV5GnosisSafeTxSubmitterProps } from './EV5TxSubmitterTypes.js';
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =
@@ -25,25 +21,31 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly chain: ChainName,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
   ) {}
 
   public async submit(...txs: PopulatedTransaction[]): Promise<void> {
     const safe = await getSafe(
-      this.chain,
+      this.props.chain,
       this.multiProvider,
       this.props.safeAddress,
     );
-    const safeService = await getSafeService(this.chain, this.multiProvider);
+    const safeService = await getSafeService(
+      this.props.chain,
+      this.multiProvider,
+    );
     const nextNonce: number = await safeService.getNextNonce(
       this.props.safeAddress,
     );
     const safeTransactionBatch: any[] = txs.map(
-      ({ to, data, value }: PopulatedTransaction) => {
+      ({ to, data, value, chainId }: PopulatedTransaction) => {
+        assert(to, 'Invalid PopulatedTransaction: Missing to field');
+        assert(data, 'Invalid PopulatedTransaction: Missing data field');
+        assert(chainId, 'Invalid PopulatedTransaction: Missing chainId field');
+        const txChain = this.multiProvider.getChainName(chainId);
         assert(
-          to && data,
-          'Invalid PopulatedTransaction: Missing required field to or data.',
+          txChain === this.props.chain,
+          `Invalid PopulatedTransaction: Cannot submit ${txChain} tx to ${this.props.chain} submitter.`,
         );
         return { to, data, value: value?.toString() ?? '0' };
       },
@@ -55,13 +57,13 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     const safeTransactionData: any = safeTransaction.data;
     const safeTxHash: string = await safe.getTransactionHash(safeTransaction);
     const senderAddress: Address = await this.multiProvider.getSignerAddress(
-      this.chain,
+      this.props.chain,
     );
     const safeSignature: any = await safe.signTransactionHash(safeTxHash);
     const senderSignature: string = safeSignature.data;
 
     this.logger.debug(
-      `Submitting transaction proposal to ${this.props.safeAddress} on ${this.chain}: ${safeTxHash}`,
+      `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
     );
 
     return safeService.proposeTransaction({

@@ -6,7 +6,7 @@ import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
 import { sendTestTransfer } from '../send/transfer.js';
 
-import { warpConfigOption } from './options.js';
+import { warpCoreConfigCommandOption } from './options.js';
 
 /**
  * Parent command
@@ -110,7 +110,7 @@ const transferCommand: CommandModuleWithWriteContext<
   describe: 'Send a test token transfer on a warp route',
   builder: {
     ...messageOptions,
-    warp: warpConfigOption,
+    warp: warpCoreConfigCommandOption,
     wei: {
       type: 'string',
       description: 'Amount in wei to send',

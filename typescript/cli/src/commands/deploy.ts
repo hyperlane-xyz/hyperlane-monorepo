@@ -14,12 +14,12 @@ import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
   coreTargetsCommandOption,
-  dryRunOption,
+  dryRunCommandOption,
   fromAddressCommandOption,
   hookCommandOption,
   ismCommandOption,
   originCommandOption,
-  warpConfigCommandOption,
+  warpDeploymentConfigCommandOption,
 } from './options.js';
 
 /**
@@ -84,7 +84,7 @@ const coreCommand: CommandModuleWithWriteContext<{
     ism: ismCommandOption,
     hook: hookCommandOption,
     agent: agentConfigCommandOption(false, './configs/agent.json'),
-    'dry-run': dryRunOption,
+    'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
@@ -121,8 +121,8 @@ const warpCommand: CommandModuleWithWriteContext<{
   command: 'warp',
   describe: 'Deploy Warp Route contracts',
   builder: {
-    config: warpConfigCommandOption,
-    'dry-run': dryRunOption,
+    config: warpDeploymentConfigCommandOption,
+    'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {

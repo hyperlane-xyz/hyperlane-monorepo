@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 3.12.0
+
+### Minor Changes
+
+- 69de68a66: Implement aggregation and multisig ISM metadata encoding
+
+### Patch Changes
+
+- eba393680: Exports submitter and transformer props types.
+- Updated dependencies [69de68a66]
+  - @hyperlane-xyz/utils@3.12.0
+  - @hyperlane-xyz/core@3.12.0
+
 ## 3.11.1
 
 ### Patch Changes
