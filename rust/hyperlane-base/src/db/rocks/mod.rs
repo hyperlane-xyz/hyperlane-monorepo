@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::{io, path::Path, sync::Arc};
 
 use hyperlane_core::{ChainCommunicationError, HyperlaneProtocolError};
-use rocksdb::{Options, DB as Rocks};
+use rocksdb::{BlockBasedOptions, Cache, Options, DB as Rocks};
 use tracing::info;
 
 pub use hyperlane_db::*;
@@ -88,9 +88,7 @@ impl DB {
             info!(path=%path.to_string_lossy(), "Creating db")
         }
 
-        let mut opts = Options::default();
-        opts.create_if_missing(true);
-
+        let opts = Self::options();
         Rocks::open(&opts, &path)
             .map_err(|e| DbError::OpeningError {
                 source: e,
@@ -98,6 +96,38 @@ impl DB {
                 canonicalized: path,
             })
             .map(Into::into)
+    }
+
+    fn options() -> Options {
+        let mut opts = Options::default();
+        opts.create_if_missing(true);
+
+        // Block cache size
+        let mut block_opts = BlockBasedOptions::default();
+        // default is 8MB. Set this to 6MB instead.
+        // helps load multiple values from disk at once.
+        const MEGABYTE: usize = 1_000_000;
+        let cache = Cache::new_lru_cache(64 * MEGABYTE);
+        block_opts.set_block_cache(&cache);
+        opts.set_block_based_table_factory(&block_opts);
+
+        // Bloom filter, use the default bits which yields 1% false positives.
+        // Set `false` for the 2nd argument to use a whole-file-based filter which
+        // speeds up lookups.
+        block_opts.set_bloom_filter(10.0, false);
+
+        // Optimize for point lookups
+        // default is none
+        opts.optimize_for_point_lookup(64);
+
+        // LRU Cache Sharding
+        // default is 4
+        opts.set_table_cache_num_shard_bits(6);
+
+        // Readahead size
+        opts.set_compaction_readahead_size(2 * MEGABYTE);
+
+        opts
     }
 
     /// Store a value in the DB
