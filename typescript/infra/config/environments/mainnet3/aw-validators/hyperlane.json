@@ -1,6 +1,8 @@
 {
   "ancient8": {
-    "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
+    "validators": [
+      "0xbb5842ae0e05215b53df4787a29144efb7e67551"
+    ]
   },
   "arbitrum": {
     "validators": [
@@ -24,7 +26,9 @@
     ]
   },
   "blast": {
-    "validators": ["0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"]
+    "validators": [
+      "0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"
+    ]
   },
   "bsc": {
     "validators": [
@@ -62,7 +66,9 @@
     ]
   },
   "injective": {
-    "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
+    "validators": [
+      "0xbfb8911b72cfb138c7ce517c57d9c691535dc517"
+    ]
   },
   "mantapacific": {
     "validators": [
@@ -72,7 +78,9 @@
     ]
   },
   "mode": {
-    "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
+    "validators": [
+      "0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"
+    ]
   },
   "moonbeam": {
     "validators": [
@@ -110,7 +118,9 @@
     ]
   },
   "redstone": {
-    "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
+    "validators": [
+      "0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"
+    ]
   },
   "scroll": {
     "validators": [
@@ -120,9 +130,13 @@
     ]
   },
   "viction": {
-    "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
+    "validators": [
+      "0x1f87c368f8e05a85ef9126d984a980a20930cb9c"
+    ]
   },
   "zetachain": {
-    "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
+    "validators": [
+      "0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"
+    ]
   }
 }

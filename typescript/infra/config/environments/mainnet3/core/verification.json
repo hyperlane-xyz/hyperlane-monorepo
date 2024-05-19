@@ -683,6 +683,12 @@
       "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
       "isProxy": false,
       "name": "ValidatorAnnounce"
+    },
+    {
+      "address": "0xcf678903c003651DB0bb933820259A16ea9d95e4",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "arbitrum": [
@@ -865,6 +871,18 @@
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
+    },
+    {
+      "address": "0xecE63bD3561a8d2daF5763804B91a772183793aF",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x1E38556b4fE553e6249448960875883990efcf34",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "avalanche": [
@@ -1035,6 +1053,12 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "PausableHook"
+    },
+    {
+      "address": "0xd76080269C641e1adb786b72ae60Ddac3b6b8ed0",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "base": [
@@ -1181,6 +1205,12 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "PausableHook"
+    },
+    {
+      "address": "0x2AF32cF8e3Cf42d221eDa0c843818fA5ee129E27",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "blast": [
@@ -1945,6 +1975,12 @@
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
+    },
+    {
+      "address": "0x4C97D35c668EE5194a13c8DE8Afc18cce40C9F28",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "bsc": [
@@ -1995,6 +2031,12 @@
       "constructorArguments": "0000000000000000000000002971b9aec44be4eb673df1b88cdb57b96eefe8a4",
       "isProxy": false,
       "name": "ValidatorAnnounce"
+    },
+    {
+      "address": "0x25dB01caDf91CfD2f7e6dD829Ce81698217F9151",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "celo": [
@@ -2296,6 +2338,12 @@
     },
     {
       "address": "0x5C78772098e194734fE69171d80EdB3979dF77F8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0xDC98a856fb9112894c2fE32267DA8bF35645FAF3",
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
