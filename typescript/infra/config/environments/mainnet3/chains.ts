@@ -16,15 +16,15 @@ const {
 export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
   ...defaultEthereumMainnetConfigs,
   bsc: {
-    ...getChain('bsc'),
+    ...(getChain('bsc') as ChainMetadata),
     transactionOverrides: {
       gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
   polygon: {
-    ...getChain('polygon'),
+    ...(getChain('polygon') as ChainMetadata),
     blocks: {
-      ...getChain('polygon').blocks,
+      ...(getChain('polygon') as ChainMetadata).blocks,
       confirmations: 3,
     },
     transactionOverrides: {
@@ -35,9 +35,9 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
   ethereum: {
-    ...getChain('ethereum'),
+    ...(getChain('ethereum') as ChainMetadata),
     blocks: {
-      ...getChain('ethereum').blocks,
+      ...(getChain('ethereum') as ChainMetadata).blocks,
       confirmations: 3,
     },
     transactionOverrides: {
@@ -46,7 +46,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
   scroll: {
-    ...getChain('scroll'),
+    ...(getChain('scroll') as ChainMetadata),
     transactionOverrides: {
       // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
       // too low for the transaction to be included in a reasonable amount of time -
@@ -55,7 +55,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     },
   },
   moonbeam: {
-    ...getChain('moonbeam'),
+    ...(getChain('moonbeam') as ChainMetadata),
     transactionOverrides: {
       maxFeePerGas: 350 * 10 ** 9, // 350 gwei
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
