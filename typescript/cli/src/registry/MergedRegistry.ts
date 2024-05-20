@@ -29,7 +29,7 @@ export interface MergedRegistryOptions {
 }
 
 export class MergedRegistry extends BaseRegistry implements IRegistry {
-  public readonly type = RegistryType.Local;
+  public readonly type = RegistryType.FileSystem;
   public readonly registries: Array<IRegistry>;
   public readonly isDryRun: boolean;
 
