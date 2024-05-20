@@ -16,7 +16,7 @@ use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
 use num_traits::Zero;
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, trace};
+use tracing::{debug, instrument, trace};
 
 use super::{metadata::AppContextClassifier, op_queue::QueueOperation, pending_message::*};
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
@@ -45,6 +45,7 @@ struct ForwardBackwardIterator {
 }
 
 impl ForwardBackwardIterator {
+    #[instrument(skip(db), ret)]
     fn new(db: Arc<dyn ProcessMessage>) -> Self {
         let high_nonce = db.retrieve_highest_processed_message_nonce().ok().flatten();
         let high_nonce_iter = DirectionalNonceIterator::new(
@@ -102,6 +103,7 @@ impl ForwardBackwardIterator {
         }
     }
 
+    #[instrument]
     fn iterate(&mut self) {
         // set `last_nonce_returned_from` to None to avoid double iterating and skipping a message
         let Some(last_nonce_returned_from) = self.last_nonce_returned_from.take() else {
@@ -139,6 +141,7 @@ impl Debug for DirectionalNonceIterator {
 }
 
 impl DirectionalNonceIterator {
+    #[instrument]
     fn iterate(&mut self) {
         match self.direction {
             NonceDirection::High => self.nonce = self.nonce.map(|n| n.saturating_add(1)),
