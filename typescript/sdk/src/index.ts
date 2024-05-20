@@ -340,8 +340,6 @@ export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
   ClientViolationType as ConnectionClientViolationType,
-  ForeignDeploymentConfig,
-  GasConfig,
   GasRouterConfig,
   MailboxClientConfig,
   ProxiedFactories,
@@ -421,24 +419,11 @@ export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export {
   CollateralConfig,
-  ERC20Metadata,
-  ERC20RouterConfig,
-  ERC721RouterConfig,
-  HypERC20CollateralConfig,
-  HypERC20Config,
-  HypERC721CollateralConfig,
-  HypERC721Config,
-  HypNativeConfig,
-  MinimalTokenMetadata,
   NativeConfig,
-  SyntheticConfig,
-  TokenConfig,
-  TokenMetadata,
   TokenType,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
-  isUriConfig,
 } from './token/config.js';
 export {
   HypERC20Factories,

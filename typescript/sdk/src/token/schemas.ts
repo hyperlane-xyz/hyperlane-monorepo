@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { routerConfigSchema } from '../router/schemas.js';
+import { GasRouterConfigSchema } from '../router/schemas.js';
 
 import { TokenType } from './config.js';
 
@@ -8,49 +8,34 @@ export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
   totalSupply: z.string().or(z.number()),
-});
-
-export const TokenDecimalsSchema = z.object({
-  decimals: z.number(),
+  decimals: z.number().optional(),
   scale: z.number().optional(),
-});
-
-export const ERC20MetadataSchema =
-  TokenMetadataSchema.merge(TokenDecimalsSchema).partial();
-
-export const ERC721MetadataSchema = z.object({
   isNft: z.boolean().optional(),
 });
 
-export const CollateralConfigSchema = ERC721MetadataSchema.merge(
-  ERC20MetadataSchema,
-).merge(
-  z.object({
-    type: z.enum([
-      TokenType.collateral,
-      TokenType.collateralUri,
-      TokenType.fastCollateral,
-      TokenType.collateralVault,
-    ]),
-    token: z.string(),
-  }),
-);
+export const CollateralConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.enum([
+    TokenType.collateral,
+    TokenType.collateralXERC20,
+    TokenType.collateralFiat,
+    TokenType.collateralUri,
+    TokenType.fastCollateral,
+    TokenType.collateralVault,
+  ]),
+  token: z.string(),
+});
 
-export const NativeConfigSchema = TokenDecimalsSchema.partial().merge(
-  z.object({
-    type: z.enum([TokenType.native]),
-  }),
-);
+export const NativeConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.enum([TokenType.native, TokenType.nativeScaled]),
+});
 
-export const SyntheticConfigSchema = TokenMetadataSchema.partial().merge(
-  z.object({
-    type: z.enum([
-      TokenType.synthetic,
-      TokenType.syntheticUri,
-      TokenType.fastSynthetic,
-    ]),
-  }),
-);
+export const SyntheticConfigSchema = TokenMetadataSchema.partial().extend({
+  type: z.enum([
+    TokenType.synthetic,
+    TokenType.syntheticUri,
+    TokenType.fastSynthetic,
+  ]),
+});
 
 /**
  * @remarks
@@ -63,12 +48,22 @@ export const TokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticConfigSchema,
 ]);
 
-export const TokenRouterConfigSchema = z.intersection(
-  TokenConfigSchema,
-  routerConfigSchema,
+export const TokenRouterConfigSchema = TokenConfigSchema.and(
+  GasRouterConfigSchema,
 );
 
-export const WarpRouteDeployConfigSchema = z.record(
-  z.string(),
-  TokenRouterConfigSchema,
-);
+export const WarpRouteDeployConfigSchema = z
+  .record(TokenRouterConfigSchema)
+  .refine((configMap) => {
+    const entries = Object.entries(configMap);
+    return (
+      entries.some(
+        ([_, config]) =>
+          CollateralConfigSchema.safeParse(config).success ||
+          NativeConfigSchema.safeParse(config).success,
+      ) ||
+      entries.filter(
+        ([_, config]) => TokenMetadataSchema.safeParse(config).success,
+      ).length === entries.length
+    );
+  }, `Config must include Native or Collateral OR all synthetics must define token metadata`);

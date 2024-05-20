@@ -4,7 +4,6 @@ import {
   ERC20__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
-import { ERC20Metadata, ERC20RouterConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
@@ -13,14 +12,17 @@ import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
+import { TokenRouterConfig } from './config.js';
+import { TokenMetadata } from './types.js';
+
 type WarpRouteBaseMetadata = Record<
   'mailbox' | 'owner' | 'token' | 'hook' | 'interchainSecurityModule',
   string
 >;
 
-type DerivedERC20WarpRouteConfig = Omit<ERC20RouterConfig, 'type' | 'gas'>;
+type DerivedERC20WarpRouteConfig = Omit<TokenRouterConfig, 'type' | 'gas'>;
 
-export class EvmERC20WarpRouteReader {
+export class EvmWarpRouteReader {
   provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
@@ -111,7 +113,7 @@ export class EvmERC20WarpRouteReader {
    * @param tokenAddress - The address of the token.
    * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
    */
-  async fetchTokenMetadata(tokenAddress: Address): Promise<ERC20Metadata> {
+  async fetchTokenMetadata(tokenAddress: Address): Promise<TokenMetadata> {
     const erc20 = ERC20__factory.connect(tokenAddress, this.provider);
     const [name, symbol, totalSupply, decimals] = await Promise.all([
       erc20.name(),
@@ -120,6 +122,6 @@ export class EvmERC20WarpRouteReader {
       erc20.decimals(),
     ]);
 
-    return { name, symbol, totalSupply, decimals };
+    return { name, symbol, totalSupply: totalSupply.toString(), decimals };
   }
 }
