@@ -24,6 +24,14 @@ import {
 } from './contracts.js';
 import { AccountConfig } from './types.js';
 
+export interface GetCallRemoteSettings {
+  chain: ChainName;
+  destination: ChainName;
+  innerCalls: CallData[];
+  config: AccountConfig;
+  hookMetadata?: BytesLike;
+}
+
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   constructor(
     contractsMap: HyperlaneContractsMap<InterchainAccountFactories>,
@@ -88,13 +96,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 
   // meant for ICA governance to return the populatedTx
-  async getCallRemote(
-    chain: ChainName,
-    destination: ChainName,
-    innerCalls: CallData[],
-    config: AccountConfig,
-    hookMetadata?: BytesLike,
-  ): Promise<PopulatedTransaction> {
+  async getCallRemote({
+    chain,
+    destination,
+    innerCalls,
+    config,
+    hookMetadata,
+  }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
     const localRouter = this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
@@ -139,18 +147,38 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
 
   // general helper for different overloaded callRemote functions
   // can override the gasLimit by StandardHookMetadata.overrideGasLimit for optional hookMetadata here
-  async callRemote(
-    chain: ChainName,
-    destination: ChainName,
-    calls: Array<CallData>,
-    config: AccountConfig,
-    hookMetadata?: string,
-  ): Promise<void> {
+  async callRemote({
+    chain,
+    destination,
+    innerCalls,
+    config,
+    hookMetadata,
+  }: GetCallRemoteSettings): Promise<void> {
     await this.multiProvider.sendTransaction(
       chain,
-      this.getCallRemote(chain, destination, calls, config, hookMetadata),
+      this.getCallRemote({
+        chain,
+        destination,
+        innerCalls,
+        config,
+        hookMetadata,
+      }),
     );
   }
+}
+
+export function buildInterchainAccountApp(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  config: AccountConfig,
+): InterchainAccount {
+  if (!config.localRouter) {
+    throw new Error('localRouter is required for account deployment');
+  }
+  const addressesMap: HyperlaneAddressesMap<any> = {
+    [chain]: { interchainAccountRouter: config.localRouter },
+  };
+  return InterchainAccount.fromAddressesMap(addressesMap, multiProvider);
 }
 
 export async function deployInterchainAccount(
@@ -158,15 +186,10 @@ export async function deployInterchainAccount(
   chain: ChainName,
   config: AccountConfig,
 ): Promise<Address> {
-  if (!config.localRouter) {
-    throw new Error('localRouter is required for account deployment');
-  }
-  const addressesMap: HyperlaneAddressesMap<any> = {
-    [chain]: { interchainAccountRouter: config.localRouter },
-  };
-  const router = InterchainAccount.fromAddressesMap(
-    addressesMap,
+  const interchainAccountApp: InterchainAccount = buildInterchainAccountApp(
     multiProvider,
+    chain,
+    config,
   );
-  return router.deployAccount(chain, config);
+  return interchainAccountApp.deployAccount(chain, config);
 }
