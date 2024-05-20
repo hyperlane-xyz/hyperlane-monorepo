@@ -1180,7 +1180,7 @@
       "interchainAccountIsm": "0x609707355a53d2aAb6366f48E2b607C599D26B29",
       "interchainAccountRouter": "0x8dBae9B1616c46A20591fE0006Bf015E28ca5cC9",
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-      "interchainSecurityModule": "0x5447cdC0f4B1Afd827BF9d2F6b6cE7668d5dc284",
+      "interchainSecurityModule": "0x8CE0c6cAf18DbF5882b35F26E28412f3E9AbDeca",
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "mantapacific": {
         "merkleRootMultisigIsm": "0xd0D6eF4a87505B6E86883E8540f06c622D62915E",
@@ -1269,6 +1269,31 @@
     },
     "gnosis": {
       "aggregationHook": "0xdD1FA1C12496474c1dDC67a658Ba81437F818861",
+      "ancient8": {
+        "merkleRootMultisigIsm": "0xf5f70F03c4C9531cff3155C050b3da98DFEA530b",
+        "messageIdMultisigIsm": "0xcE79A655e8925dBB9087bB4A6DCb7b81d31954f2",
+        "staticAggregationIsm": "0x184D055738163F90A4071AAB86192C0e67856751"
+      },
+      "arbitrum": {
+        "merkleRootMultisigIsm": "0x8e1392484F2a381770226e593A900bCca10EA568",
+        "messageIdMultisigIsm": "0x9378f09084729c7A7D316B8e0765e91cddc29a02",
+        "staticAggregationIsm": "0x60D596EeB0E45202a0f61dfDeE181b6E6Ca2B5CF"
+      },
+      "avalanche": {
+        "merkleRootMultisigIsm": "0x410087862a7E2517Af8e48C56c0F6188Af9185B6",
+        "messageIdMultisigIsm": "0x732482702680097eE57fFe1832a654902f2ED698",
+        "staticAggregationIsm": "0x710bd6a1c3100e5bAd05140F57107d159E43FA68"
+      },
+      "base": {
+        "merkleRootMultisigIsm": "0x6E079d2a7DAFFa65A314095De3520c4Db3a61243",
+        "messageIdMultisigIsm": "0xe549013399E497B45be7C6993460240F38cF2bd0",
+        "staticAggregationIsm": "0xB2F5A5B33dDf744E0f9Bc89e136ADC89C4C4be1b"
+      },
+      "blast": {
+        "merkleRootMultisigIsm": "0x6d6d1Fa53C6d260dA93ACFC6f5b16d1a61d077d6",
+        "messageIdMultisigIsm": "0xe04FBe2816a9C2545DEC7A0ED8f2804BeC39609D",
+        "staticAggregationIsm": "0x93FDbc097504D96D6357CaD923d3f110177B1f70"
+      },
       "blockExplorers": [
         {
           "apiUrl": "https://api.gnosisscan.io/api",
@@ -1282,32 +1307,89 @@
         "estimateBlockTime": 5,
         "reorgPeriod": 14
       },
+      "bsc": {
+        "merkleRootMultisigIsm": "0x29d34bFD7dD51F3aE5b4fBd0E2937f07AC8f5fD6",
+        "messageIdMultisigIsm": "0x5A5934274A8896d82e1735DcA5FC4A9c57c36Fc5",
+        "staticAggregationIsm": "0x84FA993141D2d0b4042Ce3f821cbCF42708a42d9"
+      },
+      "celo": {
+        "merkleRootMultisigIsm": "0x10838DcDB0C9dB93B88106d86EDAf051a59E6220",
+        "messageIdMultisigIsm": "0x6e792ADCF8C4B2c504a82e87dAec6345Cb7A8A5f",
+        "staticAggregationIsm": "0xca62e5431E9300e69Fc4EcaF35C6A8765fdB8c35"
+      },
       "chainId": 100,
       "displayName": "Gnosis",
       "domainId": 100,
+      "domainRoutingIsm": "0x83873DB8B4982091D0781B4eDF108DCb98075C39",
       "domainRoutingIsmFactory": "0xbB5Df000113e767dE11343A16f83De733e5bCC0F",
+      "ethereum": {
+        "merkleRootMultisigIsm": "0xA5c482398E56263ff01a132E76cDb056899E1e30",
+        "messageIdMultisigIsm": "0x745465f6c49B168315D0634dd2309e98052369af",
+        "staticAggregationIsm": "0x4e75e22D747d6322909aDF124077B2c6Ed815937"
+      },
       "fallbackRoutingHook": "0x24f5E353dD03E103Ba2372F7D6FC0cf3A66f849c",
       "gasCurrencyCoinGeckoId": "xdai",
       "gnosisSafeTransactionServiceUrl": "https://safe-transaction-gnosis-chain.safe.global/",
       "index": {
         "from": 30620793
       },
+      "inevm": {
+        "merkleRootMultisigIsm": "0x8EDA5b544D66C5Be94e6a6a989fD609109F8Fbba",
+        "messageIdMultisigIsm": "0x4Afe7fBd7B764D400488d33AFbAAc56d000d6919",
+        "staticAggregationIsm": "0xA59e92bcc6B3a33fb6C5745d2F6e3a3B8a9472c9"
+      },
       "interchainAccountIsm": "0x5a56dff3D92D635372718f86e6dF09C1129CFf53",
       "interchainAccountRouter": "0x5E59EBAedeB691408EBAcF6C37218fa2cFcaC9f2",
       "interchainGasPaymaster": "0xDd260B99d302f0A3fF885728c086f729c06f227f",
-      "interchainSecurityModule": "0x8e1aa0687B6d939D5a44304D13B7c922ebB012f1",
+      "interchainSecurityModule": "0x5DB7edF8C1CF91e34895dB2e4b28d8b9C68ddC7B",
       "mailbox": "0xaD09d78f4c6b9dA2Ae82b1D34107802d380Bb74f",
+      "mantapacific": {
+        "merkleRootMultisigIsm": "0x1cb5B505574D027e7ADbCD11947Cd7032D7690cA",
+        "messageIdMultisigIsm": "0xE7755906E0D3984e0A11b4b75A30e0896f0d27a8",
+        "staticAggregationIsm": "0x8e83309ba2F502B543531279708782e3e589A389"
+      },
       "merkleTreeHook": "0x2684C6F89E901987E1FdB7649dC5Be0c57C61645",
+      "mode": {
+        "merkleRootMultisigIsm": "0x957E66C79f660Ebd8f09b2eBa1E4e5998fEA686E",
+        "messageIdMultisigIsm": "0xAd8cB984F9A2fcC1D315F008739BDA877436e9cb",
+        "staticAggregationIsm": "0x313ed42348e2371a32f48440c989b082Ed377D09"
+      },
+      "moonbeam": {
+        "merkleRootMultisigIsm": "0x05960329eAACD1Eea4ef4609345FE948734c1fA3",
+        "messageIdMultisigIsm": "0xFF7A9fD9E86E5fB251970a38dfea26D4Da73485f",
+        "staticAggregationIsm": "0xeCC929b4fC883B4a1D1590E205CFE24a814F3121"
+      },
       "name": "gnosis",
       "nativeToken": {
         "decimals": 18,
         "name": "xDai",
         "symbol": "xDai"
       },
+      "optimism": {
+        "merkleRootMultisigIsm": "0xFeb1B98892bF6f532c23616F47C7C5FD012c71A0",
+        "messageIdMultisigIsm": "0x6fBF8805A5dD900d860aC6b6cFf1d121A78a94ef",
+        "staticAggregationIsm": "0xB4734350398D27d0642414bd92b6ff6113974107"
+      },
       "pausableHook": "0xf728C884De5275a608dEC222dACd0f2BF2E23AB6",
+      "pausableIsm": "0x223F7D3f27E6272266AE4B5B91Fd5C7A2d798cD8",
+      "polygon": {
+        "merkleRootMultisigIsm": "0x880D3f1f52ed1908Aff7C581B48409D359d28e18",
+        "messageIdMultisigIsm": "0xAb990b6597736f76825f9f2989c12CFC34F33414",
+        "staticAggregationIsm": "0x5c929aACc27cE963043FaDFd5Dc9B10dd3B6b490"
+      },
+      "polygonzkevm": {
+        "merkleRootMultisigIsm": "0x307ef70399Ce3eBCdaA8346d450bF87258200e38",
+        "messageIdMultisigIsm": "0x0Df831f035f3e593bD93B78D7c3f519515A814EA",
+        "staticAggregationIsm": "0x379C3a7977DECed152fcD592ff1189cBc61E2f7a"
+      },
       "protocol": "ethereum",
       "protocolFee": "0x9c2214467Daf9e2e1F45b36d08ce0b9C65BFeA88",
       "proxyAdmin": "0x81a92A1a272cb09d7b4970b07548463dC7aE0cB7",
+      "redstone": {
+        "merkleRootMultisigIsm": "0x6845C98356f56341Ddf779f3E0d97840d562F843",
+        "messageIdMultisigIsm": "0x5Bc16f2D630Ab91845063601155A0BD3A45b300d",
+        "staticAggregationIsm": "0xdc8365C87c3E19C7ba63C4EC43E243F259F13dF4"
+      },
       "rpcUrls": [
         {
           "http": "https://rpc.gnosischain.com",
@@ -1317,7 +1399,13 @@
           }
         }
       ],
+      "scroll": {
+        "merkleRootMultisigIsm": "0x38E1F6C3D685F19d78948655f5be14d59E056dF8",
+        "messageIdMultisigIsm": "0x8e4A7B0266b84980778939dc84b6875Ed9f14D16",
+        "staticAggregationIsm": "0x978e17DC07e8165145a51480e41aa85D3eD48002"
+      },
       "staticAggregationHookFactory": "0xbC8AA096dabDf4A0200BB9f8D4Cbb644C3D86d7B",
+      "staticAggregationIsm": "0xe640167B9a283C8b4039fA33f3ac7be6e7E788c5",
       "staticAggregationIsmFactory": "0x11EF91d17c5ad3330DbCa709a8841743d3Af6819",
       "staticMerkleRootMultisigIsmFactory": "0x8E273260EAd8B72A085B19346A676d355740e875",
       "staticMessageIdMultisigIsmFactory": "0x603f46cc520d2fc22957b81e206408590808F02F",
@@ -1325,10 +1413,45 @@
       "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x87ED6926abc9E38b9C7C19f835B41943b622663c"
+      "validatorAnnounce": "0x87ED6926abc9E38b9C7C19f835B41943b622663c",
+      "viction": {
+        "merkleRootMultisigIsm": "0x39352d014c1C4FD3B7622107Ec42ED0cF3C44347",
+        "messageIdMultisigIsm": "0x2B98e90C090FC51cb791C89aBc74Fd417c07d79F",
+        "staticAggregationIsm": "0x632F7d69C34672A2C1Dc587f913275a190da2D26"
+      },
+      "zetachain": {
+        "merkleRootMultisigIsm": "0x95C26cf74aa2EE40a15891888020d1d6fb8F38Ce",
+        "messageIdMultisigIsm": "0x0d7cB372BFd83FB8dA7Ff762D128029cAc889287",
+        "staticAggregationIsm": "0x2009f7527cc24F0e02b4557587AC07b99a39029f"
+      }
     },
     "inevm": {
       "aggregationHook": "0xe0dDb5dE7D52918237cC1Ae131F29dcAbcb0F62B",
+      "ancient8": {
+        "merkleRootMultisigIsm": "0x0427e0084e8BEC8c3D7Cc2a31DB9ACA8Fc0d3301",
+        "messageIdMultisigIsm": "0x10F5d065b6b212FEC85DDB36A8e8239c40F3C209",
+        "staticAggregationIsm": "0xBcDd450cB8105465A91C0b80f164A4F8DCdc9D99"
+      },
+      "arbitrum": {
+        "merkleRootMultisigIsm": "0x79b1C9C10D8056fd076C986473521579576e25f6",
+        "messageIdMultisigIsm": "0x485420cD1Be640CB3Bb91709addaCF1f30872Afe",
+        "staticAggregationIsm": "0x03E834bB1CdB247BD27EF7a004229F065aFdB784"
+      },
+      "avalanche": {
+        "merkleRootMultisigIsm": "0xc9fB2f3A26F5080cB5a0fE7B397694023e08c32e",
+        "messageIdMultisigIsm": "0x131062a0a635bb73859F6616a7526135B6beb450",
+        "staticAggregationIsm": "0x979Dcd709dD63560894cB516174cA7909Dcf0D3D"
+      },
+      "base": {
+        "merkleRootMultisigIsm": "0xb2965fe19d3ae1821F903DA8A452C9e1F149B5cC",
+        "messageIdMultisigIsm": "0x90f0F3C950D796F31e7261e0e5386A00Df4C272b",
+        "staticAggregationIsm": "0xCBc40857e42FA4896a3b1f19ce3b6e383D4bF693"
+      },
+      "blast": {
+        "merkleRootMultisigIsm": "0xE992DD88Af8534F22ebE2d77fa2eFC672378DE66",
+        "messageIdMultisigIsm": "0x02c03689091291b580Dd599826dA94f82B79B410",
+        "staticAggregationIsm": "0x3172AC7d022ffCE7441bB3561226a27A7441817A"
+      },
       "blockExplorers": [
         {
           "apiUrl": "https://inevm.calderaexplorer.xyz/api",
@@ -1342,38 +1465,98 @@
         "estimateBlockTime": 3,
         "reorgPeriod": 0
       },
+      "bsc": {
+        "merkleRootMultisigIsm": "0x8dac7Df615Cb7599aCfD4EC2CBd9c67Cd5DF6BF6",
+        "messageIdMultisigIsm": "0x718901b7570c59241304758345aF297Ff47D83A1",
+        "staticAggregationIsm": "0x79A7c7Fe443971CBc6baD623Fdf8019C379a7178"
+      },
+      "celo": {
+        "merkleRootMultisigIsm": "0x210130063fFeCbBb783037882cFF907c78CB2e77",
+        "messageIdMultisigIsm": "0xFB0448b8649cB50bF5163c313afd4eb86eA981D9",
+        "staticAggregationIsm": "0x0B8f51272a04e0AcBD901C956A770A046890816e"
+      },
       "chainId": 2525,
       "displayName": "Injective EVM",
       "displayNameShort": "inEVM",
       "domainId": 2525,
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "ethereum": {
+        "merkleRootMultisigIsm": "0xb9f12Cc11b3e36d7914E60C0C290f93c01a1AC85",
+        "messageIdMultisigIsm": "0xD76BFda42e975EEC377F87c4513374eEc8F1b8A8",
+        "staticAggregationIsm": "0x9e2DF2BB8c77bBb0cF77a37f8a03fa1788C202Ab"
+      },
       "gasCurrencyCoinGeckoId": "injective-protocol",
+      "gnosis": {
+        "merkleRootMultisigIsm": "0xcD538D071b62F1F8fa99586a01D0403Bca67E1Fe",
+        "messageIdMultisigIsm": "0x5B005ebad07C8635B5FdA58095291FDf39fD8181",
+        "staticAggregationIsm": "0x157623a1B5621a5aFFdCE20d73De71a24dfd8933"
+      },
       "index": {
         "from": 18972465
       },
       "interchainAccountIsm": "0x31894E7a734540B343d67E491148EB4FC9f7A45B",
       "interchainAccountRouter": "0x4E55aDA3ef1942049EA43E904EB01F4A0a9c39bd",
       "interchainGasPaymaster": "0x19dc38aeae620380430C200a6E990D5Af5480117",
-      "interchainSecurityModule": "0x3052aD50De54aAAc5D364d80bBE681d29e924597",
+      "interchainSecurityModule": "0x440f7AD246F3e75df88a6338E8A33e91DA4B2B05",
       "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "mantapacific": {
+        "merkleRootMultisigIsm": "0x424A84Dd6810Dd4430F4266e7F0F65160370D41e",
+        "messageIdMultisigIsm": "0x59926F2e2C0fBd7a76b5CD101CfFF0b2A0A4e67F",
+        "staticAggregationIsm": "0x00cfc19eb97AbDcF3A724C771850b54a8c4616b4"
+      },
       "merkleTreeHook": "0x0972954923a1e2b2aAb04Fa0c4a0797e5989Cd65",
+      "mode": {
+        "merkleRootMultisigIsm": "0xb15B6e919117841D43d9C498cE802036109c89d6",
+        "messageIdMultisigIsm": "0x7bF8c1dF81626eae9D240AeD5dfe39a25d17BEfB",
+        "staticAggregationIsm": "0xF63538aac842d7C50C40f7C9e85027C718032790"
+      },
+      "moonbeam": {
+        "merkleRootMultisigIsm": "0x3146517E6a45227604745338FDBEa2cF2e64e5c4",
+        "messageIdMultisigIsm": "0xD7039fe2703CD5043708d25912f763D93ca850A6",
+        "staticAggregationIsm": "0x9bD9864FD3E17008764dA2dC9cb96B77FD44eDd8"
+      },
       "name": "inevm",
       "nativeToken": {
         "decimals": 18,
         "name": "Injective",
         "symbol": "INJ"
       },
+      "optimism": {
+        "merkleRootMultisigIsm": "0x8fc728014a142F099A70c81f95cFd55b2ab45441",
+        "messageIdMultisigIsm": "0xa9076E4bE74F541740D0958E7e49eD6CcdBc3a68",
+        "staticAggregationIsm": "0xb527746eB58FE07735361226E2c6F00fdA8Fa6c9"
+      },
       "pausableHook": "0xBDa330Ea8F3005C421C8088e638fBB64fA71b9e0",
       "pausableIsm": "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa",
+      "polygon": {
+        "merkleRootMultisigIsm": "0x47Da9f405b0ff0E410C787c7210C6Fa9d2ecA3b1",
+        "messageIdMultisigIsm": "0x62DA20A9be5538626df0Cb456d1E1311Cb5Ef29d",
+        "staticAggregationIsm": "0x40236cedbC4FFbbE7601922f20bB59aE9Fff3dD2"
+      },
+      "polygonzkevm": {
+        "merkleRootMultisigIsm": "0xBef1Bf4EE74816a690cb71DAC231B3172FBc4bDf",
+        "messageIdMultisigIsm": "0xF9F4D14D7869964fA5B52077A7C91FeB09B2C038",
+        "staticAggregationIsm": "0x712630582473a57075F475c81a5510D55E836F6d"
+      },
       "protocol": "ethereum",
       "protocolFee": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
       "proxyAdmin": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "redstone": {
+        "merkleRootMultisigIsm": "0x9Ff74541ac05a67E78bdBE86e264Ce220c7CdB3F",
+        "messageIdMultisigIsm": "0xcACe051Cd3ea4458E58ca5A81c512C3cdB75901d",
+        "staticAggregationIsm": "0x4178a6B8e8Ba7875e1B10DFDAf6E1dCF378648b2"
+      },
       "rpcUrls": [
         {
           "http": "https://inevm.calderachain.xyz/http"
         }
       ],
+      "scroll": {
+        "merkleRootMultisigIsm": "0x5b353218729d7477fED043929a14d15367eA9F40",
+        "messageIdMultisigIsm": "0xC4518e79F27e1439b9BC49830d5cD3A5B0328254",
+        "staticAggregationIsm": "0xE335B7e8E760b42C51145b5bbb1ed16D69197D3a"
+      },
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "staticAggregationIsm": "0x3052aD50De54aAAc5D364d80bBE681d29e924597",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
@@ -1381,7 +1564,17 @@
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "storageGasOracle": "0x6119E37Bd66406A1Db74920aC79C15fB8411Ba76",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x15ab173bDB6832f9b64276bA128659b0eD77730B"
+      "validatorAnnounce": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
+      "viction": {
+        "merkleRootMultisigIsm": "0xc056cC12752A206C02ffD02bF4ab903b8DF95ca6",
+        "messageIdMultisigIsm": "0x42DF3BD0dEaC280900463F2016D962fE33E16A07",
+        "staticAggregationIsm": "0xb10200e048FafADb50AF2286C01cb1466F4fccC0"
+      },
+      "zetachain": {
+        "merkleRootMultisigIsm": "0x7379765A34E2b623005fb9a94d36B18C88Af3202",
+        "messageIdMultisigIsm": "0x72368d66304Bbc4142effCd7Dd23fb371A4E47D0",
+        "staticAggregationIsm": "0xfF13ce059d05A318E412b3639C28877Ef83751Ae"
+      }
     },
     "injective": {
       "bech32Prefix": "inj",
@@ -1682,6 +1875,31 @@
     },
     "polygon": {
       "aggregationHook": "0x34dAb05650Cf590088bA18aF9d597f3e081bCc47",
+      "ancient8": {
+        "merkleRootMultisigIsm": "0x0f71850FCE91e3c77429A97A838ca857Fd4F0E7a",
+        "messageIdMultisigIsm": "0x5abEc2727f540560E4348A979c157DE1EcA11f58",
+        "staticAggregationIsm": "0x342A9C122e35f2f55Ef6B0f3472575489037E782"
+      },
+      "arbitrum": {
+        "merkleRootMultisigIsm": "0x336d98b1cae2D12494aCD9d41337F585318b7Ba2",
+        "messageIdMultisigIsm": "0xE57170F84dEC68510e685B8b120563E67451a39B",
+        "staticAggregationIsm": "0xfFc1Cf63Bf301d4905812a5c8FBC6Be0D6139B40"
+      },
+      "avalanche": {
+        "merkleRootMultisigIsm": "0xedDf5e4f8d3e7e5930AfD65Fe3D01D833c41aBb6",
+        "messageIdMultisigIsm": "0x554Cc23afd4f216001967565CFb2F4a926781730",
+        "staticAggregationIsm": "0x20538C6537d2beA10498e802B92bE7BFA01eadA2"
+      },
+      "base": {
+        "merkleRootMultisigIsm": "0x4008B7A8A4BB382585ebd6522C8EeE0C1faD7D64",
+        "messageIdMultisigIsm": "0x72c9dE8E16e58501B92e76fd1E06632BA9d68889",
+        "staticAggregationIsm": "0x153C4a06F524cCD4e12afc30d1aB6eAFC56f4E7d"
+      },
+      "blast": {
+        "merkleRootMultisigIsm": "0xA599ac785a8c27eaD07a217a395Be7D4c86eb916",
+        "messageIdMultisigIsm": "0x95c9917eF27e03723b40FE0d6E4056e07335d9Dd",
+        "staticAggregationIsm": "0x7F25c2FF72c89109D1Aa216534bfaA7761A28d42"
+      },
       "blockExplorers": [
         {
           "apiUrl": "https://api.polygonscan.com/api",
@@ -1695,32 +1913,89 @@
         "estimateBlockTime": 2,
         "reorgPeriod": 256
       },
+      "bsc": {
+        "merkleRootMultisigIsm": "0xc667e7D0800F89F034C7277aE13f62E57385a57b",
+        "messageIdMultisigIsm": "0xc1b4c4C58aA770fFB114239555A73c93Fa483763",
+        "staticAggregationIsm": "0xC0e87901Ae4c366566fF78c5FBAeB82Eee50acb7"
+      },
+      "celo": {
+        "merkleRootMultisigIsm": "0x1Ba4eEcC6aC995Fc5aCBEbB4f29b55421b82DBD6",
+        "messageIdMultisigIsm": "0x44C5aaCBA2674878518dBa1c3E4EE6Da292babbD",
+        "staticAggregationIsm": "0x3945ac038c982Bf3eF7E16D8cD1668Fc53DA77f1"
+      },
       "chainId": 137,
       "displayName": "Polygon",
       "domainId": 137,
+      "domainRoutingIsm": "0xBcb9d74E1D2549fc1939023433aaAB11587bc338",
       "domainRoutingIsmFactory": "0x0d0E816eE4557689d34fAd5885C53b9393C1D9fA",
+      "ethereum": {
+        "merkleRootMultisigIsm": "0x04f00CAe1C4f0f04136A49fD2668f37063E1cda5",
+        "messageIdMultisigIsm": "0xC46ae29431838e16D55709C4bd260Ce2CCc26ce4",
+        "staticAggregationIsm": "0xB6867008C31eDa23E5bc98C75CA00369B5C2Fb11"
+      },
       "fallbackRoutingHook": "0xca4cCe24E7e06241846F5EA0cda9947F0507C40C",
       "gasCurrencyCoinGeckoId": "matic-network",
+      "gnosis": {
+        "merkleRootMultisigIsm": "0x115A08BF5169a28ed44f0ad9438CB069e45A2BAc",
+        "messageIdMultisigIsm": "0xC180882A569d77aB5F9e2c67bCeC0FFD298139d1",
+        "staticAggregationIsm": "0x5224688F1195F49DAaE3039A7d44051f30CD73c5"
+      },
       "gnosisSafeTransactionServiceUrl": "https://safe-transaction-polygon.safe.global/",
       "index": {
         "from": 49108065
       },
+      "inevm": {
+        "merkleRootMultisigIsm": "0xB13787f8C153bB14602306E1EC14EACeb5F6C627",
+        "messageIdMultisigIsm": "0x0A4b72b3136Fe77AAAe2bEc10B98147eE7A5c866",
+        "staticAggregationIsm": "0x73D79fC3Af5144DF0D6c3a32186Cd9f2Bf4c8955"
+      },
       "interchainAccountIsm": "0x90384bC552e3C48af51Ef7D9473A9bF87431f5c7",
       "interchainAccountRouter": "0x5e80f3474825B61183c0F0f0726796F589082420",
       "interchainGasPaymaster": "0x0071740Bf129b05C4684abfbBeD248D80971cce2",
-      "interchainSecurityModule": "0x9a795fB62f86146ec06e2377e3C95Af65c7C20eB",
+      "interchainSecurityModule": "0xe289bD204Dbb4F3aaFA27Dbe5751C71e101CFD80",
       "mailbox": "0x5d934f4e2f797775e53561bB72aca21ba36B96BB",
+      "mantapacific": {
+        "merkleRootMultisigIsm": "0xC2c145a72D85FDAE6b0904D0c868C30bfFfb8f29",
+        "messageIdMultisigIsm": "0x6E010F2c156b98B6Bea7e274b36c9308A8f61868",
+        "staticAggregationIsm": "0xBE759dCb2C3C912fFC8b954bD82f6e94842b447a"
+      },
       "merkleTreeHook": "0x73FbD25c3e817DC4B4Cd9d00eff6D83dcde2DfF6",
+      "mode": {
+        "merkleRootMultisigIsm": "0x3299aACce880D1D483FD1CE5182Cb06686ec0839",
+        "messageIdMultisigIsm": "0xE9bd45FfFC57d042e38a3B541724941b0328c2aB",
+        "staticAggregationIsm": "0x227C64b2BE1B8ECCE694b7e9D855C224e219e01C"
+      },
+      "moonbeam": {
+        "merkleRootMultisigIsm": "0xb16880fbE6b38B7a8376DC4b61F96A9B602F3a67",
+        "messageIdMultisigIsm": "0xf046Ea76f1487d2F0b78Ce4dC8F86847cc686458",
+        "staticAggregationIsm": "0x154f699a1E3449449A2A0840fDd9713aaEc50F14"
+      },
       "name": "polygon",
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",
         "symbol": "ETH"
       },
+      "optimism": {
+        "merkleRootMultisigIsm": "0xA1CD31514766420E11b9F176649DE9B1A3487b78",
+        "messageIdMultisigIsm": "0x968FE9B1F58A192561A477425049a07B6C0D4a5f",
+        "staticAggregationIsm": "0xD34aB071B5d8079CFaE7b8B106425F48e87E9817"
+      },
       "pausableHook": "0x748040afB89B8FdBb992799808215419d36A0930",
+      "pausableIsm": "0x6741e91fFDC31c7786E3684427c628dad06299B0",
+      "polygonzkevm": {
+        "merkleRootMultisigIsm": "0x54a309c03531D0ADf6022B119d227DdAB37e1E8D",
+        "messageIdMultisigIsm": "0xbfCC02c6Fd2F2aBe5428C2452bC608538f4ca11b",
+        "staticAggregationIsm": "0x28A103eB930a977A938e7F4B0b77Fd2e9924CD42"
+      },
       "protocol": "ethereum",
       "protocolFee": "0xF8F3629e308b4758F8396606405989F8D8C9c578",
       "proxyAdmin": "0xC4F7590C5d30BE959225dC75640657954A86b980",
+      "redstone": {
+        "merkleRootMultisigIsm": "0xce4fb53F5Ace124B1AdFa0A76888541a629Bcf04",
+        "messageIdMultisigIsm": "0xB0C0322076829Bc4c34cc539B2f4a4DA9FEa64bc",
+        "staticAggregationIsm": "0xB88283b0f307767c1B4ff15Ff8B565e97d0b49Ba"
+      },
       "rpcUrls": [
         {
           "http": "https://polygon-bor.publicnode.com"
@@ -1732,7 +2007,13 @@
           "http": "https://rpc.ankr.com/polygon"
         }
       ],
+      "scroll": {
+        "merkleRootMultisigIsm": "0xD68FE9D04e7e6418C0e3707700E087E60D51bE5F",
+        "messageIdMultisigIsm": "0xa173629AB2c13AE60109136F9A64a93eEF8aba43",
+        "staticAggregationIsm": "0xbcE79F83bD427325F14AA3A47517D9316E9642B8"
+      },
       "staticAggregationHookFactory": "0xFeeB86e70e4a640cDd29636CCE19BD6fe8628135",
+      "staticAggregationIsm": "0xe289bD204Dbb4F3aaFA27Dbe5751C71e101CFD80",
       "staticAggregationIsmFactory": "0x81AdDD9Ca89105063DaDEBd5B4408551Ce850E22",
       "staticMerkleRootMultisigIsmFactory": "0xa9E0E18E78b098c2DE36c42E4DDEA13ce214c592",
       "staticMessageIdMultisigIsmFactory": "0xEa5Be2AD66BB1BA321B7aCf0A079fBE304B09Ca0",
@@ -1741,10 +2022,20 @@
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "transactionOverrides": {
-        "maxFeePerGas": 800000000000,
+        "maxFeePerGas": 400000000000,
         "maxPriorityFeePerGas": 50000000000
       },
-      "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5"
+      "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5",
+      "viction": {
+        "merkleRootMultisigIsm": "0x6Da183EdbdcD1d2D35dB17797F9fdc5Cd80D60EE",
+        "messageIdMultisigIsm": "0x6E6af47fb50ea581cB73bA7461e8e8988e4A0D41",
+        "staticAggregationIsm": "0xF6650Ae954930363464b3E6a6425Bf5b0C6019A4"
+      },
+      "zetachain": {
+        "merkleRootMultisigIsm": "0x59ad8df0E30A00D829DcEd1Aa823D67bf2a98dd3",
+        "messageIdMultisigIsm": "0xE317299680C8b71760B9636D482618Cc63769Ed6",
+        "staticAggregationIsm": "0x6c956Dcb924b4B9eB793e91Ef8D2E86C17BD2c07"
+      }
     },
     "polygonzkevm": {
       "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
@@ -1911,6 +2202,32 @@
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638"
     },
     "viction": {
+      "aggregationHook": "0x5c7890FAf9c99dC55926F00d624D7Bc6D7ac6834",
+      "ancient8": {
+        "merkleRootMultisigIsm": "0x0427e0084e8BEC8c3D7Cc2a31DB9ACA8Fc0d3301",
+        "messageIdMultisigIsm": "0x10F5d065b6b212FEC85DDB36A8e8239c40F3C209",
+        "staticAggregationIsm": "0xBcDd450cB8105465A91C0b80f164A4F8DCdc9D99"
+      },
+      "arbitrum": {
+        "merkleRootMultisigIsm": "0x79b1C9C10D8056fd076C986473521579576e25f6",
+        "messageIdMultisigIsm": "0x485420cD1Be640CB3Bb91709addaCF1f30872Afe",
+        "staticAggregationIsm": "0x03E834bB1CdB247BD27EF7a004229F065aFdB784"
+      },
+      "avalanche": {
+        "merkleRootMultisigIsm": "0xc9fB2f3A26F5080cB5a0fE7B397694023e08c32e",
+        "messageIdMultisigIsm": "0x131062a0a635bb73859F6616a7526135B6beb450",
+        "staticAggregationIsm": "0x979Dcd709dD63560894cB516174cA7909Dcf0D3D"
+      },
+      "base": {
+        "merkleRootMultisigIsm": "0xb2965fe19d3ae1821F903DA8A452C9e1F149B5cC",
+        "messageIdMultisigIsm": "0x90f0F3C950D796F31e7261e0e5386A00Df4C272b",
+        "staticAggregationIsm": "0xCBc40857e42FA4896a3b1f19ce3b6e383D4bF693"
+      },
+      "blast": {
+        "merkleRootMultisigIsm": "0xE992DD88Af8534F22ebE2d77fa2eFC672378DE66",
+        "messageIdMultisigIsm": "0x02c03689091291b580Dd599826dA94f82B79B410",
+        "staticAggregationIsm": "0x3172AC7d022ffCE7441bB3561226a27A7441817A"
+      },
       "blockExplorers": [
         {
           "apiUrl": "https://www.vicscan.xyz/api",
@@ -1924,30 +2241,94 @@
         "estimateBlockTime": 2,
         "reorgPeriod": 0
       },
+      "bsc": {
+        "merkleRootMultisigIsm": "0x8dac7Df615Cb7599aCfD4EC2CBd9c67Cd5DF6BF6",
+        "messageIdMultisigIsm": "0x718901b7570c59241304758345aF297Ff47D83A1",
+        "staticAggregationIsm": "0x79A7c7Fe443971CBc6baD623Fdf8019C379a7178"
+      },
+      "celo": {
+        "merkleRootMultisigIsm": "0x210130063fFeCbBb783037882cFF907c78CB2e77",
+        "messageIdMultisigIsm": "0xFB0448b8649cB50bF5163c313afd4eb86eA981D9",
+        "staticAggregationIsm": "0x0B8f51272a04e0AcBD901C956A770A046890816e"
+      },
       "chainId": 88,
       "displayName": "Viction",
       "domainId": 88,
+      "domainRoutingIsm": "0x477145b11E1a71fEb658d96A0E27F19495121504",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "ethereum": {
+        "merkleRootMultisigIsm": "0xb9f12Cc11b3e36d7914E60C0C290f93c01a1AC85",
+        "messageIdMultisigIsm": "0xD76BFda42e975EEC377F87c4513374eEc8F1b8A8",
+        "staticAggregationIsm": "0x9e2DF2BB8c77bBb0cF77a37f8a03fa1788C202Ab"
+      },
+      "fallbackRoutingHook": "0x5d69BC38eF3eDb491c0b7186BEc4eC45c4013f93",
       "gasCurrencyCoinGeckoId": "tomochain",
+      "gnosis": {
+        "merkleRootMultisigIsm": "0xcD538D071b62F1F8fa99586a01D0403Bca67E1Fe",
+        "messageIdMultisigIsm": "0x5B005ebad07C8635B5FdA58095291FDf39fD8181",
+        "staticAggregationIsm": "0x157623a1B5621a5aFFdCE20d73De71a24dfd8933"
+      },
       "index": {
         "chunk": 999,
         "from": 73573878
       },
+      "inevm": {
+        "merkleRootMultisigIsm": "0x2Fd7A5a277875C5d25237C4de796276B5852c0B8",
+        "messageIdMultisigIsm": "0x503b801999C335fAC2C306675DA8451799C52809",
+        "staticAggregationIsm": "0x64DF9a02380bcd9d88b771771319818bff2d9664"
+      },
       "interchainAccountIsm": "0xD1E267d2d7876e97E217BfE61c34AB50FEF52807",
       "interchainAccountRouter": "0x1956848601549de5aa0c887892061fA5aB4f6fC4",
       "interchainGasPaymaster": "0x0D63128D887159d63De29497dfa45AFc7C699AE4",
-      "interchainSecurityModule": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
+      "interchainSecurityModule": "0xf8F3AF5F6B8f319364c339c0b8cA5975481901eD",
       "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "mantapacific": {
+        "merkleRootMultisigIsm": "0x424A84Dd6810Dd4430F4266e7F0F65160370D41e",
+        "messageIdMultisigIsm": "0x59926F2e2C0fBd7a76b5CD101CfFF0b2A0A4e67F",
+        "staticAggregationIsm": "0x00cfc19eb97AbDcF3A724C771850b54a8c4616b4"
+      },
       "merkleTreeHook": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
+      "mode": {
+        "merkleRootMultisigIsm": "0xb15B6e919117841D43d9C498cE802036109c89d6",
+        "messageIdMultisigIsm": "0x7bF8c1dF81626eae9D240AeD5dfe39a25d17BEfB",
+        "staticAggregationIsm": "0xF63538aac842d7C50C40f7C9e85027C718032790"
+      },
+      "moonbeam": {
+        "merkleRootMultisigIsm": "0x3146517E6a45227604745338FDBEa2cF2e64e5c4",
+        "messageIdMultisigIsm": "0xD7039fe2703CD5043708d25912f763D93ca850A6",
+        "staticAggregationIsm": "0x9bD9864FD3E17008764dA2dC9cb96B77FD44eDd8"
+      },
       "name": "viction",
       "nativeToken": {
         "decimals": 18,
         "name": "Viction",
         "symbol": "VIC"
       },
+      "optimism": {
+        "merkleRootMultisigIsm": "0x8fc728014a142F099A70c81f95cFd55b2ab45441",
+        "messageIdMultisigIsm": "0xa9076E4bE74F541740D0958E7e49eD6CcdBc3a68",
+        "staticAggregationIsm": "0xb527746eB58FE07735361226E2c6F00fdA8Fa6c9"
+      },
+      "pausableHook": "0xDab56C5A1EffFdd23f6BD1243E457B1575984Bc6",
+      "pausableIsm": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "polygon": {
+        "merkleRootMultisigIsm": "0x47Da9f405b0ff0E410C787c7210C6Fa9d2ecA3b1",
+        "messageIdMultisigIsm": "0x62DA20A9be5538626df0Cb456d1E1311Cb5Ef29d",
+        "staticAggregationIsm": "0x40236cedbC4FFbbE7601922f20bB59aE9Fff3dD2"
+      },
+      "polygonzkevm": {
+        "merkleRootMultisigIsm": "0xBef1Bf4EE74816a690cb71DAC231B3172FBc4bDf",
+        "messageIdMultisigIsm": "0xF9F4D14D7869964fA5B52077A7C91FeB09B2C038",
+        "staticAggregationIsm": "0x712630582473a57075F475c81a5510D55E836F6d"
+      },
       "protocol": "ethereum",
       "protocolFee": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "proxyAdmin": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "redstone": {
+        "merkleRootMultisigIsm": "0x9Ff74541ac05a67E78bdBE86e264Ce220c7CdB3F",
+        "messageIdMultisigIsm": "0xcACe051Cd3ea4458E58ca5A81c512C3cdB75901d",
+        "staticAggregationIsm": "0x4178a6B8e8Ba7875e1B10DFDAf6E1dCF378648b2"
+      },
       "rpcUrls": [
         {
           "http": "https://rpc.tomochain.com"
@@ -1956,7 +2337,13 @@
           "http": "https://viction.blockpi.network/v1/rpc/public"
         }
       ],
+      "scroll": {
+        "merkleRootMultisigIsm": "0x5b353218729d7477fED043929a14d15367eA9F40",
+        "messageIdMultisigIsm": "0xC4518e79F27e1439b9BC49830d5cD3A5B0328254",
+        "staticAggregationIsm": "0xE335B7e8E760b42C51145b5bbb1ed16D69197D3a"
+      },
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsm": "0x60586f0b79426f8F406C807a59c7b6478e8bBa0C",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
@@ -1964,7 +2351,12 @@
       "testRecipient": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",
       "testTokenRecipient": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
+      "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
+      "zetachain": {
+        "merkleRootMultisigIsm": "0x7379765A34E2b623005fb9a94d36B18C88Af3202",
+        "messageIdMultisigIsm": "0x72368d66304Bbc4142effCd7Dd23fb371A4E47D0",
+        "staticAggregationIsm": "0xfF13ce059d05A318E412b3639C28877Ef83751Ae"
+      }
     },
     "zetachain": {
       "blockExplorers": [

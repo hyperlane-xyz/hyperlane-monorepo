@@ -125,6 +125,7 @@ export abstract class HyperlaneDeployer<
     ).intersection;
 
     this.logger.debug(`Start deploy to ${targetChains}`);
+    const promises = [];
     for (const chain of targetChains) {
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
@@ -135,11 +136,34 @@ export abstract class HyperlaneDeployer<
       this.startingBlockNumbers[chain] = await this.multiProvider
         .getProvider(chain)
         .getBlockNumber();
-      await runWithTimeout(this.chainTimeoutMs, async () => {
-        const contracts = await this.deployContracts(chain, configMap[chain]);
-        this.addDeployedContracts(chain, contracts);
-      });
+      if (
+        ![
+          // 'arbitrum',
+          // 'ancient8',
+          // 'avalanche',
+          // 'base',
+          // 'blast',
+          // 'bsc',
+          // 'celo',
+          // 'ethereum',
+          // 'polygon',
+          'viction',
+        ].includes(chain)
+      ) {
+        this.logger.warn({ chain }, 'Skipping deploy to chain already done');
+        continue;
+      }
+
+      promises.push(
+        runWithTimeout(15 * 1000 * 60 /*this.chainTimeoutMs*/, async () => {
+          const contracts = await this.deployContracts(chain, configMap[chain]);
+          this.addDeployedContracts(chain, contracts);
+          this.logger.info({ chain }, 'Successfully deployed contracts');
+        }),
+      );
     }
+    await Promise.all(promises);
+
     return this.deployedContracts;
   }
 
