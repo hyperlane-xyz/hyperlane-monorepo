@@ -437,7 +437,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     /// - Even if the logs include a gap, in practice these logs will have already been inserted into the DB.
     ///   This means that while gaps result in a rewind here, already known logs may be "fast forwarded" through,
     ///   and the cursor won't actually end up re-indexing already known logs.
-    #[instrument(err, ret)]
+    #[instrument(err, ret, skip(logs), fields(range=?range, logs=?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>()))]
     async fn update(
         &mut self,
         logs: Vec<(Indexed<T>, LogMeta)>,

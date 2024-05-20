@@ -345,7 +345,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     /// ## logs
     /// The logs to ingest. If any logs are duplicated or their sequence is higher than the current indexing snapshot,
     /// they are filtered out.
-    #[instrument(err, ret)]
+    #[instrument(err, ret, skip(logs), fields(range=?range, logs=?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>()))]
     async fn update(
         &mut self,
         logs: Vec<(Indexed<T>, LogMeta)>,
