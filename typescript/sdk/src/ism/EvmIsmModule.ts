@@ -220,14 +220,17 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // only check for mailbox diff if it's a fallback routing ISM
     if (targetIsmType === IsmType.FALLBACK_ROUTING) {
-      // get current mailbox address
-      const client = MailboxClient__factory.connect(
-        this.args.addresses.deployedIsm,
-        provider,
-      );
-      const mailboxAddress = await client.mailbox();
+      // can only retreive mailbox address if current ISM type is also Fallback Routing
+      const mailboxAddress =
+        currentConfig.type === IsmType.FALLBACK_ROUTING
+          ? await MailboxClient__factory.connect(
+              this.args.addresses.deployedIsm,
+              provider,
+            ).mailbox()
+          : ''; // empty string to force a mailbox diff
 
       // if mailbox delta, deploy new routing ISM before updating
+      // this will always be the case if the current ISM is not a fallback routing ISM
       if (!eqAddress(mailboxAddress, this.args.addresses.mailbox)) {
         const newIsm = await this.deployRoutingIsm({
           config: targetConfig,
@@ -633,6 +636,26 @@ export class EvmIsmModule extends HyperlaneModule<
     // );
 
     return contract;
+  }
+
+  // Updates the mailbox address if it is different from the current one.
+  // Logs changes and updates the internal state of the module.
+  public setNewMailbox(newMailboxAddress: Address): void {
+    const currentMailboxAddress = this.args.addresses.mailbox;
+
+    if (currentMailboxAddress === newMailboxAddress) {
+      this.logger.debug(
+        `Mailbox address is already set to ${newMailboxAddress}`,
+      );
+      return;
+    }
+
+    this.logger.debug(
+      `Setting new mailbox address from ${currentMailboxAddress} to ${newMailboxAddress}`,
+    );
+
+    // Update the mailbox address in the arguments
+    this.args.addresses.mailbox = newMailboxAddress;
   }
 
   // Public so it can be reused by the hook module.

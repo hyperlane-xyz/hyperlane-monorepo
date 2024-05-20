@@ -172,8 +172,14 @@ export async function moduleMatchesConfig(
   // Less stringent checks on Routing/Pausable ISMs if not configured yet
   configured = true,
 ): Promise<boolean> {
+  // Handle custom ISM addresses
   if (typeof config === 'string') {
     return eqAddress(moduleAddress, config);
+  }
+
+  // Handle undefined domains
+  if (!config || !config.type) {
+    return false;
   }
 
   // If the module address is zero, it can't match any object-based config.
@@ -221,6 +227,13 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
+
+      // if fallback routing, check that mailbox matches
+      if (config.type === IsmType.FALLBACK_ROUTING) {
+        const client = MailboxClient__factory.connect(moduleAddress, provider);
+        const mailboxAddress = await client.mailbox();
+        matches &&= mailbox !== undefined && eqAddress(mailboxAddress, mailbox);
+      }
 
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
@@ -328,7 +341,6 @@ export async function routingModuleDelta(
   multiProvider: MultiProvider,
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
-  configured = true,
 ): Promise<RoutingIsmDelta> {
   const provider = multiProvider.getProvider(destination);
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
@@ -380,7 +392,6 @@ export async function routingModuleDelta(
         multiProvider,
         contracts,
         mailbox,
-        configured,
       );
       if (!subModuleMatches) delta.domainsToEnroll.push(originDomain);
     }
