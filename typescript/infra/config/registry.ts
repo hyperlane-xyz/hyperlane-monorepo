@@ -51,7 +51,7 @@ export function getChains(): ChainName[] {
   return getRegistry().getChains();
 }
 
-export function getChain(chainName: ChainName): ChainMetadata {
+export function getChain(chainName: ChainName): ChainMetadata | null {
   if (testChains.includes(chainName)) {
     return testChainMetadata[chainName];
   }
@@ -62,11 +62,17 @@ export function getChain(chainName: ChainName): ChainMetadata {
 
 export function getDomainId(chainName: ChainName): number {
   const chain = getChain(chainName);
+  if (chain === null) {
+    throw new Error(`Chain not found: ${chainName}`);
+  }
   return resolveDomainId(chain);
 }
 
 export function getReorgPeriod(chainName: ChainName): number {
   const chain = getChain(chainName);
+  if (chain === null) {
+    throw new Error(`Chain not found: ${chainName}`);
+  }
   return resolveReorgPeriod(chain);
 }
 
