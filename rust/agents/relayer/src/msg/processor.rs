@@ -6,6 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
@@ -19,6 +20,7 @@ use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
 #[allow(clippy::too_many_arguments)]
+#[derive(new)]
 pub struct MessageProcessor {
     db: HyperlaneRocksDB,
     whitelist: Arc<MatchingList>,
@@ -30,8 +32,8 @@ pub struct MessageProcessor {
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Vec<(MatchingList, String)>,
-    highest_message_nonce: u32,
-    lowest_message_nonce: u32,
+    #[new(default)]
+    message_nonce: u32,
 }
 
 impl Debug for MessageProcessor {
@@ -39,7 +41,7 @@ impl Debug for MessageProcessor {
         write!(
             f,
             "MessageProcessor {{ whitelist: {:?}, blacklist: {:?}, message_nonce: {:?} }}",
-            self.whitelist, self.blacklist, self.highest_message_nonce
+            self.whitelist, self.blacklist, self.message_nonce
         )
     }
 }
@@ -66,28 +68,28 @@ impl ProcessorExt for MessageProcessor {
             // Skip if not whitelisted.
             if !self.whitelist.msg_matches(&msg, true) {
                 debug!(?msg, whitelist=?self.whitelist, "Message not whitelisted, skipping");
-                self.highest_message_nonce += 1;
+                self.message_nonce += 1;
                 return Ok(());
             }
 
             // Skip if the message is blacklisted
             if self.blacklist.msg_matches(&msg, false) {
                 debug!(?msg, blacklist=?self.blacklist, "Message blacklisted, skipping");
-                self.highest_message_nonce += 1;
+                self.message_nonce += 1;
                 return Ok(());
             }
 
             // Skip if the message is intended for this origin
             if destination == self.domain().id() {
                 debug!(?msg, "Message destined for self, skipping");
-                self.highest_message_nonce += 1;
+                self.message_nonce += 1;
                 return Ok(());
             }
 
             // Skip if the message is intended for a destination we do not service
             if !self.send_channels.contains_key(&destination) {
                 debug!(?msg, "Message destined for unknown domain, skipping");
-                self.highest_message_nonce += 1;
+                self.message_nonce += 1;
                 return Ok(());
             }
 
@@ -104,7 +106,7 @@ impl ProcessorExt for MessageProcessor {
                 app_context,
             );
             self.send_channels[&destination].send(Box::new(pending_msg) as QueueOperation)?;
-            self.highest_message_nonce += 1;
+            self.message_nonce += 1;
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -113,97 +115,34 @@ impl ProcessorExt for MessageProcessor {
 }
 
 impl MessageProcessor {
-    pub fn new(
-        db: HyperlaneRocksDB,
-        whitelist: Arc<MatchingList>,
-        blacklist: Arc<MatchingList>,
-        metrics: MessageProcessorMetrics,
-        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
-        destination_ctxs: HashMap<u32, Arc<MessageContext>>,
-        metric_app_contexts: Vec<(MatchingList, String)>,
-    ) -> Self {
-        let highest_message_nonce = db
-            .retrieve_highest_processed_message_nonce()
-            .ok()
-            .flatten()
-            .unwrap_or(0);
-        Self {
-            db,
-            whitelist,
-            blacklist,
-            metrics,
-            send_channels,
-            destination_ctxs,
-            metric_app_contexts,
-            highest_message_nonce,
-            lowest_message_nonce: highest_message_nonce,
-        }
-    }
-
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
         loop {
             // First, see if we can find the message so we can update the gauge.
-            if let (Some(message), new_nonce) =
-                self.try_get_next_unprocessed(self.highest_message_nonce, 1)?
-            {
-                self.highest_message_nonce = new_nonce;
-                return Ok(Some(message));
-            } else if let (Some(message), new_nonce) =
-                self.try_get_next_unprocessed(self.lowest_message_nonce, -1)?
-            {
-                self.lowest_message_nonce = new_nonce;
-                return Ok(Some(message));
+            if let Some(message) = self.db.retrieve_message_by_nonce(self.message_nonce)? {
+                // Update the latest nonce gauges
+                self.metrics
+                    .max_last_known_message_nonce_gauge
+                    .set(message.nonce as i64);
+                if let Some(metrics) = self.metrics.get(message.destination) {
+                    metrics.set(message.nonce as i64);
+                }
+
+                // If this message has already been processed, on to the next one.
+                if !self
+                    .db
+                    .retrieve_processed_by_nonce(&self.message_nonce)?
+                    .unwrap_or(false)
+                {
+                    return Ok(Some(message));
+                } else {
+                    debug!(nonce=?self.message_nonce, "Message already marked as processed in DB");
+                    self.message_nonce += 1;
+                }
             } else {
-                trace!(nonce=?self.highest_message_nonce, "No message found in DB for nonce");
+                trace!(nonce=?self.message_nonce, "No message found in DB for nonce");
                 return Ok(None);
             }
         }
-    }
-
-    fn try_get_next_unprocessed(
-        &mut self,
-        mut nonce: u32,
-        increment: i32,
-    ) -> Result<(Option<HyperlaneMessage>, u32)> {
-        if let Some(message) = self.indexed_message_with_nonce(nonce)? {
-            self.update_max_nonce_gauge(&message);
-
-            // If this message has already been processed, on to the next one.
-            if !self.processed_message_with_nonce(nonce)? {
-                return Ok((Some(message), nonce));
-            } else {
-                debug!(nonce=?nonce, "Message already marked as processed in DB");
-                nonce = (nonce as i32 + increment) as u32;
-            }
-        } else {
-            trace!(nonce=?nonce, "No message found in DB for nonce");
-        }
-        Ok((None, nonce))
-    }
-
-    fn update_max_nonce_gauge(&self, message: &HyperlaneMessage) {
-        self.metrics
-            .max_last_known_message_nonce_gauge
-            .set(message.nonce as i64);
-        if let Some(metrics) = self.metrics.get(message.destination) {
-            metrics.set(message.nonce as i64);
-        }
-    }
-
-    fn indexed_message_with_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
-        if nonce < 0 {
-            return Ok(None);
-        }
-        let msg = self.db.retrieve_message_by_nonce(nonce)?;
-        Ok(msg)
-    }
-
-    fn processed_message_with_nonce(&self, nonce: u32) -> Result<bool> {
-        let processed = self
-            .db
-            .retrieve_processed_by_nonce(&nonce)?
-            .unwrap_or(false);
-        Ok(processed)
     }
 }
 
