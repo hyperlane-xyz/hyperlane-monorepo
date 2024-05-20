@@ -42,30 +42,37 @@ struct ForwardBackwardIterator {
     low_nonce_iter: DirectionalNonceIterator,
     high_nonce_iter: DirectionalNonceIterator,
     last_nonce_returned_from: Option<NonceDirection>,
+    // here for debugging purposes
+    _domain: String,
 }
 
 impl ForwardBackwardIterator {
     #[instrument(skip(db), ret)]
     fn new(db: Arc<dyn ProcessMessage>) -> Self {
         let high_nonce = db.retrieve_highest_processed_message_nonce().ok().flatten();
+        let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
             high_nonce.unwrap_or_default().into(),
             NonceDirection::High,
             db.clone(),
+            domain.clone(),
         );
-        let mut low_nonce_iter = DirectionalNonceIterator::new(high_nonce, NonceDirection::Low, db);
+        let mut low_nonce_iter =
+            DirectionalNonceIterator::new(high_nonce, NonceDirection::Low, db, domain.clone());
         // Decrement the low nonce to avoid processing the same message twice, which causes double counts in metrics
         low_nonce_iter.iterate();
         debug!(
             ?low_nonce_iter,
             ?high_nonce_iter,
+            ?domain,
             "Initialized ForwardBackwardIterator"
         );
         Self {
             low_nonce_iter,
             high_nonce_iter,
             last_nonce_returned_from: Default::default(),
+            _domain: domain,
         }
     }
 
@@ -128,14 +135,15 @@ struct DirectionalNonceIterator {
     nonce: Option<u32>,
     direction: NonceDirection,
     db: Arc<dyn ProcessMessage>,
+    domain_name: String,
 }
 
 impl Debug for DirectionalNonceIterator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "DirectionalNonceIterator {{ nonce: {:?}, direction: {:?} }}",
-            self.nonce, self.direction
+            "DirectionalNonceIterator {{ nonce: {:?}, direction: {:?}, domain: {:?} }}",
+            self.nonce, self.direction, self.domain_name
         )
     }
 }

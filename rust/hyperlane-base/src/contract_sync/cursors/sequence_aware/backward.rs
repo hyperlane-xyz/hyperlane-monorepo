@@ -33,6 +33,11 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
 }
 
 impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
+    #[instrument(
+        skip(db),
+        fields(chunk_size, next_sequence, start_block, index_mode),
+        ret
+    )]
     pub fn new(
         chunk_size: u32,
         db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
@@ -60,7 +65,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     /// Gets the next range of logs to query.
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
-    #[instrument(err, ret)]
+    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         self.skip_indexed().await?;

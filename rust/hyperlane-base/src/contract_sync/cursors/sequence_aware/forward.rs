@@ -42,6 +42,11 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
 }
 
 impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
+    #[instrument(
+        skip(db, latest_sequence_querier),
+        fields(chunk_size, next_sequence, start_block, index_mode),
+        ret
+    )]
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
@@ -75,7 +80,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// If there are no logs to index, returns `None`.
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
-    #[instrument(err, ret)]
+    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         self.skip_indexed().await?;
