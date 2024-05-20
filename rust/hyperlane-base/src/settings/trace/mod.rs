@@ -70,6 +70,7 @@ impl TracingConfig {
                 .with_target("rusoto_core", Level::Info)
                 .with_target("rustls", Level::Info)
                 .with_target("reqwest", Level::Info)
+                .with_target("runtime", Level::Debug)
                 .with_target("h2", Level::Info)
                 .with_target("tower", Level::Info)
                 .with_target("tendermint", Level::Info)
