@@ -8,7 +8,7 @@ import {
   RegistryContent,
   RegistryType,
 } from '@hyperlane-xyz/registry';
-import { LocalRegistry } from '@hyperlane-xyz/registry/local';
+import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
@@ -44,7 +44,10 @@ export class MergedRegistry extends BaseRegistry implements IRegistry {
       if (isHttpsUrl(uri)) {
         return new GithubRegistry({ uri, logger: logger!.child({ index }) });
       } else {
-        return new LocalRegistry({ uri, logger: logger!.child({ index }) });
+        return new FileSystemRegistry({
+          uri,
+          logger: logger!.child({ index }),
+        });
       }
     });
 

@@ -2,7 +2,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { LocalRegistry } from '@hyperlane-xyz/registry/local';
+import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
@@ -29,17 +29,17 @@ const DEFAULT_REGISTRY_URI = join(
 
 // A global Registry singleton
 // All uses of chain metadata or chain address artifacts should go through this registry.
-let registry: LocalRegistry;
+let registry: FileSystemRegistry;
 
-export function setRegistry(reg: LocalRegistry) {
+export function setRegistry(reg: FileSystemRegistry) {
   registry = reg;
 }
 
-export function getRegistry(): LocalRegistry {
+export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
     rootLogger.info('Using registry URI:', registryUri);
-    registry = new LocalRegistry({
+    registry = new FileSystemRegistry({
       uri: registryUri,
       logger: rootLogger.child({ module: 'infra-registry' }),
     });
