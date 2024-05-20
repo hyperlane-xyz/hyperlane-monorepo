@@ -141,5 +141,5 @@ function getEthereumAddress(publicKey: Buffer): string {
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
   const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
-  return `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
+  return `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
 }
