@@ -1,5 +1,5 @@
 import { password } from '@inquirer/prompts';
-import { BigNumberish, Wallet, ethers, utils } from 'ethers';
+import { BigNumberish, Wallet, utils } from 'ethers';
 
 import { ECDSAStakeRegistry__factory } from '@hyperlane-xyz/core';
 import { ChainName } from '@hyperlane-xyz/sdk';
@@ -28,16 +28,19 @@ export async function registerOperatorWithSignature({
   chain: ChainName;
   operatorKeyPath: string;
 }) {
-  const { multiProvider, signer } = context;
+  const { multiProvider, key } = context;
+
+  const provider = multiProvider.getProvider(chain);
+  const connectedSigner = new Wallet(key, provider);
 
   await runPreflightChecksForChains({
-    context,
+    context: {
+      ...context,
+      signer: connectedSigner,
+    },
     chains: [chain],
     minGas: MINIMUM_AVS_GAS,
   });
-
-  const provider = multiProvider.getProvider(chain);
-  const connectedSigner = signer.connect(provider);
 
   // Read the encrypted JSON key from the file
   const encryptedJson = readFileAtPath(resolvePath(operatorKeyPath));
@@ -47,7 +50,7 @@ export async function registerOperatorWithSignature({
     message: 'Enter the password for the operator key file: ',
   });
 
-  const operator = await ethers.Wallet.fromEncryptedJson(
+  const operator = await Wallet.fromEncryptedJson(
     encryptedJson,
     keyFilePassword,
   );
@@ -97,7 +100,7 @@ export async function deregisterOperator({
     message: 'Enter the password for the operator key file: ',
   });
 
-  const operatorAsSigner = await ethers.Wallet.fromEncryptedJson(
+  const operatorAsSigner = await Wallet.fromEncryptedJson(
     encryptedJson,
     keyFilePassword,
   );
