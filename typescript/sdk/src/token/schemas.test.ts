@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import { constants, ethers } from 'ethers';
 
-import { TokenType, WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
+import { TokenType } from './config.js';
+import { WarpRouteDeployConfigSchema } from './schemas.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [

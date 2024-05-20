@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 import { OwnableConfigSchema } from '../deploy/schemas.js';
-import { ZHash } from '../index.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
+import { ZHash } from '../metadata/customZodTypes.js';
 
 export const MailboxClientConfigSchema = OwnableConfigSchema.extend({
   mailbox: ZHash,

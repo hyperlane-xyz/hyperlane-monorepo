@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
-import { ZHash } from '../../index.js';
-import { ZChainName } from '../../metadata/customZodTypes.js';
+import { ZChainName, ZHash } from '../../metadata/customZodTypes.js';
 
 export const AccountConfigSchema = z.object({
   origin: ZChainName,
