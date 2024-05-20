@@ -22,6 +22,9 @@ export const validatorCommand: CommandModule = {
 
 // If AWS access key needed for future validator commands, move to context
 const addressCommand: CommandModuleWithContext<{
+  accessKey: string;
+  secretKey: string;
+  region: string;
   bucket: string;
   keyId: string;
 }> = {
@@ -34,8 +37,15 @@ const addressCommand: CommandModuleWithContext<{
     bucket: bucketCommandOption,
     'key-id': keyIdCommandOption,
   },
-  handler: async ({ context, bucket, keyId }) => {
-    await getValidatorAddress({ context, bucket, keyId });
+  handler: async ({ context, accessKey, secretKey, region, bucket, keyId }) => {
+    await getValidatorAddress({
+      context,
+      accessKey,
+      secretKey,
+      region,
+      bucket,
+      keyId,
+    });
     process.exit(0);
   },
 };

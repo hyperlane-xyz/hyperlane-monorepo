@@ -6,30 +6,37 @@ import { ethers } from 'ethers';
 
 import { CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
+import { getAccessKeyId, getRegion, getSecretAccessKey } from '../utils/aws.js';
 
 export async function getValidatorAddress({
   context,
+  accessKey,
+  secretKey,
+  region,
   bucket,
   keyId,
 }: {
   context: CommandContext;
+  accessKey?: string;
+  secretKey?: string;
+  region?: string;
   bucket?: string;
-  keyId: string;
+  keyId?: string;
 }) {
   if (!bucket && !keyId) {
     throw new Error('Must provide either an S3 bucket or a KMS Key ID.');
   }
 
-  // User must have below env variables configured beforehand
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const region = process.env.AWS_REGION;
+  // Query user for AWS parameters if not passed in or stored as .env variables
+  accessKey ||= await getAccessKeyId(context.skipConfirmation);
+  secretKey ||= await getSecretAccessKey(context.skipConfirmation);
+  region ||= await getRegion(context.skipConfirmation);
 
-  if (!accessKeyId) {
+  if (!accessKey) {
     throw new Error('No access key ID set.');
   }
 
-  if (!secretAccessKey) {
+  if (!secretKey) {
     throw new Error('No secret access key set.');
   }
 
@@ -41,15 +48,15 @@ export async function getValidatorAddress({
   if (bucket) {
     validatorAddress = await getAddressFromBucket(
       bucket,
-      accessKeyId,
-      secretAccessKey,
+      accessKey,
+      secretKey,
       region,
     );
   } else {
     validatorAddress = await getAddressFromKey(
-      keyId,
-      accessKeyId,
-      secretAccessKey,
+      keyId!,
+      accessKey,
+      secretKey,
       region,
     );
   }
@@ -134,6 +141,5 @@ function getEthereumAddress(publicKey: Buffer): string {
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
   const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
-  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
-  return EthAddr;
+  return `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
 }
