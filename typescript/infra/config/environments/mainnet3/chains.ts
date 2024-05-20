@@ -30,7 +30,7 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
     transactionOverrides: {
       // A very high max fee per gas is used as Polygon is susceptible
       // to large swings in gas prices.
-      maxFeePerGas: 400 * 10 ** 9, // 400 gwei
+      maxFeePerGas: 550 * 10 ** 9, // 550 gwei
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
