@@ -335,6 +335,7 @@ export class EvmHookReader implements HookReader {
       owner,
       address,
       type: HookType.PAUSABLE,
+      paused: false,
     };
   }
 }

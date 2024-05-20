@@ -134,6 +134,7 @@ describe('EvmHookReader', () => {
       owner: mockOwner,
       address: mockAddress,
       type: HookType.PAUSABLE,
+      paused: false,
     };
 
     // top-level method infers hook type
