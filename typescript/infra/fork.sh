@@ -26,7 +26,7 @@ done
 set -x
 
 echo "Checking deploy"
-# yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
 
 echo "Getting balance"
 DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
@@ -46,4 +46,4 @@ AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 GOVERN_DELTA="$((BEFORE-AFTER))"
 
 echo "Checking deploy without --govern"
-# yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
