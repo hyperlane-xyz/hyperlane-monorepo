@@ -3,7 +3,7 @@
   "version": "3.11.1",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
-    "@hyperlane-xyz/registry": "^1.0.7",
+    "@hyperlane-xyz/registry": "^1.2.0",
     "@hyperlane-xyz/sdk": "3.11.1",
     "@hyperlane-xyz/utils": "3.11.1",
     "@inquirer/prompts": "^3.0.0",
