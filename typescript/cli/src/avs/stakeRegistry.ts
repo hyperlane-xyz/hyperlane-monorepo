@@ -1,6 +1,5 @@
 import { password } from '@inquirer/prompts';
 import { BigNumberish, Wallet, ethers, utils } from 'ethers';
-import { BytesLike, joinSignature, keccak256 } from 'ethers/lib/utils.js';
 
 import { ECDSAStakeRegistry__factory } from '@hyperlane-xyz/core';
 import { ChainName } from '@hyperlane-xyz/sdk';
@@ -15,8 +14,8 @@ import { readFileAtPath, resolvePath } from '../utils/files.js';
 import { avsAddresses } from './config.js';
 
 export type SignatureWithSaltAndExpiryStruct = {
-  signature: BytesLike;
-  salt: BytesLike;
+  signature: utils.BytesLike;
+  salt: utils.BytesLike;
   expiry: BigNumberish;
 };
 
@@ -126,8 +125,8 @@ async function getOperatorSignature(
   avsDirectory: Address,
   operator: Wallet,
 ): Promise<SignatureWithSaltAndExpiryStruct> {
-  const operatorRegistrationTypehash = keccak256(
-    ethers.utils.toUtf8Bytes(
+  const operatorRegistrationTypehash = utils.keccak256(
+    utils.toUtf8Bytes(
       'OperatorAVSRegistration(address operator,address avs,bytes32 salt,uint256 expiry)',
     ),
   );
@@ -139,8 +138,8 @@ async function getOperatorSignature(
     utils.hexlify(Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7),
     32,
   );
-  const structHash = keccak256(
-    ethers.utils.solidityPack(
+  const structHash = utils.keccak256(
+    utils.solidityPack(
       ['bytes32', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
       [
         operatorRegistrationTypehash,
@@ -154,10 +153,10 @@ async function getOperatorSignature(
 
   const domainSeparator = getDomainSeparator(domain, avsDirectory);
 
-  const signingHash = ethers.utils.keccak256(
-    ethers.utils.solidityPack(
+  const signingHash = utils.keccak256(
+    utils.solidityPack(
       ['bytes', 'bytes32', 'bytes32'],
-      [ethers.utils.toUtf8Bytes('\x19\x01'), domainSeparator, structHash],
+      [utils.toUtf8Bytes('\x19\x01'), domainSeparator, structHash],
     ),
   );
 
@@ -165,10 +164,10 @@ async function getOperatorSignature(
   // see https://github.com/Layr-Labs/eigenlayer-contracts/blob/ef2ea4a7459884f381057aa9bbcd29c7148cfb63/src/contracts/libraries/EIP1271SignatureUtils.sol#L22
   const signature = operator
     ._signingKey()
-    .signDigest(ethers.utils.arrayify(signingHash));
+    .signDigest(utils.arrayify(signingHash));
 
   return {
-    signature: joinSignature(signature),
+    signature: utils.joinSignature(signature),
     salt,
     expiry,
   };
@@ -181,15 +180,15 @@ function getDomainSeparator(domain: number, avsDirectory: Address): string {
     );
   }
 
-  const domainTypehash = keccak256(
-    ethers.utils.toUtf8Bytes(
+  const domainTypehash = utils.keccak256(
+    utils.toUtf8Bytes(
       'EIP712Domain(string name,uint256 chainId,address verifyingContract)',
     ),
   );
   const domainBN = utils.hexZeroPad(utils.hexlify(domain), 32);
-  const eigenlayerDigest = keccak256(ethers.utils.toUtf8Bytes('EigenLayer'));
-  const domainSeparator = keccak256(
-    ethers.utils.solidityPack(
+  const eigenlayerDigest = utils.keccak256(utils.toUtf8Bytes('EigenLayer'));
+  const domainSeparator = utils.keccak256(
+    utils.solidityPack(
       ['bytes32', 'bytes32', 'bytes32', 'bytes32'],
       [
         domainTypehash,

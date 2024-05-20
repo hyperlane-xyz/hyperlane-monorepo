@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "3.11.1-alpha.0",
+  "version": "3.11.1",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
     "@hyperlane-xyz/registry": "^1.0.7",

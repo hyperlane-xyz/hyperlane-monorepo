@@ -47,9 +47,7 @@ const registerCommand: CommandModuleWithWriteContext<{
 }> = {
   command: 'register',
   describe: 'Register operator with the AVS',
-  builder: {
-    ...registrationOptions,
-  },
+  builder: registrationOptions,
   handler: async ({ context, chain, operatorKeyPath }) => {
     await registerOperatorWithSignature({
       context,
@@ -66,9 +64,7 @@ const deregisterCommand: CommandModuleWithWriteContext<{
 }> = {
   command: 'deregister',
   describe: 'Deregister yourself with the AVS',
-  builder: {
-    ...registrationOptions,
-  },
+  builder: registrationOptions,
   handler: async ({ context, chain, operatorKeyPath }) => {
     await deregisterOperator({
       context,
