@@ -146,7 +146,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     optimism: 0.5,
     polygonzkevm: 0.5,
     // Scroll is more expensive than the rest due to higher L1 fees
-    scroll: 2,
+    scroll: 1.5,
     // Nexus adjustment
     neutron: 0.5,
   };

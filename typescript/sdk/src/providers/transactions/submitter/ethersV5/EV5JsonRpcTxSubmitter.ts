@@ -2,9 +2,8 @@ import { TransactionReceipt } from '@ethersproject/providers';
 import { ContractReceipt, PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
@@ -17,22 +16,21 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     module: 'json-rpc-submitter',
   });
 
-  constructor(
-    public readonly multiProvider: MultiProvider,
-    public readonly chain: ChainName,
-  ) {}
+  constructor(public readonly multiProvider: MultiProvider) {}
 
   public async submit(
     ...txs: PopulatedTransaction[]
   ): Promise<TransactionReceipt[]> {
     const receipts: TransactionReceipt[] = [];
     for (const tx of txs) {
+      assert(tx.chainId, 'Invalid PopulatedTransaction: Missing chainId field');
+      const txChain = this.multiProvider.getChainName(tx.chainId);
       const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
-        this.chain,
+        txChain,
         tx,
       );
       this.logger.debug(
-        `Submitted PopulatedTransaction on ${this.chain}: ${receipt.transactionHash}`,
+        `Submitted PopulatedTransaction on ${txChain}: ${receipt.transactionHash}`,
       );
       receipts.push(receipt);
     }
