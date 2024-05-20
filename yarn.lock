@@ -4987,7 +4987,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
   dependencies:
-    "@hyperlane-xyz/registry": "npm:^1.0.7"
+    "@hyperlane-xyz/registry": "npm:^1.3.0"
     "@hyperlane-xyz/sdk": "npm:3.12.2"
     "@hyperlane-xyz/utils": "npm:3.12.2"
     "@inquirer/prompts": "npm:^3.0.0"
@@ -5074,7 +5074,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/core": "npm:3.12.2"
-    "@hyperlane-xyz/registry": "npm:^1.0.7"
+    "@hyperlane-xyz/registry": "npm:^1.3.0"
     "@hyperlane-xyz/sdk": "npm:3.12.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -5122,7 +5122,7 @@ __metadata:
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:3.12.2"
-    "@hyperlane-xyz/registry": "npm:^1.0.7"
+    "@hyperlane-xyz/registry": "npm:^1.3.0"
     "@hyperlane-xyz/sdk": "npm:3.12.2"
     "@hyperlane-xyz/utils": "npm:3.12.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -5174,13 +5174,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:^1.0.7":
-  version: 1.0.7
-  resolution: "@hyperlane-xyz/registry@npm:1.0.7"
+"@hyperlane-xyz/registry@npm:^1.3.0":
+  version: 1.3.0
+  resolution: "@hyperlane-xyz/registry@npm:1.3.0"
   dependencies:
     yaml: "npm:^2"
     zod: "npm:^3.21.2"
-  checksum: fb112e2a1fdec539c6ef457ab44b9b5a835b719f2d4cc5cb0efb4413e2647402ed826d597f4c63b552f86fcf91bf69d4d1e5934aee8498f83dac61007a9d5650
+  checksum: 2cbdfd9e8958d0babde7104dfb0c98def7edb5f87f5f4679b09467a6a9b531884f187fcbc16fd85b00e304ef8fa3beb0a0779555b2c3edc1936541a0e878a73d
   languageName: node
   linkType: hard
 
