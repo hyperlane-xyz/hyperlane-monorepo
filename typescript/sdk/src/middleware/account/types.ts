@@ -1,6 +1,10 @@
+import { z } from 'zod';
+
 import { Address } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types.js';
+
+import { GetCallRemoteSettingsSchema } from './schemas.js';
 
 export type AccountConfig = {
   origin: ChainName;
@@ -9,3 +13,5 @@ export type AccountConfig = {
   routerOverride?: Address;
   ismOverride?: Address;
 };
+
+export type GetCallRemoteSettings = z.infer<typeof GetCallRemoteSettingsSchema>;

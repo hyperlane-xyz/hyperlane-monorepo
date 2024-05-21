@@ -9,7 +9,7 @@ import { PopulatedTransaction } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-import { EV5GnosisSafeTxSubmitterProps } from './EV5TxSubmitterTypes.js';
+import { EV5GnosisSafeTxSubmitterProps } from './types.js';
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =

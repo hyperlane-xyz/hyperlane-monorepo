@@ -1,3 +1,3 @@
 export enum TxTransformerType {
-  ICA = 'Interchain Account',
+  ICA = 'interchainAccount',
 }

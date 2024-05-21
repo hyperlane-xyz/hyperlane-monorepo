@@ -1,9 +1,8 @@
-import { BigNumber, BytesLike, PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
   Address,
-  CallData,
   addressToBytes32,
   bytes32ToAddress,
 } from '@hyperlane-xyz/utils';
@@ -22,15 +21,7 @@ import {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts.js';
-import { AccountConfig } from './types.js';
-
-export interface GetCallRemoteSettings {
-  chain: ChainName;
-  destination: ChainName;
-  innerCalls: CallData[];
-  config: AccountConfig;
-  hookMetadata?: BytesLike;
-}
+import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   constructor(

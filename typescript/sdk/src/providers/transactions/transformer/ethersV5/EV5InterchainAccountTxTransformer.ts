@@ -13,7 +13,7 @@ import { PopulatedTransaction } from '../../types.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
-import { EV5InterchainAccountTxTransformerProps } from './EV5TxTransformerTypes.js';
+import { EV5InterchainAccountTxTransformerProps } from './types.js';
 
 export class EV5InterchainAccountTxTransformer
   implements EV5TxTransformerInterface
