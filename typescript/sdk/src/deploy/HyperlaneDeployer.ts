@@ -82,7 +82,7 @@ export abstract class HyperlaneDeployer<
     protected readonly icaAddresses = {},
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
-    this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
+    this.chainTimeoutMs = options?.chainTimeoutMs ?? 15 * 60 * 1000; // 15 minute timeout per chain
     this.options.ismFactory?.setDeployer(this);
     if (Object.keys(icaAddresses).length > 0) {
       this.options.icaApp = InterchainAccount.fromAddressesMap(
@@ -136,26 +136,9 @@ export abstract class HyperlaneDeployer<
       this.startingBlockNumbers[chain] = await this.multiProvider
         .getProvider(chain)
         .getBlockNumber();
-      if (
-        ![
-          // 'arbitrum',
-          // 'ancient8',
-          // 'avalanche',
-          // 'base',
-          // 'blast',
-          // 'bsc',
-          // 'celo',
-          // 'ethereum',
-          // 'polygon',
-          'viction',
-        ].includes(chain)
-      ) {
-        this.logger.warn({ chain }, 'Skipping deploy to chain already done');
-        continue;
-      }
 
       promises.push(
-        runWithTimeout(15 * 1000 * 60 /*this.chainTimeoutMs*/, async () => {
+        runWithTimeout(this.chainTimeoutMs, async () => {
           const contracts = await this.deployContracts(chain, configMap[chain]);
           this.addDeployedContracts(chain, contracts);
           this.logger.info({ chain }, 'Successfully deployed contracts');

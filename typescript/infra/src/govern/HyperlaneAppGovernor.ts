@@ -240,13 +240,10 @@ export abstract class HyperlaneAppGovernor<
       chain: ChainName,
       submitterAddress: Address,
     ): Promise<boolean> => {
-      console.log('trying to estimate gas', chain, call, submitterAddress);
       try {
         await multiProvider.estimateGas(chain, call, submitterAddress);
-        console.log('success');
         return true;
       } catch (e) {} // eslint-disable-line no-empty
-      console.log('no success');
       return false;
     };
 
