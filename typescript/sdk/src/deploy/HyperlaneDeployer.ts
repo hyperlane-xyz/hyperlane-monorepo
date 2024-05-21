@@ -152,7 +152,16 @@ export abstract class HyperlaneDeployer<
     }
 
     // Await all deploy promises. If concurrent deploy is not enabled, this will be a no-op.
-    await Promise.all(deployPromises);
+    const deployResults = await Promise.allSettled(deployPromises);
+    for (const [i, result] of deployResults.entries()) {
+      if (result.status === 'rejected') {
+        this.logger.error(
+          { chain: targetChains[i], error: result.reason },
+          'Deployment failed',
+        );
+        throw result.reason;
+      }
+    }
 
     return this.deployedContracts;
   }

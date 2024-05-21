@@ -151,9 +151,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         defaultHook,
         (_mailbox) => _mailbox.defaultHook(),
         (_mailbox, _hook) =>
-          _mailbox.populateTransaction.setDefaultHook(_hook, {
-            ...overrides,
-          }),
+          _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
       );
 
       await this.configureHook(
