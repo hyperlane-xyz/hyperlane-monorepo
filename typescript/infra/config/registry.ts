@@ -10,7 +10,7 @@ import {
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
 import type { DeployEnvironment } from '../src/config/environment.js';
 
@@ -51,26 +51,22 @@ export function getChains(): ChainName[] {
   return getRegistry().getChains();
 }
 
-export function getChain(chainName: ChainName): ChainMetadata | null {
+export function getChain(chainName: ChainName): ChainMetadata {
   if (testChains.includes(chainName)) {
     return testChainMetadata[chainName];
   }
-  return getRegistry().getChainMetadata(chainName);
+  const chain = getRegistry().getChainMetadata(chainName);
+  assert(chain, `Chain not found: ${chainName}`);
+  return chain;
 }
 
 export function getDomainId(chainName: ChainName): number {
   const chain = getChain(chainName);
-  if (chain === null) {
-    throw new Error(`Chain not found: ${chainName}`);
-  }
   return resolveDomainId(chain);
 }
 
 export function getReorgPeriod(chainName: ChainName): number {
   const chain = getChain(chainName);
-  if (chain === null) {
-    throw new Error(`Chain not found: ${chainName}`);
-  }
   return resolveReorgPeriod(chain);
 }
 
