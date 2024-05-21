@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexer, LogMeta, SequenceAwareIndexer, H256,
-    U256,
+    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta,
+    SequenceAwareIndexer, H256, U256,
 };
 use starknet::core::types::{
     BlockId, BlockTag, EventFilter, FieldElement, MaybePendingBlockWithTxHashes,
@@ -123,7 +123,7 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         let key = get_selector_from_name("Dispatch").unwrap(); // safe to unwrap
 
         let filter = EventFilter {
@@ -135,7 +135,7 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
 
         let chunk_size = range.end() - range.start() + 1;
 
-        let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
+        let mut events: Vec<(Indexed<HyperlaneMessage>, LogMeta)> = self
             .contract
             .provider
             .get_events(filter, None, chunk_size.into())
@@ -145,8 +145,8 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
             .into_iter()
             .map(|event| {
                 // TODO: message is a u256 in the contract, we need to convert it to a byte array
-                let message =
-                    HyperlaneMessage::from(event.data[3].to_bytes_be().as_slice().to_vec()); // message is the 4/5th element
+                let message: Indexed<HyperlaneMessage> =
+                    HyperlaneMessage::from(event.data[3].to_bytes_be().as_slice().to_vec()).into(); // message is the 4/5th element
                 let meta = LogMeta {
                     address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
                     block_number: event.block_number.unwrap(),
@@ -164,7 +164,7 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
             })
             .collect();
 
-        events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
+        events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
 
         Ok(events)
     }
@@ -196,7 +196,10 @@ impl Indexer<H256> for StarknetMailboxIndexer {
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         let key = get_selector_from_name("DispatchId").unwrap(); // safe to unwrap
 
         let filter = EventFilter {
@@ -208,7 +211,7 @@ impl Indexer<H256> for StarknetMailboxIndexer {
 
         let chunk_size = range.end() - range.start() + 1;
 
-        let events: Vec<(H256, LogMeta)> = self
+        let events: Vec<(Indexed<H256>, LogMeta)> = self
             .contract
             .provider
             .get_events(filter, None, chunk_size.into())
@@ -217,7 +220,8 @@ impl Indexer<H256> for StarknetMailboxIndexer {
             .events
             .into_iter()
             .map(|event| {
-                let message_id = H256::from_slice(event.data[0].to_bytes_be().as_slice()); // there is only 1 element
+                let message_id: Indexed<H256> =
+                    H256::from_slice(event.data[0].to_bytes_be().as_slice()).into(); // there is only 1 element
                 let meta = LogMeta {
                     address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
                     block_number: event.block_number.unwrap(),
