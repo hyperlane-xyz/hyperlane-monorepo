@@ -26,6 +26,7 @@ import { ChainMap, ChainNameOrId } from '../types.js';
 
 import {
   DerivedTokenRouterConfig,
+  DerivedTokenType,
   EvmERC20WarpRouteReader,
 } from './EvmERC20WarpRouteReader.js';
 import { TokenConfig } from './config.js';
@@ -111,7 +112,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const transactions: EthersV5Transaction[] = [];
     if (expectedconfig.interchainSecurityModule) {
       const contractToUpdate = await this.args.addresses[
-        expectedconfig.type
+        expectedconfig.type as DerivedTokenType
       ].deployed();
 
       // If an address is not defined, deploy a new Ism
@@ -233,7 +234,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     return new EvmERC20WarpModule(multiProvider, {
       addresses: {
         ...deployedContracts[chain],
-        deployedTokenRoute: deployedContracts[chain][config.type].address,
+        deployedTokenRoute:
+          deployedContracts[chain][config.type as DerivedTokenType].address,
       },
       chain,
       config,

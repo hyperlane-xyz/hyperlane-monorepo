@@ -1,7 +1,6 @@
 import { ethers, providers } from 'ethers';
 
 import {
-  ERC20__factory,
   HypERC20CollateralVaultDeposit__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
@@ -23,10 +22,9 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
-type WarpRouteBaseMetadata = Record<
-  'mailbox' | 'owner' | 'token' | 'hook',
-  string
-> & { interchainSecurityModule?: DerivedIsmConfigWithAddress };
+type WarpRouteBaseMetadata = Record<'mailbox' | 'owner' | 'hook', string> & {
+  interchainSecurityModule?: DerivedIsmConfigWithAddress;
+};
 
 /**
  * @remark
@@ -37,16 +35,14 @@ export type DerivedTokenType = Extract<
   'collateral' | 'collateralVault' | 'native' | 'synthetic'
 >;
 
-export type DerivedTokenRouterConfig = Exclude<
-  TokenRouterConfig,
-  'type' | 'interchainSecurityModule'
-> & {
-  type?: DerivedTokenType;
+export type DerivedTokenRouterConfig = TokenRouterConfig & {
   interchainSecurityModule?: DerivedIsmConfigWithAddress;
 };
 
 export class EvmERC20WarpRouteReader {
-  protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
+  protected readonly logger = rootLogger.child({
+    module: 'EvmERC20WarpRouteReader',
+  });
   provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
@@ -71,21 +67,16 @@ export class EvmERC20WarpRouteReader {
   async deriveWarpRouteConfig(
     address: Address,
   ): Promise<DerivedTokenRouterConfig> {
-    const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
-    const fetchedTokenMetadata = await this.fetchTokenMetadata(
-      fetchedBaseMetadata.token,
-    );
-
     // Derive the config type
     const type = await this.deriveTokenType(address);
+    const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
+    const fetchedTokenMetadata = await this.fetchTokenMetadata(type, address);
 
-    const derivedTokenRouter: DerivedTokenRouterConfig = {
+    return {
       ...fetchedBaseMetadata,
       ...fetchedTokenMetadata,
       type,
-    };
-
-    return derivedTokenRouter;
+    } as DerivedTokenRouterConfig;
   }
 
   /**
@@ -133,7 +124,7 @@ export class EvmERC20WarpRouteReader {
    * Fetches the base metadata for a Warp Route contract.
    *
    * @param routerAddress - The address of the Warp Route contract.
-   * @returns The base metadata for the Warp Route contract, including the mailbox, owner, wrapped token address, hook, and interchain security module.
+   * @returns The base metadata for the Warp Route contract, including the mailbox, owner, hook, and ism.
    */
   async fetchBaseMetadata(
     routerAddress: Address,
@@ -142,19 +133,16 @@ export class EvmERC20WarpRouteReader {
       routerAddress,
       this.provider,
     );
-    const [mailbox, owner, token, hook, interchainSecurityModule] =
-      await Promise.all([
-        warpRoute.mailbox(),
-        warpRoute.owner(),
-        warpRoute.wrappedToken(),
-        warpRoute.hook(),
-        warpRoute.interchainSecurityModule(),
-      ]);
+    const [mailbox, owner, hook, interchainSecurityModule] = await Promise.all([
+      warpRoute.mailbox(),
+      warpRoute.owner(),
+      warpRoute.hook(),
+      warpRoute.interchainSecurityModule(),
+    ]);
 
     const metadata: WarpRouteBaseMetadata = {
       mailbox,
       owner,
-      token,
       hook,
     };
 
@@ -184,15 +172,45 @@ export class EvmERC20WarpRouteReader {
    * @param tokenAddress - The address of the token.
    * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
    */
-  async fetchTokenMetadata(tokenAddress: Address): Promise<ERC20Metadata> {
-    const erc20 = ERC20__factory.connect(tokenAddress, this.provider);
-    const [name, symbol, totalSupply, decimals] = await Promise.all([
+  async fetchTokenMetadata(
+    type: TokenType,
+    tokenAddress: Address,
+  ): Promise<ERC20Metadata & { token?: string }> {
+    if (type === TokenType.collateral || type === TokenType.collateralVault) {
+      const erc20 = HypERC20Collateral__factory.connect(
+        tokenAddress,
+        this.provider,
+      );
+      const token = await erc20.wrappedToken();
+      const { name, symbol, decimals, totalSupply } =
+        await this.fetchERC20Metadata(token);
+
+      return { name, symbol, decimals, totalSupply, token };
+    } else if (type === TokenType.synthetic) {
+      return this.fetchERC20Metadata(tokenAddress);
+    } else {
+      // Assumes Native
+      const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
+      if (chainMetadata.nativeToken) {
+        const { name, symbol, decimals } = chainMetadata.nativeToken;
+        return { name, symbol, decimals, totalSupply: 0 };
+      } else {
+        throw new Error(
+          `Warp route config specifies native token but chain metadata for ${this.chain} does not provide native token details`,
+        );
+      }
+    }
+  }
+
+  async fetchERC20Metadata(tokenAddress: Address): Promise<ERC20Metadata> {
+    const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
+    const [name, symbol, decimals, totalSupply] = await Promise.all([
       erc20.name(),
       erc20.symbol(),
-      erc20.totalSupply().toString(),
       erc20.decimals(),
+      erc20.totalSupply(),
     ]);
 
-    return { name, symbol, totalSupply, decimals };
+    return { name, symbol, decimals, totalSupply: totalSupply.toString() };
   }
 }

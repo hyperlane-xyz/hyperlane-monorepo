@@ -32,12 +32,7 @@ import {
   DerivedTokenType,
   EvmERC20WarpRouteReader,
 } from './EvmERC20WarpRouteReader.js';
-import {
-  CollateralConfig,
-  HypERC20Config,
-  TokenConfig,
-  TokenType,
-} from './config.js';
+import { HypERC20Config, TokenConfig, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import { WarpRouteDeployConfig } from './types.js';
 
@@ -150,7 +145,7 @@ describe('TokenDeployer', async () => {
       );
     });
 
-    it('should derive config from collateral correctly', async () => {
+    it('should derive collateral config correctly', async () => {
       // Create config
       const config = {
         [chain]: {
@@ -166,19 +161,82 @@ describe('TokenDeployer', async () => {
       );
 
       // Derive config and check if each value matches
-      const derivedConfig =
-        (await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-          warpRoute[chain].collateral.address,
-        )) as CollateralConfig;
-
+      const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+        warpRoute[chain].collateral.address,
+      );
       for (const [key, value] of Object.entries(derivedConfig)) {
         const deployedValue = (config[chain] as any)[key];
         if (deployedValue) expect(deployedValue).to.equal(value);
       }
 
       // Check if token values matches
-      expect(derivedConfig.name).to.equal(TOKEN_NAME);
-      expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+      if (derivedConfig.type === TokenType.collateral) {
+        expect(derivedConfig.name).to.equal(TOKEN_NAME);
+        expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+        expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
+      }
+    });
+
+    it('should derive synthetic config correctly', async () => {
+      // Create config
+      const config = {
+        [chain]: {
+          type: TokenType.synthetic,
+          token: token.address,
+          hook: await mailbox.defaultHook(),
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: TOKEN_DECIMALS,
+          totalSupply: TOKEN_SUPPLY,
+          ...baseConfig,
+        },
+      };
+      // Deploy with config
+      const warpRoute = await deployer.deploy(
+        config as ChainMap<TokenConfig & RouterConfig>,
+      );
+
+      // Derive config and check if each value matches
+      const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+        warpRoute[chain].synthetic.address,
+      );
+      for (const [key, value] of Object.entries(derivedConfig)) {
+        const deployedValue = (config[chain] as any)[key];
+        if (deployedValue) expect(deployedValue).to.equal(value);
+      }
+
+      // Check if token values matches
+      if (derivedConfig.type === TokenType.collateral) {
+        expect(derivedConfig.name).to.equal(TOKEN_NAME);
+        expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+      }
+    });
+
+    it('should derive native config correctly', async () => {
+      // Create config
+      const config = {
+        [chain]: {
+          type: TokenType.native,
+          hook: await mailbox.defaultHook(),
+          ...baseConfig,
+        },
+      };
+      // Deploy with config
+      const warpRoute = await deployer.deploy(
+        config as ChainMap<TokenConfig & RouterConfig>,
+      );
+
+      // Derive config and check if each value matches
+      const derivedConfig =
+        (await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+          warpRoute[chain].native.address,
+        )) as Extract<DerivedTokenRouterConfig, { type: TokenType.native }>;
+      for (const [key, value] of Object.entries(derivedConfig)) {
+        const deployedValue = (config[chain] as any)[key];
+        if (deployedValue) expect(deployedValue).to.equal(value);
+      }
+
+      // Check if token values matches
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
     });
   });
