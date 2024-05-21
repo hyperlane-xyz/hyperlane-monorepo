@@ -60,7 +60,7 @@ abstract class TokenDeployer<
       assert(config.decimals);
       return [config.decimals, config.mailbox];
     } else {
-      throw new Error('Unknown collateral type when constructing arguments');
+      throw new Error('Unknown token type when constructing arguments');
     }
   }
 

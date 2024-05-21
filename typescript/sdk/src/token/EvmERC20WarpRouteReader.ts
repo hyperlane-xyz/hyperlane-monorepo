@@ -3,24 +3,22 @@ import { ethers, providers } from 'ethers';
 import {
   ERC20__factory,
   HypERC20Collateral__factory,
+  MailboxClient__factory,
 } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { MailboxClientConfig } from '../router/types.js';
 import { ChainName } from '../types.js';
 
+import { TokenType } from './config.js';
 import { TokenRouterConfig } from './schemas.js';
 import { TokenMetadata } from './types.js';
 
-type WarpRouteBaseMetadata = Record<
-  'mailbox' | 'owner' | 'token' | 'hook' | 'interchainSecurityModule',
-  string
->;
-
-type DerivedERC20WarpRouteConfig = Omit<TokenRouterConfig, 'type' | 'gas'>;
+const { AddressZero } = ethers.constants;
 
 export class EvmWarpRouteReader {
   provider: providers.Provider;
@@ -46,34 +44,32 @@ export class EvmWarpRouteReader {
    */
   async deriveWarpRouteConfig(
     address: Address,
-  ): Promise<DerivedERC20WarpRouteConfig> {
-    const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
-    const fetchedTokenMetadata = await this.fetchTokenMetadata(
-      fetchedBaseMetadata.token,
-    );
+    type = TokenType.collateral,
+  ): Promise<TokenRouterConfig> {
+    const mailboxClientConfig = await this.fetchMailboxClientConfig(address);
 
-    const results: DerivedERC20WarpRouteConfig = {
-      ...fetchedBaseMetadata,
-      ...fetchedTokenMetadata,
-    };
-
-    if (
-      fetchedBaseMetadata.interchainSecurityModule !==
-      ethers.constants.AddressZero
-    ) {
-      results.interchainSecurityModule =
-        await this.evmIsmReader.deriveIsmConfig(
-          fetchedBaseMetadata.interchainSecurityModule,
-        );
+    let token: Address;
+    switch (type) {
+      case TokenType.collateral:
+        token = await HypERC20Collateral__factory.connect(
+          address,
+          this.provider,
+        ).wrappedToken();
+        break;
+      case TokenType.synthetic:
+        token = address;
+        break;
+      default:
+        throw new Error(`Invalid token type: ${type}`);
     }
-    // @todo add after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
-    // if (fetchedBaseMetadata.hook !== ethers.constants.AddressZero) {
-    //   results.hook = await this.evmHookReader.deriveHookConfig(
-    //     fetchedBaseMetadata.hook,
-    //   );
-    // }
+    const fetchedTokenMetadata = await this.fetchTokenMetadata(token);
 
-    return results;
+    return {
+      type,
+      token: TokenType.collateral === type ? token : undefined,
+      ...mailboxClientConfig,
+      ...fetchedTokenMetadata,
+    } as TokenRouterConfig;
   }
 
   /**
@@ -82,28 +78,31 @@ export class EvmWarpRouteReader {
    * @param routerAddress - The address of the Warp Route contract.
    * @returns The base metadata for the Warp Route contract, including the mailbox, owner, wrapped token address, hook, and interchain security module.
    */
-  async fetchBaseMetadata(
+  async fetchMailboxClientConfig(
     routerAddress: Address,
-  ): Promise<WarpRouteBaseMetadata> {
-    const warpRoute = HypERC20Collateral__factory.connect(
+  ): Promise<MailboxClientConfig> {
+    const warpRoute = MailboxClient__factory.connect(
       routerAddress,
       this.provider,
     );
-    const [mailbox, owner, token, hook, interchainSecurityModule] =
-      await Promise.all([
-        warpRoute.mailbox(),
-        warpRoute.owner(),
-        warpRoute.wrappedToken(),
-        warpRoute.hook(),
-        warpRoute.interchainSecurityModule(),
-      ]);
+    const [mailbox, owner, hook, ism] = await Promise.all([
+      warpRoute.mailbox(),
+      warpRoute.owner(),
+      warpRoute.hook(),
+      warpRoute.interchainSecurityModule(),
+    ]);
+
+    const derivedIsm = eqAddress(ism, AddressZero)
+      ? undefined
+      : await this.evmIsmReader.deriveIsmConfig(ism);
+    // TODO: add after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
+    const derivedHook = eqAddress(hook, AddressZero) ? undefined : hook;
 
     return {
       mailbox,
       owner,
-      token,
-      hook,
-      interchainSecurityModule,
+      hook: derivedHook,
+      interchainSecurityModule: derivedIsm,
     };
   }
 
