@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use derive_new::new;
-use hyperlane_core::{ChainCommunicationError, FixedPointNumber};
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber};
 use url::Url;
 
 /// Cosmos connection configuration
@@ -25,6 +25,8 @@ pub struct ConnectionConf {
     /// Cosmos address lengths are sometimes less than 32 bytes, so this helps to serialize it in
     /// bech32 with the appropriate length.
     contract_address_bytes: usize,
+    /// Operation batching configuration
+    pub operation_batch: OperationBatchConfig,
 }
 
 /// Untyped cosmos amount
@@ -112,6 +114,7 @@ impl ConnectionConf {
     }
 
     /// Create a new connection configuration
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         grpc_urls: Vec<Url>,
         rpc_url: String,
@@ -120,6 +123,7 @@ impl ConnectionConf {
         canonical_asset: String,
         minimum_gas_price: RawCosmosAmount,
         contract_address_bytes: usize,
+        operation_batch: OperationBatchConfig,
     ) -> Self {
         Self {
             grpc_urls,
@@ -129,6 +133,7 @@ impl ConnectionConf {
             canonical_asset,
             gas_price: minimum_gas_price,
             contract_address_bytes,
+            operation_batch,
         }
     }
 }

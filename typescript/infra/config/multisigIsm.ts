@@ -9,16 +9,8 @@ import {
 import { DeployEnvironment } from '../src/config/environment.js';
 
 import { Contexts } from './contexts.js';
-import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains.js';
-import { chainNames as testChains } from './environments/test/chains.js';
-import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains.js';
 import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs.js';
-
-const chains = {
-  mainnet3: mainnet3Chains,
-  testnet4: testnet4Chains,
-  test: testChains,
-};
+import { getEnvChains } from './registry.js';
 
 export const multisigIsms = (
   env: DeployEnvironment,
@@ -30,7 +22,12 @@ export const multisigIsms = (
     context === Contexts.ReleaseCandidate
       ? rcMultisigIsmConfigs
       : defaultMultisigConfigs;
-  return buildMultisigIsmConfigs(type, local, chains[env], multisigConfigs);
+  return buildMultisigIsmConfigs(
+    type,
+    local,
+    getEnvChains(env),
+    multisigConfigs,
+  );
 };
 
 export const multisigIsm = (

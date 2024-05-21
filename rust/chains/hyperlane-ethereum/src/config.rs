@@ -1,4 +1,4 @@
-use hyperlane_core::U256;
+use hyperlane_core::{config::OperationBatchConfig, U256};
 use url::Url;
 
 /// Ethereum RPC connection configuration
@@ -33,6 +33,8 @@ pub struct ConnectionConf {
     pub rpc_connection: RpcConnectionConf,
     /// Transaction overrides to use when sending transactions.
     pub transaction_overrides: TransactionOverrides,
+    /// Operation batching configuration
+    pub operation_batch: OperationBatchConfig,
 }
 
 /// Ethereum transaction overrides.

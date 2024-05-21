@@ -1,9 +1,10 @@
 import fs from 'fs';
 import { join } from 'path';
 
-import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
+import { getChain } from '../../config/registry.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
@@ -122,7 +123,7 @@ export abstract class AgentHelmManager {
         context: this.context,
         aws: !!this.config.aws,
         chains: this.config.contextChainNames[this.role].map((chain) => {
-          const metadata = chainMetadata[chain];
+          const metadata = getChain(chain);
           const reorgPeriod = metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
@@ -132,6 +133,7 @@ export abstract class AgentHelmManager {
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
+            maxBatchSize: 4,
           };
         }),
       },

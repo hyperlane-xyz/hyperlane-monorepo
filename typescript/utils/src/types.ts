@@ -3,7 +3,6 @@ import type { BigNumber, ethers } from 'ethers';
 export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
-  Fuel = 'fuel',
   Cosmos = 'cosmos',
 }
 // A type that also allows for literal values of the enum
@@ -103,3 +102,7 @@ export type ParsedLegacyMultisigIsmMetadata = {
 export enum InterchainSecurityModuleType {
   MULTISIG = 3,
 }
+
+export type Annotated<T> = T & {
+  annotation?: string;
+};

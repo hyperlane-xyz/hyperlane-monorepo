@@ -44,6 +44,25 @@ foundryup
 
 Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
 
+### Node
+
+This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+
+To install nvm
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+```
+
+To install version 20
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+You should change versions automatically with the `.nvmrc` file.
+
 ### Workspaces
 
 This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.

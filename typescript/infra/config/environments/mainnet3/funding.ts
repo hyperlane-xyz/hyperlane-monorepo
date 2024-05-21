@@ -9,7 +9,7 @@ import { environment } from './chains.js';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'b0811ba-20240411-151216',
+    tag: '5d1391c-20240418-100607',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -17,7 +17,7 @@ export const keyFunderConfig: KeyFunderConfig = {
   cronSchedule: '45 * * * *', // Every hour at the 45-minute mark
   namespace: environment,
   prometheusPushGateway:
-    'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+    'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
@@ -28,10 +28,12 @@ export const keyFunderConfig: KeyFunderConfig = {
   desiredBalancePerChain: {
     avalanche: '5',
     bsc: '5',
+    blast: '0.2',
     celo: '3',
     ethereum: '0.5',
     gnosis: '5',
     inevm: '3',
+    mode: '0.2',
     moonbeam: '5',
     polygon: '20',
     viction: '3',
@@ -41,6 +43,7 @@ export const keyFunderConfig: KeyFunderConfig = {
     optimism: '0.5',
     polygonzkevm: '0.5',
     scroll: '0.5',
+    ancient8: '0.5',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',

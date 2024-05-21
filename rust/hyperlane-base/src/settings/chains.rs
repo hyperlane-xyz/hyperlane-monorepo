@@ -7,8 +7,8 @@ use eyre::{eyre, Context, Result};
 
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
-    AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
+    config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
     ValidatorAnnounce, H256,
@@ -123,6 +123,16 @@ impl ChainConnectionConf {
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
+        }
+    }
+
+    /// Get the message batch configuration for this chain.
+    pub fn operation_batch_config(&self) -> Option<&OperationBatchConfig> {
+        match self {
+            Self::Ethereum(conf) => Some(&conf.operation_batch),
+            Self::Cosmos(conf) => Some(&conf.operation_batch),
+            Self::Sealevel(conf) => Some(&conf.operation_batch),
+            _ => None,
         }
     }
 }

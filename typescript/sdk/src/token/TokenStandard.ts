@@ -14,7 +14,9 @@ export enum TokenStandard {
   EvmNative = 'EvmNative',
   EvmHypNative = 'EvmHypNative',
   EvmHypCollateral = 'EvmHypCollateral',
-  EvmHypcollateralVault = 'EvmHypcollateralVault',
+  EvmHypXERC20Collateral = 'EvmHypXERC20Collateral',
+  EvmHypFiatCollateral = 'EvmHypFiatCollateral',
+  EvmHypCollateralVault = 'EvmHypCollateralVault',
   EvmHypSynthetic = 'EvmHypSynthetic',
 
   // Sealevel (Solana)
@@ -38,9 +40,6 @@ export enum TokenStandard {
   CwHypNative = 'CwHypNative',
   CwHypCollateral = 'CwHypCollateral',
   CwHypSynthetic = 'CwHypSynthetic',
-
-  // Fuel (TODO)
-  FuelNative = 'FuelNative',
 }
 
 // Allows for omission of protocol field in token args
@@ -51,8 +50,10 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmNative: ProtocolType.Ethereum,
   EvmHypNative: ProtocolType.Ethereum,
   EvmHypCollateral: ProtocolType.Ethereum,
-  EvmHypcollateralVault: ProtocolType.Ethereum,
+  EvmHypCollateralVault: ProtocolType.Ethereum,
   EvmHypSynthetic: ProtocolType.Ethereum,
+  EvmHypXERC20Collateral: ProtocolType.Ethereum,
+  EvmHypFiatCollateral: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -75,9 +76,6 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   CwHypNative: ProtocolType.Cosmos,
   CwHypCollateral: ProtocolType.Cosmos,
   CwHypSynthetic: ProtocolType.Cosmos,
-
-  // Fuel (TODO)
-  FuelNative: ProtocolType.Fuel,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -98,6 +96,8 @@ export const TOKEN_NFT_STANDARDS = [
 export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
+  TokenStandard.EvmHypXERC20Collateral,
+  TokenStandard.EvmHypFiatCollateral,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
   TokenStandard.CwHypCollateral,
@@ -107,6 +107,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
 export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypNative,
   TokenStandard.EvmHypCollateral,
+  TokenStandard.EvmHypXERC20Collateral,
+  TokenStandard.EvmHypFiatCollateral,
   TokenStandard.EvmHypSynthetic,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
@@ -135,7 +137,9 @@ export const TOKEN_COSMWASM_STANDARDS = [
 export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
-  [TokenType.collateralVault]: TokenStandard.EvmHypcollateralVault,
+  [TokenType.collateralFiat]: TokenStandard.EvmHypFiatCollateral,
+  [TokenType.collateralXERC20]: TokenStandard.EvmHypXERC20Collateral,
+  [TokenType.collateralVault]: TokenStandard.EvmHypCollateralVault,
   [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
   [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,
   [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,
@@ -149,5 +153,4 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,
     [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
-    [ProtocolType.Fuel]: TokenStandard.FuelNative,
   };

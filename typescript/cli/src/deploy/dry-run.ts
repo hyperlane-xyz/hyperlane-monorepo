@@ -6,7 +6,6 @@ import {
   setFork,
 } from '@hyperlane-xyz/sdk';
 
-import { Command } from '../commands/deploy.js';
 import { logGray, logGreen, warnYellow } from '../logger.js';
 import { ENV } from '../utils/env.js';
 
@@ -49,16 +48,16 @@ export async function verifyAnvil() {
 /**
  * Evaluates if an error is related to the current dry-run.
  * @param error the thrown error
- * @param dryRun whether or not the current command is being dry-run
+ * @param dryRun the chain name to execute the dry-run on
  */
-export function evaluateIfDryRunFailure(error: any, dryRun: boolean) {
+export function evaluateIfDryRunFailure(error: any, dryRun: string) {
   if (dryRun && error.message.includes('call revert exception'))
     warnYellow(
       '⛔️ [dry-run] The current RPC may not support forking. Please consider using a different RPC provider.',
     );
 }
 
-export async function completeDryRun(command: Command) {
+export async function completeDryRun(command: string) {
   await resetFork();
 
   logGreen(`✅ ${toUpperCamelCase(command)} dry-run completed successfully`);

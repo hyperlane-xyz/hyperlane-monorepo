@@ -1,18 +1,14 @@
-import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { writeAgentConfig } from '../../src/deployment/deploy';
-import { Modules, getAddressesPath, getArgs } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+import { writeAgentConfig } from '../../src/deployment/deploy.js';
+import { getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   const { environment } = await getArgs().argv;
   const envConfig = getEnvironmentConfig(environment);
-  const env = deployEnvToSdkEnv[environment];
 
   let multiProvider = await envConfig.getMultiProvider();
 
-  const addressesPath = getAddressesPath(environment, Modules.CORE);
-
-  await writeAgentConfig(addressesPath, multiProvider, env);
+  await writeAgentConfig(multiProvider, environment);
 }
 
 main()

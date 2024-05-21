@@ -1,5 +1,24 @@
 # @hyperlane-xyz/utils
 
+## 3.12.0
+
+### Minor Changes
+
+- 69de68a66: Implement aggregation and multisig ISM metadata encoding
+
+## 3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+- af2634207: Moved Hook/ISM config stringify into a general object stringify utility.
+
+### Patch Changes
+
+- 2b3f75836: Add objLength and isObjEmpty utils
+
 ## 3.10.0
 
 ### Minor Changes

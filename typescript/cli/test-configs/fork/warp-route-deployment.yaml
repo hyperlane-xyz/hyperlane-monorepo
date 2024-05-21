@@ -1,0 +1,34 @@
+# A config for a Warp Route deployment
+# Typically used with the 'hyperlane deploy warp' command
+#
+# Token Types:
+#   native
+#   collateral
+#   synthetic
+#   collateralUri
+#   syntheticUri
+#   fastCollateral
+#   fastSynthetic
+---
+anvil1:
+  type: native
+  # token: "0x123" # Collateral/vault address. Required for collateral types
+  # owner: "0x123" # Optional owner address for synthetic token
+  # mailbox: "0x123" # mailbox address route
+  # interchainGasPaymaster: "0x123" # Optional interchainGasPaymaster address
+  # isNft: true # If the token is an NFT (ERC721), set to true
+  # You can optionally set the token metadata
+  # name: "MyCollateralToken"
+  # symbol: "MCT"
+  # totalSupply: 10000000
+
+ethereum:
+  type: synthetic
+  # token: "0x123" # Collateral/vault address. Required for collateral types
+  # owner: "0x123" # Optional owner address for synthetic token
+  # mailbox: "0x123" # mailbox address route
+  # interchainGasPaymaster: "0x123" # Optional interchainGasPaymaster address
+  # You can optionally set the token metadata
+  # name: "MySyntheticToken"
+  # symbol: "MST"
+  # totalSupply: 10000000
