@@ -12,6 +12,7 @@ import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
+import {ECDSAServiceManagerBase} from "../../contracts/avs/ECDSAServiceManagerBase.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
 
 import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
@@ -143,6 +144,31 @@ contract DeployAVS is Script {
         );
         console.log("StakeRegistry Proxy: ", address(stakeRegistryProxy));
         console.log("HyperlaneServiceManager Proxy: ", address(hsmProxy));
+
+        vm.stopBroadcast();
+    }
+
+    function updateMetadata(string memory _metadataUri) external {
+        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        ProxyAdmin pa = ProxyAdmin(0x11918DC33E067C5DA83EEF58E50F856398b8Df4C);
+        address hsmProxy = 0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818;
+
+        bytes memory data = abi.encodeWithSelector(
+            ECDSAServiceManagerBase.updateAVSMetadataURI.selector,
+            _metadataUri
+        );
+        (bool success, ) = address(pa).call(
+            abi.encodeWithSelector(
+                ProxyAdmin.upgradeAndCall.selector,
+                hsmProxy,
+                0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A, // Use the current implementation address
+                data
+            )
+        );
+        require(success, "Failed to update metadata URI");
 
         vm.stopBroadcast();
     }

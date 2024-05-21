@@ -12,8 +12,8 @@ interface AVSContracts {
 export const avsAddresses: ChainMap<AVSContracts> = {
   holesky: {
     avsDirectory: '0x055733000064333CaDDbC92763c58BF0192fFeBf',
-    proxyAdmin: '0x1b33611fCc073aB0737011d5512EF673Bff74962',
-    ecdsaStakeRegistry: '0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9',
-    hyperlaneServiceManager: '0xeAEfB1458b032e75de3e9A3a480d005c426FB1c5',
+    proxyAdmin: '0x11918DC33E067C5DA83EEF58E50F856398b8Df4C',
+    ecdsaStakeRegistry: '0xFCc63b537e70652A280c4E7883C5BB5a1700e897',
+    hyperlaneServiceManager: '0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818',
   },
 };
