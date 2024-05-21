@@ -1,3 +1,4 @@
+import { AddressZero } from '@ethersproject/constants';
 import { Wallet, providers } from 'ethers';
 import fs from 'fs';
 
@@ -24,8 +25,14 @@ async function deployERC20() {
       type: TokenType.collateral,
       token: contract.address,
       isNft: false,
+      owner: signer.address,
+      mailbox: AddressZero,
     },
-    [chain2]: { type: TokenType.synthetic },
+    [chain2]: {
+      type: TokenType.synthetic,
+      owner: signer.address,
+      mailbox: AddressZero,
+    },
   };
 
   console.log('Writing deployment config to', outPath);
