@@ -118,7 +118,7 @@ contract DeployAVS is Script {
             address(proxyAdmin),
             abi.encodeWithSelector(
                 HyperlaneServiceManager.initialize.selector,
-                msg.sender
+                address(proxyAdmin)
             )
         );
 
