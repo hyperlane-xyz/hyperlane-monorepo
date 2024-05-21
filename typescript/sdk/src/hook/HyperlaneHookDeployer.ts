@@ -115,7 +115,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config.maxProtocolFee,
       config.protocolFee,
       config.beneficiary,
-      await this.resolveInterchainAccountAsOwner(chain, config.owner),
+      config.owner,
     ]);
   }
 
