@@ -12,7 +12,7 @@ import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
-import { TokenRouterConfig } from './config.js';
+import { TokenRouterConfig } from './schemas.js';
 import { TokenMetadata } from './types.js';
 
 type WarpRouteBaseMetadata = Record<

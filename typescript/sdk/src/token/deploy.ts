@@ -15,14 +15,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
 
-import {
-  TokenRouterConfig,
-  gasOverhead,
-  isCollateralConfig,
-  isNativeConfig,
-  isSyntheticConfig,
-  isTokenMetadata,
-} from './config.js';
+import { gasOverhead } from './config.js';
 import {
   HypERC20Factories,
   HypERC721Factories,
@@ -32,6 +25,13 @@ import {
   hypERC721contracts,
   hypERC721factories,
 } from './contracts.js';
+import {
+  TokenRouterConfig,
+  isCollateralConfig,
+  isNativeConfig,
+  isSyntheticConfig,
+  isTokenMetadata,
+} from './schemas.js';
 import { TokenMetadata, WarpRouteDeployConfig } from './types.js';
 
 abstract class TokenDeployer<

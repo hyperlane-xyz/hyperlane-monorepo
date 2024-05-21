@@ -13,8 +13,9 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmWarpRouteReader } from './EvmERC20WarpRouteReader.js';
-import { CollateralConfig, TokenRouterConfig, TokenType } from './config.js';
+import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
+import { CollateralConfig, TokenRouterConfig } from './schemas.js';
 import { WarpRouteDeployConfig } from './types.js';
 
 describe('TokenDeployer', async () => {

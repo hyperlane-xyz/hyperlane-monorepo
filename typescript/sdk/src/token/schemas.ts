@@ -67,3 +67,17 @@ export const WarpRouteDeployConfigSchema = z
       ).length === entries.length
     );
   }, `Config must include Native or Collateral OR all synthetics must define token metadata`);
+
+export type TokenRouterConfig = z.infer<typeof TokenRouterConfigSchema>;
+export type NativeConfig = z.infer<typeof NativeConfigSchema>;
+export type CollateralConfig = z.infer<typeof CollateralConfigSchema>;
+
+function isCompliant<S extends Zod.Schema>(schema: S) {
+  return (config: unknown): config is z.infer<S> =>
+    schema.safeParse(config).success;
+}
+
+export const isSyntheticConfig = isCompliant(SyntheticConfigSchema);
+export const isCollateralConfig = isCompliant(CollateralConfigSchema);
+export const isNativeConfig = isCompliant(NativeConfigSchema);
+export const isTokenMetadata = isCompliant(TokenMetadataSchema);

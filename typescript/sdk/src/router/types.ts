@@ -6,7 +6,7 @@ import {
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import type { Address } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';

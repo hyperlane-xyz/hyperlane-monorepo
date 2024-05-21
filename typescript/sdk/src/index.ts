@@ -417,14 +417,7 @@ export {
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
-export {
-  CollateralConfig,
-  NativeConfig,
-  TokenType,
-  isCollateralConfig,
-  isNativeConfig,
-  isSyntheticConfig,
-} from './token/config.js';
+export { TokenType } from './token/config.js';
 export {
   HypERC20Factories,
   HypERC721Factories,
@@ -465,7 +458,12 @@ export { AggregationIsmConfigSchema } from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   WarpRouteDeployConfigSchema,
-  TokenRouterConfigSchema as tokenRouterConfigSchema,
+  TokenRouterConfigSchema,
+  CollateralConfig,
+  NativeConfig,
+  isCollateralConfig,
+  isNativeConfig,
+  isSyntheticConfig,
 } from './token/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 

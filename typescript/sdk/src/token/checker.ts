@@ -8,13 +8,13 @@ import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker.js';
 import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
+import { HypERC20Factories } from './contracts.js';
 import {
   TokenRouterConfig,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
-} from './config.js';
-import { HypERC20Factories } from './contracts.js';
+} from './schemas.js';
 import { TokenMetadata } from './types.js';
 
 export class HypERC20Checker extends HyperlaneRouterChecker<
