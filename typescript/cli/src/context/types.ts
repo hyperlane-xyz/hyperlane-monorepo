@@ -12,6 +12,7 @@ export interface ContextSettings {
   registryUri: string;
   registryOverrideUri: string;
   key?: string;
+  fromAddress?: string;
   requiresKey?: boolean;
   skipConfirmation?: boolean;
 }

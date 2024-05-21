@@ -14,7 +14,7 @@ import {
 import { CommandModuleWithContext } from '../context/types.js';
 import { log, logGreen } from '../logger.js';
 
-import { inputFileOption, outputFileOption } from './options.js';
+import { inputFileCommandOption, outputFileCommandOption } from './options.js';
 
 /**
  * Parent command
@@ -64,7 +64,7 @@ const createIsmConfigCommand: CommandModuleWithContext<{
   command: 'ism',
   describe: 'Create a basic or advanced ISM config for a validator set',
   builder: {
-    out: outputFileOption('./configs/ism.yaml'),
+    out: outputFileCommandOption('./configs/ism.yaml'),
     advanced: {
       type: 'boolean',
       describe: 'Create an advanced ISM configuration',
@@ -85,7 +85,7 @@ const createHookConfigCommand: CommandModuleWithContext<{ out: string }> = {
   command: 'hooks',
   describe: 'Create a new hooks config (required & default)',
   builder: {
-    out: outputFileOption('./configs/hooks.yaml'),
+    out: outputFileCommandOption('./configs/hooks.yaml'),
   },
   handler: async ({ context, out }) => {
     await createHooksConfigMap({ context, outPath: out });
@@ -99,7 +99,7 @@ const createWarpRouteDeployConfigCommand: CommandModuleWithContext<{
   command: 'warp',
   describe: 'Create a new Warp Route deployment config',
   builder: {
-    out: outputFileOption('./configs/warp-route-deployment.yaml'),
+    out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
   },
   handler: async ({ context, out }) => {
     await createWarpRouteDeployConfig({ context, outPath: out });
@@ -128,7 +128,7 @@ const validateChainCommand: CommandModuleWithContext<{ path: string }> = {
   command: 'chain',
   describe: 'Validate a chain config file',
   builder: {
-    path: inputFileOption,
+    path: inputFileCommandOption,
   },
   handler: async ({ path }) => {
     readChainConfigs(path);
@@ -141,7 +141,7 @@ const validateIsmCommand: CommandModuleWithContext<{ path: string }> = {
   command: 'ism',
   describe: 'Validate the basic ISM config file',
   builder: {
-    path: inputFileOption,
+    path: inputFileCommandOption,
   },
   handler: async ({ path }) => {
     readMultisigConfig(path);
@@ -154,7 +154,7 @@ const validateIsmAdvancedCommand: CommandModuleWithContext<{ path: string }> = {
   command: 'ism-advanced',
   describe: 'Validate the advanced ISM config file',
   builder: {
-    path: inputFileOption,
+    path: inputFileCommandOption,
   },
   handler: async ({ path }) => {
     readIsmConfig(path);
@@ -167,7 +167,7 @@ const validateWarpCommand: CommandModuleWithContext<{ path: string }> = {
   command: 'warp',
   describe: 'Validate a Warp Route deployment config file',
   builder: {
-    path: inputFileOption,
+    path: inputFileCommandOption,
   },
   handler: async ({ path }) => {
     readWarpRouteDeployConfig(path);

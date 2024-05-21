@@ -12,7 +12,7 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 import { parseIsmConfig } from '../config/ism.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logGreen, logPink } from '../logger.js';
-import { assertGasBalances } from '../utils/balances.js';
+import { gasBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
@@ -76,13 +76,13 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  await assertGasBalances(
+  const sufficient = await gasBalancesAreSufficient(
     multiProvider,
     signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
-  logGreen('✅ Balances are sufficient');
+  if (sufficient) logGreen('✅ Balances are sufficient');
 }
 
 // from parsed types

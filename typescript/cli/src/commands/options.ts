@@ -42,9 +42,9 @@ export const skipConfirmationOption: Options = {
 
 export const keyCommandOption: Options = {
   type: 'string',
-  description: `A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.
-Dry-run: An address to simulate transaction signing on a forked network`,
-  alias: 'k',
+  description:
+    'A hex private key or seed phrase for transaction signing, or use the HYP_KEY env var.',
+  alias: ['k', 'private-key', 'seed-phrase'],
   default: ENV.HYP_KEY,
   defaultDescription: 'process.env.HYP_KEY',
 };
@@ -79,7 +79,7 @@ export const hookCommandOption: Options = {
     'A path to a JSON or YAML file with Hook configs (for every chain)',
 };
 
-export const warpConfigCommandOption: Options = {
+export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
@@ -87,7 +87,7 @@ export const warpConfigCommandOption: Options = {
   alias: 'w',
 };
 
-export const warpConfigOption: Options = {
+export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
   alias: 'w',
@@ -106,21 +106,27 @@ export const agentConfigCommandOption = (
   default: defaultPath,
 });
 
-export const outputFileOption = (defaultPath?: string): Options => ({
+export const outputFileCommandOption = (defaultPath?: string): Options => ({
   type: 'string',
   description: 'Output file path',
   default: defaultPath,
   alias: 'o',
 });
 
-export const inputFileOption: Options = {
+export const inputFileCommandOption: Options = {
   type: 'string',
   description: 'Input file path',
   alias: 'i',
   demandOption: true,
 };
 
-export const dryRunOption: Options = {
+export const fromAddressCommandOption: Options = {
+  type: 'string',
+  description: `An address to simulate transaction signing on a forked network`,
+  alias: 'f',
+};
+
+export const dryRunCommandOption: Options = {
   type: 'string',
   description:
     'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
