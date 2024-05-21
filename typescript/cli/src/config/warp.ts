@@ -99,10 +99,15 @@ export async function createWarpRouteDeployConfig({
       case TokenType.collateralUri:
       case TokenType.fastCollateral:
       case TokenType.collateralVault:
-        const token = await input({
-          message: `Enter the existing token address for chain ${chain}`,
-        });
-        result[chain] = { mailbox, type, token, owner, isNft };
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          token: await input({
+            message: `Enter the existing token address for chain ${chain}`,
+          }),
+        };
         break;
       default:
         result[chain] = { mailbox, type, owner, isNft };
