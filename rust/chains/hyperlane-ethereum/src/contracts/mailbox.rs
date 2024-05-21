@@ -7,9 +7,10 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::{AbiEncode, Detokenize};
+use ethers::abi::{AbiEncode, Detokenize, RawLog};
 use ethers::prelude::Middleware;
-use ethers_contract::builders::ContractCall;
+use ethers_contract::{builders::ContractCall, ContractError, EthEvent, LogMeta as EthersLogMeta};
+use ethers_core::types::H256 as EthersH256;
 use futures_util::future::join_all;
 use tracing::instrument;
 
@@ -25,6 +26,7 @@ use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
+use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
@@ -134,7 +136,7 @@ where
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
@@ -156,6 +158,41 @@ where
 
         events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
         Ok(events)
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H256,
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+        let ethers_tx_hash: EthersH256 = tx_hash.into();
+        let receipt = self
+            .provider
+            .get_transaction_receipt(ethers_tx_hash)
+            .await
+            .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
+        let Some(receipt) = receipt else {
+            return Ok(vec![]);
+        };
+
+        let logs: Vec<_> = receipt
+            .logs
+            .into_iter()
+            .filter_map(|log| {
+                let raw_log = RawLog {
+                    topics: log.topics.clone(),
+                    data: log.data.to_vec(),
+                };
+                let log_meta: EthersLogMeta = (&log).into();
+                let dispatch_filter = DispatchFilter::decode_log(&raw_log).ok();
+                dispatch_filter.map(|event| {
+                    (
+                        HyperlaneMessage::from(event.message.to_vec()).into(),
+                        log_meta.into(),
+                    )
+                })
+            })
+            .collect();
+        Ok(logs)
     }
 }
 
@@ -183,7 +220,7 @@ where
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {

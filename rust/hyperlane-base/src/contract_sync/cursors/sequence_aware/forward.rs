@@ -475,7 +475,7 @@ pub(crate) mod test {
     where
         T: Sequenced + Debug,
     {
-        async fn fetch_logs(
+        async fn fetch_logs_in_range(
             &self,
             _range: RangeInclusive<u32>,
         ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {

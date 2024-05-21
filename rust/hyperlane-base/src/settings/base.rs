@@ -172,6 +172,7 @@ impl Settings {
             db.clone() as SequenceAwareLogStore<_>,
             indexer,
             sync_metrics.clone(),
+            None,
         )))
     }
 
@@ -196,6 +197,7 @@ impl Settings {
             db.clone() as WatermarkLogStore<_>,
             indexer,
             sync_metrics.clone(),
+            None,
         )))
     }
 

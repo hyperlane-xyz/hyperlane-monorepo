@@ -130,6 +130,8 @@ impl BaseAgent for Relayer {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
+        // each of these `contract_syncs` will return a receiver of txid alongside
+        // `contract_syncs` will also take a hashmap of domain -> recvs as an argument
         let message_syncs = settings
             .contract_syncs::<HyperlaneMessage, _>(
                 settings.origin_chains.iter(),

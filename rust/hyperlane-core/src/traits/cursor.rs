@@ -36,14 +36,14 @@ pub enum CursorAction {
     /// Direct the contract_sync task to query a block range (inclusive)
     Query(RangeInclusive<u32>),
     /// Direct the contract_sync task to sleep for a duration
-    Sleep(Duration),
+    Sleep,
 }
 
 impl fmt::Debug for CursorAction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CursorAction::Query(range) => write!(f, "Query({:?})", range),
-            CursorAction::Sleep(duration) => write!(f, "Sleep({:?})", duration),
+            CursorAction::Sleep => write!(f, "Sleep"),
         }
     }
 }

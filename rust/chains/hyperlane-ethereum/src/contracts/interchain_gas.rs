@@ -86,7 +86,7 @@ where
 {
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {

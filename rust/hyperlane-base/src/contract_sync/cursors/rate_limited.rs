@@ -234,7 +234,7 @@ pub(crate) mod test {
 
         #[async_trait]
         impl Indexer<()> for Indexer {
-            async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(hyperlane_core::Indexed<()> , LogMeta)>>;
+            async fn fetch_logs_in_range(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(hyperlane_core::Indexed<()> , LogMeta)>>;
             async fn get_finalized_block_number(&self) -> ChainResult<u32>;
         }
     }
