@@ -28,7 +28,7 @@ yarn test
 
 ### Fixtures
 
-Some forge tests may generate fixtures in the [fixtures](./fixtures/) directory. This allows [SDK](../typescript/sdk) tests to leverage forge fuzzing. These are git ignored and should not be committed.
+Some forge tests may generate fixtures. This allows the [SDK](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/main/typescript/sdk) tests to leverage forge fuzzing. These are git ignored and should not be committed.
 
 ## License
 
