@@ -32,12 +32,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
   ) {
     super(multiProvider, coreFactories, {
       logger: rootLogger.child({ module: 'CoreDeployer' }),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
