@@ -232,6 +232,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  redstone: {
+    threshold: 2,
+    validators: [
+      '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
+  },
+
   scroll: {
     threshold: 2,
     validators: [
@@ -280,14 +288,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x4E53dA92cD5Bf0a032b6B4614b986926456756A7', // blockpi
       '0xa3f93fe365bf99f431d8fde740b140615e24f99b', // rockx
       '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
-    ],
-  },
-
-  redstone: {
-    threshold: 2,
-    validators: [
-      '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
-      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
     ],
   },
 
