@@ -88,10 +88,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     optimism: true,
     polygon: true,
     polygonzkevm: true,
-    redstone: false,
+    redstone: true,
     scroll: true,
     viction: true,
-    zetachain: false,
+    zetachain: true,
   },
   [Role.Scraper]: {
     arbitrum: true,
@@ -114,11 +114,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     optimism: true,
     polygon: true,
     polygonzkevm: true,
-    redstone: false,
+    redstone: true,
     scroll: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
-    zetachain: false,
+    zetachain: true,
   },
 };
 
@@ -209,7 +209,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'de8c2a7-20240515-135254',
+      tag: 'd6bb976-20240520-164138',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -226,7 +226,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: 'd6bb976-20240520-164138',
     },
   },
 };
