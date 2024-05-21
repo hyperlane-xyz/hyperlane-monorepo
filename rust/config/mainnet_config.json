@@ -398,7 +398,7 @@
       "domainRoutingIsm": "0xf18E32428dad0802C5D6F723cB80A6Da889777c4",
       "domainRoutingIsmFactory": "0x2A2c22B0a8615ad24839fA6Af302E896Af32d1a3",
       "fallbackRoutingHook": "0xDC98a856fb9112894c2fE32267DA8bF35645FAF3",
-      "gnosisSafeTransactionServiceUrl": "https://mainnet-tx-svc.celo-safe-prod.celo-networks-dev.org/",
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-celo.safe.global/",
       "index": {
         "from": 22102340
       },
@@ -470,7 +470,7 @@
       "interchainAccountIsm": "0x609707355a53d2aAb6366f48E2b607C599D26B29",
       "interchainAccountRouter": "0x8dBae9B1616c46A20591fE0006Bf015E28ca5cC9",
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-      "interchainSecurityModule": "0x8CE0c6cAf18DbF5882b35F26E28412f3E9AbDeca",
+      "interchainSecurityModule": "0xbB6Ea063527E64cA80E9B6D54a8708C901a7305C",
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "merkleTreeHook": "0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA",
       "name": "ethereum",
@@ -987,7 +987,7 @@
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "transactionOverrides": {
-        "maxFeePerGas": 400000000000,
+        "maxFeePerGas": 550000000000,
         "maxPriorityFeePerGas": 50000000000
       },
       "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5"
@@ -1014,6 +1014,7 @@
       "domainRoutingIsmFactory": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d",
       "fallbackRoutingHook": "0x01aE937A7B05d187bBCBE80F44F41879D3D335a4",
       "gasCurrencyCoinGeckoId": "ethereum",
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-zkevm.safe.global/",
       "index": {
         "from": 6577743
       },
@@ -1120,6 +1121,7 @@
       "domainRoutingIsmFactory": "0xe03dad16074BC5EEA9A9311257BF02Eb0B6AAA2b",
       "fallbackRoutingHook": "0xDa7cECb05C4aeB02c1aFDE277d4306a2da7Bd762",
       "gasCurrencyCoinGeckoId": "ethereum",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.scroll.xyz",
       "index": {
         "chunk": 999,
         "from": 271840
@@ -1264,9 +1266,6 @@
         },
         {
           "http": "https://zetachain-mainnet-archive.allthatnode.com:8545"
-        },
-        {
-          "http": "https://zetachain-mainnet.public.blastapi.io"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",

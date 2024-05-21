@@ -60,6 +60,7 @@ export interface DeployerOptions {
   ismFactory?: HyperlaneIsmFactory;
   icaApp?: InterchainAccount;
   contractVerifier?: ContractVerifier;
+  concurrentDeploy?: boolean;
 }
 
 export abstract class HyperlaneDeployer<
@@ -125,7 +126,8 @@ export abstract class HyperlaneDeployer<
     ).intersection;
 
     this.logger.debug(`Start deploy to ${targetChains}`);
-    const promises = [];
+
+    const deployPromises = [];
     for (const chain of targetChains) {
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
@@ -137,15 +139,20 @@ export abstract class HyperlaneDeployer<
         .getProvider(chain)
         .getBlockNumber();
 
-      promises.push(
-        runWithTimeout(this.chainTimeoutMs, async () => {
-          const contracts = await this.deployContracts(chain, configMap[chain]);
-          this.addDeployedContracts(chain, contracts);
-          this.logger.info({ chain }, 'Successfully deployed contracts');
-        }),
-      );
+      const deployPromise = runWithTimeout(this.chainTimeoutMs, async () => {
+        const contracts = await this.deployContracts(chain, configMap[chain]);
+        this.addDeployedContracts(chain, contracts);
+        this.logger.info({ chain }, 'Successfully deployed contracts');
+      });
+      if (this.options.concurrentDeploy) {
+        deployPromises.push(deployPromise);
+      } else {
+        await deployPromise;
+      }
     }
-    await Promise.all(promises);
+
+    // Await all deploy promises. If concurrent deploy is not enabled, this will be a no-op.
+    await Promise.all(deployPromises);
 
     return this.deployedContracts;
   }
