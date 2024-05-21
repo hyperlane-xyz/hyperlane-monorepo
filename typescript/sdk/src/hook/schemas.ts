@@ -65,6 +65,7 @@ export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
   );
 
 export const HookConfigSchema = z.union([
+  // TODO add CustomSchema
   ProtocolFeeSchema,
   PausableHookSchema,
   OpStackHookSchema,

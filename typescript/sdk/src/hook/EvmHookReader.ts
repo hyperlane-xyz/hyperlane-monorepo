@@ -212,7 +212,7 @@ export class EvmHookReader implements HookReader {
       beneficiary,
       oracleKey: oracleKey ?? owner,
       overhead,
-      oracleConfig,
+      oracleConfig, // @NTS: FIGURE THIS ERROR OUT
     };
   }
 
