@@ -174,7 +174,7 @@ tokio = { version = "1", features = ["parking_lot"] }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
 tonic = "0.9.2"
-tracing = { version = "0.1", features = ["release_max_level_debug"] }
+tracing = { version = "0.1" }
 tracing-error = "0.2"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
