@@ -1,7 +1,9 @@
 import { TokenRouter } from '@hyperlane-xyz/core';
 import { objKeys } from '@hyperlane-xyz/utils';
 
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
+  HyperlaneAddressesMap,
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
@@ -25,5 +27,17 @@ export class HypERC20App extends GasRouterApp<HypERC20Factories, TokenRouter> {
       }
     }
     throw new Error('No router found in contracts');
+  }
+
+  static fromAddressesMap(
+    addressesMap: HyperlaneAddressesMap<HypERC20Factories>,
+    multiProvider: MultiProvider,
+  ): HypERC20App {
+    const helper = appFromAddressesMapHelper(
+      addressesMap,
+      hypERC20factories,
+      multiProvider,
+    );
+    return new HypERC20App(helper.contractsMap, helper.multiProvider);
   }
 }

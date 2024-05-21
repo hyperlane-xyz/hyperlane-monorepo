@@ -4,8 +4,7 @@ import {
   ChainMap,
   HyperlaneIsmFactory,
   MultiProvider,
-  RouterConfig,
-  TokenConfig,
+  TokenRouterConfig,
   TokenType,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -21,7 +20,7 @@ import { DEPLOYER } from './environments/mainnet3/owners.js';
 export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
-): Promise<ChainMap<TokenConfig & RouterConfig>> {
+): Promise<ChainMap<TokenRouterConfig>> {
   const { core } = await getHyperlaneCore(envConfig.environment, multiProvider);
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
     getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
@@ -43,7 +42,7 @@ export async function getWarpConfig(
 
   const routerConfig = core.getRouterConfig(envConfig.owners);
 
-  const ethereum: TokenConfig & RouterConfig = {
+  const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
@@ -59,7 +58,7 @@ export async function getWarpConfig(
   // TokenMetadata, but in practice these are actually inferred from a
   // collateral config. To avoid needing to specify the TokenMetadata, just
   // ts-ignore for synthetic tokens.
-  const ancient8: TokenConfig & RouterConfig = {
+  const ancient8: TokenRouterConfig = {
     ...routerConfig.ancient8,
     type: TokenType.synthetic,
     // Uses the default ISM
