@@ -32,12 +32,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
   ) {
     super(multiProvider, coreFactories, {
       logger: rootLogger.child({ module: 'CoreDeployer' }),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
@@ -133,7 +135,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         !e.message.includes('Reverted 0x08c379a') &&
         // Handle situation where the gas estimation fails on the call function,
         // then the real error reason is not available in `e.message`, but rather in `e.error.reason`
-        !e.error?.reason?.includes('already initialized')
+        !e.error?.reason?.includes('already initialized') &&
+        // Some providers, like on Viction, return a generic error message for all revert reasons
+        !e.message.includes('always failing transaction')
       ) {
         throw e;
       }
