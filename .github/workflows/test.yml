@@ -178,6 +178,10 @@ jobs:
 
       - name: Generate ${{ matrix.environment }} agent config
         run: |
+          ls ${{ github.workspace }}/../hyperlane-registry
+          ls ./
+          ls ../
+          pwd
           cd typescript/infra
           yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
           CHANGES=$(git status -s)
