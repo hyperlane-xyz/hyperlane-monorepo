@@ -88,9 +88,10 @@ jobs:
         with:
           repository: hyperlane-xyz/registry
           ref: main
-          # Put alongside the monorepo in the directory above
-          # the $GITHUB_WORKSPACE
-          path: ../
+          path: ./hyperlane-registry
+      # Put alongside the monorepo in the directory above
+      # the $GITHUB_WORKSPACE
+      - run: mv ./hyperlane-registry ../
 
   lint-prettier:
     runs-on: ubuntu-latest
