@@ -86,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: hyperlane-xyz/registry
+          repository: hyperlane-xyz/hyperlane-registry
           ref: main
           path: ./hyperlane-registry
       # Put alongside the monorepo in the directory above
