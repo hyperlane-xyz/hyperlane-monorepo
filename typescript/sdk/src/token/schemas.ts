@@ -23,7 +23,9 @@ export const CollateralConfigSchema = TokenMetadataSchema.partial().extend({
     TokenType.fastCollateral,
     TokenType.collateralVault,
   ]),
-  token: z.string(),
+  token: z
+    .string()
+    .describe('Existing token address to extend with Warp Route functionality'),
 });
 
 export const NativeConfigSchema = TokenMetadataSchema.partial().extend({
@@ -53,22 +55,6 @@ export const TokenRouterConfigSchema = TokenConfigSchema.and(
   GasRouterConfigSchema,
 );
 
-export const WarpRouteDeployConfigSchema = z
-  .record(TokenRouterConfigSchema)
-  .refine((configMap) => {
-    const entries = Object.entries(configMap);
-    return (
-      entries.some(
-        ([_, config]) =>
-          CollateralConfigSchema.safeParse(config).success ||
-          NativeConfigSchema.safeParse(config).success,
-      ) ||
-      entries.filter(
-        ([_, config]) => TokenMetadataSchema.safeParse(config).success,
-      ).length === entries.length
-    );
-  }, `Config must include Native or Collateral OR all synthetics must define token metadata`);
-
 export type TokenRouterConfig = z.infer<typeof TokenRouterConfigSchema>;
 export type NativeConfig = z.infer<typeof NativeConfigSchema>;
 export type CollateralConfig = z.infer<typeof CollateralConfigSchema>;
@@ -77,3 +63,14 @@ export const isSyntheticConfig = isCompliant(SyntheticConfigSchema);
 export const isCollateralConfig = isCompliant(CollateralConfigSchema);
 export const isNativeConfig = isCompliant(NativeConfigSchema);
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
+
+export const WarpRouteDeployConfigSchema = z
+  .record(TokenRouterConfigSchema)
+  .refine((configMap) => {
+    const entries = Object.entries(configMap);
+    return (
+      entries.some(
+        ([_, config]) => isCollateralConfig(config) || isNativeConfig(config),
+      ) || entries.every(([_, config]) => isTokenMetadata(config))
+    );
+  }, `Config must include Native or Collateral OR all synthetics must define token metadata`);

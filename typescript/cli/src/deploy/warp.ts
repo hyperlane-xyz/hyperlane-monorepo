@@ -10,6 +10,7 @@ import {
   WarpCoreConfig,
   WarpRouteDeployConfig,
   getTokenConnectionId,
+  isTokenMetadata,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -127,13 +128,6 @@ async function executeDeploy(params: DeployParams) {
   logBlue('Deployment is complete!');
 }
 
-const DEFAULT_METADATA = {
-  name: 'unknown',
-  symbol: 'unknown',
-  totalSupply: '0',
-  decimals: 18,
-};
-
 async function getWarpCoreConfig(
   { configMap, context }: DeployParams,
   contracts: HyperlaneContractsMap<TokenFactories>,
@@ -150,10 +144,18 @@ async function getWarpCoreConfig(
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = configMap[chainName];
     const metadata = {
-      ...DEFAULT_METADATA,
       ...tokenMetadata,
       ...config,
     };
+
+    if (!isTokenMetadata(metadata)) {
+      throw new Error('Missing required token metadata');
+    }
+
+    const { decimals } = metadata;
+    if (!decimals) {
+      throw new Error('Missing decimals on token metadata');
+    }
 
     const collateralAddressOrDenom =
       config.type === TokenType.collateral ? config.token : undefined;
@@ -161,6 +163,7 @@ async function getWarpCoreConfig(
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
       ...metadata,
+      decimals,
       addressOrDenom:
         contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,

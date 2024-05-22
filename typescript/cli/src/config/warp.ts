@@ -10,7 +10,10 @@ import {
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
-import { runMultiChainSelectionStep } from '../utils/chains.js';
+import {
+  detectAndConfirmOrPrompt,
+  runMultiChainSelectionStep,
+} from '../utils/chains.js';
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
@@ -61,11 +64,11 @@ export async function createWarpRouteDeployConfig({
 }) {
   logBlue('Creating a new warp route deployment config');
 
-  const owner =
-    (await context.signer?.getAddress()) ??
-    (await input({
-      message: 'Enter owner address',
-    }));
+  const owner = await detectAndConfirmOrPrompt(
+    async () => context.signer?.getAddress(),
+    'Enter the desired',
+    'owner address',
+  );
 
   const warpChains = await runMultiChainSelectionStep(
     context.chainMetadata,
@@ -73,6 +76,7 @@ export async function createWarpRouteDeployConfig({
   );
 
   const result: WarpRouteDeployConfig = {};
+  WarpRouteDeployConfigSchema;
   for (const chain of warpChains) {
     logBlue(`Configuring warp route for chain ${chain}`);
     const type = await select({
@@ -84,13 +88,14 @@ export async function createWarpRouteDeployConfig({
     const isNft =
       type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
-    // TODO: migrate to detectAndConfirmOrPrompt
-    const addresses = await context.registry.getChainAddresses(chain);
-    const mailbox =
-      addresses?.mailbox ??
-      (await input({
-        message: `Enter the mailbox address for chain ${chain}`,
-      }));
+    const mailbox = await detectAndConfirmOrPrompt(
+      async () => {
+        const addresses = await context.registry.getChainAddresses(chain);
+        return addresses?.mailbox;
+      },
+      `For ${chain}, enter the`,
+      'mailbox address',
+    );
 
     switch (type) {
       case TokenType.collateral:
@@ -105,7 +110,7 @@ export async function createWarpRouteDeployConfig({
           owner,
           isNft,
           token: await input({
-            message: `Enter the existing token address for chain ${chain}`,
+            message: `Enter the existing token address on chain ${chain}`,
           }),
         };
         break;
