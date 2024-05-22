@@ -57,6 +57,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xf20c0b09f597597c8d2430d3d72dfddaf09177d1',
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+      '0xae53467a5c2a9d9420c188d10fef5e1d9b9a5b80', // superform
     ],
   },
 
@@ -231,6 +232,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  redstone: {
+    threshold: 2,
+    validators: [
+      '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
+  },
+
   scroll: {
     threshold: 2,
     validators: [
@@ -279,6 +288,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x4E53dA92cD5Bf0a032b6B4614b986926456756A7', // blockpi
       '0xa3f93fe365bf99f431d8fde740b140615e24f99b', // rockx
       '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
+    ],
+  },
+
+  zetachain: {
+    threshold: 2,
+    validators: [
+      '0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
     ],
   },
 };
