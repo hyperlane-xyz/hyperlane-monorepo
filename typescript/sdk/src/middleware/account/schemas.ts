@@ -14,6 +14,7 @@ export const AccountConfigSchema = z.object({
   ismOverride: ZHash.optional(),
 });
 
+/* For InterchainAccount::getCallRemote() */
 export const GetCallRemoteSettingsSchema = z.object({
   chain: ZChainName,
   destination: ZChainName,

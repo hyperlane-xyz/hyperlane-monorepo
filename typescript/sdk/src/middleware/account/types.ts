@@ -14,4 +14,5 @@ export type AccountConfig = {
   ismOverride?: Address;
 };
 
+/* For InterchainAccount::getCallRemote() */
 export type GetCallRemoteSettings = z.infer<typeof GetCallRemoteSettingsSchema>;
