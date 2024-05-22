@@ -119,14 +119,15 @@ export async function createWarpRouteDeployConfig({
     }
   }
 
-  if (isValidWarpRouteDeployConfig(result)) {
+  try {
+    const parsed = WarpRouteDeployConfigSchema.parse(result);
     logGreen(`Warp Route config is valid, writing to file ${outPath}`);
-    writeYamlOrJson(outPath, result);
-  } else {
+    writeYamlOrJson(outPath, parsed);
+  } catch (e) {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
     );
-    WarpRouteDeployConfigSchema.parse(result); // throws error
+    throw e;
   }
 }
 

@@ -68,14 +68,15 @@ export async function runWarpRouteDeploy({
   logBlue('Warp route deployment plan');
 
   await runDeployPlanStep(deploymentParams);
+  const chains = Object.keys(warpRouteConfig);
+
   await runPreflightChecksForChains({
     context,
-    chains: Object.keys(warpRouteConfig),
+    chains,
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
   const userAddress = await signer.getAddress();
-  const chains = Object.keys(warpRouteConfig);
 
   const initialBalances = await prepareDeploy(context, userAddress, chains);
 
