@@ -19,6 +19,7 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  # Alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
   REGISTRY_URI: ${{ github.workspace }}/../hyperlane-registry
 
 jobs:
@@ -89,17 +90,21 @@ jobs:
           repository: hyperlane-xyz/hyperlane-registry
           ref: main
           path: ./hyperlane-registry
-      # Put alongside the monorepo in the directory above
-      # the $GITHUB_WORKSPACE
+
+      # Put alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
+      # actions/checkout doesn't allow you to checkout a repository outside of the workspace.
+      # See https://github.com/actions/checkout/issues/197.
       - run: mv ./hyperlane-registry ../
 
-      - run: echo "REGISTRY_URI=$(realpath ../hyperlane-registry)" >> $GITHUB_ENV
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
         uses: actions/cache@v3
         with:
           path: |
-            ${{ env.REGISTRY_URI }}
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
   lint-prettier:
@@ -153,13 +158,15 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - run: echo "REGISTRY_URI=$(realpath ../hyperlane-registry)" >> $GITHUB_ENV
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
         uses: actions/cache@v3
         with:
           path: |
-            ${{ env.REGISTRY_URI }}
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Unit Tests
@@ -194,21 +201,19 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - run: echo "REGISTRY_URI=$(realpath ../hyperlane-registry)" >> $GITHUB_ENV
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
         uses: actions/cache@v3
         with:
           path: |
-            ${{ env.REGISTRY_URI }}
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Generate ${{ matrix.environment }} agent config
         run: |
-          ls ./
-          ls ../
-          pwd
-          ls ${{ github.workspace }}/../hyperlane-registry
           cd typescript/infra
           yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
           CHANGES=$(git status -s)
