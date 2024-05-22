@@ -22,7 +22,6 @@ impl Signer {
     /// * `private_key` - private key for signer
     /// * `address` - address for signer
     pub fn new(private_key: &str, address: &str) -> ChainResult<Self> {
-        // TODO: possible to compute it from pk ?
         let contract_address =
             FieldElement::from_hex_be(address).map_err(Into::<HyperlaneStarknetError>::into)?;
         let signing_key = Self::build_signing_key(private_key)?;
