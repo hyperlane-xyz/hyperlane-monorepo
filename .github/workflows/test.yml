@@ -91,7 +91,9 @@ jobs:
           path: ./hyperlane-registry
       # Put alongside the monorepo in the directory above
       # the $GITHUB_WORKSPACE
-      - run: mv ./hyperlane-registry ../
+      - run: |
+          mv ./hyperlane-registry ../
+          echo "REGISTRY_URI=$(realpath ../hyperlane-registry)" >> $GITHUB_ENV
       - name: registry-cache
         uses: actions/cache@v3
         with:
@@ -150,6 +152,10 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - run: |
+          mv ./hyperlane-registry ../
+          echo "REGISTRY_URI=$(realpath ../hyperlane-registry)" >> $GITHUB_ENV
+
       - name: registry-cache
         uses: actions/cache@v3
         with:
@@ -188,6 +194,10 @@ jobs:
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - run: |
+          mv ./hyperlane-registry ../
+          echo "REGISTRY_URI=$(realpath ../hyperlane-registry)" >> $GITHUB_ENV
 
       - name: registry-cache
         uses: actions/cache@v3
