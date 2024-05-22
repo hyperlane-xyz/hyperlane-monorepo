@@ -19,7 +19,7 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  REGISTRY_URI: ../../node_modules/@hyperlane-xyz/registry/dist
+  REGISTRY_URI: ${{ github.workspace }}/../hyperlane-registry
 
 jobs:
   yarn-install:
@@ -81,6 +81,17 @@ jobs:
       - name: build
         run: yarn build
 
+  checkout-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: hyperlane-xyz/registry
+          ref: main
+          # Put alongside the monorepo in the directory above
+          # the $GITHUB_WORKSPACE
+          path: ../
+
   lint-prettier:
     runs-on: ubuntu-latest
     needs: [yarn-install]
@@ -113,7 +124,7 @@ jobs:
 
   yarn-test:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-build, checkout-registry]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -137,7 +148,7 @@ jobs:
 
   agent-configs:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-build, checkout-registry]
     strategy:
       fail-fast: false
       matrix:
