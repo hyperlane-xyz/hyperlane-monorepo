@@ -114,7 +114,9 @@ export abstract class HyperlaneAppGovernor<
       if (calls.length > 0) {
         const confirmed = await summarizeCalls(submissionType, calls);
         if (confirmed) {
-          console.log(`Submitting calls on ${chain} via ${submissionType}`);
+          console.log(
+            `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+          );
           await multiSend.sendTransactions(
             calls.map((call) => ({
               to: call.to,
@@ -124,7 +126,7 @@ export abstract class HyperlaneAppGovernor<
           );
         } else {
           console.log(
-            `Skipping submission of calls on ${chain} via ${submissionType}`,
+            `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
         }
       }
