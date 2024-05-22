@@ -23,7 +23,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  Domain,
   ProtocolType,
   assert,
   eqAddress,
@@ -59,9 +58,8 @@ import {
   IsmType,
   MultisigIsmConfig,
   RoutingIsmConfig,
-  RoutingIsmDelta,
 } from './types.js';
-import { moduleMatchesConfig, routingModuleDelta } from './utils.js';
+import { deepEqualIsmConfig, routingModuleDelta } from './utils.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -134,18 +132,8 @@ export class EvmIsmModule extends HyperlaneModule<
       targetConfig.domains = availableDomains;
     }
 
-    // this calls resolveOrDeployAccountOwner under the hood
-    const configMatches = await moduleMatchesConfig(
-      this.chainName,
-      this.args.addresses.deployedIsm,
-      targetConfig,
-      this.multiProvider,
-      this.factories,
-      this.args.addresses.mailbox,
-    );
-
     // If configs match, no updates needed
-    if (configMatches) {
+    if (deepEqualIsmConfig(currentConfig, targetConfig)) {
       return [];
     }
 
@@ -214,18 +202,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // if it's either of the routing ISMs, update their submodules
     let updateTxs: AnnotatedEthersV5Transaction[] = [];
     if (targetConfig.type !== IsmType.PAUSABLE) {
-      // this calls resolveOrDeployAccountOwner under the hood
-      const delta = await routingModuleDelta(
-        this.chainName,
-        this.args.addresses.deployedIsm,
-        targetConfig,
-        this.multiProvider,
-        this.factories,
-        this.args.addresses.mailbox,
-      );
-
       updateTxs = await this.updateRoutingIsm({
-        delta,
         config: targetConfig,
         logger,
       });
@@ -266,6 +243,8 @@ export class EvmIsmModule extends HyperlaneModule<
   }): Promise<EvmIsmModule> {
     const { chain, config, deployer, factories, mailbox, multiProvider } =
       params;
+
+    // instantiate new EvmIsmModule
     const module = new EvmIsmModule(multiProvider, deployer, {
       addresses: {
         ...factories,
@@ -275,23 +254,34 @@ export class EvmIsmModule extends HyperlaneModule<
       chain,
       config,
     });
+
+    // deploy ISM and assign address to module
     const deployedIsm = await module.deploy({ config });
     module.args.addresses.deployedIsm = deployedIsm.address;
+
     return module;
   }
 
   protected async updateRoutingIsm({
-    delta,
     config,
     logger,
   }: {
-    delta: RoutingIsmDelta;
     config: RoutingIsmConfig;
     logger: Logger;
   }): Promise<AnnotatedEthersV5Transaction[]> {
     const routingIsmInterface = DomainRoutingIsm__factory.createInterface();
-
     const updateTxs = [];
+
+    // this calls resolveOrDeployAccountOwner under the hood
+    // also calls moduleMatchesConfig for each domain in the routing ISM
+    const delta = await routingModuleDelta(
+      this.chainName,
+      this.args.addresses.deployedIsm,
+      config,
+      this.multiProvider,
+      this.factories,
+      this.args.addresses.mailbox,
+    );
 
     // Enroll domains
     for (const originDomain of delta.domainsToEnroll) {
@@ -331,30 +321,6 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     return updateTxs;
-  }
-
-  protected updateFallbackRoutingIsm({
-    owner,
-    domainIds,
-    submoduleAddresses,
-  }: {
-    owner: Address;
-    domainIds: Domain[];
-    submoduleAddresses: Address[];
-  }): AnnotatedEthersV5Transaction[] {
-    const routingIsmInterface =
-      DefaultFallbackRoutingIsm__factory.createInterface();
-
-    const updateTx = createAnnotatedEthersV5Transaction({
-      annotation: 'Updating fallback routing ISM ...',
-      chainId: this.multiProvider.getDomainId(this.args.chain),
-      to: this.args.addresses.deployedIsm,
-      data: routingIsmInterface.encodeFunctionData(
-        'initialize(address,uint32[],address[])',
-        [owner, domainIds, submoduleAddresses],
-      ),
-    });
-    return [updateTx];
   }
 
   protected async deployRoutingIsmSubmodules({
@@ -506,16 +472,7 @@ export class EvmIsmModule extends HyperlaneModule<
     config: RoutingIsmConfig;
     logger: Logger;
   }): Promise<IRoutingIsm> {
-    // if fallback routing ISM, deploy it and return
-    if (config.type === IsmType.FALLBACK_ROUTING) {
-      logger.debug('Deploying fallback routing ISM ...');
-      return this.multiProvider.handleDeploy(
-        this.chainName,
-        new DefaultFallbackRoutingIsm__factory(),
-        [this.args.addresses.mailbox],
-      );
-    }
-
+    // filter out domains which are not part of the multiprovider
     const { availableDomains, availableDomainIds } =
       this.filterRoutingIsmDomains({
         config,
@@ -526,10 +483,31 @@ export class EvmIsmModule extends HyperlaneModule<
       .getSigner(this.chainName)
       .getAddress();
 
-    // for domain routing ISMs, deploy the submodules first
+    // deploy the submodules first
     const submoduleAddresses = await this.deployRoutingIsmSubmodules({
       config,
     });
+
+    if (config.type === IsmType.FALLBACK_ROUTING) {
+      // deploy the fallback routing ISM
+      logger.debug('Deploying fallback routing ISM ...');
+      const ism = await this.multiProvider.handleDeploy(
+        this.chainName,
+        new DefaultFallbackRoutingIsm__factory(),
+        [this.args.addresses.mailbox],
+      );
+
+      // initialize the fallback routing ISM
+      logger.debug('Initializing fallback routing ISM ...');
+      await ism['initialize(address,uint32[],address[])'](
+        deployerAddress,
+        availableDomainIds,
+        submoduleAddresses,
+      );
+
+      // return the fallback routing ISM
+      return ism;
+    }
 
     // then deploy the domain routing ISM
     logger.debug('Deploying domain routing ISM ...');

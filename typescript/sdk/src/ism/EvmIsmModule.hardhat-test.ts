@@ -306,10 +306,6 @@ describe('EvmIsmModule', async () => {
         });
         expect(matches).to.be.true;
 
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
-
         // add config for a domain the multiprovider doesn't have
         exampleRoutingConfig.domains['test5'] = {
           type: IsmType.MESSAGE_ID_MULTISIG,
@@ -340,10 +336,6 @@ describe('EvmIsmModule', async () => {
 
         // initial ISM address
         const initialIsmAddress = ism.serialize().deployedIsm;
-
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
 
         // changing the type of a domain should enroll the domain
         (
@@ -387,10 +379,6 @@ describe('EvmIsmModule', async () => {
         // initial ISM address
         const initialIsmAddress = ism.serialize().deployedIsm;
 
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
-
         // deleting the domain should unenroll the domain
         delete exampleRoutingConfig.domains[TestChainName.test3];
         const deleteTest3Txs = await ism.update(exampleRoutingConfig);
@@ -424,10 +412,6 @@ describe('EvmIsmModule', async () => {
           configured: false,
         });
         expect(matches).to.be.true;
-
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
 
         // keep track of the domains before deleting
         const numDomainsBefore = Object.keys(
@@ -478,10 +462,6 @@ describe('EvmIsmModule', async () => {
         // initial ISM address
         const initialIsmAddress = ism.serialize().deployedIsm;
 
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
-
         // change the config owner
         exampleRoutingConfig.owner = randomAddress();
 
@@ -519,10 +499,6 @@ describe('EvmIsmModule', async () => {
         // initial ISM address
         const initialIsmAddress = ism.serialize().deployedIsm;
 
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
-
         // no changes to the config
         const updateTxs = await ism.update(exampleRoutingConfig);
         expect(updateTxs.length).to.equal(0);
@@ -559,7 +535,7 @@ describe('EvmIsmModule', async () => {
         // initial ISM address
         const initialIsmAddress = ism.serialize().deployedIsm;
 
-        // apply the config to the new ISM
+        // apply the owner change to the new ISM
         const applyTxs = await ism.update(exampleRoutingConfig);
         await logAndSendTransactions(applyTxs);
 
@@ -600,10 +576,6 @@ describe('EvmIsmModule', async () => {
 
         // initial ISM address
         const initialIsmAddress = ism.serialize().deployedIsm;
-
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
 
         // update the validators for a domain
         (
@@ -647,10 +619,6 @@ describe('EvmIsmModule', async () => {
         // initial ISM address
         const initialIsmAddress = ism.serialize().deployedIsm;
 
-        // apply the config to the new ISM
-        const applyTxs = await ism.update(exampleRoutingConfig);
-        await logAndSendTransactions(applyTxs);
-
         // update the threshold for a domain
         (
           exampleRoutingConfig.domains[TestChainName.test2] as MultisigIsmConfig
@@ -691,10 +659,6 @@ describe('EvmIsmModule', async () => {
 
       // initial ISM address
       const initialIsmAddress = ism.serialize().deployedIsm;
-
-      // apply the config to the new ISM
-      const applyTxs = await ism.update(exampleRoutingConfig);
-      await logAndSendTransactions(applyTxs);
 
       // point to new mailbox
       ism.setNewMailbox(newMailboxAddress);

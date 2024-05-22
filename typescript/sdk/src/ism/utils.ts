@@ -27,11 +27,16 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import {
+  AggregationIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
+  MultisigIsmConfig,
+  OpStackIsmConfig,
+  PausableIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
+  TrustedRelayerIsmConfig,
   ismTypeToModuleType,
 } from './types.js';
 
@@ -160,6 +165,131 @@ export async function moduleCanCertainlyVerify(
         throw new Error(`Unsupported module type: ${(destModule as any).type}`);
     }
   }
+}
+
+/**
+ * Performs a deep equality check for two IsmConfig objects.
+ */
+export function deepEqualIsmConfig(
+  config1: IsmConfig,
+  config2: IsmConfig,
+): boolean {
+  // If the configs are different types, they are not equal
+  if (typeof config1 !== typeof config2) {
+    return false;
+  }
+
+  // If the configs are strings, compare them directly
+  if (typeof config1 === 'string' && typeof config2 === 'string') {
+    return eqAddress(config1, config2);
+  }
+
+  // If the configs are objects, compare them based on their type
+  if (typeof config1 === 'object' && typeof config2 === 'object') {
+    // If the configs are not the same type, they are not equal
+    if (config1.type !== config2.type) {
+      return false;
+    }
+
+    // If the configs are the same type, compare them based on their type
+    switch (config1.type) {
+      case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.MESSAGE_ID_MULTISIG: {
+        const multisig1 = config1 as MultisigIsmConfig;
+        const multisig2 = config2 as MultisigIsmConfig;
+        const sortedMultisig1Validators = [...multisig1.validators].sort(
+          (a, b) => a.toLowerCase().localeCompare(b.toLowerCase()),
+        );
+        const sortedMultisig2Validators = [...multisig2.validators].sort(
+          (a, b) => a.toLowerCase().localeCompare(b.toLowerCase()),
+        );
+        return (
+          multisig1.threshold === multisig2.threshold &&
+          sortedMultisig1Validators.length ===
+            sortedMultisig2Validators.length &&
+          sortedMultisig1Validators.every(
+            (val, idx) => val === sortedMultisig2Validators[idx],
+          )
+        );
+      }
+
+      case IsmType.TEST_ISM:
+        return true;
+
+      case IsmType.PAUSABLE: {
+        const pausable1 = config1 as PausableIsmConfig;
+        const pausable2 = config2 as PausableIsmConfig;
+        return (
+          pausable1.paused === pausable2.paused &&
+          eqAddress(
+            extractOwnerAddress(pausable1.owner),
+            extractOwnerAddress(pausable2.owner),
+          )
+        );
+      }
+
+      case IsmType.ROUTING:
+      case IsmType.FALLBACK_ROUTING: {
+        const routing1 = config1 as RoutingIsmConfig;
+        const routing2 = config2 as RoutingIsmConfig;
+        return (
+          eqAddress(
+            extractOwnerAddress(routing1.owner),
+            extractOwnerAddress(routing2.owner),
+          ) &&
+          Object.keys(routing1.domains).length ===
+            Object.keys(routing2.domains).length &&
+          Object.keys(routing1.domains).every((key) =>
+            deepEqualIsmConfig(routing1.domains[key], routing2.domains[key]),
+          )
+        );
+      }
+
+      case IsmType.AGGREGATION: {
+        const aggregation1 = config1 as AggregationIsmConfig;
+        const aggregation2 = config2 as AggregationIsmConfig;
+        if (
+          aggregation1.threshold !== aggregation2.threshold ||
+          aggregation1.modules.length !== aggregation2.modules.length
+        ) {
+          return false;
+        }
+
+        const unmatchedConfigModules = new Set(aggregation2.modules);
+        for (const subModule of aggregation1.modules) {
+          let foundMatch = false;
+          for (const configModule of unmatchedConfigModules) {
+            if (deepEqualIsmConfig(subModule, configModule)) {
+              foundMatch = true;
+              unmatchedConfigModules.delete(configModule);
+              break;
+            }
+          }
+          if (!foundMatch) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      case IsmType.OP_STACK: {
+        const opStack1 = config1 as OpStackIsmConfig;
+        const opStack2 = config2 as OpStackIsmConfig;
+        return (
+          eqAddress(opStack1.origin, opStack2.origin) &&
+          eqAddress(opStack1.nativeBridge, opStack2.nativeBridge)
+        );
+      }
+
+      case IsmType.TRUSTED_RELAYER: {
+        const trustedRelayer1 = config1 as TrustedRelayerIsmConfig;
+        const trustedRelayer2 = config2 as TrustedRelayerIsmConfig;
+        return eqAddress(trustedRelayer1.relayer, trustedRelayer2.relayer);
+      }
+    }
+  }
+
+  return false;
 }
 
 export async function moduleMatchesConfig(
@@ -334,6 +464,7 @@ export async function moduleMatchesConfig(
   return matches;
 }
 
+// calls moduleMatchesConfig for each domain in the routing ISM
 export async function routingModuleDelta(
   destination: ChainName,
   moduleAddress: Address,
