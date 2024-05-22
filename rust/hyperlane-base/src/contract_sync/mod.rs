@@ -1,4 +1,4 @@
-use std::ops::RangeInclusive;
+use std::pin::Pin;
 use std::{
     collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
 };
@@ -6,6 +6,8 @@ use std::{
 use axum::async_trait;
 use cursors::*;
 use derive_new::new;
+use futures::stream::FuturesUnordered;
+use futures::{Future, StreamExt};
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
@@ -104,25 +106,26 @@ where
             // is Some(...).
             // any sleeps should occur in this loop. We don't want to block in either the recv arm or in the
             // cursor.next_action() arm.
-            let logs_found_from_receiver = if let Some(recv) = opts.tx_id_recv.as_mut() {
-                self.fetch_logs_from_receiver(recv, &stored_logs_metric)
-                    .await
-            } else {
-                None
-            };
+            let mut futures: FuturesUnordered<Pin<Box<dyn Future<Output = Option<u64>>>>> =
+                FuturesUnordered::new();
+            if let Some(recv) = opts.tx_id_recv.as_mut() {
+                let fut = Box::pin(self.fetch_logs_from_receiver(recv, &stored_logs_metric));
+                futures.push(fut as _);
+            }
+            if let Some(cursor) = opts.cursor.as_mut() {
+                let fut = Box::pin(self.fetch_logs_with_cursor(
+                    cursor,
+                    &stored_logs_metric,
+                    &indexed_height_metric,
+                ));
+                futures.push(fut as _);
+            }
 
-            let logs_found_with_cursor = if let Some(cursor) = opts.cursor.as_mut() {
-                self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
-                    .await
-            } else {
-                None
-            };
-
+            // `FuturesUnordered::next` will return the first future that resolves, regardless of the order
+            // in which they were pushed to `FuturesUnordered`.
             // If we didn't find any logs, sleep for a while
-            if logs_found_from_receiver.unwrap_or_default()
-                + logs_found_with_cursor.unwrap_or_default()
-                == 0
-            {
+            let logs_found = futures.next().await.flatten();
+            if logs_found.unwrap_or_default() == 0 {
                 sleep(SLEEP_DURATION).await;
             }
         }
@@ -156,47 +159,51 @@ where
         stored_logs_metric: &GenericCounter<AtomicU64>,
         indexed_height_metric: &GenericGauge<AtomicI64>,
     ) -> Option<u64> {
-        indexed_height_metric.set(cursor.latest_queried_block() as i64);
-        let (action, eta) = match cursor.next_action().await {
-            Ok((action, eta)) => (action, eta),
-            Err(err) => {
-                warn!(?err, "Error getting next action");
-                return None;
-            }
-        };
-        match action {
-            // Use `loop` but always break - this allows for returning a value
-            // from the loop (the sleep duration)
-            #[allow(clippy::never_loop)]
-            CursorAction::Query(range) => {
-                debug!(?range, "Looking for for events in index range");
+        loop {
+            indexed_height_metric.set(cursor.latest_queried_block() as i64);
+            let (action, eta) = match cursor.next_action().await {
+                Ok((action, eta)) => (action, eta),
+                Err(err) => {
+                    warn!(?err, "Error getting next action");
+                    sleep(SLEEP_DURATION).await;
+                    continue;
+                }
+            };
+            let sleep_duration = match action {
+                // Use `loop` but always break - this allows for returning a value
+                // from the loop (the sleep duration)
+                #[allow(clippy::never_loop)]
+                CursorAction::Query(range) => loop {
+                    debug!(?range, "Looking for for events in index range");
 
-                let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
-                    Ok(logs) => logs,
-                    Err(err) => {
-                        warn!(?err, ?range, "Error fetching logs in range");
-                        return None;
-                    }
-                };
+                    let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, ?range, "Error fetching logs in range");
+                            break SLEEP_DURATION;
+                        }
+                    };
 
-                let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
-                let logs_found = logs.len() as u64;
-                info!(
-                    ?range,
-                    num_logs = logs_found,
-                    estimated_time_to_sync = fmt_sync_time(eta),
-                    "Found log(s) in index range"
-                );
+                    let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
+                    let logs_found = logs.len() as u64;
+                    info!(
+                        ?range,
+                        num_logs = logs_found,
+                        estimated_time_to_sync = fmt_sync_time(eta),
+                        "Found log(s) in index range"
+                    );
 
-                // Update cursor
-                if let Err(err) = cursor.update(logs, range).await {
-                    warn!(?err, "Error updating cursor");
-                    return None;
-                };
-                return Some(logs_found);
-            }
-            CursorAction::Sleep => return None,
-        };
+                    // Update cursor
+                    if let Err(err) = cursor.update(logs, range).await {
+                        warn!(?err, "Error updating cursor");
+                        break SLEEP_DURATION;
+                    };
+                    return Some(logs_found);
+                },
+                CursorAction::Sleep(duration) => duration,
+            };
+            sleep(sleep_duration).await;
+        }
     }
 
     async fn dedupe_and_store_logs(

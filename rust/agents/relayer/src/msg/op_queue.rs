@@ -41,7 +41,7 @@ impl OpQueue {
     }
 
     /// Pop multiple elements at once from the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
@@ -54,6 +54,15 @@ impl OpQueue {
             if popped.len() >= limit {
                 break;
             }
+        }
+        // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
+        // to avoid spamming the logs
+        if !popped.is_empty() {
+            debug!(
+                queue_label = %self.queue_metrics_label,
+                operations = popped,
+                "Popped OpQueue operations"
+            );
         }
         popped
     }
