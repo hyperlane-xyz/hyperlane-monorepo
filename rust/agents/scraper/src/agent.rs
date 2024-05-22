@@ -7,7 +7,9 @@ use hyperlane_base::{
     metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
-use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment};
+use hyperlane_core::{
+    BroadcastReceiver, Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H256,
+};
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
@@ -194,7 +196,7 @@ impl Scraper {
             .await
             .unwrap();
         let cursor = sync.cursor(index_settings.clone()).await;
-        tokio::spawn(async move { sync.sync("message_dispatch", cursor).await }).instrument(
+        tokio::spawn(async move { sync.sync("message_dispatch", cursor.into()).await }).instrument(
             info_span!("ChainContractSync", chain=%domain.name(), event="message_dispatch"),
         )
     }
@@ -221,7 +223,7 @@ impl Scraper {
 
         let label = "message_delivery";
         let cursor = sync.cursor(index_settings.clone()).await;
-        tokio::spawn(async move { sync.sync(label, cursor).await })
+        tokio::spawn(async move { sync.sync(label, cursor.into()).await })
             .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
     }
 
@@ -247,7 +249,7 @@ impl Scraper {
 
         let label = "gas_payment";
         let cursor = sync.cursor(index_settings.clone()).await;
-        tokio::spawn(async move { sync.sync(label, cursor).await })
+        tokio::spawn(async move { sync.sync(label, cursor.into()).await })
             .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
     }
 }

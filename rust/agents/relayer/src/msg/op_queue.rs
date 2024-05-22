@@ -1,10 +1,10 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::MpmcReceiver;
+use hyperlane_core::BroadcastReceiver;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::Mutex;
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 use crate::server::MessageRetryRequest;
 
@@ -18,7 +18,7 @@ pub type QueueOperation = Box<dyn PendingOperation>;
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: MpmcReceiver<MessageRetryRequest>,
+    retry_rx: BroadcastReceiver<MessageRetryRequest>,
     #[new(default)]
     queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
 }
@@ -60,7 +60,7 @@ impl OpQueue {
         if !popped.is_empty() {
             debug!(
                 queue_label = %self.queue_metrics_label,
-                operations = popped,
+                operations = ?popped,
                 "Popped OpQueue operations"
             );
         }

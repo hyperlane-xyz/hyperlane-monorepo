@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, sync::Arc, time::Duration};
+use std::{collections::HashMap, num::NonZeroU64, sync::Arc, time::Duration};
 
 use crate::server as validator_server;
 use async_trait::async_trait;
@@ -102,6 +102,7 @@ impl BaseAgent for Validator {
                 &metrics,
                 &contract_sync_metrics,
                 msg_db.clone().into(),
+                &mut Default::default(),
             )
             .await?;
 
@@ -209,7 +210,10 @@ impl Validator {
         let contract_sync = self.merkle_tree_hook_sync.clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move {
-            contract_sync.clone().sync("merkle_tree_hook", cursor).await;
+            contract_sync
+                .clone()
+                .sync("merkle_tree_hook", cursor.into())
+                .await;
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }

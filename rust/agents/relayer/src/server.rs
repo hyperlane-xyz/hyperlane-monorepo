@@ -109,10 +109,10 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use ethers::utils::hex::ToHex;
-    use hyperlane_core::{MpmcChannel, MpmcReceiver};
+    use hyperlane_core::{BroadcastReceiver, MpmcChannel};
     use std::net::SocketAddr;
 
-    fn setup_test_server() -> (SocketAddr, MpmcReceiver<MessageRetryRequest>) {
+    fn setup_test_server() -> (SocketAddr, BroadcastReceiver<MessageRetryRequest>) {
         let mpmc_channel = MpmcChannel::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         let message_retry_api = MessageRetryApi::new(mpmc_channel.sender());
         let (path, retry_router) = message_retry_api.get_route();

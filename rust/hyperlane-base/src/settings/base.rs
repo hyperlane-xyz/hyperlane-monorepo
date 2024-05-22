@@ -1,12 +1,13 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
+use std::{borrow::BorrowMut, collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 
 use eyre::{eyre, Context, Result};
 use futures_util::future::try_join_all;
 use hyperlane_core::{
-    HyperlaneChain, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
+    BroadcastReceiver, HyperlaneChain, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
+use tokio::sync::broadcast::Sender as BroadcastSender;
 
 use crate::{
     cursors::{CursorType, Indexable},
@@ -172,7 +173,6 @@ impl Settings {
             db.clone() as SequenceAwareLogStore<_>,
             indexer,
             sync_metrics.clone(),
-            None,
         )))
     }
 
@@ -197,7 +197,6 @@ impl Settings {
             db.clone() as WatermarkLogStore<_>,
             indexer,
             sync_metrics.clone(),
-            None,
         )))
     }
 

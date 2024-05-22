@@ -13,8 +13,8 @@ use tracing::{info, warn};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneMessage, MpmcReceiver, TxOutcome,
+    BatchItem, BroadcastReceiver, ChainCommunicationError, ChainResult, HyperlaneDomain,
+    HyperlaneDomainProtocol, HyperlaneMessage, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -77,7 +77,7 @@ pub struct SerialSubmitter {
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<QueueOperation>,
     /// Receiver for retry requests.
-    retry_rx: MpmcReceiver<MessageRetryRequest>,
+    retry_rx: BroadcastReceiver<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
