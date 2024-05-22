@@ -18,7 +18,8 @@ import { EV5InterchainAccountTxTransformerProps } from './types.js';
 export class EV5InterchainAccountTxTransformer
   implements EV5TxTransformerInterface
 {
-  public readonly txTransformerType: TxTransformerType = TxTransformerType.ICA;
+  public readonly txTransformerType: TxTransformerType =
+    TxTransformerType.INTERCHAIN_ACCOUNT;
   protected readonly logger: Logger = rootLogger.child({
     module: 'ica-transformer',
   });

@@ -75,7 +75,7 @@ async function getTransformer<TProtocol extends ProtocolType>(
   transformerMetadata: TransformerMetadata,
 ): Promise<TxTransformerInterface<TProtocol>> {
   switch (transformerMetadata.type) {
-    case TxTransformerType.ICA:
+    case TxTransformerType.INTERCHAIN_ACCOUNT:
       return new EV5InterchainAccountTxTransformer(
         multiProvider,
         transformerMetadata.props,
