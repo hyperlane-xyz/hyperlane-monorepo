@@ -36,6 +36,7 @@ export type DerivedTokenType = Extract<
 >;
 
 export type DerivedTokenRouterConfig = TokenRouterConfig & {
+  type: DerivedTokenType;
   interchainSecurityModule?: DerivedIsmConfigWithAddress;
 };
 
@@ -173,7 +174,7 @@ export class EvmERC20WarpRouteReader {
    * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
    */
   async fetchTokenMetadata(
-    type: TokenType,
+    type: DerivedTokenType,
     tokenAddress: Address,
   ): Promise<ERC20Metadata & { token?: string }> {
     if (type === TokenType.collateral || type === TokenType.collateralVault) {

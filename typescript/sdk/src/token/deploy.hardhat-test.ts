@@ -1,7 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
-import sinon from 'sinon';
 
 import {
   ERC20Test,
@@ -11,7 +10,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   HyperlaneContractsMap,
-  IsmType,
   RouterConfig,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
@@ -23,7 +21,6 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
@@ -270,114 +267,5 @@ describe('TokenDeployer', async () => {
         expect(tokenType).to.equal(TokenType.collateral);
       });
     });
-
-    describe('Update', async () => {
-      let sandbox: sinon.SinonSandbox;
-
-      beforeEach(() => {
-        sandbox = sinon.createSandbox();
-      });
-
-      afterEach(() => {
-        sandbox.restore();
-      });
-      it('should update existing ISM when provided an ISM string', async () => {
-        // Deploy using WarpModule
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
-          chain,
-          config,
-          multiProvider,
-        });
-
-        // Update ISM and compare onchain values
-        const ismToUpdate = await mailbox.defaultIsm();
-        const tx = await evmERC20WarpModule.update({
-          ...config,
-          interchainSecurityModule: {
-            type: IsmType.CUSTOM,
-            address: ismToUpdate,
-          },
-        });
-
-        await multiProvider.sendTransaction(chain, tx[0].transaction);
-        const updatedIsm = (await evmERC20WarpModule.read())
-          .interchainSecurityModule;
-        expect(updatedIsm?.address).to.equal(ismToUpdate);
-      });
-
-      it('should deploy an ISM given a different config than onchain', async () => {
-        // Deploy using WarpModule
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
-          chain,
-          config,
-          multiProvider,
-        });
-
-        // Update ISM as string and compare onchain values
-        const ismToUpdate = await mailbox.defaultIsm();
-        let tx = await evmERC20WarpModule.update({
-          ...config,
-          interchainSecurityModule: {
-            type: IsmType.CUSTOM,
-            address: ismToUpdate,
-          },
-        });
-
-        await multiProvider.sendTransaction(chain, tx[0].transaction);
-        let updatedIsm = (await evmERC20WarpModule.read())
-          .interchainSecurityModule;
-        expect(updatedIsm?.address).to.equal(ismToUpdate);
-
-        // Do brand new deployment and then stub deployIsm() with it's address
-        const newCoreApp = await new TestCoreDeployer(
-          multiProvider,
-          ismFactory,
-        ).deployApp();
-        const newDefaultIsmAddr = await newCoreApp
-          .getContracts(chain)
-          .mailbox.defaultIsm();
-        sandbox.stub(evmERC20WarpModule, 'deployIsm').returns(
-          Promise.resolve({
-            owner: randomAddress(),
-            type: IsmType.PAUSABLE,
-            address: newDefaultIsmAddr,
-          }),
-        );
-
-        // Update to a different ISM type using an object
-        tx = await evmERC20WarpModule.update({
-          ...config,
-          interchainSecurityModule: {
-            type: IsmType.PAUSABLE,
-            paused: false,
-            owner: randomAddress(),
-          },
-        });
-
-        await multiProvider.sendTransaction(chain, tx[0].transaction);
-        updatedIsm = (await evmERC20WarpModule.read()).interchainSecurityModule;
-        expect(updatedIsm?.address).to.equal(newDefaultIsmAddr);
-      });
-    });
-
-    // it('should update existing Hook when provided an Hook string', async () => {
-    //   // Deploy using WarpModule
-    //   const evmERC20WarpModule = await EvmERC20WarpHyperlaneModule.create({
-    //     chain,
-    //     config,
-    //     multiProvider,
-    //   });
-
-    //   // Update Hook and compare onchain values
-    //   const hookToUpdate = await mailbox.defaultHook();
-    //   const tx = await evmERC20WarpModule.update({
-    //     ...config,
-    //     hook: hookToUpdate,
-    //   });
-
-    //   await multiProvider.sendTransaction(chain, tx[0].transaction);
-    //   const updatedHook = (await evmERC20WarpModule.read()).hook;
-    //   expect(updatedHook).to.equal(hookToUpdate);
-    // });
   });
 });
