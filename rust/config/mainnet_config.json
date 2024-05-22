@@ -102,6 +102,12 @@
       "proxyAdmin": "0x80Cebd56A65e46c474a1A101e89E76C4c51D179c",
       "rpcUrls": [
         {
+          "http": "https://arbitrum.llamarpc.com"
+        },
+        {
+          "http": "https://rpc.ankr.com/arbitrum"
+        },
+        {
           "http": "https://arb1.arbitrum.io/rpc"
         }
       ],
@@ -470,7 +476,7 @@
       "interchainAccountIsm": "0x609707355a53d2aAb6366f48E2b607C599D26B29",
       "interchainAccountRouter": "0x8dBae9B1616c46A20591fE0006Bf015E28ca5cC9",
       "interchainGasPaymaster": "0x9e6B1022bE9BBF5aFd152483DAD9b88911bC8611",
-      "interchainSecurityModule": "0xbB6Ea063527E64cA80E9B6D54a8708C901a7305C",
+      "interchainSecurityModule": "0x8CE0c6cAf18DbF5882b35F26E28412f3E9AbDeca",
       "mailbox": "0xc005dc82818d67AF737725bD4bf75435d065D239",
       "merkleTreeHook": "0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA",
       "name": "ethereum",
@@ -683,6 +689,7 @@
       "domainRoutingIsmFactory": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147",
       "fallbackRoutingHook": "0xD1E267d2d7876e97E217BfE61c34AB50FEF52807",
       "gasCurrencyCoinGeckoId": "ethereum",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.manta.network",
       "index": {
         "from": 437300
       },
