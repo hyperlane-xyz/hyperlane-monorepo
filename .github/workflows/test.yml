@@ -96,7 +96,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ../hyperlane-registry
+            ${{ env.REGISTRY_URI }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
   lint-prettier:
@@ -154,7 +154,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ../hyperlane-registry
+            ${{ env.REGISTRY_URI }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Unit Tests
@@ -193,15 +193,15 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ../hyperlane-registry
+            ${{ env.REGISTRY_URI }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Generate ${{ matrix.environment }} agent config
         run: |
-          ls ${{ github.workspace }}/../hyperlane-registry
           ls ./
           ls ../
           pwd
+          ls ${{ github.workspace }}/../hyperlane-registry
           cd typescript/infra
           yarn tsx ./scripts/agents/update-agent-config.ts -e ${{ matrix.environment }}
           CHANGES=$(git status -s)
