@@ -13,6 +13,7 @@ version.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 config.workspace = true
+console-subscriber.workspace = true
 derive_more.workspace = true
 derive-new.workspace = true
 ethers.workspace = true
