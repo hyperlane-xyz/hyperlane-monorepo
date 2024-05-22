@@ -465,6 +465,7 @@ export {
   isNativeConfig,
   isSyntheticConfig,
 } from './token/schemas.js';
+export { isCompliant } from './utils/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 
 // prettier-ignore

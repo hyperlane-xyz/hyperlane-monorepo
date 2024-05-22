@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { GasRouterConfigSchema } from '../router/schemas.js';
+import { isCompliant } from '../utils/schemas.js';
 
 import { TokenType } from './config.js';
 
@@ -71,11 +72,6 @@ export const WarpRouteDeployConfigSchema = z
 export type TokenRouterConfig = z.infer<typeof TokenRouterConfigSchema>;
 export type NativeConfig = z.infer<typeof NativeConfigSchema>;
 export type CollateralConfig = z.infer<typeof CollateralConfigSchema>;
-
-function isCompliant<S extends Zod.Schema>(schema: S) {
-  return (config: unknown): config is z.infer<S> =>
-    schema.safeParse(config).success;
-}
 
 export const isSyntheticConfig = isCompliant(SyntheticConfigSchema);
 export const isCollateralConfig = isCompliant(CollateralConfigSchema);
