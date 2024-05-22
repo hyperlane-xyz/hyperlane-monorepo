@@ -5,11 +5,11 @@ import { log } from '../logger.js';
 import { getValidatorAddress } from '../validator/address.js';
 
 import {
-  awsAccessKeyOption,
-  awsRegionOption,
-  awsSecretKeyOption,
-  bucketCommandOption,
-  keyIdCommandOption,
+  awsAccessKeyCommandOption,
+  awsBucketCommandOption,
+  awsKeyIdCommandOption,
+  awsRegionCommandOption,
+  awsSecretKeyCommandOption,
 } from './options.js';
 
 // Parent command to help configure and set up Hyperlane validators
@@ -31,11 +31,11 @@ const addressCommand: CommandModuleWithContext<{
   command: 'address',
   describe: 'Get the validator address from S3 bucket or KMS key ID',
   builder: {
-    'access-key': awsAccessKeyOption,
-    'secret-key': awsSecretKeyOption,
-    region: awsRegionOption,
-    bucket: bucketCommandOption,
-    'key-id': keyIdCommandOption,
+    'access-key': awsAccessKeyCommandOption,
+    'secret-key': awsSecretKeyCommandOption,
+    region: awsRegionCommandOption,
+    bucket: awsBucketCommandOption,
+    'key-id': awsKeyIdCommandOption,
   },
   handler: async ({ context, accessKey, secretKey, region, bucket, keyId }) => {
     await getValidatorAddress({

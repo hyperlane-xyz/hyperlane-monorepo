@@ -1,12 +1,14 @@
 import { GetPublicKeyCommand, KMSClient } from '@aws-sdk/client-kms';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { input } from '@inquirer/prompts';
 // @ts-ignore
 import asn1 from 'asn1.js';
 import { ethers } from 'ethers';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
-import { getAccessKeyId, getRegion, getSecretAccessKey } from '../utils/aws.js';
 
 export async function getValidatorAddress({
   context,
@@ -32,17 +34,9 @@ export async function getValidatorAddress({
   secretKey ||= await getSecretAccessKey(context.skipConfirmation);
   region ||= await getRegion(context.skipConfirmation);
 
-  if (!accessKey) {
-    throw new Error('No access key ID set.');
-  }
-
-  if (!secretKey) {
-    throw new Error('No secret access key set.');
-  }
-
-  if (!region) {
-    throw new Error('No AWS region set.');
-  }
+  assert(accessKey, 'No access key ID set.');
+  assert(secretKey, 'No secret access key set.');
+  assert(region, 'No AWS region set.');
 
   let validatorAddress;
   if (bucket) {
@@ -142,4 +136,31 @@ function getEthereumAddress(publicKey: Buffer): string {
 
   const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
   return `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
+}
+
+async function getAccessKeyId(skipConfirmation: boolean) {
+  if (skipConfirmation) throw new Error('No AWS access key ID set.');
+  else
+    return await input({
+      message:
+        'Please enter AWS access key ID or use the AWS_ACCESS_KEY_ID environment variable.',
+    });
+}
+
+async function getSecretAccessKey(skipConfirmation: boolean) {
+  if (skipConfirmation) throw new Error('No AWS secret access key set.');
+  else
+    return await input({
+      message:
+        'Please enter AWS secret access key or use the AWS_SECRET_ACCESS_KEY environment variable.',
+    });
+}
+
+async function getRegion(skipConfirmation: boolean) {
+  if (skipConfirmation) throw new Error('No AWS region set.');
+  else
+    return await input({
+      message:
+        'Please enter AWS region or use the AWS_REGION environment variable.',
+    });
 }
