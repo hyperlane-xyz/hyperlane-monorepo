@@ -92,6 +92,12 @@ jobs:
       # Put alongside the monorepo in the directory above
       # the $GITHUB_WORKSPACE
       - run: mv ./hyperlane-registry ../
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ../hyperlane-registry
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -144,6 +150,13 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ../hyperlane-registry
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Unit Tests
         run: yarn test:ci
 
@@ -175,6 +188,13 @@ jobs:
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ../hyperlane-registry
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Generate ${{ matrix.environment }} agent config
         run: |
