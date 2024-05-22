@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tracing::instrument;
 
 use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
-use crate::{ConnectionConf, HyperlaneStarknetError};
+use crate::{try_parse_hyperlane_message_from_event, ConnectionConf, HyperlaneStarknetError};
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
@@ -144,9 +144,11 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
             .events
             .into_iter()
             .map(|event| {
-                // TODO: message is a u256 in the contract, we need to convert it to a byte array
+                // TODO: remove unwraps
                 let message: Indexed<HyperlaneMessage> =
-                    HyperlaneMessage::from(event.data[3].to_bytes_be().as_slice().to_vec()).into(); // message is the 4/5th element
+                    try_parse_hyperlane_message_from_event(&event)
+                        .unwrap()
+                        .into(); // message is the 4/5th element
                 let meta = LogMeta {
                     address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
                     block_number: event.block_number.unwrap(),

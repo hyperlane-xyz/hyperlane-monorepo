@@ -1,18 +1,22 @@
 use std::future::Future;
 
-use hyperlane_core::ModuleType;
+use cainome::cairo_serde::CairoSerde;
+use hyperlane_core::{ChainResult, HyperlaneMessage, ModuleType};
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
         chain_id::{MAINNET, SEPOLIA},
-        types::{FieldElement, MaybePendingTransactionReceipt},
+        types::{EmittedEvent, FieldElement, MaybePendingTransactionReceipt},
     },
     providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider, ProviderError},
     signers::LocalWallet,
 };
 use url::Url;
 
-use crate::contracts::interchain_security_module::ModuleType as StarknetModuleType;
+use crate::{
+    contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
+    HyperlaneStarknetError,
+};
 
 /// Polls a function until it returns true or the max poll count is exceeded.
 pub async fn assert_poll<F, Fut>(f: F, polling_time_ms: u64, max_poll_count: u32)
@@ -116,4 +120,37 @@ pub fn to_hpl_module_type(module_type: StarknetModuleType) -> ModuleType {
         StarknetModuleType::NULL => ModuleType::Null,
         StarknetModuleType::CCIP_READ(_) => ModuleType::CcipRead,
     }
+}
+
+/// Parses a hyperlane message from a starknet emitted event.
+/// We use the CairoSerde trait to deserialize the message.
+pub fn try_parse_hyperlane_message_from_event(
+    event: &EmittedEvent,
+) -> ChainResult<HyperlaneMessage> {
+    let sender = event.data[0].into();
+    let destination = event.data[1]
+        .try_into()
+        .map_err(Into::<HyperlaneStarknetError>::into)?;
+    let recipient = event.data[2].into();
+    let message =
+        Message::cairo_deserialize(&event.data, 3).map_err(Into::<HyperlaneStarknetError>::into)?;
+
+    Ok(HyperlaneMessage {
+        version: message.version,
+        nonce: message.nonce,
+        origin: message.origin,
+        sender,
+        destination,
+        recipient,
+        body: u128_vec_to_u8_vec(message.body.data),
+    })
+}
+
+/// Converts a Vec<u128> to a Vec<u8>.
+fn u128_vec_to_u8_vec(input: Vec<u128>) -> Vec<u8> {
+    let mut output = Vec::with_capacity(input.len() * 16);
+    for value in input {
+        output.extend_from_slice(&value.to_be_bytes());
+    }
+    output
 }

@@ -1,5 +1,7 @@
 use hyperlane_core::ChainCommunicationError;
-use starknet::core::types::{FromByteArrayError, FromByteSliceError, FromStrError};
+use starknet::core::types::{
+    FromByteArrayError, FromByteSliceError, FromStrError, ValueOutOfRangeError,
+};
 use std::fmt::Debug;
 
 /// Errors from the crates specific to the hyperlane-starknet
@@ -17,6 +19,9 @@ pub enum HyperlaneStarknetError {
     /// Error during bytes slice conversion
     #[error(transparent)]
     BytesSliceConversionError(#[from] FromByteSliceError),
+    /// Out of range value
+    #[error(transparent)]
+    ValueOutOfRangeError(#[from] ValueOutOfRangeError),
     /// Error during execution of a transaction
     #[error("Error during execution: {0}")]
     AccountError(String),
