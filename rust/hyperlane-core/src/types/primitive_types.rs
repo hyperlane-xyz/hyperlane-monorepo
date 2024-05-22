@@ -9,8 +9,12 @@ use bigdecimal::{BigDecimal, RoundingMode};
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::impl_fixed_hash_conversions;
 use num_traits::Zero;
-use starknet::core::types::{FieldElement, FromByteArrayError, FromStrError};
 use uint::construct_uint;
+
+#[cfg(feature = "starknet")]
+use cainome::cairo_serde::U256 as StarknetU256;
+#[cfg(feature = "starknet")]
+use starknet::core::types::{FieldElement, FromByteArrayError, FromStrError, ValueOutOfRangeError};
 
 use crate::{types::serialize, ChainCommunicationError};
 
@@ -115,6 +119,15 @@ impl TryInto<FieldElement> for H256 {
 impl From<FieldElement> for U256 {
     fn from(val: FieldElement) -> Self {
         U256::from_big_endian(val.to_bytes_be().as_slice())
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryFrom<(FieldElement, FieldElement)> for U256 {
+    type Error = ValueOutOfRangeError;
+    fn try_from(val: (FieldElement, FieldElement)) -> Result<U256, Self::Error> {
+        let value: StarknetU256 = val.try_into()?;
+        Ok(U256::from_big_endian(&value.to_bytes_be()))
     }
 }
 

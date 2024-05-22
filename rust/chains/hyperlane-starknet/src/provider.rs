@@ -131,7 +131,7 @@ impl HyperlaneProvider for StarknetProvider {
         let eth_token_address =
             felt!("0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7");
 
-        let _call_result = self
+        let call_result = self
             .rpc_client()
             .call(
                 FunctionCall {
@@ -144,9 +144,11 @@ impl HyperlaneProvider for StarknetProvider {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        // TODO: We now have to convert it back to a single number using a + (2 ** 128) * b
+        let balance: U256 = (call_result[0], call_result[1])
+            .try_into()
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        Ok(U256::one())
+        Ok(balance)
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {

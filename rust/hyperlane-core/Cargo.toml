@@ -17,6 +17,7 @@ bigdecimal.workspace = true
 borsh.workspace = true
 bs58.workspace = true
 bytes = { workspace = true, features = ["serde"] }
+cainome = { workspace = true, optional = true }
 config = { workspace = true, optional = true }
 convert_case.workspace = true
 cosmrs = { worksapce = true, optional = true }
@@ -64,5 +65,5 @@ ethers = [
 ]
 solana = ["dep:solana-sdk"]
 cosmos = ["dep:cosmrs"]
-starknet = ["dep:starknet"]
+starknet = ["dep:starknet", "dep:cainome"]
 async = ["tokio", "futures"]
