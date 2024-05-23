@@ -340,8 +340,6 @@ export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
   ClientViolationType as ConnectionClientViolationType,
-  ForeignDeploymentConfig,
-  GasConfig,
   GasRouterConfig,
   MailboxClientConfig,
   ProxiedFactories,
@@ -419,27 +417,7 @@ export {
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
-export {
-  CollateralConfig,
-  ERC20Metadata,
-  ERC20RouterConfig,
-  ERC721RouterConfig,
-  HypERC20CollateralConfig,
-  HypERC20Config,
-  HypERC721CollateralConfig,
-  HypERC721Config,
-  HypNativeConfig,
-  MinimalTokenMetadata,
-  NativeConfig,
-  SyntheticConfig,
-  TokenConfig,
-  TokenMetadata,
-  TokenType,
-  isCollateralConfig,
-  isNativeConfig,
-  isSyntheticConfig,
-  isUriConfig,
-} from './token/config.js';
+export { TokenType } from './token/config.js';
 export {
   HypERC20Factories,
   HypERC721Factories,
@@ -480,8 +458,15 @@ export { AggregationIsmConfigSchema } from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   WarpRouteDeployConfigSchema,
-  TokenRouterConfigSchema as tokenRouterConfigSchema,
+  TokenRouterConfigSchema,
+  CollateralConfig,
+  NativeConfig,
+  isCollateralConfig,
+  isNativeConfig,
+  isSyntheticConfig,
+  isTokenMetadata,
 } from './token/schemas.js';
+export { isCompliant } from './utils/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 
 // prettier-ignore

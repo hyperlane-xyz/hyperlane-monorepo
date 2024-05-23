@@ -17,7 +17,7 @@ export const keyFunderConfig: KeyFunderConfig = {
   cronSchedule: '15 * * * *', // Every hour at the 15-minute mark
   namespace: environment,
   prometheusPushGateway:
-    'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+    'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
