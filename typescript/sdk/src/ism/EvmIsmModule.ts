@@ -24,8 +24,10 @@ import {
 import {
   Address,
   ProtocolType,
+  actualDeepEquals,
   assert,
   eqAddress,
+  normalizeConfig,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -59,7 +61,7 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
-import { deepEqualIsmConfig, routingModuleDelta } from './utils.js';
+import { calculateDomainRoutingDelta } from './utils.js';
 
 type IsmModuleAddresses = {
   deployedIsm: Address;
@@ -104,9 +106,12 @@ export class EvmIsmModule extends HyperlaneModule<
   }
 
   public async read(): Promise<IsmConfig> {
-    return typeof this.args.config === 'string'
-      ? this.args.addresses.deployedIsm
-      : this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
+    const config =
+      typeof this.args.config === 'string'
+        ? this.args.addresses.deployedIsm
+        : await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
+
+    return normalizeConfig(config);
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
@@ -133,7 +138,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // If configs match, no updates needed
-    if (deepEqualIsmConfig(currentConfig, targetConfig)) {
+    if (actualDeepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
@@ -173,6 +178,7 @@ export class EvmIsmModule extends HyperlaneModule<
       ismType: targetConfig.type,
     });
     const provider = this.multiProvider.getProvider(this.chainName);
+    const targetOwner = extractOwnerAddress(targetConfig.owner);
 
     logger.debug(`Updating ${targetConfig.type} on ${this.chainName}`);
 
@@ -203,7 +209,8 @@ export class EvmIsmModule extends HyperlaneModule<
     let updateTxs: AnnotatedEthersV5Transaction[] = [];
     if (targetConfig.type !== IsmType.PAUSABLE) {
       updateTxs = await this.updateRoutingIsm({
-        config: targetConfig,
+        current: currentConfig as RoutingIsmConfig,
+        target: targetConfig,
         logger,
       });
     }
@@ -213,7 +220,6 @@ export class EvmIsmModule extends HyperlaneModule<
       this.args.addresses.deployedIsm,
       provider,
     ).owner();
-    const targetOwner = extractOwnerAddress(targetConfig.owner);
 
     // Return an ownership transfer transaction if required
     if (!eqAddress(targetOwner, owner)) {
@@ -263,43 +269,38 @@ export class EvmIsmModule extends HyperlaneModule<
   }
 
   protected async updateRoutingIsm({
-    config,
+    current,
+    target,
     logger,
   }: {
-    config: RoutingIsmConfig;
+    current: RoutingIsmConfig;
+    target: RoutingIsmConfig;
     logger: Logger;
   }): Promise<AnnotatedEthersV5Transaction[]> {
     const routingIsmInterface = DomainRoutingIsm__factory.createInterface();
     const updateTxs = [];
 
-    // this calls resolveOrDeployAccountOwner under the hood
-    // also calls moduleMatchesConfig for each domain in the routing ISM
-    const delta = await routingModuleDelta(
-      this.chainName,
-      this.args.addresses.deployedIsm,
-      config,
-      this.multiProvider,
-      this.factories,
-      this.args.addresses.mailbox,
+    const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
+      current,
+      target,
     );
 
     // Enroll domains
-    for (const originDomain of delta.domainsToEnroll) {
-      // get name of origin chain
-      const origin = this.multiProvider.getChainName(originDomain);
+    for (const origin of domainsToEnroll) {
       logger.debug(
         `Reconfiguring preexisting routing ISM for origin ${origin}...`,
       );
       const ism = await this.deploy({
-        config: config.domains[origin],
+        config: target.domains[origin],
       });
 
+      const domainId = this.multiProvider.getDomainId(origin);
       const tx = createAnnotatedEthersV5Transaction({
         annotation: `Setting new ISM for origin ${origin}...`,
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
         data: routingIsmInterface.encodeFunctionData('set(uint32,address)', [
-          originDomain,
+          domainId,
           ism.address,
         ]),
       });
@@ -308,13 +309,14 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // Unenroll domains
-    for (const originDomain of delta.domainsToUnenroll) {
+    for (const origin of domainsToUnenroll) {
+      const domainId = this.multiProvider.getDomainId(origin);
       const tx = createAnnotatedEthersV5Transaction({
-        annotation: `Unenrolling originDomain ${originDomain} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
+        annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
         data: routingIsmInterface.encodeFunctionData('remove(uint32)', [
-          originDomain,
+          domainId,
         ]),
       });
       updateTxs.push(tx);
@@ -358,9 +360,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
     const ismType = config.type;
     const logger = rootLogger.child({ chainName: this.chainName, ismType });
-    const deployerAddress = await this.multiProvider
-      .getSigner(this.chainName)
-      .getAddress();
 
     logger.debug(`Deploying ${ismType} to ${this.args.chain}`);
 
@@ -398,7 +397,7 @@ export class EvmIsmModule extends HyperlaneModule<
           this.chainName,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
-          [deployerAddress],
+          [extractOwnerAddress(config.owner)],
         );
 
       case IsmType.TRUSTED_RELAYER:
@@ -479,14 +478,12 @@ export class EvmIsmModule extends HyperlaneModule<
       });
     config.domains = availableDomains;
 
-    const deployerAddress = await this.multiProvider
-      .getSigner(this.chainName)
-      .getAddress();
-
     // deploy the submodules first
     const submoduleAddresses = await this.deployRoutingIsmSubmodules({
       config,
     });
+
+    const owner = extractOwnerAddress(config.owner);
 
     if (config.type === IsmType.FALLBACK_ROUTING) {
       // deploy the fallback routing ISM
@@ -500,7 +497,7 @@ export class EvmIsmModule extends HyperlaneModule<
       // initialize the fallback routing ISM
       logger.debug('Initializing fallback routing ISM ...');
       await ism['initialize(address,uint32[],address[])'](
-        deployerAddress,
+        owner,
         availableDomainIds,
         submoduleAddresses,
       );
@@ -512,7 +509,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // then deploy the domain routing ISM
     logger.debug('Deploying domain routing ISM ...');
     return this.deployDomainRoutingIsm({
-      owner: deployerAddress,
+      owner,
       domainIds: availableDomainIds,
       submoduleAddresses,
     });
@@ -641,10 +638,8 @@ export class EvmIsmModule extends HyperlaneModule<
     threshold?: number;
     multiProvider: MultiProvider;
   }): Promise<Address> {
-    const sorted = [...values].sort();
-
     const address = await factory['getAddress(address[],uint8)'](
-      sorted,
+      values,
       threshold,
     );
     const code = await multiProvider.getProvider(chain).getCode(address);
@@ -654,7 +649,7 @@ export class EvmIsmModule extends HyperlaneModule<
       );
       const overrides = multiProvider.getTransactionOverrides(chain);
       const hash = await factory['deploy(address[],uint8)'](
-        sorted,
+        values,
         threshold,
         overrides,
       );

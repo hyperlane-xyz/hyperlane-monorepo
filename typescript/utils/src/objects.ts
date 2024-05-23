@@ -154,3 +154,82 @@ export function stringifyObject(
   }
   return yamlStringify(JSON.parse(json), null, space);
 }
+
+// Function to recursively remove 'address' properties and lowercase string properties
+export function normalizeConfig(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(normalizeConfig);
+  } else if (obj !== null && typeof obj === 'object') {
+    const newObj: any = {};
+    for (const key in obj) {
+      if (key !== 'address') {
+        newObj[key] = key === 'type' ? obj[key] : normalizeConfig(obj[key]);
+      }
+    }
+    return newObj;
+  } else if (typeof obj === 'string') {
+    return obj.toLowerCase();
+  }
+
+  return obj;
+}
+
+export function actualDeepEquals(v1: any, v2: any): boolean {
+  if (v1 === v2) {
+    return true;
+  }
+
+  if (typeof v1 !== typeof v2) {
+    return false;
+  }
+
+  if (typeof v1 === 'object' && v1 !== null && v2 !== null) {
+    if (Array.isArray(v1) && Array.isArray(v2)) {
+      if (v1.length !== v2.length) {
+        return false;
+      }
+      for (let i = 0; i < v1.length; i++) {
+        if (!actualDeepEquals(v1[i], v2[i])) {
+          return false;
+        }
+      }
+      return true;
+    } else if (v1 instanceof Set && v2 instanceof Set) {
+      if (v1.size !== v2.size) {
+        return false;
+      }
+      for (const item of v1) {
+        if (!v2.has(item)) {
+          return false;
+        }
+      }
+      return true;
+    } else if (v1 instanceof Map && v2 instanceof Map) {
+      if (v1.size !== v2.size) {
+        return false;
+      }
+      for (const [key, value] of v1) {
+        if (!v2.has(key) || !actualDeepEquals(value, v2.get(key))) {
+          return false;
+        }
+      }
+      return true;
+    } else {
+      const keys1 = Object.keys(v1);
+      const keys2 = Object.keys(v2);
+
+      if (keys1.length !== keys2.length) {
+        return false;
+      }
+
+      for (const key of keys1) {
+        if (!keys2.includes(key) || !actualDeepEquals(v1[key], v2[key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
