@@ -216,6 +216,16 @@ where
     }
 }
 
+impl<T> Debug for RateLimitedContractSyncCursor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RateLimitedContractSyncCursor")
+            .field("tip", &self.tip)
+            .field("last_tip_update", &self.last_tip_update)
+            .field("sync_state", &self.sync_state)
+            .finish()
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;

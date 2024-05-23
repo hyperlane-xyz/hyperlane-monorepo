@@ -1,4 +1,3 @@
-use std::pin::Pin;
 use std::{
     collections::HashSet, fmt::Debug, hash::Hash, marker::PhantomData, sync::Arc, time::Duration,
 };
@@ -6,15 +5,15 @@ use std::{
 use axum::async_trait;
 use cursors::*;
 use derive_new::new;
-use futures::stream::FuturesUnordered;
-use futures::{Future, StreamExt};
+use fuels::programs::logs;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
-    SequenceAwareIndexer, H256,
+    SequenceAwareIndexer,
 };
 use hyperlane_core::{BroadcastReceiver, Indexed, LogMeta, H512};
 pub use metrics::ContractSyncMetrics;
+use num_traits::Zero;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::broadcast::Sender as BroadcastSender;
 use tokio::time::sleep;
@@ -33,6 +32,11 @@ const SLEEP_DURATION: Duration = Duration::from_secs(5);
 // H256 * 1M = 32MB per origin chain worst case
 // With one such channel per origin chain.
 const TX_ID_CHANNEL_CAPACITY: usize = 1_000_000;
+
+enum LogsOrSleepDuration {
+    Logs(u64),
+    Sleep(Duration),
+}
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
@@ -93,67 +97,28 @@ where
             // in here, we check to see whether the recv end of the channel received any txid to query receipts for
             // the recv end is defined as an Option
 
-            // what's below is to be turned into an async function that is only called if `cursor`
-            // is Some(...).
-            // any sleeps should occur in this loop. We don't want to block in either the recv arm or in the
-            // cursor.next_action() arm.
-            let mut futures: FuturesUnordered<Pin<Box<dyn Future<Output = Option<u64>> + Send>>> =
-                FuturesUnordered::new();
+            let mut logs_found = 0;
+            // // let mut sleep_duration = SLEEP_DURATION;
             if let Some(recv) = opts.tx_id_recv.as_mut() {
-                let fut = Box::pin(self.fetch_logs_from_receiver(recv, &stored_logs_metric));
-                futures.push(fut as _);
+                // logs_found += self
+                //     .fetch_logs_from_receiver(recv, &stored_logs_metric)
+                //     .await;
             }
-            if let Some(cursor) = opts.cursor.as_mut() {
-                let fut = Box::pin(self.fetch_logs_with_cursor(
-                    cursor,
-                    &stored_logs_metric,
-                    &indexed_height_metric,
-                ));
-                futures.push(fut as _);
-            }
+            // if let Some(cursor) = opts.cursor.as_mut() {
+            //     match self
+            //         .fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
+            //         .await
+            //     {
+            //         LogsOrSleepDuration::Logs(found) => logs_found += found,
+            //         LogsOrSleepDuration::Sleep(duration) => sleep_duration = duration,
+            //     }
+            // }
 
-            // `FuturesUnordered::next` will return the first future that resolves, regardless of the order
-            // in which they were pushed to `FuturesUnordered`.
-            // If we didn't find any logs, sleep for a while
-            let logs_found = futures.next().await.flatten();
-            if logs_found.unwrap_or_default() == 0 {
-                sleep(SLEEP_DURATION).await;
-            }
-        }
-    }
-
-    async fn fetch_logs_from_receiver(
-        &self,
-        recv: &mut BroadcastReceiver<H512>,
-        stored_logs_metric: &GenericCounter<AtomicU64>,
-    ) -> Option<u64> {
-        println!("~~~ fetch_logs_from_receiver");
-        if let Ok(tx_id) = recv.recv().await {
-            println!("~~~ tx_id: {:?}", tx_id);
-            // query receipts for tx_id
-            let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
-                Ok(logs) => logs,
-                Err(err) => {
-                    warn!(?err, ?tx_id, "Error fetching logs for tx id");
-                    sleep(SLEEP_DURATION).await;
-                    return None;
-                }
-            };
-            let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
-            let logs_found = logs.len() as u64;
-            info!(num_logs = logs_found, ?tx_id, "Found log(s) for tx id");
-            return Some(logs_found);
-        }
-        None
-    }
-
-    async fn fetch_logs_with_cursor(
-        &self,
-        cursor: &mut Box<dyn ContractSyncCursor<T>>,
-        stored_logs_metric: &GenericCounter<AtomicU64>,
-        indexed_height_metric: &GenericGauge<AtomicI64>,
-    ) -> Option<u64> {
-        loop {
+            // if logs_found.is_zero() {
+            //     sleep(sleep_duration).await;
+            // }
+            info!("~~~ looping");
+            let cursor = opts.cursor.as_mut().unwrap(); 
             indexed_height_metric.set(cursor.latest_queried_block() as i64);
             let (action, eta) = match cursor.next_action().await {
                 Ok((action, eta)) => (action, eta),
@@ -173,37 +138,121 @@ where
                     let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
                         Ok(logs) => logs,
                         Err(err) => {
-                            warn!(?err, ?range, "Error fetching logs in range");
+                            warn!(?err, "Error fetching logs");
                             break SLEEP_DURATION;
                         }
                     };
-
                     let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
                     let logs_found = logs.len() as u64;
                     info!(
                         ?range,
                         num_logs = logs_found,
                         estimated_time_to_sync = fmt_sync_time(eta),
+                        sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                        cursor = ?cursor,
                         "Found log(s) in index range"
                     );
-
+    
                     logs.iter().for_each(|(_, meta)| {
                         if let Err(err) = self.broadcast_sender.send(meta.transaction_id) {
                             warn!(?err, "Error sending txid to receiver");
                         }
                     });
-
+                    // Report amount of deliveries stored into db
                     // Update cursor
                     if let Err(err) = cursor.update(logs, range).await {
                         warn!(?err, "Error updating cursor");
                         break SLEEP_DURATION;
                     };
-                    return Some(logs_found);
+                    break Default::default();
                 },
                 CursorAction::Sleep(duration) => duration,
             };
             sleep(sleep_duration).await;
         }
+    }
+
+    async fn fetch_logs_from_receiver(
+        &self,
+        recv: &mut BroadcastReceiver<H512>,
+        stored_logs_metric: &GenericCounter<AtomicU64>,
+    ) -> u64 {
+        println!("~~~ fetch_logs_from_receiver");
+        let mut logs_found = 0;
+        while let Ok(tx_id) = recv.recv().await {
+            println!("~~~ tx_id: {:?}", tx_id);
+            // query receipts for tx_id
+            // let logs = vec![];
+            // let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
+            //     Ok(logs) => logs,
+            //     Err(err) => {
+            //         warn!(?err, ?tx_id, "Error fetching logs for tx id");
+            //         continue;
+            //     }
+            // };
+            // let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
+            // let num_logs = logs.len() as u64;
+            info!(num_logs = logs_found, ?tx_id, "Found log(s) for tx id");
+            // logs_found += num_logs;
+        }
+        logs_found
+    }
+
+    async fn fetch_logs_with_cursor(
+        &self,
+        cursor: &mut Box<dyn ContractSyncCursor<T>>,
+        stored_logs_metric: &GenericCounter<AtomicU64>,
+        indexed_height_metric: &GenericGauge<AtomicI64>,
+    ) -> LogsOrSleepDuration {
+        indexed_height_metric.set(cursor.latest_queried_block() as i64);
+        let (action, eta) = match cursor.next_action().await {
+            Ok((action, eta)) => (action, eta),
+            Err(err) => {
+                warn!(?err, "Error getting next action");
+                return LogsOrSleepDuration::Sleep(SLEEP_DURATION);
+            }
+        };
+        match action {
+            // Use `loop` but always break - this allows for returning a value
+            // from the loop (the sleep duration)
+            #[allow(clippy::never_loop)]
+            CursorAction::Query(range) => loop {
+                debug!(?range, "Looking for for events in index range");
+
+                let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
+                    Ok(logs) => logs,
+                    Err(err) => {
+                        warn!(?err, ?range, "Error fetching logs in range");
+                        return LogsOrSleepDuration::Sleep(SLEEP_DURATION);
+                    }
+                };
+
+                let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
+                let logs_found = logs.len() as u64;
+                info!(
+                    ?range,
+                    num_logs = logs_found,
+                    estimated_time_to_sync = fmt_sync_time(eta),
+                    sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                    cursor = ?cursor,
+                    "Found log(s) in index range"
+                );
+
+                logs.iter().for_each(|(_, meta)| {
+                    if let Err(err) = self.broadcast_sender.send(meta.transaction_id) {
+                        warn!(?err, "Error sending txid to receiver");
+                    }
+                });
+
+                // Update cursor
+                if let Err(err) = cursor.update(logs, range).await {
+                    warn!(?err, "Error updating cursor");
+                    return LogsOrSleepDuration::Sleep(SLEEP_DURATION);
+                };
+                return LogsOrSleepDuration::Logs(logs_found);
+            },
+            CursorAction::Sleep(duration) => return LogsOrSleepDuration::Sleep(duration),
+        };
     }
 
     async fn dedupe_and_store_logs(
@@ -216,7 +265,18 @@ where
 
         // Store deliveries
         let stored = match self.db.store_logs(&logs).await {
-            Ok(stored) => stored,
+            Ok(stored) => {
+                if stored > 0 {
+                    println!(
+                        "~~~ stored logs in db. domain: {:?}, Len: {:?}, sequenes: {:?}, logs: {:?}",
+                        self.domain,
+                        stored,
+                        logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                        logs
+                    );
+                }
+                stored
+            }
             Err(err) => {
                 warn!(?err, "Error storing logs in db");
                 Default::default()

@@ -42,7 +42,8 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
         &self,
         _tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
-        Err(eyre::eyre!("fetch_logs_by_tx_hash not implemented").into())
+        // Err(eyre::eyre!("fetch_logs_by_tx_hash not implemented").into())
+        Ok(vec![])
     }
 }
 
