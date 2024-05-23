@@ -108,20 +108,20 @@ export class EvmCoreModule extends HyperlaneModule<
       chain,
       config,
     });
-    await module.deploy();
+    await module.deploy(config);
 
     return module;
   }
 
   /**
-   * Deploys the core Hyperlane contracts (Mailbox, ICA ISM and Router, Validator Announce, Test Recipient)
+   * Deploys the core Hyperlane contracts (Mailbox, ICA ISM and Router, Validator Announce, Timelock, Test Recipient)
    *
    * Also, sets the arg addresses in the module's configuration.
    *
    * @param proxyAdmin - The address of the proxy admin for the Mailbox contract.
    * @returns The deployed Mailbox contract instance.
    */
-  async deploy() {
+  async deploy(config: CoreConfig) {
     // Deploy proxyAdmin
     const proxyAdmin = await this.hyperlaneCoreDeployer.deployContract(
       this.chainName,
@@ -152,6 +152,16 @@ export class EvmCoreModule extends HyperlaneModule<
         this.chainName,
         mailbox.address,
       );
+
+    // Deploy timelock controller if config.upgrade is set
+    if (config.upgrade) {
+      this.args.addresses.timelockController = (
+        await this.hyperlaneCoreDeployer.deployTimelock(
+          this.chainName,
+          config.upgrade.timelock,
+        )
+      ).address;
+    }
 
     // Deploy Test Receipient
     const testRecipient = await this.hyperlaneCoreDeployer.deployTestRecipient(
@@ -198,18 +208,10 @@ export class EvmCoreModule extends HyperlaneModule<
   /**
    * Deploys a Mailbox and it's default ISM, hook, and required hook contracts with a given configuration.
    *
-   * @param chain - The chain name or ID to deploy the Mailbox on.
-   * @param config - The derived core configuration for the deployment.
    * @param proxyAdmin - The address of the proxy admin for the Mailbox contract.
-   * @param deployer - The Hyperlane core deployer instance to use for the deployment.
-   * @param factories - The Hyperlane contract factories to use for the deployment.
-   * @param multiProvider - The multi-provider instance to use for the deployment.
    * @returns The deployed Mailbox contract instance.
    */
-  protected async deployMailbox(
-    proxyAdmin: Address,
-    // factories: HyperlaneAddresses<ProxyFactoryFactories>;
-  ): Promise<Mailbox> {
+  protected async deployMailbox(proxyAdmin: Address): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(this.chainName);
     const mailbox = await this.hyperlaneCoreDeployer.deployProxiedContract(
       this.chainName,

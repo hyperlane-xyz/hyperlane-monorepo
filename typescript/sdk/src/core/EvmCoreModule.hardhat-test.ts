@@ -7,6 +7,7 @@ import {
   Mailbox__factory,
   ProxyAdmin__factory,
   TestRecipient__factory,
+  TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 import { objMap } from '@hyperlane-xyz/utils';
@@ -18,6 +19,7 @@ import { testCoreConfig } from '../test/testUtils.js';
 import { EvmCoreModule } from './EvmCoreModule.js';
 
 describe('EvmCoreModule', async () => {
+  const DELAY = 1892391283182;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let evmCoreModule: EvmCoreModule;
@@ -25,11 +27,23 @@ describe('EvmCoreModule', async () => {
   let mailboxContract: any;
   let validatorAnnounceContract: any;
   let testRecipientContract: any;
+  let timelockControllerContract: any;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const config = testCoreConfig([TestChainName.test1])[TestChainName.test1];
+    const config = {
+      ...testCoreConfig([TestChainName.test1])[TestChainName.test1],
+      upgrade: {
+        timelock: {
+          delay: DELAY,
+          roles: {
+            executor: signer.address,
+            proposer: signer.address,
+          },
+        },
+      },
+    };
 
     evmCoreModule = await EvmCoreModule.create({
       chain: TestChainName.test1,
@@ -37,8 +51,14 @@ describe('EvmCoreModule', async () => {
       multiProvider,
     });
 
-    const { proxyAdmin, mailbox, validatorAnnounce, testRecipient } =
-      evmCoreModule.serialize();
+    const {
+      proxyAdmin,
+      mailbox,
+      validatorAnnounce,
+      testRecipient,
+      timelockController,
+    } = evmCoreModule.serialize();
+
     proxyAdminContract = ProxyAdmin__factory.connect(
       proxyAdmin!,
       multiProvider.getProvider(TestChainName.test1),
@@ -56,6 +76,11 @@ describe('EvmCoreModule', async () => {
 
     testRecipientContract = TestRecipient__factory.connect(
       testRecipient!,
+      multiProvider.getProvider(TestChainName.test1),
+    );
+
+    timelockControllerContract = TimelockController__factory.connect(
+      timelockController!,
       multiProvider.getProvider(TestChainName.test1),
     );
   });
@@ -116,20 +141,19 @@ describe('EvmCoreModule', async () => {
       );
     });
 
-    it('should deploy validatorAnnounce', () => {
+    it('should deploy validatorAnnounce', async () => {
       expect(evmCoreModule.serialize().validatorAnnounce).to.exist;
-    });
-
-    it('should set validatorAnnounce owner to deployer', async () => {
       expect(await validatorAnnounceContract.owner()).to.equal(signer.address);
     });
 
-    it('should deploy testRecipient', () => {
+    it('should deploy testRecipient', async () => {
       expect(evmCoreModule.serialize().testRecipient).to.exist;
+      expect(await testRecipientContract.owner()).to.equal(signer.address);
     });
 
-    it('should set testRecipient owner to deployer', async () => {
-      expect(await testRecipientContract.owner()).to.equal(signer.address);
+    it('should deploy timelock if upgrade is set', async () => {
+      expect(evmCoreModule.serialize().timelockController).to.exist;
+      expect(await timelockControllerContract.getMinDelay()).to.equal(DELAY);
     });
   });
 });
