@@ -74,3 +74,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # To always fetch the latest registry, we use the date as the cache key
+          build-args:
+          - REGISTRY_CACHE=${{ env.TAG_DATE }}
