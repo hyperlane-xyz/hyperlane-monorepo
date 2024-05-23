@@ -5,7 +5,7 @@ import { ZHash } from '../../metadata/customZodTypes.js';
 export const BigNumberSchema = z.string();
 
 export const PopulatedTransactionSchema = z.object({
-  to: z.string(),
+  to: ZHash,
   data: z.string(),
   chainId: z.number(),
 });
