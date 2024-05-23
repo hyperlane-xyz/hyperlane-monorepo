@@ -33,7 +33,7 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
       config: TokenRouterConfig,
     ): Promise<void> => {
       const checks: {
-        method: keyof TokenMetadata | 'decimals';
+        method: keyof ERC20 & keyof TokenMetadata;
         violationType: string;
       }[] = [
         { method: 'symbol', violationType: 'TokenSymbolMismatch' },
@@ -42,11 +42,6 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
       ];
 
       for (const check of checks) {
-        if (!(check.method in token)) {
-          continue;
-        }
-
-        // @ts-ignore
         const actual = await token[check.method]();
         const expected = config[check.method];
         if (actual !== expected) {
