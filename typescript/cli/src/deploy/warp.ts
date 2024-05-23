@@ -56,8 +56,9 @@ export async function runWarpRouteDeploy({
       `Using warp route deployment config at ${warpRouteDeploymentConfigPath}`,
     );
   }
-  const warpRouteConfig = readWarpRouteDeployConfig(
+  const warpRouteConfig = await readWarpRouteDeployConfig(
     warpRouteDeploymentConfigPath,
+    context,
   );
 
   const deploymentParams = {

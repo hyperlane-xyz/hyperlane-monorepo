@@ -1,12 +1,15 @@
 import { input, select } from '@inquirer/prompts';
 
 import {
+  ChainMap,
+  MailboxClientConfig,
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
+import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen } from '../logger.js';
@@ -42,12 +45,43 @@ const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
   description: TYPE_DESCRIPTIONS[type],
 }));
 
-export function readWarpRouteDeployConfig(
+async function fillDefaults(
+  context: CommandContext,
+  config: ChainMap<Partial<MailboxClientConfig>>,
+): Promise<ChainMap<MailboxClientConfig>> {
+  return promiseObjAll(
+    objMap(config, async (chain, config): Promise<MailboxClientConfig> => {
+      let mailbox = config.mailbox;
+      if (!mailbox) {
+        const addresses = await context.registry.getChainAddresses(chain);
+        assert(addresses, `No addresses found for chain ${chain}`);
+        mailbox = addresses.mailbox;
+      }
+      let owner = config.owner;
+      if (!owner) {
+        owner =
+          (await context.signer?.getAddress()) ??
+          (await context.multiProvider.getSignerAddress(chain));
+      }
+      return {
+        owner,
+        mailbox,
+        ...config,
+      };
+    }),
+  );
+}
+
+export async function readWarpRouteDeployConfig(
   filePath: string,
-): WarpRouteDeployConfig {
-  const config = readYamlOrJson(filePath);
+  context?: CommandContext,
+): Promise<WarpRouteDeployConfig> {
+  let config = readYamlOrJson(filePath);
   if (!config)
     throw new Error(`No warp route deploy config found at ${filePath}`);
+  if (context) {
+    config = await fillDefaults(context, config as any);
+  }
   return WarpRouteDeployConfigSchema.parse(config);
 }
 
@@ -76,7 +110,6 @@ export async function createWarpRouteDeployConfig({
   );
 
   const result: WarpRouteDeployConfig = {};
-  WarpRouteDeployConfigSchema;
   for (const chain of warpChains) {
     logBlue(`Configuring warp route for chain ${chain}`);
     const type = await select({
