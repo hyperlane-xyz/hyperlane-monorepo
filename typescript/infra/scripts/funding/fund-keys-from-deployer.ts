@@ -575,7 +575,7 @@ class ContextFunder {
   }
 
   private getDesiredBalanceForRole(chain: ChainName, role: Role): BigNumber {
-    let desiredBalanceEther: string;
+    let desiredBalanceEther: string | undefined;
     if (role === Role.Kathy) {
       const desiredKathyBalance = this.desiredKathyBalancePerChain[chain];
       if (desiredKathyBalance === undefined) {
@@ -587,7 +587,7 @@ class ContextFunder {
     } else {
       desiredBalanceEther = this.desiredBalancePerChain[chain];
     }
-    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther);
+    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther ?? '0');
     if (this.context === Contexts.ReleaseCandidate) {
       desiredBalance = desiredBalance
         .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
