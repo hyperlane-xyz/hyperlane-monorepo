@@ -61,17 +61,20 @@ export class EvmERC20WarpRouteReader {
   /**
    * Derives the configuration for a Hyperlane ERC20 router contract at the given address.
    *
-   * @param address - The address of the Hyperlane ERC20 router contract.
+   * @param warpRouteAddress - The address of the Hyperlane ERC20 router contract.
    * @returns The configuration for the Hyperlane ERC20 router.
    *
    */
   async deriveWarpRouteConfig(
-    address: Address,
+    warpRouteAddress: Address,
   ): Promise<DerivedTokenRouterConfig> {
     // Derive the config type
-    const type = await this.deriveTokenType(address);
-    const fetchedBaseMetadata = await this.fetchBaseMetadata(address);
-    const fetchedTokenMetadata = await this.fetchTokenMetadata(type, address);
+    const type = await this.deriveTokenType(warpRouteAddress);
+    const fetchedBaseMetadata = await this.fetchBaseMetadata(warpRouteAddress);
+    const fetchedTokenMetadata = await this.fetchTokenMetadata(
+      type,
+      warpRouteAddress,
+    );
 
     return {
       ...fetchedBaseMetadata,
@@ -83,10 +86,10 @@ export class EvmERC20WarpRouteReader {
   /**
    * Derives the token type for a given Warp Route address using specific methods
    *
-   * @param address - The Warp Route address to derive the token type for.
+   * @param warpRouteAddress - The Warp Route address to derive the token type for.
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
-  async deriveTokenType(address: Address): Promise<DerivedTokenType> {
+  async deriveTokenType(warpRouteAddress: Address): Promise<DerivedTokenType> {
     const contractTypes: Record<
       Exclude<DerivedTokenType, 'native'>, // native is excluded because it's the default return type
       { factory: any; method: string }
@@ -107,17 +110,21 @@ export class EvmERC20WarpRouteReader {
 
     for (const [type, { factory, method }] of Object.entries(contractTypes)) {
       try {
-        const warpRoute = factory.connect(address, this.provider);
+        const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
         return type as DerivedTokenType;
       } catch (e) {
-        this.logger.debug(
-          `Error accessing token specific property, implying this is not a ${type} token. Defaulting to ${TokenType.native}.`,
-          address,
+        this.logger.info(
+          `Error accessing token specific method, ${method}, implying this is not a ${type} token.`,
+          warpRouteAddress,
         );
       }
     }
 
+    this.logger.info(
+      `No matching token specific method. Defaulting to ${TokenType.native}.`,
+      warpRouteAddress,
+    );
     return TokenType.native;
   }
 
