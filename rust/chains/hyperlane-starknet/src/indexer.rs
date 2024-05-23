@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta,
+    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta, MerkleTreeInsertion,
     SequenceAwareIndexer, H256, U256,
 };
 use starknet::core::types::{
@@ -16,6 +16,7 @@ use std::sync::Arc;
 use tracing::instrument;
 
 use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
+use crate::contracts::merkle_tree_hook::MerkleTreeHookReader as StarknetMerkleTreeHookReader;
 use crate::{try_parse_hyperlane_message_from_event, ConnectionConf, HyperlaneStarknetError};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -252,5 +253,103 @@ impl SequenceAwareIndexer<H256> for StarknetMailboxIndexer {
         // TODO: Consider removing `Indexer` as a supertrait of `SequenceAwareIndexer`
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
         Ok((None, tip))
+    }
+}
+
+#[derive(Debug)]
+/// Starknet RPC Provider
+pub struct StarknetMerkleTreeHookIndexer {
+    contract: Arc<StarknetMerkleTreeHookReader<AnyProvider>>,
+    reorg_period: u32,
+}
+
+impl StarknetMerkleTreeHookIndexer {
+    /// create new Starknet MerkleTreeHook Indexer
+    pub fn new(
+        conf: ConnectionConf,
+        locator: ContractLocator,
+        reorg_period: u32,
+    ) -> ChainResult<Self> {
+        let rpc_client =
+            AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
+        let contract = StarknetMerkleTreeHookReader::new(
+            FieldElement::from_bytes_be(&locator.address.to_fixed_bytes()).unwrap(),
+            rpc_client,
+        );
+
+        Ok(Self {
+            contract: Arc::new(contract),
+            reorg_period,
+        })
+    }
+}
+
+#[async_trait]
+impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
+    /// Note: This call may return duplicates depending on the provider used
+    #[instrument(err, skip(self))]
+    async fn fetch_logs(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+        let key = get_selector_from_name("Dispatch").unwrap(); // safe to unwrap
+
+        let filter = EventFilter {
+            from_block: Some(BlockId::Number((*range.start()).into())),
+            to_block: Some(BlockId::Number((*range.end()).into())),
+            address: Some(self.contract.address),
+            keys: Some(vec![vec![key]]),
+        };
+
+        let chunk_size = range.end() - range.start() + 1;
+
+        let events: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = self
+            .contract
+            .provider
+            .get_events(filter, None, chunk_size.into())
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?
+            .events
+            .into_iter()
+            .map(|event| {
+                // TODO: remove unwraps
+                let merkle_tree_insertion = MerkleTreeInsertion::new(
+                    event.data[2].try_into().unwrap(),
+                    (event.data[0], event.data[1]).try_into().unwrap(),
+                )
+                .into();
+
+                let meta = LogMeta {
+                    address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
+                    block_number: event.block_number.unwrap(),
+                    block_hash: H256::from_slice(
+                        event.block_hash.unwrap().to_bytes_be().as_slice(),
+                    ),
+                    transaction_id: H256::from_slice(
+                        event.transaction_hash.to_bytes_be().as_slice(),
+                    )
+                    .into(),
+                    transaction_index: 0,   // TODO: what to put here?
+                    log_index: U256::one(), // TODO: what to put here?
+                };
+                (merkle_tree_insertion, meta)
+            })
+            .collect();
+
+        Ok(events)
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        Ok(
+            self.contract
+                .provider
+                .block_number()
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?
+                .saturating_sub(self.reorg_period as u64)
+                .try_into()
+                .unwrap(), // TODO: check if safe
+        )
     }
 }
