@@ -79,4 +79,3 @@ jobs:
           # To always fetch the latest registry, we use the date as the cache key
           build-args: |
             REGISTRY_CACHE=${{ env.TAG_DATE }}
-
