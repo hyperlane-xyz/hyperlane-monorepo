@@ -16,9 +16,10 @@ contract HypXERC20Lockbox is HypERC20Collateral {
 
     function _transferFromSender(
         uint256 _amount
-    ) internal override returns (bytes memory _metadata) {
-        _metadata = super._transferFromSender(_amount);
+    ) internal override returns (bytes memory) {
+        super._transferFromSender(_amount);
         lockbox.deposit(_amount);
+        return bytes("");
     }
 
     function _transferTo(
