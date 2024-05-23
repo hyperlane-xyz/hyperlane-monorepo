@@ -24,8 +24,8 @@ import {
 import {
   Address,
   ProtocolType,
-  actualDeepEquals,
   assert,
+  configDeepEquals,
   eqAddress,
   normalizeConfig,
   objFilter,
@@ -140,7 +140,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // If configs match, no updates needed
-    if (actualDeepEquals(currentConfig, targetConfig)) {
+    if (configDeepEquals(currentConfig, targetConfig)) {
       return [];
     }
 

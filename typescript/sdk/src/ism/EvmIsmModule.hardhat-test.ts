@@ -6,7 +6,7 @@ import hre from 'hardhat';
 import { FallbackDomainRoutingHook__factory } from '@hyperlane-xyz/core';
 import {
   Address,
-  actualDeepEquals,
+  configDeepEquals,
   eqAddress,
   normalizeConfig,
 } from '@hyperlane-xyz/utils';
@@ -167,7 +167,7 @@ describe('EvmIsmModule', async () => {
     config: IsmConfig;
   }): Promise<boolean> {
     const derivedConfig = await ism.read();
-    const matches = actualDeepEquals(
+    const matches = configDeepEquals(
       normalizeConfig(derivedConfig),
       normalizeConfig(config),
     );

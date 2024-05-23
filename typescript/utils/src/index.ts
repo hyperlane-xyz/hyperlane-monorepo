@@ -112,7 +112,7 @@ export {
   promiseObjAll,
   stringifyObject,
   normalizeConfig,
-  actualDeepEquals,
+  configDeepEquals,
 } from './objects.js';
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {

@@ -174,7 +174,7 @@ export function normalizeConfig(obj: any): any {
   return obj;
 }
 
-export function actualDeepEquals(v1: any, v2: any): boolean {
+export function configDeepEquals(v1: any, v2: any): boolean {
   if (v1 === v2) {
     return true;
   }
@@ -189,7 +189,7 @@ export function actualDeepEquals(v1: any, v2: any): boolean {
         return false;
       }
       for (let i = 0; i < v1.length; i++) {
-        if (!actualDeepEquals(v1[i], v2[i])) {
+        if (!configDeepEquals(v1[i], v2[i])) {
           return false;
         }
       }
@@ -209,7 +209,7 @@ export function actualDeepEquals(v1: any, v2: any): boolean {
         return false;
       }
       for (const [key, value] of v1) {
-        if (!v2.has(key) || !actualDeepEquals(value, v2.get(key))) {
+        if (!v2.has(key) || !configDeepEquals(value, v2.get(key))) {
           return false;
         }
       }
@@ -223,7 +223,7 @@ export function actualDeepEquals(v1: any, v2: any): boolean {
       }
 
       for (const key of keys1) {
-        if (!keys2.includes(key) || !actualDeepEquals(v1[key], v2[key])) {
+        if (!keys2.includes(key) || !configDeepEquals(v1[key], v2[key])) {
           return false;
         }
       }
