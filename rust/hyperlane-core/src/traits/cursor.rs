@@ -1,4 +1,8 @@
-use std::{fmt::{self, Debug}, ops::RangeInclusive, time::Duration};
+use std::{
+    fmt::{self, Debug},
+    ops::RangeInclusive,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;

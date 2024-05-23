@@ -100,9 +100,9 @@ where
             let mut logs_found = 0;
             // // let mut sleep_duration = SLEEP_DURATION;
             if let Some(recv) = opts.tx_id_recv.as_mut() {
-                // logs_found += self
-                //     .fetch_logs_from_receiver(recv, &stored_logs_metric)
-                //     .await;
+                logs_found += self
+                    .fetch_logs_from_receiver(recv, &stored_logs_metric)
+                    .await;
             }
             // if let Some(cursor) = opts.cursor.as_mut() {
             //     match self
@@ -118,7 +118,7 @@ where
             //     sleep(sleep_duration).await;
             // }
             info!("~~~ looping");
-            let cursor = opts.cursor.as_mut().unwrap(); 
+            let cursor = opts.cursor.as_mut().unwrap();
             indexed_height_metric.set(cursor.latest_queried_block() as i64);
             let (action, eta) = match cursor.next_action().await {
                 Ok((action, eta)) => (action, eta),
@@ -152,7 +152,7 @@ where
                         cursor = ?cursor,
                         "Found log(s) in index range"
                     );
-    
+
                     logs.iter().for_each(|(_, meta)| {
                         if let Err(err) = self.broadcast_sender.send(meta.transaction_id) {
                             warn!(?err, "Error sending txid to receiver");
@@ -179,21 +179,29 @@ where
     ) -> u64 {
         println!("~~~ fetch_logs_from_receiver");
         let mut logs_found = 0;
-        while let Ok(tx_id) = recv.recv().await {
-            println!("~~~ tx_id: {:?}", tx_id);
-            // query receipts for tx_id
-            // let logs = vec![];
-            // let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
-            //     Ok(logs) => logs,
-            //     Err(err) => {
-            //         warn!(?err, ?tx_id, "Error fetching logs for tx id");
-            //         continue;
-            //     }
-            // };
-            // let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
-            // let num_logs = logs.len() as u64;
-            info!(num_logs = logs_found, ?tx_id, "Found log(s) for tx id");
-            // logs_found += num_logs;
+        loop {
+            match recv.try_recv() {
+                Ok(tx_id) => {
+                    println!("~~~ tx_id: {:?}", tx_id);
+                    // query receipts for tx_id
+                    // let logs = vec![];
+                    let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
+                        Ok(logs) => logs,
+                        Err(err) => {
+                            warn!(?err, ?tx_id, "Error fetching logs for tx id");
+                            continue;
+                        }
+                    };
+                    let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
+                    let num_logs = logs.len() as u64;
+                    info!(num_logs = logs_found, ?tx_id, "Found log(s) for tx id");
+                    // logs_found += num_logs;
+                }
+                Err(err) => {
+                    warn!(?err, "Error receiving txid from channel");
+                    break;
+                }
+            }
         }
         logs_found
     }

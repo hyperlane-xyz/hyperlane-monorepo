@@ -4,17 +4,22 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::abi::RawLog;
 use ethers::prelude::Middleware;
+use ethers_contract::{ContractError, EthLogDecode, LogMeta as EthersLogMeta};
+use ethers_core::types::H256 as EthersH256;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::interfaces::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
+use crate::interfaces::merkle_tree_hook::{
+    InsertedIntoTreeFilter, MerkleTreeHook as MerkleTreeHookContract, Tree,
+};
 use crate::tx::call_with_lag;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
@@ -141,6 +146,47 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.reorg_period))
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+        let ethers_tx_hash: EthersH256 = tx_hash.into();
+        let receipt = self
+            .provider
+            .get_transaction_receipt(ethers_tx_hash)
+            .await
+            .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
+        println!("~~~ merkle hook receipt: {:?}", receipt);
+        let Some(receipt) = receipt else {
+            return Ok(vec![]);
+        };
+
+        let logs: Vec<_> = receipt
+            .logs
+            .into_iter()
+            .filter_map(|log| {
+                let raw_log = RawLog {
+                    topics: log.topics.clone(),
+                    data: log.data.to_vec(),
+                };
+                let log_meta: EthersLogMeta = (&log).into();
+                let gas_payment_filter = InsertedIntoTreeFilter::decode_log(&raw_log).ok();
+                gas_payment_filter.map(|log| {
+                    (
+                        MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
+                        log_meta.into(),
+                    )
+                })
+            })
+            .collect();
+        println!(
+            "~~~ found merkle hook logs with tx id {:?}: {:?}",
+            tx_hash,
+            logs.len()
+        );
+        Ok(logs)
     }
 }
 
