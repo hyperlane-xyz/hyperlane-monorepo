@@ -50,6 +50,13 @@ export enum IsmType {
   TRUSTED_RELAYER = 'trustedRelayerIsm',
 }
 
+// ISM types that can be updated in-place
+export const MutableIsmType = [
+  IsmType.ROUTING,
+  IsmType.FALLBACK_ROUTING,
+  IsmType.PAUSABLE,
+];
+
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {

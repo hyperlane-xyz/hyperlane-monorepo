@@ -59,6 +59,8 @@ import {
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
+  MutableIsmType,
+  PausableIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
@@ -159,10 +161,8 @@ export class EvmIsmModule extends HyperlaneModule<
       typeof currentConfig === 'string' ||
       // if config -> config, AND types are different, do a new deploy
       currentConfig.type !== targetConfig.type ||
-      // unless the new ISM is a Routing or Pausable ISM, do a new deploy
-      (targetConfig.type !== IsmType.ROUTING &&
-        targetConfig.type !== IsmType.FALLBACK_ROUTING &&
-        targetConfig.type !== IsmType.PAUSABLE)
+      // if it is not a mutable ISM, do a new deploy
+      !MutableIsmType.includes(targetConfig.type)
     ) {
       const contract = await this.deploy({
         config: targetConfig,
@@ -172,7 +172,11 @@ export class EvmIsmModule extends HyperlaneModule<
       return [];
     }
 
-    // Only the 3 ownable ISM types remain: ROUTING or FALLBACK_ROUTING or PAUSABLE
+    // Explicitly narrow the type of targetConfig to RoutingIsmConfig or PausableIsmConfig
+    // This is safe because we've already checked that the type is in MutableIsmType
+    targetConfig = targetConfig as RoutingIsmConfig | PausableIsmConfig;
+
+    // At this point, only the 3 ownable/mutable ISM types remain: PAUSABLE, ROUTING, FALLBACK_ROUTING
     const logger = this.logger.child({
       destination: this.chainName,
       ismType: targetConfig.type,
