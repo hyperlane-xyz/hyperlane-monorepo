@@ -146,3 +146,35 @@ export const addressCommandOption = (
   description,
   demandOption,
 });
+
+/* Validator options */
+export const awsAccessKeyCommandOption: Options = {
+  type: 'string',
+  description: 'AWS access key of IAM user associated with validator',
+  default: ENV.AWS_ACCESS_KEY_ID,
+  defaultDescription: 'process.env.AWS_ACCESS_KEY_ID',
+};
+
+export const awsSecretKeyCommandOption: Options = {
+  type: 'string',
+  description: 'AWS secret access key of IAM user associated with validator',
+  default: ENV.AWS_SECRET_ACCESS_KEY,
+  defaultDescription: 'process.env.AWS_SECRET_ACCESS_KEY',
+};
+
+export const awsRegionCommandOption: Options = {
+  type: 'string',
+  describe: 'AWS region associated with validator',
+  default: ENV.AWS_REGION,
+  defaultDescription: 'process.env.AWS_REGION',
+};
+
+export const awsBucketCommandOption: Options = {
+  type: 'string',
+  describe: 'AWS S3 bucket containing validator signatures and announcement',
+};
+
+export const awsKeyIdCommandOption: Options = {
+  type: 'string',
+  describe: 'Key ID from AWS KMS',
+};
