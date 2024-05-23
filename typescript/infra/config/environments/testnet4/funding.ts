@@ -30,11 +30,15 @@ export const keyFunderConfig: KeyFunderConfig = {
     bsctestnet: '5',
     fuji: '5',
     plumetestnet: '0.2',
-    sepolia: '5',
-    // Funder boosts itself upto 5x balance on L2 before dispersing funds
     scrollsepolia: '1',
+    sepolia: '5',
   },
   desiredKathyBalancePerChain: {
+    alfajores: '1',
+    bsctestnet: '1',
+    fuji: '1',
     plumetestnet: '0.05',
+    scrollsepolia: '1',
+    sepolia: '1',
   },
 };
