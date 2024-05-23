@@ -79,7 +79,7 @@ export const hookCommandOption: Options = {
     'A path to a JSON or YAML file with Hook configs (for every chain)',
 };
 
-export const warpConfigCommandOption: Options = {
+export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
@@ -87,7 +87,7 @@ export const warpConfigCommandOption: Options = {
   alias: 'w',
 };
 
-export const warpConfigOption: Options = {
+export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
   alias: 'w',
@@ -106,14 +106,14 @@ export const agentConfigCommandOption = (
   default: defaultPath,
 });
 
-export const outputFileOption = (defaultPath?: string): Options => ({
+export const outputFileCommandOption = (defaultPath?: string): Options => ({
   type: 'string',
   description: 'Output file path',
   default: defaultPath,
   alias: 'o',
 });
 
-export const inputFileOption: Options = {
+export const inputFileCommandOption: Options = {
   type: 'string',
   description: 'Input file path',
   alias: 'i',
@@ -126,7 +126,7 @@ export const fromAddressCommandOption: Options = {
   alias: 'f',
 };
 
-export const dryRunOption: Options = {
+export const dryRunCommandOption: Options = {
   type: 'string',
   description:
     'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
