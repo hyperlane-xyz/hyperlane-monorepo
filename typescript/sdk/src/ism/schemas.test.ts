@@ -1,8 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { AggregationIsmConfigSchema } from '@hyperlane-xyz/sdk';
-
+import { AggregationIsmConfigSchema } from './schemas.js';
 import { IsmType } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
