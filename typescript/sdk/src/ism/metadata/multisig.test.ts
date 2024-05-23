@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { readFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 
 import { SignatureLike } from '@hyperlane-xyz/utils';
 
@@ -9,7 +9,7 @@ import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 import { Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/multisig';
-const files = readdirSync(path);
+const files = existsSync(path) ? readdirSync(path) : [];
 const fixtures: Fixture<MultisigMetadata>[] = files
   .map((f) => JSON.parse(readFileSync(`${path}/${f}`, 'utf8')))
   .map((contents) => {
