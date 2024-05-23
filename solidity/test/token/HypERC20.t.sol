@@ -442,9 +442,9 @@ contract HypXERC20Test is HypTokenTest {
     }
 }
 
-contract HypFiatTokenCollateralTest is HypTokenTest {
+contract HypFiatTokenTest is HypTokenTest {
     using TypeCasts for address;
-    HypFiatToken internal fiatTokenCollateral;
+    HypFiatToken internal fiatToken;
 
     function setUp() public override {
         super.setUp();
@@ -455,9 +455,9 @@ contract HypFiatTokenCollateralTest is HypTokenTest {
             address(primaryToken),
             address(localMailbox)
         );
-        fiatTokenCollateral = HypFiatToken(address(localToken));
+        fiatToken = HypFiatToken(address(localToken));
 
-        fiatTokenCollateral.enrollRemoteRouter(
+        fiatToken.enrollRemoteRouter(
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );
