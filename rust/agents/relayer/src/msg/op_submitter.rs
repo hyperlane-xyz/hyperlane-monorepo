@@ -4,10 +4,10 @@ use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGaugeVec};
-use tokio::spawn;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tokio_metrics::TaskMonitor;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 use tracing::{info, warn};
 
@@ -82,12 +82,18 @@ pub struct SerialSubmitter {
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
     max_batch_size: u32,
+    /// tokio task monitor
+    task_monitor: TaskMonitor,
 }
 
 impl SerialSubmitter {
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%self.domain);
-        spawn(async move { self.run().await }).instrument(span)
+        let task_monitor = self.task_monitor.clone();
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            self.run().await
+        }))
+        .instrument(span)
     }
 
     async fn run(self) {
@@ -97,6 +103,7 @@ impl SerialSubmitter {
             rx: rx_prepare,
             retry_rx,
             max_batch_size,
+            task_monitor,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
@@ -115,32 +122,40 @@ impl SerialSubmitter {
         );
 
         let tasks = [
-            spawn(receive_task(
-                domain.clone(),
-                rx_prepare,
-                prepare_queue.clone(),
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                receive_task(domain.clone(), rx_prepare, prepare_queue.clone()),
             )),
-            spawn(prepare_task(
-                domain.clone(),
-                prepare_queue.clone(),
-                submit_queue.clone(),
-                confirm_queue.clone(),
-                max_batch_size,
-                metrics.clone(),
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                prepare_task(
+                    domain.clone(),
+                    prepare_queue.clone(),
+                    submit_queue.clone(),
+                    confirm_queue.clone(),
+                    max_batch_size,
+                    metrics.clone(),
+                ),
             )),
-            spawn(submit_task(
-                domain.clone(),
-                submit_queue,
-                confirm_queue.clone(),
-                max_batch_size,
-                metrics.clone(),
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                submit_task(
+                    domain.clone(),
+                    submit_queue,
+                    confirm_queue.clone(),
+                    max_batch_size,
+                    metrics.clone(),
+                ),
             )),
-            spawn(confirm_task(
-                domain.clone(),
-                prepare_queue,
-                confirm_queue,
-                max_batch_size,
-                metrics,
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                confirm_task(
+                    domain.clone(),
+                    prepare_queue,
+                    confirm_queue,
+                    max_batch_size,
+                    metrics,
+                ),
             )),
         ];
 
