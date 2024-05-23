@@ -3,7 +3,7 @@ import { BigNumber } from 'ethers';
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { getEnvAddresses } from '../../config/registry.js';
+import { getEnvAddresses } from '../../config/registry/registry.js';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 

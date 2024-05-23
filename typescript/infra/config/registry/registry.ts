@@ -1,7 +1,7 @@
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { ChainAddresses, MergedRegistry } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
@@ -12,14 +12,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
-import type { DeployEnvironment } from '../src/config/environment.js';
-
-import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/supportedChainNames.js';
+import type { DeployEnvironment } from '../../src/config/environment.js';
+import { supportedChainNames as mainnet3Chains } from '../environments/mainnet3/supportedChainNames.js';
 import {
   testChainMetadata,
   testChainNames as testChains,
-} from './environments/test/chains.js';
-import { supportedChainNames as testnet4Chains } from './environments/testnet4/supportedChainNames.js';
+} from '../environments/test/chains.js';
+import { supportedChainNames as testnet4Chains } from '../environments/testnet4/supportedChainNames.js';
 
 const DEFAULT_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),

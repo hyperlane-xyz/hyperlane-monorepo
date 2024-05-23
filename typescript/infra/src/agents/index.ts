@@ -4,7 +4,7 @@ import { join } from 'path';
 import { ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
-import { getChain } from '../../config/registry.js';
+import { getChain } from '../../config/registry/registry.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,

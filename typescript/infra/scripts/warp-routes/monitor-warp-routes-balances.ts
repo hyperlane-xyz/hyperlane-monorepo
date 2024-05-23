@@ -22,7 +22,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChainMetadata } from '../../config/registry.js';
+import { getChainMetadata } from '../../config/registry/registry.js';
 import { startMetricsServer } from '../../src/utils/metrics.js';
 import { readYaml } from '../../src/utils/utils.js';
 

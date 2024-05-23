@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 
-import { getChain } from '../../config/registry.js';
+import { getChain } from '../../config/registry/registry.js';
 import { getSecretRpcEndpoint } from '../agents/index.js';
 
 import { DeployEnvironment } from './environment.js';

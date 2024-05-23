@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { getChain } from '../../../config/registry.js';
+import { getChain } from '../../../config/registry/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
