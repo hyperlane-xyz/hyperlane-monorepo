@@ -1,9 +1,8 @@
-import { AddressZero } from '@ethersproject/constants';
 import { Wallet, providers } from 'ethers';
 import fs from 'fs';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
-import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import { TokenType } from '@hyperlane-xyz/sdk';
 
 async function deployERC20() {
   const [rpcUrl, chain1, chain2, privateKey, outPath] = process.argv.slice(2);
@@ -20,18 +19,13 @@ async function deployERC20() {
   await contract.deployed();
   console.log('Test ERC20 contract deployed', contract.address);
 
-  const warpDeploymentConfig: WarpRouteDeployConfig = {
+  const warpDeploymentConfig = {
     [chain1]: {
       type: TokenType.collateral,
       token: contract.address,
-      isNft: false,
-      owner: signer.address,
-      mailbox: AddressZero,
     },
     [chain2]: {
       type: TokenType.synthetic,
-      owner: signer.address,
-      mailbox: AddressZero,
     },
   };
 
