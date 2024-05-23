@@ -35,6 +35,7 @@ pub enum SignerConf {
         /// Prefix for cosmos address
         prefix: String,
     },
+    /// Starknet Specific key
     StarkKey {
         /// Private key value
         key: H256,

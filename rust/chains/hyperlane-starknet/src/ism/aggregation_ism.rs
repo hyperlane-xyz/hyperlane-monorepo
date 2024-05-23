@@ -5,23 +5,23 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use hyperlane_core::MultisigIsm;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, H256,
+    AggregationIsm, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::multisig_ism::{
-    Bytes as StarknetBytes, Message as StarknetMessage, MultisigIsm as StarknetMultisigIsmInternal,
+use crate::contracts::aggregation_ism::{
+    AggregationIsm as StarknetAggregationIsmInternal, Bytes as StarknetBytes,
+    Message as StarknetMessage,
 };
 use crate::error::HyperlaneStarknetError;
 use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
 
-impl<A> std::fmt::Display for StarknetMultisigIsmInternal<A>
+impl<A> std::fmt::Display for StarknetAggregationIsmInternal<A>
 where
     A: starknet::accounts::ConnectedAccount + Sync + std::fmt::Debug,
 {
@@ -33,13 +33,13 @@ where
 /// A reference to a Mailbox contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
-pub struct StarknetMultisigIsm {
-    contract: Arc<StarknetMultisigIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
+pub struct StarknetAggregationIsm {
+    contract: Arc<StarknetAggregationIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>>>,
     provider: StarknetProvider,
     conn: ConnectionConf,
 }
 
-impl StarknetMultisigIsm {
+impl StarknetAggregationIsm {
     /// Create a reference to a mailbox at a specific Starknet address on some
     /// chain
     pub fn new(
@@ -55,7 +55,7 @@ impl StarknetMultisigIsm {
             locator.domain.id(),
         );
 
-        let contract = StarknetMultisigIsmInternal::new(
+        let contract = StarknetAggregationIsmInternal::new(
             locator
                 .address
                 .try_into()
@@ -73,12 +73,12 @@ impl StarknetMultisigIsm {
     #[allow(unused)]
     pub fn contract(
         &self,
-    ) -> &StarknetMultisigIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
+    ) -> &StarknetAggregationIsmInternal<SingleOwnerAccount<AnyProvider, LocalWallet>> {
         &self.contract
     }
 }
 
-impl HyperlaneChain for StarknetMultisigIsm {
+impl HyperlaneChain for StarknetAggregationIsm {
     fn domain(&self) -> &HyperlaneDomain {
         &self.provider.domain()
     }
@@ -88,16 +88,16 @@ impl HyperlaneChain for StarknetMultisigIsm {
     }
 }
 
-impl HyperlaneContract for StarknetMultisigIsm {
+impl HyperlaneContract for StarknetAggregationIsm {
     fn address(&self) -> H256 {
         self.contract.address.into()
     }
 }
 
 #[async_trait]
-impl MultisigIsm for StarknetMultisigIsm {
+impl AggregationIsm for StarknetAggregationIsm {
     #[instrument(err)]
-    async fn validators_and_threshold(
+    async fn modules_and_threshold(
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
@@ -123,23 +123,22 @@ impl MultisigIsm for StarknetMultisigIsm {
                 data: message.body.iter().map(|b| *b as u128).collect(),
             },
         };
-        let (validator_addresses, threshold) = self
+
+        let (isms, threshold) = self
             .contract
-            .validators_and_threshold(message)
+            .modules_and_threshold(message)
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
+        let isms_h256 = isms.iter().map(|address| address.0.into()).collect();
 
-        Ok((
-            validator_addresses.iter().map(|v| v.0.into()).collect(),
-            threshold as u8,
-        ))
+        Ok((isms_h256, threshold))
     }
 }
 
-pub struct StarknetMultisigIsmAbi;
+pub struct StarknetAggregationIsmAbi;
 
-impl HyperlaneAbi for StarknetMultisigIsmAbi {
+impl HyperlaneAbi for StarknetAggregationIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
