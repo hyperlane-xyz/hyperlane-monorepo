@@ -123,14 +123,16 @@ export class EvmCoreModule extends HyperlaneModule<
    */
   async deploy(config: CoreConfig) {
     // Deploy proxyAdmin
-    const proxyAdmin = await this.hyperlaneCoreDeployer.deployContract(
-      this.chainName,
-      'proxyAdmin',
-      [],
-    );
+    this.args.addresses.proxyAdmin = (
+      await this.hyperlaneCoreDeployer.deployContract(
+        this.chainName,
+        'proxyAdmin',
+        [],
+      )
+    ).address;
 
     // Deploy Mailbox
-    const mailbox = await this.deployMailbox(proxyAdmin.address);
+    const mailbox = await this.deployMailbox(this.args.addresses.proxyAdmin);
 
     // Deploy ICA ISM and Router
     const { interchainAccountRouter, interchainAccountIsm } = (
@@ -147,11 +149,12 @@ export class EvmCoreModule extends HyperlaneModule<
     ).serialize();
 
     // Deploy Validator announce
-    const validatorAnnounce =
+    this.args.addresses.validatorAnnounce = (
       await this.hyperlaneCoreDeployer.deployValidatorAnnounce(
         this.chainName,
         mailbox.address,
-      );
+      )
+    ).address;
 
     // Deploy timelock controller if config.upgrade is set
     if (config.upgrade) {
@@ -164,18 +167,17 @@ export class EvmCoreModule extends HyperlaneModule<
     }
 
     // Deploy Test Receipient
-    const testRecipient = await this.hyperlaneCoreDeployer.deployTestRecipient(
-      this.chainName,
-      await mailbox.defaultIsm(),
-    );
+    this.args.addresses.testRecipient = (
+      await this.hyperlaneCoreDeployer.deployTestRecipient(
+        this.chainName,
+        await mailbox.defaultIsm(),
+      )
+    ).address;
 
-    // Set Core and extra addresses
+    // Set Core & extra addresses
     this.args.addresses = {
-      ...this.args.addresses,
+      ...this.args.addresses, // Destructure the already set addresses
       mailbox: mailbox.address,
-      proxyAdmin: proxyAdmin.address,
-      validatorAnnounce: validatorAnnounce.address,
-      testRecipient: testRecipient.address,
       interchainAccountRouter,
       interchainAccountIsm,
     };
@@ -221,6 +223,7 @@ export class EvmCoreModule extends HyperlaneModule<
       [domain],
     );
 
+    // @todo refactor when 1) IsmModule is ready
     const deployedDefaultIsm = await this.hyperlaneCoreDeployer.deployIsm(
       this.chainName,
       this.args.config.defaultIsm,
@@ -228,7 +231,6 @@ export class EvmCoreModule extends HyperlaneModule<
     );
 
     // @todo refactor when 1) HookModule is ready, and 2) Hooks Config can handle strings
-    // The pattern should be the same as the above defaultIsm
     const deployedDefaultHook = await this.hyperlaneCoreDeployer.deployHook(
       this.chainName,
       this.args.config.defaultHook,
@@ -239,7 +241,6 @@ export class EvmCoreModule extends HyperlaneModule<
     );
 
     // @todo refactor when 1) HookModule is ready, and 2) Hooks Config can handle strings
-    // The pattern should be the same as the above defaultIsm
     const deployedRequiredHook = await this.hyperlaneCoreDeployer.deployHook(
       this.chainName,
       this.args.config.requiredHook,
