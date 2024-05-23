@@ -305,6 +305,7 @@ export {
   CallData,
   PopulatedTransaction,
 } from './providers/transactions/types.js';
+export { PopulatedTransactionSchema } from './providers/transactions/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
 export {
