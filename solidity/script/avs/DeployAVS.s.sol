@@ -89,8 +89,9 @@ contract DeployAVS is Script {
         }
     }
 
-    function run(string memory network) external {
+    function run(string memory network, string memory metadataUri) external {
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployerAddress = vm.addr(deployerPrivateKey);
 
         _loadEigenlayerAddresses(network);
 
@@ -119,7 +120,7 @@ contract DeployAVS is Script {
             address(proxyAdmin),
             abi.encodeWithSelector(
                 HyperlaneServiceManager.initialize.selector,
-                address(proxyAdmin)
+                address(deployerAddress)
             )
         );
 
@@ -132,7 +133,24 @@ contract DeployAVS is Script {
                 quorum
             )
         );
+
+        HyperlaneServiceManager hsm = HyperlaneServiceManager(
+            address(hsmProxy)
+        );
+
         require(success, "Failed to initialize ECDSAStakeRegistry");
+        require(
+            ECDSAStakeRegistry(address(stakeRegistryProxy)).owner() ==
+                address(deployerAddress),
+            "Owner of ECDSAStakeRegistry is not the deployer"
+        );
+        require(
+            HyperlaneServiceManager(address(hsmProxy)).owner() ==
+                address(deployerAddress),
+            "Owner of HyperlaneServiceManager is not the deployer"
+        );
+
+        hsm.updateAVSMetadataURI(metadataUri);
 
         console.log(
             "ECDSAStakeRegistry Implementation: ",
@@ -144,31 +162,6 @@ contract DeployAVS is Script {
         );
         console.log("StakeRegistry Proxy: ", address(stakeRegistryProxy));
         console.log("HyperlaneServiceManager Proxy: ", address(hsmProxy));
-
-        vm.stopBroadcast();
-    }
-
-    function updateMetadata(string memory _metadataUri) external {
-        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        ProxyAdmin pa = ProxyAdmin(0x11918DC33E067C5DA83EEF58E50F856398b8Df4C);
-        address hsmProxy = 0xb94F96D398eA5BAB5CA528EE9Fdc19afaA825818;
-
-        bytes memory data = abi.encodeWithSelector(
-            ECDSAServiceManagerBase.updateAVSMetadataURI.selector,
-            _metadataUri
-        );
-        (bool success, ) = address(pa).call(
-            abi.encodeWithSelector(
-                ProxyAdmin.upgradeAndCall.selector,
-                hsmProxy,
-                0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A, // Use the current implementation address
-                data
-            )
-        );
-        require(success, "Failed to update metadata URI");
 
         vm.stopBroadcast();
     }
