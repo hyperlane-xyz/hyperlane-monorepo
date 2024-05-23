@@ -1,17 +1,21 @@
-import { Mailbox, TestRecipient } from '@hyperlane-xyz/core';
+import { Mailbox } from '@hyperlane-xyz/core';
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
-import { CoreFactories } from '../core/contracts.js';
+import {
+  attachContractsMap,
+  serializeContractsMap,
+} from '../contracts/contracts.js';
+import { HyperlaneAddresses } from '../contracts/types.js';
 import { CoreConfig } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import {
+  ProxyFactoryFactories,
+  proxyFactoryFactories,
+} from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../providers/ProviderType.js';
-import { ChainMap, ChainNameOrId } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
@@ -19,33 +23,46 @@ import {
 } from './AbstractHyperlaneModule.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
+import { CoreFactories } from './contracts.js';
 
-type DerivedInterchainAccountFactories = HyperlaneContracts<
-  Omit<InterchainAccountFactories, 'timelockController'> // Unused
->;
-
-type ExtraArgs = {
-  testRecipient: TestRecipient;
-  ismFactoryFactories: HyperlaneContracts<ProxyFactoryFactories>;
-} & DerivedInterchainAccountFactories;
-
-type DerivedCoreConfig = Omit<CoreConfig, 'owner'>; // config.owner is excluded because contract owners are always 1) Deployer, or 2) Proxy Admin
-
+// Partial CoreConfig because will be filled once .deploy() is called
+type DeployedAdresses = Partial<HyperlaneAddresses<CoreFactories>> & {
+  testRecipient?: Address;
+  timelockController?: Address;
+  interchainAccountRouter?: Address;
+  interchainAccountIsm?: Address;
+  deployedIsmFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
+};
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
-  DerivedCoreConfig,
-  HyperlaneContracts<CoreFactories> & ExtraArgs
+  CoreConfig,
+  DeployedAdresses
 > {
+  public readonly chainName: string;
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
+  protected hyperlaneCoreDeployer: HyperlaneCoreDeployer;
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleArgs<
-      DerivedCoreConfig,
-      HyperlaneContracts<CoreFactories> & ExtraArgs
-    >,
+    args: HyperlaneModuleArgs<CoreConfig, DeployedAdresses>,
   ) {
     super(args);
+    this.chainName = this.multiProvider.getChainName(this.args.chain);
+
+    // Deploy IsmFactory to be used in CoreDeployer
+    const ismFactory = new HyperlaneIsmFactory(
+      attachContractsMap(
+        { [this.chainName]: this.args.addresses.deployedIsmFactoryFactories },
+        proxyFactoryFactories,
+      ),
+      multiProvider,
+    );
+
+    // Initalize Deployer
+    this.hyperlaneCoreDeployer = new HyperlaneCoreDeployer(
+      multiProvider,
+      ismFactory,
+    );
   }
 
   public async read(): Promise<CoreConfig> {
@@ -72,104 +89,110 @@ export class EvmCoreModule extends HyperlaneModule<
     multiProvider,
   }: {
     chain: ChainNameOrId;
-    config: DerivedCoreConfig;
+    config: CoreConfig;
     multiProvider: MultiProvider;
   }): Promise<EvmCoreModule> {
     const chainName = multiProvider.getChainName(chain);
-
     // Deploy Ism Factories
-    const { ismFactory, ismFactoriesFactory } =
-      await EvmCoreModule.deployIsmFactories(chainName, config, multiProvider);
-
-    // Initalize Deployer
-    const hyperlaneCoreDeployer = new HyperlaneCoreDeployer(
+    const ismFactoriesFactory = await EvmCoreModule.deployIsmFactories(
+      chainName,
+      config,
       multiProvider,
-      ismFactory,
     );
 
+    // Create CoreModule and deploy the Core contracts
+    const module = new EvmCoreModule(multiProvider, {
+      addresses: {
+        deployedIsmFactoryFactories: ismFactoriesFactory,
+      },
+      chain,
+      config,
+    });
+    await module.deploy();
+
+    return module;
+  }
+
+  /**
+   * Deploys the core Hyperlane contracts (Mailbox, ICA ISM and Router, Validator Announce, Test Recipient)
+   *
+   * Also, sets the arg addresses in the module's configuration.
+   *
+   * @param proxyAdmin - The address of the proxy admin for the Mailbox contract.
+   * @returns The deployed Mailbox contract instance.
+   */
+  async deploy() {
     // Deploy proxyAdmin
-    const proxyAdmin = await EvmCoreModule.deployProxyAdmin(
-      chainName,
-      hyperlaneCoreDeployer,
+    const proxyAdmin = await this.hyperlaneCoreDeployer.deployContract(
+      this.chainName,
+      'proxyAdmin',
+      [],
     );
 
     // Deploy Mailbox
-    const mailbox = await EvmCoreModule.deployMailbox(
-      chainName,
-      config,
-      proxyAdmin.address,
-      hyperlaneCoreDeployer,
-      ismFactoriesFactory[chain],
-      multiProvider,
-    );
+    const mailbox = await this.deployMailbox(proxyAdmin.address);
 
     // Deploy ICA ISM and Router
     const { interchainAccountRouter, interchainAccountIsm } = (
       await EvmIcaModule.create({
-        chain: chainName,
-        multiProvider,
+        chain: this.chainName,
+        multiProvider: this.multiProvider,
         config: {
           mailbox: mailbox.address,
-          owner: await multiProvider.getSigner(chain).getAddress(),
+          owner: await this.multiProvider
+            .getSigner(this.args.chain)
+            .getAddress(),
         },
       })
     ).serialize();
 
     // Deploy Validator announce
     const validatorAnnounce =
-      await hyperlaneCoreDeployer.deployValidatorAnnounce(
-        chainName,
+      await this.hyperlaneCoreDeployer.deployValidatorAnnounce(
+        this.chainName,
         mailbox.address,
       );
 
     // Deploy Test Receipient
-    const testRecipient = await hyperlaneCoreDeployer.deployTestRecipient(
-      chainName,
+    const testRecipient = await this.hyperlaneCoreDeployer.deployTestRecipient(
+      this.chainName,
       await mailbox.defaultIsm(),
     );
 
-    return new EvmCoreModule(multiProvider, {
-      addresses: {
-        proxyAdmin,
-        mailbox,
-        validatorAnnounce,
-        interchainAccountIsm,
-        interchainAccountRouter,
-        testRecipient,
-        ismFactoryFactories: ismFactoriesFactory[chainName],
-      },
-      chain,
-      config,
-    });
+    // Set Core and extra addresses
+    this.args.addresses = {
+      ...this.args.addresses,
+      mailbox: mailbox.address,
+      proxyAdmin: proxyAdmin.address,
+      validatorAnnounce: validatorAnnounce.address,
+      testRecipient: testRecipient.address,
+      interchainAccountRouter,
+      interchainAccountIsm,
+    };
   }
 
-  static async deployProxyAdmin(
-    chainName: string,
-    hyperlaneCoreDeployer: HyperlaneCoreDeployer,
-  ) {
-    return hyperlaneCoreDeployer.deployContract(chainName, 'proxyAdmin', []);
-  }
-
+  /**
+   * Deploys the ISM factories for a given chain.
+   *
+   * @param chainName - The name of chain to deploy the ISM factories on.
+   * @param config - The core configuration for the deployment.
+   * @param multiProvider - The multi-provider instance to use for the deployment.
+   * @returns The deployed ISM factories
+   */
   static async deployIsmFactories(
     chainName: string,
-    config: DerivedCoreConfig,
+    config: CoreConfig,
     multiProvider: MultiProvider,
-  ): Promise<{
-    ismFactory: HyperlaneIsmFactory;
-    ismFactoriesFactory: ChainMap<HyperlaneContracts<ProxyFactoryFactories>>;
-  }> {
+  ): Promise<HyperlaneAddresses<ProxyFactoryFactories>> {
+    // ChainMap is still needed for HyperlaneIsmFactory
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
     );
     const ismFactoriesFactory = await proxyFactoryDeployer.deploy({
       [chainName]: config,
     });
-    const ismFactory = new HyperlaneIsmFactory(
-      ismFactoriesFactory,
-      multiProvider,
-    );
 
-    return { ismFactory, ismFactoriesFactory };
+    return serializeContractsMap(ismFactoriesFactory)[chainName];
   }
 
   /**
@@ -183,41 +206,30 @@ export class EvmCoreModule extends HyperlaneModule<
    * @param multiProvider - The multi-provider instance to use for the deployment.
    * @returns The deployed Mailbox contract instance.
    */
-  static async deployMailbox(
-    chain: ChainNameOrId,
-    config: DerivedCoreConfig,
+  protected async deployMailbox(
     proxyAdmin: Address,
-    deployer: HyperlaneCoreDeployer,
-    factories: HyperlaneContracts<ProxyFactoryFactories>,
-    multiProvider: MultiProvider,
+    // factories: HyperlaneAddresses<ProxyFactoryFactories>;
   ): Promise<Mailbox> {
-    const chainName = multiProvider.getChainName(chain);
-    const domain = deployer.multiProvider.getDomainId(chainName);
-    const mailbox = await deployer.deployProxiedContract(
-      chainName,
+    const domain = this.multiProvider.getDomainId(this.chainName);
+    const mailbox = await this.hyperlaneCoreDeployer.deployProxiedContract(
+      this.chainName,
       'mailbox',
       'mailbox',
       proxyAdmin,
       [domain],
     );
 
-    if (typeof config.defaultIsm !== 'string') {
-      const evmIsmModule = await EvmIsmModule.create({
-        chain,
-        config: config.defaultIsm,
-        deployer,
-        factories,
-        multiProvider,
-      });
-
-      config.defaultIsm = evmIsmModule.serialize().deployedIsm;
-    }
+    const deployedDefaultIsm = await this.hyperlaneCoreDeployer.deployIsm(
+      this.chainName,
+      this.args.config.defaultIsm,
+      mailbox.address,
+    );
 
     // @todo refactor when 1) HookModule is ready, and 2) Hooks Config can handle strings
     // The pattern should be the same as the above defaultIsm
-    const deployedDefaultHook = await deployer.deployHook(
-      chainName,
-      config.defaultHook,
+    const deployedDefaultHook = await this.hyperlaneCoreDeployer.deployHook(
+      this.chainName,
+      this.args.config.defaultHook,
       {
         mailbox: mailbox.address,
         proxyAdmin,
@@ -226,9 +238,9 @@ export class EvmCoreModule extends HyperlaneModule<
 
     // @todo refactor when 1) HookModule is ready, and 2) Hooks Config can handle strings
     // The pattern should be the same as the above defaultIsm
-    const deployedRequiredHook = await deployer.deployHook(
-      chainName,
-      config.requiredHook,
+    const deployedRequiredHook = await this.hyperlaneCoreDeployer.deployHook(
+      this.chainName,
+      this.args.config.requiredHook,
       {
         mailbox: mailbox.address,
         proxyAdmin,
@@ -236,14 +248,14 @@ export class EvmCoreModule extends HyperlaneModule<
     );
 
     // Initialize Mailbox
-    await multiProvider.handleTx(
-      chain,
+    await this.multiProvider.handleTx(
+      this.args.chain,
       mailbox.initialize(
         proxyAdmin,
-        config.defaultIsm,
+        deployedDefaultIsm,
         deployedDefaultHook.address,
         deployedRequiredHook.address,
-        multiProvider.getTransactionOverrides(chain),
+        this.multiProvider.getTransactionOverrides(this.args.chain),
       ),
     );
     return mailbox;

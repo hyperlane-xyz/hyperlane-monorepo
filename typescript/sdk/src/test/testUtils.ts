@@ -41,7 +41,7 @@ const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 export function testCoreConfig(
   chains: ChainName[],
   owner = nonZeroAddress,
-): ChainMap<CoreConfig> | CoreConfig {
+): ChainMap<CoreConfig> {
   const chainConfig: CoreConfig = {
     owner,
     defaultIsm: {
@@ -59,9 +59,7 @@ export function testCoreConfig(
     },
   };
 
-  return chains.length
-    ? Object.fromEntries(chains.map((local) => [local, chainConfig]))
-    : chainConfig;
+  return Object.fromEntries(chains.map((local) => [local, chainConfig]));
 }
 
 const TEST_ORACLE_CONFIG = {

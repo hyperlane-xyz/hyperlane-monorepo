@@ -37,10 +37,7 @@ describe('core', async () => {
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
     );
-    coreConfig = testCoreConfig(
-      testChains,
-      signer.address,
-    ) as ChainMap<CoreConfig>;
+    coreConfig = testCoreConfig(testChains, signer.address);
     const ismFactories = await proxyFactoryDeployer.deploy(coreConfig);
     ismFactory = new HyperlaneIsmFactory(ismFactories, multiProvider);
     deployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
