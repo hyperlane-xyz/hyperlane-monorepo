@@ -13,7 +13,7 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
     SequenceAwareIndexer, H256,
 };
-use hyperlane_core::{BroadcastReceiver, Indexed, LogMeta};
+use hyperlane_core::{BroadcastReceiver, Indexed, LogMeta, H512};
 pub use metrics::ContractSyncMetrics;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::broadcast::Sender as BroadcastSender;
@@ -43,7 +43,7 @@ pub struct ContractSync<T, D: HyperlaneLogStore<T>, I: Indexer<T>> {
     db: D,
     indexer: I,
     metrics: ContractSyncMetrics,
-    broadcast_sender: BroadcastSender<H256>,
+    broadcast_sender: BroadcastSender<H512>,
     _phantom: PhantomData<T>,
 }
 
@@ -71,7 +71,7 @@ where
         &self.domain
     }
 
-    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H256> {
+    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H512> {
         let tx = &self.broadcast_sender;
         BroadcastReceiver::new(tx.clone(), tx.subscribe())
     }
@@ -124,7 +124,7 @@ where
 
     async fn fetch_logs_from_receiver(
         &self,
-        recv: &mut BroadcastReceiver<H256>,
+        recv: &mut BroadcastReceiver<H512>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
     ) -> Option<u64> {
         println!("~~~ fetch_logs_from_receiver");
@@ -187,6 +187,12 @@ where
                         "Found log(s) in index range"
                     );
 
+                    logs.iter().for_each(|(_, meta)| {
+                        if let Err(err) = self.broadcast_sender.send(meta.transaction_id) {
+                            warn!(?err, "Error sending txid to receiver");
+                        }
+                    });
+
                     // Update cursor
                     if let Err(err) = cursor.update(logs, range).await {
                         warn!(?err, "Error updating cursor");
@@ -245,10 +251,10 @@ pub trait ContractSyncer<T>: Send + Sync {
     fn domain(&self) -> &HyperlaneDomain;
 
     /// If this syncer is also a broadcaster, return the channel to receive txids
-    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H256>;
+    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H512>;
 
     /// Set the channel to receive txids
-    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H256>);
+    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H512>);
 
     // async fn receive_tx_to_index(&self) -> Option<H256> {
     //     None
@@ -260,7 +266,7 @@ pub struct SyncOptions<T> {
     // Keep as optional fields for now to run them simultaneously.
     // Might want to refactor into an enum later.
     cursor: Option<Box<dyn ContractSyncCursor<T>>>,
-    tx_id_recv: Option<BroadcastReceiver<H256>>,
+    tx_id_recv: Option<BroadcastReceiver<H512>>,
 }
 
 impl<T> From<Box<dyn ContractSyncCursor<T>>> for SyncOptions<T> {
@@ -305,11 +311,11 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H256> {
+    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H512> {
         ContractSync::get_new_receive_tx_channel(self)
     }
 
-    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H256>) {
+    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H512>) {
         ContractSync::set_receive_tx_channel(self, channel).await
     }
 }
@@ -348,11 +354,11 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H256> {
+    fn get_new_receive_tx_channel(&self) -> BroadcastReceiver<H512> {
         ContractSync::get_new_receive_tx_channel(self)
     }
 
-    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H256>) {
+    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H512>) {
         ContractSync::set_receive_tx_channel(self, channel).await
     }
 }

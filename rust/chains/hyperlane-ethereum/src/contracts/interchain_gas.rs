@@ -13,7 +13,7 @@ use ethers_core::types::H256 as EthersH256;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512,
 };
 use tracing::instrument;
 
@@ -131,7 +131,7 @@ where
 
     async fn fetch_logs_by_tx_hash(
         &self,
-        tx_hash: H256,
+        tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         let ethers_tx_hash: EthersH256 = tx_hash.into();
         let receipt = self

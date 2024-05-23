@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, Indexed, LogMeta, H256};
+use crate::{ChainResult, Indexed, LogMeta, H256, H512};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -40,7 +40,7 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Fetch list of logs emitted in a transaction with the given hash.
     async fn fetch_logs_by_tx_hash(
         &self,
-        _tx_hash: H256,
+        _tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         Err(eyre::eyre!("fetch_logs_by_tx_hash not implemented").into())
     }

@@ -12,6 +12,7 @@ use ethers::prelude::Middleware;
 use ethers_contract::{builders::ContractCall, ContractError, EthEvent, LogMeta as EthersLogMeta};
 use ethers_core::types::H256 as EthersH256;
 use futures_util::future::join_all;
+use hyperlane_core::H512;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -162,7 +163,7 @@ where
 
     async fn fetch_logs_by_tx_hash(
         &self,
-        tx_hash: H256,
+        tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         let ethers_tx_hash: EthersH256 = tx_hash.into();
         let receipt = self

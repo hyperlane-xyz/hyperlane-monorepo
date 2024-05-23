@@ -17,7 +17,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     BroadcastReceiver, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment,
-    MerkleTreeInsertion, MpmcChannel, H256, U256,
+    MerkleTreeInsertion, MpmcChannel, H256, H512, U256,
 };
 use tokio::{
     sync::{
@@ -346,11 +346,11 @@ impl BaseAgent for Relayer {
         for origin in &self.origin_chains {
             tasks.push(self.run_message_sync(origin).await);
             tasks.push(
-                self.run_interchain_gas_payment_sync(origin, txid_receivers)
+                self.run_interchain_gas_payment_sync(origin, txid_receivers.clone())
                     .await,
             );
             tasks.push(
-                self.run_merkle_tree_hook_syncs(origin, txid_receivers)
+                self.run_merkle_tree_hook_syncs(origin, txid_receivers.clone())
                     .await,
             );
         }
@@ -387,7 +387,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
-        mut rxs: HashMap<HyperlaneDomain, BroadcastReceiver<H256>>,
+        mut rxs: HashMap<HyperlaneDomain, BroadcastReceiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self
@@ -396,12 +396,13 @@ impl Relayer {
             .unwrap()
             .clone();
         let cursor = contract_sync.cursor(index_settings).await;
+        let origin_chain = origin.clone();
         tokio::spawn(async move {
             contract_sync
                 .clone()
                 .sync(
                     "gas_payments",
-                    SyncOptions::new(Some(cursor), rxs.remove(origin)),
+                    SyncOptions::new(Some(cursor), rxs.remove(&origin_chain)),
                 )
                 .await
         })
@@ -411,17 +412,18 @@ impl Relayer {
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
-        mut rxs: HashMap<HyperlaneDomain, BroadcastReceiver<H256>>,
+        mut rxs: HashMap<HyperlaneDomain, BroadcastReceiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync.cursor(index_settings).await;
+        let origin_chain = origin.clone();
         tokio::spawn(async move {
             contract_sync
                 .clone()
                 .sync(
                     "merkle_tree_hook",
-                    SyncOptions::new(Some(cursor), rxs.remove(origin)),
+                    SyncOptions::new(Some(cursor), rxs.remove(&origin_chain)),
                 )
                 .await
         })
