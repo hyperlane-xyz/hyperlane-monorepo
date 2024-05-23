@@ -5,6 +5,7 @@ export enum TokenType {
   collateral = 'collateral',
   collateralVault = 'collateralVault',
   XERC20 = 'xERC20',
+  XERC20Lockbox = 'xERC20Lockbox',
   collateralFiat = 'collateralFiat',
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',

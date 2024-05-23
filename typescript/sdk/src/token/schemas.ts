@@ -19,6 +19,7 @@ export const CollateralConfigSchema = TokenMetadataSchema.partial().extend({
     TokenType.collateral,
     TokenType.collateralVault,
     TokenType.XERC20,
+    TokenType.XERC20Lockbox,
     TokenType.collateralFiat,
     TokenType.fastCollateral,
     TokenType.collateralUri,

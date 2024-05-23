@@ -56,9 +56,18 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmHypXERC20Lockbox]: {
+    chainName: TestChainName.test3,
+    standard: TokenStandard.EvmHypXERC20Lockbox,
+    addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
+    collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
+    decimals: 18,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
   [TokenStandard.EvmHypFiatCollateral]: {
     chainName: TestChainName.test3,
-    standard: TokenStandard.EvmHypXERC20,
+    standard: TokenStandard.EvmHypFiatCollateral,
     addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
     collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
     decimals: 18,
@@ -67,7 +76,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.EvmHypCollateralVault]: {
     chainName: TestChainName.test3,
-    standard: TokenStandard.EvmHypCollateral,
+    standard: TokenStandard.EvmHypCollateralVault,
     addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
     collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
     decimals: 18,

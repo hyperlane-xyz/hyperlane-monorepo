@@ -209,6 +209,7 @@ export class Token implements IToken {
       standard === TokenStandard.EvmHypCollateral ||
       standard === TokenStandard.EvmHypCollateralVault ||
       standard === TokenStandard.EvmHypXERC20 ||
+      standard === TokenStandard.EvmHypXERC20Lockbox ||
       standard === TokenStandard.EvmHypFiatCollateral
     ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
