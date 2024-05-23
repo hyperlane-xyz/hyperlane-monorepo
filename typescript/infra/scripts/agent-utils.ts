@@ -30,7 +30,7 @@ import {
   getChains,
   getEnvChains,
   getRegistry,
-} from '../config/registry.js';
+} from '../config/registry/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';

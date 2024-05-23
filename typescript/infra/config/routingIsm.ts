@@ -13,7 +13,7 @@ import { DeployEnvironment } from '../src/config/environment.js';
 import { Contexts } from './contexts.js';
 import { environments } from './environments/index.js';
 import { multisigIsm } from './multisigIsm.js';
-import { getEnvChains } from './registry.js';
+import { getEnvChains } from './registry/registry.js';
 
 // Intended to be the "entrypoint" ISM.
 // Routing ISM => Aggregation (1/2)

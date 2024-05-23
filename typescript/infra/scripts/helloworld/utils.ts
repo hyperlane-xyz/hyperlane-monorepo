@@ -17,7 +17,7 @@ import {
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { getEnvAddresses } from '../../config/registry.js';
+import { getEnvAddresses } from '../../config/registry/registry.js';
 import { EnvironmentConfig } from '../../src/config/environment.js';
 import { HelloWorldConfig } from '../../src/config/helloworld/types.js';
 import { Role } from '../../src/roles.js';

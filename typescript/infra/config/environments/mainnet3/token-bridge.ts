@@ -4,7 +4,7 @@ import {
   CircleBridgeAdapterConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { getDomainId } from '../../registry.js';
+import { getDomainId } from '../../registry/registry.js';
 
 const circleDomainMapping = [
   { hyperlaneDomain: getDomainId('fuji'), circleDomain: 1 },

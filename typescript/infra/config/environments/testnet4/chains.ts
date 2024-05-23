@@ -2,7 +2,7 @@ import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import { objKeys } from '@hyperlane-xyz/utils';
 
 import { getChainMetadatas } from '../../../src/config/chain.js';
-import { getChain } from '../../registry.js';
+import { getChain } from '../../registry/registry.js';
 
 import { supportedChainNames } from './supportedChainNames.js';
 

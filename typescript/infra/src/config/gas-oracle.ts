@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, convertDecimals } from '@hyperlane-xyz/utils';
 
-import { getChain } from '../../config/registry.js';
+import { getChain } from '../../config/registry/registry.js';
 import {
   isEthereumProtocolChain,
   mustGetChainNativeToken,

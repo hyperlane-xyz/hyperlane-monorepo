@@ -1,7 +1,7 @@
 import { AddressesMap, ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { getMainnetAddresses } from '../../registry.js';
+import { getMainnetAddresses } from '../../registry/registry.js';
 
 import { ethereumChainNames } from './chains.js';
 
