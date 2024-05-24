@@ -300,14 +300,14 @@ export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
   };
 }
 
-export async function getSecretRpcEndpoint(
+export async function getSecretRpcEndpoints(
   environment: string,
   chainName: ChainName,
-  quorum = false,
+  multipleEndpoints = false,
 ): Promise<string[]> {
   const secret = await fetchGCPSecret(
-    `${environment}-rpc-endpoint${quorum ? 's' : ''}-${chainName}`,
-    quorum,
+    `${environment}-rpc-endpoint${multipleEndpoints ? 's' : ''}-${chainName}`,
+    multipleEndpoints,
   );
   if (typeof secret != 'string' && !Array.isArray(secret)) {
     throw Error(`Expected secret for ${chainName} rpc endpoint`);

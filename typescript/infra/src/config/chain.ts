@@ -1,6 +1,7 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { providers } from 'ethers';
 
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -8,11 +9,13 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
   RpcConsensusType,
+  RpcUrl,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
+import { getRegistryWithOverrides } from '../../config/registry/overrides.js';
 import { getChain } from '../../config/registry/registry.js';
-import { getSecretRpcEndpoint } from '../agents/index.js';
+import { getSecretRpcEndpoints } from '../agents/index.js';
 
 import { DeployEnvironment } from './environment.js';
 
@@ -22,7 +25,6 @@ export const defaultRetry: ProviderRetryOptions = {
 };
 
 export async function fetchProvider(
-  environment: DeployEnvironment,
   chainName: ChainName,
   connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
@@ -31,11 +33,9 @@ export async function fetchProvider(
     throw Error(`Unsupported chain: ${chainName}`);
   }
   const chainId = chainMetadata.chainId;
-  const single = connectionType === RpcConsensusType.Single;
   let rpcData = chainMetadata.rpcUrls.map((url) => url.http);
   if (rpcData.length === 0) {
-    // todo should probably come back here
-    rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
+    throw Error(`No RPC URLs found for chain: ${chainName}`);
   }
 
   if (connectionType === RpcConsensusType.Single) {
@@ -77,6 +77,38 @@ export function getChainMetadatas(chains: Array<ChainName>) {
   return { ethereumMetadatas, nonEthereumMetadatas };
 }
 
+/**
+ * Gets the registry for the given environment, with optional overrides and
+ * the ability to get overrides from secrets.
+ * @param deployEnv The deploy environment.
+ * @param chains The chains to get metadata for.
+ * @param defaultChainMetadataOverrides The default chain metadata overrides.
+ * @param useSecrets Whether to fetch metadata overrides from secrets.
+ * @returns A registry with overrides for the given environment.
+ */
+export async function getRegistryForEnvironment(
+  deployEnv: DeployEnvironment,
+  chains: ChainName[],
+  defaultChainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {},
+  useSecrets: boolean = true,
+): Promise<IRegistry> {
+  let overrides = defaultChainMetadataOverrides;
+  if (useSecrets) {
+    overrides = objMerge(
+      overrides,
+      await getSecretMetadataOverrides(deployEnv, chains),
+    );
+  }
+  const registry = getRegistryWithOverrides(overrides);
+  return registry;
+}
+
+/**
+ * Gets chain metadata overrides from GCP secrets.
+ * @param deployEnv The deploy environment.
+ * @param chains The chains to get metadata overrides for.
+ * @returns A partial chain metadata map with the secret overrides.
+ */
 export async function getSecretMetadataOverrides(
   deployEnv: DeployEnvironment,
   chains: string[],
@@ -89,30 +121,23 @@ export async function getSecretMetadataOverrides(
 
   const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
 
-  for (const chain of chains) {
-    const secretName = `${deployEnv}-rpc-endpoints-${chain}`;
-    const [secretVersion] = await client.accessSecretVersion({
-      name: `projects/${projectId}/secrets/${secretName}/versions/latest`,
-    });
-    const secretData = secretVersion.payload?.data;
-    if (!secretData) {
-      console.warn('Secret missing payload', secretName);
-      continue;
-    }
+  const secretRpcUrls = await Promise.all(
+    chains.map(async (chain) => {
+      const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain);
+      return {
+        chain,
+        rpcUrls,
+      };
+    }),
+  );
 
-    // Handle both string and Uint8Array
-    let dataStr: string;
-    if (typeof secretData === 'string') {
-      dataStr = secretData;
-    } else {
-      dataStr = new TextDecoder().decode(secretData);
-    }
-
-    const rpcUrls = JSON.parse(dataStr);
+  for (const { chain, rpcUrls } of secretRpcUrls) {
+    // Need explicit casting here because Zod expects a non-empty array.
+    const metadataRpcUrls = rpcUrls.map((rpcUrl: string) => ({
+      http: rpcUrl,
+    })) as ChainMetadata['rpcUrls'];
     chainMetadataOverrides[chain] = {
-      rpcUrls: rpcUrls.map((rpcUrl: string) => ({
-        http: rpcUrl,
-      })),
+      rpcUrls: metadataRpcUrls,
     };
   }
 

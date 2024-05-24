@@ -288,8 +288,8 @@ export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
 export function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
-  chain: ChainName,
   role: Role,
+  chain?: ChainName,
   index?: number,
 ): CloudAgentKey {
   debugLog(`Getting key for ${role} role`);
@@ -316,14 +316,8 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(chainMetadata, async (chain, _) => {
       if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-        const provider = await fetchProvider(
-          environment,
-          chain,
-          connectionType,
-        );
-        const key = getKeyForRole(environment, context, chain, role, index);
-        const signer = await key.getSigner(provider);
-        multiProvider.setProvider(chain, provider);
+        const key = getKeyForRole(environment, context, role, chain, index);
+        const signer = await key.getSigner();
         multiProvider.setSigner(chain, signer);
       }
     }),
@@ -348,7 +342,7 @@ export async function getKeysForRole(
 
   const keys = await promiseObjAll(
     objMap(txConfigs, async (chain, _) =>
-      getKeyForRole(environment, context, chain, role, index),
+      getKeyForRole(environment, context, role, chain, index),
     ),
   );
   return keys;

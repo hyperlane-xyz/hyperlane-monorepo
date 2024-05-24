@@ -6,7 +6,10 @@ import {
   getKeysForRole,
   getMultiProviderForRole,
 } from '../../../scripts/agent-utils.js';
-import { getSecretMetadataOverrides } from '../../../src/config/chain.js';
+import {
+  getRegistryForEnvironment,
+  getSecretMetadataOverrides,
+} from '../../../src/config/chain.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
@@ -27,19 +30,13 @@ import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
-export async function getRegistry(
-  useSecrets: boolean = true,
-): Promise<IRegistry> {
-  let overrides = chainMetadataOverrides;
-  if (useSecrets) {
-    overrides = objMerge(
-      overrides,
-      await getSecretMetadataOverrides(environmentName, supportedChainNames),
-    );
-  }
-  const registry = getRegistryWithOverrides(overrides);
-  return registry;
-}
+const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+  getRegistryForEnvironment(
+    environmentName,
+    supportedChainNames,
+    chainMetadataOverrides,
+    useSecrets,
+  );
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
