@@ -12,8 +12,6 @@ struct Quorum {
     StrategyParams[] strategies; // An array of strategy parameters to define the quorum
 }
 
-/// part of mock interfaces for vendoring necessary Eigenlayer contracts for the hyperlane AVS
-/// @author Layr Labs, Inc.
 interface IECDSAStakeRegistryEventsAndErrors {
     /// @notice Emitted when the system registers an operator
     /// @param _operator The address of the registered operator
@@ -61,6 +59,17 @@ interface IECDSAStakeRegistryEventsAndErrors {
     /// @notice Emits when setting a new threshold weight.
     event ThresholdWeightUpdated(uint256 _thresholdWeight);
 
+    /// @notice Emitted when an operator's signing key is updated
+    /// @param operator The address of the operator whose signing key was updated
+    /// @param updateBlock The block number at which the signing key was updated
+    /// @param newSigningKey The operator's signing key after the update
+    /// @param oldSigningKey The operator's signing key before the update
+    event SigningKeyUpdate(
+        address indexed operator,
+        uint256 indexed updateBlock,
+        address indexed newSigningKey,
+        address oldSigningKey
+    );
     /// @notice Indicates when the lengths of the signers array and signatures array do not match.
     error LengthMismatch();
 
@@ -75,6 +84,9 @@ interface IECDSAStakeRegistryEventsAndErrors {
 
     /// @notice Thrown when missing operators in an update
     error MustUpdateAllOperators();
+
+    /// @notice Reference blocks must be for blocks that have already been confirmed
+    error InvalidReferenceBlock();
 
     /// @notice Indicates operator weights were out of sync and the signed weight exceed the total
     error InvalidSignedWeight();
@@ -94,6 +106,6 @@ interface IECDSAStakeRegistryEventsAndErrors {
     /// @notice Thrown when registering an already registered operator
     error OperatorAlreadyRegistered();
 
-    /// @notice Thrown when de-registering or updating the stake for an unregistered operator
+    /// @notice Thrown when de-registering or updating the stake for an unregisted operator
     error OperatorNotRegistered();
 }
