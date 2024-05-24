@@ -1,9 +1,9 @@
 # File extension owners
 
 *.sol @yorhodes @tkporter @aroralanuk @nbayindirli
-*.ts @yorhodes @jmrossy @nambrot @nbayindirli
+*.ts @yorhodes @jmrossy @nbayindirli
 *.rs @tkporter @daniel-savu
-*.md @Skunkchain @nambrot @avious00
+*.md @Skunkchain @avious00
 
 # Package owners
 
@@ -20,10 +20,10 @@ typescript/sdk @yorhodes @jmrossy
 typescript/token @yorhodes @jmrossy @tkporter @aroralanuk @nbayindirli
 
 ## Hello World
-typescript/helloworld @yorhodes @nambrot
+typescript/helloworld @yorhodes
 
 ## CLI
 typescript/cli @jmrossy @yorhodes @aroralanuk @nbayindirli
 
 ## Infra
-typescript/infra @tkporter @nambrot
+typescript/infra @tkporter
