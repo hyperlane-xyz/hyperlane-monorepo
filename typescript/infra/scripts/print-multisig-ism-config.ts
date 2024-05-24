@@ -1,7 +1,7 @@
 import { IsmType } from '@hyperlane-xyz/sdk';
 
 import { multisigIsms } from '../config/multisigIsm.js';
-import { getChains } from '../config/registry/registry.js';
+import { getChains } from '../config/registry.js';
 
 import { getArgs, withContext } from './agent-utils.js';
 

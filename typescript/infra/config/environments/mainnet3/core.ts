@@ -20,7 +20,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { getChain } from '../../registry/registry.js';
+import { getChain } from '../../registry.js';
 
 import { igp } from './igp.js';
 import { DEPLOYER, owners } from './owners.js';

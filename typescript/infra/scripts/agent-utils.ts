@@ -26,14 +26,13 @@ import {
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
-import { getRegistryWithOverrides } from '../config/registry/overrides.js';
 import {
   getChain,
   getChainAddresses,
   getChains,
   getEnvChains,
   getRegistry,
-} from '../config/registry/registry.js';
+} from '../config/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';

@@ -13,7 +13,7 @@ import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { testChainNames } from '../../config/environments/test/chains.js';
-import { getChain, getChains } from '../../config/registry/registry.js';
+import { getChain, getChains } from '../../config/registry.js';
 import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {

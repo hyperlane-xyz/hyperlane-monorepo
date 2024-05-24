@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { bytes32ToAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
 
-import { getChainMetadata } from '../config/registry/registry.js';
+import { getChainMetadata } from '../config/registry.js';
 import { assertChain } from '../src/utils/utils.js';
 
 import { getArgs } from './agent-utils.js';

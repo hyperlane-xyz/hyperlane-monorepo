@@ -13,8 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { getRegistryWithOverrides } from '../../config/registry/overrides.js';
-import { getChain } from '../../config/registry/registry.js';
+import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
 
 import { DeployEnvironment } from './environment.js';

@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { getChain, getDomainId } from '../../../config/registry/registry.js';
+import { getChain, getDomainId } from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';

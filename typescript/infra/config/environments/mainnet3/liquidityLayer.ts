@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware.js';
-import { getDomainId } from '../../registry/registry.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 
