@@ -1,5 +1,18 @@
 # @hyperlane-xyz/cli
 
+## 3.13.0-next.0
+
+### Minor Changes
+
+- b22a0f453: Add hyperlane validator address command to retrieve validator address from AWS
+- d6eba4fec: Implement multi collateral warp routes
+
+### Patch Changes
+
+- Updated dependencies [d6eba4fec]
+  - @hyperlane-xyz/sdk@3.13.0-next.0
+  - @hyperlane-xyz/utils@3.13.0-next.0
+
 ## 3.12.0
 
 ### Minor Changes

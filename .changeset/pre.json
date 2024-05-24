@@ -1,0 +1,17 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@hyperlane-xyz/core": "3.12.2",
+    "@hyperlane-xyz/ccip-server": "3.12.2",
+    "@hyperlane-xyz/cli": "3.12.2",
+    "@hyperlane-xyz/helloworld": "3.12.2",
+    "@hyperlane-xyz/infra": "3.12.2",
+    "@hyperlane-xyz/sdk": "3.12.2",
+    "@hyperlane-xyz/utils": "3.12.2"
+  },
+  "changesets": [
+    "neat-ducks-own",
+    "nice-rivers-own"
+  ]
+}
