@@ -1,5 +1,4 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import { expect } from 'chai';
 import hre from 'hardhat';
 
 import {
@@ -23,7 +22,6 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
-import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { DerivedTokenRouterConfig } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Config, TokenConfig, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
