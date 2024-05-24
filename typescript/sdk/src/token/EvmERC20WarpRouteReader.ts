@@ -94,13 +94,13 @@ export class EvmERC20WarpRouteReader {
       Exclude<DerivedTokenType, 'native'>, // native is excluded because it's the default return type
       { factory: any; method: string }
     > = {
-      collateral: {
-        factory: HypERC20Collateral__factory,
-        method: 'wrappedToken',
-      },
       collateralVault: {
         factory: HypERC20CollateralVaultDeposit__factory,
         method: 'vault',
+      },
+      collateral: {
+        factory: HypERC20Collateral__factory,
+        method: 'wrappedToken',
       },
       synthetic: {
         factory: HypERC20__factory,

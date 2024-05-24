@@ -5,6 +5,8 @@ import hre from 'hardhat';
 import {
   ERC20Test,
   ERC20Test__factory,
+  ERC4626,
+  ERC4626Test__factory,
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
@@ -48,7 +50,7 @@ describe('ERC20WarpRouterReader', async () => {
   let baseConfig: RouterConfig;
   let mailbox: Mailbox;
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
-
+  let vault: ERC4626;
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -72,12 +74,15 @@ describe('ERC20WarpRouterReader', async () => {
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
     deployer = new HypERC20Deployer(multiProvider);
+
+    const vaultFactory = new ERC4626Test__factory(signer);
+    vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
   });
 
   it('should derive a token type from contract', async () => {
     const typesToDerive: DerivedTokenType[] = [
       TokenType.collateral,
-      // TokenType.collateralVault, @todo add collateralVault by deploying a vault instead of erc20
+      TokenType.collateralVault,
       TokenType.synthetic,
       TokenType.native,
     ];
@@ -88,7 +93,10 @@ describe('ERC20WarpRouterReader', async () => {
         const config = {
           [chain]: {
             type,
-            token: token.address,
+            token:
+              type === TokenType.collateralVault
+                ? vault.address
+                : token.address,
             hook: await mailbox.defaultHook(),
             name: TOKEN_NAME,
             symbol: TOKEN_NAME,

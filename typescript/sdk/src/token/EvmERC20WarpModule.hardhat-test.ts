@@ -1,10 +1,16 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import {
   ERC20Test,
   ERC20Test__factory,
+  ERC4626Test__factory,
+  GasRouter,
+  HypERC20CollateralVaultDeposit__factory,
+  HypERC20__factory,
+  HypNative__factory,
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
@@ -32,6 +38,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_DECIMALS = 18;
   const chain = TestChainName.test4;
   let mailbox: Mailbox;
+  let hookAddress: string;
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
@@ -40,9 +47,16 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
-  let config: DerivedTokenRouterConfig;
   let baseConfig: RouterConfig;
 
+  async function validateCoreValues(deployedToken: GasRouter) {
+    expect(await deployedToken.mailbox()).to.equal(mailbox.address);
+    expect(await deployedToken.hook()).to.equal(hookAddress);
+    expect(await deployedToken.interchainSecurityModule()).to.equal(
+      constants.AddressZero,
+    );
+    expect(await deployedToken.owner()).to.equal(signer.address);
+  }
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -65,15 +79,17 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     baseConfig = routerConfigMap[chain];
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
-    config = {
-      type: TokenType.collateral,
-      token: token.address,
-      hook: await mailbox.defaultHook(),
-      ...baseConfig,
-    } as DerivedTokenRouterConfig;
+    hookAddress = await mailbox.defaultHook();
   });
 
-  it('should create with a collateral config', async () => {
+  it('should create with a a collateral config', async () => {
+    const config = {
+      ...baseConfig,
+      type: TokenType.collateral,
+      token: token.address,
+      hook: hookAddress,
+    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+
     // Deploy using WarpModule
     const evmERC20WarpModule = await EvmERC20WarpModule.create({
       chain,
@@ -84,7 +100,126 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     // Let's derive it's onchain token type
     const { collateral } = evmERC20WarpModule.serialize();
     const tokenType: TokenType =
-      await evmERC20WarpModule.reader.deriveTokenType(collateral.address);
+      await evmERC20WarpModule.reader.deriveTokenType(collateral);
     expect(tokenType).to.equal(TokenType.collateral);
+  });
+
+  it('should create with a a collateral config', async () => {
+    const config = {
+      type: TokenType.collateral,
+      token: token.address,
+      hook: hookAddress,
+      ...baseConfig,
+    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+
+    // Deploy using WarpModule
+    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      chain,
+      config,
+      multiProvider,
+    });
+
+    // Let's derive it's onchain token type
+    const { collateral } = evmERC20WarpModule.serialize();
+    const tokenType: TokenType =
+      await evmERC20WarpModule.reader.deriveTokenType(collateral);
+    expect(tokenType).to.equal(TokenType.collateral);
+  });
+
+  it('should create with a a collateral config', async () => {
+    const vaultFactory = new ERC4626Test__factory(signer);
+    const vault = await vaultFactory.deploy(
+      token.address,
+      TOKEN_NAME,
+      TOKEN_NAME,
+    );
+    const config = {
+      type: TokenType.collateralVault,
+      token: vault.address,
+      hook: hookAddress,
+      ...baseConfig,
+    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+
+    // Deploy using WarpModule
+    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      chain,
+      config,
+      multiProvider,
+    });
+
+    // Let's derive it's onchain token type
+    const { collateralVault: collateralVaultAddr } =
+      evmERC20WarpModule.serialize();
+    const tokenType: TokenType =
+      await evmERC20WarpModule.reader.deriveTokenType(collateralVaultAddr);
+    expect(tokenType).to.equal(TokenType.collateralVault);
+
+    // Validate onchain token values
+    const collateralVault = HypERC20CollateralVaultDeposit__factory.connect(
+      collateralVaultAddr,
+      signer,
+    );
+    await validateCoreValues(collateralVault);
+    expect(await collateralVault.vault()).to.equal(vault.address);
+    expect(await collateralVault.wrappedToken()).to.equal(token.address);
+  });
+
+  it('should create with a a synthetic config', async () => {
+    const config = {
+      type: TokenType.synthetic,
+      token: token.address,
+      hook: hookAddress,
+      name: TOKEN_NAME,
+      symbol: TOKEN_NAME,
+      decimals: TOKEN_DECIMALS,
+      totalSupply: TOKEN_SUPPLY,
+      ...baseConfig,
+    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+
+    // Deploy using WarpModule
+    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      chain,
+      config,
+      multiProvider,
+    });
+
+    // Let's derive it's onchain token type
+    const { synthetic: syntheticAddr } = evmERC20WarpModule.serialize();
+    const tokenType: TokenType =
+      await evmERC20WarpModule.reader.deriveTokenType(syntheticAddr);
+    expect(tokenType).to.equal(TokenType.synthetic);
+
+    // Validate onchain token values
+    const synthetic = HypERC20__factory.connect(syntheticAddr, signer);
+    await validateCoreValues(synthetic);
+    expect(await synthetic.name()).to.equal(TOKEN_NAME);
+    expect(await synthetic.symbol()).to.equal(TOKEN_NAME);
+    expect(await synthetic.decimals()).to.equal(TOKEN_DECIMALS);
+    expect(await synthetic.totalSupply()).to.equal(TOKEN_SUPPLY);
+  });
+
+  it('should create with a a native config', async () => {
+    const config = {
+      type: TokenType.native,
+      hook: hookAddress,
+      ...baseConfig,
+    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+
+    // Deploy using WarpModule
+    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      chain,
+      config,
+      multiProvider,
+    });
+
+    // Let's derive it's onchain token type
+    const { native: nativeAddr } = evmERC20WarpModule.serialize();
+    const tokenType: TokenType =
+      await evmERC20WarpModule.reader.deriveTokenType(nativeAddr);
+    expect(tokenType).to.equal(TokenType.native);
+
+    // Validate onchain token values
+    const native = HypNative__factory.connect(nativeAddr, signer);
+    await validateCoreValues(native);
   });
 });
