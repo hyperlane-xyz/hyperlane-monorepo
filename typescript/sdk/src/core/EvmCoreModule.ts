@@ -189,7 +189,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @param chainName - The name of chain to deploy the ISM factories on.
    * @param config - The core configuration for the deployment.
    * @param multiProvider - The multi-provider instance to use for the deployment.
-   * @returns The deployed ISM factories
+   * @returns The deployed ISM factories.
    */
   static async deployIsmFactories(
     chainName: string,
