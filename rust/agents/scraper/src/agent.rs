@@ -7,9 +7,7 @@ use hyperlane_base::{
     metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
 };
-use hyperlane_core::{
-    BroadcastReceiver, Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H256,
-};
+use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment};
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 

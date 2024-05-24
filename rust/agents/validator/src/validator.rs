@@ -1,4 +1,4 @@
-use std::{collections::HashMap, num::NonZeroU64, sync::Arc, time::Duration};
+use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
 use crate::server as validator_server;
 use async_trait::async_trait;

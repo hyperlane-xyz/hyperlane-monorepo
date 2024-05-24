@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, Indexed, LogMeta, H256, H512};
+use crate::{ChainResult, Indexed, LogMeta, H512};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]

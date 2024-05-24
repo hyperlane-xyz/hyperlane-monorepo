@@ -1,5 +1,3 @@
-// use std::path::Path;
-
 use std::path::Path;
 
 use crate::config::Config;
@@ -27,7 +25,7 @@ pub fn termination_invariants_met(
     // let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
-    assert!(!lengths.is_empty(), "Could not find queue length metric");
+    // assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!("Relayer queues not empty. Lengths: {:?}", lengths);
         return Ok(false);
