@@ -208,7 +208,7 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Deploys a Mailbox and it's default ISM, hook, and required hook contracts with a given configuration.
+   * Deploys a Mailbox and its default ISM, hook, and required hook contracts with a given configuration.
    *
    * @param proxyAdmin - The address of the proxy admin for the Mailbox contract.
    * @returns The deployed Mailbox contract instance.
