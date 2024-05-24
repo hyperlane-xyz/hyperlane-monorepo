@@ -27,3 +27,10 @@ COPY typescript ./typescript
 COPY solidity ./solidity
 
 RUN yarn build
+
+ENV REGISTRY_URI="/hyperlane-registry"
+# To allow us to avoid caching the registry clone, we use a build-time arg to force
+# the below steps to be re-run if this arg is changed.
+ARG REGISTRY_CACHE="default"
+
+RUN git clone https://github.com/hyperlane-xyz/hyperlane-registry.git "$REGISTRY_URI"
