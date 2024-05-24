@@ -1,3 +1,4 @@
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   BridgeAdapterConfig,
   ChainMap,
@@ -39,7 +40,9 @@ export const envNameToAgentEnv: Record<DeployEnvironment, AgentEnvironment> = {
 
 export type EnvironmentConfig = {
   environment: DeployEnvironment;
-  chainMetadataConfigs: ChainMap<ChainMetadata>;
+  supportedChainNames: ChainName[];
+  getRegistry: (useSecrets?: boolean) => Promise<IRegistry>;
+  // chainMetadataConfigs: ChainMap<ChainMetadata>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
