@@ -379,6 +379,7 @@ mod test {
         },
         time::sleep,
     };
+    use tokio_metrics::TaskMonitor;
 
     fn dummy_processor_metrics(domain_id: u32) -> MessageProcessorMetrics {
         MessageProcessorMetrics {
@@ -537,7 +538,7 @@ mod test {
         let (message_processor, mut receive_channel) =
             dummy_message_processor(origin_domain, destination_domain, db);
 
-        let processor = Processor::new(Box::new(message_processor));
+        let processor = Processor::new(Box::new(message_processor), TaskMonitor::new());
         let process_fut = processor.spawn();
         let mut pending_messages = vec![];
         let pending_message_accumulator = async {

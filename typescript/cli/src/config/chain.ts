@@ -46,8 +46,8 @@ export async function createChainConfig({
       await new ethers.providers.JsonRpcProvider().getNetwork();
       return ethers.providers.JsonRpcProvider.defaultUrl();
     },
-    'rpc url',
     'Enter http or https',
+    'rpc url',
   );
   const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
@@ -58,8 +58,8 @@ export async function createChainConfig({
       const client = clientName.split('/')[0];
       return `${client}${port}`;
     },
-    'chain name',
     'Enter (one word, lower case)',
+    'chain name',
   );
 
   const chainId = parseInt(
@@ -68,8 +68,8 @@ export async function createChainConfig({
         const network = await provider.getNetwork();
         return network.chainId.toString();
       },
-      'chain id',
       'Enter a (number)',
+      'chain id',
     ),
     10,
   );
