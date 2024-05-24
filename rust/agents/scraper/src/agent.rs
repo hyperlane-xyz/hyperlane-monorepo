@@ -44,6 +44,7 @@ impl BaseAgent for Scraper {
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        _tokio_console_server: console_subscriber::Server,
     ) -> eyre::Result<Self>
     where
         Self: Sized,
