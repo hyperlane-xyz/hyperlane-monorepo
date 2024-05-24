@@ -4,22 +4,18 @@ import { objMerge } from '@hyperlane-xyz/utils';
 
 import {
   getKeysForRole,
+  getMultiProtocolProvider,
   getMultiProviderForRole,
 } from '../../../scripts/agent-utils.js';
-import {
-  getRegistryForEnvironment,
-  getSecretMetadataOverrides,
-} from '../../../src/config/chain.js';
+import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
-import { getRegistryWithOverrides } from '../../registry/overrides.js';
 
 import { agents } from './agent.js';
 import {
   chainMetadataOverrides,
   environment as environmentName,
-  testnetConfigs,
 } from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
@@ -43,7 +39,8 @@ export const environment: EnvironmentConfig = {
   environment: environmentName,
   supportedChainNames,
   getRegistry,
-  // chainMetadataConfigs: testnetConfigs,
+  getMultiProtocolProvider: async () =>
+    getMultiProtocolProvider(await getRegistry()),
   getMultiProvider: async (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
@@ -55,12 +52,11 @@ export const environment: EnvironmentConfig = {
       context,
       role,
       undefined,
-      connectionType,
     ),
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-  ) => getKeysForRole(testnetConfigs, environmentName, context, role),
+  ) => getKeysForRole(environmentName, supportedChainNames, context, role),
   agents,
   core,
   igp,
