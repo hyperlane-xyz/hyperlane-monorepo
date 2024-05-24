@@ -90,7 +90,7 @@ impl ForwardBackwardIterator {
                 (_, MessageStatus::Processed) => {
                     self.low_nonce_iter.iterate();
                 }
-                // Otherwise return - either a processable message or nothin to process
+                // Otherwise return - either a processable message or nothing to process
                 (MessageStatus::Processable(high_nonce_message), _) => {
                     self.high_nonce_iter.iterate();
                     return Ok(Some(high_nonce_message));
