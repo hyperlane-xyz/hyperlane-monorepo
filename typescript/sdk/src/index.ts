@@ -206,7 +206,14 @@ export {
   WarpRouteConfig,
   WarpRouteConfigSchema,
 } from './metadata/warpRouteConfig.js';
-export { AccountConfig } from './middleware/account/types.js';
+export {
+  AccountConfigSchema,
+  GetCallRemoteSettingsSchema,
+} from './middleware/account/schemas.js';
+export {
+  AccountConfig,
+  GetCallRemoteSettings,
+} from './middleware/account/types.js';
 export { InterchainAccount } from './middleware/account/InterchainAccount.js';
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
 export {
