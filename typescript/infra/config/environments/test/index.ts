@@ -5,6 +5,7 @@ import { MultiProvider, testChainMetadata } from '@hyperlane-xyz/sdk';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 
 import { agents } from './agent.js';
+import { testChainNames } from './chains.js';
 import { core } from './core.js';
 import { igp } from './igp.js';
 import { infra } from './infra.js';
@@ -12,7 +13,10 @@ import { owners } from './owners.js';
 
 export const environment: EnvironmentConfig = {
   environment: 'test',
-  chainMetadataConfigs: testChainMetadata,
+  supportedChainNames: testChainNames,
+  getRegistry: async () => {
+    throw new Error('Not implemented');
+  },
   agents,
   core,
   igp,
