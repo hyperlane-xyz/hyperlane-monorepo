@@ -16,6 +16,7 @@ import {
   ProtocolType,
   objFilter,
   objMap,
+  objMerge,
   promiseObjAll,
   rootLogger,
   symmetricDifference,
@@ -36,7 +37,10 @@ import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';
 import { RootAgentConfig } from '../src/config/agent/agent.js';
-import { fetchProvider } from '../src/config/chain.js';
+import {
+  fetchProvider,
+  getSecretMetadataOverrides,
+} from '../src/config/chain.js';
 import {
   AgentEnvironment,
   DeployEnvironment,
@@ -302,10 +306,12 @@ export async function getMultiProviderForRoleNew(
   index?: number,
   connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
-  const registry = await getRegistryWithOverrides(
+  const secretMetadataOverrides = await getSecretMetadataOverrides(
     environment,
     supportedChainNames,
-    chainMetadataOverrides,
+  );
+  const registry = getRegistryWithOverrides(
+    objMerge(chainMetadataOverrides, secretMetadataOverrides),
   );
   const chainMetadata = await registry.getMetadata();
   debugLog(`Getting multiprovider for ${role} role`);

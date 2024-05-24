@@ -3,13 +3,18 @@ import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 import {
   getKeysForRole,
   getMultiProviderForRole,
+  getMultiProviderForRoleNew,
 } from '../../../scripts/agent-utils.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
 import { agents } from './agent.js';
-import { environment as environmentName, testnetConfigs } from './chains.js';
+import {
+  chainMetadataOverrides,
+  environment as environmentName,
+  testnetConfigs,
+} from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
 import { helloWorld } from './helloworld.js';
@@ -18,6 +23,7 @@ import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs } from './liquidityLayer.js';
 import { liquidityLayerRelayerConfig } from './middleware.js';
 import { owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
@@ -27,9 +33,10 @@ export const environment: EnvironmentConfig = {
     role: Role = Role.Deployer,
     connectionType?: RpcConsensusType,
   ) =>
-    getMultiProviderForRole(
-      testnetConfigs,
+    getMultiProviderForRoleNew(
       environmentName,
+      supportedChainNames,
+      chainMetadataOverrides,
       context,
       role,
       undefined,
