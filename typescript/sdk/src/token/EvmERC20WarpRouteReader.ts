@@ -154,6 +154,7 @@ export class EvmERC20WarpRouteReader {
       hook,
     };
 
+    // If ISM is unset, then Address Zero will be returned
     isZeroishAddress(interchainSecurityModule)
       ? (metadata.interchainSecurityModule = {
           type: IsmType.CUSTOM,

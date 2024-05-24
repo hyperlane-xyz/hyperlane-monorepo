@@ -13,7 +13,6 @@ import {
   RouterConfig,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -25,14 +24,12 @@ import { ChainMap } from '../types.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { DerivedTokenRouterConfig } from './EvmERC20WarpRouteReader.js';
-import { HypERC20Config, TokenConfig, TokenType } from './config.js';
-import { HypERC20Deployer } from './deploy.js';
+import { TokenType } from './config.js';
 
-describe('TokenDeployer', async () => {
+describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
-  const GAS = 65_000;
   const chain = TestChainName.test4;
   let mailbox: Mailbox;
   let ismFactory: HyperlaneIsmFactory;
@@ -40,7 +37,6 @@ describe('TokenDeployer', async () => {
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
   let signer: SignerWithAddress;
-  let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
@@ -67,7 +63,6 @@ describe('TokenDeployer', async () => {
     );
 
     baseConfig = routerConfigMap[chain];
-    deployer = new HypERC20Deployer(multiProvider);
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     config = {
@@ -78,19 +73,18 @@ describe('TokenDeployer', async () => {
     } as DerivedTokenRouterConfig;
   });
 
-  it('deploys', async () => {
-    const config = objMap(
-      routerConfigMap,
-      (chain, c): HypERC20Config => ({
-        type: TokenType.synthetic,
-        name: chain,
-        symbol: `u${chain}`,
-        decimals: TOKEN_DECIMALS,
-        totalSupply: TOKEN_SUPPLY,
-        gas: GAS,
-        ...c,
-      }),
-    );
-    await deployer.deploy(config as ChainMap<TokenConfig & RouterConfig>);
+  it('should create with a collateral config', async () => {
+    // Deploy using WarpModule
+    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      chain,
+      config,
+      multiProvider,
+    });
+
+    // Let's derive it's onchain token type
+    const { collateral } = evmERC20WarpModule.serialize();
+    const tokenType: TokenType =
+      await evmERC20WarpModule.reader.deriveTokenType(collateral.address);
+    expect(tokenType).to.equal(TokenType.collateral);
   });
 });
