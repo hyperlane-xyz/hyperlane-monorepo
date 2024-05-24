@@ -9,7 +9,7 @@ import {
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
-import { getChain } from '../../../config/registry/registry.js';
+import { getChain } from '../../../config/registry.js';
 import { AgentChainNames, AgentRole, Role } from '../../roles.js';
 import { DeployEnvironment } from '../environment.js';
 import { HelmImageValues } from '../infrastructure.js';

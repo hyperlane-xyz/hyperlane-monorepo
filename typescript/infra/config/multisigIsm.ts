@@ -10,7 +10,7 @@ import { DeployEnvironment } from '../src/config/environment.js';
 
 import { Contexts } from './contexts.js';
 import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs.js';
-import { getEnvChains } from './registry/registry.js';
+import { getEnvChains } from './registry.js';
 
 export const multisigIsms = (
   env: DeployEnvironment,

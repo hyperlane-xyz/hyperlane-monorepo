@@ -7,7 +7,7 @@ import { AddSafeDelegateProps } from '@safe-global/api-kit';
 // @ts-ignore
 import { getSafeDelegates, getSafeService } from '@hyperlane-xyz/sdk';
 
-import { getChains } from '../config/registry/registry.js';
+import { getChains } from '../config/registry.js';
 
 import { getArgs as getRootArgs } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';

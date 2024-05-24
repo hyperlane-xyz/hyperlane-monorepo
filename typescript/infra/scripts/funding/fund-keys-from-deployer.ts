@@ -14,7 +14,7 @@ import {
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { getEnvAddresses } from '../../config/registry/registry.js';
+import { getEnvAddresses } from '../../config/registry.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,

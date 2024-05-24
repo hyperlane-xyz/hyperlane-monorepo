@@ -5,7 +5,7 @@ import * as path from 'path';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { getChains } from '../config/registry/registry.js';
+import { getChains } from '../config/registry.js';
 import { S3Validator } from '../src/agents/aws/validator.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 import { isEthereumProtocolChain } from '../src/utils/utils.js';

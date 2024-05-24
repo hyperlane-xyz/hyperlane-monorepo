@@ -4,7 +4,7 @@ import {
   ChainMap,
 } from '@hyperlane-xyz/sdk';
 
-import { getDomainId } from '../../registry/registry.js';
+import { getDomainId } from '../../registry.js';
 
 const circleDomainMapping = [
   { hyperlaneDomain: getDomainId('fuji'), circleDomain: 1 },

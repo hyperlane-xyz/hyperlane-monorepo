@@ -2,7 +2,7 @@ import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
 import { environments } from '../config/environments/index.js';
-import { getEnvAddresses } from '../config/registry/registry.js';
+import { getEnvAddresses } from '../config/registry.js';
 import { DeployEnvironment } from '../src/config/environment.js';
 
 import { getAgentConfig, getArgs, withContext } from './agent-utils.js';

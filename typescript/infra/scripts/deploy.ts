@@ -26,7 +26,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
-import { getEnvAddresses } from '../config/registry/registry.js';
+import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
 import { deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';

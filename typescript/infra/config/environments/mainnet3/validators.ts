@@ -1,6 +1,6 @@
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
-import { getReorgPeriod } from '../../registry/registry.js';
+import { getReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
