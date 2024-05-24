@@ -1,6 +1,6 @@
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
-import { MinimalTokenMetadata } from '../config.js';
+import { TokenMetadata } from '../types.js';
 
 export interface TransferParams {
   weiAmountOrId: Numberish;
@@ -23,7 +23,7 @@ export interface InterchainGasQuote {
 
 export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
-  getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata>;
+  getMetadata(isNft?: boolean): Promise<TokenMetadata>;
   isApproveRequired(
     owner: Address,
     spender: Address,

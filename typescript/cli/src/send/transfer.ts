@@ -13,7 +13,7 @@ import { timeout } from '@hyperlane-xyz/utils';
 import { readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
-import { runPreflightChecks } from '../deploy/utils.js';
+import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -57,12 +57,11 @@ export async function sendTestTransfer({
     );
   }
 
-  await runPreflightChecks({
+  await runPreflightChecksForChains({
     context,
-    origin,
-    remotes: [destination],
-    minGas: MINIMUM_TEST_SEND_GAS,
+    chains: [origin, destination],
     chainsToGasCheck: [origin],
+    minGas: MINIMUM_TEST_SEND_GAS,
   });
 
   await timeout(

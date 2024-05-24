@@ -14,8 +14,6 @@ import {
   HypXERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
 
-import { proxiedFactories } from '../router/types.js';
-
 import { TokenType } from './config.js';
 
 export const hypERC20contracts = {
@@ -31,7 +29,7 @@ export const hypERC20contracts = {
 };
 export type HypERC20contracts = typeof hypERC20contracts;
 
-export const hypERC20Tokenfactories = {
+export const hypERC20factories = {
   [TokenType.fastCollateral]: new FastHypERC20Collateral__factory(),
   [TokenType.fastSynthetic]: new FastHypERC20__factory(),
   [TokenType.synthetic]: new HypERC20__factory(),
@@ -41,11 +39,6 @@ export const hypERC20Tokenfactories = {
   [TokenType.collateralXERC20]: new HypXERC20Collateral__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNativeScaled__factory(),
-};
-
-export const hypERC20factories = {
-  ...hypERC20Tokenfactories,
-  ...proxiedFactories,
 };
 export type HypERC20Factories = typeof hypERC20factories;
 
@@ -63,7 +56,6 @@ export const hypERC721factories = {
   [TokenType.collateral]: new HypERC721Collateral__factory(),
   [TokenType.syntheticUri]: new HypERC721URIStorage__factory(),
   [TokenType.synthetic]: new HypERC721__factory(),
-  ...proxiedFactories,
 };
 export type HypERC721Factories = typeof hypERC721factories;
 
