@@ -28,14 +28,6 @@ pub(crate) fn untar(output: &str, dir: &str) {
         .join();
 }
 
-pub(crate) fn unzip(output: &str, dir: &str) {
-    Program::new("unzip")
-        .cmd(output)
-        .working_dir(dir)
-        .run()
-        .join();
-}
-
 pub(crate) fn download(output: &str, uri: &str, dir: &str) {
     Program::new("curl")
         .arg("output", output)

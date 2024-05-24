@@ -48,15 +48,15 @@ impl StarknetCLI {
             .arg("keystore-password", self.keystore_password.clone())
             .arg("account", self.account_path.clone())
             .arg("rpc", self.rpc_addr.clone())
+            .arg("compiler-version", "2.6.2")
             .run_with_output()
             .join();
 
         println!("declare result: {:?}", run_result);
 
-        let output: Result<DeclareResponse, serde_json::Error> =
-            serde_json::from_str(run_result.first().unwrap());
-
-        output.unwrap()
+        DeclareResponse {
+            class_hash: run_result.first().unwrap().to_string(),
+        }
     }
 
     pub fn deploy(&self, class_hash: String, constructor_args: Vec<String>) -> String {

@@ -132,13 +132,18 @@ impl Drop for StarknetHyperlaneStack {
 fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
     let cli = Program::new(config.cli_path);
 
+    println!(
+        "host: {}, port: {}",
+        config.node_addr_base, config.node_port_base
+    );
+
     let node: AgentHandles = cli
         .arg("host", config.node_addr_base.clone())
         .arg("port", config.node_port_base.to_string())
         .spawn("STARKNET");
 
     let endpoint: StarknetEndpoint = StarknetEndpoint {
-        rpc_addr: format!("{}:{}", config.node_addr_base, config.node_port_base),
+        rpc_addr: format!("http://{}:{}", config.node_addr_base, config.node_port_base),
     };
 
     StarknetResp { node, endpoint }
@@ -257,7 +262,7 @@ fn run_locally() {
     let (starklid, katanad, sierra_classes) =
         install_starknet(None, starknet_cli_src, None, cli_src, None, code_src);
 
-    let addr_base = "http://0.0.0.0";
+    let addr_base = "0.0.0.0";
     let default_config = StarknetConfig {
         cli_path: katanad.clone(),
 
