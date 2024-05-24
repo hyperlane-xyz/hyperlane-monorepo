@@ -34,6 +34,9 @@ contract HypXERC20Lockbox is HypERC20Collateral {
         uint256 _amount,
         bytes calldata /*metadata*/
     ) internal override {
+        // mint xERC20
+        xERC20.mint(address(this), _amount);
+        // convert xERC20 to erc20
         lockbox.withdrawTo(_recipient, _amount);
     }
 }
