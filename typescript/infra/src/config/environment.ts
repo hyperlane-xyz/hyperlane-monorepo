@@ -6,6 +6,7 @@ import {
   ChainName,
   CoreConfig,
   IgpConfig,
+  MultiProtocolProvider,
   MultiProvider,
   OwnableConfig,
   RpcConsensusType,
@@ -49,6 +50,7 @@ export type EnvironmentConfig = {
   igp: ChainMap<IgpConfig>;
   owners: ChainMap<OwnableConfig>;
   infra: InfrastructureConfig;
+  getMultiProtocolProvider: () => Promise<MultiProtocolProvider>;
   getMultiProvider: (
     context?: Contexts,
     role?: Role,

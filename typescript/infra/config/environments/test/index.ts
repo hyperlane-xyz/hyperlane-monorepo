@@ -14,7 +14,10 @@ import { owners } from './owners.js';
 export const environment: EnvironmentConfig = {
   environment: 'test',
   supportedChainNames: testChainNames,
-  getRegistry: async () => {
+  getRegistry: () => {
+    throw new Error('Not implemented');
+  },
+  getMultiProtocolProvider: () => {
     throw new Error('Not implemented');
   },
   agents,

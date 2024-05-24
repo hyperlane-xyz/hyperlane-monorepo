@@ -7,6 +7,7 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
+  MultiProtocolProvider,
   MultiProvider,
   RpcConsensusType,
   collectValidators,
@@ -297,13 +298,19 @@ export function getKeyForRole(
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
+export async function getMultiProtocolProvider(
+  registry: IRegistry,
+): Promise<MultiProtocolProvider> {
+  const chainMetadata = await registry.getMetadata();
+  return new MultiProtocolProvider(chainMetadata);
+}
+
 export async function getMultiProviderForRole(
   environment: DeployEnvironment,
   registry: IRegistry,
   context: Contexts,
   role: Role,
   index?: number,
-  connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
   const chainMetadata = await registry.getMetadata();
   debugLog(`Getting multiprovider for ${role} role`);
@@ -329,8 +336,8 @@ export async function getMultiProviderForRole(
 // Note: this will only work for keystores that allow key's to be extracted.
 // I.e. GCP will work but AWS HSMs will not.
 export async function getKeysForRole(
-  txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
+  supportedChainNames: ChainName[],
   context: Contexts,
   role: Role,
   index?: number,
@@ -340,12 +347,11 @@ export async function getKeysForRole(
     return {};
   }
 
-  const keys = await promiseObjAll(
-    objMap(txConfigs, async (chain, _) =>
-      getKeyForRole(environment, context, role, chain, index),
-    ),
-  );
-  return keys;
+  const keyEntries = supportedChainNames.map((chain) => [
+    chain,
+    getKeyForRole(environment, context, role, chain, index),
+  ]);
+  return Object.fromEntries(keyEntries);
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
