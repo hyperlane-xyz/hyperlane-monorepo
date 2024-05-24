@@ -55,6 +55,17 @@ contract ezETH is Script {
         vm.prank(IXERC20(blastXERC20).owner());
         IXERC20(blastXERC20).setLimits(address(hypXERC20), amount, amount);
 
+        // test sending `amount` on warp route
+        vm.prank(0x7BE481D464CAD7ad99500CE8A637599eB8d0FCDB); // ezETH whale
+        IXERC20(blastXERC20).transfer(address(this), amount);
+        IXERC20(blastXERC20).approve(address(hypXERC20), amount);
+        uint256 value = hypXERC20.quoteGasPayment(ethereumDomainId);
+        hypXERC20.transferRemote{value: value}(
+            ethereumDomainId,
+            recipient,
+            amount
+        );
+
         // test receiving `amount` on warp route
         vm.prank(blastMailbox);
         hypXERC20.handle(
@@ -74,12 +85,12 @@ contract ezETH is Script {
         vm.prank(ethereumXERC20.owner());
         ethereumXERC20.setLimits(address(hypXERC20Lockbox), amount, amount);
 
-        // get `amount` from lockbox
-        // IERC20 erc20 = IXERC20Lockbox(ethereumLockbox).ERC20();
-        // vm.prank(ethereumLockbox);
-        // erc20.transfer(address(this), amount);
-        // erc20.approve(address(hypXERC20Lockbox), amount);
-        // hypXERC20Lockbox.transferRemote(blastDomainId, recipient, amount);
+        // test sending `amount` on warp route
+        IERC20 erc20 = IXERC20Lockbox(ethereumLockbox).ERC20();
+        vm.prank(ethereumLockbox);
+        erc20.transfer(address(this), amount);
+        erc20.approve(address(hypXERC20Lockbox), amount);
+        hypXERC20Lockbox.transferRemote(blastDomainId, recipient, amount);
 
         // test receiving `amount` on warp route
         vm.prank(ethereumMailbox);
