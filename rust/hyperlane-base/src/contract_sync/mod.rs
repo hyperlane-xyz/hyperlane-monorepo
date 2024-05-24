@@ -114,7 +114,7 @@ where
                             continue;
                         }
                     };
-                    let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
+                    let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
                     let num_logs = logs.len() as u64;
                     info!(
                         num_logs,
@@ -166,7 +166,7 @@ where
                     }
                 };
 
-                let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
+                let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
                 let logs_found = logs.len() as u64;
                 info!(
                     ?range,
