@@ -114,7 +114,7 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Deploys the core Hyperlane contracts (Mailbox, ICA ISM and Router, Validator Announce, Timelock, Test Recipient)
+   * Deploys the core Hyperlane contracts (Mailbox, ICA ISM and Router, Validator Announce, Timelock, Test Recipient).
    *
    * Also, sets the arg addresses in the module's configuration.
    *
