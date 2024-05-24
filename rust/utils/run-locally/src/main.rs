@@ -200,15 +200,6 @@ fn main() -> ExitCode {
             r#"[{
                 "type": "minimum",
                 "payment": "1",
-                "matchingList": [
-                    {
-                        "originDomain": ["13375","13376"],
-                        "destinationDomain": ["13375","13376"]
-                    }
-                ]
-            },
-            {
-                "type": "none"
             }]"#,
         )
         .arg(
@@ -219,8 +210,7 @@ fn main() -> ExitCode {
         .arg("defaultSigner.key", RELAYER_KEYS[2])
         .arg(
             "relayChains",
-            "test1,test2,test3",
-            // "test1,test2,test3,sealeveltest1,sealeveltest2",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
         );
 
     let base_validator_env = common_agent_env
@@ -292,9 +282,9 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
-    // let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
-    // state.data.push(Box::new(solana_path_tempdir));
-    // let solana_program_builder = build_solana_programs(solana_path.clone());
+    let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+    state.data.push(Box::new(solana_path_tempdir));
+    let solana_program_builder = build_solana_programs(solana_path.clone());
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
@@ -305,13 +295,13 @@ fn main() -> ExitCode {
         .arg("bin", "validator")
         .arg("bin", "scraper")
         .arg("bin", "init-db")
-        // .arg("bin", "hyperlane-sealevel-client")
+        .arg("bin", "hyperlane-sealevel-client")
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
     let start_anvil = start_anvil(config.clone());
 
-    // let solana_program_path = solana_program_builder.join();
+    let solana_program_path = solana_program_builder.join();
 
     log!("Running postgres db...");
     let postgres = Program::new("docker")
@@ -326,15 +316,15 @@ fn main() -> ExitCode {
 
     build_rust.join();
 
-    // let solana_ledger_dir = tempdir().unwrap();
-    // let start_solana_validator = start_solana_test_validator(
-    //     solana_path.clone(),
-    //     solana_program_path,
-    //     solana_ledger_dir.as_ref().to_path_buf(),
-    // );
+    let solana_ledger_dir = tempdir().unwrap();
+    let start_solana_validator = start_solana_test_validator(
+        solana_path.clone(),
+        solana_program_path,
+        solana_ledger_dir.as_ref().to_path_buf(),
+    );
 
-    // let (solana_config_path, solana_validator) = start_solana_validator.join();
-    // state.push_agent(solana_validator);
+    let (solana_config_path, solana_validator) = start_solana_validator.join();
+    state.push_agent(solana_validator);
     state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
@@ -380,9 +370,9 @@ fn main() -> ExitCode {
     kathy_env_double_insertion.clone().run().join();
 
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
-    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    // }
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
@@ -393,9 +383,9 @@ fn main() -> ExitCode {
     state.push_agent(relayer_env.spawn("RLY"));
 
     // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
-    // for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-    //     initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
-    // }
+    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    }
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -413,12 +403,11 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            // if termination_invariants_met(&config, starting_relayer_balance)
             if termination_invariants_met(
                 &config,
                 starting_relayer_balance,
-                // &solana_path,
-                // &solana_config_path,
+                &solana_path,
+                &solana_config_path,
             )
             .unwrap_or(false)
             {
@@ -435,16 +424,16 @@ fn main() -> ExitCode {
         // verify long-running tasks are still running
         for (name, child) in state.agents.iter_mut() {
             if let Some(status) = child.try_wait().unwrap() {
-                // if !status.success() {
-                //     log!(
-                //         "Child process {} exited unexpectedly, with code {}. Shutting down",
-                //         name,
-                //         status.code().unwrap()
-                //     );
-                //     failure_occurred = true;
-                //     SHUTDOWN.store(true, Ordering::Relaxed);
-                //     break;
-                // }
+                if !status.success() {
+                    log!(
+                        "Child process {} exited unexpectedly, with code {}. Shutting down",
+                        name,
+                        status.code().unwrap()
+                    );
+                    failure_occurred = true;
+                    SHUTDOWN.store(true, Ordering::Relaxed);
+                    break;
+                }
             }
         }
 

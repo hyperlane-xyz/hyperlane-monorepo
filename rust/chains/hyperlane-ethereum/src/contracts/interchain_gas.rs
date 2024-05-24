@@ -139,7 +139,6 @@ where
             .get_transaction_receipt(ethers_tx_hash)
             .await
             .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
-        println!("~~~ igp receipt: {:?}", receipt);
         let Some(receipt) = receipt else {
             return Ok(vec![]);
         };
@@ -167,11 +166,6 @@ where
                 })
             })
             .collect();
-        println!(
-            "~~~ found igp logs with tx id {:?}: {:?}",
-            tx_hash,
-            logs.len()
-        );
         Ok(logs)
     }
 }

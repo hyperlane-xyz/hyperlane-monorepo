@@ -158,7 +158,6 @@ where
             .get_transaction_receipt(ethers_tx_hash)
             .await
             .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
-        println!("~~~ merkle hook receipt: {:?}", receipt);
         let Some(receipt) = receipt else {
             return Ok(vec![]);
         };
@@ -181,11 +180,6 @@ where
                 })
             })
             .collect();
-        println!(
-            "~~~ found merkle hook logs with tx id {:?}: {:?}",
-            tx_hash,
-            logs.len()
-        );
         Ok(logs)
     }
 }

@@ -117,11 +117,6 @@ impl ProcessorExt for MessageProcessor {
 impl MessageProcessor {
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
         loop {
-            println!(
-                "~~~ trying to get unprocessed message for domain and nonce {:?} {:?}",
-                self.domain(),
-                self.message_nonce
-            );
             // First, see if we can find the message so we can update the gauge.
             if let Some(message) = self.db.retrieve_message_by_nonce(self.message_nonce)? {
                 // Update the latest nonce gauges

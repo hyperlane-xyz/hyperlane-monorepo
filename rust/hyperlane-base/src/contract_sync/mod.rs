@@ -107,8 +107,6 @@ where
         loop {
             match recv.try_recv() {
                 Ok(tx_id) => {
-                    // query receipts for tx_id
-                    // let logs = vec![];
                     let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
                         Ok(logs) => logs,
                         Err(err) => {
@@ -118,7 +116,12 @@ where
                     };
                     let logs = self.dedupe_and_store_logs(logs, &stored_logs_metric).await;
                     let num_logs = logs.len() as u64;
-                    info!(num_logs, ?tx_id, "Found log(s) for tx id");
+                    info!(
+                        num_logs,
+                        ?tx_id,
+                        sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                        "Found log(s) for tx id"
+                    );
                 }
                 Err(TryRecvError::Empty) => trace!("No txid received"),
                 Err(err) => {
@@ -129,6 +132,7 @@ where
         }
     }
 
+    #[instrument(fields(domain=self.domain().name()), skip(self, stored_logs_metric, indexed_height_metric))]
     async fn fetch_logs_with_cursor(
         &self,
         cursor: &mut Box<dyn ContractSyncCursor<T>>,

@@ -17,15 +17,14 @@ pub const SOL_MESSAGES_EXPECTED: u32 = 20;
 pub fn termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,
-    // solana_cli_tools_path: &Path,
-    // solana_config_path: &Path,
+    solana_cli_tools_path: &Path,
+    solana_config_path: &Path,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
-    let total_messages_expected = eth_messages_expected;
-    // let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
+    let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
-    // assert!(!lengths.is_empty(), "Could not find queue length metric");
+    assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!("Relayer queues not empty. Lengths: {:?}", lengths);
         return Ok(false);
@@ -75,10 +74,10 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    // if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
-    //     log!("Solana termination invariants not met");
-    //     return Ok(false);
-    // }
+    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
+        log!("Solana termination invariants not met");
+        return Ok(false);
+    }
 
     let dispatched_messages_scraped = fetch_metric(
         "9093",

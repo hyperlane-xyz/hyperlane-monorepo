@@ -131,8 +131,6 @@ impl BaseAgent for Relayer {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
-        // each of these `contract_syncs` will return a receiver of txid alongside
-        // `contract_syncs` will also take a hashmap of domain -> recvs as an argument
         let message_syncs: HashMap<_, Arc<dyn ContractSyncer<HyperlaneMessage>>> = settings
             .contract_syncs::<HyperlaneMessage, _>(
                 settings.origin_chains.iter(),
@@ -161,7 +159,6 @@ impl BaseAgent for Relayer {
             .map(|(k, v)| (k, v as _))
             .collect();
 
-        // set the receivers for each domain and implement the `fetch_logs_by_tx_hash` for igp and merkle
         let merkle_tree_hook_syncs = settings
             .contract_syncs::<MerkleTreeInsertion, _>(
                 settings.origin_chains.iter(),
