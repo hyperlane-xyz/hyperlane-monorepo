@@ -72,7 +72,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Deploys the Warp Route
+   * Deploys the Warp Route.
    *
    * @param chain - The chain to deploy the module on.
    * @param config - The configuration for the token router.
