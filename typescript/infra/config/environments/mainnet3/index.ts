@@ -4,6 +4,7 @@ import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
 import {
   getKeysForRole,
   getMultiProviderForRole,
+  getMultiProviderForRoleNew,
 } from '../../../scripts/agent-utils.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 import { Role } from '../../../src/roles.js';
@@ -17,7 +18,9 @@ import { helloWorld } from './helloworld.js';
 import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
+import { metadataOverrides } from './metadataOverrides.js';
 import { owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
@@ -33,9 +36,20 @@ export const environment: EnvironmentConfig = {
         chainMetadata.protocol === ProtocolType.Ethereum,
     );
 
-    return getMultiProviderForRole(
-      config,
+    // return getMultiProviderForRole(
+    //   config,
+    //   environmentName,
+    //   context,
+    //   role,
+    //   undefined,
+    //   connectionType,
+    // );
+
+    return getMultiProviderForRoleNew(
       environmentName,
+      // config,
+      supportedChainNames,
+      metadataOverrides,
       context,
       role,
       undefined,

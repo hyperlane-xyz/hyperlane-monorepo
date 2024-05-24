@@ -22,7 +22,7 @@ import { supportedChainNames as testnet4Chains } from '../environments/testnet4/
 
 const DEFAULT_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../../',
+  '../../../../../',
   'hyperlane-registry',
 );
 

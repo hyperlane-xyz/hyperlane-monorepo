@@ -24,6 +24,7 @@ import {
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
+import { getRegistryWithOverrides } from '../config/registry/overrides.js';
 import {
   getChain,
   getChainAddresses,
@@ -290,6 +291,47 @@ export function getKeyForRole(
   debugLog(`Getting key for ${role} role`);
   const agentConfig = getAgentConfig(context, environment);
   return getCloudAgentKey(agentConfig, role, chain, index);
+}
+
+export async function getMultiProviderForRoleNew(
+  environment: DeployEnvironment,
+  supportedChainNames: ChainName[],
+  chainMetadataOverrides: ChainMap<Partial<ChainMetadata>>,
+  context: Contexts,
+  role: Role,
+  index?: number,
+  connectionType?: RpcConsensusType,
+): Promise<MultiProvider> {
+  const registry = await getRegistryWithOverrides(
+    environment,
+    supportedChainNames,
+    chainMetadataOverrides,
+  );
+  const chainMetadata = await registry.getMetadata();
+  debugLog(`Getting multiprovider for ${role} role`);
+  const multiProvider = new MultiProvider(chainMetadata);
+  if (process.env.CI === 'true') {
+    debugLog('Returning multiprovider with default RPCs in CI');
+    // Return the multiProvider with default RPCs
+    return multiProvider;
+  }
+  await promiseObjAll(
+    objMap(chainMetadata, async (chain, _) => {
+      if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+        const provider = await fetchProvider(
+          environment,
+          chain,
+          connectionType,
+        );
+        const key = getKeyForRole(environment, context, chain, role, index);
+        const signer = await key.getSigner(provider);
+        multiProvider.setProvider(chain, provider);
+        multiProvider.setSigner(chain, signer);
+      }
+    }),
+  );
+
+  return multiProvider;
 }
 
 export async function getMultiProviderForRole(
