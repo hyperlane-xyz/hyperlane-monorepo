@@ -5,7 +5,6 @@ import { objMerge } from '@hyperlane-xyz/utils';
 import {
   getKeysForRole,
   getMultiProviderForRole,
-  getMultiProviderForRoleNew,
 } from '../../../scripts/agent-utils.js';
 import { getSecretMetadataOverrides } from '../../../src/config/chain.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
@@ -53,7 +52,7 @@ export const environment: EnvironmentConfig = {
     role: Role = Role.Deployer,
     connectionType?: RpcConsensusType,
   ) =>
-    getMultiProviderForRoleNew(
+    getMultiProviderForRole(
       environmentName,
       await getRegistry(),
       context,
