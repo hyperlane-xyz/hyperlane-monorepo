@@ -3,7 +3,6 @@ import prompts from 'prompts';
 
 import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
-  AccountConfig,
   ChainMap,
   ChainName,
   HyperlaneApp,
@@ -137,12 +136,7 @@ export abstract class HyperlaneAppGovernor<
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
-    let safeOwner: Address;
-    if (typeof this.checker.configMap[chain].owner === 'string') {
-      safeOwner = this.checker.configMap[chain].owner as Address;
-    } else {
-      safeOwner = (this.checker.configMap[chain].owner as AccountConfig).owner;
-    }
+    const safeOwner = this.checker.configMap[chain].owner;
     await sendCallsForType(
       SubmissionType.SAFE,
       new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),

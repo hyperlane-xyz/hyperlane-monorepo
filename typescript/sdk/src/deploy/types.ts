@@ -39,7 +39,7 @@ export async function resolveOrDeployAccountOwner(
       throw new Error('localRouter is required for AccountConfig');
     }
     // submits a transaction to deploy an interchain account if the owner is an AccountConfig and the ICA isn't not deployed yet
-    return await deployInterchainAccount(multiProvider, chain, owner);
+    return deployInterchainAccount(multiProvider, chain, owner);
   }
 }
 

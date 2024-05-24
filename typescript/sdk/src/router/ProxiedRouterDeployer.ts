@@ -7,18 +7,41 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
+import { DeployerOptions } from '../deploy/HyperlaneDeployer.js';
 import { resolveOrDeployAccountOwner } from '../deploy/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer.js';
-import { ProxiedFactories, ProxiedRouterConfig } from './types.js';
+import {
+  ProxiedFactories,
+  ProxiedRouterConfig,
+  proxiedFactories,
+} from './types.js';
 
 export abstract class ProxiedRouterDeployer<
   Config extends ProxiedRouterConfig,
-  Factories extends ProxiedFactories,
-> extends HyperlaneRouterDeployer<Config, Factories> {
-  abstract router(contracts: HyperlaneContracts<Factories>): Router;
+  Factories extends HyperlaneFactories,
+> extends HyperlaneRouterDeployer<Config, Factories & ProxiedFactories> {
+  constructor(
+    multiProvider: MultiProvider,
+    factories: Factories,
+    options?: DeployerOptions,
+  ) {
+    super(
+      multiProvider,
+      {
+        ...factories,
+        ...proxiedFactories,
+      },
+      options,
+    );
+  }
+
+  abstract router(
+    contracts: HyperlaneContracts<Factories & ProxiedFactories>,
+  ): Router;
 
   /**
    * Returns the contract name
@@ -59,7 +82,7 @@ export abstract class ProxiedRouterDeployer<
   async deployContracts(
     chain: ChainName,
     config: Config,
-  ): Promise<HyperlaneContracts<Factories>> {
+  ): Promise<HyperlaneContracts<Factories & ProxiedFactories>> {
     const proxyAdmin = await this.deployContractFromFactory(
       chain,
       this.factories.proxyAdmin,
@@ -112,6 +135,6 @@ export abstract class ProxiedRouterDeployer<
       [this.routerContractKey(config)]: proxiedRouter,
       proxyAdmin,
       timelockController,
-    } as HyperlaneContracts<Factories>;
+    } as HyperlaneContracts<Factories & ProxiedFactories>;
   }
 }
