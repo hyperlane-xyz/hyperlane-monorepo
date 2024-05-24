@@ -60,7 +60,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
-   * @remark Currently only supports updating ISM or hook
+   * @remark Currently only supports updating ISM or hook.
    *
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
