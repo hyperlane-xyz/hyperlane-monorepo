@@ -22,3 +22,11 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
 };
 
 export const ethereumChainNames = objKeys(defaultEthereumMainnetConfigs);
+
+export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
+  bsctestnet: {
+    transactionOverrides: {
+      gasPrice: 8 * 10 ** 9, // 8 gwei
+    },
+  },
+};

@@ -11,14 +11,17 @@ import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
 import { agents } from './agent.js';
-import { environment as environmentName, mainnetConfigs } from './chains.js';
+import {
+  chainMetadataOverrides,
+  environment as environmentName,
+  mainnetConfigs,
+} from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
 import { helloWorld } from './helloworld.js';
 import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
-import { metadataOverrides } from './metadataOverrides.js';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
@@ -29,33 +32,16 @@ export const environment: EnvironmentConfig = {
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
     connectionType?: RpcConsensusType,
-  ) => {
-    const config = objFilter(
-      mainnetConfigs,
-      (_, chainMetadata): chainMetadata is ChainMetadata =>
-        chainMetadata.protocol === ProtocolType.Ethereum,
-    );
-
-    // return getMultiProviderForRole(
-    //   config,
-    //   environmentName,
-    //   context,
-    //   role,
-    //   undefined,
-    //   connectionType,
-    // );
-
-    return getMultiProviderForRoleNew(
+  ) =>
+    getMultiProviderForRoleNew(
       environmentName,
-      // config,
       supportedChainNames,
-      metadataOverrides,
+      chainMetadataOverrides,
       context,
       role,
       undefined,
       connectionType,
-    );
-  },
+    ),
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
