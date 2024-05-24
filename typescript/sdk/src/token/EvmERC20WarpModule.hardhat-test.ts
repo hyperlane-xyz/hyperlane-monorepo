@@ -104,29 +104,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(tokenType).to.equal(TokenType.collateral);
   });
 
-  it('should create with a a collateral config', async () => {
-    const config = {
-      type: TokenType.collateral,
-      token: token.address,
-      hook: hookAddress,
-      ...baseConfig,
-    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
-
-    // Deploy using WarpModule
-    const evmERC20WarpModule = await EvmERC20WarpModule.create({
-      chain,
-      config,
-      multiProvider,
-    });
-
-    // Let's derive it's onchain token type
-    const { collateral } = evmERC20WarpModule.serialize();
-    const tokenType: TokenType =
-      await evmERC20WarpModule.reader.deriveTokenType(collateral);
-    expect(tokenType).to.equal(TokenType.collateral);
-  });
-
-  it('should create with a a collateral config', async () => {
+  it('should create with a collateral vault config', async () => {
     const vaultFactory = new ERC4626Test__factory(signer);
     const vault = await vaultFactory.deploy(
       token.address,

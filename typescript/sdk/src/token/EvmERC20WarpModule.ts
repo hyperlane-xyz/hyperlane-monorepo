@@ -67,7 +67,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
   public async update(
-    expectedConfig: DerivedTokenRouterConfig,
+    _expectedConfig: DerivedTokenRouterConfig,
   ): Promise<EthersV5Transaction[]> {
     throw Error('Not implemented');
   }
