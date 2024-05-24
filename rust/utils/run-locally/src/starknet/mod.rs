@@ -26,12 +26,12 @@ mod types;
 mod utils;
 
 const KATANA_CLI_GIT: &str = "https://github.com/dojoengine/dojo";
-const KATANA_CLI_VERSION: &str = "0.6.1-alpha.4";
+const KATANA_CLI_VERSION: &str = "0.7.0-alpha.3";
 const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
-const STARKNET_CLI_VERSION: &str = "0.2.9";
+const STARKNET_CLI_VERSION: &str = "0.2.8";
 
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/astraly-labs/hyperlane_starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "v0.0.1";
+const CAIRO_HYPERLANE_VERSION: &str = "0.0.3";
 
 #[allow(dead_code)]
 pub fn install_starknet(
@@ -133,12 +133,12 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
     let cli = Program::new(config.cli_path);
 
     let node: AgentHandles = cli
-        .arg("--host", config.node_addr_base.clone())
-        .arg("--port", config.node_port_base.to_string())
+        .arg("host", config.node_addr_base.clone())
+        .arg("port", config.node_port_base.to_string())
         .spawn("STARKNET");
 
     let endpoint: StarknetEndpoint = StarknetEndpoint {
-        rpc_addr: config.node_addr_base,
+        rpc_addr: format!("{}:{}", config.node_addr_base, config.node_port_base),
     };
 
     StarknetResp { node, endpoint }
@@ -269,7 +269,7 @@ fn run_locally() {
         chain_id: "KATANA".to_string(),
     };
 
-    let port_start = 26600u32;
+    let port_start = 5050u32;
     let metrics_port_start = 9090u32;
     let domain_start = 23448593u32;
     let node_count = 2;
@@ -303,7 +303,6 @@ fn run_locally() {
                 STARKNET_KEYPAIR.into(),
                 STARKNET_ACCOUNT.into(),
                 KEYPAIR_PASSWORD.into(),
-                chain_id.clone(),
                 launch_resp.endpoint.rpc_addr.clone(),
             );
 
@@ -424,7 +423,6 @@ fn run_locally() {
                 STARKNET_ACCOUNT.into(),
                 KEYPAIR_PASSWORD.into(),
                 node.launch_resp.endpoint.rpc_addr.clone(),
-                node.chain_id.clone(),
             );
 
             cli.send_tx(

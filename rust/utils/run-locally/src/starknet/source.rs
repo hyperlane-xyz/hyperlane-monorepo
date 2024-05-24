@@ -4,7 +4,7 @@ use tempfile::tempdir;
 
 use crate::{
     logging::log,
-    starknet::utils::{download, make_target, make_target_starkli, untar},
+    starknet::utils::{download, make_target, make_target_starkli, untar, unzip},
     utils::concat_path,
 };
 
@@ -64,18 +64,18 @@ impl CodeSource {
         };
         let dir_path = dir_path.to_str().unwrap();
 
-        let release_name = format!("hyperlane-starknet -v{version}");
-        let release_comp = format!("{release_name}.tar.gz");
+        let release_name = format!("hyperlane-starknet-v{version}");
+        let release_comp = format!("{release_name}.zip");
 
         log!("Downloading hyperlane-starknet v{}", version);
         let uri = format!("{git}/releases/download/v{version}/{release_comp}");
         download(&release_comp, &uri, dir_path);
 
         log!("Uncompressing hyperlane-starknet release");
-        untar(&release_comp, dir_path);
+        unzip(&release_comp, dir_path);
 
         // make contract_name => path map
-        fs::read_dir(concat_path(dir_path, release_name))
+        fs::read_dir(dir_path)
             .unwrap()
             .map(|v| {
                 let entry = v.unwrap();
@@ -102,11 +102,7 @@ pub enum CLISource {
 
 impl Default for CLISource {
     fn default() -> Self {
-        if make_target().starts_with("darwin") {
-            Self::remote("https://github.com/dojoengine/dojo", "0.6.1-alpha.4")
-        } else {
-            Self::remote(KATANA_CLI_GIT, KATANA_CLI_VERSION)
-        }
+        Self::remote(KATANA_CLI_GIT, KATANA_CLI_VERSION)
     }
 }
 

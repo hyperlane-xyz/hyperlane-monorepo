@@ -8,14 +8,22 @@ use crate::utils::{as_task, TaskHandle};
 use super::cli::StarknetCLI;
 use super::types::{DeclaredClasses, Deployments};
 
-pub(crate) const STARKNET_KEYPAIR: &str = "config/test-starknet-keys/test_deployer-keypair.json";
-pub(crate) const STARKNET_ACCOUNT: &str = "config/test-starknet-keys/test_deployer-account.json";
+pub(crate) const STARKNET_KEYPAIR: &str = "./config/test-starknet-keys/test_deployer-keypair.json";
+pub(crate) const STARKNET_ACCOUNT: &str = "./config/test-starknet-keys/test_deployer-account.json";
 pub(crate) const KEYPAIR_PASSWORD: &str = "test";
 
 pub(crate) fn untar(output: &str, dir: &str) {
     Program::new("tar")
         .flag("extract")
         .arg("file", output)
+        .working_dir(dir)
+        .run()
+        .join();
+}
+
+pub(crate) fn unzip(output: &str, dir: &str) {
+    Program::new("unzip")
+        .cmd(output)
         .working_dir(dir)
         .run()
         .join();
@@ -47,7 +55,7 @@ pub(crate) fn make_target() -> String {
         "amd64"
     };
 
-    format!("{}-{}", os, arch)
+    format!("{}_{}", os, arch)
 }
 
 pub(crate) fn make_target_starkli() -> String {

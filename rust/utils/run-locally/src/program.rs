@@ -33,7 +33,7 @@ pub struct Program {
     bin: Option<Arc<String>>,
     args: Vec<Arc<String>>,
     env: BTreeMap<Arc<String>, Arc<String>>,
-    working_dir: Option<Arc<PathBuf>>,
+    pub working_dir: Option<Arc<PathBuf>>,
     log_filter: Option<LogFilter>,
     arbitrary_data: Vec<Arc<dyn ArbitraryData>>,
 }
