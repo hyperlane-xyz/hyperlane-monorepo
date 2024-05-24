@@ -134,6 +134,11 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
                 // If the sequence hasn't been indexed, break out of the loop.
                 break;
             }
+            // We've noticed that this loop can run for a long time because the `await`
+            // points never yield.
+            // So, to avoid starving other futures in this task, yield to the runtime
+            // on each iteration
+            tokio::task::yield_now().await;
         }
 
         Ok(())

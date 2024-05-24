@@ -1,4 +1,5 @@
 use std::{
+    cmp::max,
     collections::HashMap,
     fmt::{Debug, Formatter},
     sync::Arc,
@@ -13,7 +14,6 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
-use num_traits::Zero;
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, instrument, trace};
@@ -41,7 +41,6 @@ pub struct MessageProcessor {
 struct ForwardBackwardIterator {
     low_nonce_iter: DirectionalNonceIterator,
     high_nonce_iter: DirectionalNonceIterator,
-    last_nonce_returned_from: Option<NonceDirection>,
     // here for debugging purposes
     _domain: String,
 }
@@ -49,7 +48,7 @@ struct ForwardBackwardIterator {
 impl ForwardBackwardIterator {
     #[instrument(skip(db), ret)]
     fn new(db: Arc<dyn ProcessMessage>) -> Self {
-        let high_nonce = db.retrieve_highest_processed_message_nonce().ok().flatten();
+        let high_nonce = db.retrieve_highest_seen_message_nonce().ok().flatten();
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
             // If the high nonce is None, we start from the beginning
@@ -71,54 +70,41 @@ impl ForwardBackwardIterator {
         Self {
             low_nonce_iter,
             high_nonce_iter,
-            last_nonce_returned_from: Default::default(),
             _domain: domain,
         }
     }
 
-    fn try_get_next_message(
+    async fn try_get_next_message(
         &mut self,
         metrics: &MessageProcessorMetrics,
-    ) -> Result<MessageStatus<HyperlaneMessage>> {
-        if self.last_nonce_returned_from.is_some() {
-            // `iterate()` must be called before trying to get the next message, but if it wasn't
-            // already called manually, we call it here to avoid returning the same message twice
-            self.iterate();
-        }
-        let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
-        let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
-
-        // Always prioritize the high nonce message
-        match (high_nonce_message_status, low_nonce_message_status) {
-            (MessageStatus::Processable(high_nonce_message), _) => {
-                self.last_nonce_returned_from = Some(NonceDirection::High);
-                Ok(MessageStatus::Processable(high_nonce_message))
+    ) -> Result<Option<HyperlaneMessage>> {
+        loop {
+            let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
+            let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
+            // Always prioritize the high nonce message
+            match (high_nonce_message_status, low_nonce_message_status) {
+                // Keep iterating if only processed messages are found
+                (MessageStatus::Processed, _) => {
+                    self.high_nonce_iter.iterate();
+                }
+                (_, MessageStatus::Processed) => {
+                    self.low_nonce_iter.iterate();
+                }
+                // Otherwise return - either a processable message or nothin to process
+                (MessageStatus::Processable(high_nonce_message), _) => {
+                    self.high_nonce_iter.iterate();
+                    return Ok(Some(high_nonce_message));
+                }
+                (_, MessageStatus::Processable(low_nonce_message)) => {
+                    self.low_nonce_iter.iterate();
+                    return Ok(Some(low_nonce_message));
+                }
+                (MessageStatus::Unindexed, MessageStatus::Unindexed) => return Ok(None),
             }
-            (_, MessageStatus::Processable(low_nonce_message)) => {
-                self.last_nonce_returned_from = Some(NonceDirection::Low);
-                Ok(MessageStatus::Processable(low_nonce_message))
-            }
-            (MessageStatus::Processed, _) => {
-                self.last_nonce_returned_from = Some(NonceDirection::High);
-                Ok(MessageStatus::Processed)
-            }
-            (_, MessageStatus::Processed) => {
-                self.last_nonce_returned_from = Some(NonceDirection::Low);
-                Ok(MessageStatus::Processed)
-            }
-            (MessageStatus::Unindexed, MessageStatus::Unindexed) => Ok(MessageStatus::Unindexed),
-        }
-    }
-
-    #[instrument]
-    fn iterate(&mut self) {
-        // set `last_nonce_returned_from` to None to avoid double iterating and skipping a message
-        let Some(last_nonce_returned_from) = self.last_nonce_returned_from.take() else {
-            return;
-        };
-        match last_nonce_returned_from {
-            NonceDirection::High => self.high_nonce_iter.iterate(),
-            NonceDirection::Low => self.low_nonce_iter.iterate(),
+            // This loop may iterate through millions of processed messages, blocking the runtime.
+            // So, to avoid starving other futures in this task, yield to the runtime
+            // on each iteration
+            tokio::task::yield_now().await;
         }
     }
 }
@@ -156,11 +142,7 @@ impl DirectionalNonceIterator {
             NonceDirection::Low => {
                 if let Some(nonce) = self.nonce {
                     // once the message with nonce zero is processed, we should stop going backwards
-                    self.nonce = if nonce.is_zero() {
-                        None
-                    } else {
-                        Some(nonce.saturating_sub(1))
-                    };
+                    self.nonce = nonce.checked_sub(1);
                 }
             }
         }
@@ -172,7 +154,6 @@ impl DirectionalNonceIterator {
     ) -> Result<MessageStatus<HyperlaneMessage>> {
         if let Some(message) = self.indexed_message_with_nonce()? {
             Self::update_max_nonce_gauge(&message, metrics);
-            // If this message has already been processed, on to the next one.
             if !self.is_message_processed()? {
                 return Ok(MessageStatus::Processable(message));
             } else {
@@ -183,9 +164,10 @@ impl DirectionalNonceIterator {
     }
 
     fn update_max_nonce_gauge(message: &HyperlaneMessage, metrics: &MessageProcessorMetrics) {
+        let current_max = metrics.max_last_known_message_nonce_gauge.get();
         metrics
             .max_last_known_message_nonce_gauge
-            .set(message.nonce as i64);
+            .set(max(current_max, message.nonce as i64));
         if let Some(metrics) = metrics.get(message.destination) {
             metrics.set(message.nonce as i64);
         }
@@ -205,12 +187,9 @@ impl DirectionalNonceIterator {
         let Some(nonce) = self.nonce else {
             return Ok(false);
         };
-        let processed = self
-            .db
-            .retrieve_processed_by_nonce(&nonce)?
-            .unwrap_or(false);
+        let processed = self.db.retrieve_processed_by_nonce(nonce)?.unwrap_or(false);
         if processed {
-            debug!(
+            trace!(
                 nonce,
                 domain = self.db.domain().name(),
                 "Message already marked as processed in DB"
@@ -255,7 +234,7 @@ impl ProcessorExt for MessageProcessor {
         // self.tx_msg and then continue the scan at the next highest
         // nonce.
         // Scan until we find next nonce without delivery confirmation.
-        if let Some(msg) = self.try_get_unprocessed_message()? {
+        if let Some(msg) = self.try_get_unprocessed_message().await? {
             debug!(?msg, "Processor working on message");
             let destination = msg.destination;
 
@@ -324,18 +303,16 @@ impl MessageProcessor {
         }
     }
 
-    fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
-        loop {
-            debug!(nonce_iterator=?self.nonce_iterator, "Trying to get the next processor message");
-            match self.nonce_iterator.try_get_next_message(&self.metrics)? {
-                MessageStatus::Processable(msg) => return Ok(Some(msg)),
-                MessageStatus::Processed => self.nonce_iterator.iterate(),
-                MessageStatus::Unindexed => {
-                    trace!(nonce=?self.nonce_iterator, "No message found in DB for nonce");
-                    return Ok(None);
-                }
-            }
+    async fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
+        trace!(nonce_iterator=?self.nonce_iterator, "Trying to get the next processor message");
+        let next_message = self
+            .nonce_iterator
+            .try_get_next_message(&self.metrics)
+            .await?;
+        if next_message.is_none() {
+            trace!(nonce_iterator=?self.nonce_iterator, "No message found in DB for nonce");
         }
+        Ok(next_message)
     }
 }
 
@@ -587,9 +564,9 @@ mod test {
         }
 
         impl ProcessMessage for Db {
-            fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>>;
+            fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
             fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
-            fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
+            fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>>;
             fn domain(&self) -> &HyperlaneDomain;
         }
     }
@@ -662,7 +639,7 @@ mod test {
             .expect_domain()
             .return_const(dummy_domain(0, "dummy_domain"));
         mock_db
-            .expect_retrieve_highest_processed_message_nonce()
+            .expect_retrieve_highest_seen_message_nonce()
             .returning(|| Ok(Some(MOCK_HIGHEST_SEEN_NONCE)));
         mock_db
             .expect_retrieve_message_by_nonce()
@@ -697,8 +674,9 @@ mod test {
         let mut forward_backward_iterator = ForwardBackwardIterator::new(db.clone());
 
         let mut messages = vec![];
-        while let MessageStatus::Processable(msg) = forward_backward_iterator
+        while let Some(msg) = forward_backward_iterator
             .try_get_next_message(&dummy_metrics)
+            .await
             .unwrap()
         {
             messages.push(msg.nonce);

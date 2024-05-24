@@ -23,7 +23,7 @@ const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_"
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_BY_SEQUENCE: &str = "gas_payment_by_sequence_";
-const HIGHEST_PROCESSED_MESSAGE_NONCE: &str = "highest_processed_message_nonce_";
+const HIGHEST_SEEN_MESSAGE_NONCE: &str = "highest_seen_message_nonce_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
@@ -115,17 +115,17 @@ impl HyperlaneRocksDB {
     /// Update the nonce of the highest processed message we're aware of
     pub fn try_update_max_seen_message_nonce(&self, nonce: u32) -> DbResult<()> {
         let current_max = self
-            .retrieve_highest_processed_message_nonce()?
+            .retrieve_highest_seen_message_nonce()?
             .unwrap_or_default();
         if nonce >= current_max {
-            self.store_highest_processed_message_nonce_number(&Default::default(), &nonce)?;
+            self.store_highest_seen_message_nonce_number(&Default::default(), &nonce)?;
         }
         Ok(())
     }
 
     /// Retrieve the nonce of the highest processed message we're aware of
-    pub fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>> {
-        self.retrieve_highest_processed_message_nonce_number(&Default::default())
+    pub fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_seen_message_nonce_number(&Default::default())
     }
 
     /// If the provided gas payment, identified by its metadata, has not been
@@ -439,29 +439,29 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 /// Database interface required for processing messages
 pub trait ProcessMessage: Send + Sync {
     /// Retrieve the nonce of the highest processed message we're aware of
-    fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>>;
+    fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
 
     /// Retrieve a message by its nonce
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
 
     /// Retrieve whether a message has been processed
-    fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
+    fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>>;
 
     /// Get the origin domain of the database
     fn domain(&self) -> &HyperlaneDomain;
 }
 
 impl ProcessMessage for HyperlaneRocksDB {
-    fn retrieve_highest_processed_message_nonce(&self) -> DbResult<Option<u32>> {
-        self.retrieve_highest_processed_message_nonce()
+    fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_seen_message_nonce()
     }
 
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
         self.retrieve_message_by_nonce(nonce)
     }
 
-    fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>> {
-        self.retrieve_processed_by_nonce(nonce)
+    fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>> {
+        self.retrieve_processed_by_nonce(&nonce)
     }
 
     fn domain(&self) -> &HyperlaneDomain {
@@ -534,4 +534,4 @@ make_store_and_retrieve!(
 );
 // There's no unit struct Encode/Decode impl, so just use `bool`, have visibility be private (by omitting the first argument), and wrap
 // with a function that always uses the `Default::default()` key
-make_store_and_retrieve!(, highest_processed_message_nonce_number, HIGHEST_PROCESSED_MESSAGE_NONCE, bool, u32);
+make_store_and_retrieve!(, highest_seen_message_nonce_number, HIGHEST_SEEN_MESSAGE_NONCE, bool, u32);
