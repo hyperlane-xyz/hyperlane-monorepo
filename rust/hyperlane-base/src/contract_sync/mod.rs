@@ -123,7 +123,10 @@ where
                         "Found log(s) for tx id"
                     );
                 }
-                Err(TryRecvError::Empty) => trace!("No txid received"),
+                Err(TryRecvError::Empty) => {
+                    trace!("No txid received");
+                    break;
+                }
                 Err(err) => {
                     warn!(?err, "Error receiving txid from channel");
                     break;
@@ -177,7 +180,7 @@ where
                 if let Some(tx) = self.broadcast_sender.as_ref() {
                     logs.iter().for_each(|(_, meta)| {
                         if let Err(err) = tx.send(meta.transaction_id) {
-                            warn!(?err, "Error sending txid to receiver");
+                            trace!(?err, "Error sending txid to receiver");
                         }
                     });
                 }
