@@ -1,13 +1,17 @@
+import { IRegistry } from '@hyperlane-xyz/registry';
 import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { objMerge } from '@hyperlane-xyz/utils';
 
 import {
   getKeysForRole,
   getMultiProviderForRole,
   getMultiProviderForRoleNew,
 } from '../../../scripts/agent-utils.js';
+import { getSecretMetadataOverrides } from '../../../src/config/chain.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { getRegistryWithOverrides } from '../../registry/overrides.js';
 
 import { agents } from './agent.js';
 import {
@@ -25,18 +29,33 @@ import { liquidityLayerRelayerConfig } from './middleware.js';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
+export async function getRegistry(
+  useSecrets: boolean = true,
+): Promise<IRegistry> {
+  let overrides = chainMetadataOverrides;
+  if (useSecrets) {
+    overrides = objMerge(
+      overrides,
+      await getSecretMetadataOverrides(environmentName, supportedChainNames),
+    );
+  }
+  const registry = getRegistryWithOverrides(overrides);
+  return registry;
+}
+
 export const environment: EnvironmentConfig = {
   environment: environmentName,
-  chainMetadataConfigs: testnetConfigs,
-  getMultiProvider: (
+  supportedChainNames,
+  getRegistry,
+  // chainMetadataConfigs: testnetConfigs,
+  getMultiProvider: async (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
     connectionType?: RpcConsensusType,
   ) =>
     getMultiProviderForRoleNew(
       environmentName,
-      supportedChainNames,
-      chainMetadataOverrides,
+      await getRegistry(),
       context,
       role,
       undefined,

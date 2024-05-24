@@ -1,7 +1,7 @@
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -299,20 +299,12 @@ export function getKeyForRole(
 
 export async function getMultiProviderForRoleNew(
   environment: DeployEnvironment,
-  supportedChainNames: ChainName[],
-  chainMetadataOverrides: ChainMap<Partial<ChainMetadata>>,
+  registry: IRegistry,
   context: Contexts,
   role: Role,
   index?: number,
   connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
-  const secretMetadataOverrides = await getSecretMetadataOverrides(
-    environment,
-    supportedChainNames,
-  );
-  const registry = getRegistryWithOverrides(
-    objMerge(chainMetadataOverrides, secretMetadataOverrides),
-  );
   const chainMetadata = await registry.getMetadata();
   debugLog(`Getting multiprovider for ${role} role`);
   const multiProvider = new MultiProvider(chainMetadata);
