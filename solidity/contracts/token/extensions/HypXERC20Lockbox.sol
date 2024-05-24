@@ -10,11 +10,11 @@ contract HypXERC20Lockbox is HypERC20Collateral {
     IXERC20 public immutable xERC20;
 
     constructor(
-        IXERC20Lockbox _lockbox,
+        address _lockbox,
         address _mailbox
-    ) HypERC20Collateral(address(_lockbox.ERC20()), _mailbox) {
-        lockbox = _lockbox;
-        xERC20 = _lockbox.XERC20();
+    ) HypERC20Collateral(address(IXERC20Lockbox(_lockbox).ERC20()), _mailbox) {
+        lockbox = IXERC20Lockbox(_lockbox);
+        xERC20 = lockbox.XERC20();
     }
 
     function _transferFromSender(
