@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 
 import {IXERC20Lockbox} from "../../contracts/token/interfaces/IXERC20Lockbox.sol";
 import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
+import {IERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {HypXERC20Lockbox} from "../../contracts/token/extensions/HypXERC20Lockbox.sol";
 import {HypXERC20} from "../../contracts/token/extensions/HypXERC20.sol";
 
@@ -35,11 +36,8 @@ contract ezETH is Script {
     }
 
     function run() external {
-        bytes memory tokenMessage = TokenMessage.format(
-            address(this).addressToBytes32(),
-            amount,
-            bytes("")
-        );
+        bytes32 recipient = address(this).addressToBytes32();
+        bytes memory tokenMessage = TokenMessage.format(recipient, amount);
         vm.selectFork(ethereumFork);
         HypXERC20Lockbox hypXERC20Lockbox = new HypXERC20Lockbox(
             ethereumLockbox,
@@ -52,8 +50,12 @@ contract ezETH is Script {
             ethereumDomainId,
             address(hypXERC20Lockbox).addressToBytes32()
         );
+
+        // grant `amount` mint and burn limit to warp route
         vm.prank(IXERC20(blastXERC20).owner());
         IXERC20(blastXERC20).setLimits(address(hypXERC20), amount, amount);
+
+        // test receiving `amount` on warp route
         vm.prank(blastMailbox);
         hypXERC20.handle(
             ethereumDomainId,
@@ -66,9 +68,20 @@ contract ezETH is Script {
             blastDomainId,
             address(hypXERC20).addressToBytes32()
         );
+
+        // grant `amount` mint and burn limit to warp route
         IXERC20 ethereumXERC20 = hypXERC20Lockbox.xERC20();
         vm.prank(ethereumXERC20.owner());
         ethereumXERC20.setLimits(address(hypXERC20Lockbox), amount, amount);
+
+        // get `amount` from lockbox
+        // IERC20 erc20 = IXERC20Lockbox(ethereumLockbox).ERC20();
+        // vm.prank(ethereumLockbox);
+        // erc20.transfer(address(this), amount);
+        // erc20.approve(address(hypXERC20Lockbox), amount);
+        // hypXERC20Lockbox.transferRemote(blastDomainId, recipient, amount);
+
+        // test receiving `amount` on warp route
         vm.prank(ethereumMailbox);
         hypXERC20Lockbox.handle(
             blastDomainId,
