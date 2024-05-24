@@ -33,6 +33,7 @@ type DeployedAdresses = Partial<HyperlaneAddresses<CoreFactories>> & {
   interchainAccountIsm?: Address;
   deployedIsmFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
 };
+
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   CoreConfig,
