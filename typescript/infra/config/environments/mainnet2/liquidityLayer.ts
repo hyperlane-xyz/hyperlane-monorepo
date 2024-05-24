@@ -44,6 +44,6 @@ export const relayerConfig: LiquidityLayerRelayerConfig = {
   },
   namespace: environment,
   prometheusPushGateway:
-    'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+    'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   connectionType: AgentConnectionType.Http,
 };
