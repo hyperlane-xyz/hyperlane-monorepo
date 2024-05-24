@@ -322,12 +322,12 @@ impl BaseAgent for Relayer {
         let txid_receivers = self
             .message_syncs
             .iter()
-            .filter_map(|(k, v)| {
-                let maybe_rx = v.get_new_receive_tx_channel();
+            .filter_map(|(domain, sync)| {
+                let maybe_rx = sync.get_new_receive_tx_channel();
                 if maybe_rx.is_none() {
-                    warn!("No txid receiver for chain {}", k);
+                    warn!(?domain, "No txid receiver for chain");
                 }
-                maybe_rx.map(|rx| (k.clone(), rx))
+                maybe_rx.map(|rx| (domain.clone(), rx))
             })
             .collect::<HashMap<_, _>>();
 

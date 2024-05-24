@@ -251,9 +251,6 @@ pub trait ContractSyncer<T>: Send + Sync {
 
     /// If this syncer is also a broadcaster, return the channel to receive txids
     fn get_new_receive_tx_channel(&self) -> Option<BroadcastReceiver<H512>>;
-
-    /// Set the channel to receive txids
-    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H512>);
 }
 
 #[derive(new)]
@@ -311,10 +308,6 @@ where
     fn get_new_receive_tx_channel(&self) -> Option<BroadcastReceiver<H512>> {
         ContractSync::get_new_receive_tx_channel(self)
     }
-
-    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H512>) {
-        ContractSync::set_receive_tx_channel(self, channel).await
-    }
 }
 
 /// Log store for sequence aware cursors
@@ -353,9 +346,5 @@ where
 
     fn get_new_receive_tx_channel(&self) -> Option<BroadcastReceiver<H512>> {
         ContractSync::get_new_receive_tx_channel(self)
-    }
-
-    async fn set_receive_tx_channel(&mut self, channel: BroadcastReceiver<H512>) {
-        ContractSync::set_receive_tx_channel(self, channel).await
     }
 }
