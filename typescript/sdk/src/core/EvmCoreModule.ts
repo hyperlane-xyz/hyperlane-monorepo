@@ -74,7 +74,7 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Deploys the Core contracts
+   * Deploys the Core contracts.
    *
    * @remark Most of the contract owners are the deployers with some being the Proxy Admin.
    *
