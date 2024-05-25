@@ -75,18 +75,20 @@ function handleNewChain(chainNames: string[]) {
 }
 
 export async function detectAndConfirmOrPrompt(
-  detect: () => Promise<string>,
-  label: string,
+  detect: () => Promise<string | undefined>,
   prompt: string,
+  label: string,
 ): Promise<string> {
   let detectedValue: string | undefined;
   try {
     detectedValue = await detect();
-    const confirmed = await confirm({
-      message: `Detected ${label} as ${detectedValue}, is this correct?`,
-    });
-    if (confirmed) {
-      return detectedValue;
+    if (detectedValue) {
+      const confirmed = await confirm({
+        message: `Detected ${label} as ${detectedValue}, is this correct?`,
+      });
+      if (confirmed) {
+        return detectedValue;
+      }
     }
     // eslint-disable-next-line no-empty
   } catch (e) {}

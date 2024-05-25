@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { OwnableConfigSchema } from '../deploy/schemas.js';
-import { ZHash } from '../index.js';
+import { ZHash } from '../metadata/customZodTypes.js';
 
 import { AggregationIsmConfig, IsmConfig, IsmType } from './types.js';
 
