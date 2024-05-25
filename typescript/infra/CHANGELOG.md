@@ -1,5 +1,18 @@
 # @hyperlane-xyz/infra
 
+## 3.13.0
+
+### Minor Changes
+
+- d6eba4fec: Implement multi collateral warp routes
+
+### Patch Changes
+
+- Updated dependencies [d6eba4fec]
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/helloworld@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.13.0-next.0
 
 ### Minor Changes
