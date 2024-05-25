@@ -4,7 +4,10 @@ import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { impersonateAccount } from '../../../../utils/fork.js';
+import {
+  impersonateAccount,
+  stopImpersonatingAccount,
+} from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
@@ -33,6 +36,8 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
       this.props.userAddress,
     );
     super.multiProvider.setSharedSigner(impersonatedAccount);
-    return await super.submit(...txs);
+    const transactionReceipts = await super.submit(...txs);
+    await stopImpersonatingAccount(this.props.userAddress);
+    return transactionReceipts;
   }
 }
