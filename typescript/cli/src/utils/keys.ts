@@ -1,4 +1,4 @@
-import { input } from '@inquirer/prompts';
+import { password } from '@inquirer/prompts';
 import { ethers, providers } from 'ethers';
 
 import { impersonateAccount } from '@hyperlane-xyz/sdk';
@@ -93,7 +93,8 @@ async function retrieveKey(
 ): Promise<string> {
   if (skipConfirmation) throw new Error(`No private key provided`);
   else
-    return await input({
+    return password({
       message: `Please enter private key or use the HYP_KEY environment variable.`,
+      mask: '*',
     });
 }

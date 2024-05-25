@@ -119,7 +119,9 @@ export async function createWarpRouteDeployConfig({
 
     // TODO: restore NFT prompting
     const isNft =
-      type === TokenType.syntheticUri || type === TokenType.collateralUri;
+      type === TokenType.syntheticUri || type === TokenType.collateralUri
+        ? true
+        : undefined;
 
     const mailbox = await detectAndConfirmOrPrompt(
       async () => {
