@@ -19,8 +19,14 @@ contract HypXERC20Lockbox is HypERC20Collateral {
         xERC20 = lockbox.XERC20();
 
         // grant infinite approvals to lockbox
-        IERC20(wrappedToken).approve(_lockbox, MAX_INT);
-        xERC20.approve(_lockbox, MAX_INT);
+        require(
+            IERC20(wrappedToken).approve(_lockbox, MAX_INT),
+            "erc20 lockbox approve failed"
+        );
+        require(
+            xERC20.approve(_lockbox, MAX_INT),
+            "xerc20 lockbox approve failed"
+        );
     }
 
     function _transferFromSender(
