@@ -258,6 +258,7 @@ async function executeDeploy({
     registry,
     ismFactoryContracts,
     artifacts,
+    context.isDryRun,
   );
 
   logGreen('ISM factory contracts deployed');
@@ -297,7 +298,12 @@ async function executeDeploy({
     };
   }
   artifacts = objMerge(artifacts, isms);
-  artifacts = await updateChainAddresses(registry, coreContracts, artifacts);
+  artifacts = await updateChainAddresses(
+    registry,
+    coreContracts,
+    artifacts,
+    context.isDryRun,
+  );
   logGreen('✅ Core contracts deployed');
   log(JSON.stringify(artifacts, null, 2));
 
@@ -395,6 +401,7 @@ async function updateChainAddresses(
   registry: IRegistry,
   newContracts: HyperlaneContractsMap<any>,
   otherAddresses: HyperlaneAddressesMap<any>,
+  isDryRun?: boolean,
 ) {
   let newAddresses = serializeContractsMap(newContracts);
   // The HyperlaneCoreDeployer is returning a nested object with ISM addresses
@@ -407,6 +414,9 @@ async function updateChainAddresses(
     );
   });
   const mergedAddresses = objMerge(otherAddresses, newAddresses);
+
+  if (isDryRun) return mergedAddresses;
+
   for (const chainName of Object.keys(newContracts)) {
     await registry.updateChain({
       chainName,

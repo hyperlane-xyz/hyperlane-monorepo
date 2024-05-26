@@ -129,9 +129,9 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
   // By default, min cost is 20 cents
   let minUsdCost = 0.2;
 
-  // For Ethereum local, min cost is 2 USD
+  // For Ethereum local, min cost is 1.5 USD
   if (local === 'ethereum') {
-    minUsdCost = Math.max(minUsdCost, 2);
+    minUsdCost = Math.max(minUsdCost, 1.5);
   }
 
   const remoteMinCostOverrides: ChainMap<number> = {
@@ -146,7 +146,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     optimism: 0.5,
     polygonzkevm: 0.5,
     // Scroll is more expensive than the rest due to higher L1 fees
-    scroll: 2,
+    scroll: 1.5,
     // Nexus adjustment
     neutron: 0.5,
   };

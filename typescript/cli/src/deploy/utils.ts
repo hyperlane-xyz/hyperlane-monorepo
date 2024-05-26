@@ -12,41 +12,11 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 import { parseIsmConfig } from '../config/ism.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logGreen, logPink } from '../logger.js';
-import { assertGasBalances } from '../utils/balances.js';
+import { gasBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
 import { completeDryRun } from './dry-run.js';
-
-export async function runPreflightChecks({
-  context,
-  origin,
-  remotes,
-  minGas,
-  chainsToGasCheck,
-}: {
-  context: WriteCommandContext;
-  origin: ChainName;
-  remotes: ChainName[];
-  minGas: string;
-  chainsToGasCheck?: ChainName[];
-}) {
-  log('Running pre-flight checks...');
-
-  if (!origin || !remotes?.length) throw new Error('Invalid chain selection');
-  logGreen('✅ Chain selections are valid');
-
-  if (remotes.includes(origin))
-    throw new Error('Origin and remotes must be distinct');
-  logGreen('✅ Origin and remote are distinct');
-
-  return runPreflightChecksForChains({
-    context,
-    chains: [origin, ...remotes],
-    minGas,
-    chainsToGasCheck,
-  });
-}
 
 export async function runPreflightChecksForChains({
   context,
@@ -76,13 +46,13 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  await assertGasBalances(
+  const sufficient = await gasBalancesAreSufficient(
     multiProvider,
     signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
-  logGreen('✅ Balances are sufficient');
+  if (sufficient) logGreen('✅ Balances are sufficient');
 }
 
 // from parsed types

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
-import { readFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 
 import { IsmType } from '../types.js';
 
@@ -11,7 +11,7 @@ import {
 import { Fixture } from './types.test.js';
 
 const path = '../../solidity/fixtures/aggregation';
-const files = readdirSync(path);
+const files = existsSync(path) ? readdirSync(path) : [];
 const fixtures: Fixture<AggregationMetadata>[] = files
   .map((f) => JSON.parse(readFileSync(`${path}/${f}`, 'utf8')))
   .map((contents) => {

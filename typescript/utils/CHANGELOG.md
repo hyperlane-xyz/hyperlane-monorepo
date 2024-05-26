@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 3.12.0
+
+### Minor Changes
+
+- 69de68a66: Implement aggregation and multisig ISM metadata encoding
+
 ## 3.11.1
 
 ## 3.11.0

@@ -305,6 +305,10 @@ export {
 } from './providers/providerBuilders.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
+export {
+  EV5GnosisSafeTxSubmitterProps,
+  EV5ImpersonatedAccountTxSubmitterProps,
+} from './providers/transactions/submitter/ethersV5/EV5TxSubmitterTypes.js';
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
@@ -312,6 +316,7 @@ export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethers
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export { TxTransformerInterface } from './providers/transactions/transformer/TxTransformerInterface.js';
 export { TxTransformerType } from './providers/transactions/transformer/TxTransformerTypes.js';
+export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/EV5TxTransformerTypes.js';
 export { EV5InterchainAccountTxTransformer } from './providers/transactions/transformer/ethersV5/EV5InterchainAccountTxTransformer.js';
 export { EV5TxTransformerInterface } from './providers/transactions/transformer/ethersV5/EV5TxTransformerInterface.js';
 export { GasRouterDeployer } from './router/GasRouterDeployer.js';
@@ -335,8 +340,6 @@ export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
   ClientViolationType as ConnectionClientViolationType,
-  ForeignDeploymentConfig,
-  GasConfig,
   GasRouterConfig,
   MailboxClientConfig,
   ProxiedFactories,
@@ -414,27 +417,7 @@ export {
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
-export {
-  CollateralConfig,
-  ERC20Metadata,
-  ERC20RouterConfig,
-  ERC721RouterConfig,
-  HypERC20CollateralConfig,
-  HypERC20Config,
-  HypERC721CollateralConfig,
-  HypERC721Config,
-  HypNativeConfig,
-  MinimalTokenMetadata,
-  NativeConfig,
-  SyntheticConfig,
-  TokenConfig,
-  TokenMetadata,
-  TokenType,
-  isCollateralConfig,
-  isNativeConfig,
-  isSyntheticConfig,
-  isUriConfig,
-} from './token/config.js';
+export { TokenType } from './token/config.js';
 export {
   HypERC20Factories,
   HypERC721Factories,
@@ -475,8 +458,15 @@ export { AggregationIsmConfigSchema } from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   WarpRouteDeployConfigSchema,
-  TokenRouterConfigSchema as tokenRouterConfigSchema,
+  TokenRouterConfigSchema,
+  CollateralConfig,
+  NativeConfig,
+  isCollateralConfig,
+  isNativeConfig,
+  isSyntheticConfig,
+  isTokenMetadata,
 } from './token/schemas.js';
+export { isCompliant } from './utils/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { S3Validator } from './aws/validator.js';
 export { S3Config, S3Wrapper, S3Receipt } from './aws/s3.js';
