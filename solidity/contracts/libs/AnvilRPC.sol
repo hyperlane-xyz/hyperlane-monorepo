@@ -17,11 +17,10 @@ library AnvilRPC {
     Vm private constant vm =
         Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    string constant OPEN_ARRAY = "[";
-    string constant CLOSE_ARRAY = "]";
-    string constant ESCAPED_QUOTE = '"';
-    string constant COMMA = ",";
-    string constant EMPTY_ARRAY = "[]";
+    string private constant OPEN_ARRAY = "[";
+    string private constant CLOSE_ARRAY = "]";
+    string private constant COMMA = ",";
+    string private constant EMPTY_ARRAY = "[]";
 
     function escaped(address account) internal pure returns (string memory) {
         return
@@ -88,6 +87,7 @@ library AnvilRPC {
     }
 
     function resetFork(string memory rpcUrl) internal {
+        // solhint-disable quotes
         string memory obj = string.concat(
             '{"forking":',
             '{"jsonRpcUrl":',
@@ -98,3 +98,6 @@ library AnvilRPC {
         vm.rpc("anvil_reset", [obj].toString());
     }
 }
+
+// here to prevent syntax highlighting from breaking
+string constant ESCAPED_QUOTE = '"';
