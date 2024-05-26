@@ -3,6 +3,7 @@
   "description": "The official SDK for the Hyperlane Network",
   "version": "3.12.2",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.74.0",
     "@cosmjs/cosmwasm-stargate": "^0.31.3",
     "@cosmjs/stargate": "^0.31.3",
     "@hyperlane-xyz/core": "3.12.2",
