@@ -8,10 +8,11 @@ import {
   HypERC721URICollateral__factory,
   HypERC721URIStorage__factory,
   HypERC721__factory,
-  HypFiatTokenCollateral__factory,
+  HypFiatToken__factory,
   HypNativeScaled__factory,
   HypNative__factory,
-  HypXERC20Collateral__factory,
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
 } from '@hyperlane-xyz/core';
 
 import { TokenType } from './config.js';
@@ -21,8 +22,9 @@ export const hypERC20contracts = {
   [TokenType.fastSynthetic]: 'FastHypERC20',
   [TokenType.synthetic]: 'HypERC20',
   [TokenType.collateral]: 'HypERC20Collateral',
-  [TokenType.collateralFiat]: 'HypFiatTokenCollateral',
-  [TokenType.collateralXERC20]: 'HypXERC20Collateral',
+  [TokenType.collateralFiat]: 'HypFiatToken',
+  [TokenType.XERC20]: 'HypXERC20',
+  [TokenType.XERC20Lockbox]: 'HypXERC20Lockbox',
   [TokenType.collateralVault]: 'HypERC20CollateralVaultDeposit',
   [TokenType.native]: 'HypNative',
   [TokenType.nativeScaled]: 'HypNativeScaled',
@@ -35,8 +37,9 @@ export const hypERC20factories = {
   [TokenType.synthetic]: new HypERC20__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
   [TokenType.collateralVault]: new HypERC20CollateralVaultDeposit__factory(),
-  [TokenType.collateralFiat]: new HypFiatTokenCollateral__factory(),
-  [TokenType.collateralXERC20]: new HypXERC20Collateral__factory(),
+  [TokenType.collateralFiat]: new HypFiatToken__factory(),
+  [TokenType.XERC20]: new HypXERC20__factory(),
+  [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNativeScaled__factory(),
 };
