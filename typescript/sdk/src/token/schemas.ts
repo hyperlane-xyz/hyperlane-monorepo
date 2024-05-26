@@ -17,11 +17,12 @@ export const TokenMetadataSchema = z.object({
 export const CollateralConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([
     TokenType.collateral,
-    TokenType.collateralXERC20,
-    TokenType.collateralFiat,
-    TokenType.collateralUri,
-    TokenType.fastCollateral,
     TokenType.collateralVault,
+    TokenType.XERC20,
+    TokenType.XERC20Lockbox,
+    TokenType.collateralFiat,
+    TokenType.fastCollateral,
+    TokenType.collateralUri,
   ]),
   token: z
     .string()
