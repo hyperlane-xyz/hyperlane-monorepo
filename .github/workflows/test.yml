@@ -41,7 +41,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-key-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: yarn-install
         run: |
@@ -69,7 +69,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-key-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
@@ -123,7 +123,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-key-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint
         run: yarn lint
@@ -191,7 +191,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-key-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
@@ -268,7 +268,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-key-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
@@ -372,7 +372,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-key-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
@@ -463,7 +463,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-key-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
