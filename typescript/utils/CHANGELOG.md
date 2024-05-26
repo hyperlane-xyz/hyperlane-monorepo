@@ -1,9 +1,5 @@
 # @hyperlane-xyz/utils
 
-## 3.13.0
-
-## 3.13.0-next.0
-
 ## 3.12.0
 
 ### Minor Changes
