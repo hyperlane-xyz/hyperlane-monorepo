@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/Vm.sol";
+import "lib/forge-std/src/Vm.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 library AnvilRPC {
@@ -87,13 +87,11 @@ library AnvilRPC {
     }
 
     function resetFork(string memory rpcUrl) internal {
-        // solhint-disable quotes
         string memory obj = string.concat(
-            '{"forking":',
-            '{"jsonRpcUrl":',
+            // solhint-disable-next-line quotes
+            '{"forking":{"jsonRpcUrl":',
             bytes(rpcUrl).escaped(),
-            "}",
-            "}"
+            "}}"
         );
         vm.rpc("anvil_reset", [obj].toString());
     }
