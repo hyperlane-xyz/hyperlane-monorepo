@@ -89,6 +89,17 @@ impl StarknetResp {
     }
 }
 
+impl Drop for StarknetResp {
+    fn drop(&mut self) {
+        if let Err(e) = self.node.1.kill() {
+            eprintln!("Failed to kill katana subprocess: {}", e);
+        }
+        if let Err(e) = self.node.1.wait() {
+            eprintln!("Failed to wait for katana subprocess: {}", e);
+        }
+    }
+}
+
 pub struct StarknetNetwork {
     pub launch_resp: StarknetResp,
     pub deployments: Deployments,
@@ -294,7 +305,7 @@ fn run_locally() {
         })
         .collect::<Vec<_>>();
 
-    let deployer = "validator";
+    let deployer = "0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"; // 1st katana account
     let _linker = "validator";
     let validator = "hpl-validator";
     let _relayer = "hpl-relayer";

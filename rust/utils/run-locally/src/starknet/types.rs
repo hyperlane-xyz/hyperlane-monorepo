@@ -7,7 +7,7 @@ pub struct StarknetEndpoint {
     pub rpc_addr: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
 pub struct DeclaredClasses {
     pub hpl_hook_merkle: String,
     pub hpl_hook_routing: String,

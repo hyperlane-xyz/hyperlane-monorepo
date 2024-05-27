@@ -77,6 +77,23 @@ impl StarknetCLI {
         run_result.first().unwrap().to_string()
     }
 
+    pub fn invoke(&self, address: String, function_name: &str, constructor_args: Vec<String>) {
+        let run_result = self
+            .cli()
+            .cmd("invoke")
+            .cmd(address)
+            .cmd(function_name)
+            .cmds(constructor_args)
+            .arg("keystore", self.keystore_path.clone())
+            .arg("keystore-password", self.keystore_password.clone())
+            .arg("account", self.account_path.clone())
+            .arg("rpc", self.rpc_addr.clone())
+            .run_with_output()
+            .join();
+
+        println!("invoke result: {:?}", run_result);
+    }
+
     pub fn send_tx(&self, contract_address: String, function_name: String, args: Vec<String>) {
         let run_result = self
             .cli()
