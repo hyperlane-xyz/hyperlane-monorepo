@@ -24,19 +24,22 @@ import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
+import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
+
 /**
  * @title OPStackHook
  * @notice Message hook to inform the OPStackIsm of messages published through
  * the native OPStack bridge.
  * @notice This works only for L1 -> L2 messages.
  */
-contract ArbitrumL2ToL1Hook is AbstractMessageIdAuthHook {
+contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
 
     // ============ Constants ============
 
-    /// @notice messenger contract specified by the rollup
-    ICrossDomainMessenger public immutable l1Messenger;
+    ArbSys public immutable arbSys;
+
+    // NodeInterface public immutable arbitrumNodeInterface;
 
     // Gas limit for sending messages to L2
     // First 1.92e6 gas is provided by Optimism, see more here:
@@ -49,13 +52,10 @@ contract ArbitrumL2ToL1Hook is AbstractMessageIdAuthHook {
         address _mailbox,
         uint32 _destinationDomain,
         bytes32 _ism,
-        address _l1Messenger
+        address _arbSys
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
-        require(
-            Address.isContract(_l1Messenger),
-            "OPStackHook: invalid messenger"
-        );
-        l1Messenger = ICrossDomainMessenger(_l1Messenger);
+        require(Address.isContract(_arbSys), "OPStackHook: invalid messenger");
+        arbSys = ArbSys(_arbSys);
     }
 
     // ============ Internal functions ============
@@ -68,17 +68,15 @@ contract ArbitrumL2ToL1Hook is AbstractMessageIdAuthHook {
 
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
-        bytes calldata metadata,
+        bytes calldata,
         bytes memory payload
     ) internal override {
-        require(
-            metadata.msgValue(0) < 2 ** 255,
-            "OPStackHook: msgValue must be less than 2 ** 255"
-        );
-        l1Messenger.sendMessage{value: metadata.msgValue(0)}(
-            TypeCasts.bytes32ToAddress(ism),
-            payload,
-            GAS_LIMIT
-        );
+        arbSys.sendTxToL1(TypeCasts.bytes32ToAddress(ism), payload);
     }
+
+    // function getOutboxProof(uint64 size, uint64 leaf)
+    //     external
+    //     view
+    //     returns (bytes32 send, bytes32 root, bytes32[] memory proof)
+    // {}
 }
