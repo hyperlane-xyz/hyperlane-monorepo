@@ -9,8 +9,9 @@ import {IXERC20Lockbox} from "contracts/token/interfaces/IXERC20Lockbox.sol";
 import {IXERC20} from "contracts/token/interfaces/IXERC20.sol";
 import {IERC20} from "contracts/token/interfaces/IXERC20.sol";
 
-// anvil --port XXXX --fork-url $RPC_URL
-// forge script ./script/xerc20/GrantLimits.s.sol --broadcast --unlocked --rpc-url localhost:XXXX
+// source .env.<CHAIN>
+// anvil --fork-url $RPC_URL --port XXXX
+// forge script GrantLimits.s.sol --broadcast --unlocked --rpc-url localhost:XXXX
 contract GrantLimits is Script {
     address tester = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
     uint256 amount = 1 gwei;
