@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "lib/forge-std/src/Vm.sol";
+import "forge-std/Vm.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
+// see https://book.getfoundry.sh/reference/anvil/#supported-rpc-methods
 library AnvilRPC {
     using Strings for address;
     using Strings for uint256;
 
-    using AnvilRPC for address;
-    using AnvilRPC for bytes;
+    using AnvilRPC for string;
     using AnvilRPC for string[1];
     using AnvilRPC for string[2];
     using AnvilRPC for string[3];
@@ -22,13 +22,10 @@ library AnvilRPC {
     string private constant COMMA = ",";
     string private constant EMPTY_ARRAY = "[]";
 
-    function escaped(address account) internal pure returns (string memory) {
-        return
-            string.concat(ESCAPED_QUOTE, account.toHexString(), ESCAPED_QUOTE);
-    }
-
-    function escaped(bytes memory value) internal pure returns (string memory) {
-        return string.concat(ESCAPED_QUOTE, string(value), ESCAPED_QUOTE);
+    function escaped(
+        string memory value
+    ) internal pure returns (string memory) {
+        return string.concat(ESCAPED_QUOTE, value, ESCAPED_QUOTE);
     }
 
     function toString(
@@ -60,18 +57,24 @@ library AnvilRPC {
     }
 
     function impersonateAccount(address account) internal {
-        vm.rpc("anvil_impersonateAccount", [account.escaped()].toString());
+        vm.rpc(
+            "anvil_impersonateAccount",
+            [account.toHexString().escaped()].toString()
+        );
     }
 
     function setBalance(address account, uint256 balance) internal {
         vm.rpc(
             "anvil_setBalance",
-            [account.escaped(), balance.toString()].toString()
+            [account.toHexString().escaped(), balance.toString()].toString()
         );
     }
 
     function setCode(address account, bytes memory code) internal {
-        vm.rpc("anvil_setCode", [account.escaped(), code.escaped()].toString());
+        vm.rpc(
+            "anvil_setCode",
+            [account.toHexString().escaped(), string(code).escaped()].toString()
+        );
     }
 
     function setStorageAt(
@@ -81,8 +84,11 @@ library AnvilRPC {
     ) internal {
         vm.rpc(
             "anvil_setStorageAt",
-            [account.escaped(), slot.toHexString(), value.toHexString()]
-                .toString()
+            [
+                account.toHexString().escaped(),
+                slot.toHexString(),
+                value.toHexString()
+            ].toString()
         );
     }
 
@@ -90,7 +96,7 @@ library AnvilRPC {
         string memory obj = string.concat(
             // solhint-disable-next-line quotes
             '{"forking":{"jsonRpcUrl":',
-            bytes(rpcUrl).escaped(),
+            string(rpcUrl).escaped(),
             "}}"
         );
         vm.rpc("anvil_reset", [obj].toString());
