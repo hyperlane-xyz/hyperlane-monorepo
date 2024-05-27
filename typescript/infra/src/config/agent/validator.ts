@@ -4,6 +4,7 @@ import {
   ValidatorConfig as AgentValidatorConfig,
   ChainMap,
   ChainName,
+  S3Config,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -75,11 +76,9 @@ export interface LocalCheckpointSyncerConfig {
   path: string;
 }
 
-export interface S3CheckpointSyncerConfig {
+export type S3CheckpointSyncerConfig = S3Config & {
   type: CheckpointSyncerType.S3;
-  bucket: string;
-  region: string;
-}
+};
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   readonly #validatorsConfig: ValidatorBaseChainConfigMap;

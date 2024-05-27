@@ -65,4 +65,16 @@ contract XERC20Test is ERC20Test, IXERC20 {
     function burn(address account, uint256 amount) public override {
         _burn(account, amount);
     }
+
+    function setLimits(
+        address _bridge,
+        uint256 _mintingLimit,
+        uint256 _burningLimit
+    ) external {
+        require(false);
+    }
+
+    function owner() external returns (address) {
+        return address(0x0);
+    }
 }

@@ -29,8 +29,10 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing ERC4626 with remote transfer functionality',
   [TokenType.collateralFiat]:
     'Extends an existing FiatToken with remote transfer functionality',
-  [TokenType.collateralXERC20]:
+  [TokenType.XERC20]:
     'Extends an existing xERC20 with Warp Route functionality',
+  [TokenType.XERC20Lockbox]:
+    'Extends an existing xERC20 Lockbox with Warp Route functionality',
   // TODO: describe
   [TokenType.fastSynthetic]: '',
   [TokenType.syntheticUri]: '',
@@ -132,7 +134,8 @@ export async function createWarpRouteDeployConfig({
 
     switch (type) {
       case TokenType.collateral:
-      case TokenType.collateralXERC20:
+      case TokenType.XERC20:
+      case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
       case TokenType.collateralUri:
       case TokenType.fastCollateral:
