@@ -25,7 +25,10 @@ use hyperlane_core::{
 };
 
 use crate::signer::Signers;
-use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
+use crate::{
+    ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf,
+    TransactionOverrides,
+};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -215,7 +218,8 @@ pub trait BuildableWithProvider {
             // gas pricing issues. So we first wrap the provider in a gas escalator middleware.
             // - When txs reach the gas escalator, they will already have been signed by the signer middleware,
             // so they are ready to be retried
-            let gas_escalator_provider = wrap_with_gas_escalator(provider);
+            let gas_escalator_provider =
+                wrap_with_gas_escalator(provider, &conn.transaction_overrides);
             let signing_provider = wrap_with_signer(gas_escalator_provider, signer)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
@@ -281,17 +285,20 @@ where
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
 }
 
-fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M, GeometricGasPrice>
+fn wrap_with_gas_escalator<M>(
+    provider: M,
+    tx_overrides: &TransactionOverrides,
+) -> GasEscalatorMiddleware<M, GeometricGasPrice>
 where
     M: Middleware + 'static,
 {
     // Increase the gas price by 12.5% every 60 seconds
     // (These are the default values from ethers doc comments)
-    let coefficient = 1.125;
-    let every_secs = 60u64;
-    let escalator = GeometricGasPrice::new(coefficient, every_secs, None::<u64>);
+    const COEFFICIENT: f64 = 1.125;
+    const EVERY_SECS: u64 = 60u64;
+    let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, tx_overrides.max_fee_per_gas);
     // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
     // which adds unnecessary load on the provider.
-    let frequency = Frequency::Duration(Duration::from_secs(12).as_millis() as _);
-    GasEscalatorMiddleware::new(provider, escalator, frequency)
+    const FREQUENCY: Frequency = Frequency::Duration(Duration::from_secs(12).as_millis() as _);
+    GasEscalatorMiddleware::new(provider, escalator, FREQUENCY)
 }
