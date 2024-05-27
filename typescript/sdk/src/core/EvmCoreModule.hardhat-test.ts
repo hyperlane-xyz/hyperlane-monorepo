@@ -96,7 +96,7 @@ describe('EvmCoreModule', async () => {
     it('should deploy ISM factories', () => {
       // Each ISM factory
       objMap(
-        evmCoreModule.serialize().deployedIsmFactoryFactories,
+        evmCoreModule.serialize().ismFactoryFactories,
         (_: any, factoryAddress: any) => {
           expect(factoryAddress).to.exist;
           expect(factoryAddress).to.not.equal(constants.AddressZero);
