@@ -21,4 +21,19 @@ interface IXERC20 is IERC20 {
      * @param _amount The amount of tokens being burned
      */
     function burn(address _user, uint256 _amount) external;
+
+    /**
+     * @notice Updates the limits of any bridge
+     * @dev Can only be called by the owner
+     * @param _mintingLimit The updated minting limit we are setting to the bridge
+     * @param _burningLimit The updated burning limit we are setting to the bridge
+     * @param _bridge The address of the bridge we are setting the limits too
+     */
+    function setLimits(
+        address _bridge,
+        uint256 _mintingLimit,
+        uint256 _burningLimit
+    ) external;
+
+    function owner() external returns (address);
 }

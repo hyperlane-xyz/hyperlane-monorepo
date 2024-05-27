@@ -28,8 +28,8 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {IFiatToken} from "../../contracts/token/interfaces/IFiatToken.sol";
-import {HypXERC20Collateral} from "../../contracts/token/extensions/HypXERC20Collateral.sol";
-import {HypFiatTokenCollateral} from "../../contracts/token/extensions/HypFiatTokenCollateral.sol";
+import {HypXERC20} from "../../contracts/token/extensions/HypXERC20.sol";
+import {HypFiatToken} from "../../contracts/token/extensions/HypFiatToken.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
@@ -394,20 +394,20 @@ contract HypERC20CollateralTest is HypTokenTest {
     }
 }
 
-contract HypXERC20CollateralTest is HypTokenTest {
+contract HypXERC20Test is HypTokenTest {
     using TypeCasts for address;
-    HypXERC20Collateral internal xerc20Collateral;
+    HypXERC20 internal xerc20Collateral;
 
     function setUp() public override {
         super.setUp();
 
         primaryToken = new XERC20Test(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
 
-        localToken = new HypXERC20Collateral(
+        localToken = new HypXERC20(
             address(primaryToken),
             address(localMailbox)
         );
-        xerc20Collateral = HypXERC20Collateral(address(localToken));
+        xerc20Collateral = HypXERC20(address(localToken));
 
         xerc20Collateral.enrollRemoteRouter(
             DESTINATION,
@@ -442,22 +442,22 @@ contract HypXERC20CollateralTest is HypTokenTest {
     }
 }
 
-contract HypFiatTokenCollateralTest is HypTokenTest {
+contract HypFiatTokenTest is HypTokenTest {
     using TypeCasts for address;
-    HypFiatTokenCollateral internal fiatTokenCollateral;
+    HypFiatToken internal fiatToken;
 
     function setUp() public override {
         super.setUp();
 
         primaryToken = new FiatTokenTest(NAME, SYMBOL, TOTAL_SUPPLY, DECIMALS);
 
-        localToken = new HypFiatTokenCollateral(
+        localToken = new HypFiatToken(
             address(primaryToken),
             address(localMailbox)
         );
-        fiatTokenCollateral = HypFiatTokenCollateral(address(localToken));
+        fiatToken = HypFiatToken(address(localToken));
 
-        fiatTokenCollateral.enrollRemoteRouter(
+        fiatToken.enrollRemoteRouter(
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );

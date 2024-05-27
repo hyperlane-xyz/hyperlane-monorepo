@@ -11,43 +11,70 @@ export interface S3Receipt<T = unknown> {
   modified: Date;
 }
 
+export interface S3Config {
+  bucket: string;
+  region: string;
+  folder?: string;
+  caching?: boolean;
+}
+
 export class S3Wrapper {
   private readonly client: S3Client;
-  readonly bucket: string;
-  readonly region: string;
-  readonly folder: string | undefined;
+
+  private cache: Record<string, S3Receipt<any>> | undefined;
 
   static fromBucketUrl(bucketUrl: string): S3Wrapper {
     const match = bucketUrl.match(S3_BUCKET_REGEX);
     if (!match) throw new Error('Could not parse bucket url');
-    return new S3Wrapper(match[1], match[2], undefined);
+    return new S3Wrapper({
+      bucket: match[1],
+      region: match[2],
+      caching: true,
+    });
   }
 
-  constructor(bucket: string, region: string, folder: string | undefined) {
-    this.bucket = bucket;
-    this.region = region;
-    this.folder = folder;
-    this.client = new S3Client({ region });
+  constructor(readonly config: S3Config) {
+    this.client = new S3Client(config);
+    if (config.caching) {
+      this.cache = {};
+    }
+  }
+
+  formatKey(key: string): string {
+    return this.config.folder ? `${this.config.folder}/${key}` : key;
   }
 
   async getS3Obj<T>(key: string): Promise<S3Receipt<T> | undefined> {
-    const Key = this.folder ? `${this.folder}/${key}` : key;
+    const Key = this.formatKey(key);
+    if (this.cache?.[Key]) {
+      return this.cache![Key];
+    }
+
     const command = new GetObjectCommand({
-      Bucket: this.bucket,
+      Bucket: this.config.bucket,
       Key,
     });
     try {
       const response = await this.client.send(command);
       const body: string = await streamToString(response.Body as Readable);
-      return {
+      const result = {
         data: JSON.parse(body),
         modified: response.LastModified!,
       };
+      if (this.cache) {
+        this.cache[Key] = result;
+      }
+      return result;
     } catch (e: any) {
       if (e.message.includes('The specified key does not exist.')) {
         return;
       }
       throw e;
     }
+  }
+
+  url(key: string): string {
+    const Key = this.formatKey(key);
+    return `https://${this.config.bucket}.${this.config.region}.s3.amazonaws.com/${Key}`;
   }
 }

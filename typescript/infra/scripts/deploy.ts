@@ -42,6 +42,7 @@ import {
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
+  withConcurrentDeploy,
   withContext,
   withModuleAndFork,
   withNetwork,
@@ -56,8 +57,11 @@ async function main() {
     environment,
     network,
     buildArtifactPath,
+    concurrentDeploy,
   } = await withContext(
-    withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    withConcurrentDeploy(
+      withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
@@ -113,6 +117,7 @@ async function main() {
       multiProvider,
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   } else if (module === Modules.WARP) {
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(

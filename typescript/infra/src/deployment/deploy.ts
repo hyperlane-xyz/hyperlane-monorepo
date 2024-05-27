@@ -142,7 +142,12 @@ export async function writeAgentConfig(
         const deployedBlock = await mailbox.deployedBlock();
         return deployedBlock.toNumber();
       } catch (err) {
-        console.error('Failed to get deployed block for', chain, err);
+        console.error(
+          'Failed to get deployed block, defaulting to 0. Chain:',
+          chain,
+          'Error:',
+          err,
+        );
         return 0;
       }
     }),

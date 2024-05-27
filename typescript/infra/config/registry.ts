@@ -2,7 +2,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { LocalRegistry } from '@hyperlane-xyz/registry/local';
+import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
   ChainMetadata,
@@ -10,7 +10,7 @@ import {
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
 
 import type { DeployEnvironment } from '../src/config/environment.js';
 
@@ -29,17 +29,17 @@ const DEFAULT_REGISTRY_URI = join(
 
 // A global Registry singleton
 // All uses of chain metadata or chain address artifacts should go through this registry.
-let registry: LocalRegistry;
+let registry: FileSystemRegistry;
 
-export function setRegistry(reg: LocalRegistry) {
+export function setRegistry(reg: FileSystemRegistry) {
   registry = reg;
 }
 
-export function getRegistry(): LocalRegistry {
+export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
     rootLogger.info('Using registry URI:', registryUri);
-    registry = new LocalRegistry({
+    registry = new FileSystemRegistry({
       uri: registryUri,
       logger: rootLogger.child({ module: 'infra-registry' }),
     });
@@ -55,21 +55,19 @@ export function getChain(chainName: ChainName): ChainMetadata {
   if (testChains.includes(chainName)) {
     return testChainMetadata[chainName];
   }
-
-  const chainMetadata = getRegistry().getChainMetadata(chainName);
-  if (!chainMetadata) {
-    throw new Error(`Chain metadata for ${chainName} not found`);
-  }
-
-  return chainMetadata;
+  const chain = getRegistry().getChainMetadata(chainName);
+  assert(chain, `Chain not found: ${chainName}`);
+  return chain;
 }
 
 export function getDomainId(chainName: ChainName): number {
-  return resolveDomainId(getChain(chainName));
+  const chain = getChain(chainName);
+  return resolveDomainId(chain);
 }
 
 export function getReorgPeriod(chainName: ChainName): number {
-  return resolveReorgPeriod(getChain(chainName));
+  const chain = getChain(chainName);
+  return resolveReorgPeriod(chain);
 }
 
 export function getChainMetadata(): ChainMap<ChainMetadata> {

@@ -21,7 +21,7 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { MinimalTokenMetadata } from '../config.js';
+import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
@@ -45,7 +45,7 @@ export class EvmNativeTokenAdapter
     return BigInt(balance.toString());
   }
 
-  async getMetadata(): Promise<MinimalTokenMetadata> {
+  async getMetadata(): Promise<TokenMetadata> {
     // TODO get metadata from chainMetadata config
     throw new Error('Metadata not available to native tokens');
   }
@@ -98,13 +98,14 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     return BigInt(balance.toString());
   }
 
-  override async getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
-    const [decimals, symbol, name] = await Promise.all([
+  override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
+    const [decimals, symbol, name, totalSupply] = await Promise.all([
       isNft ? 0 : this.contract.decimals(),
       this.contract.symbol(),
       this.contract.name(),
+      this.contract.totalSupply(),
     ]);
-    return { decimals, symbol, name };
+    return { decimals, symbol, name, totalSupply: totalSupply.toString() };
   }
 
   override async isApproveRequired(
@@ -247,7 +248,7 @@ export class EvmHypCollateralAdapter
     });
   }
 
-  override getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
+  override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
     return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
   }
 
