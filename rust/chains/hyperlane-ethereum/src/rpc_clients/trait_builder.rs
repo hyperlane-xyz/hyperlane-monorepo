@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use ethers::middleware::gas_escalator::{Frequency, GasEscalatorMiddleware, GeometricGasPrice};
 use ethers::middleware::gas_oracle::{
     GasCategory, GasOracle, GasOracleMiddleware, Polygon, ProviderOracle,
 };
@@ -210,7 +211,12 @@ pub trait BuildableWithProvider {
         M: Middleware + 'static,
     {
         Ok(if let Some(signer) = signer {
-            let signing_provider = wrap_with_signer(provider, signer)
+            // - The signing provider is used for sending txs, which may end up stuck in the mempool due to
+            // gas pricing issues. So we first wrap the provider in a gas escalator middleware.
+            // - When txs reach the gas escalator, they will already have been signed by the signer middleware,
+            // so they are ready to be retried
+            let gas_escalator_provider = wrap_with_gas_escalator(provider);
+            let signing_provider = wrap_with_signer(gas_escalator_provider, signer)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
             self.build_with_provider(signing_provider, conn, locator)
@@ -273,4 +279,19 @@ where
         }
     };
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
+}
+
+fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M, GeometricGasPrice>
+where
+    M: Middleware + 'static,
+{
+    // Increase the gas price by 12.5% every 60 seconds
+    // (These are the default values from ethers doc comments)
+    let coefficient = 1.125;
+    let every_secs = 60u64;
+    let escalator = GeometricGasPrice::new(coefficient, every_secs, None::<u64>);
+    // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
+    // which adds unnecessary load on the provider.
+    let frequency = Frequency::Duration(Duration::from_secs(12).as_millis() as _);
+    GasEscalatorMiddleware::new(provider, escalator, frequency)
 }

@@ -195,27 +195,27 @@ cosmwasm-schema = "1.2.7"
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2024-05-27"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2024-05-27"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2024-05-27"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2024-05-27"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2024-05-27"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
