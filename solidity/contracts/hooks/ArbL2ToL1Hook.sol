@@ -35,6 +35,8 @@ import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
 contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
 
+    event ArbSysMerkleTreeUpdated(uint256 size, uint256 leaf);
+
     // ============ Constants ============
 
     ArbSys public immutable arbSys;
@@ -71,7 +73,15 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes calldata,
         bytes memory payload
     ) internal override {
-        arbSys.sendTxToL1(TypeCasts.bytes32ToAddress(ism), payload);
+        uint256 leadNum = arbSys.sendTxToL1(
+            TypeCasts.bytes32ToAddress(ism),
+            payload
+        );
+
+        // TODO: if too expensive, remove this
+        (uint256 size, , ) = arbSys.sendMerkleTreeState();
+
+        emit ArbSysMerkleTreeUpdated(size, leadNum);
     }
 
     // function getOutboxProof(uint64 size, uint64 leaf)
