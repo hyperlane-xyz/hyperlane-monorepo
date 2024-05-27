@@ -271,8 +271,12 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
-            ChainConnectionConf::Starknet(_conf) => {
-                todo!("Starknet does not support merkle tree hooks yet")
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let hook =
+                    h_starknet::StarknetMerkleTreeHook::new(conf, &locator, signer.unwrap())?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
         }
         .context(ctx)
@@ -360,8 +364,14 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support delivery indexing yet")
+            ChainConnectionConf::Starknet(conf) => {
+                let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
+                    conf.clone(),
+                    locator,
+                    self.reorg_period,
+                )?);
+
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
         }
         .context(ctx)
@@ -492,8 +502,14 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support merkle tree hook indexer yet")
+            ChainConnectionConf::Starknet(conf) => {
+                let indexer = Box::new(h_starknet::StarknetMerkleTreeHookIndexer::new(
+                    conf.clone(),
+                    locator,
+                    self.reorg_period,
+                )?);
+
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
         }
         .context(ctx)
@@ -526,8 +542,15 @@ impl ChainConf {
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support validator announce yet")
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let va = Box::new(h_starknet::StarknetValidatorAnnounce::new(
+                    conf,
+                    &locator.clone(),
+                    signer.unwrap(),
+                )?);
+
+                Ok(va as Box<dyn ValidatorAnnounce>)
             }
         }
         .context("Building ValidatorAnnounce")
@@ -568,8 +591,14 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support ISM yet")
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
+                    conf,
+                    &locator,
+                    signer.unwrap(),
+                )?);
+                Ok(ism as Box<dyn InterchainSecurityModule>)
             }
         }
         .context(ctx)
@@ -605,8 +634,14 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support multisig ISM yet")
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(
+                    conf,
+                    &locator,
+                    signer.unwrap(),
+                )?);
+                Ok(ism as Box<dyn MultisigIsm>)
             }
         }
         .context(ctx)
@@ -680,8 +715,15 @@ impl ChainConf {
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support aggregation ISM yet")
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
+                    conf,
+                    &locator,
+                    signer.unwrap(),
+                )?);
+
+                Ok(ism as Box<dyn AggregationIsm>)
             }
         }
         .context(ctx)

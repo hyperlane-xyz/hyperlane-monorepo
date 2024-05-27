@@ -173,8 +173,8 @@ impl ChainSigner for hyperlane_cosmos::Signer {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_starknet::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            Ok(hyperlane_starknet::Signer::new(&key.to_string(), &"")?)
+        if let SignerConf::StarkKey { key, address } = conf {
+            Ok(hyperlane_starknet::Signer::new(&key.to_string(), &address)?)
         } else {
             bail!(format!("{conf:?} key is not supported by starknet"));
         }

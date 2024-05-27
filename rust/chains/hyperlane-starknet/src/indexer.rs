@@ -353,3 +353,21 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
         )
     }
 }
+
+#[async_trait]
+impl SequenceAwareIndexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
+    // TODO: if `SequenceAwareIndexer` turns out to not depend on `Indexer` at all, then the supertrait
+    // dependency could be removed, even if the builder would still need to return a type that is both
+    // `SequenceAwareIndexer` and `Indexer`.
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.get_finalized_block_number().await?;
+        let sequence = self
+            .contract
+            .count()
+            .block_id(starknet::core::types::BlockId::Number(u64::from(tip)))
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        Ok((Some(sequence), tip))
+    }
+}
