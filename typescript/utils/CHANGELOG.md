@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 3.13.0
+
+### Minor Changes
+
+- 0cf692e73: Implement metadata builder fetching from message
+
 ## 3.12.0
 
 ### Minor Changes

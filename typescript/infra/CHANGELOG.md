@@ -1,5 +1,23 @@
 # @hyperlane-xyz/infra
 
+## 3.13.0
+
+### Minor Changes
+
+- 39ea7cdef: Implement multi collateral warp routes
+- 0cf692e73: Implement metadata builder fetching from message
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [b6b26e2bb]
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/helloworld@3.13.0
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.12.0
 
 ### Patch Changes
