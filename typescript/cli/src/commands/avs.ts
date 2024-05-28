@@ -1,6 +1,7 @@
 import { CommandModule, Options } from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import {
   deregisterOperator,
@@ -39,20 +40,27 @@ export const registrationOptions: { [k: string]: Options } = {
     description: 'Path to the operator key file',
     demandOption: true,
   },
+  avsSigningKey: {
+    type: 'string',
+    description: 'Address of the AVS signing key',
+    demandOption: true,
+  },
 };
 
 const registerCommand: CommandModuleWithWriteContext<{
   chain: ChainName;
   operatorKeyPath: string;
+  avsSigningKey: Address;
 }> = {
   command: 'register',
   describe: 'Register operator with the AVS',
   builder: registrationOptions,
-  handler: async ({ context, chain, operatorKeyPath }) => {
+  handler: async ({ context, chain, operatorKeyPath, avsSigningKey }) => {
     await registerOperatorWithSignature({
       context,
       chain,
       operatorKeyPath,
+      avsSigningKey,
     });
     process.exit(0);
   },

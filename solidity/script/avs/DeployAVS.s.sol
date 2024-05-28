@@ -43,6 +43,11 @@ contract DeployAVS is Script {
         );
         string memory json = vm.readFile(path);
 
+        proxyAdmin = ProxyAdmin(
+            json.readAddress(
+                string(abi.encodePacked(".", targetEnv, ".proxyAdmin"))
+            )
+        );
         avsDirectory = IAVSDirectory(
             json.readAddress(
                 string(abi.encodePacked(".", targetEnv, ".avsDirectory"))
@@ -96,8 +101,6 @@ contract DeployAVS is Script {
         _loadEigenlayerAddresses(network);
 
         vm.startBroadcast(deployerPrivateKey);
-
-        proxyAdmin = new ProxyAdmin();
 
         ECDSAStakeRegistry stakeRegistryImpl = new ECDSAStakeRegistry(
             delegationManager

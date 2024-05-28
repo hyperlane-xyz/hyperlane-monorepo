@@ -8,9 +8,7 @@ import {
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { MINIMUM_AVS_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
-import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue } from '../logger.js';
 import { readFileAtPath, resolvePath } from '../utils/files.js';
 
@@ -26,26 +24,19 @@ export async function registerOperatorWithSignature({
   context,
   chain,
   operatorKeyPath,
+  avsSigningKey,
 }: {
   context: WriteCommandContext;
   chain: ChainName;
   operatorKeyPath: string;
+  avsSigningKey: Address;
 }) {
-  const { multiProvider, key } = context;
+  const { multiProvider } = context;
+
+  const operatorAsSigner = await readOperatorFromEncryptedJson(operatorKeyPath);
 
   const provider = multiProvider.getProvider(chain);
-  const connectedSigner = new Wallet(key, provider);
-
-  await runPreflightChecksForChains({
-    context: {
-      ...context,
-      signer: connectedSigner,
-    },
-    chains: [chain],
-    minGas: MINIMUM_AVS_GAS,
-  });
-
-  const operator = await readOperatorFromEncryptedJson(operatorKeyPath);
+  const connectedSigner = operatorAsSigner.connect(provider);
 
   const stakeRegistryAddress = avsAddresses[chain].ecdsaStakeRegistry;
 
@@ -60,28 +51,32 @@ export async function registerOperatorWithSignature({
     domainId,
     avsAddresses[chain].hyperlaneServiceManager,
     avsDirectoryAddress,
-    operator,
+    operatorAsSigner,
     connectedSigner,
   );
 
   // check if the operator is already registered
   const operatorStatus = await ecdsaStakeRegistry.operatorRegistered(
-    operator.address,
+    operatorAsSigner.address,
   );
   if (operatorStatus) {
-    logBlue(`Operator ${operator.address} already registered to Hyperlane AVS`);
+    logBlue(
+      `Operator ${operatorAsSigner.address} already registered to Hyperlane AVS`,
+    );
     return;
   }
 
-  log(`Registering operator ${operator.address} with signature on ${chain}...`);
+  log(
+    `Registering operator ${operatorAsSigner.address} attesting ${avsSigningKey} with signature on ${chain}...`,
+  );
   await multiProvider.handleTx(
     chain,
     ecdsaStakeRegistry.registerOperatorWithSignature(
-      operator.address,
       operatorSignature,
+      avsSigningKey,
     ),
   );
-  logBlue(`Operator ${operator.address} registered to Hyperlane AVS`);
+  logBlue(`Operator ${operatorAsSigner.address} registered to Hyperlane AVS`);
 }
 
 export async function deregisterOperator({

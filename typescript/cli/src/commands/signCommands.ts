@@ -6,8 +6,6 @@ export const SIGN_COMMANDS = ['deploy', 'send'];
 export function isSignCommand(argv: any): boolean {
   return (
     SIGN_COMMANDS.includes(argv._[0]) ||
-    (argv._.length > 1 &&
-      (SIGN_COMMANDS.includes(argv._[1]) ||
-        (argv._[1] === 'avs' && argv._[2] === 'register')))
+    (argv._.length > 1 && SIGN_COMMANDS.includes(argv._[1]))
   );
 }
