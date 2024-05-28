@@ -8,15 +8,13 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { EthersV5Transaction } from '../providers/ProviderType.js';
-import { RouterConfig } from '../router/types.js';
-import { ChainMap, ChainNameOrId } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 import {
   DerivedTokenRouterConfig,
-  DerivedTokenType,
   EvmERC20WarpRouteReader,
 } from './EvmERC20WarpRouteReader.js';
-import { TokenConfig } from './config.js';
+import { HypERC20Config } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 
@@ -86,18 +84,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     multiProvider: MultiProvider;
   }): Promise<EvmERC20WarpModule> {
     const { chain, config, multiProvider } = params;
+    const chainName = multiProvider.getChainName(chain);
     const deployer = new HypERC20Deployer(multiProvider);
-    const deployedContracts = (
-      await deployer.deploy({
-        [chain]: config,
-      } as ChainMap<TokenConfig & RouterConfig>)
-    )[chain];
+    const deployedContracts = await deployer.deployContracts(
+      chainName,
+      config as HypERC20Config,
+    );
 
     return new EvmERC20WarpModule(multiProvider, {
       addresses: {
         ...serializeContracts(deployedContracts),
-        deployedTokenRoute:
-          deployedContracts[config.type as DerivedTokenType].address,
+        deployedTokenRoute: deployedContracts[config.type].address,
       },
       chain,
       config,

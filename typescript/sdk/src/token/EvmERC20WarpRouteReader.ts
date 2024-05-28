@@ -1,4 +1,4 @@
-import { ethers, providers } from 'ethers';
+import { providers } from 'ethers';
 
 import {
   HypERC20CollateralVaultDeposit__factory,
@@ -7,7 +7,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ERC20Metadata,
-  IsmType,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -26,17 +25,7 @@ type WarpRouteBaseMetadata = Record<'mailbox' | 'owner' | 'hook', string> & {
   interchainSecurityModule?: DerivedIsmConfigWithAddress;
 };
 
-/**
- * @remark
- * We only expect to support deriving a subset of these types, for now.
- */
-export type DerivedTokenType = Extract<
-  TokenType,
-  'collateral' | 'collateralVault' | 'native' | 'synthetic'
->;
-
 export type DerivedTokenRouterConfig = TokenRouterConfig & {
-  type: DerivedTokenType;
   interchainSecurityModule?: DerivedIsmConfigWithAddress;
 };
 
@@ -89,10 +78,9 @@ export class EvmERC20WarpRouteReader {
    * @param warpRouteAddress - The Warp Route address to derive the token type for.
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
-  async deriveTokenType(warpRouteAddress: Address): Promise<DerivedTokenType> {
-    const contractTypes: Record<
-      Exclude<DerivedTokenType, 'native'>, // native is excluded because it's the default return type
-      { factory: any; method: string }
+  async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
+    const contractTypes: Partial<
+      Record<TokenType, { factory: any; method: string }>
     > = {
       collateralVault: {
         factory: HypERC20CollateralVaultDeposit__factory,
@@ -112,7 +100,7 @@ export class EvmERC20WarpRouteReader {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
-        return type as DerivedTokenType;
+        return type as TokenType;
       } catch (e) {
         this.logger.info(
           `Error accessing token specific method, ${method}, implying this is not a ${type} token.`,
@@ -154,23 +142,14 @@ export class EvmERC20WarpRouteReader {
       hook,
     };
 
-    // If ISM is unset, then Address Zero will be returned
-    isZeroishAddress(interchainSecurityModule)
-      ? (metadata.interchainSecurityModule = {
-          type: IsmType.CUSTOM,
-          address: ethers.constants.AddressZero,
-        })
-      : (metadata.interchainSecurityModule =
-          await this.evmIsmReader.deriveIsmConfig(interchainSecurityModule));
+    // Derive If ISM is set onchain
+    metadata.interchainSecurityModule = !isZeroishAddress(
+      interchainSecurityModule,
+    )
+      ? await this.evmIsmReader.deriveIsmConfig(interchainSecurityModule)
+      : undefined;
 
-    // @todo add after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
-    // isZeroishAddress(interchainSecurityModule)
-    //   ? (metadata.hook = {
-    //       type: IsmType.ADDRESS,
-    //       address: ethers.constants.AddressZero,
-    //     })
-    //   : (metadata.hook =
-    //       await this.evmIsmReader.deriveHookConfig(hook));
+    // @todo add Hook config after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
 
     return metadata;
   }
@@ -180,9 +159,10 @@ export class EvmERC20WarpRouteReader {
    *
    * @param tokenAddress - The address of the token.
    * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
+   * Throws if unsupported token type
    */
   async fetchTokenMetadata(
-    type: DerivedTokenType,
+    type: TokenType,
     tokenAddress: Address,
   ): Promise<ERC20Metadata & { token?: string }> {
     if (type === TokenType.collateral || type === TokenType.collateralVault) {
@@ -197,8 +177,7 @@ export class EvmERC20WarpRouteReader {
       return { name, symbol, decimals, totalSupply, token };
     } else if (type === TokenType.synthetic) {
       return this.fetchERC20Metadata(tokenAddress);
-    } else {
-      // Assumes Native
+    } else if (type === TokenType.native) {
       const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
       if (chainMetadata.nativeToken) {
         const { name, symbol, decimals } = chainMetadata.nativeToken;
@@ -208,6 +187,10 @@ export class EvmERC20WarpRouteReader {
           `Warp route config specifies native token but chain metadata for ${this.chain} does not provide native token details`,
         );
       }
+    } else {
+      throw new Error(
+        `Unsupported token type ${type} when fetching token metadata`,
+      );
     }
   }
 

@@ -26,7 +26,6 @@ import { ChainMap } from '../types.js';
 
 import {
   DerivedTokenRouterConfig,
-  DerivedTokenType,
   EvmERC20WarpRouteReader,
 } from './EvmERC20WarpRouteReader.js';
 import { TokenConfig, TokenType } from './config.js';
@@ -80,12 +79,12 @@ describe('ERC20WarpRouterReader', async () => {
   });
 
   it('should derive a token type from contract', async () => {
-    const typesToDerive: DerivedTokenType[] = [
+    const typesToDerive = [
       TokenType.collateral,
       TokenType.collateralVault,
       TokenType.synthetic,
       TokenType.native,
-    ];
+    ] as const;
 
     await Promise.all(
       typesToDerive.map(async (type) => {
@@ -210,5 +209,53 @@ describe('ERC20WarpRouterReader', async () => {
 
     // Check if token values matches
     expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
+  });
+
+  it('should return undefined if ism is not set onchain', async () => {
+    // Create config
+    let config = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    let warpRoute = await deployer.deploy(
+      config as ChainMap<TokenConfig & RouterConfig>,
+    );
+
+    // Derive config and check if each value matches
+    let derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(derivedConfig.interchainSecurityModule).to.be.undefined;
+    const interchainSecurityModule = await mailbox.defaultIsm();
+
+    // Try with Ism set
+    config = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        interchainSecurityModule,
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    warpRoute = await deployer.deploy(
+      config as ChainMap<TokenConfig & RouterConfig>,
+    );
+
+    // Derive config and check if each value matches
+    derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(derivedConfig.interchainSecurityModule?.address).to.be.equal(
+      interchainSecurityModule,
+    );
   });
 });
