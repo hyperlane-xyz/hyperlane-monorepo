@@ -7,6 +7,7 @@ use std::{
 use crate::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxCostEstimate, TxOutcome, H256};
 use async_trait::async_trait;
 
+/// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
 
 /// A pending operation that will be run by the submitter and cause a
@@ -71,7 +72,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn set_tx_cost_estimate(&mut self, estimate: TxCostEstimate);
 
     /// Get the estimated the cost of the `submit` call
-    fn get_tx_cost_estimate(&mut self) -> Option<TxCostEstimate>;
+    fn get_tx_cost_estimate(&self) -> Option<&TxCostEstimate>;
 
     /// This will be called after the operation has been submitted and is
     /// responsible for checking if the operation has reached a point at
@@ -91,8 +92,8 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// retried immediately.
     fn reset_attempts(&mut self);
 
-    #[cfg(test)]
     /// Set the number of times this operation has been retried.
+    #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
 }
 
@@ -144,6 +145,7 @@ impl Ord for QueueOperation {
     }
 }
 
+/// Possible outcomes of performing an action on a pending operation (such as `prepare`, `submit` or `confirm`).
 #[derive(Debug)]
 pub enum PendingOperationResult {
     /// Promote to the next step
@@ -159,6 +161,7 @@ pub enum PendingOperationResult {
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.
+#[macro_export]
 macro_rules! make_op_try {
     ($on_retry:expr) => {
         /// Handle a result and either return early with retry or a critical failure on
@@ -187,5 +190,3 @@ macro_rules! make_op_try {
                         }
     };
 }
-
-pub(super) use make_op_try;

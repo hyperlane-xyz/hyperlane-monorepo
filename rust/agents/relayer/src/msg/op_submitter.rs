@@ -428,6 +428,9 @@ impl OperationBatch {
                 // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
                 // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
+                self.operations
+                    .iter()
+                    .for_each(|op| op.set_operation_outcome(outcome.clone(), &self.operations));
                 for mut op in self.operations {
                     // first need to compute the proportional gas used
                     // need the simulated gas amount and outcome.gas_used

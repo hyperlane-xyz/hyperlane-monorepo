@@ -124,11 +124,7 @@ mod test {
     }
 
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {
-        fn set_operation_outcome(
-            &mut self,
-            _outcome: TxOutcome,
-            _batch: Vec<dyn PendingOperation>,
-        ) {
+        fn set_operation_outcome(&mut self, _outcome: TxOutcome, _batch: &[QueueOperation]) {
             todo!()
         }
     }
@@ -181,7 +177,7 @@ mod test {
             todo!()
         }
 
-        fn get_tx_cost_estimate(&self) -> Option<TxCostEstimate> {
+        fn get_tx_cost_estimate(&self) -> Option<&TxCostEstimate> {
             todo!()
         }
 

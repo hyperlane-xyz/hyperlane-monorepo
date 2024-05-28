@@ -3,7 +3,7 @@ use axum::{
     routing, Router,
 };
 use derive_new::new;
-use hyperlane_core::{ChainCommunicationError, H256};
+use hyperlane_core::{ChainCommunicationError, QueueOperation, H256};
 use serde::Deserialize;
 use std::str::FromStr;
 use tokio::sync::broadcast::Sender;

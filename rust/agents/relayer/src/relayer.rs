@@ -16,7 +16,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
-    MpmcReceiver, U256,
+    MpmcReceiver, QueueOperation, U256,
 };
 use tokio::{
     sync::{
