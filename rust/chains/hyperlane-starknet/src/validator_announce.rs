@@ -12,6 +12,7 @@ use hyperlane_core::{
 use hyperlane_core::{Announcement, Encode, SignedType, ValidatorAnnounce};
 use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
+use starknet::core::utils::cairo_short_string_to_felt;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::{instrument, trace};
@@ -84,8 +85,10 @@ impl StarknetValidatorAnnounce {
     )> {
         let validator = FieldElement::from_byte_slice_be(&announcement.value.validator.to_vec())
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-        let storage_location = FieldElement::from_hex_be(&announcement.value.storage_location)
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        // TODO: use cainome ByteArray to convert the full string once contract interface has been changed
+        let storage_location =
+            cairo_short_string_to_felt(&announcement.value.storage_location[..30])
+                .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signature_bytes = announcement.signature.to_vec();
         let signature = &StarknetBytes {
             size: signature_bytes.len() as u32,

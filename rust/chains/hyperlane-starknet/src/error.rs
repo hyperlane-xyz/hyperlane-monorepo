@@ -1,6 +1,7 @@
 use hyperlane_core::ChainCommunicationError;
-use starknet::core::types::{
-    FromByteArrayError, FromByteSliceError, FromStrError, ValueOutOfRangeError,
+use starknet::core::{
+    types::{FromByteArrayError, FromByteSliceError, FromStrError, ValueOutOfRangeError},
+    utils::CairoShortStringToFeltError,
 };
 use std::fmt::Debug;
 
@@ -13,6 +14,9 @@ pub enum HyperlaneStarknetError {
     /// Error during string conversion
     #[error(transparent)]
     StringConversionError(#[from] FromStrError),
+    /// Short string conversion error
+    #[error(transparent)]
+    ShortStringConversionError(#[from] CairoShortStringToFeltError),
     /// Error during bytes conversion
     #[error(transparent)]
     BytesConversionError(#[from] FromByteArrayError),
