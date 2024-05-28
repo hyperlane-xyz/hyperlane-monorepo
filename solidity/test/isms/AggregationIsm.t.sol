@@ -69,7 +69,6 @@ contract AggregationIsmTest is Test {
             for (uint256 j = 0; j < chosen.length; j++) {
                 included = included || choices[i] == chosen[j];
             }
-            bytes memory metadata = "";
             if (included) {
                 bytes memory metadata = TestIsm(choices[i]).requiredMetadata();
                 uint32 end = start + uint32(metadata.length);
