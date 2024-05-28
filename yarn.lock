@@ -5911,16 +5911,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@file:/Users/trevor/hyperlane-registry::locator=%40hyperlane-xyz%2Finfra%40workspace%3Atypescript%2Finfra":
-  version: 1.3.0
-  resolution: "@hyperlane-xyz/registry@file:/Users/trevor/hyperlane-registry#/Users/trevor/hyperlane-registry::hash=aa81d6&locator=%40hyperlane-xyz%2Finfra%40workspace%3Atypescript%2Finfra"
-  dependencies:
-    yaml: "npm:^2"
-    zod: "npm:^3.21.2"
-  checksum: 14bd6e9f2781b847c427bacb796f6e9f006934a85ecfe3a5b7bf54b76aacdd6050908dc732ed55ea210a7cfd14f5dca481eee15619ac41a7a8b456df4e6ec4c3
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/registry@npm:1.3.0":
   version: 1.3.0
   resolution: "@hyperlane-xyz/registry@npm:1.3.0"
