@@ -6,9 +6,9 @@ import { z } from 'zod';
 import {
   ChainMap,
   ChainName,
-  GasOracleContractType,
+  HookConfig,
+  HookConfigSchema,
   HookType,
-  HooksConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -22,55 +22,12 @@ import { errorRed, log, logBlue, logGreen, logRed } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
-const ProtocolFeeSchema = z.object({
-  type: z.literal(HookType.PROTOCOL_FEE),
-  owner: z.string(),
-  beneficiary: z.string(),
-  maxProtocolFee: z.string(),
-  protocolFee: z.string(),
-});
-
-const MerkleTreeSchema = z.object({
-  type: z.literal(HookType.MERKLE_TREE),
-});
-
-const IGPSchema = z.object({
-  type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
-  owner: z.string(),
-  beneficiary: z.string(),
-  overhead: z.record(z.number()),
-  gasOracleType: z.record(z.literal(GasOracleContractType.StorageGasOracle)),
-  oracleKey: z.string(),
-});
-
-const RoutingConfigSchema: z.ZodSchema<any> = z.lazy(() =>
-  z.object({
-    type: z.literal(HookType.ROUTING),
-    owner: z.string(),
-    domains: z.record(HookConfigSchema),
-  }),
-);
-
-const AggregationConfigSchema: z.ZodSchema<any> = z.lazy(() =>
-  z.object({
-    type: z.literal(HookType.AGGREGATION),
-    hooks: z.array(HookConfigSchema),
-  }),
-);
-
-const HookConfigSchema = z.union([
-  ProtocolFeeSchema,
-  MerkleTreeSchema,
-  IGPSchema,
-  RoutingConfigSchema,
-  AggregationConfigSchema,
-]);
-export type HookConfig = z.infer<typeof HookConfigSchema>;
-
+// TODO: deprecate in favor of CoreConfigSchema
 const HooksConfigSchema = z.object({
-  required: HookConfigSchema,
   default: HookConfigSchema,
+  required: HookConfigSchema,
 });
+export type HooksConfig = z.infer<typeof HooksConfigSchema>;
 const HooksConfigMapSchema = z.record(HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
 
@@ -99,14 +56,7 @@ export function readHooksConfigMap(filePath: string) {
     logRed(`No hook config found at ${filePath}`);
     return;
   }
-  const result = HooksConfigMapSchema.safeParse(config);
-  if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(
-      `Invalid hook config: ${firstIssue.path} => ${firstIssue.message}`,
-    );
-  }
-  const parsedConfig = result.data;
+  const parsedConfig = HooksConfigMapSchema.parse(config);
   const hooks: ChainMap<HooksConfig> = objMap(
     parsedConfig,
     (_, config) => config as HooksConfig,
@@ -192,8 +142,8 @@ export async function createHookConfig(
     lastConfig = { type: HookType.MERKLE_TREE };
   } else if (hookType === HookType.PROTOCOL_FEE) {
     lastConfig = await createProtocolFeeConfig(context, chain);
-  } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
-    lastConfig = await createIGPConfig(remotes);
+    // } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
+    //   lastConfig = await createIGPConfig(remotes);
   } else if (hookType === HookType.AGGREGATION) {
     lastConfig = await createAggregationConfig(context, chain, remotes);
   } else if (hookType === HookType.ROUTING) {
@@ -256,6 +206,7 @@ export async function createProtocolFeeConfig(
   };
 }
 
+// TODO: make this usable
 export async function createIGPConfig(
   remotes: ChainName[],
 ): Promise<HookConfig> {
@@ -296,10 +247,7 @@ export async function createIGPConfig(
     owner: ownerAddress,
     oracleKey: oracleKeyAddress,
     overhead: overheads,
-    gasOracleType: objMap(
-      overheads,
-      () => GasOracleContractType.StorageGasOracle,
-    ),
+    oracleConfig: {},
   };
 }
 

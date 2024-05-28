@@ -152,6 +152,7 @@ export {
   OpStackIsmConfig,
   PausableIsmConfig,
   RoutingIsmConfig,
+  TrustedRelayerIsmConfig,
 } from './ism/types.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
 export {
@@ -451,7 +452,7 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 
-export { AggregationIsmConfigSchema } from './ism/schemas.js';
+export { AggregationIsmConfigSchema, IsmConfigSchema } from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   WarpRouteDeployConfigSchema,

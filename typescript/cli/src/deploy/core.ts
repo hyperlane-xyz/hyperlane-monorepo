@@ -6,8 +6,7 @@ import {
   ChainMap,
   ChainName,
   CoreConfig,
-  GasOracleContractType,
-  HooksConfig,
+  HookType,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
   HyperlaneCore,
@@ -27,7 +26,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
-import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
+import {
+  HooksConfig,
+  presetHookConfigs,
+  readHooksConfigMap,
+} from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
@@ -370,7 +373,6 @@ export function buildIgpConfigMap(
   const configMap: ChainMap<IgpConfig> = {};
   for (const chain of chains) {
     const overhead: ChainMap<number> = {};
-    const gasOracleType: ChainMap<GasOracleContractType> = {};
     for (const remote of chains) {
       if (chain === remote) continue;
       // TODO: accurate estimate of gas from ChainMap<ISMConfig>
@@ -384,14 +386,14 @@ export function buildIgpConfigMap(
         threshold,
         validatorsLength,
       );
-      gasOracleType[remote] = GasOracleContractType.StorageGasOracle;
     }
     configMap[chain] = {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
       owner,
       beneficiary: owner,
-      gasOracleType,
       overhead,
       oracleKey: owner,
+      oracleConfig: {},
     };
   }
   return configMap;
