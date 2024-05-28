@@ -8,7 +8,7 @@ import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { HookConfig } from '../hook/types.js';
+import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { AggregationIsmConfig, IsmType } from '../ism/types.js';
@@ -159,9 +159,9 @@ describe('core', async () => {
 
           // Cast because we don't expect the 'string' type
           const defaultHookOnchain =
-            coreConfigOnChain.defaultHook as HookConfig;
+            coreConfigOnChain.defaultHook as DerivedHookConfig;
           const defaultHookTest = coreConfig[chainName]
-            .defaultHook as HookConfig;
+            .defaultHook as DerivedHookConfig;
 
           expect(defaultHookOnchain.type).to.be.equal(defaultHookTest.type);
         }),

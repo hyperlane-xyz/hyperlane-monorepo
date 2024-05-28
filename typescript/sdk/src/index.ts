@@ -75,6 +75,7 @@ export {
   MailboxViolationType,
   ValidatorAnnounceViolation,
 } from './core/types.js';
+export { CoreConfigSchema } from './core/schemas.js';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker.js';
 export {
   DeployerOptions,
@@ -86,7 +87,6 @@ export {
   OwnableConfig,
   OwnerViolation,
   ViolationType,
-  resolveOrDeployAccountOwner,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
@@ -110,10 +110,7 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization.js';
 export { IgpFactories, igpFactories } from './gas/contracts.js';
-export {
-  GasOracleContractType,
-  StorageGasOracleConfig,
-} from './gas/oracle/types.js';
+export { StorageGasOracleConfig } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
   IgpBeneficiaryViolation,
@@ -131,13 +128,13 @@ export {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
-  HooksConfig,
   IgpHookConfig,
   MerkleTreeHookConfig,
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types.js';
+export { HookConfigSchema } from './hook/schemas.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export {
   buildAggregationIsmConfigs,
