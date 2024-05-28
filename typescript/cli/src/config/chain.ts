@@ -1,10 +1,12 @@
 import { confirm, input } from '@inquirer/prompts';
+import { ethers } from 'ethers';
 
 import { ChainMetadata, ChainMetadataSchema } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { detectAndConfirmOrPrompt } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 export function readChainConfigs(filePath: string) {
@@ -38,22 +40,52 @@ export async function createChainConfig({
   context: CommandContext;
 }) {
   logBlue('Creating a new chain config');
-  const name = await input({
-    message: 'Enter chain name (one word, lower case)',
-  });
-  const chainId = await input({ message: 'Enter chain id (number)' });
-  const domainId = chainId;
-  const rpcUrl = await input({ message: 'Enter http or https rpc url' });
+
+  const rpcUrl = await detectAndConfirmOrPrompt(
+    async () => {
+      await new ethers.providers.JsonRpcProvider().getNetwork();
+      return ethers.providers.JsonRpcProvider.defaultUrl();
+    },
+    'Enter http or https',
+    'rpc url',
+  );
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+  const name = await detectAndConfirmOrPrompt(
+    async () => {
+      const clientName = await provider.send('web3_clientVersion', []);
+      const port = rpcUrl.split(':').slice(-1);
+      const client = clientName.split('/')[0];
+      return `${client}${port}`;
+    },
+    'Enter (one word, lower case)',
+    'chain name',
+  );
+
+  const chainId = parseInt(
+    await detectAndConfirmOrPrompt(
+      async () => {
+        const network = await provider.getNetwork();
+        return network.chainId.toString();
+      },
+      'Enter a (number)',
+      'chain id',
+    ),
+    10,
+  );
+
   const metadata: ChainMetadata = {
     name,
-    chainId: parseInt(chainId, 10),
-    domainId: parseInt(domainId, 10),
+    chainId,
+    domainId: chainId,
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
   };
+
   const wantAdvancedConfig = await confirm({
+    default: false,
     message:
-      'Do you want to set block or gas properties for this chain config?(optional)',
+      'Do you want to set block or gas properties for this chain config?',
   });
   if (wantAdvancedConfig) {
     const wantBlockConfig = await confirm({

@@ -11,6 +11,8 @@ import {
   OwnableConfig,
   OwnerViolation,
 } from '@hyperlane-xyz/sdk';
+// @ts-ignore
+import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
@@ -18,8 +20,6 @@ import {
   eqAddress,
   objMap,
 } from '@hyperlane-xyz/utils';
-
-import { canProposeSafeTransactions } from '../utils/safe.js';
 
 import {
   ManualMultiSend,
@@ -88,7 +88,7 @@ export abstract class HyperlaneAppGovernor<
     ): Promise<boolean> => {
       if (calls.length > 0) {
         console.log(
-          `> ${calls.length} calls will be submitted via ${submissionType}`,
+          `> ${calls.length} calls will be submitted via ${SubmissionType[submissionType]}`,
         );
         calls.map((c) =>
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
@@ -114,7 +114,9 @@ export abstract class HyperlaneAppGovernor<
       if (calls.length > 0) {
         const confirmed = await summarizeCalls(submissionType, calls);
         if (confirmed) {
-          console.log(`Submitting calls on ${chain} via ${submissionType}`);
+          console.log(
+            `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+          );
           await multiSend.sendTransactions(
             calls.map((call) => ({
               to: call.to,
@@ -124,7 +126,7 @@ export abstract class HyperlaneAppGovernor<
           );
         } else {
           console.log(
-            `Skipping submission of calls on ${chain} via ${submissionType}`,
+            `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
         }
       }

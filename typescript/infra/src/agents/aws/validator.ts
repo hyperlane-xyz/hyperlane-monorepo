@@ -41,15 +41,8 @@ export class InfraS3Validator extends S3Validator {
   static async fromStorageLocation(
     storageLocation: string,
   ): Promise<InfraS3Validator> {
-    const s3Validator = await S3Validator.fromStorageLocation(storageLocation);
-    return new InfraS3Validator(
-      s3Validator.address,
-      s3Validator.localDomain,
-      s3Validator.mailbox_address,
-      s3Validator.s3Bucket.bucket,
-      s3Validator.s3Bucket.region,
-      s3Validator.s3Bucket.folder,
-    );
+    const inner = await S3Validator.fromStorageLocation(storageLocation);
+    return new InfraS3Validator(inner.validatorConfig, inner.s3Config);
   }
 
   async compare(
@@ -109,7 +102,7 @@ export class InfraS3Validator extends S3Validator {
             actual.data.messageId,
           )
         ) {
-          const signerAddress = this.recoverAddressFromCheckpoint(
+          const signerAddress = InfraS3Validator.recoverAddressFromCheckpoint(
             actual.data.checkpoint,
             actual.data.signature,
             actual.data.messageId,

@@ -6,7 +6,7 @@ import {
 } from '../../../src/config/helloworld/types.js';
 import { Contexts } from '../../contexts.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
@@ -15,14 +15,14 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '17ac515-20240402-171932',
+      tag: 'b22a0f4-20240523-140812',
     },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 24 * 6, // every 6 days. At 12 chains it 12 * 11 messages = 132 messages its a bit less than once an hour
+      fullCycleTime: 1000 * 60 * 60 * 24 * 2, // 2 days, 6 * 5 = 30 permutations, so ~1.5 hours per permutation
     },
     messageSendTimeout: 1000 * 60 * 10, // 10 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
@@ -35,7 +35,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '17ac515-20240402-171932',
+      tag: 'b22a0f4-20240523-140812',
     },
     chainsToSkip: [],
     runEnv: environment,

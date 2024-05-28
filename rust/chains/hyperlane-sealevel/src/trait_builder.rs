@@ -1,4 +1,4 @@
-use hyperlane_core::ChainCommunicationError;
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError};
 use url::Url;
 
 /// Sealevel connection configuration
@@ -6,6 +6,8 @@ use url::Url;
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
     pub url: Url,
+    /// Operation batching configuration
+    pub operation_batch: OperationBatchConfig,
 }
 
 /// An error type when parsing a connection configuration.

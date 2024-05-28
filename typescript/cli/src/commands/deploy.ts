@@ -6,7 +6,7 @@ import {
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure, verifyAnvil } from '../deploy/dry-run.js';
+import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
 
@@ -14,11 +14,12 @@ import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
   coreTargetsCommandOption,
-  dryRunOption,
+  dryRunCommandOption,
+  fromAddressCommandOption,
   hookCommandOption,
   ismCommandOption,
   originCommandOption,
-  warpConfigCommandOption,
+  warpDeploymentConfigCommandOption,
 } from './options.js';
 
 /**
@@ -72,7 +73,8 @@ const coreCommand: CommandModuleWithWriteContext<{
   targets: string;
   ism?: string;
   hook?: string;
-  'dry-run': boolean;
+  'dry-run': string;
+  'from-address': string;
   agent: string;
 }> = {
   command: 'core',
@@ -82,15 +84,14 @@ const coreCommand: CommandModuleWithWriteContext<{
     ism: ismCommandOption,
     hook: hookCommandOption,
     agent: agentConfigCommandOption(false, './configs/agent.json'),
-    'dry-run': dryRunOption,
+    'dry-run': dryRunCommandOption,
+    'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
     logGray(
       `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
     );
-    logGray('------------------------------------------------');
-
-    if (dryRun) await verifyAnvil();
+    logGray(`------------------------------------------------`);
 
     try {
       const chains = targets?.split(',').map((r: string) => r.trim());
@@ -114,19 +115,19 @@ const coreCommand: CommandModuleWithWriteContext<{
  */
 const warpCommand: CommandModuleWithWriteContext<{
   config: string;
-  'dry-run': boolean;
+  'dry-run': string;
+  'from-address': string;
 }> = {
   command: 'warp',
   describe: 'Deploy Warp Route contracts',
   builder: {
-    config: warpConfigCommandOption,
-    'dry-run': dryRunOption,
+    config: warpDeploymentConfigCommandOption,
+    'dry-run': dryRunCommandOption,
+    'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {
     logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
     logGray('------------------------------------------------');
-
-    if (dryRun) await verifyAnvil();
 
     try {
       await runWarpRouteDeploy({

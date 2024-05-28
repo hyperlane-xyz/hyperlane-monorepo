@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ZHash } from '../index.js';
+import { ZHash } from '../metadata/customZodTypes.js';
 import { OwnableSchema, PausableSchema } from '../schemas.js';
 
 import { AggregationIsmConfig, IsmType, RoutingIsmConfig } from './types.js';

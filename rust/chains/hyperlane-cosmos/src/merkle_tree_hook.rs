@@ -6,7 +6,7 @@ use futures::future;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
-    Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
 };
 use once_cell::sync::Lazy;
 use tendermint::abci::EventAttribute;
@@ -286,7 +286,7 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     async fn fetch_logs(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(MerkleTreeInsertion, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
         let logs_futures: Vec<_> = range
             .map(|block_number| {
                 let self_clone = self.clone();
@@ -317,6 +317,7 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
                 }
             })
             .flatten()
+            .map(|(log, meta)| (log.into(), meta))
             .collect();
 
         Ok(result)

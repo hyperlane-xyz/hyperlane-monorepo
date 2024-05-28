@@ -8,7 +8,7 @@ import type {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { OwnableSchema, OwnerSchema } from '../schemas.js';
+import { OwnableSchema } from '../schemas.js';
 import type { ChainName } from '../types.js';
 
 /**
@@ -18,7 +18,7 @@ import type { ChainName } from '../types.js';
 export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = z.infer<
   typeof OwnableSchema
 > & {
-  ownerOverrides?: Partial<Record<Keys, z.infer<typeof OwnerSchema>>>;
+  ownerOverrides?: Partial<Record<Keys, Address>>;
 };
 
 export interface CheckerViolation {

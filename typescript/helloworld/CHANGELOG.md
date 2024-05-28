@@ -1,5 +1,59 @@
 # @hyperlane-xyz/helloworld
 
+## 3.13.0
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [b440d98be]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/core@3.13.0
+
+## 3.12.0
+
+### Patch Changes
+
+- Updated dependencies [eba393680]
+- Updated dependencies [69de68a66]
+  - @hyperlane-xyz/sdk@3.12.0
+  - @hyperlane-xyz/core@3.12.0
+
+## 3.11.1
+
+### Patch Changes
+
+- Updated dependencies [c900da187]
+  - @hyperlane-xyz/sdk@3.11.1
+  - @hyperlane-xyz/core@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+
+### Patch Changes
+
+- Updated dependencies [811ecfbba]
+- Updated dependencies [f8b6ea467]
+- Updated dependencies [d37cbab72]
+- Updated dependencies [b6fdf2f7f]
+- Updated dependencies [a86a8296b]
+- Updated dependencies [2db77f177]
+- Updated dependencies [3a08e31b6]
+- Updated dependencies [917266dce]
+- Updated dependencies [aab63d466]
+- Updated dependencies [2e439423e]
+- Updated dependencies [b63714ede]
+- Updated dependencies [3528b281e]
+- Updated dependencies [450e8e0d5]
+- Updated dependencies [af2634207]
+  - @hyperlane-xyz/sdk@3.11.0
+  - @hyperlane-xyz/core@3.11.0
+
 ## 3.10.0
 
 ### Minor Changes

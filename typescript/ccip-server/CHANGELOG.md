@@ -1,5 +1,13 @@
 # @hyperlane-xyz/ccip-server
 
+## 3.13.0
+
+## 3.12.0
+
+## 3.11.1
+
+## 3.11.0
+
 ## 3.10.0
 
 ### Minor Changes

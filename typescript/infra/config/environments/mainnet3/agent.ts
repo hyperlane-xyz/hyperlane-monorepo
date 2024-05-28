@@ -22,6 +22,7 @@ import { supportedChainNames } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import arbitrumNeutronEclipAddresses from './warp/arbitrum-neutron-eclip-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
@@ -52,18 +53,20 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsc: true,
     celo: true,
     ethereum: true,
-    neutron: true,
+    gnosis: true,
+    injective: true,
+    inevm: true,
     mantapacific: true,
     mode: true,
     moonbeam: true,
+    neutron: true,
     optimism: true,
     polygon: true,
-    gnosis: true,
-    scroll: true,
     polygonzkevm: true,
-    injective: true,
-    inevm: true,
+    redstone: true,
+    scroll: true,
     viction: true,
+    zetachain: true,
   },
   [Role.Relayer]: {
     arbitrum: true,
@@ -74,19 +77,21 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsc: true,
     celo: true,
     ethereum: true,
-    // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
-    neutron: false,
-    mantapacific: false,
-    mode: true,
-    moonbeam: true,
-    optimism: true,
-    polygon: true,
     gnosis: true,
-    scroll: true,
-    polygonzkevm: true,
     injective: true,
     inevm: true,
+    mantapacific: true,
+    mode: true,
+    moonbeam: true,
+    // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
+    neutron: false,
+    optimism: true,
+    polygon: true,
+    polygonzkevm: true,
+    redstone: true,
+    scroll: true,
     viction: true,
+    zetachain: true,
   },
   [Role.Scraper]: {
     arbitrum: true,
@@ -97,21 +102,23 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsc: true,
     celo: true,
     ethereum: true,
-    // Cannot scrape non-EVM chains
-    neutron: false,
-    mantapacific: true,
-    mode: true,
-    moonbeam: true,
-    optimism: true,
-    polygon: true,
     gnosis: true,
-    scroll: true,
-    polygonzkevm: true,
     // Cannot scrape non-EVM chains
     injective: false,
     inevm: true,
+    mantapacific: true,
+    mode: true,
+    moonbeam: true,
+    // Cannot scrape non-EVM chains
+    neutron: false,
+    optimism: true,
+    polygon: true,
+    polygonzkevm: true,
+    redstone: true,
+    scroll: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
+    zetachain: true,
   },
 };
 
@@ -202,7 +209,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'd6bb976-20240520-164138',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -210,7 +217,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'de8c2a7-20240515-135254',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -219,7 +226,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'd6bb976-20240520-164138',
     },
   },
 };
@@ -233,7 +240,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'c9c5d37-20240510-014327',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -244,7 +251,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'c9c5d37-20240510-014327',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -264,7 +271,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: 'c9c5d37-20240510-014327',
     },
     gasPaymentEnforcement: [
       {
@@ -272,6 +279,7 @@ const neutron: RootAgentConfig = {
         matchingList: [
           ...routerMatchingList(mantaTIAAddresses),
           ...routerMatchingList(arbitrumTIAAddresses),
+          ...routerMatchingList(arbitrumNeutronEclipAddresses),
         ],
       },
       ...gasPaymentEnforcement,
@@ -284,6 +292,10 @@ const neutron: RootAgentConfig = {
       {
         name: 'arbitrum_tia',
         matchingList: routerMatchingList(arbitrumTIAAddresses),
+      },
+      {
+        name: 'arbitrum_neutron_eclip',
+        matchingList: routerMatchingList(arbitrumNeutronEclipAddresses),
       },
     ],
   },

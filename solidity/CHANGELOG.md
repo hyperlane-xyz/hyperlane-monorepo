@@ -1,5 +1,44 @@
 # @hyperlane-xyz/core
 
+## 3.13.0
+
+### Minor Changes
+
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- b440d98be: Added support for registering/deregistering from the Hyperlane AVS
+
+### Patch Changes
+
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/utils@3.13.0
+
+## 3.12.0
+
+### Patch Changes
+
+- Updated dependencies [69de68a66]
+  - @hyperlane-xyz/utils@3.12.0
+
+## 3.11.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- b6fdf2f7f: Implement XERC20 and FiatToken collateral warp routes
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+
+### Patch Changes
+
+- Updated dependencies [b63714ede]
+- Updated dependencies [2b3f75836]
+- Updated dependencies [af2634207]
+  - @hyperlane-xyz/utils@3.11.0
+
 ## 3.10.0
 
 ### Minor Changes

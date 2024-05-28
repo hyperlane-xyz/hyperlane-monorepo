@@ -5,7 +5,7 @@
 
 use std::{ops::Mul, str::FromStr};
 
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, RoundingMode};
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::impl_fixed_hash_conversions;
 use num_traits::Zero;
@@ -354,7 +354,7 @@ impl FixedPointNumber {
 
     /// Round up to the nearest integer
     pub fn ceil_to_integer(&self) -> Self {
-        Self(self.0.with_scale(0))
+        Self(self.0.with_scale_round(0, RoundingMode::Ceiling))
     }
 
     /// Ceil
@@ -426,5 +426,30 @@ impl FromStr for FixedPointNumber {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(BigDecimal::from_str(s)?))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_fixed_point_number_ceil_to_integer() {
+        use super::FixedPointNumber;
+        use std::str::FromStr;
+
+        // Ceil a non-integer value
+        assert_eq!(
+            FixedPointNumber::from_str("1234.005")
+                .unwrap()
+                .ceil_to_integer(),
+            FixedPointNumber::from_str("1235").unwrap(),
+        );
+
+        // Don't change an integer value
+        assert_eq!(
+            FixedPointNumber::from_str("1234")
+                .unwrap()
+                .ceil_to_integer(),
+            FixedPointNumber::from_str("1234").unwrap(),
+        );
     }
 }

@@ -2,38 +2,31 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import {
-  ERC20Test,
-  ERC20Test__factory,
-  Mailbox__factory,
-} from '@hyperlane-xyz/core';
-import { RouterConfig, TestChainName } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { ERC20Test__factory } from '@hyperlane-xyz/core';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
+import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap } from '../types.js';
 
-import {
-  HypERC20CollateralConfig,
-  HypERC20Config,
-  TokenConfig,
-  TokenType,
-} from './config.js';
+import { EvmWarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { EvmERC20WarpRouteReader } from './read.js';
+import { TokenRouterConfig } from './schemas.js';
 import { WarpRouteDeployConfig } from './types.js';
+
+const chain = TestChainName.test1;
 
 describe('TokenDeployer', async () => {
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let routerConfigMap: ChainMap<RouterConfig>;
   let config: WarpRouteDeployConfig;
+  let token: Address;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -44,19 +37,27 @@ describe('TokenDeployer', async () => {
     );
     const ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
-    routerConfigMap = coreApp.getRouterConfig(signer.address);
+    const routerConfigMap = coreApp.getRouterConfig(signer.address);
     config = objMap(
       routerConfigMap,
-      (chain, c): HypERC20Config => ({
+      (chain, c): TokenRouterConfig => ({
         type: TokenType.synthetic,
         name: chain,
         symbol: `u${chain}`,
         decimals: 18,
-        totalSupply: 100_000,
-        gas: 65_000,
+        totalSupply: '100000',
         ...c,
       }),
     );
+
+    const { name, decimals, symbol, totalSupply } = config[chain];
+    const contract = await new ERC20Test__factory(signer).deploy(
+      name!,
+      symbol!,
+      totalSupply!,
+      decimals!,
+    );
+    token = contract.address;
   });
 
   beforeEach(async () => {
@@ -64,66 +65,36 @@ describe('TokenDeployer', async () => {
   });
 
   it('deploys', async () => {
-    await deployer.deploy(config as ChainMap<TokenConfig & RouterConfig>);
+    await deployer.deploy(config);
   });
 
-  describe('ERC20WarpRouterReader', async () => {
-    const TOKEN_NAME = 'fake';
-    const TOKEN_SUPPLY = '100000000000000000000';
-    const TOKEN_DECIMALS = 18;
-    let erc20Factory: ERC20Test__factory;
-    let token: ERC20Test;
+  for (const type of [TokenType.collateral, TokenType.synthetic]) {
+    describe('ERC20WarpRouterReader', async () => {
+      let reader: EvmWarpRouteReader;
+      let routerAddress: Address;
 
-    before(async () => {
-      erc20Factory = new ERC20Test__factory(signer);
-      token = await erc20Factory.deploy(
-        TOKEN_NAME,
-        TOKEN_NAME,
-        TOKEN_SUPPLY,
-        TOKEN_DECIMALS,
-      );
-    });
-    async function deriveWarpConfig(chainName: string, address: string) {
-      return new EvmERC20WarpRouteReader(
-        multiProvider,
-        chainName,
-      ).deriveWarpRouteConfig(address);
-    }
-    it('should derive ERC20RouterConfig from collateral correctly', async () => {
-      const baseConfig = routerConfigMap[TestChainName.test1];
-      const mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
+      before(() => {
+        reader = new EvmWarpRouteReader(multiProvider, TestChainName.test1);
+      });
 
-      // Create config
-      const config: { [key: string]: any } = {
-        [TestChainName.test1]: {
-          type: TokenType.collateral,
-          token: token.address,
-          hook: await mailbox.defaultHook(),
-          gas: 65_000,
-          ...baseConfig,
-        },
-      };
-      // Deploy with config
-      const warpRoute = await deployer.deploy(
-        config as ChainMap<TokenConfig & RouterConfig>,
-      );
+      beforeEach(async () => {
+        config[chain] = {
+          ...config[chain],
+          type,
+          // @ts-ignore
+          token: type === TokenType.collateral ? token : undefined,
+        };
+        const warpRoute = await deployer.deploy(config);
+        routerAddress = warpRoute[chain][type].address;
+      });
 
-      // Derive config and check if each value matches
-      const derivedConfig: Partial<HypERC20CollateralConfig> =
-        await deriveWarpConfig(
-          TestChainName.test1,
-          warpRoute[TestChainName.test1].collateral.address,
+      it(`should derive TokenRouterConfig from ${type} correctly`, async () => {
+        const derivedConfig = await reader.deriveWarpRouteConfig(
+          routerAddress,
+          type,
         );
-
-      for (const [key, value] of Object.entries(derivedConfig)) {
-        const deployedValue = config[TestChainName.test1][key];
-        if (deployedValue) expect(deployedValue).to.equal(value);
-      }
-
-      // Check if token values matches
-      expect(derivedConfig.name).to.equal(TOKEN_NAME);
-      expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
-      expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
+        expect(derivedConfig).to.include(config[chain]);
+      });
     });
-  });
+  }
 });

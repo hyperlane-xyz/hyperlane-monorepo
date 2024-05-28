@@ -84,6 +84,12 @@ export type TrustedRelayerIsmConfig = z.infer<
   typeof TrustedRelayerIsmConfigSchema
 >;
 
+export type NullIsmConfig =
+  | TestIsmConfig
+  | PausableIsmConfig
+  | OpStackIsmConfig
+  | TrustedRelayerIsmConfig;
+
 export type RoutingIsmConfig = OwnableConfig & {
   type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
   domains: ChainMap<IsmConfig>;

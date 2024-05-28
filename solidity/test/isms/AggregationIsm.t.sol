@@ -14,11 +14,31 @@ contract AggregationIsmTest is Test {
     using Strings for uint256;
     using Strings for uint8;
 
+    string constant fixtureKey = "fixture";
+
     StaticAggregationIsmFactory factory;
     IAggregationIsm ism;
 
     function setUp() public {
         factory = new StaticAggregationIsmFactory();
+    }
+
+    function fixtureAppendMetadata(
+        uint256 index,
+        bytes memory metadata
+    ) internal {
+        vm.serializeBytes(fixtureKey, index.toString(), metadata);
+    }
+
+    function fixtureAppendNull(uint256 index) internal {
+        vm.serializeString(fixtureKey, index.toString(), "null");
+    }
+
+    function writeFixture(bytes memory metadata, uint8 m) internal {
+        string memory path = string(
+            abi.encodePacked("./fixtures/aggregation/", m.toString(), ".json")
+        );
+        vm.writeJson(vm.serializeBytes(fixtureKey, "encoded", metadata), path);
     }
 
     function deployIsms(
@@ -44,7 +64,6 @@ contract AggregationIsmTest is Test {
         uint32 start = 8 * uint32(choices.length);
         bytes memory metametadata;
 
-        string memory structured = "structured";
         for (uint256 i = 0; i < choices.length; i++) {
             bool included = false;
             for (uint256 j = 0; j < chosen.length; j++) {
@@ -52,25 +71,22 @@ contract AggregationIsmTest is Test {
             }
             bytes memory metadata = "";
             if (included) {
-                metadata = TestIsm(choices[i]).requiredMetadata();
+                bytes memory metadata = TestIsm(choices[i]).requiredMetadata();
                 uint32 end = start + uint32(metadata.length);
                 uint64 offset = (uint64(start) << 32) | uint64(end);
                 offsets = bytes.concat(offsets, abi.encodePacked(offset));
                 start = end;
                 metametadata = abi.encodePacked(metametadata, metadata);
-                vm.serializeBytes(structured, i.toString(), metadata);
+                fixtureAppendMetadata(i, metadata);
             } else {
                 offsets = bytes.concat(offsets, abi.encodePacked(uint64(0)));
-                vm.serializeString(structured, i.toString(), "null");
+                fixtureAppendNull(i);
             }
         }
 
-        string memory path = string(
-            abi.encodePacked("./fixtures/aggregation/", m.toString(), ".json")
-        );
         bytes memory encoded = abi.encodePacked(offsets, metametadata);
 
-        vm.writeJson(vm.serializeBytes(structured, "encoded", encoded), path);
+        writeFixture(encoded, m);
 
         return encoded;
     }

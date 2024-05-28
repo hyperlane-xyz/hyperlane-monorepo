@@ -8,7 +8,7 @@ use derive_new::new;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
-    SequenceAwareIndexer, Sequenced,
+    SequenceAwareIndexer,
 };
 pub use metrics::ContractSyncMetrics;
 use tokio::time::sleep;
@@ -82,7 +82,7 @@ where
                 // from the loop (the sleep duration)
                 #[allow(clippy::never_loop)]
                 CursorAction::Query(range) => loop {
-                    debug!(?range, "Looking for for events in index range");
+                    debug!(?range, "Looking for events in index range");
 
                     let logs = match self.indexer.fetch_logs(range.clone()).await {
                         Ok(logs) => logs,
@@ -166,7 +166,6 @@ where
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
-                index_settings.mode,
             )
             .await
             .unwrap(),
@@ -192,7 +191,7 @@ pub type SequencedDataContractSync<T> =
 #[async_trait]
 impl<T> ContractSyncer<T> for SequencedDataContractSync<T>
 where
-    T: Sequenced + Debug + Clone + Eq + Hash,
+    T: Send + Sync + Debug + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {

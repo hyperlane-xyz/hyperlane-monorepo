@@ -12,6 +12,7 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
+  addressToBytes32,
   bytes32ToAddress,
   eqAddress,
   messageId,
@@ -71,12 +72,56 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     destination: ChainName,
     recipient: AddressBytes32,
     body: string,
+    metadata?: string,
+    hook?: Address,
   ): Promise<ethers.BigNumber> => {
     const destinationId = this.multiProvider.getDomainId(destination);
     return this.contractsMap[origin].mailbox[
-      'quoteDispatch(uint32,bytes32,bytes)'
-    ](destinationId, recipient, body);
+      'quoteDispatch(uint32,bytes32,bytes,bytes,address)'
+    ](
+      destinationId,
+      recipient,
+      body,
+      metadata || '0x',
+      hook || ethers.constants.AddressZero,
+    );
   };
+
+  async sendMessage(
+    origin: ChainName,
+    destination: ChainName,
+    recipient: Address,
+    body: string,
+    hook?: Address,
+    metadata?: string,
+  ): Promise<{ dispatchTx: TransactionReceipt; message: DispatchedMessage }> {
+    const mailbox = this.getContracts(origin).mailbox;
+    const destinationDomain = this.multiProvider.getDomainId(destination);
+    const recipientBytes32 = addressToBytes32(recipient);
+    const quote = await this.quoteGasPayment(
+      origin,
+      destination,
+      recipientBytes32,
+      body,
+      metadata,
+      hook,
+    );
+    const dispatchTx = await this.multiProvider.handleTx(
+      origin,
+      mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
+        destinationDomain,
+        recipientBytes32,
+        body,
+        metadata || '0x',
+        hook || ethers.constants.AddressZero,
+        { value: quote },
+      ),
+    );
+    return {
+      dispatchTx,
+      message: this.getDispatchedMessages(dispatchTx)[0],
+    };
+  }
 
   onDispatch(
     handler: (
@@ -294,7 +339,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   getDispatchedMessages(
     sourceTx: TransactionReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
-    return HyperlaneCore.getDispatchedMessages(sourceTx);
+    const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
+    return messages.map(({ parsed, ...other }) => {
+      const originChain =
+        this.multiProvider.tryGetChainName(parsed.origin) ?? undefined;
+      const destinationChain =
+        this.multiProvider.tryGetChainName(parsed.destination) ?? undefined;
+      return { parsed: { ...parsed, originChain, destinationChain }, ...other };
+    });
   }
 
   async getDispatchTx(

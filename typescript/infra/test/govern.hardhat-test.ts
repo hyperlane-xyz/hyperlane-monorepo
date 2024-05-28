@@ -133,6 +133,8 @@ describe('ICA governance', async () => {
       localRouter: remote.address,
     };
 
+    const accountOwner = await icaApp.deployAccount(localChain, accountConfig);
+
     const recipientF = new TestRecipient__factory(signer);
     recipient = await recipientF.deploy();
 
@@ -144,17 +146,15 @@ describe('ICA governance', async () => {
         recipient,
       },
     };
-    // missing ica
     const configMap = {
       [localChain]: { owner: signer.address },
-      [remoteChain]: { owner: signer.address },
+      [remoteChain]: { owner: accountOwner },
     };
 
     const app = new TestApp(contractsMap, multiProvider);
     const checker = new TestChecker(multiProvider, app, configMap);
     governor = new HyperlaneTestGovernor(checker, icaApp);
 
-    const accountOwner = await icaApp.deployAccount(localChain, accountConfig);
     await recipient.transferOwnership(accountOwner);
   });
 

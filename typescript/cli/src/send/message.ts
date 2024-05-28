@@ -5,7 +5,7 @@ import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
-import { runPreflightChecks } from '../deploy/utils.js';
+import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
@@ -42,12 +42,11 @@ export async function sendTestMessage({
     );
   }
 
-  await runPreflightChecks({
+  await runPreflightChecksForChains({
     context,
-    origin,
-    remotes: [destination],
-    minGas: MINIMUM_TEST_SEND_GAS,
+    chains: [origin, destination],
     chainsToGasCheck: [origin],
+    minGas: MINIMUM_TEST_SEND_GAS,
   });
 
   await timeout(

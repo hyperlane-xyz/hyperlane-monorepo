@@ -14,9 +14,7 @@
 
 Note this is the branch for Hyperlane v3.
 
-V2 is still in operation but is not being actively developed. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch.
-
-V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+V2 is deprecated in favor of V3. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch. For V1 code, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
 ## Overview
 
@@ -45,6 +43,25 @@ foundryup
 ```
 
 Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
+
+### Node
+
+This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+
+To install nvm
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+```
+
+To install version 20
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+You should change versions automatically with the `.nvmrc` file.
 
 ### Workspaces
 

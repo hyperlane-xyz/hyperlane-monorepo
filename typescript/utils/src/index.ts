@@ -13,8 +13,6 @@ export {
   capitalizeAddress,
   convertToProtocolAddress,
   ensure0x,
-  fromHexString,
-  toHexString,
   eqAddress,
   eqAddressCosmos,
   eqAddressEvm,
@@ -48,7 +46,7 @@ export {
   toWei,
   tryParseAmount,
 } from './amount.js';
-export { chunk, exclude } from './arrays.js';
+export { chunk, exclude, randomElement } from './arrays.js';
 export {
   concurrentMap,
   pollAsync,
@@ -90,7 +88,7 @@ export {
   rootLogger,
   setRootLogger,
 } from './logging.js';
-export { mean, median, stdDev, sum } from './math.js';
+export { mean, median, randomInt, stdDev, sum } from './math.js';
 export { formatMessage, messageId, parseMessage } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
@@ -117,8 +115,10 @@ export {
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {
   errorToString,
+  fromHexString,
   sanitizeString,
   streamToString,
+  toHexString,
   toTitleCase,
   trimToLength,
 } from './strings.js';
@@ -152,4 +152,4 @@ export {
 } from './types.js';
 export { isHttpsUrl } from './url.js';
 export { assert } from './validation.js';
-export { BaseValidator } from './validator.js';
+export { BaseValidator, ValidatorConfig } from './validator.js';

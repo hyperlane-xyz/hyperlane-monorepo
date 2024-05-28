@@ -12,10 +12,10 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { DerivedHookConfigWithAddress, EvmHookReader } from '../hook/read.js';
+import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { HookConfigSchema } from '../hook/schemas.js';
+import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
-import { DerivedIsmConfigWithAddress, EvmIsmReader } from '../ism/read.js';
 import { IsmConfigObjectSchema } from '../ism/schemas.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
@@ -64,7 +64,7 @@ export class HyperlaneRelayer {
   async getHookConfig(
     chain: ChainName,
     hook: Address,
-  ): Promise<DerivedHookConfigWithAddress> {
+  ): Promise<DerivedHookConfig> {
     const config =
       this.cache?.hook[chain]?.[hook] ??
       (await new EvmHookReader(this.multiProvider, chain).deriveHookConfig(
@@ -82,7 +82,7 @@ export class HyperlaneRelayer {
   async getIsmConfig(
     chain: ChainName,
     ism: Address,
-  ): Promise<DerivedIsmConfigWithAddress> {
+  ): Promise<DerivedIsmConfig> {
     const config =
       this.cache?.ism[chain]?.[ism] ??
       (await new EvmIsmReader(this.multiProvider, chain).deriveIsmConfig(ism));
@@ -97,7 +97,7 @@ export class HyperlaneRelayer {
 
   async getSenderHookConfig(
     message: DispatchedMessage,
-  ): Promise<DerivedHookConfigWithAddress> {
+  ): Promise<DerivedHookConfig> {
     const originChain = this.core.getOrigin(message);
     const hook = await this.core.getSenderHookAddress(message);
     return this.getHookConfig(originChain, hook);
@@ -105,7 +105,7 @@ export class HyperlaneRelayer {
 
   async getRecipientIsmConfig(
     message: DispatchedMessage,
-  ): Promise<DerivedIsmConfigWithAddress> {
+  ): Promise<DerivedIsmConfig> {
     const destinationChain = this.core.getDestination(message);
     const ism = await this.core.getRecipientIsmAddress(message);
     return this.getIsmConfig(destinationChain, ism);
@@ -135,7 +135,7 @@ export class HyperlaneRelayer {
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
     const metadata = await pollAsync(
-      () => this.metadataBuilder.build(message, { ism, hook, dispatchTx }),
+      () => this.metadataBuilder.build({ message, ism, hook, dispatchTx }),
       5 * 1000, // every 5 seconds
       12, // 12 attempts
     );

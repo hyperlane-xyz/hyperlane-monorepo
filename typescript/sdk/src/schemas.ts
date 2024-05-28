@@ -1,13 +1,9 @@
 import { z } from 'zod';
 
-import { isAddress } from '@hyperlane-xyz/utils';
-
-export const OwnerSchema = z.string().refine((v) => isAddress(v), {
-  message: 'Owner must be a valid address',
-});
+import { ZHash } from './metadata/customZodTypes.js';
 
 export const OwnableSchema = z.object({
-  owner: OwnerSchema,
+  owner: ZHash,
 });
 
 export const PausableSchema = OwnableSchema.extend({

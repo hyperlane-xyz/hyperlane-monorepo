@@ -1,5 +1,82 @@
 # @hyperlane-xyz/cli
 
+## 3.13.0
+
+### Minor Changes
+
+- b22a0f453: Add hyperlane validator address command to retrieve validator address from AWS
+- 39ea7cdef: Implement multi collateral warp routes
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- b440d98be: Added support for registering/deregistering from the Hyperlane AVS
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
+## 3.12.0
+
+### Minor Changes
+
+- cc8731985: Default to home directory for local registry
+- ff221f66a: Allows a developer to pass a private key or address to dry-run, and ensures HYP_KEY is only used for private keys.
+- eba393680: Add CLI-side submitter to use SDK submitter from CRUD and other command modules.
+
+### Patch Changes
+
+- 2b7dfe27e: Improve defaults in chain config command
+- Updated dependencies [eba393680]
+- Updated dependencies [69de68a66]
+  - @hyperlane-xyz/sdk@3.12.0
+  - @hyperlane-xyz/utils@3.12.0
+
+## 3.11.1
+
+### Patch Changes
+
+- 78b77eecf: Fixes for CLI dry-runs
+- Updated dependencies [c900da187]
+  - @hyperlane-xyz/sdk@3.11.1
+  - @hyperlane-xyz/utils@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- f8b6ea467: Update the warp-route-deployment.yaml to a more sensible schema. This schema sets us up to allow multi-chain collateral deployments. Removes intermediary config objects by using zod instead.
+- b6fdf2f7f: Implement XERC20 and FiatToken collateral warp routes
+- aea79c686: Adds single-chain dry-run support for deploying warp routes & gas estimation for core and warp route dry-run deployments.
+- 917266dce: Add --self-relay to CLI commands
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+- 450e8e0d5: Migrate fork util from CLI to SDK. Anvil IP & Port are now optionally passed into fork util by client.
+- 3528b281e: Restructure CLI params around registries
+- af2634207: Introduces `hyperlane hook read` and `hyperlane ism read` commands for deriving onchain Hook/ISM configs from an address on a given chain.
+
+### Patch Changes
+
+- 8246f14d6: Adds defaultDescription to yargs --key option.
+- Updated dependencies [811ecfbba]
+- Updated dependencies [f8b6ea467]
+- Updated dependencies [d37cbab72]
+- Updated dependencies [b6fdf2f7f]
+- Updated dependencies [a86a8296b]
+- Updated dependencies [2db77f177]
+- Updated dependencies [3a08e31b6]
+- Updated dependencies [917266dce]
+- Updated dependencies [aab63d466]
+- Updated dependencies [2e439423e]
+- Updated dependencies [b63714ede]
+- Updated dependencies [3528b281e]
+- Updated dependencies [450e8e0d5]
+- Updated dependencies [2b3f75836]
+- Updated dependencies [af2634207]
+  - @hyperlane-xyz/sdk@3.11.0
+  - @hyperlane-xyz/utils@3.11.0
+
 ## 3.10.0
 
 ### Minor Changes

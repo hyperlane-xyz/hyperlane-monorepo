@@ -9,18 +9,18 @@ import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HookConfig } from '../hook/types.js';
+import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { DerivedIsmConfigWithAddress } from '../ism/read.js';
 import { AggregationIsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
+import { EvmCoreReader } from './EvmCoreReader.js';
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
-import { EvmCoreReader } from './read.js';
 import { CoreConfig } from './types.js';
 
 describe('core', async () => {
@@ -141,9 +141,9 @@ describe('core', async () => {
 
           // Cast because we don't expect the 'string' type
           const defaultIsmOnchain =
-            coreConfigOnChain.defaultIsm as DerivedIsmConfigWithAddress;
+            coreConfigOnChain.defaultIsm as DerivedIsmConfig;
           const defaultIsmTest = coreConfig[chainName]
-            .defaultIsm as DerivedIsmConfigWithAddress;
+            .defaultIsm as DerivedIsmConfig;
 
           expect(defaultIsmOnchain.type).to.be.equal(defaultIsmTest.type);
         }),

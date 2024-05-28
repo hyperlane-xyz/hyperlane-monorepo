@@ -2,17 +2,15 @@ use std::fmt::Debug;
 use std::num::NonZeroU64;
 
 use async_trait::async_trait;
-use auto_impl::auto_impl;
 
 use crate::{
-    traits::TxOutcome, utils::domain_hash, ChainResult, HyperlaneContract, HyperlaneMessage,
-    TxCostEstimate, H256, U256,
+    traits::TxOutcome, utils::domain_hash, BatchItem, ChainCommunicationError, ChainResult,
+    HyperlaneContract, HyperlaneMessage, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
-#[auto_impl(&, Box, Arc)]
 pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Return the domain hash
     fn domain_hash(&self) -> H256 {
@@ -41,6 +39,15 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome>;
+
+    /// Process a message with a proof against the provided signed checkpoint
+    async fn process_batch(
+        &self,
+        _messages: &[BatchItem<HyperlaneMessage>],
+    ) -> ChainResult<TxOutcome> {
+        // Batching is not supported by default
+        Err(ChainCommunicationError::BatchingFailed)
+    }
 
     /// Estimate transaction costs to process a message.
     async fn process_estimate_costs(

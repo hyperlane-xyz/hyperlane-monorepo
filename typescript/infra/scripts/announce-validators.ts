@@ -88,12 +88,12 @@ async function main() {
               const contracts = core.getContracts(validatorChain);
               const localDomain = multiProvider.getDomainId(validatorChain);
               const validator = new InfraS3Validator(
-                validatorBaseConfig.address,
-                localDomain,
-                contracts.mailbox.address,
-                validatorBaseConfig.checkpointSyncer.bucket,
-                validatorBaseConfig.checkpointSyncer.region,
-                undefined,
+                {
+                  localDomain,
+                  address: validatorBaseConfig.address,
+                  mailbox: contracts.mailbox.address,
+                },
+                validatorBaseConfig.checkpointSyncer,
               );
               announcements.push({
                 storageLocation: validator.storageLocation(),

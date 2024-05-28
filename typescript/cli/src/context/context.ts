@@ -1,11 +1,17 @@
 import { ethers } from 'ethers';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import {
+  GithubRegistry,
+  IRegistry,
+  MergedRegistry,
+} from '@hyperlane-xyz/registry';
+import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import { forkNetworkToMultiProvider } from '../deploy/dry-run.js';
-import { MergedRegistry } from '../registry/MergedRegistry.js';
+import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
+import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
@@ -16,15 +22,20 @@ import {
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !!argv.dryRun;
+  const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
     registryOverrideUri: argv.overrides,
     key: argv.key,
+    fromAddress: argv.fromAddress,
     requiresKey,
     skipConfirmation: argv.yes,
   };
+  if (!isDryRun && settings.fromAddress)
+    throw new Error(
+      "'--from-address' or '-f' should only be used for dry-runs",
+    );
   const context = isDryRun
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
@@ -65,10 +76,16 @@ export async function getContext({
  * @returns dry-run context for the current command
  */
 export async function getDryRunContext(
-  { registryUri, registryOverrideUri, key, skipConfirmation }: ContextSettings,
+  {
+    registryUri,
+    registryOverrideUri,
+    key,
+    fromAddress,
+    skipConfirmation,
+  }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, true);
+  const registry = getRegistry(registryUri, registryOverrideUri);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -79,13 +96,17 @@ export async function getDryRunContext(
     );
   }
 
+  logBlue(`Dry-running against chain: ${chain}`);
+  await verifyAnvil();
+
   const multiProvider = await getMultiProvider(registry);
   await forkNetworkToMultiProvider(multiProvider, chain);
-  const { key: impersonatedKey, signer: impersonatedSigner } =
-    await getImpersonatedSigner({
-      key,
-      skipConfirmation,
-    });
+
+  const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
+    fromAddress,
+    key,
+    skipConfirmation,
+  });
   multiProvider.setSharedSigner(impersonatedSigner);
 
   return {
@@ -110,14 +131,25 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
-  isDryRun?: boolean,
 ): IRegistry {
-  const registryUris = [primaryRegistryUri, overrideRegistryUri]
-    .map((r) => r.trim())
-    .filter((r) => !!r);
+  const logger = rootLogger.child({ module: 'MergedRegistry' });
+  const registries = [primaryRegistryUri, overrideRegistryUri]
+    .map((uri) => uri.trim())
+    .filter((uri) => !!uri)
+    .map((uri, index) => {
+      const childLogger = logger.child({ uri, index });
+      if (isHttpsUrl(uri)) {
+        return new GithubRegistry({ uri, logger: childLogger });
+      } else {
+        return new FileSystemRegistry({
+          uri,
+          logger: childLogger,
+        });
+      }
+    });
   return new MergedRegistry({
-    registryUris,
-    isDryRun,
+    registries,
+    logger,
   });
 }
 
