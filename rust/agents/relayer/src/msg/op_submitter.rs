@@ -13,8 +13,9 @@ use tracing::{info, warn};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneMessage, MpmcReceiver, PendingOperationResult, QueueOperation, TxOutcome,
+    total_estimated_cost, BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain,
+    HyperlaneDomainProtocol, HyperlaneMessage, MpmcReceiver, PendingOperationResult,
+    QueueOperation, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -424,17 +425,10 @@ impl OperationBatch {
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         match self.try_submit_as_batch(metrics).await {
             Ok(outcome) => {
-                // TODO: use the `tx_outcome` with the total gas expenditure
-                // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
-                // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
-                self.operations
-                    .iter()
-                    .for_each(|op| op.set_operation_outcome(outcome.clone(), &self.operations));
+                let total_estimated_cost = total_estimated_cost(&self.operations);
                 for mut op in self.operations {
-                    // first need to compute the proportional gas used
-                    // need the simulated gas amount and outcome.gas_used
-                    // op.set_submission_outcome(outcome);
+                    op.set_operation_outcome(outcome.clone(), total_estimated_cost);
                     op.set_next_attempt_after(CONFIRM_DELAY);
                     confirm_queue.push(op).await;
                 }

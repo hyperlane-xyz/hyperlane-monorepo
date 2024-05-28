@@ -4,8 +4,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxCostEstimate, TxOutcome, H256};
+use crate::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256};
 use async_trait::async_trait;
+use tracing::warn;
 
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
@@ -95,6 +96,17 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the number of times this operation has been retried.
     #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
+}
+
+/// utility fn to calculate the total estimated cost of an operation batch
+pub fn total_estimated_cost(ops: &[Box<dyn PendingOperation>]) -> U256 {
+    ops.iter().fold(U256::zero(), |acc, op| {
+        let Some(cost_estimate) = op.get_tx_cost_estimate() else {
+            warn!("Cannot set operation outcome without a cost estimate set previously");
+            return acc;
+        };
+        acc.saturating_add(cost_estimate.gas_limit)
+    })
 }
 
 impl Display for QueueOperation {

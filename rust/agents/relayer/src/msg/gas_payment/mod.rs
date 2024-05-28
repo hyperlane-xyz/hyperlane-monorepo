@@ -132,6 +132,11 @@ impl GasPaymentEnforcer {
     }
 
     pub fn record_tx_outcome(&self, message: &HyperlaneMessage, outcome: TxOutcome) -> Result<()> {
+        debug!(
+            msg=%message,
+            ?outcome,
+            "Recording gas expenditure for message"
+        );
         self.db.process_gas_expenditure(InterchainGasExpenditure {
             message_id: message.id(),
             gas_used: outcome.gas_used,

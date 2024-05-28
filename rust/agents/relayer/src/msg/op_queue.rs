@@ -99,7 +99,7 @@ mod test {
     use super::*;
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, MpmcChannel,
-        PendingOperationResult, TryBatchAs, TxCostEstimate, TxOutcome, H256,
+        PendingOperationResult, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
     };
     use std::{
         collections::VecDeque,
@@ -124,7 +124,7 @@ mod test {
     }
 
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {
-        fn set_operation_outcome(&mut self, _outcome: TxOutcome, _batch: &[QueueOperation]) {
+        fn set_operation_outcome(&mut self, _outcome: TxOutcome, total_estimated_cost: U256) {
             todo!()
         }
     }

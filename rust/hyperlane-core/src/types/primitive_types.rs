@@ -3,7 +3,10 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::reversed_empty_ranges)]
 
-use std::{ops::Mul, str::FromStr};
+use std::{
+    ops::{Div, Mul},
+    str::FromStr,
+};
 
 use bigdecimal::{BigDecimal, RoundingMode};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -418,6 +421,18 @@ where
     fn mul(self, rhs: T) -> Self::Output {
         let rhs = rhs.into();
         Self(self.0 * rhs.0)
+    }
+}
+
+impl<T> Div<T> for FixedPointNumber
+where
+    T: Into<FixedPointNumber>,
+{
+    type Output = FixedPointNumber;
+
+    fn div(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        Self(self.0 / rhs.0)
     }
 }
 
