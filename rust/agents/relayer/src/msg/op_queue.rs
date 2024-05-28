@@ -1,16 +1,12 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::MpmcReceiver;
+use hyperlane_core::{MpmcReceiver, PendingOperation, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::Mutex;
 use tracing::{info, instrument};
 
 use crate::server::MessageRetryRequest;
-
-use super::pending_operation::PendingOperation;
-
-pub type QueueOperation = Box<dyn PendingOperation>;
 
 /// Queue of generic operations that can be submitted to a destination chain.
 /// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
@@ -101,10 +97,9 @@ impl OpQueue {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::msg::pending_operation::PendingOperationResult;
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, MpmcChannel, TryBatchAs,
-        TxOutcome, H256,
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, MpmcChannel,
+        PendingOperationResult, TryBatchAs, TxCostEstimate, TxOutcome, H256,
     };
     use std::{
         collections::VecDeque,
@@ -128,7 +123,15 @@ mod test {
         }
     }
 
-    impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
+    impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {
+        fn set_operation_outcome(
+            &mut self,
+            _outcome: TxOutcome,
+            _batch: Vec<dyn PendingOperation>,
+        ) {
+            todo!()
+        }
+    }
 
     #[async_trait::async_trait]
     impl PendingOperation for MockPendingOperation {
@@ -171,6 +174,14 @@ mod test {
         }
 
         fn set_submission_outcome(&mut self, _outcome: TxOutcome) {
+            todo!()
+        }
+
+        fn set_tx_cost_estimate(&mut self, _estimate: TxCostEstimate) {
+            todo!()
+        }
+
+        fn get_tx_cost_estimate(&self) -> Option<TxCostEstimate> {
             todo!()
         }
 

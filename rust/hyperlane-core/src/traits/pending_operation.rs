@@ -4,10 +4,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxCostEstimate, TxOutcome, H256};
 use async_trait::async_trait;
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256};
 
-use super::op_queue::QueueOperation;
+pub type QueueOperation = Box<dyn PendingOperation>;
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
@@ -66,6 +66,12 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// Set the outcome of the `submit` call
     fn set_submission_outcome(&mut self, outcome: TxOutcome);
+
+    /// Set the estimated the cost of the `submit` call
+    fn set_tx_cost_estimate(&mut self, estimate: TxCostEstimate);
+
+    /// Get the estimated the cost of the `submit` call
+    fn get_tx_cost_estimate(&mut self) -> Option<TxCostEstimate>;
 
     /// This will be called after the operation has been submitted and is
     /// responsible for checking if the operation has reached a point at

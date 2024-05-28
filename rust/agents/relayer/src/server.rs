@@ -8,8 +8,6 @@ use serde::Deserialize;
 use std::str::FromStr;
 use tokio::sync::broadcast::Sender;
 
-use crate::msg::op_queue::QueueOperation;
-
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 1_000;
 

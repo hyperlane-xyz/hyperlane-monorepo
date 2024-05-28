@@ -14,14 +14,13 @@ use tracing::{info, warn};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneMessage, MpmcReceiver, TxOutcome,
+    HyperlaneMessage, MpmcReceiver, PendingOperationResult, QueueOperation, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
 
-use super::op_queue::{OpQueue, QueueOperation};
-use super::pending_operation::*;
+use super::op_queue::OpQueue;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -430,6 +429,9 @@ impl OperationBatch {
                 // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
                 for mut op in self.operations {
+                    // first need to compute the proportional gas used
+                    // need the simulated gas amount and outcome.gas_used
+                    // op.set_submission_outcome(outcome);
                     op.set_next_attempt_after(CONFIRM_DELAY);
                     confirm_queue.push(op).await;
                 }
@@ -459,7 +461,7 @@ impl OperationBatch {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
 
-        // We use the estimated gas limit from the prior call to
+        // We rely the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
         let outcome = first_item.mailbox.process_batch(&batch).await?;
         metrics.ops_submitted.inc_by(self.operations.len() as u64);

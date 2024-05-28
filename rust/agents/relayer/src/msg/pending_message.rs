@@ -9,8 +9,9 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
-    BatchItem, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneMessage, Mailbox, MessageSubmissionData, TryBatchAs, TxOutcome, H256, U256,
+    make_op_try, BatchItem, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneDomain,
+    HyperlaneMessage, Mailbox, MessageSubmissionData, PendingOperation, PendingOperationResult,
+    TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -18,7 +19,6 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use super::{
     gas_payment::GasPaymentEnforcer,
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
-    pending_operation::*,
 };
 
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
@@ -66,6 +66,8 @@ pub struct PendingMessage {
     next_attempt_after: Option<Instant>,
     #[new(default)]
     submission_outcome: Option<TxOutcome>,
+    #[new(default)]
+    tx_cost_estimate: Option<TxCostEstimate>,
 }
 
 impl Debug for PendingMessage {
@@ -111,6 +113,29 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
                 self.ctx.destination_mailbox.clone(),
             )),
         }
+    }
+
+    fn set_operation_outcome(&mut self, outcome: TxOutcome, batch: Vec<Box<dyn PendingOperation>>) {
+        let Some(estimate) = self.get_tx_cost_estimate() else {
+            warn!("Cannot set operation outcome without a cost estimate set previously");
+            return;
+        };
+        let total_estimated_cost = batch
+            .iter()
+            .filter_map(|op| {
+                let cost_estimate = op.get_tx_cost_estimate();
+                if cost_estimate.is_none() {
+                    warn!("Cannot set operation outcome without a cost estimate set previously");
+                }
+                cost_estimate.map(|c| c.gas_limit)
+            })
+            .sum();
+        let ratio = estimate.gas_limit / total_estimated_cost;
+        let operation_outcome = TxOutcome {
+            gas_used: outcome.gas_used * ratio,
+            ..outcome
+        };
+        self.set_submission_outcome(operation_outcome);
     }
 }
 
@@ -281,6 +306,14 @@ impl PendingOperation for PendingMessage {
 
     fn set_submission_outcome(&mut self, outcome: TxOutcome) {
         self.submission_outcome = Some(outcome);
+    }
+
+    fn set_tx_cost_estimate(&mut self, estimate: TxCostEstimate) {
+        self.tx_cost_estimate = Some(estimate);
+    }
+
+    fn get_tx_cost_estimate(&mut self) -> Option<&TxCostEstimate> {
+        self.tx_cost_estimate.as_ref()
     }
 
     async fn confirm(&mut self) -> PendingOperationResult {

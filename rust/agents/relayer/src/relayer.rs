@@ -33,7 +33,6 @@ use crate::{
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
-        op_queue::QueueOperation,
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         processor::{MessageProcessor, MessageProcessorMetrics},
