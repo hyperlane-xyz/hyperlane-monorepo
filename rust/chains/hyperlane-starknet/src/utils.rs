@@ -14,7 +14,10 @@ use starknet::{
 use url::Url;
 
 use crate::{
-    contracts::{interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message},
+    contracts::{
+        interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message,
+        validator_announce::Bytes as ValidatorAnnounceBytes,
+    },
     HyperlaneStarknetError,
 };
 
@@ -153,4 +156,31 @@ fn u128_vec_to_u8_vec(input: Vec<u128>) -> Vec<u8> {
         output.extend_from_slice(&value.to_be_bytes());
     }
     output
+}
+
+/// Convert a byte slice to a starknet bytes
+/// We have to pad the bytes to 16 bytes chunks
+/// see here for more info https://github.com/keep-starknet-strange/alexandria/blob/main/src/bytes/src/bytes.cairo#L16
+pub fn to_strk_message_bytes(bytes: &[u8]) -> ValidatorAnnounceBytes {
+    // Calculate the required padding
+    let padding = (16 - (bytes.len() % 16)) % 16;
+    let total_len = bytes.len() + padding;
+
+    // Create a new byte vector with the necessary padding
+    let mut padded_bytes = Vec::with_capacity(total_len);
+    padded_bytes.extend_from_slice(bytes);
+    padded_bytes.extend(std::iter::repeat(0).take(padding));
+
+    let mut result = Vec::with_capacity(total_len / 16);
+    for chunk in padded_bytes.chunks_exact(16) {
+        // Convert each 16-byte chunk into a u128
+        let mut array = [0u8; 16];
+        array.copy_from_slice(chunk);
+        result.push(u128::from_be_bytes(array));
+    }
+
+    ValidatorAnnounceBytes {
+        size: bytes.len() as u32,
+        data: result,
+    }
 }

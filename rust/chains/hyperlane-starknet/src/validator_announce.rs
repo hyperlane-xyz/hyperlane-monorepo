@@ -17,12 +17,11 @@ use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::{instrument, trace};
 
-use crate::contracts::validator_announce::{
-    Bytes as StarknetBytes, ValidatorAnnounce as StarknetValidatorAnnounceInternal,
-};
+use crate::contracts::validator_announce::ValidatorAnnounce as StarknetValidatorAnnounceInternal;
 use crate::error::HyperlaneStarknetError;
 use crate::{
-    build_single_owner_account, get_transaction_receipt, ConnectionConf, Signer, StarknetProvider,
+    build_single_owner_account, get_transaction_receipt, to_strk_message_bytes, ConnectionConf,
+    Signer, StarknetProvider,
 };
 use cainome::cairo_serde::EthAddress;
 
@@ -90,10 +89,7 @@ impl StarknetValidatorAnnounce {
             cairo_short_string_to_felt(&announcement.value.storage_location[..30])
                 .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signature_bytes = announcement.signature.to_vec();
-        let signature = &StarknetBytes {
-            size: signature_bytes.len() as u32,
-            data: signature_bytes.into_iter().map(|b| b as u128).collect(),
-        };
+        let signature = &to_strk_message_bytes(&signature_bytes);
 
         let tx = self
             .contract
