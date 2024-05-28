@@ -1,4 +1,4 @@
-use hyperlane_core::ChainResult;
+use hyperlane_core::{ChainResult, H256};
 use starknet::{
     core::types::FieldElement,
     signers::{LocalWallet, SigningKey},
@@ -21,9 +21,9 @@ impl Signer {
     /// # Arguments
     /// * `private_key` - private key for signer
     /// * `address` - address for signer
-    pub fn new(private_key: &str, address: &str) -> ChainResult<Self> {
-        let contract_address =
-            FieldElement::from_hex_be(address).map_err(Into::<HyperlaneStarknetError>::into)?;
+    pub fn new(private_key: &H256, address: &H256) -> ChainResult<Self> {
+        let contract_address = FieldElement::from_bytes_be(address.as_fixed_bytes())
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signing_key = Self::build_signing_key(private_key)?;
 
         Ok(Self {
@@ -43,9 +43,10 @@ impl Signer {
         LocalWallet::from(self.signing_key())
     }
 
-    fn build_signing_key(private_key: &str) -> ChainResult<SigningKey> {
+    fn build_signing_key(private_key: &H256) -> ChainResult<SigningKey> {
         Ok(SigningKey::from_secret_scalar(
-            FieldElement::from_hex_be(private_key).map_err(Into::<HyperlaneStarknetError>::into)?,
+            FieldElement::from_bytes_be(private_key.as_fixed_bytes())
+                .map_err(Into::<HyperlaneStarknetError>::into)?,
         ))
     }
 }

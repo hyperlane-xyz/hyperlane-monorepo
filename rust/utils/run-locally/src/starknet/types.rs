@@ -52,6 +52,13 @@ pub struct AgentConfigSigner {
     #[serde(rename = "type")]
     pub typ: String,
     pub key: String,
+    pub address: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct ValidatorConfig {
+    pub private_key: String,
+    pub address: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -89,7 +96,7 @@ pub struct AgentConfigOut {
 }
 
 impl AgentConfig {
-    pub fn new(bin: PathBuf, _validator: &str, network: &StarknetNetwork) -> Self {
+    pub fn new(bin: PathBuf, validator: &ValidatorConfig, network: &StarknetNetwork) -> Self {
         let _cli = StarknetCLI::new(bin);
 
         AgentConfig {
@@ -106,9 +113,9 @@ impl AgentConfig {
                 http: format!("{}", network.launch_resp.endpoint.rpc_addr),
             }],
             signer: AgentConfigSigner {
-                typ: "hexKey".to_string(),
-                key: "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"
-                    .to_string(),
+                typ: "starkKey".to_string(),
+                key: validator.private_key.clone(),
+                address: validator.address.clone(),
             },
             contract_address_bytes: 32,
             index: AgentConfigIndex {

@@ -345,10 +345,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .get_key("address")
                 .parse_address_hash()
                 .unwrap_or_default();
-            err.into_result(SignerConf::StarkKey {
-                key,
-                address: address.to_string(),
-            })
+            err.into_result(SignerConf::StarkKey { key, address })
         }};
     }
 

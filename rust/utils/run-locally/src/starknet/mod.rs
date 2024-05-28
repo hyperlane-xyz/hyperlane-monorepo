@@ -11,7 +11,7 @@ use tempfile::tempdir;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
-use crate::starknet::types::AgentConfigOut;
+use crate::starknet::types::{AgentConfigOut, ValidatorConfig};
 use crate::starknet::utils::{KEYPAIR_PASSWORD, STARKNET_ACCOUNT, STARKNET_KEYPAIR};
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
 use crate::{fetch_metric, AGENT_BIN_PATH};
@@ -307,7 +307,11 @@ fn run_locally() {
 
     let deployer = "0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"; // 1st katana account
     let _linker = "validator";
-    let validator = "hpl-validator";
+    let validator = &ValidatorConfig {
+        private_key: "0x0014d6672dcb4b77ca36a887e9a11cd9d637d5012468175829e9c6e770c61642"
+            .to_string(),
+        address: "0x00e29882a1fcba1e7e10cad46212257fea5c752a4f9b1b1ec683c503a2cf5c8a".to_string(),
+    };
     let _relayer = "hpl-relayer";
 
     let nodes = nodes
