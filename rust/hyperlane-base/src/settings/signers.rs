@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
-use ethers::utils::hex::ToHex;
+use ethers::utils::hex::{self, ToHex};
 use eyre::{bail, Context, Report};
 use hyperlane_core::H256;
 use hyperlane_sealevel::Keypair;
@@ -183,6 +183,6 @@ impl BuildableWithSignerConf for hyperlane_starknet::Signer {
 
 impl ChainSigner for hyperlane_starknet::Signer {
     fn address_string(&self) -> String {
-        self.address.to_string().clone()
+        format!("0x{}", hex::encode(self.address.to_string()))
     }
 }
