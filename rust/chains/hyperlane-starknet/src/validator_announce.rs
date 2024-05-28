@@ -12,7 +12,6 @@ use hyperlane_core::{
 use hyperlane_core::{Announcement, Encode, SignedType, ValidatorAnnounce};
 use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
-use starknet::core::utils::cairo_short_string_to_felt;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::{instrument, trace};
@@ -20,8 +19,8 @@ use tracing::{instrument, trace};
 use crate::contracts::validator_announce::ValidatorAnnounce as StarknetValidatorAnnounceInternal;
 use crate::error::HyperlaneStarknetError;
 use crate::{
-    build_single_owner_account, get_transaction_receipt, to_strk_message_bytes, ConnectionConf,
-    Signer, StarknetProvider,
+    build_single_owner_account, get_transaction_receipt, string_to_cairo_long_string,
+    to_strk_message_bytes, ConnectionConf, Signer, StarknetProvider,
 };
 use cainome::cairo_serde::EthAddress;
 
@@ -84,10 +83,8 @@ impl StarknetValidatorAnnounce {
     )> {
         let validator = FieldElement::from_byte_slice_be(&announcement.value.validator.to_vec())
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-        // TODO: use cainome ByteArray to convert the full string once contract interface has been changed
-        let storage_location =
-            cairo_short_string_to_felt(&announcement.value.storage_location[..30])
-                .map_err(Into::<HyperlaneStarknetError>::into)?;
+        let storage_location = string_to_cairo_long_string(&announcement.value.storage_location)
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
         let signature_bytes = announcement.signature.to_vec();
         let signature = &to_strk_message_bytes(&signature_bytes);
 

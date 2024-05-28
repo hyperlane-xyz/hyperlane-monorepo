@@ -7,6 +7,7 @@ use starknet::{
     core::{
         chain_id::{MAINNET, SEPOLIA},
         types::{EmittedEvent, FieldElement, MaybePendingTransactionReceipt},
+        utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
     providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider, ProviderError},
     signers::LocalWallet,
@@ -183,4 +184,23 @@ pub fn to_strk_message_bytes(bytes: &[u8]) -> ValidatorAnnounceBytes {
         size: bytes.len() as u32,
         data: result,
     }
+}
+
+/// Convert a string to a cairo long string
+/// We need to split the string in 31 bytes chunks
+pub fn string_to_cairo_long_string(
+    s: &str,
+) -> Result<Vec<FieldElement>, CairoShortStringToFeltError> {
+    let chunk_size = 31;
+    let mut chunks = Vec::new();
+    let mut start = 0;
+
+    while start < s.len() {
+        let end = std::cmp::min(start + chunk_size, s.len());
+        let chunk = s[start..end].to_string();
+        chunks.push(cairo_short_string_to_felt(&chunk)?);
+        start += chunk_size;
+    }
+
+    Ok(chunks)
 }
