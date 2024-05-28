@@ -1,6 +1,6 @@
 //! Common settings and configuration for Hyperlane agents
 //!
-//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the exact shape
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 //!

@@ -106,7 +106,7 @@ const AgentCosmosChainMetadataSchema = z.object({
     amount: z
       .string()
       .regex(/^(\d*[.])?\d+$/)
-      .describe('The the gas price, in denom, to pay for each unit of gas'),
+      .describe('The gas price, in denom, to pay for each unit of gas'),
   }),
   contractAddressBytes: z
     .number()
