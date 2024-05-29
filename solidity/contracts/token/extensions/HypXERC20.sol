@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {IXERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
-contract HypXERC20Collateral is HypERC20Collateral {
+contract HypXERC20 is HypERC20Collateral {
     constructor(
         address _xerc20,
         address _mailbox

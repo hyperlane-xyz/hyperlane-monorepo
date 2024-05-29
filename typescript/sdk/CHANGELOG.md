@@ -1,5 +1,21 @@
 # @hyperlane-xyz/sdk
 
+## 3.13.0
+
+### Minor Changes
+
+- 39ea7cdef: Implement multi collateral warp routes
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- 0cf692e73: Implement metadata builder fetching from message
+
+### Patch Changes
+
+- Updated dependencies [babe816f8]
+- Updated dependencies [b440d98be]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/core@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.12.0
 
 ### Minor Changes
