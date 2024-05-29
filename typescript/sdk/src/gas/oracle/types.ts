@@ -47,7 +47,10 @@ const serializePercentDifference = (
   return diff.isNegative() ? `${diff.toString()}%` : `+${diff.toString()}%`;
 };
 
-export const bignumberify = (config: StorageGasOracleConfig): OracleData => ({
+// TODO: replace once #3771 is fixed
+export const oracleConfigToOracleData = (
+  config: StorageGasOracleConfig,
+): OracleData => ({
   gasPrice: ethers.BigNumber.from(config.gasPrice),
   tokenExchangeRate: ethers.BigNumber.from(config.tokenExchangeRate),
 });

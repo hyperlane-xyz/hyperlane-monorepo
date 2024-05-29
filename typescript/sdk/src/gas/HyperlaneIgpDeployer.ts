@@ -15,7 +15,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { IgpFactories, igpFactories } from './contracts.js';
-import { bignumberify, serializeDifference } from './oracle/types.js';
+import {
+  oracleConfigToOracleData,
+  serializeDifference,
+} from './oracle/types.js';
 import { IgpConfig } from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
@@ -120,7 +123,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
 
-      const desiredData = bignumberify(desired);
+      const desiredData = oracleConfigToOracleData(desired);
 
       if (
         !actual.gasPrice.eq(desired.gasPrice) ||

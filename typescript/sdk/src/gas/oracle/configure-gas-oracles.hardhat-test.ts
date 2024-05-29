@@ -11,7 +11,7 @@ import { ChainMap } from '../../types.js';
 import { HyperlaneIgpDeployer } from '../HyperlaneIgpDeployer.js';
 import { IgpConfig } from '../types.js';
 
-import { bignumberify } from './types.js';
+import { oracleConfigToOracleData } from './types.js';
 
 describe('HyperlaneIgpDeployer', () => {
   const local = TestChainName.test1;
@@ -38,7 +38,9 @@ describe('HyperlaneIgpDeployer', () => {
     expect({
       gasPrice: deployedConfig.gasPrice,
       tokenExchangeRate: deployedConfig.tokenExchangeRate,
-    }).to.deep.equal(bignumberify(testConfig[local].oracleConfig![remote]));
+    }).to.deep.equal(
+      oracleConfigToOracleData(testConfig[local].oracleConfig![remote]),
+    );
   });
 
   it('should configure new oracle config', async () => {
@@ -57,6 +59,8 @@ describe('HyperlaneIgpDeployer', () => {
     expect({
       gasPrice: modifiedConfig.gasPrice,
       tokenExchangeRate: modifiedConfig.tokenExchangeRate,
-    }).to.deep.equal(bignumberify(testConfig[local].oracleConfig![remote]));
+    }).to.deep.equal(
+      oracleConfigToOracleData(testConfig[local].oracleConfig![remote]),
+    );
   });
 });
