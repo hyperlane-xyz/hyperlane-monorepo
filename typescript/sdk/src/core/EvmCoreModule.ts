@@ -31,8 +31,7 @@ type DeployedAdresses = HyperlaneAddresses<CoreFactories> & {
   timelockController?: Address; // Can be optional because it is only deployed if config.upgrade = true
   interchainAccountRouter: Address;
   interchainAccountIsm: Address;
-  ismFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
-};
+} & HyperlaneAddresses<ProxyFactoryFactories>;
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -171,7 +170,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
     // Set Core & extra addresses
     return {
-      ismFactoryFactories,
+      ...ismFactoryFactories,
       proxyAdmin,
       mailbox: mailbox.address,
       interchainAccountRouter,

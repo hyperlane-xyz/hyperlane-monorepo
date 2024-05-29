@@ -1,11 +1,14 @@
 import { CommandModule } from 'yargs';
 
+import { ChainName } from '@hyperlane-xyz/sdk';
+
+import { CRUD_COMMANDS } from '../consts.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
+  WriteCommandContext,
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
-import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
@@ -13,11 +16,8 @@ import { log, logGray } from '../logger.js';
 import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
-  coreTargetsCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
-  hookCommandOption,
-  ismCommandOption,
   originCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
@@ -30,7 +30,6 @@ export const deployCommand: CommandModule = {
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
-      .command(coreCommand)
       .command(warpCommand)
       .command(agentCommand)
       .version(false)
@@ -69,38 +68,47 @@ const agentCommand: CommandModuleWithContext<{
 /**
  * Core command
  */
-const coreCommand: CommandModuleWithWriteContext<{
-  targets: string;
-  ism?: string;
-  hook?: string;
-  'dry-run': string;
-  'from-address': string;
-  agent: string;
-}> = {
-  command: 'core',
-  describe: 'Deploy core Hyperlane contracts',
+export const deployWith = (
+  deployFunction: (params: {
+    context: WriteCommandContext;
+    chain: ChainName;
+    configFilePath: string;
+  }) => any,
+): CommandModuleWithWriteContext<{
+  // TODO rename to deployCommand
+  config: string;
+  chain: string;
+  artifacts: string;
+  dryRun: string;
+}> => ({
+  command: CRUD_COMMANDS.DEPLOY,
+  describe: 'Deploy Hyperlane contracts',
   builder: {
-    targets: coreTargetsCommandOption,
-    ism: ismCommandOption,
-    hook: hookCommandOption,
-    agent: agentConfigCommandOption(false, './configs/agent.json'),
+    config: {
+      type: 'string',
+      description: 'A path to a JSON or YAML file with a deployment config.',
+      demandOption: true,
+    },
+    chain: {
+      type: 'string',
+      description: 'The name of a single chain to deploy to',
+    },
+    artifacts: {
+      type: 'string',
+      description: 'A path to the artifacts to read / write to in the registry',
+      demandOption: true,
+    },
     'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
   },
-  handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
-    logGray(
-      `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
-    );
+  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
+    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
 
     try {
-      const chains = targets?.split(',').map((r: string) => r.trim());
-      await runCoreDeploy({
+      await deployFunction({
         context,
-        chains,
-        ismConfigPath: ism,
-        hookConfigPath: hook,
-        agentOutPath: agent,
+        chain,
+        configFilePath,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
@@ -108,7 +116,7 @@ const coreCommand: CommandModuleWithWriteContext<{
     }
     process.exit(0);
   },
-};
+});
 
 /**
  * Warp command

@@ -487,3 +487,5 @@ export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 // prettier-ignore
 // @ts-ignore
 export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
+
+export { EvmCoreModule } from './core/EvmCoreModule.js';
