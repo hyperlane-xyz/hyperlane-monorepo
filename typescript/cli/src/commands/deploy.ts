@@ -66,7 +66,10 @@ const agentCommand: CommandModuleWithContext<{
 };
 
 /**
- * Core command
+ * Generates a command module for deploying Hyperlane contracts.
+ *
+ * @param deployFunction - A function that performs the actual deployment
+ * @returns A command module used to deploy Hyperlane contracts.
  */
 export const deployWith = (
   deployFunction: (params: {
