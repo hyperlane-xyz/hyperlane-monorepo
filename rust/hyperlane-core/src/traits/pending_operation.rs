@@ -4,8 +4,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256};
+use crate::{
+    ChainResult, FixedPointNumber, HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxCostEstimate,
+    TxOutcome, H256, U256,
+};
 use async_trait::async_trait;
+use num::CheckedDiv;
 use tracing::warn;
 
 /// Boxed operation that can be stored in an operation queue
@@ -98,15 +102,32 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn set_retries(&mut self, retries: u32);
 }
 
-/// utility fn to calculate the total estimated cost of an operation batch
+/// Utility fn to calculate the total estimated cost of an operation batch
 pub fn total_estimated_cost(ops: &[Box<dyn PendingOperation>]) -> U256 {
-    ops.iter().fold(U256::zero(), |acc, op| {
-        let Some(cost_estimate) = op.get_tx_cost_estimate() else {
-            warn!("Cannot set operation outcome without a cost estimate set previously");
-            return acc;
-        };
-        acc.saturating_add(cost_estimate.gas_limit)
-    })
+    ops.iter()
+        .fold(U256::zero(), |acc, op| match op.get_tx_cost_estimate() {
+            Some(cost_estimate) => acc.saturating_add(cost_estimate.gas_limit),
+            None => {
+                warn!("Cannot set operation outcome without a cost estimate set previously");
+                acc
+            }
+        })
+}
+
+/// Calculate the gas used by an operation in a batch, by looking at the total cost of the batch,
+/// and the estimated cost of the operation compared to the sum of the estimates of all operations in the batch.
+pub fn gas_used_by_batch_operation(
+    batch_outcome: &TxOutcome,
+    batch_estimated_cost: U256,
+    operation_estimated_cost: U256,
+) -> ChainResult<U256> {
+    let gas_used_by_batch = FixedPointNumber::try_from(batch_outcome.gas_used)?;
+    let gas_limit = FixedPointNumber::try_from(operation_estimated_cost)?;
+    let total_estimated_cost = FixedPointNumber::try_from(batch_estimated_cost)?;
+    let gas_used_by_operation = (gas_used_by_batch * gas_limit)
+        .checked_div(&total_estimated_cost)
+        .ok_or(eyre::eyre!("Divison by zero"))?;
+    gas_used_by_operation.try_into()
 }
 
 impl Display for QueueOperation {

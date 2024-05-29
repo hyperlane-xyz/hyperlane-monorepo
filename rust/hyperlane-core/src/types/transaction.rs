@@ -34,9 +34,5 @@ pub trait TryBatchAs<T> {
     }
 
     /// Set an outcome after this operation was submitted
-    fn set_operation_outcome(
-        &mut self,
-        outcome: TxOutcome,
-        total_estimated_cost: U256,
-    ) -> eyre::Result<()>;
+    fn set_operation_outcome(&mut self, outcome: TxOutcome, total_estimated_cost: U256);
 }

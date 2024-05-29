@@ -6,13 +6,12 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
-use ethers_contract::MulticallResult;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
-    make_op_try, BatchItem, ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain,
-    HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData, PendingOperation,
-    PendingOperationResult, QueueOperation, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    gas_used_by_batch_operation, make_op_try, BatchItem, ChainCommunicationError, ChainResult,
+    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
+    PendingOperation, PendingOperationResult, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -116,26 +115,33 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
         }
     }
 
-    fn set_operation_outcome(
-        &mut self,
-        outcome: TxOutcome,
-        total_estimated_cost: U256,
-    ) -> Result<()> {
-        let Some(estimate) = self.get_tx_cost_estimate() else {
+    fn set_operation_outcome(&mut self, batch_outcome: TxOutcome, batch_estimated_cost: U256) {
+        let Some(operation_estimate) = self.get_tx_cost_estimate() else {
             warn!("Cannot set operation outcome without a cost estimate set previously");
-            return Ok(());
+            return;
         };
-        let gas_used = FixedPointNumber::try_from(outcome.gas_used)?;
-        let gas_limit = FixedPointNumber::try_from(estimate.gas_limit)?;
-        let total_estimated_cost = FixedPointNumber::try_from(total_estimated_cost)?;
-        let gas_used = (gas_used * gas_limit / total_estimated_cost).try_into()?;
-
-        let operation_outcome = TxOutcome {
-            gas_used,
-            ..outcome
-        };
-        self.set_submission_outcome(operation_outcome);
-        Ok(())
+        match gas_used_by_batch_operation(
+            &batch_outcome,
+            batch_estimated_cost,
+            operation_estimate.gas_limit,
+        ) {
+            Ok(gas_used_by_operation) => {
+                self.set_submission_outcome(TxOutcome {
+                    gas_used: gas_used_by_operation,
+                    ..batch_outcome
+                });
+                #[cfg(test)]
+                info!(
+                    gas_used = ?gas_used_by_operation,
+                    ?batch_estimated_cost,
+                    message = ?self.message,
+                    "Gas used by operation in batch"
+                );
+            }
+            Err(e) => {
+                error!(error = %e, "Error when calculating gas used by operation");
+            }
+        }
     }
 }
 
@@ -241,6 +247,7 @@ impl PendingOperation for PendingMessage {
                 .await,
             "estimating costs for process call"
         );
+        self.set_tx_cost_estimate(tx_cost_estimate.clone());
 
         // If the gas payment requirement hasn't been met, move to the next tick.
         let Some(gas_limit) = op_try!(

@@ -11,6 +11,7 @@ use std::{
 use bigdecimal::{BigDecimal, RoundingMode};
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::impl_fixed_hash_conversions;
+use num::CheckedDiv;
 use num_traits::Zero;
 use uint::construct_uint;
 
@@ -433,6 +434,15 @@ where
     fn div(self, rhs: T) -> Self::Output {
         let rhs = rhs.into();
         Self(self.0 / rhs.0)
+    }
+}
+
+impl CheckedDiv for FixedPointNumber {
+    fn checked_div(&self, v: &Self) -> Option<Self> {
+        if v.0.is_zero() {
+            return None;
+        }
+        Some(Self(self.0.clone() / v.0.clone()))
     }
 }
 
