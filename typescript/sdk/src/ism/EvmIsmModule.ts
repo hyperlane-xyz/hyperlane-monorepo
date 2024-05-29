@@ -92,9 +92,18 @@ export class EvmIsmModule extends HyperlaneModule<
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
-    const { mailbox: _, deployedIsm: __, ...addresses } = params.addresses;
     this.factories = attachAndConnectContracts(
-      addresses,
+      {
+        staticMerkleRootMultisigIsmFactory:
+          params.addresses.staticMerkleRootMultisigIsmFactory,
+        staticMessageIdMultisigIsmFactory:
+          params.addresses.staticMessageIdMultisigIsmFactory,
+        staticAggregationIsmFactory:
+          params.addresses.staticAggregationIsmFactory,
+        staticAggregationHookFactory:
+          params.addresses.staticAggregationHookFactory,
+        domainRoutingIsmFactory: params.addresses.domainRoutingIsmFactory,
+      },
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
     );
