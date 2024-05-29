@@ -43,7 +43,7 @@ import {
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy.js';
-import { OwnableConfig, Owner } from './types.js';
+import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import {
   ContractVerificationInput,
@@ -60,6 +60,7 @@ export interface DeployerOptions {
   ismFactory?: HyperlaneIsmFactory;
   icaApp?: InterchainAccount;
   contractVerifier?: ContractVerifier;
+  concurrentDeploy?: boolean;
 }
 
 export abstract class HyperlaneDeployer<
@@ -82,7 +83,7 @@ export abstract class HyperlaneDeployer<
     protected readonly icaAddresses = {},
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
-    this.chainTimeoutMs = options?.chainTimeoutMs ?? 5 * 60 * 1000; // 5 minute timeout per chain
+    this.chainTimeoutMs = options?.chainTimeoutMs ?? 15 * 60 * 1000; // 15 minute timeout per chain
     this.options.ismFactory?.setDeployer(this);
     if (Object.keys(icaAddresses).length > 0) {
       this.options.icaApp = InterchainAccount.fromAddressesMap(
@@ -125,6 +126,8 @@ export abstract class HyperlaneDeployer<
     ).intersection;
 
     this.logger.debug(`Start deploy to ${targetChains}`);
+
+    const deployPromises = [];
     for (const chain of targetChains) {
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
@@ -135,11 +138,31 @@ export abstract class HyperlaneDeployer<
       this.startingBlockNumbers[chain] = await this.multiProvider
         .getProvider(chain)
         .getBlockNumber();
-      await runWithTimeout(this.chainTimeoutMs, async () => {
+
+      const deployPromise = runWithTimeout(this.chainTimeoutMs, async () => {
         const contracts = await this.deployContracts(chain, configMap[chain]);
         this.addDeployedContracts(chain, contracts);
+        this.logger.info({ chain }, 'Successfully deployed contracts');
       });
+      if (this.options.concurrentDeploy) {
+        deployPromises.push(deployPromise);
+      } else {
+        await deployPromise;
+      }
     }
+
+    // Await all deploy promises. If concurrent deploy is not enabled, this will be a no-op.
+    const deployResults = await Promise.allSettled(deployPromises);
+    for (const [i, result] of deployResults.entries()) {
+      if (result.status === 'rejected') {
+        this.logger.error(
+          { chain: targetChains[i], error: result.reason },
+          'Deployment failed',
+        );
+        throw result.reason;
+      }
+    }
+
     return this.deployedContracts;
   }
 
@@ -709,13 +732,10 @@ export abstract class HyperlaneDeployer<
         continue;
       }
       const current = await ownable.owner();
-      const owner = await this.resolveInterchainAccountAsOwner(
-        chain,
-        config.ownerOverrides?.[contractName as K] ?? config.owner,
-      );
+      const owner = config.ownerOverrides?.[contractName as K] ?? config.owner;
       if (!eqAddress(current, owner)) {
         this.logger.debug(
-          { contractName },
+          { contractName, current, desiredOwner: owner },
           'Current owner and config owner do not match',
         );
         const receipt = await this.runIfOwner(chain, ownable, () => {
@@ -735,25 +755,5 @@ export abstract class HyperlaneDeployer<
     }
 
     return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
-  }
-
-  protected async resolveInterchainAccountAsOwner(
-    chain: ChainName,
-    owner: Owner,
-  ): Promise<Address> {
-    if (typeof owner === 'string') {
-      return owner;
-    } else {
-      const routerAddress = this.options.icaApp?.routerAddress(chain);
-      if (!routerAddress) {
-        throw new Error('InterchainAccountRouter not deployed');
-      }
-      const router = InterchainAccount.fromAddressesMap(
-        { chain: { router: routerAddress } },
-        this.multiProvider,
-      );
-      // submits network transaction to deploy the account iff it doesn't exist
-      return router.deployAccount(chain, owner);
-    }
   }
 }

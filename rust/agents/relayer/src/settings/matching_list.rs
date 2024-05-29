@@ -1,4 +1,4 @@
-//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the exact shape
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
@@ -267,13 +267,13 @@ impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
 
 impl MatchingList {
     /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the the matching list is empty.
+    /// - `default`: What to return if the matching list is empty.
     pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
         self.matches(msg.into(), default)
     }
 
     /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the the matching list is empty.
+    /// - `default`: What to return if the matching list is empty.
     fn matches(&self, info: MatchInfo, default: bool) -> bool {
         if let Some(rules) = &self.0 {
             matches_any_rule(rules.iter(), info)

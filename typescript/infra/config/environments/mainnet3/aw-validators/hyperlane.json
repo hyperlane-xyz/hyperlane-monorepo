@@ -109,6 +109,9 @@
       "0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca"
     ]
   },
+  "redstone": {
+    "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
+  },
   "scroll": {
     "validators": [
       "0xad557170a9f2f21c35e03de07cb30dcbcc3dff63",
@@ -118,5 +121,8 @@
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
+  },
+  "zetachain": {
+    "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
   }
 }
