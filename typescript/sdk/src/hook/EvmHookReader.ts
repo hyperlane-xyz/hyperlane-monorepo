@@ -7,6 +7,7 @@ import {
   FallbackDomainRoutingHook__factory,
   IPostDispatchHook__factory,
   InterchainGasPaymaster__factory,
+  MerkleTreeHook__factory,
   OPStackHook__factory,
   PausableHook__factory,
   ProtocolFee__factory,
@@ -41,7 +42,7 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
+export type DerivedHookConfig = WithAddress<HookConfig>;
 
 export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
@@ -117,8 +118,8 @@ export class EvmHookReader implements HookReader {
   async deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
-    // const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    // assert((await hook.hookType()) === OnchainHookType.MERKLE_TREE);
+    const hook = MerkleTreeHook__factory.connect(address, this.provider);
+    assert((await hook.hookType()) === OnchainHookType.MERKLE_TREE);
 
     return {
       address,
@@ -130,7 +131,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
-    // assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
+    assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
     const hookConfigs = await concurrentMap(
@@ -151,9 +152,9 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    // assert(
-    //   (await hook.hookType()) === OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
-    // );
+    assert(
+      (await hook.hookType()) === OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
+    );
 
     const owner = await hook.owner();
     const beneficiary = await hook.beneficiary();
@@ -173,13 +174,10 @@ export class EvmHookReader implements HookReader {
         try {
           const { tokenExchangeRate, gasPrice } =
             await hook.getExchangeRateAndGasPrice(domainId);
-          oracleConfig[chainName] = {
-            tokenExchangeRate: tokenExchangeRate.toString(),
-            gasPrice: gasPrice.toString(),
-          };
           const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
 
           overhead[chainName] = domainGasOverhead.toNumber();
+          oracleConfig[chainName] = { tokenExchangeRate, gasPrice };
 
           const { gasOracle } = await hook.destinationGasConfigs(domainId);
           const oracle = StorageGasOracle__factory.connect(
@@ -225,7 +223,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
     const hook = ProtocolFee__factory.connect(address, this.provider);
-    // assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
+    assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
 
     const owner = await hook.owner();
     const maxProtocolFee = await hook.MAX_PROTOCOL_FEE();
@@ -247,7 +245,7 @@ export class EvmHookReader implements HookReader {
   ): Promise<WithAddress<OpStackHookConfig>> {
     const hook = OPStackHook__factory.connect(address, this.provider);
     const owner = await hook.owner();
-    // assert((await hook.hookType()) === OnchainHookType.ID_AUTH_ISM);
+    assert((await hook.hookType()) === OnchainHookType.ID_AUTH_ISM);
 
     const messengerContract = await hook.l1Messenger();
     const destinationDomain = await hook.destinationDomain();
@@ -267,7 +265,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
-    // assert((await hook.hookType()) === OnchainHookType.ROUTING);
+    assert((await hook.hookType()) === OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
@@ -287,7 +285,7 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    // assert((await hook.hookType()) === OnchainHookType.FALLBACK_ROUTING);
+    assert((await hook.hookType()) === OnchainHookType.FALLBACK_ROUTING);
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
@@ -333,11 +331,11 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>> {
     const hook = PausableHook__factory.connect(address, this.provider);
-    const paused = await hook.paused();
+    assert((await hook.hookType()) === OnchainHookType.PAUSABLE);
+
     const owner = await hook.owner();
     return {
       owner,
-      paused,
       address,
       type: HookType.PAUSABLE,
     };
