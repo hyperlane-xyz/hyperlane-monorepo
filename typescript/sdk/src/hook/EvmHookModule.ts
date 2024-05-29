@@ -9,6 +9,7 @@ import {
   InterchainGasPaymaster,
   OPStackHook,
   OPStackIsm__factory,
+  PausableHook,
   ProtocolFee,
   StaticAggregationHook,
   StaticAggregationHookFactory__factory,
@@ -30,7 +31,6 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -40,6 +40,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
+import { HyperlaneHookDeployer } from './HyperlaneHookDeployer.js';
 import { DeployedHook } from './contracts.js';
 import {
   AggregationHookConfig,
@@ -49,6 +50,7 @@ import {
   HookType,
   IgpHookConfig,
   OpStackHookConfig,
+  PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
 
@@ -74,7 +76,7 @@ export class EvmHookModule extends HyperlaneModule<
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly deployer: HyperlaneDeployer<any, any>,
+    protected readonly deployer: HyperlaneHookDeployer,
     args: HyperlaneModuleParams<
       HookConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
@@ -110,7 +112,7 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     chain: ChainNameOrId;
     config: HookConfig;
-    deployer: HyperlaneDeployer<any, any>;
+    deployer: HyperlaneHookDeployer;
     factories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;
     proxyAdmin: Address;
@@ -230,7 +232,7 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.FALLBACK_ROUTING:
         return this.deployRoutingHook({ config });
       case HookType.PAUSABLE: {
-        return this.deployer.deployContract(this.chainName, config.type, []);
+        return this.deployPausableHook({ config });
       }
       default:
         throw new Error(`Unsupported hook config: ${config}`);
@@ -249,6 +251,21 @@ export class EvmHookModule extends HyperlaneModule<
       config.beneficiary,
       config.owner,
     ]);
+  }
+
+  protected async deployPausableHook({
+    config,
+  }: {
+    config: PausableHookConfig;
+  }): Promise<PausableHook> {
+    this.logger.debug('Deploying PausableHook...');
+    const hook = await this.deployer.deployContract(
+      this.chainName,
+      HookType.PAUSABLE,
+      [],
+    );
+    await hook['transferOwnership(address)'](config.owner);
+    return hook;
   }
 
   protected async deployAggregationHook({
@@ -444,11 +461,6 @@ export class EvmHookModule extends HyperlaneModule<
       config,
     });
 
-    // Return an ownership transfer transaction if required
-    await interchainGasPaymaster['transferOwnership(address)'](
-      config.oracleKey,
-    );
-
     return interchainGasPaymaster;
   }
 
@@ -462,7 +474,7 @@ export class EvmHookModule extends HyperlaneModule<
     const deployerAddress = await this.multiProvider.getSignerAddress(
       this.chainName,
     );
-    const igp = await this.deployer.deployProxiedContract(
+    const igp = await this.deployer.igpDeployer.deployProxiedContract(
       this.chainName,
       'interchainGasPaymaster',
       'interchainGasPaymaster',
@@ -505,6 +517,15 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
+    // Transfer ownership to the configured owner
+    await this.multiProvider.handleTx(
+      this.chainName,
+      igp['transferOwnership(address)'](
+        config.oracleKey,
+        this.multiProvider.getTransactionOverrides(this.chainName),
+      ),
+    );
+
     return igp;
   }
 
@@ -513,7 +534,7 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     config: IgpConfig;
   }): Promise<StorageGasOracle> {
-    const gasOracle = await this.deployer.deployContract(
+    const gasOracle = await this.deployer.igpDeployer.deployContract(
       this.chainName,
       'storageGasOracle',
       [],
@@ -568,6 +589,15 @@ export class EvmHookModule extends HyperlaneModule<
         ),
       );
     }
+
+    // Transfer ownership to the configured owner
+    await this.multiProvider.handleTx(
+      this.chainName,
+      gasOracle['transferOwnership(address)'](
+        config.oracleKey,
+        this.multiProvider.getTransactionOverrides(this.chainName),
+      ),
+    );
 
     return gasOracle;
   }
