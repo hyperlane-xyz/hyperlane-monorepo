@@ -190,10 +190,12 @@ fn launch_starknet_validator(
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("DB", validator_base_db.to_str().unwrap())
         .hyp_env("METRICSPORT", agent_config.metrics_port.to_string())
-        .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
-        .hyp_env("VALIDATOR_KEY", agent_config.signer.key.clone())
-        .hyp_env("VALIDATOR_PREFIX", "osmo")
-        .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
+        .hyp_env("VALIDATOR_SIGNER_TYPE", "hexKey")
+        .hyp_env(
+            "VALIDATOR_KEY",
+            "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+        )
+        .hyp_env("SIGNER_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn("VAL");

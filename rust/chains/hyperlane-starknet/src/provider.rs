@@ -137,7 +137,8 @@ impl HyperlaneProvider for StarknetProvider {
                 FunctionCall {
                     contract_address: eth_token_address,
                     entry_point_selector: selector!("balanceOf"),
-                    calldata: vec![FieldElement::from_hex_be(&address).unwrap()],
+                    calldata: vec![FieldElement::from_dec_str(&address)
+                        .map_err(Into::<HyperlaneStarknetError>::into)?],
                 },
                 BlockId::Tag(BlockTag::Latest),
             )
