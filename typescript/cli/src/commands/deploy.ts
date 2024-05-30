@@ -1,6 +1,6 @@
 import { CommandModule } from 'yargs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneAddresses } from '@hyperlane-xyz/sdk';
 
 import { CRUD_COMMANDS } from '../consts.js';
 import {
@@ -11,7 +11,7 @@ import {
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logGray } from '../logger.js';
+import { log, logBlue, logGray } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 import {
@@ -77,11 +77,10 @@ export const deployWith = (
     context: WriteCommandContext;
     chain: ChainName;
     configFilePath: string;
-  }) => any,
+  }) => Promise<HyperlaneAddresses<any>>,
 ): CommandModuleWithWriteContext<{
   config: string;
   chain: string;
-  artifacts: string;
   dryRun: string;
 }> => ({
   command: CRUD_COMMANDS.DEPLOY,
@@ -89,40 +88,51 @@ export const deployWith = (
   builder: {
     config: {
       type: 'string',
-      description: 'A path to a JSON or YAML file with a deployment config.',
+      description: 'The path to a JSON or YAML file with a deployment config.',
       demandOption: true,
     },
     chain: {
       type: 'string',
       description: 'The name of a single chain to deploy to',
     },
-    artifacts: {
-      type: 'string',
-      description: 'A path to the artifacts to read / write to in the registry',
-      demandOption: true,
-    },
     'dry-run': dryRunCommandOption,
   },
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
+    const { chainMetadata, isDryRun, dryRunChain, registry, skipConfirmation } =
+      context;
+
     logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
 
-    // Select a chain if it's not supplied
-    const { chainMetadata, dryRunChain, skipConfirmation } = context;
-    if (dryRunChain) chain = dryRunChain;
-    else if (!chain) {
+    // Select a dry-run chain if it's not supplied
+    if (dryRunChain) {
+      chain = dryRunChain;
+    } else if (!chain) {
       if (skipConfirmation) throw new Error('No chain provided');
       chain = await runSingleChainSelectionStep(
         chainMetadata,
         'Select chain to connect:',
       );
     }
+
+    // Deploy and update Registry
     try {
-      await deployFunction({
+      logBlue('All systems ready, captain! Beginning deployment...');
+
+      const deployedAddresses = await deployFunction({
         context,
         chain,
         configFilePath,
       });
+
+      if (!isDryRun) {
+        await registry.updateChain({
+          chainName: chain,
+          addresses: deployedAddresses,
+        });
+      }
+
+      logBlue('Deployment is complete!');
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
       throw error;

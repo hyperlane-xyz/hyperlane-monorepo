@@ -488,4 +488,4 @@ export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 // @ts-ignore
 export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
 
-export { EvmCoreModule } from './core/EvmCoreModule.js';
+export { EvmCoreModule, DeployedCoreAdresses } from './core/EvmCoreModule.js';
