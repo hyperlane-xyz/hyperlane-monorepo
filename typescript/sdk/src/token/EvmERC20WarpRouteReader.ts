@@ -20,7 +20,7 @@ import { TokenMetadata } from './types.js';
 
 const { AddressZero } = ethers.constants;
 
-export class EvmWarpRouteReader {
+export class EvmERC20WarpRouteReader {
   provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
@@ -95,8 +95,9 @@ export class EvmWarpRouteReader {
     const derivedIsm = eqAddress(ism, AddressZero)
       ? undefined
       : await this.evmIsmReader.deriveIsmConfig(ism);
-    // TODO: add after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3667 is fixed
-    const derivedHook = eqAddress(hook, AddressZero) ? undefined : hook;
+    const derivedHook = eqAddress(hook, AddressZero)
+      ? undefined
+      : await this.evmHookReader.deriveHookConfig(hook);
 
     return {
       mailbox,
