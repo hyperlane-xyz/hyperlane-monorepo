@@ -39,5 +39,12 @@ contract ApproveLockbox is Script {
             abi.encodeCall(HypXERC20Lockbox.approveLockbox, ())
         );
         vm.stopBroadcast();
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        HypXERC20Lockbox(address(proxy)).initialize(
+            address(0),
+            address(0),
+            mailbox
+        );
     }
 }
