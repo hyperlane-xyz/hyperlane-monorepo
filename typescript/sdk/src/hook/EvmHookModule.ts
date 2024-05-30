@@ -520,6 +520,7 @@ export class EvmHookModule extends HyperlaneModule<
       this.args.addresses.proxyAdmin,
       [],
       [deployerAddress, config.beneficiary],
+      false,
     );
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];

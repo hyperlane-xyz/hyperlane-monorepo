@@ -37,13 +37,8 @@ const hookTypes = Object.values(HookType);
 
 function randomHookType(): HookType {
   // OP_STACK filtering is temporary until we have a way to deploy the required contracts
-  // PROTOCOL_FEE filtering is temporary until we fix initialization of the protocol fee hook
-  // ROUTING/FALLBACK_ROUTING filtering is temporary until we fix ownership of domain hooks
   const filteredHookTypes = hookTypes.filter(
-    (type) =>
-      type !== HookType.OP_STACK &&
-      type !== HookType.ROUTING &&
-      type !== HookType.FALLBACK_ROUTING,
+    (type) => type !== HookType.OP_STACK,
   );
   return filteredHookTypes[
     Math.floor(Math.random() * filteredHookTypes.length)
@@ -316,12 +311,14 @@ describe('EvmHookModule', async () => {
         owner: randomAddress(),
         type: HookType.ROUTING,
         domains: Object.fromEntries(
-          testChains.map((c) => [
-            c,
-            {
-              type: HookType.MERKLE_TREE,
-            },
-          ]),
+          testChains
+            .filter((c) => c !== TestChainName.test4)
+            .map((c) => [
+              c,
+              {
+                type: HookType.MERKLE_TREE,
+              },
+            ]),
         ),
       };
       await createHook(config);
@@ -333,12 +330,14 @@ describe('EvmHookModule', async () => {
         type: HookType.FALLBACK_ROUTING,
         fallback: { type: HookType.MERKLE_TREE },
         domains: Object.fromEntries(
-          testChains.map((c) => [
-            c,
-            {
-              type: HookType.MERKLE_TREE,
-            },
-          ]),
+          testChains
+            .filter((c) => c !== TestChainName.test4)
+            .map((c) => [
+              c,
+              {
+                type: HookType.MERKLE_TREE,
+              },
+            ]),
         ),
       };
       await createHook(config);
@@ -378,5 +377,116 @@ describe('EvmHookModule', async () => {
         await createHook(config);
       });
     }
+
+    it('regression test #1', async () => {
+      const config: HookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [
+          {
+            owner: '0xebe67f0a423fd1c4af21debac756e3238897c665',
+            type: HookType.INTERCHAIN_GAS_PAYMASTER,
+            beneficiary: '0xfe3be5940327305aded56f20359761ef85317554',
+            oracleKey: '0xebe67f0a423fd1c4af21debac756e3238897c665',
+            overhead: {
+              test1: 18,
+              test2: 85,
+              test3: 23,
+              test4: 69,
+            },
+            oracleConfig: {
+              test1: {
+                tokenExchangeRate: BigNumber.from('1032586497157'),
+                gasPrice: BigNumber.from('1026942205817'),
+              },
+              test2: {
+                tokenExchangeRate: BigNumber.from('81451154935'),
+                gasPrice: BigNumber.from('1231220057593'),
+              },
+              test3: {
+                tokenExchangeRate: BigNumber.from('31347320275'),
+                gasPrice: BigNumber.from('21944956734'),
+              },
+              test4: {
+                tokenExchangeRate: BigNumber.from('1018619796544'),
+                gasPrice: BigNumber.from('1124484183261'),
+              },
+            },
+          },
+          {
+            owner: '0xcc803fc9e6551b9eaaebfabbdd5af3eccea252ff',
+            type: HookType.ROUTING,
+            domains: {
+              test1: {
+                type: HookType.MERKLE_TREE,
+              },
+              test2: {
+                owner: '0x7e43dfa88c4a5d29a8fcd69883b7f6843d465ca3',
+                type: HookType.INTERCHAIN_GAS_PAYMASTER,
+                beneficiary: '0x762e71a849a3825613cf5cbe70bfff27d0fe7766',
+                oracleKey: '0x7e43dfa88c4a5d29a8fcd69883b7f6843d465ca3',
+                overhead: {
+                  test1: 46,
+                  test2: 34,
+                  test3: 47,
+                  test4: 24,
+                },
+                oracleConfig: {
+                  test1: {
+                    tokenExchangeRate: BigNumber.from('1132883204938'),
+                    gasPrice: BigNumber.from('1219466305935'),
+                  },
+                  test2: {
+                    tokenExchangeRate: BigNumber.from('938422264723'),
+                    gasPrice: BigNumber.from('229134538568'),
+                  },
+                  test3: {
+                    tokenExchangeRate: BigNumber.from('69699594189'),
+                    gasPrice: BigNumber.from('475781234236'),
+                  },
+                  test4: {
+                    tokenExchangeRate: BigNumber.from('1027245678936'),
+                    gasPrice: BigNumber.from('502686418976'),
+                  },
+                },
+              },
+              test3: {
+                type: HookType.MERKLE_TREE,
+              },
+              test4: {
+                owner: '0xa1ce72b70566f2cba6000bfe6af50f0f358f49d7',
+                type: HookType.INTERCHAIN_GAS_PAYMASTER,
+                beneficiary: '0x9796c0c49c61fe01eb1a8ba56d09b831f6da8603',
+                oracleKey: '0xa1ce72b70566f2cba6000bfe6af50f0f358f49d7',
+                overhead: {
+                  test1: 71,
+                  test2: 16,
+                  test3: 37,
+                  test4: 13,
+                },
+                oracleConfig: {
+                  test1: {
+                    tokenExchangeRate: BigNumber.from('443874625350'),
+                    gasPrice: BigNumber.from('799154764503'),
+                  },
+                  test2: {
+                    tokenExchangeRate: BigNumber.from('915348561750'),
+                    gasPrice: BigNumber.from('1124345797215'),
+                  },
+                  test3: {
+                    tokenExchangeRate: BigNumber.from('930832717805'),
+                    gasPrice: BigNumber.from('621743941770'),
+                  },
+                  test4: {
+                    tokenExchangeRate: BigNumber.from('147394981623'),
+                    gasPrice: BigNumber.from('766494385983'),
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+      await createHook(config);
+    });
   });
 });

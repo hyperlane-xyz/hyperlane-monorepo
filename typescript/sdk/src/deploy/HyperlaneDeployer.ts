@@ -590,6 +590,7 @@ export abstract class HyperlaneDeployer<
       new TransparentUpgradeableProxy__factory(),
       'TransparentUpgradeableProxy',
       constructorArgs,
+      undefined,
     );
 
     return implementation.attach(proxy.address) as C;
@@ -703,6 +704,7 @@ export abstract class HyperlaneDeployer<
     proxyAdmin: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
     initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
+    shouldRecover = true,
   ): Promise<HyperlaneContracts<Factories>[K]> {
     // Try to initialize the implementation even though it may not be necessary
     const implementation = await this.deployContractWithName(
@@ -711,6 +713,7 @@ export abstract class HyperlaneDeployer<
       contractName,
       constructorArgs,
       initializeArgs,
+      shouldRecover,
     );
 
     // Initialize the proxy the same way
