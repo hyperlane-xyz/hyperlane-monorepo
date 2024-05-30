@@ -7,7 +7,10 @@ import {IXERC20Lockbox} from "../../contracts/token/interfaces/IXERC20Lockbox.so
 import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {IERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {HypXERC20Lockbox} from "../../contracts/token/extensions/HypXERC20Lockbox.sol";
+import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypXERC20} from "../../contracts/token/extensions/HypXERC20.sol";
+import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
+import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
@@ -36,16 +39,37 @@ contract ezETH is Script {
     }
 
     function run() external {
-        bytes32 recipient = address(this).addressToBytes32();
+        address deployer = address(this);
+        bytes32 recipient = deployer.addressToBytes32();
         bytes memory tokenMessage = TokenMessage.format(recipient, amount);
         vm.selectFork(ethereumFork);
         HypXERC20Lockbox hypXERC20Lockbox = new HypXERC20Lockbox(
             ethereumLockbox,
             ethereumMailbox
         );
+        ProxyAdmin ethAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy ethProxy = new TransparentUpgradeableProxy(
+            address(hypXERC20Lockbox),
+            address(ethAdmin),
+            abi.encodeCall(
+                HypXERC20Lockbox.initialize,
+                (address(0), address(0), deployer)
+            )
+        );
+        hypXERC20Lockbox = HypXERC20Lockbox(address(ethProxy));
 
         vm.selectFork(blastFork);
         HypXERC20 hypXERC20 = new HypXERC20(blastXERC20, blastMailbox);
+        ProxyAdmin blastAdmin = new ProxyAdmin();
+        TransparentUpgradeableProxy blastProxy = new TransparentUpgradeableProxy(
+                address(hypXERC20),
+                address(blastAdmin),
+                abi.encodeCall(
+                    HypERC20Collateral.initialize,
+                    (address(0), address(0), deployer)
+                )
+            );
+        hypXERC20 = HypXERC20(address(blastProxy));
         hypXERC20.enrollRemoteRouter(
             ethereumDomainId,
             address(hypXERC20Lockbox).addressToBytes32()
