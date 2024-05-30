@@ -1,10 +1,13 @@
 import { CommandModule } from 'yargs';
 
-import { createWarpRouteDeployConfig } from '../config/warp.js';
+import {
+  createWarpRouteDeployConfig,
+  readWarpRouteDeployConfig,
+} from '../config/warp.js';
 import { CommandModuleWithContext } from '../context/types.js';
-import { log } from '../logger.js';
+import { log, logGreen } from '../logger.js';
 
-import { outputFileCommandOption } from './options.js';
+import { inputFileCommandOption, outputFileCommandOption } from './options.js';
 
 /**
  * Parent command
@@ -12,7 +15,8 @@ import { outputFileCommandOption } from './options.js';
 export const warpCommand: CommandModule = {
   command: 'warp',
   describe: 'Manage Hyperlane warp routes',
-  builder: (yargs) => yargs.command(config).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(config).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
@@ -36,6 +40,22 @@ export const config: CommandModuleWithContext<{
       outPath: out,
       shouldUseDefault: !ismAdvanced,
     });
+    process.exit(0);
+  },
+};
+
+export const read: CommandModuleWithContext<{
+  path: string;
+  out: string;
+}> = {
+  command: 'read',
+  describe: 'Reads the warp route config at the given path.',
+  builder: {
+    path: inputFileCommandOption,
+  },
+  handler: async ({ context, path }) => {
+    await readWarpRouteDeployConfig(path, context);
+    logGreen('✅ Warp route config read successfully');
     process.exit(0);
   },
 };
