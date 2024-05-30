@@ -39,7 +39,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }
 
   public async read(): Promise<IsmConfig> {
-    return await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
+    return this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 
   public async update(_config: IsmConfig): Promise<EthersV5Transaction[]> {
