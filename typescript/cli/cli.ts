@@ -10,8 +10,6 @@ import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { coreCommand } from './src/commands/core.js';
 import { deployCommand } from './src/commands/deploy.js';
-import { hookCommand } from './src/commands/hook.js';
-import { ismCommand } from './src/commands/ism.js';
 import {
   keyCommandOption,
   logFormatCommandOption,
@@ -57,8 +55,6 @@ try {
     .command(configCommand)
     .command(coreCommand)
     .command(deployCommand)
-    .command(hookCommand)
-    .command(ismCommand)
     .command(sendCommand)
     .command(statusCommand)
     .command(validatorCommand)
