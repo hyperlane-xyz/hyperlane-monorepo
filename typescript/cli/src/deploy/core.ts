@@ -27,14 +27,13 @@ interface DeployParams {
 export async function coreDeploy({
   context,
   chain,
-  configFilePath,
+  config,
 }: {
   context: WriteCommandContext;
   chain: ChainName;
-  configFilePath: string;
+  config: CoreConfig;
 }): Promise<DeployedCoreAdresses> {
   const { signer } = context;
-  const config: CoreConfig = readYamlOrJson(configFilePath);
 
   const deploymentParams: DeployParams = {
     context,
@@ -50,7 +49,6 @@ export async function coreDeploy({
   });
 
   const userAddress = await signer.getAddress();
-
 
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);
 

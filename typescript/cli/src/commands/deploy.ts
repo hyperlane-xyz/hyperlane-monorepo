@@ -13,6 +13,7 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logGray } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { readYamlOrJson } from '../utils/files.js';
 
 import {
   agentConfigCommandOption,
@@ -76,7 +77,7 @@ export const deployWith = (
   deployFunction: (params: {
     context: WriteCommandContext;
     chain: ChainName;
-    configFilePath: string;
+    config: any;
   }) => Promise<HyperlaneAddresses<any>>,
 ): CommandModuleWithWriteContext<{
   config: string;
@@ -100,6 +101,7 @@ export const deployWith = (
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
     const { chainMetadata, isDryRun, dryRunChain, registry, skipConfirmation } =
       context;
+    const config = readYamlOrJson(configFilePath);
 
     logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
@@ -122,7 +124,7 @@ export const deployWith = (
       const deployedAddresses = await deployFunction({
         context,
         chain,
-        configFilePath,
+        config,
       });
 
       if (!isDryRun) {
