@@ -51,10 +51,10 @@ try {
       },
       contextMiddleware,
     ])
-    .command(coreCommand)
     .command(avsCommand)
     .command(chainsCommand)
     .command(configCommand)
+    .command(coreCommand)
     .command(deployCommand)
     .command(hookCommand)
     .command(ismCommand)

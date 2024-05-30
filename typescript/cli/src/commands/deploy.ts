@@ -1,6 +1,6 @@
 import { CommandModule } from 'yargs';
 
-import { ChainName, HyperlaneAddresses } from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { CRUD_COMMANDS } from '../consts.js';
 import {
@@ -9,12 +9,13 @@ import {
   WriteCommandContext,
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
+import { deployCore } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logGray } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 
+import { CORE_COMMAND } from './core.js';
 import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
@@ -67,80 +68,63 @@ const agentCommand: CommandModuleWithContext<{
   },
 };
 
+export const DEPLOY_COMMAND = 'deploy';
+
+/// @remark Mapping of top level command to deploy functions
+const deployFunctions: Record<string, (params: any) => Promise<any>> = {
+  [CORE_COMMAND]: deployCore,
+  // warp: deployWarp
+};
+
 /**
- * Generates a command module for deploying Hyperlane contracts.
+ * Generates a command module for deploying Hyperlane contracts, given a command
  *
- * @param deployFunction - A function that performs the actual deployment
+ * @param commandName - the deploy command key used to look up the deployFunction
  * @returns A command module used to deploy Hyperlane contracts.
  */
-export const deployWith = (
-  deployFunction: (params: {
-    context: WriteCommandContext;
-    chain: ChainName;
-    config: any;
-  }) => Promise<HyperlaneAddresses<any>>,
-): CommandModuleWithWriteContext<{
+export function deploy(commandName: string): CommandModuleWithWriteContext<{
   config: string;
   chain: string;
   dryRun: string;
-}> => ({
-  command: CRUD_COMMANDS.DEPLOY,
-  describe: 'Deploy Hyperlane contracts',
-  builder: {
-    config: {
-      type: 'string',
-      description: 'The path to a JSON or YAML file with a deployment config.',
-      demandOption: true,
+}> {
+  return {
+    command: DEPLOY_COMMAND,
+    describe: 'Deploy Hyperlane contracts',
+    builder: {
+      chain: {
+        type: 'string',
+        description: 'The name of a single chain to deploy to',
+      },
+      config: {
+        type: 'string',
+        description:
+          'The path to a JSON or YAML file with a deployment config.',
+        demandOption: true,
+      },
+      'dry-run': dryRunCommandOption,
     },
-    chain: {
-      type: 'string',
-      description: 'The name of a single chain to deploy to',
-    },
-    'dry-run': dryRunCommandOption,
-  },
-  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    const { chainMetadata, isDryRun, dryRunChain, registry, skipConfirmation } =
-      context;
+    handler: async ({ context, chain, config: configFilePath, dryRun }) => {
+      logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
+      logGray(`------------------------------------------------`);
 
-    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
-    logGray(`------------------------------------------------`);
+      try {
+        logBlue('All systems ready, captain! Beginning deployment...');
 
-    // Select a dry-run chain if it's not supplied
-    if (dryRunChain) {
-      chain = dryRunChain;
-    } else if (!chain) {
-      if (skipConfirmation) throw new Error('No chain provided');
-      chain = await runSingleChainSelectionStep(
-        chainMetadata,
-        'Select chain to connect:',
-      );
-    }
-
-    // Deploy and update Registry
-    try {
-      logBlue('All systems ready, captain! Beginning deployment...');
-
-      const deployedAddresses = await deployFunction({
-        context,
-        chain,
-        config: readYamlOrJson(configFilePath),
-      });
-
-      if (!isDryRun) {
-        await registry.updateChain({
-          chainName: chain,
-          addresses: deployedAddresses,
+        await deployFunctions[commandName]({
+          context,
+          chain,
+          config: readYamlOrJson(configFilePath),
         });
-      }
 
-      logBlue('Deployment is complete!');
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
-    process.exit(0);
-  },
-});
+        logBlue('Deployment is complete!');
+      } catch (error: any) {
+        evaluateIfDryRunFailure(error, dryRun);
+        throw error;
+      }
+      process.exit(0);
+    },
+  };
+}
 
 /**
  * Warp command
