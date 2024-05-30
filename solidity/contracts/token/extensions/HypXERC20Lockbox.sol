@@ -22,7 +22,7 @@ contract HypXERC20Lockbox is HypERC20Collateral {
 
     /**
      * @notice Approve the lockbox to spend the wrapped token and xERC20
-     * @dev This function does not need to be called by the owner, as it is called in the constructor
+     * @dev This function is idempotent and need not be access controlled
      */
     function approveLockbox() public {
         require(

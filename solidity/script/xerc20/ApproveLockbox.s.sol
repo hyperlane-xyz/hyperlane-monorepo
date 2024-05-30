@@ -38,5 +38,6 @@ contract ApproveLockbox is Script {
             address(logic),
             abi.encodeCall(HypXERC20Lockbox.approveLockbox, ())
         );
+        vm.stopBroadcast();
     }
 }
