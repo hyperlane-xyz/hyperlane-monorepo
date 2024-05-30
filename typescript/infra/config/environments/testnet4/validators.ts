@@ -30,6 +30,18 @@ export const validatorChainConfig = (
         'alfajores',
       ),
     },
+    arbitrumsepolia: {
+      interval: 1,
+      reorgPeriod: getReorgPeriod('arbitrumsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x09fabfbca0b8bf042e2a1161ee5010d147b0f603'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'arbitrumsepolia',
+      ),
+    },
     fuji: {
       interval: 5,
       reorgPeriod: getReorgPeriod('alfajores'),

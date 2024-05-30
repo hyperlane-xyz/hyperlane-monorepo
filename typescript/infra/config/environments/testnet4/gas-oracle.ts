@@ -18,6 +18,7 @@ import { ethereumChainNames } from './chains.js';
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
+  arbitrumsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
@@ -46,6 +47,7 @@ const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
 
 const chainTokenRarity: ChainMap<Rarity> = {
   alfajores: Rarity.Common,
+  arbitrumsepolia: Rarity.Common,
   fuji: Rarity.Rare,
   bsctestnet: Rarity.Rare,
   sepolia: Rarity.Mythic,

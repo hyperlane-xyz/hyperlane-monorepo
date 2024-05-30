@@ -6,6 +6,11 @@
       "0x86485dcec5f7bb8478dd251676372d054dea6653"
     ]
   },
+  "arbitrumsepolia": {
+    "validators": [
+      "0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"
+    ]
+  },
   "bsctestnet": {
     "validators": [
       "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
@@ -42,6 +47,8 @@
     ]
   },
   "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
+    ]
   }
 }

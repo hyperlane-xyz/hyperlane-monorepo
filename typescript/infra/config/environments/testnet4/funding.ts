@@ -27,6 +27,7 @@ export const keyFunderConfig: KeyFunderConfig = {
   // desired balance config
   desiredBalancePerChain: {
     alfajores: '5',
+    arbitrumsepolia: '5',
     bsctestnet: '5',
     fuji: '5',
     plumetestnet: '0.2',
@@ -35,6 +36,7 @@ export const keyFunderConfig: KeyFunderConfig = {
   },
   desiredKathyBalancePerChain: {
     alfajores: '1',
+    arbitrumsepolia: '1',
     bsctestnet: '1',
     fuji: '1',
     plumetestnet: '0.05',

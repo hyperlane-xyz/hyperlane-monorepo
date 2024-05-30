@@ -33,6 +33,7 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   [Role.Validator]: {
     alfajores: true,
+    arbitrumsepolia: false,
     bsctestnet: true,
     eclipsetestnet: false,
     fuji: true,
@@ -43,6 +44,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Relayer]: {
     alfajores: true,
+    arbitrumsepolia: false,
     bsctestnet: true,
     eclipsetestnet: false,
     fuji: true,
@@ -53,6 +55,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   },
   [Role.Scraper]: {
     alfajores: true,
+    arbitrumsepolia: false,
     bsctestnet: true,
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,

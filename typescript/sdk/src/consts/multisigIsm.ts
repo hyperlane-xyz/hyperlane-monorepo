@@ -32,6 +32,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  arbitrumsepolia: {
+    threshold: 1,
+    validators: ['0x09fabfbca0b8bf042e2a1161ee5010d147b0f603'],
+  },
+
   avalanche: {
     threshold: 2,
     validators: [
