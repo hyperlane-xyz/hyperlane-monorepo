@@ -5703,8 +5703,8 @@ __metadata:
     "@aws-sdk/client-kms": "npm:^3.577.0"
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@hyperlane-xyz/registry": "npm:1.3.0"
-    "@hyperlane-xyz/sdk": "npm:3.12.2"
-    "@hyperlane-xyz/utils": "npm:3.12.2"
+    "@hyperlane-xyz/sdk": "npm:3.13.0"
+    "@hyperlane-xyz/utils": "npm:3.13.0"
     "@inquirer/prompts": "npm:^3.0.0"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -5732,7 +5732,41 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:3.12.2, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:3.13.0":
+  version: 3.13.0
+  resolution: "@hyperlane-xyz/core@npm:3.13.0"
+  dependencies:
+    "@eth-optimism/contracts": "npm:^0.6.0"
+    "@hyperlane-xyz/utils": "npm:3.13.0"
+    "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
+    "@openzeppelin/contracts": "npm:^4.9.3"
+    "@openzeppelin/contracts-upgradeable": "npm:^v4.9.3"
+    fx-portal: "npm:^1.0.3"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+    "@types/sinon-chai": "*"
+  checksum: 121eaaa6633fd48e86a7a619608f59c8a50b51418a61f4aa35d79927cfb0e63711ca70e97929b95aa10e9769fb3862592e29760bdca3ac35b5784dff2b5eab10
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/core@npm:3.7.0":
+  version: 3.7.0
+  resolution: "@hyperlane-xyz/core@npm:3.7.0"
+  dependencies:
+    "@eth-optimism/contracts": "npm:^0.6.0"
+    "@hyperlane-xyz/utils": "npm:3.7.0"
+    "@openzeppelin/contracts": "npm:^4.9.3"
+    "@openzeppelin/contracts-upgradeable": "npm:^v4.9.3"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+    "@types/sinon-chai": "*"
+  checksum: efa01d943dd5b67830bb7244291c8ba9849472e804dff589463de76d3c03e56bc8d62454b575a6621aa1b8b53cc0d1d3b752a83d34f4b328ecd85e1ff23230d5
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
@@ -5770,29 +5804,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:3.7.0":
-  version: 3.7.0
-  resolution: "@hyperlane-xyz/core@npm:3.7.0"
-  dependencies:
-    "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:3.7.0"
-    "@openzeppelin/contracts": "npm:^4.9.3"
-    "@openzeppelin/contracts-upgradeable": "npm:^v4.9.3"
-  peerDependencies:
-    "@ethersproject/abi": "*"
-    "@ethersproject/providers": "*"
-    "@types/sinon-chai": "*"
-  checksum: efa01d943dd5b67830bb7244291c8ba9849472e804dff589463de76d3c03e56bc8d62454b575a6621aa1b8b53cc0d1d3b752a83d34f4b328ecd85e1ff23230d5
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/helloworld@npm:3.12.2, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:3.13.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/core": "npm:3.12.2"
+    "@hyperlane-xyz/core": "npm:3.13.0"
     "@hyperlane-xyz/registry": "npm:1.3.0"
-    "@hyperlane-xyz/sdk": "npm:3.12.2"
+    "@hyperlane-xyz/sdk": "npm:3.13.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -5837,10 +5855,10 @@ __metadata:
     "@ethersproject/experimental": "npm:^5.7.0"
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:^5.7.2"
-    "@hyperlane-xyz/helloworld": "npm:3.12.2"
+    "@hyperlane-xyz/helloworld": "npm:3.13.0"
     "@hyperlane-xyz/registry": "npm:1.3.0"
-    "@hyperlane-xyz/sdk": "npm:3.12.2"
-    "@hyperlane-xyz/utils": "npm:3.12.2"
+    "@hyperlane-xyz/sdk": "npm:3.13.0"
+    "@hyperlane-xyz/utils": "npm:3.13.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -5900,15 +5918,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:3.12.2, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:3.13.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
     "@aws-sdk/client-s3": "npm:^3.74.0"
     "@cosmjs/cosmwasm-stargate": "npm:^0.31.3"
     "@cosmjs/stargate": "npm:^0.31.3"
-    "@hyperlane-xyz/core": "npm:3.12.2"
-    "@hyperlane-xyz/utils": "npm:3.12.2"
+    "@hyperlane-xyz/core": "npm:3.13.0"
+    "@hyperlane-xyz/utils": "npm:3.13.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -5976,7 +5994,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:3.12.2, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:3.12.2":
+  version: 3.12.2
+  resolution: "@hyperlane-xyz/utils@npm:3.12.2"
+  dependencies:
+    "@cosmjs/encoding": "npm:^0.31.3"
+    "@solana/web3.js": "npm:^1.78.0"
+    bignumber.js: "npm:^9.1.1"
+    ethers: "npm:^5.7.2"
+    pino: "npm:^8.19.0"
+    yaml: "npm:^2.4.1"
+  checksum: 577051ce3ef5864b9b43ad6f874e158b8cbc7d82ebd4e2b850a56c25cf1b38802226db8dc6c54d50016df02840da528377347cf2d75b072987e75e75d6ccb205
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/utils@npm:3.13.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:

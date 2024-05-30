@@ -1,5 +1,17 @@
 # @hyperlane-xyz/core
 
+## 3.13.0
+
+### Minor Changes
+
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- b440d98be: Added support for registering/deregistering from the Hyperlane AVS
+
+### Patch Changes
+
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.12.0
 
 ### Patch Changes
