@@ -143,7 +143,7 @@ export async function createWarpRouteDeployConfig({
     );
 
     const interchainSecurityModule = shouldUseDefault
-      ? await createDefaultWarpIsmConfig(context, chain, warpChains)
+      ? await createDefaultWarpIsmConfig(context, chain)
       : await createIsmConfig(context, chain, warpChains);
 
     switch (type) {
@@ -199,18 +199,12 @@ export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
 async function createDefaultWarpIsmConfig(
   context: CommandContext,
   remote: ChainName,
-  origins: ChainName[],
 ) {
   return {
     type: IsmType.AGGREGATION,
     modules: [
       await createTrustedRelayerConfig(context),
-      await createRoutingConfig(
-        context,
-        IsmType.FALLBACK_ROUTING,
-        remote,
-        origins,
-      ),
+      await createRoutingConfig(context, IsmType.FALLBACK_ROUTING, remote, []),
     ],
     threshold: 1,
   };
