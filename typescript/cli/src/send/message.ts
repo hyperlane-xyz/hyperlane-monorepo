@@ -102,6 +102,7 @@ async function executeDelivery({
       undefined,
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
+    logBlue(`Message ID: ${message.id}`);
     log(`Message: ${JSON.stringify(message)}`);
 
     if (selfRelay) {
