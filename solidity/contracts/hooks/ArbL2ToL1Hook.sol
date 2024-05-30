@@ -17,36 +17,29 @@ pragma solidity >=0.8.0;
 import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {Message} from "../libs/Message.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
-import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
 import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
 
 /**
- * @title OPStackHook
- * @notice Message hook to inform the OPStackIsm of messages published through
- * the native OPStack bridge.
- * @notice This works only for L1 -> L2 messages.
+ * @title ArbL2ToL1Hook
+ * @notice Message hook to inform the ArbL2ToL1iSM of messages published through
+ * the native Arbitrum bridge.
+ * @notice This works only for L2 -> L1 messages and has the 7 day delay as specified by the ArbSys contract.
  */
 contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
 
+    // ============ Events ============
+
+    // emitted when the Merkle tree state in bridge state is updated
     event ArbSysMerkleTreeUpdated(uint256 size, uint256 leaf);
 
     // ============ Constants ============
 
+    // precompile contract on L2 for sending messages to L1
     ArbSys public immutable arbSys;
-
-    // NodeInterface public immutable arbitrumNodeInterface;
-
-    // Gas limit for sending messages to L2
-    // First 1.92e6 gas is provided by Optimism, see more here:
-    // https://community.optimism.io/docs/developers/bridge/messaging/#for-l1-%E2%87%92-l2-transactions
-    uint32 internal constant GAS_LIMIT = 1_920_000;
 
     // ============ Constructor ============
 
@@ -83,10 +76,4 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
 
         emit ArbSysMerkleTreeUpdated(size, leadNum);
     }
-
-    // function getOutboxProof(uint64 size, uint64 leaf)
-    //     external
-    //     view
-    //     returns (bytes32 send, bytes32 root, bytes32[] memory proof)
-    // {}
 }
