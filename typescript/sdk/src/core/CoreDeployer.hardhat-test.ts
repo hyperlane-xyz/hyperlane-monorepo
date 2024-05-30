@@ -140,7 +140,7 @@ describe('core', async () => {
           );
 
           // Cast because we don't expect the 'string' type
-          const defaultIsmOnchain =
+          const { address: _, ...defaultIsmOnchain } =
             coreConfigOnChain.defaultIsm as DerivedIsmConfig;
           const defaultIsmTest = coreConfig[chainName]
             .defaultIsm as DerivedIsmConfig;
@@ -158,7 +158,7 @@ describe('core', async () => {
           );
 
           // Cast because we don't expect the 'string' type
-          const defaultHookOnchain =
+          const { address: _, ...defaultHookOnchain } =
             coreConfigOnChain.defaultHook as DerivedHookConfig;
           const defaultHookTest = coreConfig[chainName]
             .defaultHook as DerivedHookConfig;
@@ -174,7 +174,8 @@ describe('core', async () => {
             chainName,
             contract.mailbox.address,
           );
-          const requiredHookOnchain = coreConfigOnChain.requiredHook;
+          const { address: _, ...requiredHookOnchain } =
+            coreConfigOnChain.requiredHook as DerivedHookConfig;
           const requiredHookTest = coreConfig[chainName].requiredHook;
 
           expect(requiredHookOnchain).to.deep.equal(requiredHookTest);

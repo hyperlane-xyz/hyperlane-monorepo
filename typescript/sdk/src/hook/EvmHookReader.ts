@@ -42,7 +42,7 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
-export type DerivedHookConfig = WithAddress<HookConfig>;
+export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
