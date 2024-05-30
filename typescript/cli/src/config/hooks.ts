@@ -78,7 +78,7 @@ export async function createHooksConfigMap({
   const result: HooksConfigMap = {};
   for (const chain of chains) {
     for (const hookRequirements of ['required', 'default']) {
-      log(`Setting ${hookRequirements} hook for chain ${chain}`);
+      log(`\nSet ${hookRequirements} hook for chain ${chain}:`);
       const remotes = chains.filter((c) => c !== chain);
       result[chain] = {
         ...result[chain],
@@ -159,7 +159,7 @@ export async function createProtocolFeeConfig(
   chain: ChainName,
 ): Promise<HookConfig> {
   const owner = await input({
-    message: 'Enter owner address',
+    message: 'Enter owner address for protocol fee hook',
   });
   const ownerAddress = normalizeAddressEvm(owner);
   let beneficiary;
@@ -171,7 +171,7 @@ export async function createProtocolFeeConfig(
     beneficiary = ownerAddress;
   } else {
     beneficiary = await input({
-      message: 'Enter beneficiary address',
+      message: 'Enter beneficiary address for protocol fee hook',
     });
   }
   const beneficiaryAddress = normalizeAddressEvm(beneficiary);
@@ -181,7 +181,7 @@ export async function createProtocolFeeConfig(
       message: `Enter max protocol fee ${nativeTokenAndDecimals(
         context,
         chain,
-      )} e.g. 1.0)`,
+      )} e.g. 1.0) for protocol fee hook`,
     }),
   );
   const protocolFee = toWei(
@@ -189,7 +189,7 @@ export async function createProtocolFeeConfig(
       message: `Enter protocol fee in ${nativeTokenAndDecimals(
         context,
         chain,
-      )} e.g. 0.01)`,
+      )} e.g. 0.01) for protocol fee hook`,
     }),
   );
   if (BigNumberJs(protocolFee).gt(maxProtocolFee)) {
@@ -211,7 +211,7 @@ export async function createIGPConfig(
   remotes: ChainName[],
 ): Promise<HookConfig> {
   const owner = await input({
-    message: 'Enter owner address',
+    message: 'Enter owner address for IGP hook',
   });
   const ownerAddress = normalizeAddressEvm(owner);
   let beneficiary, oracleKey;
@@ -224,10 +224,10 @@ export async function createIGPConfig(
     oracleKey = ownerAddress;
   } else {
     beneficiary = await input({
-      message: 'Enter beneficiary address',
+      message: 'Enter beneficiary address for IGP hook',
     });
     oracleKey = await input({
-      message: 'Enter gasOracleKey address',
+      message: 'Enter gasOracleKey address for IGP hook',
     });
   }
   const beneficiaryAddress = normalizeAddressEvm(beneficiary);
@@ -236,7 +236,7 @@ export async function createIGPConfig(
   for (const chain of remotes) {
     const overhead = parseInt(
       await input({
-        message: `Enter overhead for ${chain} (eg 75000)`,
+        message: `Enter overhead for ${chain} (eg 75000) for IGP hook`,
       }),
     );
     overheads[chain] = overhead;
@@ -279,7 +279,7 @@ export async function createRoutingConfig(
   remotes: ChainName[],
 ): Promise<HookConfig> {
   const owner = await input({
-    message: 'Enter owner address',
+    message: 'Enter owner address for routing ISM',
   });
   const ownerAddress = owner;
 

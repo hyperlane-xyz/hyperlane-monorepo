@@ -1,12 +1,8 @@
 import { CommandModule } from 'yargs';
 
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
-import { createHooksConfigMap } from '../config/hooks.js';
-import { createIsmConfigMap, readIsmConfig } from '../config/ism.js';
-import {
-  createMultisigConfig,
-  readMultisigConfig,
-} from '../config/multisig.js';
+import { readIsmConfig } from '../config/ism.js';
+import { readMultisigConfig } from '../config/multisig.js';
 import {
   createWarpRouteDeployConfig,
   readWarpRouteDeployConfig,
@@ -40,8 +36,6 @@ const createCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(createChainConfigCommand)
-      .command(createIsmConfigCommand)
-      .command(createHookConfigCommand)
       .command(createWarpRouteDeployConfigCommand)
       .version(false)
       .demandCommand(),
@@ -53,42 +47,6 @@ const createChainConfigCommand: CommandModuleWithContext<{}> = {
   describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
   handler: async ({ context }) => {
     await createChainConfig({ context });
-    process.exit(0);
-  },
-};
-
-const createIsmConfigCommand: CommandModuleWithContext<{
-  out: string;
-  advanced: boolean;
-}> = {
-  command: 'ism',
-  describe: 'Create a basic or advanced ISM config for a validator set',
-  builder: {
-    out: outputFileCommandOption('./configs/ism.yaml'),
-    advanced: {
-      type: 'boolean',
-      describe: 'Create an advanced ISM configuration',
-      default: false,
-    },
-  },
-  handler: async ({ context, out, advanced }) => {
-    if (advanced) {
-      await createIsmConfigMap({ context, outPath: out });
-    } else {
-      await createMultisigConfig({ context, outPath: out });
-    }
-    process.exit(0);
-  },
-};
-
-const createHookConfigCommand: CommandModuleWithContext<{ out: string }> = {
-  command: 'hooks',
-  describe: 'Create a new hooks config (required & default)',
-  builder: {
-    out: outputFileCommandOption('./configs/hooks.yaml'),
-  },
-  handler: async ({ context, out }) => {
-    await createHooksConfigMap({ context, outPath: out });
     process.exit(0);
   },
 };
