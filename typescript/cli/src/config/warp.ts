@@ -2,6 +2,8 @@ import { input, select } from '@inquirer/prompts';
 
 import {
   ChainMap,
+  ChainName,
+  IsmType,
   MailboxClientConfig,
   TokenType,
   WarpCoreConfig,
@@ -18,6 +20,12 @@ import {
   runMultiChainSelectionStep,
 } from '../utils/chains.js';
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+
+import {
+  createIsmConfig,
+  createRoutingConfig,
+  createTrustedRelayerConfig,
+} from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
@@ -94,9 +102,11 @@ export function isValidWarpRouteDeployConfig(config: any) {
 export async function createWarpRouteDeployConfig({
   context,
   outPath,
+  shouldUseDefault = false,
 }: {
   context: CommandContext;
   outPath: string;
+  shouldUseDefault: boolean;
 }) {
   logBlue('Creating a new warp route deployment config');
 
@@ -132,6 +142,10 @@ export async function createWarpRouteDeployConfig({
       'mailbox address',
     );
 
+    const interchainSecurityModule = shouldUseDefault
+      ? await createDefaultWarpIsmConfig(context, chain, warpChains)
+      : await createIsmConfig(context, chain, warpChains);
+
     switch (type) {
       case TokenType.collateral:
       case TokenType.XERC20:
@@ -145,13 +159,20 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           isNft,
+          interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
           }),
         };
         break;
       default:
-        result[chain] = { mailbox, type, owner, isNft };
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          interchainSecurityModule,
+        };
     }
   }
 
@@ -173,4 +194,24 @@ export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
   const config = readYamlOrJson(filePath);
   if (!config) throw new Error(`No warp route config found at ${filePath}`);
   return WarpCoreConfigSchema.parse(config);
+}
+
+async function createDefaultWarpIsmConfig(
+  context: CommandContext,
+  remote: ChainName,
+  origins: ChainName[],
+) {
+  return {
+    type: IsmType.AGGREGATION,
+    modules: [
+      await createTrustedRelayerConfig(context),
+      await createRoutingConfig(
+        context,
+        IsmType.FALLBACK_ROUTING,
+        remote,
+        origins,
+      ),
+    ],
+    threshold: 1,
+  };
 }
