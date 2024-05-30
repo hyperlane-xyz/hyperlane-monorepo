@@ -29,7 +29,8 @@ contract ApproveLockbox is Script {
     ProxyAdmin proxyAdmin = ProxyAdmin(admin);
 
     function run() external {
-        require(proxyAdmin.getProxyAdmin(proxy) == admin, "wrong admin");
+        assert(proxyAdmin.getProxyAdmin(proxy) == admin);
+
         vm.startBroadcast(deployerPrivateKey);
         HypXERC20Lockbox logic = new HypXERC20Lockbox(lockbox, mailbox);
         proxyAdmin.upgradeAndCall(
