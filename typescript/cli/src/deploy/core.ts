@@ -51,6 +51,7 @@ export async function coreDeploy({
 
   const userAddress = await signer.getAddress();
 
+
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);
 
   const evmCoreModule = await EvmCoreModule.create({

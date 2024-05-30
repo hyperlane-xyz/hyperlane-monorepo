@@ -4,15 +4,18 @@ import { Address } from '@hyperlane-xyz/utils';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
+  HyperlaneFactories,
 } from '../contracts/types.js';
 import { ChainMap } from '../types.js';
 
 import { ProxiedRouterDeployer } from './ProxiedRouterDeployer.js';
-import { GasRouterConfig, ProxiedFactories } from './types.js';
+import { GasRouterConfig } from './types.js';
+
+const DEFAULT_GAS_OVERHEAD = 100_000;
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,
-  Factories extends ProxiedFactories,
+  Factories extends HyperlaneFactories,
 > extends ProxiedRouterDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): GasRouter;
 
@@ -37,7 +40,7 @@ export abstract class GasRouterDeployer<
       const remoteConfigs = remoteDomains
         .map((domain, i) => ({
           domain,
-          gas: configMap[remoteChains[i]].gas,
+          gas: configMap[remoteChains[i]].gas ?? DEFAULT_GAS_OVERHEAD,
         }))
         .filter(({ gas }, index) => !currentConfigs[index].eq(gas));
       if (remoteConfigs.length == 0) {

@@ -118,7 +118,7 @@ export class EvmCoreModule extends HyperlaneModule<
       multiProvider,
     );
 
-    // Initalize Deployer
+    // Initialize Deployer
     const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
 
     // Deploy proxyAdmin

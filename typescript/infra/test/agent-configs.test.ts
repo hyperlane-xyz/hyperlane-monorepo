@@ -43,7 +43,9 @@ describe('Agent configs', () => {
         const agentJsonConfigChains = Object.keys(
           config.agentJsonConfig.chains,
         );
-        expect(agentJsonConfigChains).to.have.members(
+        // Allow for the agent JSON config to be a superset of the supported
+        // chain names, as AW may not always run agents for all chains.
+        expect(agentJsonConfigChains).to.include.members(
           config.supportedChainNames,
         );
       });

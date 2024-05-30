@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cli
 
+## 3.13.0
+
+### Minor Changes
+
+- b22a0f453: Add hyperlane validator address command to retrieve validator address from AWS
+- 39ea7cdef: Implement multi collateral warp routes
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- b440d98be: Added support for registering/deregistering from the Hyperlane AVS
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.12.0
 
 ### Minor Changes

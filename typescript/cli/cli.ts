@@ -5,6 +5,7 @@ import yargs from 'yargs';
 import type { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import './env.js';
+import { avsCommand } from './src/commands/avs.js';
 import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { coreCommand } from './src/commands/core.js';
@@ -21,6 +22,7 @@ import {
 } from './src/commands/options.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
+import { validatorCommand } from './src/commands/validator.js';
 import { contextMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
@@ -50,6 +52,7 @@ try {
       contextMiddleware,
     ])
     .command(coreCommand)
+    .command(avsCommand)
     .command(chainsCommand)
     .command(configCommand)
     .command(deployCommand)
@@ -57,6 +60,7 @@ try {
     .command(ismCommand)
     .command(sendCommand)
     .command(statusCommand)
+    .command(validatorCommand)
     .version(VERSION)
     .demandCommand()
     .strict()
