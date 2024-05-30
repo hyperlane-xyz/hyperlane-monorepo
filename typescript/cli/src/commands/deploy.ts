@@ -12,6 +12,7 @@ import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 import {
   agentConfigCommandOption,
@@ -78,7 +79,6 @@ export const deployWith = (
     configFilePath: string;
   }) => any,
 ): CommandModuleWithWriteContext<{
-  // TODO rename to deployCommand
   config: string;
   chain: string;
   artifacts: string;
@@ -107,6 +107,16 @@ export const deployWith = (
     logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
 
+    // Select a chain if it's not supplied
+    const { chainMetadata, dryRunChain, skipConfirmation } = context;
+    if (dryRunChain) chain = dryRunChain;
+    else if (!chain) {
+      if (skipConfirmation) throw new Error('No chain provided');
+      chain = await runSingleChainSelectionStep(
+        chainMetadata,
+        'Select chain to connect:',
+      );
+    }
     try {
       await deployFunction({
         context,

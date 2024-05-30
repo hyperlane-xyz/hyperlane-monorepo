@@ -5,7 +5,6 @@ import { ChainName, CoreConfig, EvmCoreModule } from '@hyperlane-xyz/sdk';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 import {
@@ -26,16 +25,8 @@ export async function coreDeploy({
   chain: ChainName;
   configFilePath: string;
 }) {
-  const { chainMetadata, signer, dryRunChain, skipConfirmation } = context;
+  const { signer } = context;
   const config: CoreConfig = readYamlOrJson(configFilePath);
-  if (dryRunChain) chain = dryRunChain;
-  else if (!chain) {
-    if (skipConfirmation) throw new Error('No chain provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to connect:',
-    );
-  }
 
   const deploymentParams: DeployParams = {
     context,
