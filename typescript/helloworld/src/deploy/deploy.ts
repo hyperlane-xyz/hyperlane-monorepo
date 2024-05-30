@@ -36,6 +36,9 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
   async deployContracts(chain: ChainName, config: HelloWorldConfig) {
+    if (typeof config.hook !== 'string') {
+      throw new Error('Hook address must be a string');
+    }
     const router = await this.deployContract(chain, 'router', [
       config.mailbox,
       config.hook ?? ethers.constants.AddressZero,
