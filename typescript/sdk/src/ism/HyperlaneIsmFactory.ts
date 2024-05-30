@@ -36,7 +36,6 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { resolveOrDeployAccountOwner } from '../deploy/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -151,13 +150,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
-          [
-            await resolveOrDeployAccountOwner(
-              this.multiProvider,
-              destination,
-              config.owner,
-            ),
-          ],
+          [config.owner],
         );
         await this.deployer.transferOwnershipOfContracts(destination, config, {
           [IsmType.PAUSABLE]: contract,
@@ -327,11 +320,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
     } else {
       const isms: ChainMap<Address> = {};
-      const owner = await resolveOrDeployAccountOwner(
-        this.multiProvider,
-        destination,
-        config.owner,
-      );
       for (const origin of Object.keys(config.domains)) {
         const ism = await this.deploy({
           destination,
@@ -360,7 +348,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         receipt = await this.multiProvider.handleTx(
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
-            owner,
+            config.owner,
             safeConfigDomains,
             submoduleAddresses,
             overrides,
@@ -368,13 +356,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       } else {
         // deploying new domain routing ISM
-        const owner = await resolveOrDeployAccountOwner(
-          this.multiProvider,
-          destination,
-          config.owner,
-        );
         const tx = await domainRoutingIsmFactory.deploy(
-          owner,
+          config.owner,
           safeConfigDomains,
           submoduleAddresses,
           overrides,

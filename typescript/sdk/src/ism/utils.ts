@@ -23,7 +23,6 @@ import {
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { resolveOrDeployAccountOwner } from '../deploy/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -222,11 +221,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      const expectedOwner = await resolveOrDeployAccountOwner(
-        multiProvider,
-        chain,
-        config.owner,
-      );
+      const expectedOwner = config.owner;
       matches &&= eqAddress(owner, expectedOwner);
       // check if the mailbox matches the config for fallback routing
       if (config.type === IsmType.FALLBACK_ROUTING) {
@@ -314,11 +309,7 @@ export async function moduleMatchesConfig(
     case IsmType.PAUSABLE: {
       const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
       const owner = await pausableIsm.owner();
-      const expectedOwner = await resolveOrDeployAccountOwner(
-        multiProvider,
-        chain,
-        config.owner,
-      );
+      const expectedOwner = config.owner;
       matches &&= eqAddress(owner, expectedOwner);
 
       if (config.paused) {
@@ -360,11 +351,7 @@ export async function routingModuleDelta(
   };
 
   // if owners don't match, we need to transfer ownership
-  const expectedOwner = await resolveOrDeployAccountOwner(
-    multiProvider,
-    destination,
-    config.owner,
-  );
+  const expectedOwner = config.owner;
   if (!eqAddress(owner, normalizeAddress(expectedOwner)))
     delta.owner = expectedOwner;
   if (config.type === IsmType.FALLBACK_ROUTING) {
