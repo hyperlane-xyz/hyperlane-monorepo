@@ -2,14 +2,14 @@ use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fmt::{Debug, Display, Formatter},
-    io::{BufRead, BufReader, Read},
+    fs::{File, OpenOptions},
+    io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc,
-        mpsc::Sender,
-        Arc,
+        mpsc::{self, Sender},
+        Arc, Mutex,
     },
     thread::{sleep, spawn},
     time::Duration,
@@ -17,6 +17,7 @@ use std::{
 
 use eyre::Context;
 use macro_rules_attribute::apply;
+use tempfile::TempDir;
 
 use crate::{
     logging::log,
@@ -36,6 +37,7 @@ pub struct Program {
     working_dir: Option<Arc<PathBuf>>,
     log_filter: Option<LogFilter>,
     arbitrary_data: Vec<Arc<dyn ArbitraryData>>,
+    log_file: Option<Arc<Mutex<File>>>,
 }
 
 impl Debug for Program {
@@ -91,7 +93,21 @@ impl Display for Program {
 
 impl Program {
     pub fn new(bin: impl AsRef<OsStr>) -> Self {
-        Self::default().bin(bin)
+        let mut instance = Self::default().bin(bin);
+        let temp_dir = TempDir::new().expect("Failed to create a temp dir");
+        let log_file_path = temp_dir.path().join("output.log");
+        println!(
+            "{} logging to: {:?}",
+            instance.get_bin_name(),
+            log_file_path
+        );
+        let log_file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(log_file_path)
+            .expect("Failed to create a log file");
+        instance.log_file = Some(Arc::new(Mutex::new(log_file)));
+        instance
     }
 
     pub fn bin(mut self, bin: impl AsRef<OsStr>) -> Self {
@@ -250,11 +266,28 @@ impl Program {
             .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &self));
         let child_stdout = child.stdout.take().unwrap();
         let filter = self.get_filter();
-        let stdout =
-            spawn(move || prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS, filter, None));
+        let log_file = self.log_file.clone();
+        let stdout = spawn(move || {
+            prefix_log(
+                child_stdout,
+                log_prefix,
+                &RUN_LOG_WATCHERS,
+                filter,
+                log_file,
+                None,
+            )
+        });
         let child_stderr = child.stderr.take().unwrap();
-        let stderr =
-            spawn(move || prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS, filter, None));
+        let stderr = spawn(move || {
+            prefix_log(
+                child_stderr,
+                log_prefix,
+                &RUN_LOG_WATCHERS,
+                filter,
+                None,
+                None,
+            )
+        });
         (
             log_prefix.to_owned(),
             child,
@@ -277,17 +310,18 @@ impl Program {
         let filter = self.get_filter();
         let running = Arc::new(AtomicBool::new(true));
         let (stdout_ch_tx, stdout_ch_rx) = capture_output.then(mpsc::channel).unzip();
+        let log_file = self.log_file.clone();
         let stdout = {
             let stdout = child.stdout.take().unwrap();
             let name = self.get_bin_name();
             let running = running.clone();
-            spawn(move || prefix_log(stdout, &name, &running, filter, stdout_ch_tx))
+            spawn(move || prefix_log(stdout, &name, &running, filter, log_file, stdout_ch_tx))
         };
         let stderr = {
             let stderr = child.stderr.take().unwrap();
             let name = self.get_bin_name();
             let running = running.clone();
-            spawn(move || prefix_log(stderr, &name, &running, filter, None))
+            spawn(move || prefix_log(stderr, &name, &running, filter, None, None))
         };
 
         let status = loop {
@@ -321,6 +355,7 @@ fn prefix_log(
     prefix: &str,
     run_log_watcher: &AtomicBool,
     filter: Option<LogFilter>,
+    file: Option<Arc<Mutex<File>>>,
     channel: Option<Sender<String>>,
 ) {
     let mut reader = BufReader::new(output).lines();
@@ -340,6 +375,10 @@ fn prefix_log(
                 }
             }
             println!("<{prefix}> {line}");
+            if let Some(file) = &file {
+                let mut writer = file.lock().expect("Failed to acquire lock for log file");
+                writeln!(writer, "{}", line).unwrap_or(());
+            }
             if let Some(channel) = &channel {
                 // ignore send errors
                 channel.send(line).unwrap_or(());
