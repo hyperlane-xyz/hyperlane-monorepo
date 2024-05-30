@@ -19,15 +19,17 @@ import {IERC20} from "contracts/token/interfaces/IXERC20.sol";
 // forge script ApproveLockbox.s.sol --broadcast --rpc-url localhost:XXXX
 contract ApproveLockbox is Script {
     address router = vm.envAddress("ROUTER_ADDRESS");
+    address admin = vm.envAddress("ADMIN_ADDRESS");
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
     ITransparentUpgradeableProxy proxy = ITransparentUpgradeableProxy(router);
     HypXERC20Lockbox old = HypXERC20Lockbox(router);
     address lockbox = address(old.lockbox());
     address mailbox = address(old.mailbox());
-    ProxyAdmin proxyAdmin = ProxyAdmin(vm.envAddress("ADMIN_ADDRESS"));
+    ProxyAdmin proxyAdmin = ProxyAdmin(admin);
 
     function run() external {
+        require(proxyAdmin.getProxyAdmin(proxy) == admin, "wrong admin");
         vm.startBroadcast(deployerPrivateKey);
         HypXERC20Lockbox logic = new HypXERC20Lockbox(lockbox, mailbox);
         proxyAdmin.upgradeAndCall(
