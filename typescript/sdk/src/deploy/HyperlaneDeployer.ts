@@ -457,6 +457,24 @@ export abstract class HyperlaneDeployer<
     return contract;
   }
 
+  async deployNewContract<K extends keyof Factories>(
+    chain: ChainName,
+    contractKey: K,
+    constructorArgs: Parameters<Factories[K]['deploy']>,
+    initializeArgs?: Parameters<
+      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    >,
+  ): Promise<HyperlaneContracts<Factories>[K]> {
+    return this.deployContractWithName(
+      chain,
+      contractKey,
+      contractKey.toString(),
+      constructorArgs,
+      initializeArgs,
+      false,
+    );
+  }
+
   async deployContract<K extends keyof Factories>(
     chain: ChainName,
     contractKey: K,

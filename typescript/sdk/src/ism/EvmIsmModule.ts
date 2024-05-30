@@ -382,6 +382,8 @@ export class EvmIsmModule extends HyperlaneModule<
           new OPStackIsm__factory(),
           IsmType.OP_STACK,
           [config.nativeBridge],
+          undefined,
+          false,
         );
 
       case IsmType.PAUSABLE:
@@ -390,6 +392,8 @@ export class EvmIsmModule extends HyperlaneModule<
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
           [config.owner],
+          undefined,
+          false,
         );
 
       case IsmType.TRUSTED_RELAYER:
@@ -402,6 +406,8 @@ export class EvmIsmModule extends HyperlaneModule<
           new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [this.args.addresses.mailbox, config.relayer],
+          undefined,
+          false,
         );
 
       case IsmType.TEST_ISM:
@@ -410,6 +416,8 @@ export class EvmIsmModule extends HyperlaneModule<
           new TestIsm__factory(),
           IsmType.TEST_ISM,
           [],
+          undefined,
+          false,
         );
 
       default:

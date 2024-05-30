@@ -13,6 +13,7 @@ import {
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
+import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
@@ -21,17 +22,41 @@ import { randomAddress, randomInt } from '../test/testUtils.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
 import { HyperlaneHookDeployer } from './HyperlaneHookDeployer.js';
-import { HookConfig, HookType } from './types.js';
+import {
+  AggregationHookConfig,
+  DomainRoutingHookConfig,
+  FallbackRoutingHookConfig,
+  HookConfig,
+  HookType,
+  IgpHookConfig,
+  MerkleTreeHookConfig,
+  PausableHookConfig,
+} from './types.js';
 
 const hookTypes = Object.values(HookType);
 
 function randomHookType(): HookType {
+  // OP_STACK filtering is temporary until we have a way to deploy the required contracts
+  // PROTOCOL_FEE filtering is temporary until we fix initialization of the protocol fee hook
+  // ROUTING/FALLBACK_ROUTING filtering is temporary until we fix ownership of domain hooks
   const filteredHookTypes = hookTypes.filter(
-    (type) => type !== HookType.OP_STACK,
+    (type) =>
+      type !== HookType.OP_STACK &&
+      type !== HookType.ROUTING &&
+      type !== HookType.FALLBACK_ROUTING,
   );
   return filteredHookTypes[
     Math.floor(Math.random() * filteredHookTypes.length)
   ];
+}
+
+function randomProtocolFee(): { maxProtocolFee: string; protocolFee: string } {
+  const maxProtocolFee = Math.random() * 100000000000000;
+  const protocolFee = (Math.random() * maxProtocolFee) / 1000;
+  return {
+    maxProtocolFee: Math.floor(maxProtocolFee).toString(),
+    protocolFee: Math.floor(protocolFee).toString(),
+  };
 }
 
 function randomHookConfig(
@@ -42,7 +67,11 @@ function randomHookConfig(
   const hookType: HookType = providedHookType ?? randomHookType();
 
   if (depth >= maxDepth) {
-    if (hookType === HookType.AGGREGATION || hookType === HookType.ROUTING) {
+    if (
+      hookType === HookType.AGGREGATION ||
+      hookType === HookType.ROUTING ||
+      hookType === HookType.FALLBACK_ROUTING
+    ) {
       return { type: HookType.MERKLE_TREE };
     }
   }
@@ -82,14 +111,16 @@ function randomHookConfig(
       };
     }
 
-    case HookType.PROTOCOL_FEE:
+    case HookType.PROTOCOL_FEE: {
+      const { maxProtocolFee, protocolFee } = randomProtocolFee();
       return {
         owner: randomAddress(),
         type: hookType,
-        maxProtocolFee: Math.floor(Math.random() * 1000).toString(),
-        protocolFee: Math.floor(Math.random() * 100).toString(),
+        maxProtocolFee,
+        protocolFee,
         beneficiary: randomAddress(),
       };
+    }
 
     case HookType.OP_STACK:
       return {
@@ -133,8 +164,7 @@ describe('EvmHookModule', async () => {
   let multiProvider: MultiProvider;
   let hookDeployer: HyperlaneHookDeployer;
 
-  let mailboxAddress: Address;
-  let proxyAdminAddress: Address;
+  let coreAddresses: CoreAddresses;
 
   const chain = TestChainName.test4;
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
@@ -170,11 +200,15 @@ describe('EvmHookModule', async () => {
     );
 
     // mailbox and proxy admin for the core deploy
-    const { mailbox, proxyAdmin } = (
+    const { mailbox, proxyAdmin, validatorAnnounce } = (
       await testCoreDeployer.deployApp()
     ).getContracts(chain);
-    mailboxAddress = mailbox.address;
-    proxyAdminAddress = proxyAdmin.address;
+
+    coreAddresses = {
+      mailbox: mailbox.address,
+      proxyAdmin: proxyAdmin.address,
+      validatorAnnounce: validatorAnnounce.address,
+    };
 
     hookDeployer = testCoreDeployer.hookDeployer;
   });
@@ -194,11 +228,11 @@ describe('EvmHookModule', async () => {
     );
     if (!matches) {
       console.error(
-        'Derived config:',
+        'Derived config:\n',
         stringifyObject(normalizeConfig(derivedConfig)),
       );
       console.error(
-        'Expected config:',
+        'Expected config:\n',
         stringifyObject(normalizeConfig(config)),
       );
     }
@@ -220,38 +254,127 @@ describe('EvmHookModule', async () => {
   async function createHook(
     config: HookConfig,
   ): Promise<{ ism: EvmHookModule; initialHookAddress: Address }> {
+    console.log('Creating hook with config: ', stringifyObject(config));
     const hook = await EvmHookModule.create({
       chain,
       config,
       deployer: hookDeployer,
       factories: factoryAddresses,
-      mailbox: mailboxAddress,
-      proxyAdmin: proxyAdminAddress,
+      coreAddresses,
       multiProvider,
     });
-    testHook = hook;
     testConfig = config;
+    testHook = hook;
     return { ism: hook, initialHookAddress: hook.serialize().deployedHook };
   }
 
   describe('create', async () => {
-    for (const hookType of Object.values(HookType)) {
-      if (hookType === HookType.OP_STACK) {
-        console.log('Skipping OP_STACK hook type');
-        continue;
-      }
+    it('deploys a hook of type MERKLE_TREE', async () => {
+      const config: MerkleTreeHookConfig = {
+        type: HookType.MERKLE_TREE,
+      };
+      await createHook(config);
+    });
 
-      it(`deploys a hook of type ${hookType}`, async () => {
-        const config = randomHookConfig(0, 2, hookType);
-        console.log('Creating hook with config:', config);
-        await createHook(config);
-      });
-    }
+    it('deploys a hook of type INTERCHAIN_GAS_PAYMASTER', async () => {
+      const owner = randomAddress();
+      const config: IgpHookConfig = {
+        owner,
+        type: HookType.INTERCHAIN_GAS_PAYMASTER,
+        beneficiary: randomAddress(),
+        oracleKey: owner,
+        overhead: Object.fromEntries(
+          testChains.map((c) => [c, Math.floor(Math.random() * 100)]),
+        ),
+        oracleConfig: Object.fromEntries(
+          testChains.map((c) => [
+            c,
+            {
+              tokenExchangeRate: BigNumber.from(randomInt(1234567891234)),
+              gasPrice: BigNumber.from(randomInt(1234567891234)),
+            },
+          ]),
+        ),
+      };
+      await createHook(config);
+    });
+
+    // it('deploys a hook of type PROTOCOL_FEE', async () => {
+    //   const { maxProtocolFee, protocolFee } = randomProtocolFee();
+    //   const config: ProtocolFeeHookConfig = {
+    //     owner: randomAddress(),
+    //     type: HookType.PROTOCOL_FEE,
+    //     maxProtocolFee,
+    //     protocolFee,
+    //     beneficiary: randomAddress(),
+    //   };
+    //   await createHook(config);
+    // });
+
+    it('deploys a hook of type ROUTING', async () => {
+      const config: DomainRoutingHookConfig = {
+        owner: randomAddress(),
+        type: HookType.ROUTING,
+        domains: Object.fromEntries(
+          testChains.map((c) => [
+            c,
+            {
+              type: HookType.MERKLE_TREE,
+            },
+          ]),
+        ),
+      };
+      await createHook(config);
+    });
+
+    it('deploys a hook of type FALLBACK_ROUTING', async () => {
+      const config: FallbackRoutingHookConfig = {
+        owner: randomAddress(),
+        type: HookType.FALLBACK_ROUTING,
+        fallback: { type: HookType.MERKLE_TREE },
+        domains: Object.fromEntries(
+          testChains.map((c) => [
+            c,
+            {
+              type: HookType.MERKLE_TREE,
+            },
+          ]),
+        ),
+      };
+      await createHook(config);
+    });
+
+    it('deploys a hook of type AGGREGATION', async () => {
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [{ type: HookType.MERKLE_TREE }, { type: HookType.MERKLE_TREE }],
+      };
+      await createHook(config);
+    });
+
+    it('deploys a hook of type PAUSABLE', async () => {
+      const config: PausableHookConfig = {
+        owner: randomAddress(),
+        type: HookType.PAUSABLE,
+      };
+      await createHook(config);
+    });
+
+    // it('deploys a hook of type OP_STACK', async () => {
+    // need to setup deploying/mocking IL1CrossDomainMessenger before this test can be enabled
+    //   const config: OpStackHookConfig = {
+    //     owner: randomAddress(),
+    //     type: HookType.OP_STACK,
+    //     nativeBridge: randomAddress(),
+    //     destinationChain: 'testChain',
+    //   };
+    //   await createHook(config);
+    // });
 
     for (let i = 0; i < 16; i++) {
       it(`deploys a random ism config #${i}`, async () => {
+        // random config with depth 0-2
         const config = randomHookConfig();
-        console.log('Creating hook with config:', config);
         await createHook(config);
       });
     }

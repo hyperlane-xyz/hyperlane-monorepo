@@ -31,6 +31,7 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
+import { CoreAddresses } from '../core/contracts.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -74,6 +75,9 @@ export class EvmHookModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: number;
 
+  // Transaction overrides for the chain
+  protected readonly txOverrides: Partial<ethers.providers.TransactionRequest>;
+
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly deployer: HyperlaneHookDeployer,
@@ -87,6 +91,10 @@ export class EvmHookModule extends HyperlaneModule<
 
     this.chainName = this.multiProvider.getChainName(this.args.chain);
     this.domainId = this.multiProvider.getDomainId(this.chainName);
+
+    this.txOverrides = this.multiProvider.getTransactionOverrides(
+      this.chainName,
+    );
   }
 
   public async read(): Promise<HookConfig> {
@@ -106,24 +114,21 @@ export class EvmHookModule extends HyperlaneModule<
     config,
     deployer,
     factories,
-    mailbox,
-    proxyAdmin,
+    coreAddresses,
     multiProvider,
   }: {
     chain: ChainNameOrId;
     config: HookConfig;
     deployer: HyperlaneHookDeployer;
     factories: HyperlaneAddresses<ProxyFactoryFactories>;
-    mailbox: Address;
-    proxyAdmin: Address;
+    coreAddresses: CoreAddresses;
     multiProvider: MultiProvider;
   }): Promise<EvmHookModule> {
     // instantiate new EvmHookModule
     const module = new EvmHookModule(multiProvider, deployer, {
       addresses: {
         ...factories,
-        mailbox,
-        proxyAdmin,
+        ...coreAddresses,
         deployedHook: ethers.constants.AddressZero,
       },
       chain,
@@ -137,8 +142,43 @@ export class EvmHookModule extends HyperlaneModule<
     return module;
   }
 
+  // Compute delta between current and target domain configurations
+  protected async computeRoutingHooksToSet({
+    currentDomains,
+    targetDomains,
+  }: {
+    currentDomains: DomainRoutingHookConfig['domains'];
+    targetDomains: DomainRoutingHookConfig['domains'];
+  }): Promise<DomainRoutingHook.HookConfigStruct[]> {
+    const routingHookUpdates: DomainRoutingHook.HookConfigStruct[] = [];
+
+    // Iterate over the target domains and compare with the current configuration
+    for (const [dest, targetDomainConfig] of Object.entries(targetDomains)) {
+      const destDomain = this.multiProvider.tryGetDomainId(dest);
+      if (!destDomain) {
+        this.logger.warn(`Domain not found in MultiProvider: ${dest}`);
+        continue;
+      }
+
+      // If the domain is not in the current config or the config has changed, deploy a new hook
+      // TODO: in-place updates per domain as a future optimization
+      if (!configDeepEquals(currentDomains[dest], targetDomainConfig)) {
+        const domainHook = await this.deploy({
+          config: targetDomainConfig,
+        });
+
+        routingHookUpdates.push({
+          destination: destDomain,
+          hook: domainHook.address,
+        });
+      }
+    }
+
+    return routingHookUpdates;
+  }
+
   // Updates a routing hook
-  async updateRoutingHook({
+  protected async updateRoutingHook({
     current,
     target,
   }: {
@@ -157,31 +197,10 @@ export class EvmHookModule extends HyperlaneModule<
       this.args.addresses.deployedHook = hook.address;
     }
 
-    // Compute delta between current and target domain configurations
-    const routingUpdates: DomainRoutingHook.HookConfigStruct[] = [];
-    const routingInterface = DomainRoutingHook__factory.createInterface();
-
-    // Iterate over the target domains and compare with the current configuration
-    for (const [dest, targetDomainConfig] of Object.entries(target.domains)) {
-      const destDomain = this.multiProvider.tryGetDomainId(dest);
-      if (!destDomain) {
-        this.logger.warn(`Domain not found in MultiProvider: ${dest}`);
-        continue;
-      }
-
-      // If the domain is not in the current config or the config has changed, deploy a new hook
-      // TODO: in-place updates per domain as a future optimization
-      if (!configDeepEquals(current.domains[dest], targetDomainConfig)) {
-        const domainHook = await this.deploy({
-          config: targetDomainConfig,
-        });
-
-        routingUpdates.push({
-          destination: destDomain,
-          hook: domainHook.address,
-        });
-      }
-    }
+    const routingUpdates = await this.computeRoutingHooksToSet({
+      currentDomains: current.domains,
+      targetDomains: target.domains,
+    });
 
     // Return if no updates are required
     if (routingUpdates.length === 0) {
@@ -194,7 +213,10 @@ export class EvmHookModule extends HyperlaneModule<
         annotation: 'Updating routing hooks...',
         chainId: this.domainId,
         to: this.args.addresses.deployedHook,
-        data: routingInterface.encodeFunctionData('setHooks', [routingUpdates]),
+        data: DomainRoutingHook__factory.createInterface().encodeFunctionData(
+          'setHooks',
+          [routingUpdates],
+        ),
       },
     ];
   }
@@ -217,7 +239,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     switch (config.type) {
       case HookType.MERKLE_TREE:
-        return this.deployer.deployContract(this.chainName, config.type, [
+        return this.deployer.deployNewContract(this.chainName, config.type, [
           this.args.addresses.mailbox,
         ]);
       case HookType.INTERCHAIN_GAS_PAYMASTER:
@@ -245,12 +267,16 @@ export class EvmHookModule extends HyperlaneModule<
     config: ProtocolFeeHookConfig;
   }): Promise<ProtocolFee> {
     this.logger.debug('Deploying ProtocolFeeHook...');
-    return this.deployer.deployContract(this.chainName, HookType.PROTOCOL_FEE, [
-      config.maxProtocolFee,
-      config.protocolFee,
-      config.beneficiary,
-      config.owner,
-    ]);
+    return this.deployer.deployNewContract(
+      this.chainName,
+      HookType.PROTOCOL_FEE,
+      [
+        config.maxProtocolFee,
+        config.protocolFee,
+        config.beneficiary,
+        config.owner,
+      ],
+    );
   }
 
   protected async deployPausableHook({
@@ -259,12 +285,18 @@ export class EvmHookModule extends HyperlaneModule<
     config: PausableHookConfig;
   }): Promise<PausableHook> {
     this.logger.debug('Deploying PausableHook...');
-    const hook = await this.deployer.deployContract(
+    const hook = await this.deployer.deployNewContract(
       this.chainName,
       HookType.PAUSABLE,
       [],
     );
-    await hook['transferOwnership(address)'](config.owner);
+
+    // transfer ownership
+    await this.multiProvider.handleTx(
+      this.chainName,
+      hook.transferOwnership(config.owner, this.txOverrides),
+    );
+
     return hook;
   }
 
@@ -276,12 +308,11 @@ export class EvmHookModule extends HyperlaneModule<
     this.logger.debug('Deploying AggregationHook...');
 
     // deploy subhooks
-    const aggregatedHooks = await Promise.all(
-      config.hooks.map(async (hookConfig) => {
-        const subhook = await this.deploy({ config: hookConfig });
-        return subhook.address;
-      }),
-    );
+    const aggregatedHooks = [];
+    for (const hookConfig of config.hooks) {
+      const { address } = await this.deploy({ config: hookConfig });
+      aggregatedHooks.push(address);
+    }
 
     // deploy aggregation hook
     this.logger.debug(
@@ -335,7 +366,7 @@ export class EvmHookModule extends HyperlaneModule<
     // deploy opstack ism
     const opStackIsmAddress = (
       await EvmIsmModule.create({
-        chain,
+        chain: config.destinationChain,
         config: ismConfig,
         deployer: this.deployer,
         factories: this.args.addresses,
@@ -347,18 +378,20 @@ export class EvmHookModule extends HyperlaneModule<
     // connect to ISM
     const opstackIsm = OPStackIsm__factory.connect(
       opStackIsmAddress,
-      this.multiProvider.getSignerOrProvider(chain),
+      this.multiProvider.getSignerOrProvider(config.destinationChain),
     );
 
     // deploy opstack hook
-    const hook = await this.deployer.deployContract(chain, HookType.OP_STACK, [
-      mailbox,
-      this.multiProvider.getDomainId(config.destinationChain),
-      addressToBytes32(opstackIsm.address),
-      config.nativeBridge,
-    ]);
-
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
+    const hook = await this.deployer.deployNewContract(
+      chain,
+      HookType.OP_STACK,
+      [
+        mailbox,
+        this.multiProvider.getDomainId(config.destinationChain),
+        addressToBytes32(opstackIsm.address),
+        config.nativeBridge,
+      ],
+    );
 
     // set authorized hook on opstack ism
     const authorizedHook = await opstackIsm.authorizedHook();
@@ -389,7 +422,10 @@ export class EvmHookModule extends HyperlaneModule<
     );
     await this.multiProvider.handleTx(
       config.destinationChain,
-      opstackIsm.setAuthorizedHook(addressToBytes32(hook.address), overrides),
+      opstackIsm.setAuthorizedHook(
+        addressToBytes32(hook.address),
+        this.multiProvider.getTransactionOverrides(config.destinationChain),
+      ),
     );
 
     return hook;
@@ -401,43 +437,46 @@ export class EvmHookModule extends HyperlaneModule<
     config: DomainRoutingHookConfig | FallbackRoutingHookConfig;
   }): Promise<DomainRoutingHook> {
     // originally set owner to deployer so we can set hooks
-    // ownership transferred by the end of an update() step
-    const deployerAddress = await this.multiProvider
-      .getSigner(this.chainName)
-      .getAddress();
+    const deployerAddress = await this.multiProvider.getSignerAddress(
+      this.chainName,
+    );
 
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     if (config.type === HookType.FALLBACK_ROUTING) {
       // deploy fallback hook
       const fallbackHook = await this.deploy({ config: config.fallback });
       // deploy routing hook with fallback
-      routingHook = await this.deployer.deployContract(
+      routingHook = await this.deployer.deployNewContract(
         this.chainName,
         HookType.FALLBACK_ROUTING,
         [this.args.addresses.mailbox, deployerAddress, fallbackHook.address],
       );
     } else {
       // deploy routing hook
-      routingHook = await this.deployer.deployContract(
+      routingHook = await this.deployer.deployNewContract(
         this.chainName,
         HookType.ROUTING,
         [this.args.addresses.mailbox, deployerAddress],
       );
     }
 
-    // obtain update TXs for setting hooks and transferring ownership
-    const updateTxs = await this.updateRoutingHook({
-      current: {
-        ...config,
-        domains: {},
-      },
-      target: config,
+    // compute the hooks that need to be set
+    const hooksToSet = await this.computeRoutingHooksToSet({
+      currentDomains: {},
+      targetDomains: config.domains,
     });
 
-    // apply updates
-    for (const tx of updateTxs) {
-      await this.multiProvider.sendTransaction(this.chainName, tx);
-    }
+    // set hooks
+    await this.multiProvider.handleTx(
+      this.chainName,
+      routingHook.setHooks(hooksToSet, this.txOverrides),
+    );
+
+    // transfer ownership
+    await this.multiProvider.handleTx(
+      this.chainName,
+      routingHook.transferOwnership(config.owner, this.txOverrides),
+    );
 
     // return a fully configured routing hook
     return routingHook;
@@ -510,20 +549,14 @@ export class EvmHookModule extends HyperlaneModule<
     if (gasParamsToSet.length > 0) {
       await this.multiProvider.handleTx(
         this.chainName,
-        igp.setDestinationGasConfigs(
-          gasParamsToSet,
-          this.multiProvider.getTransactionOverrides(this.chainName),
-        ),
+        igp.setDestinationGasConfigs(gasParamsToSet, this.txOverrides),
       );
     }
 
-    // Transfer ownership to the configured owner
+    // Transfer igp to the configured owner
     await this.multiProvider.handleTx(
       this.chainName,
-      igp['transferOwnership(address)'](
-        config.oracleKey,
-        this.multiProvider.getTransactionOverrides(this.chainName),
-      ),
+      igp.transferOwnership(config.owner, this.txOverrides),
     );
 
     return igp;
@@ -534,7 +567,7 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     config: IgpConfig;
   }): Promise<StorageGasOracle> {
-    const gasOracle = await this.deployer.igpDeployer.deployContract(
+    const gasOracle = await this.deployer.igpDeployer.deployNewContract(
       this.chainName,
       'storageGasOracle',
       [],
@@ -583,20 +616,14 @@ export class EvmHookModule extends HyperlaneModule<
     if (configsToSet.length > 0) {
       await this.multiProvider.handleTx(
         this.chainName,
-        gasOracle.setRemoteGasDataConfigs(
-          configsToSet,
-          this.multiProvider.getTransactionOverrides(this.chainName),
-        ),
+        gasOracle.setRemoteGasDataConfigs(configsToSet, this.txOverrides),
       );
     }
 
-    // Transfer ownership to the configured owner
+    // Transfer gas oracle to the configured owner
     await this.multiProvider.handleTx(
       this.chainName,
-      gasOracle['transferOwnership(address)'](
-        config.oracleKey,
-        this.multiProvider.getTransactionOverrides(this.chainName),
-      ),
+      gasOracle.transferOwnership(config.oracleKey, this.txOverrides),
     );
 
     return gasOracle;
