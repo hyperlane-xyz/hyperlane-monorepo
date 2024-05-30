@@ -56,7 +56,7 @@ export async function deployCore({
   await runDeployPlanStep(deploymentParams);
   await runPreflightChecksForChains({
     ...deploymentParams,
-    chains: [deploymentParams.chain],
+    chains: [chain],
     minGas: MINIMUM_CORE_DEPLOY_GAS,
   });
 

@@ -1,12 +1,8 @@
 import { CommandModule } from 'yargs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
-
-import { CRUD_COMMANDS } from '../consts.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
-  WriteCommandContext,
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
 import { deployCore } from '../deploy/core.js';
@@ -15,7 +11,6 @@ import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logGray } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
-import { CORE_COMMAND } from './core.js';
 import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
@@ -68,11 +63,10 @@ const agentCommand: CommandModuleWithContext<{
   },
 };
 
-export const DEPLOY_COMMAND = 'deploy';
-
-/// @remark Mapping of top level command to deploy functions
+// Mapping of top level command to deploy functions
+// TODO figure out if theres a way to get the top level (core, warp, etc) command into the deploy
 const deployFunctions: Record<string, (params: any) => Promise<any>> = {
-  [CORE_COMMAND]: deployCore,
+  core: deployCore,
   // warp: deployWarp
 };
 
@@ -88,7 +82,7 @@ export function deploy(commandName: string): CommandModuleWithWriteContext<{
   dryRun: string;
 }> {
   return {
-    command: DEPLOY_COMMAND,
+    command: 'deploy',
     describe: 'Deploy Hyperlane contracts',
     builder: {
       chain: {
