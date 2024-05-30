@@ -7,7 +7,6 @@ import {
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
-import { readYamlOrJson } from '../utils/files.js';
 
 import {
   completeDeploy,

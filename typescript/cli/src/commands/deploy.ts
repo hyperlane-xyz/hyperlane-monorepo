@@ -101,7 +101,6 @@ export const deployWith = (
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
     const { chainMetadata, isDryRun, dryRunChain, registry, skipConfirmation } =
       context;
-    const config = readYamlOrJson(configFilePath);
 
     logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
@@ -124,7 +123,7 @@ export const deployWith = (
       const deployedAddresses = await deployFunction({
         context,
         chain,
-        config,
+        config: readYamlOrJson(configFilePath),
       });
 
       if (!isDryRun) {
