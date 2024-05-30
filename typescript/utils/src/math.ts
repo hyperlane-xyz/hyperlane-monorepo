@@ -19,3 +19,7 @@ export function stdDev(a: number[]): number {
   const squaredDifferences = a.map((x) => Math.pow(x - xbar, 2));
   return Math.sqrt(mean(squaredDifferences));
 }
+
+export function randomInt(max: number, min = 0): number {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
