@@ -141,14 +141,14 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'ed7569d-20230725-171222',
+      tag: 'c30f471-20240530-150953',
     },
     chainDockerOverrides: {
       [chainMetadata.solana.name]: {
-        tag: '475bd1c-20240416-105206',
+        tag: 'c30f471-20240530-150953',
       },
       [chainMetadata.nautilus.name]: {
-        tag: '3b0685f-20230815-110725',
+        tag: 'c30f471-20240530-150953',
       },
     },
     connectionType: AgentConnectionType.HttpQuorum,
