@@ -145,7 +145,7 @@ describe('core', async () => {
           const defaultIsmTest = coreConfig[chainName]
             .defaultIsm as DerivedIsmConfig;
 
-          expect(defaultIsmOnchain.type).to.be.equal(defaultIsmTest.type);
+          expect(defaultIsmOnchain).to.deep.equal(defaultIsmTest);
         }),
       );
     });
@@ -163,7 +163,7 @@ describe('core', async () => {
           const defaultHookTest = coreConfig[chainName]
             .defaultHook as DerivedHookConfig;
 
-          expect(defaultHookOnchain.type).to.be.equal(defaultHookTest.type);
+          expect(defaultHookOnchain).to.deep.equal(defaultHookTest);
         }),
       );
     });
@@ -177,10 +177,7 @@ describe('core', async () => {
           const requiredHookOnchain = coreConfigOnChain.requiredHook;
           const requiredHookTest = coreConfig[chainName].requiredHook;
 
-          // Test all the fields
-          objMap(requiredHookTest, (key, value) => {
-            expect(requiredHookOnchain[key]).to.be.equal(value);
-          });
+          expect(requiredHookOnchain).to.deep.equal(requiredHookTest);
         }),
       );
     });

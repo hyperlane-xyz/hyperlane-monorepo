@@ -177,7 +177,10 @@ export class EvmHookReader implements HookReader {
           const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
 
           overhead[chainName] = domainGasOverhead.toNumber();
-          oracleConfig[chainName] = { tokenExchangeRate, gasPrice };
+          oracleConfig[chainName] = {
+            tokenExchangeRate: tokenExchangeRate.toString(),
+            gasPrice: gasPrice.toString(),
+          };
 
           const { gasOracle } = await hook.destinationGasConfigs(domainId);
           const oracle = StorageGasOracle__factory.connect(
@@ -334,9 +337,11 @@ export class EvmHookReader implements HookReader {
     assert((await hook.hookType()) === OnchainHookType.PAUSABLE);
 
     const owner = await hook.owner();
+    const paused = await hook.paused();
     return {
       owner,
       address,
+      paused,
       type: HookType.PAUSABLE,
     };
   }
