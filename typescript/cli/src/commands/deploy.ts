@@ -127,9 +127,7 @@ export const deployCore: CommandModuleWithWriteContext<{
   command: 'deploy',
   describe: 'Deploy Hyperlane contracts',
   builder: {
-    chain: {
-      ...chainCommandOption,
-    },
+    chain: chainCommandOption,
     config: {
       type: 'string',
       description:
