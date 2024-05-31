@@ -123,11 +123,7 @@ mod test {
         }
     }
 
-    impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {
-        fn set_operation_outcome(&mut self, _outcome: TxOutcome, total_estimated_cost: U256) {
-            todo!()
-        }
-    }
+    impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
 
     #[async_trait::async_trait]
     impl PendingOperation for MockPendingOperation {
@@ -185,6 +181,14 @@ mod test {
         /// responsible for checking if the operation has reached a point at
         /// which we consider it safe from reorgs.
         async fn confirm(&mut self) -> PendingOperationResult {
+            todo!()
+        }
+
+        fn set_operation_outcome(
+            &mut self,
+            _submission_outcome: TxOutcome,
+            _submission_estimated_cost: U256,
+        ) {
             todo!()
         }
 

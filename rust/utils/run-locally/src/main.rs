@@ -13,10 +13,14 @@
 //! else false.
 
 use std::{
-    fs,
+    collections::HashMap,
+    fs::{self, File},
     path::Path,
     process::{Child, ExitCode},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -24,8 +28,9 @@ use std::{
 use ethers_contract::MULTICALL_ADDRESS;
 use logging::log;
 pub use metrics::fetch_metric;
+use once_cell::sync::Lazy;
 use program::Program;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 
 use crate::{
     config::Config,
@@ -45,6 +50,12 @@ mod metrics;
 mod program;
 mod solana;
 mod utils;
+
+pub const AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
+    let dir = Path::new("/tmp/test_logs");
+    fs::create_dir_all(&dir).unwrap();
+    dir
+});
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
@@ -87,14 +98,14 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 /// cleanup purposes at this time.
 #[derive(Default)]
 struct State {
-    agents: Vec<(String, Child)>,
+    agents: HashMap<String, (Child, Option<Arc<Mutex<File>>>)>,
     watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
     data: Vec<Box<dyn ArbitraryData>>,
 }
 
 impl State {
     fn push_agent(&mut self, handles: AgentHandles) {
-        self.agents.push((handles.0, handles.1));
+        self.agents.insert(handles.0, (handles.1, handles.5));
         self.watchers.push(handles.2);
         self.watchers.push(handles.3);
         self.data.push(handles.4);
@@ -105,9 +116,7 @@ impl Drop for State {
     fn drop(&mut self) {
         SHUTDOWN.store(true, Ordering::Relaxed);
         log!("Signaling children to stop...");
-        // stop children in reverse order
-        self.agents.reverse();
-        for (name, mut agent) in self.agents.drain(..) {
+        for (name, (mut agent, _)) in self.agents.drain() {
             log!("Stopping child {}", name);
             stop_child(&mut agent);
         }
@@ -122,6 +131,7 @@ impl Drop for State {
             drop(data)
         }
         fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+        fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
     }
 }
 
@@ -320,7 +330,7 @@ fn main() -> ExitCode {
         .arg("env", "POSTGRES_PASSWORD=47221c18c610")
         .arg("publish", "5432:5432")
         .cmd("postgres:14")
-        .spawn("SQL");
+        .spawn("SQL", None);
     state.push_agent(postgres);
 
     build_rust.join();
@@ -337,7 +347,7 @@ fn main() -> ExitCode {
     state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
-    state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1"));
+    state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1", None));
 
     sleep(Duration::from_secs(5));
 
@@ -345,7 +355,7 @@ fn main() -> ExitCode {
     Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
         .run()
         .join();
-    state.push_agent(scraper_env.spawn("SCR"));
+    state.push_agent(scraper_env.spawn("SCR", None));
 
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env_single_insertion = Program::new("yarn")
@@ -385,11 +395,14 @@ fn main() -> ExitCode {
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
-        let validator = validator_env.spawn(make_static(format!("VL{}", 1 + i)));
+        let validator = validator_env.spawn(
+            make_static(format!("VL{}", 1 + i)),
+            Some(&AGENT_LOGGING_DIR),
+        );
         state.push_agent(validator);
     }
 
-    state.push_agent(relayer_env.spawn("RLY"));
+    state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
     // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
     for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
@@ -402,7 +415,11 @@ fn main() -> ExitCode {
     // Send half the kathy messages after the relayer comes up
     kathy_env_double_insertion.clone().run().join();
     kathy_env_zero_insertion.clone().run().join();
-    state.push_agent(kathy_env_single_insertion.flag("mineforever").spawn("KTY"));
+    state.push_agent(
+        kathy_env_single_insertion
+            .flag("mineforever")
+            .spawn("KTY", None),
+    );
 
     let loop_start = Instant::now();
     // give things a chance to fully start.
@@ -432,7 +449,7 @@ fn main() -> ExitCode {
         }
 
         // verify long-running tasks are still running
-        for (name, child) in state.agents.iter_mut() {
+        for (name, (child, _)) in state.agents.iter_mut() {
             if let Some(status) = child.try_wait().unwrap() {
                 if !status.success() {
                     log!(

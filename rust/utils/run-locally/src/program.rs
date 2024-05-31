@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
-    fmt::{Debug, Display, Formatter},
+    fmt::{format, Debug, Display, Formatter},
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
@@ -37,7 +37,6 @@ pub struct Program {
     working_dir: Option<Arc<PathBuf>>,
     log_filter: Option<LogFilter>,
     arbitrary_data: Vec<Arc<dyn ArbitraryData>>,
-    log_file: Option<Arc<Mutex<File>>>,
 }
 
 impl Debug for Program {
@@ -93,21 +92,7 @@ impl Display for Program {
 
 impl Program {
     pub fn new(bin: impl AsRef<OsStr>) -> Self {
-        let mut instance = Self::default().bin(bin);
-        let temp_dir = TempDir::new().expect("Failed to create a temp dir");
-        let log_file_path = temp_dir.path().join("output.log");
-        println!(
-            "{} logging to: {:?}",
-            instance.get_bin_name(),
-            log_file_path
-        );
-        let log_file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(log_file_path)
-            .expect("Failed to create a log file");
-        instance.log_file = Some(Arc::new(Mutex::new(log_file)));
-        instance
+        Self::default().bin(bin)
     }
 
     pub fn bin(mut self, bin: impl AsRef<OsStr>) -> Self {
@@ -256,8 +241,19 @@ impl Program {
         })
     }
 
-    pub fn spawn(self, log_prefix: &'static str) -> AgentHandles {
+    pub fn spawn(self, log_prefix: &'static str, logs_dir: Option<&Path>) -> AgentHandles {
         let mut command = self.create_command();
+        let log_file = logs_dir.map(|logs_dir| {
+            let log_file_name = format!("{}-output.log", log_prefix);
+            let log_file_path = logs_dir.join(log_file_name);
+            println!("{} logging to: {:?}", self.get_bin_name(), log_file_path);
+            let log_file = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(log_file_path)
+                .expect("Failed to create a log file");
+            Arc::new(Mutex::new(log_file))
+        });
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         log!("Spawning {}...", &self);
@@ -266,14 +262,14 @@ impl Program {
             .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &self));
         let child_stdout = child.stdout.take().unwrap();
         let filter = self.get_filter();
-        let log_file = self.log_file.clone();
+        let cloned_log_file = log_file.clone();
         let stdout = spawn(move || {
             prefix_log(
                 child_stdout,
                 log_prefix,
                 &RUN_LOG_WATCHERS,
                 filter,
-                log_file,
+                cloned_log_file,
                 None,
             )
         });
@@ -294,6 +290,7 @@ impl Program {
             Box::new(SimpleTaskHandle(stdout)),
             Box::new(SimpleTaskHandle(stderr)),
             self.get_memory(),
+            log_file.clone(),
         )
     }
 
@@ -310,12 +307,11 @@ impl Program {
         let filter = self.get_filter();
         let running = Arc::new(AtomicBool::new(true));
         let (stdout_ch_tx, stdout_ch_rx) = capture_output.then(mpsc::channel).unzip();
-        let log_file = self.log_file.clone();
         let stdout = {
             let stdout = child.stdout.take().unwrap();
             let name = self.get_bin_name();
             let running = running.clone();
-            spawn(move || prefix_log(stdout, &name, &running, filter, log_file, stdout_ch_tx))
+            spawn(move || prefix_log(stdout, &name, &running, filter, None, stdout_ch_tx))
         };
         let stderr = {
             let stderr = child.stderr.take().unwrap();

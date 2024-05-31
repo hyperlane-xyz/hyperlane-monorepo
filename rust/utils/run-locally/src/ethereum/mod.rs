@@ -36,7 +36,7 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     }
     log!("Launching anvil...");
     let anvil_args = Program::new("anvil").flag("silent").filter_logs(|_| false); // for now do not keep any of the anvil logs
-    let anvil = anvil_args.spawn("ETH");
+    let anvil = anvil_args.spawn("ETH", None);
 
     sleep(Duration::from_secs(10));
 

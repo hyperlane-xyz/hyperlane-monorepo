@@ -84,6 +84,13 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// which we consider it safe from reorgs.
     async fn confirm(&mut self) -> PendingOperationResult;
 
+    /// Record the outcome of the operation
+    fn set_operation_outcome(
+        &mut self,
+        submission_outcome: TxOutcome,
+        submission_estimated_cost: U256,
+    );
+
     /// Get the earliest instant at which this should next be attempted.
     ///
     /// This is only used for sorting, the functions are responsible for

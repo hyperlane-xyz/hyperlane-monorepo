@@ -7275,6 +7275,7 @@ dependencies = [
  "macro_rules_attribute",
  "maplit",
  "nix 0.26.4",
+ "once_cell",
  "regex",
  "ripemd",
  "serde",

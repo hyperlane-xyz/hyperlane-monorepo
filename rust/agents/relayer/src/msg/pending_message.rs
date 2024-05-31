@@ -114,35 +114,6 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
             )),
         }
     }
-
-    fn set_operation_outcome(&mut self, batch_outcome: TxOutcome, batch_estimated_cost: U256) {
-        let Some(operation_estimate) = self.get_tx_cost_estimate() else {
-            warn!("Cannot set operation outcome without a cost estimate set previously");
-            return;
-        };
-        match gas_used_by_batch_operation(
-            &batch_outcome,
-            batch_estimated_cost,
-            operation_estimate.gas_limit,
-        ) {
-            Ok(gas_used_by_operation) => {
-                self.set_submission_outcome(TxOutcome {
-                    gas_used: gas_used_by_operation,
-                    ..batch_outcome
-                });
-                #[cfg(test)]
-                info!(
-                    gas_used = ?gas_used_by_operation,
-                    ?batch_estimated_cost,
-                    message = ?self.message,
-                    "Gas used by operation in batch"
-                );
-            }
-            Err(e) => {
-                error!(error = %e, "Error when calculating gas used by operation");
-            }
-        }
-    }
 }
 
 #[async_trait]
@@ -303,7 +274,14 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_submission_outcome(outcome);
+                self.set_operation_outcome(
+                    outcome,
+                    self.tx_cost_estimate
+                        .as_ref()
+                        .map(|e| e.gas_limit)
+                        .unwrap_or(state.gas_limit)
+                        .clone(),
+                );
             }
             Err(e) => {
                 error!(error=?e, "Error when processing message");
@@ -368,6 +346,45 @@ impl PendingOperation for PendingMessage {
                 "Transaction attempting to process message either reverted or was reorged"
             );
             self.on_reprepare()
+        }
+    }
+
+    fn set_operation_outcome(
+        &mut self,
+        submission_outcome: TxOutcome,
+        submission_estimated_cost: U256,
+    ) {
+        let Some(operation_estimate) = self.get_tx_cost_estimate() else {
+            warn!("Cannot set operation outcome without a cost estimate set previously");
+            return;
+        };
+        if let Err(e) = self
+            .ctx
+            .origin_gas_payment_enforcer
+            .record_tx_outcome(&self.message, submission_outcome.clone())
+        {
+            error!(error=?e, "Error when recording tx outcome");
+        }
+        match gas_used_by_batch_operation(
+            &submission_outcome,
+            submission_estimated_cost,
+            operation_estimate.gas_limit,
+        ) {
+            Ok(gas_used_by_operation) => {
+                self.set_submission_outcome(TxOutcome {
+                    gas_used: gas_used_by_operation,
+                    ..submission_outcome
+                });
+                debug!(
+                    gas_used_by_message = ?gas_used_by_operation,
+                    gas_used_by_submission = ?submission_estimated_cost,
+                    message = ?self.message,
+                    "Gas used by message submission"
+                );
+            }
+            Err(e) => {
+                error!(error = %e, "Error when calculating gas used by operation");
+            }
         }
     }
 

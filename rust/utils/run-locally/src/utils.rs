@@ -1,5 +1,7 @@
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::Child;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use nix::libc::pid_t;
@@ -54,6 +56,8 @@ pub type AgentHandles = (
     Box<dyn TaskHandle<Output = ()>>,
     // data to drop once program exits
     Box<dyn ArbitraryData>,
+    // file with stdout logs
+    Option<Arc<Mutex<File>>>,
 );
 pub type LogFilter = fn(&str) -> bool;
 

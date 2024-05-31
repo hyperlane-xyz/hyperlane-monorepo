@@ -458,8 +458,6 @@ impl OperationBatch {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
 
-        // We rely the estimated gas limit from the prior call to
-        // `process_estimate_costs` to avoid a second gas estimation.
         let outcome = first_item.mailbox.process_batch(&batch).await?;
         metrics.ops_submitted.inc_by(self.operations.len() as u64);
         Ok(outcome)

@@ -32,7 +32,4 @@ pub trait TryBatchAs<T> {
     fn try_batch(&self) -> ChainResult<BatchItem<T>> {
         Err(crate::ChainCommunicationError::BatchingFailed)
     }
-
-    /// Set an outcome after this operation was submitted
-    fn set_operation_outcome(&mut self, outcome: TxOutcome, total_estimated_cost: U256);
 }
