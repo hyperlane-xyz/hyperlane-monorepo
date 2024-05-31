@@ -376,8 +376,8 @@ impl PendingOperation for PendingMessage {
                     ..submission_outcome
                 });
                 debug!(
-                    gas_used_by_message = ?gas_used_by_operation,
-                    gas_used_by_submission = ?submission_estimated_cost,
+                    actual_gas_for_message = ?gas_used_by_operation,
+                    submission_gas_estimate = ?submission_estimated_cost,
                     message = ?self.message,
                     "Gas used by message submission"
                 );
