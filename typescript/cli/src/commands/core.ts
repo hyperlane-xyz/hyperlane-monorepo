@@ -1,11 +1,11 @@
 import { CommandModule } from 'yargs';
 
-import { deployCoreCommand } from './deploy.js';
 import { createHooksConfigMap } from '../config/hooks.js';
 import { createIsmConfigMap } from '../config/ism.js';
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
 
+import { deployCoreCommand } from './deploy.js';
 import { outputFileCommandOption } from './options.js';
 
 /**
@@ -14,7 +14,12 @@ import { outputFileCommandOption } from './options.js';
 export const coreCommand: CommandModule = {
   command: 'core',
   describe: 'Manage core Hyperlane contracts & configs',
-  builder: (yargs) => yargs.command(deployCoreCommand).command(config).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs
+      .command(deployCoreCommand)
+      .command(config)
+      .version(false)
+      .demandCommand(),
   handler: () => log('Command required'),
 };
 
