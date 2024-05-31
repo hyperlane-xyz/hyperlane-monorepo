@@ -7,7 +7,7 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import { HookFactories } from './contracts.js';
@@ -42,7 +42,7 @@ export class EvmHookModule extends HyperlaneModule<
     return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
-  public async update(_config: HookConfig): Promise<EthersV5Transaction[]> {
+  public async update(_config: HookConfig): Promise<AnnotatedEV5Transaction[]> {
     throw new Error('Method not implemented.');
   }
 

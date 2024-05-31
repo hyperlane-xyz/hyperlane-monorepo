@@ -16,6 +16,7 @@ import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
+import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
@@ -384,12 +385,16 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async sendTransaction(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction | Promise<PopulatedTransaction>,
+    txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
   ): Promise<ContractReceipt> {
-    const txReq = await this.prepareTx(chainNameOrId, await tx);
+    const { annotation, ...tx } = await txProm;
+    if (annotation) {
+      this.logger.info(annotation);
+    }
+    const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
-    this.logger.info(`Sent tx ${response.hash}`);
+    this.logger.info(`Sent tx ${response.hash} + ${annotation}`);
     return this.handleTx(chainNameOrId, response);
   }
 

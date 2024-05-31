@@ -45,10 +45,7 @@ import {
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  AnnotatedEthersV5Transaction,
-  createAnnotatedEthersV5Transaction,
-} from '../providers/ProviderType.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
@@ -115,7 +112,7 @@ export class EvmIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     targetConfig: IsmConfig,
-  ): Promise<AnnotatedEthersV5Transaction[]> {
+  ): Promise<AnnotatedEV5Transaction[]> {
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
@@ -210,7 +207,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // if it's either of the routing ISMs, update their submodules
-    let updateTxs: AnnotatedEthersV5Transaction[] = [];
+    let updateTxs: AnnotatedEV5Transaction[] = [];
     if (
       targetConfig.type === IsmType.ROUTING ||
       targetConfig.type === IsmType.FALLBACK_ROUTING
@@ -230,7 +227,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // Return an ownership transfer transaction if required
     if (!eqAddress(targetConfig.owner, owner)) {
-      const tx = createAnnotatedEthersV5Transaction({
+      updateTxs.push({
         annotation: 'Transferring ownership of ownable ISM...',
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
@@ -239,7 +236,6 @@ export class EvmIsmModule extends HyperlaneModule<
           [targetConfig.owner],
         ),
       });
-      updateTxs.push(tx);
     }
 
     return updateTxs;
@@ -283,7 +279,7 @@ export class EvmIsmModule extends HyperlaneModule<
     current: RoutingIsmConfig;
     target: RoutingIsmConfig;
     logger: Logger;
-  }): Promise<AnnotatedEthersV5Transaction[]> {
+  }): Promise<AnnotatedEV5Transaction[]> {
     const routingIsmInterface = DomainRoutingIsm__factory.createInterface();
     const updateTxs = [];
 
@@ -302,7 +298,7 @@ export class EvmIsmModule extends HyperlaneModule<
       });
 
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = createAnnotatedEthersV5Transaction({
+      updateTxs.push({
         annotation: `Setting new ISM for origin ${origin}...`,
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
@@ -311,14 +307,12 @@ export class EvmIsmModule extends HyperlaneModule<
           ism.address,
         ]),
       });
-
-      updateTxs.push(tx);
     }
 
     // Unenroll domains
     for (const origin of domainsToUnenroll) {
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = createAnnotatedEthersV5Transaction({
+      updateTxs.push({
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
@@ -326,7 +320,6 @@ export class EvmIsmModule extends HyperlaneModule<
           domainId,
         ]),
       });
-      updateTxs.push(tx);
     }
 
     return updateTxs;

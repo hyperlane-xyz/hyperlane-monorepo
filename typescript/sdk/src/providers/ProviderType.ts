@@ -22,7 +22,7 @@ import type {
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
@@ -191,23 +191,8 @@ export interface EthersV5Transaction
   transaction: EV5Transaction;
 }
 
-export type AnnotatedEthersV5Transaction = Annotated<EthersV5Transaction>;
-
-export function createAnnotatedEthersV5Transaction(params: {
-  annotation: string;
-  chainId: number;
-  to: string;
-  data: string;
-}): AnnotatedEthersV5Transaction {
-  return {
-    annotation: params.annotation,
-    type: ProviderType.EthersV5,
-    transaction: {
-      chainId: params.chainId,
-      to: params.to,
-      data: params.data,
-    },
-  };
+export interface AnnotatedEV5Transaction extends EV5Transaction {
+  annotation?: string;
 }
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {

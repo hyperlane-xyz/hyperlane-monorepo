@@ -14,7 +14,7 @@ import {
 } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import {
@@ -60,7 +60,7 @@ export class EvmCoreModule extends HyperlaneModule<
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
-  public async update(_config: CoreConfig): Promise<EthersV5Transaction[]> {
+  public async update(_config: CoreConfig): Promise<AnnotatedEV5Transaction[]> {
     throw new Error('Method not implemented.');
   }
 

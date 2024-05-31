@@ -5,7 +5,7 @@ import { HyperlaneAddresses } from '../contracts/types.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ProxiedRouterConfig } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 
@@ -39,7 +39,7 @@ export class EvmIcaModule extends HyperlaneModule<
 
   public async update(
     _config: InterchainAccountConfig,
-  ): Promise<EthersV5Transaction[]> {
+  ): Promise<AnnotatedEV5Transaction[]> {
     throw new Error('Method not implemented.');
   }
 
