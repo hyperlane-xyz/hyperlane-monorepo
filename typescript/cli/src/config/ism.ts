@@ -189,7 +189,7 @@ export async function createMultisigConfig(
   };
 }
 
-async function createTrustedRelayerConfig(
+export async function createTrustedRelayerConfig(
   context: CommandContext,
 ): Promise<TrustedRelayerIsmConfig> {
   const relayer = await detectAndConfirmOrPrompt(

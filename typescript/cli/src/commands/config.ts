@@ -3,14 +3,11 @@ import { CommandModule } from 'yargs';
 import { createChainConfig, readChainConfigs } from '../config/chain.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
-import {
-  createWarpRouteDeployConfig,
-  readWarpRouteDeployConfig,
-} from '../config/warp.js';
+import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { CommandModuleWithContext } from '../context/types.js';
 import { log, logGreen } from '../logger.js';
 
-import { inputFileCommandOption, outputFileCommandOption } from './options.js';
+import { inputFileCommandOption } from './options.js';
 
 /**
  * Parent command
@@ -34,11 +31,7 @@ const createCommand: CommandModule = {
   command: 'create',
   describe: 'Create a new Hyperlane config',
   builder: (yargs) =>
-    yargs
-      .command(createChainConfigCommand)
-      .command(createWarpRouteDeployConfigCommand)
-      .version(false)
-      .demandCommand(),
+    yargs.command(createChainConfigCommand).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
@@ -47,20 +40,6 @@ const createChainConfigCommand: CommandModuleWithContext<{}> = {
   describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
   handler: async ({ context }) => {
     await createChainConfig({ context });
-    process.exit(0);
-  },
-};
-
-const createWarpRouteDeployConfigCommand: CommandModuleWithContext<{
-  out: string;
-}> = {
-  command: 'warp',
-  describe: 'Create a new Warp Route deployment config',
-  builder: {
-    out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
-  },
-  handler: async ({ context, out }) => {
-    await createWarpRouteDeployConfig({ context, outPath: out });
     process.exit(0);
   },
 };
