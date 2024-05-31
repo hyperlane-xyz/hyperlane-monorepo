@@ -5,10 +5,10 @@ import {
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
-import { deployCore } from '../deploy/core.js';
+import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logBlue, logGray } from '../logger.js';
+import { log, logGray } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 import {
@@ -63,62 +63,59 @@ const agentCommand: CommandModuleWithContext<{
   },
 };
 
-// Mapping of top level command to deploy functions
-// TODO figure out if theres a way to get the top level (core, warp, etc) command into the deploy
-const deployFunctions: Record<string, (params: any) => Promise<any>> = {
-  core: deployCore,
-  // warp: deployWarp
-};
-
 /**
  * Generates a command module for deploying Hyperlane contracts, given a command
  *
  * @param commandName - the deploy command key used to look up the deployFunction
  * @returns A command module used to deploy Hyperlane contracts.
  */
-export function deploy(commandName: string): CommandModuleWithWriteContext<{
-  config: string;
+export const deployCoreCommand: CommandModuleWithWriteContext<{
   chain: string;
+  config: string;
+  agent: string;
   dryRun: string;
-}> {
-  return {
-    command: 'deploy',
-    describe: 'Deploy Hyperlane contracts',
-    builder: {
-      chain: {
-        type: 'string',
-        description: 'The name of a single chain to deploy to',
-      },
-      config: {
-        type: 'string',
-        description:
-          'The path to a JSON or YAML file with a deployment config.',
-        demandOption: true,
-      },
-      'dry-run': dryRunCommandOption,
+  fromAddress: string;
+}> = {
+  command: 'deploy',
+  describe: 'Deploy Hyperlane contracts',
+  builder: {
+    chain: {
+      type: 'string',
+      description: 'The name of a single chain to deploy to',
     },
-    handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-      logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
-      logGray(`------------------------------------------------`);
-
-      try {
-        logBlue('All systems ready, captain! Beginning deployment...');
-
-        await deployFunctions[commandName]({
-          context,
-          chain,
-          config: readYamlOrJson(configFilePath),
-        });
-
-        logBlue('Deployment is complete!');
-      } catch (error: any) {
-        evaluateIfDryRunFailure(error, dryRun);
-        throw error;
-      }
-      process.exit(0);
+    config: {
+      type: 'string',
+      description: 'The path to a JSON or YAML file with a deployment config.',
+      demandOption: true,
     },
-  };
-}
+    agent: agentConfigCommandOption(false, './configs/agent.json'),
+    'dry-run': dryRunCommandOption,
+    'from-address': fromAddressCommandOption,
+  },
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    dryRun,
+    agent,
+  }) => {
+    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
+    logGray(`------------------------------------------------`);
+
+    try {
+      await runCoreDeploy({
+        context,
+        chain,
+        config: readYamlOrJson(configFilePath),
+        agentOutPath: agent,
+      });
+    } catch (error: any) {
+      evaluateIfDryRunFailure(error, dryRun);
+      throw error;
+    }
+    process.exit(0);
+  },
+};
 
 /**
  * Warp command

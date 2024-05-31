@@ -1,8 +1,20 @@
-import { ChainName, CoreConfig, EvmCoreModule } from '@hyperlane-xyz/sdk';
+import { ethers } from 'ethers';
+
+import {
+  ChainMap,
+  ChainName,
+  CoreConfig,
+  EvmCoreModule,
+  HyperlaneAddresses,
+  HyperlaneCore,
+  buildAgentConfig,
+} from '@hyperlane-xyz/sdk';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
+import { log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { writeJson } from '../utils/files.js';
 
 import {
   completeDeploy,
@@ -19,14 +31,16 @@ interface DeployParams {
 /**
  * Executes the core deploy command.
  */
-export async function deployCore({
+export async function runCoreDeploy({
   context,
   chain,
   config,
+  agentOutPath,
 }: {
   context: WriteCommandContext;
   chain: ChainName;
   config: CoreConfig;
+  agentOutPath: string;
 }) {
   const {
     signer,
@@ -64,6 +78,7 @@ export async function deployCore({
 
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);
 
+  logBlue('All systems ready, captain! Beginning deployment...');
   const evmCoreModule = await EvmCoreModule.create({
     chain,
     config,
@@ -71,7 +86,6 @@ export async function deployCore({
   });
 
   await completeDeploy(context, 'core', initialBalances, userAddress, [chain]);
-
   const deployedAddresses = evmCoreModule.serialize();
 
   if (!isDryRun) {
@@ -79,5 +93,39 @@ export async function deployCore({
       chainName: chain,
       addresses: deployedAddresses,
     });
+
+    await writeAgentConfig(context, deployedAddresses, chain, agentOutPath);
   }
+  logBlue('Deployment is complete!');
+}
+
+async function writeAgentConfig(
+  context: WriteCommandContext,
+  artifacts: HyperlaneAddresses<any>,
+  chain: ChainName,
+  outPath: string,
+) {
+  log('Writing agent configs');
+  const { multiProvider, registry } = context;
+  const startBlocks: ChainMap<number> = {};
+  const core = HyperlaneCore.fromAddressesMap(
+    { [chain]: artifacts },
+    multiProvider,
+  );
+
+  const mailbox = core.getContracts(chain).mailbox;
+  startBlocks[chain] = (await mailbox.deployedBlock()).toNumber();
+
+  const chainAddresses = await registry.getAddresses();
+  if (!chainAddresses[chain].interchainGasPaymaster) {
+    chainAddresses[chain].interchainGasPaymaster = ethers.constants.AddressZero;
+  }
+  const agentConfig = buildAgentConfig(
+    [chain], // Use only the chains that were deployed to
+    multiProvider,
+    chainAddresses as any,
+    startBlocks,
+  );
+  writeJson(outPath, agentConfig);
+  logGreen('Agent configs written');
 }
