@@ -27,7 +27,7 @@ import { supportedChainNames as testnet4Chains } from './environments/testnet4/s
 
 const DEFAULT_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../../../',
+  '../../../../',
   'hyperlane-registry',
 );
 
@@ -39,6 +39,13 @@ export function setRegistry(reg: FileSystemRegistry) {
   registry = reg;
 }
 
+/**
+ * Gets a FileSystemRegistry whose contents are found at the environment
+ * variable `REGISTRY_URI`, or `DEFAULT_REGISTRY_URI` if no env var is specified.
+ * This registry will not have any environment-specific overrides applied,
+ * and is useful for synchronous registry operations.
+ * @returns A FileSystemRegistry.
+ */
 export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
@@ -116,23 +123,26 @@ export function getTestnetAddresses(): ChainMap<ChainAddresses> {
   return getEnvAddresses('testnet4');
 }
 
-let registryWithOverrides: MergedRegistry;
-
+// Gets a registry, applying the provided overrides.
+/**
+ * Gets a registry, applying the provided overrides. The base registry
+ * that the overrides are applied to is the registry returned by `getRegistry`.
+ * @param chainMetadataOverrides Chain metadata overrides.
+ * @param chainAddressesOverrides Chain address overrides.
+ * @returns A MergedRegistry merging the registry from `getRegistry` and the overrides.
+ */
 export function getRegistryWithOverrides(
-  chainMetadataOverrides: ChainMap<Partial<ChainMetadata>>,
+  chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {},
+  chainAddressesOverrides: ChainMap<Partial<ChainAddresses>> = {},
 ): MergedRegistry {
-  if (registryWithOverrides) {
-    return registryWithOverrides;
-  }
-
   const baseRegistry = getRegistry();
 
   const overrideRegistry = new PartialRegistry({
     chainMetadata: chainMetadataOverrides,
+    chainAddresses: chainAddressesOverrides,
   });
 
-  registryWithOverrides = new MergedRegistry({
+  return new MergedRegistry({
     registries: [baseRegistry, overrideRegistry],
   });
-  return registryWithOverrides;
 }

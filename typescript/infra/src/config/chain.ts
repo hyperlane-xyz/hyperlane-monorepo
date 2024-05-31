@@ -122,7 +122,7 @@ export async function getSecretMetadataOverrides(
 
   const secretRpcUrls = await Promise.all(
     chains.map(async (chain) => {
-      const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain);
+      const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain, true);
       return {
         chain,
         rpcUrls,
