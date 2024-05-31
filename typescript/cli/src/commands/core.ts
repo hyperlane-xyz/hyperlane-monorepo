@@ -5,7 +5,7 @@ import { createIsmConfigMap } from '../config/ism.js';
 import { CommandModuleWithContext } from '../context/types.js';
 import { readHookConfig } from '../hook/read.js';
 import { readIsmConfig } from '../ism/read.js';
-import { log, warnYellow } from '../logger.js';
+import { log, logGray, warnYellow } from '../logger.js';
 
 import {
   addressCommandOption,
@@ -41,6 +41,9 @@ export const config: CommandModuleWithContext<{
     hooksOut: outputFileCommandOption('./configs/hooks.yaml'),
   },
   handler: async ({ context, ismAdvanced, ismOut, hooksOut }) => {
+    logGray('Hyperlane Core Configure');
+    logGray('------------------------');
+
     await createIsmConfigMap({
       context,
       outPath: ismOut,
@@ -85,6 +88,9 @@ export const read: CommandModuleWithContext<{
     ismOut,
     hookOut,
   }) => {
+    logGray('Hyperlane Core Read');
+    logGray('-------------------');
+
     if (ismAddress)
       await readIsmConfig({
         context,
