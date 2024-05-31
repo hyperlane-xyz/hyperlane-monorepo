@@ -44,7 +44,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleArgs<CoreConfig, DeployedCoreAdresses>,
+    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAdresses>,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
