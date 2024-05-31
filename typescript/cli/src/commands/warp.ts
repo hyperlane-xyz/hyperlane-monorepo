@@ -4,7 +4,7 @@ import { EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
 
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import { CommandModuleWithContext } from '../context/types.js';
-import { log, logGreen } from '../logger.js';
+import { log, logGray, logGreen } from '../logger.js';
 import { writeFileAtPath } from '../utils/files.js';
 
 import {
@@ -64,9 +64,12 @@ export const read: CommandModuleWithContext<{
       'Address of the router contract to read.',
       true,
     ),
-    out: outputFileCommandOption('./configs/warp-route-config.yaml'),
+    out: outputFileCommandOption(),
   },
   handler: async ({ context, chain, address, out }) => {
+    logGray('Hyperlane Warp Reader');
+    logGray('---------------------');
+
     const { multiProvider } = context;
     const evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
       multiProvider,
@@ -75,8 +78,13 @@ export const read: CommandModuleWithContext<{
     const warpRouteConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       address,
     );
-    writeFileAtPath(out, warpRouteConfig + '\n');
-    logGreen(`✅ Warp route config written successfully to ${out}.`);
+    if (out) {
+      writeFileAtPath(out, JSON.stringify(warpRouteConfig, null, 4) + '\n');
+      logGreen(`✅ Warp route config written successfully to ${out}.`);
+    } else {
+      logGreen(`✅ Warp route config read successfully:`);
+      log(JSON.stringify(warpRouteConfig, null, 4));
+    }
     process.exit(0);
   },
 };

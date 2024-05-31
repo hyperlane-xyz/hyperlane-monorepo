@@ -106,11 +106,15 @@ export const agentConfigCommandOption = (
   default: defaultPath,
 });
 
-export const outputFileCommandOption = (defaultPath?: string): Options => ({
+export const outputFileCommandOption = (
+  defaultPath?: string,
+  demandOption = false,
+): Options => ({
   type: 'string',
   description: 'Output file path',
   default: defaultPath,
   alias: 'o',
+  demandOption,
 });
 
 export const inputFileCommandOption: Options = {
