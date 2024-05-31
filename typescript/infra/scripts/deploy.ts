@@ -67,19 +67,6 @@ async function main() {
 
   let multiProvider = await envConfig.getMultiProvider();
 
-  const provider = multiProvider.getProvider('polygon');
-  const metadata = multiProvider.getChainMetadata('polygon');
-  console.log(
-    'Should have overrides - provider',
-    provider,
-    'metadata',
-    metadata,
-  );
-
-  if (1 + 1 == 2) {
-    process.exit(1);
-  }
-
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
       [fork]: { blocks: { confirmations: 0 } },
