@@ -3,6 +3,7 @@ import { input, select } from '@inquirer/prompts';
 import {
   ChainMap,
   ChainName,
+  IsmConfig,
   IsmType,
   MailboxClientConfig,
   TokenType,
@@ -199,7 +200,7 @@ export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
 async function createDefaultWarpIsmConfig(
   context: CommandContext,
   remote: ChainName,
-) {
+): Promise<IsmConfig> {
   return {
     type: IsmType.AGGREGATION,
     modules: [
