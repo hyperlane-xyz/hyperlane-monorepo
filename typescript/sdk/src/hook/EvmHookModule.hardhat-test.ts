@@ -20,7 +20,6 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../test/testUtils.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
-import { HyperlaneHookDeployer } from './HyperlaneHookDeployer.js';
 import {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -30,6 +29,7 @@ import {
   IgpHookConfig,
   MerkleTreeHookConfig,
   PausableHookConfig,
+  ProtocolFeeHookConfig,
 } from './types.js';
 
 const hookTypes = Object.values(HookType);
@@ -157,12 +157,10 @@ function randomHookConfig(
 
 describe('EvmHookModule', async () => {
   let multiProvider: MultiProvider;
-  let hookDeployer: HyperlaneHookDeployer;
-
   let coreAddresses: CoreAddresses;
 
   const chain = TestChainName.test4;
-  let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
+  let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
   beforeEach(async () => {
@@ -176,7 +174,7 @@ describe('EvmHookModule', async () => {
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
-    factoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
+    proxyFactoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
       acc[key] =
         contractsMap[chain][key as keyof ProxyFactoryFactories].address;
       return acc;
@@ -204,8 +202,6 @@ describe('EvmHookModule', async () => {
       proxyAdmin: proxyAdmin.address,
       validatorAnnounce: validatorAnnounce.address,
     };
-
-    hookDeployer = testCoreDeployer.hookDeployer;
   });
 
   // Helper method for checking whether ISM module matches a given config
@@ -216,20 +212,15 @@ describe('EvmHookModule', async () => {
     hook: EvmHookModule;
     config: HookConfig;
   }): Promise<boolean> {
-    const derivedConfig = await hook.read();
-    const matches = configDeepEquals(
-      normalizeConfig(derivedConfig),
-      normalizeConfig(config),
-    );
+    const normalizedDerivedConfig = normalizeConfig(await hook.read());
+    const normalizedConfig = normalizeConfig(config);
+    const matches = configDeepEquals(normalizedDerivedConfig, normalizedConfig);
     if (!matches) {
       console.error(
         'Derived config:\n',
-        stringifyObject(normalizeConfig(derivedConfig)),
+        stringifyObject(normalizedDerivedConfig),
       );
-      console.error(
-        'Expected config:\n',
-        stringifyObject(normalizeConfig(config)),
-      );
+      console.error('Expected config:\n', stringifyObject(normalizedConfig));
     }
     return matches;
   }
@@ -253,8 +244,7 @@ describe('EvmHookModule', async () => {
     const hook = await EvmHookModule.create({
       chain,
       config,
-      deployer: hookDeployer,
-      factories: factoryAddresses,
+      proxyFactoryFactories: proxyFactoryAddresses,
       coreAddresses,
       multiProvider,
     });
@@ -294,17 +284,17 @@ describe('EvmHookModule', async () => {
       await createHook(config);
     });
 
-    // it('deploys a hook of type PROTOCOL_FEE', async () => {
-    //   const { maxProtocolFee, protocolFee } = randomProtocolFee();
-    //   const config: ProtocolFeeHookConfig = {
-    //     owner: randomAddress(),
-    //     type: HookType.PROTOCOL_FEE,
-    //     maxProtocolFee,
-    //     protocolFee,
-    //     beneficiary: randomAddress(),
-    //   };
-    //   await createHook(config);
-    // });
+    it('deploys a hook of type PROTOCOL_FEE', async () => {
+      const { maxProtocolFee, protocolFee } = randomProtocolFee();
+      const config: ProtocolFeeHookConfig = {
+        owner: randomAddress(),
+        type: HookType.PROTOCOL_FEE,
+        maxProtocolFee,
+        protocolFee,
+        beneficiary: randomAddress(),
+      };
+      await createHook(config);
+    });
 
     it('deploys a hook of type ROUTING', async () => {
       const config: DomainRoutingHookConfig = {

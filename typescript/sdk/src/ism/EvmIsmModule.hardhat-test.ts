@@ -91,7 +91,6 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
-  let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address;
   let newMailboxAddress: Address;
@@ -106,10 +105,9 @@ describe('EvmIsmModule', async () => {
     fundingAccount = funder;
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    const contractsMap = await ismFactoryDeployer.deploy(
-      multiProvider.mapKnownChains(() => ({})),
-    );
+    const contractsMap = await new HyperlaneProxyFactoryDeployer(
+      multiProvider,
+    ).deploy(multiProvider.mapKnownChains(() => ({})));
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
@@ -191,8 +189,7 @@ describe('EvmIsmModule', async () => {
     const ism = await EvmIsmModule.create({
       chain,
       config,
-      deployer: ismFactoryDeployer,
-      factories: factoryAddresses,
+      proxyFactoryFactories: factoryAddresses,
       mailbox: mailboxAddress,
       multiProvider,
     });

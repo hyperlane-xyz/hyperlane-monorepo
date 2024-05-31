@@ -2,6 +2,7 @@ import { deepStrictEqual } from 'node:assert/strict';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer, rootLogger } from './logging.js';
+import { WithAddress } from './types.js';
 import { assert } from './validation.js';
 
 export function isObject(item: any) {
@@ -157,7 +158,7 @@ export function stringifyObject(
 }
 
 // Function to recursively remove 'address' properties and lowercase string properties
-export function normalizeConfig(obj: any): any {
+export function normalizeConfig(obj: WithAddress<any>): any {
   if (Array.isArray(obj)) {
     return obj.map(normalizeConfig);
   } else if (obj !== null && typeof obj === 'object') {
