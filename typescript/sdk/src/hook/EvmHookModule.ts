@@ -39,7 +39,7 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<HookConfig> {
-    return await this.reader.deriveHookConfig(this.args.addresses.deployedHook);
+    return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
   public async update(_config: HookConfig): Promise<EthersV5Transaction[]> {

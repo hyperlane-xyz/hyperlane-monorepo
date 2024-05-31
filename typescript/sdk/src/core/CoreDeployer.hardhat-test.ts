@@ -127,7 +127,7 @@ describe('core', async () => {
     });
 
     async function deriveCoreConfig(chainName: string, mailboxAddress: string) {
-      return await new EvmCoreReader(multiProvider, chainName).deriveCoreConfig(
+      return new EvmCoreReader(multiProvider, chainName).deriveCoreConfig(
         mailboxAddress,
       );
     }
