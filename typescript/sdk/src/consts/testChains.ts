@@ -10,6 +10,7 @@ export enum TestChainName {
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
+  test4 = 'test4',
 }
 
 export const testChains: Array<ChainName> = Object.values(TestChainName);
@@ -65,10 +66,24 @@ export const test3: ChainMetadata = {
   name: 'test3',
 };
 
+export const test4: ChainMetadata = {
+  ...test1,
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 2,
+  },
+  chainId: 31337,
+  displayName: 'Test 4',
+  domainId: 31337,
+  name: 'test4',
+};
+
 export const testChainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  test4,
 };
 
 export const testCosmosChain: ChainMetadata = {

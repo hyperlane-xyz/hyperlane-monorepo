@@ -126,7 +126,7 @@ describe('HyperlaneIsmFactory', async () => {
       owner: await multiProvider.getSignerAddress(chain),
       domains: Object.fromEntries(
         testChains
-          .filter((c) => c !== TestChainName.test1)
+          .filter((c) => c !== TestChainName.test1 && c !== TestChainName.test4)
           .map((c) => [c, randomMultisigIsmConfig(3, 5)]),
       ),
     };
