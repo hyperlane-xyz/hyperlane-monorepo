@@ -49,7 +49,7 @@ import {
   AnnotatedEthersV5Transaction,
   createAnnotatedEthersV5Transaction,
 } from '../providers/ProviderType.js';
-import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
@@ -332,23 +332,6 @@ export class EvmIsmModule extends HyperlaneModule<
     return updateTxs;
   }
 
-  protected async deployRoutingIsmSubmodules({
-    config,
-  }: {
-    config: RoutingIsmConfig;
-  }): Promise<Address[]> {
-    const isms: ChainMap<Address> = {};
-
-    for (const origin of Object.keys(config.domains)) {
-      const ism = await this.deploy({
-        config: config.domains[origin],
-      });
-      isms[origin] = ism.address;
-    }
-
-    return Object.values(isms);
-  }
-
   protected async deploy<C extends IsmConfig>({
     config,
   }: {
@@ -472,9 +455,14 @@ export class EvmIsmModule extends HyperlaneModule<
     config.domains = availableDomains;
 
     // deploy the submodules first
-    const submoduleAddresses = await this.deployRoutingIsmSubmodules({
-      config,
-    });
+    const submoduleAddresses: Address[] = await Promise.all(
+      Object.keys(config.domains).map(async (origin) => {
+        const { address } = await this.deploy({
+          config: config.domains[origin],
+        });
+        return address;
+      }),
+    );
 
     if (config.type === IsmType.FALLBACK_ROUTING) {
       // deploy the fallback routing ISM
@@ -555,13 +543,12 @@ export class EvmIsmModule extends HyperlaneModule<
     config: AggregationIsmConfig;
     logger: Logger;
   }): Promise<IAggregationIsm> {
-    const addresses: Address[] = [];
-    for (const module of config.modules) {
-      const submodule = await this.deploy({
-        config: module,
-      });
-      addresses.push(submodule.address);
-    }
+    const addresses: Address[] = await Promise.all(
+      config.modules.map(async (module) => {
+        const submodule = await this.deploy({ config: module });
+        return submodule.address;
+      }),
+    );
 
     const factoryName = 'staticAggregationIsmFactory';
     const address = await EvmIsmModule.deployStaticAddressSet({
