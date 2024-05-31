@@ -23,6 +23,7 @@ import {
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
 import { validatorCommand } from './src/commands/validator.js';
+import { warpCommand } from './src/commands/warp.js';
 import { contextMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
@@ -61,6 +62,7 @@ try {
     .command(sendCommand)
     .command(statusCommand)
     .command(validatorCommand)
+    .command(warpCommand)
     .version(VERSION)
     .demandCommand()
     .strict()

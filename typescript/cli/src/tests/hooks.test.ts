@@ -35,8 +35,8 @@ describe('readHooksConfigMap', () => {
                   overhead: { anvil2: 50000 },
                   oracleConfig: {
                     anvil2: {
-                      gasPrice: '1000000000000000000',
-                      tokenExchangeRate: '1000000000000000000',
+                      gasPrice: '100',
+                      tokenExchangeRate: '100',
                     },
                   },
                 },
@@ -71,8 +71,8 @@ describe('readHooksConfigMap', () => {
                   overhead: { anvil1: 50000 },
                   oracleConfig: {
                     anvil1: {
-                      gasPrice: '1000000000000000000',
-                      tokenExchangeRate: '1000000000000000000',
+                      gasPrice: '100',
+                      tokenExchangeRate: '100',
                     },
                   },
                 },

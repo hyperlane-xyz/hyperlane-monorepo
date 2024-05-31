@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  configDeepEquals,
   eqAddress,
   formatMessage,
   normalizeAddress,
@@ -36,6 +37,46 @@ import {
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
+
+// Determines the domains to enroll and unenroll to update the current ISM config
+// to match the target ISM config.
+export function calculateDomainRoutingDelta(
+  current: RoutingIsmConfig,
+  target: RoutingIsmConfig,
+): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
+  const domainsToEnroll = [];
+  for (const origin of Object.keys(target.domains)) {
+    if (!current.domains[origin]) {
+      domainsToEnroll.push(origin);
+    } else {
+      const subModuleMatches = configDeepEquals(
+        current.domains[origin],
+        target.domains[origin],
+      );
+      if (!subModuleMatches) domainsToEnroll.push(origin);
+    }
+  }
+
+  const domainsToUnenroll = Object.keys(current.domains).reduce(
+    (acc, origin) => {
+      if (!Object.keys(target.domains).includes(origin)) {
+        acc.push(origin);
+      }
+      return acc;
+    },
+    [] as ChainName[],
+  );
+
+  return {
+    domainsToEnroll,
+    domainsToUnenroll,
+  };
+}
+
+/*
+ * The following functions are considered legacy and are deprecated. DO NOT USE.
+ * -----------------------------------------------------------------------------
+ */
 
 // Note that this function may return false negatives, but should
 // not return false positives.

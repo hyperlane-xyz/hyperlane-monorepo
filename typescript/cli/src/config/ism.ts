@@ -21,7 +21,10 @@ import {
   logGreen,
   logRed,
 } from '../logger.js';
-import { runMultiChainSelectionStep } from '../utils/chains.js';
+import {
+  detectAndConfirmOrPrompt,
+  runMultiChainSelectionStep,
+} from '../utils/chains.js';
 import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
 
 const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
@@ -73,9 +76,11 @@ export function isValildIsmConfig(config: any) {
 export async function createIsmConfigMap({
   context,
   outPath,
+  shouldUseDefault = true,
 }: {
   context: CommandContext;
   outPath: string;
+  shouldUseDefault: boolean;
 }) {
   logBlue('Creating a new advanced ISM config');
   logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
@@ -90,8 +95,10 @@ export async function createIsmConfigMap({
 
   const result: IsmConfigMap = {};
   for (const chain of chains) {
-    log(`Setting values for chain ${chain}`);
-    result[chain] = await createIsmConfig(chain, chains);
+    log(`\nSet values for chain ${chain}:`);
+    result[chain] = shouldUseDefault
+      ? await createTrustedRelayerConfig(context)
+      : await createIsmConfig(context, chain, chains);
 
     // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
     // repeat = await confirm({
@@ -128,6 +135,7 @@ const ISM_TYPE_DESCRIPTIONS: Record<IsmType, string> = {
 };
 
 export async function createIsmConfig(
+  context: CommandContext,
   remote: ChainName,
   origins: ChainName[],
 ): Promise<IsmConfig> {
@@ -149,13 +157,13 @@ export async function createIsmConfig(
     moduleType === IsmType.ROUTING ||
     moduleType === IsmType.FALLBACK_ROUTING
   ) {
-    return createRoutingConfig(moduleType, remote, origins);
+    return createRoutingConfig(context, moduleType, remote, origins);
   } else if (moduleType === IsmType.AGGREGATION) {
-    return createAggregationConfig(remote, origins);
+    return createAggregationConfig(context, remote, origins);
   } else if (moduleType === IsmType.TEST_ISM) {
     return { type: IsmType.TEST_ISM };
   } else if (moduleType === IsmType.TRUSTED_RELAYER) {
-    return createTrustedRelayerConfig();
+    return createTrustedRelayerConfig(context);
   }
 
   throw new Error(`Invalid ISM type: ${moduleType}}`);
@@ -165,12 +173,13 @@ export async function createMultisigConfig(
   type: IsmType.MERKLE_ROOT_MULTISIG | IsmType.MESSAGE_ID_MULTISIG,
 ): Promise<MultisigIsmConfig> {
   const thresholdInput = await input({
-    message: 'Enter threshold of validators (number)',
+    message: 'Enter threshold of validators (number) for multisig ISM',
   });
   const threshold = parseInt(thresholdInput, 10);
 
   const validatorsInput = await input({
-    message: 'Enter validator addresses (comma separated list)',
+    message:
+      'Enter validator addresses (comma separated list) for multisig ISM',
   });
   const validators = validatorsInput.split(',').map((v) => v.trim());
   return {
@@ -180,10 +189,14 @@ export async function createMultisigConfig(
   };
 }
 
-async function createTrustedRelayerConfig(): Promise<TrustedRelayerIsmConfig> {
-  const relayer = await input({
-    message: 'Enter relayer address',
-  });
+export async function createTrustedRelayerConfig(
+  context: CommandContext,
+): Promise<TrustedRelayerIsmConfig> {
+  const relayer = await detectAndConfirmOrPrompt(
+    async () => context.signer?.getAddress(),
+    'For trusted relayer ISM, enter',
+    'relayer address',
+  );
   return {
     type: IsmType.TRUSTED_RELAYER,
     relayer,
@@ -191,6 +204,7 @@ async function createTrustedRelayerConfig(): Promise<TrustedRelayerIsmConfig> {
 }
 
 export async function createAggregationConfig(
+  context: CommandContext,
   remote: ChainName,
   chains: ChainName[],
 ): Promise<AggregationIsmConfig> {
@@ -203,14 +217,14 @@ export async function createAggregationConfig(
 
   const threshold = parseInt(
     await input({
-      message: 'Enter the threshold of ISMs to for verification (number)',
+      message: 'Enter the threshold of ISMs for verification (number)',
     }),
     10,
   );
 
   const modules: Array<IsmConfig> = [];
   for (let i = 0; i < isms; i++) {
-    modules.push(await createIsmConfig(remote, chains));
+    modules.push(await createIsmConfig(context, remote, chains));
   }
   return {
     type: IsmType.AGGREGATION,
@@ -220,12 +234,13 @@ export async function createAggregationConfig(
 }
 
 export async function createRoutingConfig(
+  context: CommandContext,
   type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING,
   remote: ChainName,
   chains: ChainName[],
 ): Promise<IsmConfig> {
   const owner = await input({
-    message: 'Enter owner address',
+    message: 'Enter owner address for routing ISM',
   });
   const ownerAddress = owner;
   const origins = chains.filter((chain) => chain !== remote);
@@ -235,7 +250,7 @@ export async function createRoutingConfig(
     await confirm({
       message: `You are about to configure ISM from source chain ${chain}. Continue?`,
     });
-    const config = await createIsmConfig(chain, chains);
+    const config = await createIsmConfig(context, chain, chains);
     domainsMap[chain] = config;
   }
   return {

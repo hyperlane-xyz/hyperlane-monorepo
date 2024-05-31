@@ -26,6 +26,7 @@ import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
+import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { CoreFactories, coreFactories } from './contracts.js';
 import { DispatchedMessage } from './types.js';
@@ -283,18 +284,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
-    const dispatchLogs = sourceTx.logs
-      .map((log) => {
-        try {
-          return mailbox.parseLog(log);
-        } catch (e) {
-          return undefined;
-        }
-      })
-      .filter(
-        (log): log is ethers.utils.LogDescription =>
-          !!log && log.name === 'Dispatch',
-      );
+    const dispatchLogs = findMatchingLogEvents(
+      sourceTx.logs,
+      mailbox,
+      'Dispatch',
+    );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const parsed = parseMessage(message);

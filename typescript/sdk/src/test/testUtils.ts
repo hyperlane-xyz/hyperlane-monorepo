@@ -12,6 +12,10 @@ import { IsmType } from '../ism/types.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+export function randomInt(max: number, min = 0): number {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
 export function randomAddress(): Address {
   return ethers.utils.hexlify(ethers.utils.randomBytes(20));
 }
