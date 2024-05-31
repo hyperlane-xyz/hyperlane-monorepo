@@ -69,7 +69,7 @@ const agentCommand: CommandModuleWithContext<{
  * @param commandName - the deploy command key used to look up the deployFunction
  * @returns A command module used to deploy Hyperlane contracts.
  */
-export const deployCoreCommand: CommandModuleWithWriteContext<{
+export const deployCore: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
   agent: string;
