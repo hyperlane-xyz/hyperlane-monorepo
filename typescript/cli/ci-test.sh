@@ -142,11 +142,12 @@ run_hyperlane_deploy_core_dry_run() {
     update_deployer_balance;
 
     echo -e "\nDry-running contract deployments to Alfajores"
-    yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
         --dry-run alfajores \
         --registry ${TEST_CONFIGS_PATH}/dry-run \
         --overrides " " \
-        --config ${EXAMPLES_PATH}/core-config.yaml \
+        $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
+        --ism ${TEST_CONFIGS_PATH}/dry-run/ism.yaml \
         --from-address 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
 
@@ -174,23 +175,14 @@ run_hyperlane_deploy_warp_dry_run() {
 run_hyperlane_deploy_core() {
     update_deployer_balance;
 
-    echo -e "\nDeploying contracts to ${CHAIN1}"
-    yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
+    echo -e "\nDeploying contracts to ${CHAIN1} and ${CHAIN2}"
+    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
         --registry $REGISTRY_PATH \
         --overrides " " \
-        --config ${EXAMPLES_PATH}/core-config.yaml \
-        --chain $CHAIN1 \
+        --targets ${CHAIN1},${CHAIN2} \
+        $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
+        --ism $CORE_ISM_PATH \
         --agent /tmp/agent-config.json \
-        --key $ANVIL_KEY \
-        --yes
-
-    echo -e "\nDeploying contracts to ${CHAIN2}"
-    yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
-        --registry $REGISTRY_PATH \
-        --overrides " " \
-        --config ${EXAMPLES_PATH}/core-config.yaml \
-        --chain $CHAIN2 \
-        --agent /tmp/agent-config-2.json \
         --key $ANVIL_KEY \
         --yes
 
