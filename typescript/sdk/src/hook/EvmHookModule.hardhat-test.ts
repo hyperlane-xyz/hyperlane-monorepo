@@ -1,6 +1,5 @@
 /* eslint-disable no-console */
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -98,8 +97,8 @@ function randomHookConfig(
           testChains.map((c) => [
             c,
             {
-              tokenExchangeRate: BigNumber.from(randomInt(1234567891234)),
-              gasPrice: BigNumber.from(randomInt(1234567891234)),
+              tokenExchangeRate: randomInt(1234567891234).toString(),
+              gasPrice: randomInt(1234567891234).toString(),
             },
           ]),
         ),
@@ -148,6 +147,7 @@ function randomHookConfig(
       return {
         owner: randomAddress(),
         type: hookType,
+        paused: false,
       };
 
     default:
@@ -285,8 +285,8 @@ describe('EvmHookModule', async () => {
           testChains.map((c) => [
             c,
             {
-              tokenExchangeRate: BigNumber.from(randomInt(1234567891234)),
-              gasPrice: BigNumber.from(randomInt(1234567891234)),
+              tokenExchangeRate: randomInt(1234567891234).toString(),
+              gasPrice: randomInt(1234567891234).toString(),
             },
           ]),
         ),
@@ -355,6 +355,7 @@ describe('EvmHookModule', async () => {
       const config: PausableHookConfig = {
         owner: randomAddress(),
         type: HookType.PAUSABLE,
+        paused: false,
       };
       await createHook(config);
     });
@@ -395,20 +396,20 @@ describe('EvmHookModule', async () => {
             },
             oracleConfig: {
               test1: {
-                tokenExchangeRate: BigNumber.from('1032586497157'),
-                gasPrice: BigNumber.from('1026942205817'),
+                tokenExchangeRate: '1032586497157',
+                gasPrice: '1026942205817',
               },
               test2: {
-                tokenExchangeRate: BigNumber.from('81451154935'),
-                gasPrice: BigNumber.from('1231220057593'),
+                tokenExchangeRate: '81451154935',
+                gasPrice: '1231220057593',
               },
               test3: {
-                tokenExchangeRate: BigNumber.from('31347320275'),
-                gasPrice: BigNumber.from('21944956734'),
+                tokenExchangeRate: '31347320275',
+                gasPrice: '21944956734',
               },
               test4: {
-                tokenExchangeRate: BigNumber.from('1018619796544'),
-                gasPrice: BigNumber.from('1124484183261'),
+                tokenExchangeRate: '1018619796544',
+                gasPrice: '1124484183261',
               },
             },
           },
@@ -432,20 +433,20 @@ describe('EvmHookModule', async () => {
                 },
                 oracleConfig: {
                   test1: {
-                    tokenExchangeRate: BigNumber.from('1132883204938'),
-                    gasPrice: BigNumber.from('1219466305935'),
+                    tokenExchangeRate: '1132883204938',
+                    gasPrice: '1219466305935',
                   },
                   test2: {
-                    tokenExchangeRate: BigNumber.from('938422264723'),
-                    gasPrice: BigNumber.from('229134538568'),
+                    tokenExchangeRate: '938422264723',
+                    gasPrice: '229134538568',
                   },
                   test3: {
-                    tokenExchangeRate: BigNumber.from('69699594189'),
-                    gasPrice: BigNumber.from('475781234236'),
+                    tokenExchangeRate: '69699594189',
+                    gasPrice: '475781234236',
                   },
                   test4: {
-                    tokenExchangeRate: BigNumber.from('1027245678936'),
-                    gasPrice: BigNumber.from('502686418976'),
+                    tokenExchangeRate: '1027245678936',
+                    gasPrice: '502686418976',
                   },
                 },
               },
@@ -465,20 +466,20 @@ describe('EvmHookModule', async () => {
                 },
                 oracleConfig: {
                   test1: {
-                    tokenExchangeRate: BigNumber.from('443874625350'),
-                    gasPrice: BigNumber.from('799154764503'),
+                    tokenExchangeRate: '443874625350',
+                    gasPrice: '799154764503',
                   },
                   test2: {
-                    tokenExchangeRate: BigNumber.from('915348561750'),
-                    gasPrice: BigNumber.from('1124345797215'),
+                    tokenExchangeRate: '915348561750',
+                    gasPrice: '1124345797215',
                   },
                   test3: {
-                    tokenExchangeRate: BigNumber.from('930832717805'),
-                    gasPrice: BigNumber.from('621743941770'),
+                    tokenExchangeRate: '930832717805',
+                    gasPrice: '621743941770',
                   },
                   test4: {
-                    tokenExchangeRate: BigNumber.from('147394981623'),
-                    gasPrice: BigNumber.from('766494385983'),
+                    tokenExchangeRate: '147394981623',
+                    gasPrice: '766494385983',
                   },
                 },
               },

@@ -143,7 +143,7 @@ export function arrayToObject(keys: Array<string>, val = true) {
 }
 
 export function stringifyObject(
-  object: object,
+  object: any,
   format: 'json' | 'yaml' = 'yaml',
   space?: number,
 ): string {
