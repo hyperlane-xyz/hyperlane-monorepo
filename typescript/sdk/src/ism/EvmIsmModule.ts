@@ -44,7 +44,6 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { extractOwnerAddress } from '../deploy/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   AnnotatedEthersV5Transaction,
@@ -110,7 +109,7 @@ export class EvmIsmModule extends HyperlaneModule<
   public async read(): Promise<IsmConfig> {
     return typeof this.args.config === 'string'
       ? this.args.addresses.deployedIsm
-      : await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
+      : this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
@@ -184,7 +183,6 @@ export class EvmIsmModule extends HyperlaneModule<
       ismType: targetConfig.type,
     });
     const provider = this.multiProvider.getProvider(this.chain);
-    const targetOwner = extractOwnerAddress(targetConfig.owner);
 
     logger.debug(`Updating ${targetConfig.type} on ${this.chain}`);
 
@@ -231,14 +229,14 @@ export class EvmIsmModule extends HyperlaneModule<
     ).owner();
 
     // Return an ownership transfer transaction if required
-    if (!eqAddress(targetOwner, owner)) {
+    if (!eqAddress(targetConfig.owner, owner)) {
       const tx = createAnnotatedEthersV5Transaction({
         annotation: 'Transferring ownership of ownable ISM...',
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
         data: Ownable__factory.createInterface().encodeFunctionData(
           'transferOwnership(address)',
-          [targetOwner],
+          [targetConfig.owner],
         ),
       });
       updateTxs.push(tx);
@@ -406,7 +404,7 @@ export class EvmIsmModule extends HyperlaneModule<
           this.chain,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
-          [extractOwnerAddress(config.owner)],
+          [config.owner],
         );
 
       case IsmType.TRUSTED_RELAYER:
@@ -478,8 +476,6 @@ export class EvmIsmModule extends HyperlaneModule<
       config,
     });
 
-    const owner = extractOwnerAddress(config.owner);
-
     if (config.type === IsmType.FALLBACK_ROUTING) {
       // deploy the fallback routing ISM
       logger.debug('Deploying fallback routing ISM ...');
@@ -492,7 +488,7 @@ export class EvmIsmModule extends HyperlaneModule<
       // initialize the fallback routing ISM
       logger.debug('Initializing fallback routing ISM ...');
       await ism['initialize(address,uint32[],address[])'](
-        owner,
+        config.owner,
         availableDomainIds,
         submoduleAddresses,
       );
@@ -504,7 +500,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // then deploy the domain routing ISM
     logger.debug('Deploying domain routing ISM ...');
     return this.deployDomainRoutingIsm({
-      owner,
+      owner: config.owner,
       domainIds: availableDomainIds,
       submoduleAddresses,
     });
