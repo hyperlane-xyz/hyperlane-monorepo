@@ -210,8 +210,6 @@ export async function moduleMatchesConfig(
   multiProvider: MultiProvider,
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
-  // Less stringent checks on Routing/Pausable ISMs if not configured yet
-  configured = true,
 ): Promise<boolean> {
   // Handle custom ISM addresses
   if (typeof config === 'string') {
@@ -316,7 +314,6 @@ export async function moduleMatchesConfig(
             multiProvider,
             contracts,
             mailbox,
-            configured,
           );
           if (subModuleMatchesConfig) {
             foundMatch = true;

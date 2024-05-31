@@ -1,15 +1,11 @@
 /* eslint-disable no-console */
+import assert from 'assert';
 import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
 import { FallbackDomainRoutingHook__factory } from '@hyperlane-xyz/core';
-import {
-  Address,
-  configDeepEquals,
-  eqAddress,
-  normalizeConfig,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -158,26 +154,6 @@ describe('EvmIsmModule', async () => {
     });
   }
 
-  // Helper method for checking whether ISM module matches a given config
-  async function ismModuleMatchesConfig({
-    ism,
-    config,
-  }: {
-    ism: EvmIsmModule;
-    config: IsmConfig;
-  }): Promise<boolean> {
-    const derivedConfig = await ism.read();
-    const matches = configDeepEquals(
-      normalizeConfig(derivedConfig),
-      normalizeConfig(config),
-    );
-    if (!matches) {
-      console.error('Derived config:', derivedConfig);
-      console.error('Expected config:', config);
-    }
-    return matches;
-  }
-
   // Helper method to expect exactly N updates to be applied
   async function expectTxsAndUpdate(
     ism: EvmIsmModule,
@@ -201,8 +177,9 @@ describe('EvmIsmModule', async () => {
 
   // expect that the ISM matches the config after all tests
   afterEach(async () => {
-    expect(await ismModuleMatchesConfig({ ism: testIsm, config: testConfig }))
-      .to.be.true;
+    const normalizedDerivedConfig = normalizeConfig(await testIsm.read());
+    const normalizedConfig = normalizeConfig(testConfig);
+    assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
 
   // create a new ISM and verify that it matches the config

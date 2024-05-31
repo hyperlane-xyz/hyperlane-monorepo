@@ -51,7 +51,7 @@ export enum IsmType {
 }
 
 // ISM types that can be updated in-place
-export const MutableIsmType = [
+export const MUTABLE_ISM_TYPE = [
   IsmType.ROUTING,
   IsmType.FALLBACK_ROUTING,
   IsmType.PAUSABLE,

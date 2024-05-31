@@ -19,7 +19,7 @@ import { ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
-  HyperlaneModuleArgs,
+  HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
 import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
@@ -45,7 +45,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleArgs<CoreConfig, DeployedAdresses>,
+    args: HyperlaneModuleParams<CoreConfig, DeployedAdresses>,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);

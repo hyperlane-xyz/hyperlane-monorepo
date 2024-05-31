@@ -3,7 +3,7 @@ import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleArgs,
+  HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -27,7 +27,7 @@ export class EvmHookModule extends HyperlaneModule<
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly deployer: HyperlaneDeployer<any, any>,
-    args: HyperlaneModuleArgs<
+    args: HyperlaneModuleParams<
       HookConfig,
       HyperlaneAddresses<HookFactories> & {
         deployedHook: Address;

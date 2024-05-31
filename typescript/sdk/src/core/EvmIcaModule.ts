@@ -11,7 +11,7 @@ import { ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
-  HyperlaneModuleArgs,
+  HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
 
 export type InterchainAccountConfig = ProxiedRouterConfig;
@@ -25,7 +25,7 @@ export class EvmIcaModule extends HyperlaneModule<
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleArgs<
+    args: HyperlaneModuleParams<
       InterchainAccountConfig,
       HyperlaneAddresses<InterchainAccountFactories>
     >,

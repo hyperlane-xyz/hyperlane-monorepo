@@ -31,12 +31,13 @@ import {
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { Domain } from '@hyperlane-xyz/utils';
 
 import { attachAndConnectContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleArgs,
+  HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
@@ -58,9 +59,8 @@ import {
   DeployedIsm,
   IsmConfig,
   IsmType,
+  MUTABLE_ISM_TYPE,
   MultisigIsmConfig,
-  MutableIsmType,
-  PausableIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
 import { calculateDomainRoutingDelta } from './utils.js';
@@ -80,40 +80,37 @@ export class EvmIsmModule extends HyperlaneModule<
   protected readonly factories: HyperlaneContracts<ProxyFactoryFactories>;
 
   // Adding these to reduce how often we need to grab from MultiProvider.
-  public readonly chainName: string;
+  public readonly chain: ChainName;
   // We use domainId here because MultiProvider.getDomainId() will always
   // return a number, and EVM the domainId and chainId are the same.
-  public readonly domainId: number;
+  public readonly domainId: Domain;
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly deployer: HyperlaneDeployer<any, any>,
-    args: HyperlaneModuleArgs<
+    params: HyperlaneModuleParams<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
   ) {
-    super(args);
+    super(params);
 
-    this.reader = new EvmIsmReader(multiProvider, args.chain);
-    const { mailbox: _, deployedIsm: __, ...addresses } = args.addresses;
+    this.reader = new EvmIsmReader(multiProvider, params.chain);
+    const { mailbox: _, deployedIsm: __, ...addresses } = params.addresses;
     this.factories = attachAndConnectContracts(
       addresses,
       proxyFactoryFactories,
-      multiProvider.getSigner(args.chain),
+      multiProvider.getSigner(params.chain),
     );
 
-    this.chainName = this.multiProvider.getChainName(this.args.chain);
-    this.domainId = this.multiProvider.getDomainId(this.chainName);
+    this.chain = this.multiProvider.getChainName(this.args.chain);
+    this.domainId = this.multiProvider.getDomainId(this.chain);
   }
 
   public async read(): Promise<IsmConfig> {
-    const config =
-      typeof this.args.config === 'string'
-        ? this.args.addresses.deployedIsm
-        : await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
-
-    return normalizeConfig(config);
+    return typeof this.args.config === 'string'
+      ? this.args.addresses.deployedIsm
+      : await this.reader.deriveIsmConfig(this.args.addresses.deployedIsm);
   }
 
   // whoever calls update() needs to ensure that targetConfig has a valid owner
@@ -121,7 +118,8 @@ export class EvmIsmModule extends HyperlaneModule<
     targetConfig: IsmConfig,
   ): Promise<AnnotatedEthersV5Transaction[]> {
     // save current config for comparison
-    const currentConfig = await this.read();
+    // normalize the config to ensure it's in a consistent format for comparison
+    const currentConfig = normalizeConfig(await this.read());
 
     // Update the config
     this.args.config = targetConfig;
@@ -162,7 +160,7 @@ export class EvmIsmModule extends HyperlaneModule<
       // if config -> config, AND types are different, do a new deploy
       currentConfig.type !== targetConfig.type ||
       // if it is not a mutable ISM, do a new deploy
-      !MutableIsmType.includes(targetConfig.type)
+      !MUTABLE_ISM_TYPE.includes(targetConfig.type)
     ) {
       const contract = await this.deploy({
         config: targetConfig,
@@ -172,19 +170,23 @@ export class EvmIsmModule extends HyperlaneModule<
       return [];
     }
 
-    // Explicitly narrow the type of targetConfig to RoutingIsmConfig or PausableIsmConfig
-    // This is safe because we've already checked that the type is in MutableIsmType
-    targetConfig = targetConfig as RoutingIsmConfig | PausableIsmConfig;
+    // At this point, only the 3 ownable/mutable ISM types should remain: PAUSABLE, ROUTING, FALLBACK_ROUTING
+    if (
+      targetConfig.type !== IsmType.PAUSABLE &&
+      targetConfig.type !== IsmType.ROUTING &&
+      targetConfig.type !== IsmType.FALLBACK_ROUTING
+    ) {
+      throw new Error(`Unsupported ISM type ${targetConfig.type}`);
+    }
 
-    // At this point, only the 3 ownable/mutable ISM types remain: PAUSABLE, ROUTING, FALLBACK_ROUTING
     const logger = this.logger.child({
-      destination: this.chainName,
+      destination: this.chain,
       ismType: targetConfig.type,
     });
-    const provider = this.multiProvider.getProvider(this.chainName);
+    const provider = this.multiProvider.getProvider(this.chain);
     const targetOwner = extractOwnerAddress(targetConfig.owner);
 
-    logger.debug(`Updating ${targetConfig.type} on ${this.chainName}`);
+    logger.debug(`Updating ${targetConfig.type} on ${this.chain}`);
 
     // if it's a fallback routing ISM, do a mailbox diff check and deploy a new ISM if needed
     if (targetConfig.type === IsmType.FALLBACK_ROUTING) {
@@ -211,7 +213,10 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // if it's either of the routing ISMs, update their submodules
     let updateTxs: AnnotatedEthersV5Transaction[] = [];
-    if (targetConfig.type !== IsmType.PAUSABLE) {
+    if (
+      targetConfig.type === IsmType.ROUTING ||
+      targetConfig.type === IsmType.FALLBACK_ROUTING
+    ) {
       updateTxs = await this.updateRoutingIsm({
         current: currentConfig as RoutingIsmConfig,
         target: targetConfig,
@@ -363,7 +368,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     const ismType = config.type;
-    const logger = rootLogger.child({ chainName: this.chainName, ismType });
+    const logger = rootLogger.child({ chainName: this.chain, ismType });
 
     logger.debug(`Deploying ${ismType} to ${this.args.chain}`);
 
@@ -390,7 +395,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
       case IsmType.OP_STACK:
         return this.deployer.deployContractFromFactory(
-          this.chainName,
+          this.chain,
           new OPStackIsm__factory(),
           IsmType.OP_STACK,
           [config.nativeBridge],
@@ -398,7 +403,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
       case IsmType.PAUSABLE:
         return this.deployer.deployContractFromFactory(
-          this.chainName,
+          this.chain,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
           [extractOwnerAddress(config.owner)],
@@ -410,7 +415,7 @@ export class EvmIsmModule extends HyperlaneModule<
           `Mailbox address is required for deploying ${ismType}`,
         );
         return this.deployer.deployContractFromFactory(
-          this.chainName,
+          this.chain,
           new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [this.args.addresses.mailbox, config.relayer],
@@ -418,7 +423,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
       case IsmType.TEST_ISM:
         return this.deployer.deployContractFromFactory(
-          this.chainName,
+          this.chain,
           new TestIsm__factory(),
           IsmType.TEST_ISM,
           [],
@@ -436,14 +441,14 @@ export class EvmIsmModule extends HyperlaneModule<
     config: MultisigIsmConfig;
     logger: Logger;
   }): Promise<IMultisigIsm> {
-    const signer = this.multiProvider.getSigner(this.chainName);
+    const signer = this.multiProvider.getSigner(this.chain);
     const factoryName =
       config.type === IsmType.MERKLE_ROOT_MULTISIG
         ? 'staticMerkleRootMultisigIsmFactory'
         : 'staticMessageIdMultisigIsmFactory';
 
     const address = await EvmIsmModule.deployStaticAddressSet({
-      chain: this.chainName,
+      chain: this.chain,
       factory: this.factories[factoryName],
       values: config.validators,
       logger,
@@ -451,21 +456,7 @@ export class EvmIsmModule extends HyperlaneModule<
       multiProvider: this.multiProvider,
     });
 
-    const contract = IMultisigIsm__factory.connect(address, signer);
-
-    // TODO: figure out how to get the constructor arguments for manual deploy TXs
-    // const verificationInput = buildVerificationInput(
-    //   proxyFactoryImplementations[factoryName],
-    //   contract.address,
-    //   constructorArgs,
-    // );
-    // await this.deployer.verifyContract(
-    //   this.chainName,
-    //   verificationInput,
-    //   logger,
-    // );
-
-    return contract;
+    return IMultisigIsm__factory.connect(address, signer);
   }
 
   protected async deployRoutingIsm({
@@ -493,7 +484,7 @@ export class EvmIsmModule extends HyperlaneModule<
       // deploy the fallback routing ISM
       logger.debug('Deploying fallback routing ISM ...');
       const ism = await this.multiProvider.handleDeploy(
-        this.chainName,
+        this.chain,
         new DefaultFallbackRoutingIsm__factory(),
         [this.args.addresses.mailbox],
       );
@@ -578,7 +569,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     const factoryName = 'staticAggregationIsmFactory';
     const address = await EvmIsmModule.deployStaticAddressSet({
-      chain: this.chainName,
+      chain: this.chain,
       factory: this.factories[factoryName],
       values: addresses,
       logger: logger,
@@ -587,21 +578,7 @@ export class EvmIsmModule extends HyperlaneModule<
     });
 
     const signer = this.multiProvider.getSigner(this.args.chain);
-    const contract = IAggregationIsm__factory.connect(address, signer);
-
-    // TODO: figure out how to get the constructor arguments for manual deploy TXs
-    // const verificationInput = buildVerificationInput(
-    //   proxyFactoryImplementations[factoryName],
-    //   contract.address,
-    //   constructorArgs,
-    // );
-    // await this.deployer.verifyContract(
-    //   this.chainName,
-    //   verificationInput,
-    //   logger,
-    // );
-
-    return contract;
+    return IAggregationIsm__factory.connect(address, signer);
   }
 
   // Updates the mailbox address if it is different from the current one.
@@ -663,6 +640,18 @@ export class EvmIsmModule extends HyperlaneModule<
         `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
       );
     }
+
+    // TODO: figure out how to get the constructor arguments for manual deploy TXs
+    // const verificationInput = buildVerificationInput(
+    //   NAME,
+    //   ADDRESS,
+    //   CONSTRUCTOR_ARGS,
+    // );
+    // await this.deployer.verifyContract(
+    //   this.chainName,
+    //   verificationInput,
+    //   logger,
+    // );
 
     return address;
   }
