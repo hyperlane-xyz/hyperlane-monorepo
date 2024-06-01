@@ -66,14 +66,14 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes calldata,
         bytes memory payload
     ) internal override {
-        uint256 leadNum = arbSys.sendTxToL1(
+        uint256 leafNum = arbSys.sendTxToL1(
             TypeCasts.bytes32ToAddress(ism),
             payload
         );
 
         // TODO: if too expensive, remove this
-        (uint256 size, , ) = arbSys.sendMerkleTreeState();
+        // (uint256 size, , ) = arbSys.sendMerkleTreeState();
 
-        emit ArbSysMerkleTreeUpdated(size, leadNum);
+        emit ArbSysMerkleTreeUpdated(leafNum, leafNum);
     }
 }
