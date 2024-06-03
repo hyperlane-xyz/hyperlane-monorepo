@@ -216,4 +216,18 @@ abstract contract Router is MailboxClient, IMessageRecipient {
                 IPostDispatchHook(_hook)
             );
     }
+
+    // for backward compatibility with v2 contracts
+    function _quoteDispatch(
+        uint32 _destinationDomain,
+        bytes memory _messageBody
+    ) internal view returns (uint256) {
+        return
+            _Router_quoteDispatch(
+                _destinationDomain,
+                _messageBody,
+                "",
+                address(hook)
+            );
+    }
 }
