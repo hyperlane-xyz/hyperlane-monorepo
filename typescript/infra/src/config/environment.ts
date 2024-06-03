@@ -42,6 +42,7 @@ export const envNameToAgentEnv: Record<DeployEnvironment, AgentEnvironment> = {
 export type EnvironmentConfig = {
   environment: DeployEnvironment;
   supportedChainNames: ChainName[];
+  // Get the registry with or without environment-specific secrets.
   getRegistry: (useSecrets?: boolean) => Promise<IRegistry>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
