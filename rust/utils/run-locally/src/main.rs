@@ -147,29 +147,23 @@ fn main() -> ExitCode {
     .unwrap();
 
     let config = Config::load();
-    println!("~~~ Config: {:?}", config.sealevel_enabled);
     let mut validator_origin_chains = ["test1", "test2", "test3"].to_vec();
-    if config.sealevel_enabled {
-        validator_origin_chains.push("sealeveltest1");
-    }
     let mut validator_keys = ETH_VALIDATOR_KEYS.to_vec();
-    if config.sealevel_enabled {
-        let mut sealevel_keys = SEALEVEL_VALIDATOR_KEYS.to_vec();
-        validator_keys.append(&mut sealevel_keys);
-    }
-    assert_eq!(validator_origin_chains.len(), validator_keys.len());
     let mut validator_count: usize = validator_keys.len();
-
     let mut checkpoints_dirs: Vec<DynPath> = (0..validator_count)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
         .collect();
-
     if config.sealevel_enabled {
+        validator_origin_chains.push("sealeveltest1");
+        let mut sealevel_keys = SEALEVEL_VALIDATOR_KEYS.to_vec();
+        validator_keys.append(&mut sealevel_keys);
         let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
         fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
         checkpoints_dirs.push(Box::new(solana_checkpoint_path) as DynPath);
         validator_count += 1;
     }
+    assert_eq!(validator_origin_chains.len(), validator_keys.len());
+
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_dbs = (0..validator_count)
@@ -340,7 +334,7 @@ fn main() -> ExitCode {
         .arg("bin", "scraper")
         .arg("bin", "init-db");
     let build_rust = if config.sealevel_enabled {
-        build_rust.arg("bin", "sealevel-client")
+        build_rust.arg("bin", "hyperlane-sealevel-client")
     } else {
         build_rust
     };
