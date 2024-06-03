@@ -1,7 +1,4 @@
 import { expect } from 'chai';
-import logger from 'pino';
-
-import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent.js';
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';

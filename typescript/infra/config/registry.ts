@@ -43,7 +43,8 @@ export function setRegistry(reg: FileSystemRegistry) {
  * Gets a FileSystemRegistry whose contents are found at the environment
  * variable `REGISTRY_URI`, or `DEFAULT_REGISTRY_URI` if no env var is specified.
  * This registry will not have any environment-specific overrides applied,
- * and is useful for synchronous registry operations.
+ * and is useful for synchronous registry operations that do not require
+ * any overrides.
  * @returns A FileSystemRegistry.
  */
 export function getRegistry(): FileSystemRegistry {
@@ -123,7 +124,6 @@ export function getTestnetAddresses(): ChainMap<ChainAddresses> {
   return getEnvAddresses('testnet4');
 }
 
-// Gets a registry, applying the provided overrides.
 /**
  * Gets a registry, applying the provided overrides. The base registry
  * that the overrides are applied to is the registry returned by `getRegistry`.

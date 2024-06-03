@@ -81,7 +81,9 @@ export function getChainMetadatas(chains: Array<ChainName>) {
  * the ability to get overrides from secrets.
  * @param deployEnv The deploy environment.
  * @param chains The chains to get metadata for.
- * @param defaultChainMetadataOverrides The default chain metadata overrides.
+ * @param defaultChainMetadataOverrides The default chain metadata overrides. If
+ * secret overrides are used, the secret overrides will be merged with these and
+ * take precedence.
  * @param useSecrets Whether to fetch metadata overrides from secrets.
  * @returns A registry with overrides for the given environment.
  */
@@ -112,12 +114,6 @@ export async function getSecretMetadataOverrides(
   deployEnv: DeployEnvironment,
   chains: string[],
 ): Promise<ChainMap<Partial<ChainMetadata>>> {
-  const projectId = 'abacus-labs-dev';
-
-  const client = new SecretManagerServiceClient({
-    projectId,
-  });
-
   const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
 
   const secretRpcUrls = await Promise.all(
@@ -131,6 +127,9 @@ export async function getSecretMetadataOverrides(
   );
 
   for (const { chain, rpcUrls } of secretRpcUrls) {
+    if (rpcUrls.length === 0) {
+      throw Error(`No secret RPC URLs found for chain: ${chain}`);
+    }
     // Need explicit casting here because Zod expects a non-empty array.
     const metadataRpcUrls = rpcUrls.map((rpcUrl: string) => ({
       http: rpcUrl,

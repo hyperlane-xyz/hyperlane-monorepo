@@ -43,7 +43,6 @@ export type EnvironmentConfig = {
   environment: DeployEnvironment;
   supportedChainNames: ChainName[];
   getRegistry: (useSecrets?: boolean) => Promise<IRegistry>;
-  // chainMetadataConfigs: ChainMap<ChainMetadata>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;

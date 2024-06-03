@@ -29,7 +29,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-// import { testnetConfigs } from '../../config/environments/testnet4/chains.js';
 import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
@@ -167,7 +166,6 @@ async function main(): Promise<boolean> {
   logger.debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
-  // const coreConfig = await getCoreConfigStub(environment);
 
   const { app, core, igp, multiProvider, keys } =
     await getHelloWorldMultiProtocolApp(
