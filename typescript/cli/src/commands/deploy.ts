@@ -5,7 +5,7 @@ import {
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
-import { runCoreDeploy, runCoreDeployLegacy } from '../deploy/core.js';
+import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
@@ -15,11 +15,8 @@ import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
   chainCommandOption,
-  coreTargetsCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
-  hookCommandOption,
-  ismCommandOption,
   originCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
@@ -32,7 +29,6 @@ export const deployCommand: CommandModule = {
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
-      .command(coreCommandLegacy)
       .command(warpCommand)
       .command(agentCommand)
       .version(false)
@@ -64,50 +60,6 @@ const agentCommand: CommandModuleWithContext<{
       relayChains: targets,
       agentConfigurationPath: config,
     });
-    process.exit(0);
-  },
-};
-
-/**
- * Core command (Legacy)
- */
-const coreCommandLegacy: CommandModuleWithWriteContext<{
-  targets: string;
-  ism?: string;
-  hook?: string;
-  'dry-run': string;
-  'from-address': string;
-  agent: string;
-}> = {
-  command: 'core',
-  describe: 'Deploy core Hyperlane contracts',
-  builder: {
-    targets: coreTargetsCommandOption,
-    ism: ismCommandOption,
-    hook: hookCommandOption,
-    agent: agentConfigCommandOption(false, './configs/agent.json'),
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
-  },
-  handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
-    logGray(
-      `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
-    );
-    logGray(`------------------------------------------------`);
-
-    try {
-      const chains = targets?.split(',').map((r: string) => r.trim());
-      await runCoreDeployLegacy({
-        context,
-        chains,
-        ismConfigPath: ism,
-        hookConfigPath: hook,
-        agentOutPath: agent,
-      });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
     process.exit(0);
   },
 };
