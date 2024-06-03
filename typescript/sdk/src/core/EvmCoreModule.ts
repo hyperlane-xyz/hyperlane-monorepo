@@ -26,18 +26,17 @@ import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
 
-type DeployedAdresses = HyperlaneAddresses<CoreFactories> & {
+export type DeployedCoreAdresses = HyperlaneAddresses<CoreFactories> & {
   testRecipient: Address;
   timelockController?: Address; // Can be optional because it is only deployed if config.upgrade = true
   interchainAccountRouter: Address;
   interchainAccountIsm: Address;
-  ismFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
-};
+} & HyperlaneAddresses<ProxyFactoryFactories>;
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   CoreConfig,
-  DeployedAdresses
+  DeployedCoreAdresses
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
@@ -45,7 +44,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<CoreConfig, DeployedAdresses>,
+    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAdresses>,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
@@ -99,7 +98,7 @@ export class EvmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-  }): Promise<DeployedAdresses> {
+  }): Promise<DeployedCoreAdresses> {
     const { config, multiProvider, chain } = params;
     const chainName = multiProvider.getChainName(chain);
 
@@ -171,7 +170,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
     // Set Core & extra addresses
     return {
-      ismFactoryFactories,
+      ...ismFactoryFactories,
       proxyAdmin,
       mailbox: mailbox.address,
       interchainAccountRouter,

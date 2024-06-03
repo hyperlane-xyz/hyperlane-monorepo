@@ -9,15 +9,14 @@ import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
+import { readYamlOrJson } from '../utils/files.js';
 
 import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
-  coreTargetsCommandOption,
+  chainCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
-  hookCommandOption,
-  ismCommandOption,
   originCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
@@ -30,7 +29,6 @@ export const deployCommand: CommandModule = {
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
     yargs
-      .command(coreCommand)
       .command(warpCommand)
       .command(agentCommand)
       .version(false)
@@ -67,40 +65,39 @@ const agentCommand: CommandModuleWithContext<{
 };
 
 /**
- * Core command
+ * Generates a command module for deploying Hyperlane contracts, given a command
+ *
+ * @param commandName - the deploy command key used to look up the deployFunction
+ * @returns A command module used to deploy Hyperlane contracts.
  */
-const coreCommand: CommandModuleWithWriteContext<{
-  targets: string;
-  ism?: string;
-  hook?: string;
-  'dry-run': string;
-  'from-address': string;
-  agent: string;
+export const deployCore: CommandModuleWithWriteContext<{
+  chain: string;
+  config: string;
+  dryRun: string;
+  fromAddress: string;
 }> = {
-  command: 'core',
-  describe: 'Deploy core Hyperlane contracts',
+  command: 'deploy',
+  describe: 'Deploy Hyperlane contracts',
   builder: {
-    targets: coreTargetsCommandOption,
-    ism: ismCommandOption,
-    hook: hookCommandOption,
-    agent: agentConfigCommandOption(false, './configs/agent.json'),
+    chain: chainCommandOption,
+    config: {
+      type: 'string',
+      description:
+        'The path to a JSON or YAML file with a core deployment config.',
+      demandOption: true,
+    },
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
   },
-  handler: async ({ context, targets, ism, hook, agent, dryRun }) => {
-    logGray(
-      `Hyperlane permissionless core deployment${dryRun ? ' dry-run' : ''}`,
-    );
+  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
+    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
 
     try {
-      const chains = targets?.split(',').map((r: string) => r.trim());
       await runCoreDeploy({
         context,
-        chains,
-        ismConfigPath: ism,
-        hookConfigPath: hook,
-        agentOutPath: agent,
+        chain,
+        config: readYamlOrJson(configFilePath),
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);

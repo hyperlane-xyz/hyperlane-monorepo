@@ -19,6 +19,7 @@ import { testCoreConfig } from '../test/testUtils.js';
 import { EvmCoreModule } from './EvmCoreModule.js';
 
 describe('EvmCoreModule', async () => {
+  const CHAIN = TestChainName.test1;
   const DELAY = 1892391283182;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
@@ -33,7 +34,7 @@ describe('EvmCoreModule', async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const config = {
-      ...testCoreConfig([TestChainName.test1])[TestChainName.test1],
+      ...testCoreConfig([CHAIN])[CHAIN],
       upgrade: {
         timelock: {
           delay: DELAY,
@@ -46,7 +47,7 @@ describe('EvmCoreModule', async () => {
     };
 
     evmCoreModule = await EvmCoreModule.create({
-      chain: TestChainName.test1,
+      chain: CHAIN,
       config,
       multiProvider,
     });
@@ -61,27 +62,27 @@ describe('EvmCoreModule', async () => {
 
     proxyAdminContract = ProxyAdmin__factory.connect(
       proxyAdmin!,
-      multiProvider.getProvider(TestChainName.test1),
+      multiProvider.getProvider(CHAIN),
     );
 
     mailboxContract = Mailbox__factory.connect(
       mailbox!,
-      multiProvider.getProvider(TestChainName.test1),
+      multiProvider.getProvider(CHAIN),
     );
 
     validatorAnnounceContract = ValidatorAnnounce__factory.connect(
       validatorAnnounce!,
-      multiProvider.getProvider(TestChainName.test1),
+      multiProvider.getProvider(CHAIN),
     );
 
     testRecipientContract = TestRecipient__factory.connect(
       testRecipient!,
-      multiProvider.getProvider(TestChainName.test1),
+      multiProvider.getProvider(CHAIN),
     );
 
     timelockControllerContract = TimelockController__factory.connect(
       timelockController!,
-      multiProvider.getProvider(TestChainName.test1),
+      multiProvider.getProvider(CHAIN),
     );
   });
 
@@ -95,13 +96,12 @@ describe('EvmCoreModule', async () => {
 
     it('should deploy ISM factories', () => {
       // Each ISM factory
-      objMap(
-        evmCoreModule.serialize().ismFactoryFactories,
-        (_: any, factoryAddress: any) => {
-          expect(factoryAddress).to.exist;
-          expect(factoryAddress).to.not.equal(constants.AddressZero);
-        },
-      );
+      const deployedContracts = evmCoreModule.serialize();
+
+      objMap(deployedContracts as any, (_, address) => {
+        expect(address).to.exist;
+        expect(address).to.not.equal(constants.AddressZero);
+      });
     });
 
     it('should deploy proxyAdmin', () => {
@@ -112,8 +112,14 @@ describe('EvmCoreModule', async () => {
       expect(await proxyAdminContract.owner()).to.equal(signer.address);
     });
 
-    it('should deploy mailbox', () => {
-      expect(evmCoreModule.serialize().mailbox).to.exist;
+    it('should deploy mailbox', async () => {
+      const mailboxAddress = evmCoreModule.serialize().mailbox;
+      expect(mailboxAddress).to.exist;
+
+      // Check that it's actually a mailbox by calling one of it's methods
+      expect(await mailboxContract.localDomain()).to.equal(
+        multiProvider.getChainId(CHAIN),
+      );
     });
 
     it('should set mailbox owner to proxyAdmin', async () => {

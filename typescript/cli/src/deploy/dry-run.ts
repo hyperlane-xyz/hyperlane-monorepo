@@ -25,6 +25,7 @@ export async function forkNetworkToMultiProvider(
   });
 
   await setFork(multiProvider, chain);
+  return multiProvider;
 }
 
 /**

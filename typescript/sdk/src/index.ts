@@ -473,3 +473,5 @@ export { S3Config, S3Wrapper, S3Receipt } from './aws/s3.js';
 // prettier-ignore
 // @ts-ignore
 export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
+
+export { EvmCoreModule, DeployedCoreAdresses } from './core/EvmCoreModule.js';

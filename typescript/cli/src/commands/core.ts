@@ -7,6 +7,7 @@ import { readHookConfig } from '../hook/read.js';
 import { readIsmConfig } from '../ism/read.js';
 import { log, logGray, warnYellow } from '../logger.js';
 
+import { deployCore } from './deploy.js';
 import {
   addressCommandOption,
   chainCommandOption,
@@ -20,7 +21,12 @@ export const coreCommand: CommandModule = {
   command: 'core',
   describe: 'Manage core Hyperlane contracts & configs',
   builder: (yargs) =>
-    yargs.command(config).command(read).version(false).demandCommand(),
+    yargs
+      .command(deployCore)
+      .command(config)
+      .command(read)
+      .version(false)
+      .demandCommand(),
   handler: () => log('Command required'),
 };
 
