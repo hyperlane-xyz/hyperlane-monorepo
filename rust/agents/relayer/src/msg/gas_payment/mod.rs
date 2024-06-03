@@ -19,6 +19,8 @@ use crate::{
 
 mod policies;
 
+pub const GAS_EXPENDITURE_LOG_MESSAGE: &str = "Recording gas expenditure for message";
+
 #[async_trait]
 pub trait GasPaymentPolicy: Debug + Send + Sync {
     /// Returns Some(gas_limit) if the policy has approved the transaction or
@@ -135,7 +137,7 @@ impl GasPaymentEnforcer {
         debug!(
             msg=%message,
             ?outcome,
-            "Recording gas expenditure for message"
+            GAS_EXPENDITURE_LOG_MESSAGE,
         );
         self.db.process_gas_expenditure(InterchainGasExpenditure {
             message_id: message.id(),

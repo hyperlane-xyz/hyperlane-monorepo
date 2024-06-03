@@ -242,10 +242,10 @@ impl HyperlaneRocksDB {
         &self,
         event: InterchainGasExpenditure,
     ) -> DbResult<()> {
-        let existing_payment = self.retrieve_gas_expenditure_by_message_id(event.message_id)?;
-        let total = existing_payment + event;
+        let existing_expenditure = self.retrieve_gas_expenditure_by_message_id(event.message_id)?;
+        let total = existing_expenditure + event;
 
-        debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
+        debug!(?event, new_total_gas_expenditure=?total, "Storing gas expenditure");
         self.store_interchain_gas_expenditure_data_by_message_id(
             &total.message_id,
             &InterchainGasExpenditureData {

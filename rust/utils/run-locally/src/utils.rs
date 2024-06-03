@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::sync::{Arc, Mutex};
@@ -115,4 +116,30 @@ pub fn stop_child(child: &mut Child) {
             log!("{}", e);
         }
     };
+}
+
+pub fn get_matching_lines(file: &File, search_string: &str) -> io::Result<Vec<String>> {
+    let reader = io::BufReader::new(file);
+
+    // Read lines and collect those that contain the search string
+    let matching_lines: Vec<String> = reader
+        .lines()
+        .filter_map(Result::ok)
+        .filter(|line| line.contains(search_string))
+        .collect();
+
+    Ok(matching_lines)
+}
+
+#[cfg(test)]
+mod test {
+
+    #[test]
+    fn gets_matching_lines() {
+        let file = std::fs::File::open("/tmp/test_logs/RLY-output.log").unwrap();
+        let lines = super::get_matching_lines(&file, "Gas used by message submission").unwrap();
+        println!("Lines found: {:?}", lines);
+        // assert_eq!(lines.len(), 1);
+        // assert_eq!(lines[0], "name = \"run-locally\"");
+    }
 }

@@ -331,15 +331,6 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
-            if let Some(outcome) = &self.submission_outcome {
-                if let Err(e) = self
-                    .ctx
-                    .origin_gas_payment_enforcer
-                    .record_tx_outcome(&self.message, outcome.clone())
-                {
-                    error!(error=?e, "Error when recording tx outcome");
-                }
-            }
             warn!(
                 tx_outcome=?self.submission_outcome,
                 message_id=?self.message.id(),
@@ -354,7 +345,7 @@ impl PendingOperation for PendingMessage {
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
     ) {
-        let Some(operation_estimate) = self.get_tx_cost_estimate() else {
+        let Some(operation_estimate) = self.get_tx_cost_estimate().cloned() else {
             warn!("Cannot set operation outcome without a cost estimate set previously");
             return;
         };
@@ -377,13 +368,14 @@ impl PendingOperation for PendingMessage {
                 });
                 debug!(
                     actual_gas_for_message = ?gas_used_by_operation,
+                    message_gas_estimate = ?operation_estimate.gas_limit,
                     submission_gas_estimate = ?submission_estimated_cost,
                     message = ?self.message,
                     "Gas used by message submission"
                 );
             }
             Err(e) => {
-                error!(error = %e, "Error when calculating gas used by operation");
+                warn!(error = %e, "Error when calculating gas used by operation. Are gas estimates enabled for this chain?");
             }
         }
     }

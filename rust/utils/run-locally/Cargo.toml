@@ -34,6 +34,7 @@ ureq = { workspace = true, default-features = false }
 which.workspace = true
 macro_rules_attribute.workspace = true
 regex.workspace = true
+relayer = { path = "../../agents/relayer"}
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
 

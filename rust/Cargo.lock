@@ -7277,6 +7277,7 @@ dependencies = [
  "nix 0.26.4",
  "once_cell",
  "regex",
+ "relayer",
  "ripemd",
  "serde",
  "serde_json",

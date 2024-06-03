@@ -1,14 +1,17 @@
 // use std::path::Path;
 
+use std::fs::File;
 use std::path::Path;
 
 use crate::config::Config;
 use crate::metrics::agent_balance_sum;
+use crate::utils::get_matching_lines;
 use maplit::hashmap;
+use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
-use crate::{fetch_metric, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
+use crate::{fetch_metric, AGENT_LOGGING_DIR, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
 
 // This number should be even, so the messages can be split into two equal halves
 // sent before and after the relayer spins up, to avoid rounding errors.
@@ -24,6 +27,21 @@ pub fn termination_invariants_met(
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
     let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
+
+    let log_file_name = format!("RLY-output.log");
+    let log_file_path = AGENT_LOGGING_DIR.join(log_file_name);
+    let relayer_logfile = File::open(log_file_path)?;
+    let file = relayer_logfile;
+
+    let gas_expenditure_log_count = get_matching_lines(&file, GAS_EXPENDITURE_LOG_MESSAGE)
+        .unwrap()
+        .len();
+    // Zero insertion
+    // assert_eq!(
+    //     gas_expenditure_log_count,
+    //     SOL_MESSAGES_EXPECTED + config.kathy_messages + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+    //     ""
+    // );
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");

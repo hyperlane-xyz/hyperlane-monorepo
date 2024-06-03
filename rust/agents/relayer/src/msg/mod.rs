@@ -31,3 +31,5 @@ pub(crate) mod op_queue;
 pub(crate) mod op_submitter;
 pub(crate) mod pending_message;
 pub(crate) mod processor;
+
+pub use gas_payment::GAS_EXPENDITURE_LOG_MESSAGE;
