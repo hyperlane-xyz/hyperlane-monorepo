@@ -422,6 +422,7 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
+export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
 export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
