@@ -1,6 +1,7 @@
 import { CommandModule } from 'yargs';
 
 import {
+  EvmCoreReader,
   HookConfigSchema,
   IsmConfig,
   IsmConfigSchema,
@@ -9,24 +10,17 @@ import {
 import { createHookConfig } from '../config/hooks.js';
 import { createIsmConfig, createTrustedRelayerConfig } from '../config/ism.js';
 import { CommandModuleWithContext } from '../context/types.js';
-import { readHookConfig } from '../hook/read.js';
-import { readIsmConfig } from '../ism/read.js';
 import {
   log,
   logBlue,
   logBoldUnderlinedRed,
   logGray,
   logRed,
-  warnYellow,
 } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 import { deploy } from './deploy.js';
-import {
-  addressCommandOption,
-  chainCommandOption,
-  outputFileCommandOption,
-} from './options.js';
+import { chainCommandOption, outputFileCommandOption } from './options.js';
 
 /**
  * Parent command
@@ -59,10 +53,10 @@ export const config: CommandModuleWithContext<{
     config: outputFileCommandOption(
       './configs/core-config.yaml',
       false,
-      'The path to a JSON or YAML file with a core deployment config.',
+      'The path to output a Core Config JSON or YAML file.',
     ),
   },
-  handler: async ({ context, ismAdvanced, config }) => {
+  handler: async ({ context, ismAdvanced, config: configFilePath }) => {
     logGray('Hyperlane Core Configure');
     logGray('------------------------');
 
@@ -94,7 +88,7 @@ export const config: CommandModuleWithContext<{
     HookConfigSchema.parse(requiredHook);
     HookConfigSchema.parse(defaultHook);
 
-    writeYamlOrJson(config, { defaultIsm, defaultHook, requiredHook });
+    writeYamlOrJson(configFilePath, { defaultIsm, defaultHook, requiredHook });
 
     process.exit(0);
   },
@@ -102,10 +96,8 @@ export const config: CommandModuleWithContext<{
 
 export const read: CommandModuleWithContext<{
   chain: string;
-  ismAddress: string;
-  hookAddress: string;
-  ismOut: string;
-  hookOut: string;
+  mailbox: string;
+  config: string;
 }> = {
   command: 'read',
   describe: 'Reads onchain ISM & Hook configurations for given addresses',
@@ -114,44 +106,26 @@ export const read: CommandModuleWithContext<{
       ...chainCommandOption,
       demandOption: true,
     },
-    ismAddress: addressCommandOption(
-      'Address of the Interchain Security Module to read.',
+    mailbox: {
+      type: 'string',
+      description: 'Mailbox address used to derive the core config',
+      demandOption: true,
+    },
+    config: outputFileCommandOption(
+      './configs/core-config.yaml',
       false,
+      'The path to output a Core Config JSON or YAML file.',
     ),
-    hookAddress: addressCommandOption('Address of the Hook to read.', false),
-    ismOut: outputFileCommandOption(),
-    hookOut: outputFileCommandOption(),
   },
-  handler: async ({
-    context,
-    chain,
-    ismAddress,
-    hookAddress,
-    ismOut,
-    hookOut,
-  }) => {
+  handler: async ({ context, chain, mailbox, config: configFilePath }) => {
     logGray('Hyperlane Core Read');
     logGray('-------------------');
 
-    if (ismAddress)
-      await readIsmConfig({
-        context,
-        chain,
-        address: ismAddress,
-        out: ismOut,
-      });
-    if (hookAddress)
-      await readHookConfig({
-        context,
-        chain,
-        address: hookAddress,
-        out: hookOut,
-      });
+    const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
+    const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
 
-    if (!ismAddress && !hookAddress)
-      warnYellow(
-        'Must provide --ism-address, --hook-address, or both to read.',
-      );
+    writeYamlOrJson(configFilePath, coreConfig);
+
     process.exit(0);
   },
 };
