@@ -1,6 +1,10 @@
 import { CommandModule } from 'yargs';
 
-import { HookConfigSchema, IsmConfig } from '@hyperlane-xyz/sdk';
+import {
+  HookConfigSchema,
+  IsmConfig,
+  IsmConfigSchema,
+} from '@hyperlane-xyz/sdk';
 
 import { createHookConfig } from '../config/hooks.js';
 import { createIsmConfig, createTrustedRelayerConfig } from '../config/ism.js';
@@ -86,6 +90,7 @@ export const config: CommandModuleWithContext<{
     );
 
     // Validate
+    IsmConfigSchema.parse(defaultIsm);
     HookConfigSchema.parse(requiredHook);
     HookConfigSchema.parse(defaultHook);
 
