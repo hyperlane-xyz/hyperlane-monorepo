@@ -62,8 +62,9 @@ abstract contract TokenRouter is GasRouter {
                 _recipient,
                 _amountOrId,
                 msg.value,
-                bytes(""),
-                address(0)
+                // inherited from MailboxClient
+                _metadata(_destination),
+                address(hook)
             );
     }
 
@@ -120,22 +121,14 @@ abstract contract TokenRouter is GasRouter {
     ) internal returns (bytes32 messageId) {
         bytes memory metadata = _transferFromSender(_amountOrId);
 
-        if (address(_hook) == address(0)) {
-            messageId = _dispatch(
-                _destination,
-                _gasPayment,
-                TokenMessage.format(_recipient, _amountOrId, metadata)
-            );
-        } else {
-            messageId = _dispatch(
-                _destination,
-                _recipient,
-                _gasPayment,
-                TokenMessage.format(_recipient, _amountOrId, metadata),
-                _hookMetadata,
-                IPostDispatchHook(_hook)
-            );
-        }
+        messageId = _dispatch(
+            _destination,
+            _recipient,
+            _gasPayment,
+            TokenMessage.format(_recipient, _amountOrId, metadata),
+            _hookMetadata,
+            IPostDispatchHook(_hook)
+        );
 
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }
