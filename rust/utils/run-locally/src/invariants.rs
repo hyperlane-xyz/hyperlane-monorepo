@@ -36,12 +36,12 @@ pub fn termination_invariants_met(
     let gas_expenditure_log_count = get_matching_lines(&file, GAS_EXPENDITURE_LOG_MESSAGE)
         .unwrap()
         .len();
-    // Zero insertion
-    // assert_eq!(
-    //     gas_expenditure_log_count,
-    //     SOL_MESSAGES_EXPECTED + config.kathy_messages + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
-    //     ""
-    // );
+
+    // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
+    assert_eq!(
+        gas_expenditure_log_count as u32, total_messages_expected,
+        "Didn't record gas payment for all delivered messages"
+    );
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
