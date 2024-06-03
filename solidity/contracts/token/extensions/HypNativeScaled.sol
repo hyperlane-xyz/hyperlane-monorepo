@@ -25,19 +25,12 @@ contract HypNativeScaled is HypNative {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
+    ) external payable override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
         uint256 gasPayment = msg.value - _amount;
         uint256 scaledAmount = _amount / scale;
         return
-            _transferRemote(
-                _destination,
-                _recipient,
-                scaledAmount,
-                gasPayment,
-                bytes(""),
-                address(0)
-            );
+            _transferRemote(_destination, _recipient, scaledAmount, gasPayment);
     }
 
     /**

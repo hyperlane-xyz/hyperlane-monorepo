@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TokenRouter} from "./libs/TokenRouter.sol";
+import {TokenRouter, MailboxClient} from "./libs/TokenRouter.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
+
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -42,17 +43,13 @@ contract HypNative is TokenRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable virtual override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 gasPayment = msg.value - _amount;
+    ) external payable virtual override returns (bytes32 messageId) {
         return
             _transferRemote(
                 _destination,
                 _recipient,
                 _amount,
-                gasPayment,
-                bytes(""),
-                address(0)
+                address(MailboxClient.hook)
             );
     }
 
@@ -62,10 +59,27 @@ contract HypNative is TokenRouter {
         return _account.balance;
     }
 
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        address _hook
+    ) internal returns (bytes32 messageId) {
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
+        uint256 _hookPayment = msg.value - _amount;
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                _hookPayment,
+                _hook
+            );
+    }
+
     /**
      * @inheritdoc TokenRouter
      * @dev No-op because native amount is transferred in `msg.value`
-     * @dev Compiler will not include this in the bytecode.
      */
     function _transferFromSender(
         uint256

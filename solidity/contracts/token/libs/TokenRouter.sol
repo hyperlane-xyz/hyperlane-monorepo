@@ -57,15 +57,7 @@ abstract contract TokenRouter is GasRouter {
         uint256 _amountOrId
     ) external payable virtual returns (bytes32 messageId) {
         return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amountOrId,
-                msg.value,
-                // inherited from MailboxClient
-                _metadata(_destination),
-                address(hook)
-            );
+            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
     }
 
     /**
@@ -76,7 +68,6 @@ abstract contract TokenRouter is GasRouter {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-     * @param _hookMetadata The metadata passed into the hook
      * @param _hook The post dispatch hook to be called by the Mailbox
      * @return messageId The identifier of the dispatched message.
      */
@@ -84,7 +75,6 @@ abstract contract TokenRouter is GasRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId,
-        bytes calldata _hookMetadata,
         address _hook
     ) external payable virtual returns (bytes32 messageId) {
         return
@@ -93,41 +83,45 @@ abstract contract TokenRouter is GasRouter {
                 _recipient,
                 _amountOrId,
                 msg.value,
-                _hookMetadata,
                 _hook
             );
     }
 
-    /**
-     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
-     * @dev Delegates transfer logic to `_transferFromSender` implementation.
-     * @dev The metadata is the token metadata, and is DIFFERENT than the hook metadata.
-     * @dev Emits `SentTransferRemote` event on the origin chain.
-     * @param _destination The identifier of the destination chain.
-     * @param _recipient The address of the recipient on the destination chain.
-     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
-     * @param _gasPayment The amount of native token to pay for interchain gas.
-     * @param _hookMetadata The metadata passed into the hook
-     * @param _hook The post dispatch hook to be called by the Mailbox
-     * @return messageId The identifier of the dispatched message.
-     */
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId,
-        uint256 _gasPayment,
-        bytes memory _hookMetadata,
+        uint256 _value
+    ) internal returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                _value,
+                address(hook)
+            );
+    }
+
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        uint256 _value,
         address _hook
     ) internal returns (bytes32 messageId) {
-        bytes memory metadata = _transferFromSender(_amountOrId);
-
-        messageId = _dispatch(
-            _destination,
+        bytes memory _tokenMetadata = _transferFromSender(_amountOrId);
+        bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            _gasPayment,
-            TokenMessage.format(_recipient, _amountOrId, metadata),
-            _hookMetadata,
-            IPostDispatchHook(_hook)
+            _amountOrId,
+            _tokenMetadata
+        );
+
+        messageId = _GasRouter_dispatch(
+            _destination,
+            _value,
+            _tokenMessage,
+            _hook
         );
 
         emit SentTransferRemote(_destination, _recipient, _amountOrId);

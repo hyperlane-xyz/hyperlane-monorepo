@@ -167,28 +167,38 @@ abstract contract Router is MailboxClient, IMessageRecipient {
             );
     }
 
-    function _dispatch(
-        uint32 _destinationDomain,
-        bytes memory _messageBody
-    ) internal virtual returns (bytes32) {
-        return _dispatch(_destinationDomain, msg.value, _messageBody);
-    }
-
-    function _dispatch(
+    function _Router_dispatch(
         uint32 _destinationDomain,
         uint256 _value,
-        bytes memory _messageBody
-    ) internal virtual returns (bytes32) {
+        bytes memory _messageBody,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal returns (bytes32) {
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
         return
-            super._dispatch(_destinationDomain, _router, _value, _messageBody);
+            mailbox.dispatch{value: _value}(
+                _destinationDomain,
+                _router,
+                _messageBody,
+                _hookMetadata,
+                IPostDispatchHook(_hook)
+            );
     }
 
-    function _quoteDispatch(
+    function _Router_quoteDispatch(
         uint32 _destinationDomain,
-        bytes memory _messageBody
-    ) internal view virtual returns (uint256) {
+        bytes memory _messageBody,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal view returns (uint256) {
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        return super._quoteDispatch(_destinationDomain, _router, _messageBody);
+        return
+            mailbox.quoteDispatch(
+                _destinationDomain,
+                _router,
+                _messageBody,
+                _hookMetadata,
+                IPostDispatchHook(_hook)
+            );
     }
 }

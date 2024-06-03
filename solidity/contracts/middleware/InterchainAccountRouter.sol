@@ -665,7 +665,7 @@ contract InterchainAccountRouter is Router {
     function quoteGasPayment(
         uint32 _destination
     ) external view returns (uint256 _gasPayment) {
-        return _quoteDispatch(_destination, "");
+        return _Router_quoteDispatch(_destination, "", "", address(hook));
     }
 
     /**
