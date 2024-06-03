@@ -6,7 +6,13 @@ async function main() {
   const { environment } = await getArgs().argv;
   const envConfig = getEnvironmentConfig(environment);
 
-  let multiProvider = await envConfig.getMultiProvider();
+  let multiProvider = await envConfig.getMultiProvider(
+    undefined,
+    undefined,
+    undefined,
+    // Don't use secrets
+    false,
+  );
 
   await writeAgentConfig(multiProvider, environment);
 }

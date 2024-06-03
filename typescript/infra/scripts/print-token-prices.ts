@@ -1,11 +1,17 @@
-import { objMap } from '@hyperlane-xyz/utils';
+import { objMap, pick } from '@hyperlane-xyz/utils';
 
-import { mainnetConfigs } from '../config/environments/mainnet3/chains.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 const CURRENCY = 'usd';
 
 async function main() {
-  const metadata = mainnetConfigs;
+  const environmentConfig = getEnvironmentConfig('mainnet3');
+
+  const registry = await environmentConfig.getRegistry();
+  const metadata = pick(
+    await registry.getMetadata(),
+    environmentConfig.supportedChainNames,
+  );
 
   const ids = objMap(
     metadata,
