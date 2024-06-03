@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
-    fmt::{format, Debug, Display, Formatter},
+    fmt::{Debug, Display, Formatter},
     fs::{File, OpenOptions},
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
@@ -17,7 +17,6 @@ use std::{
 
 use eyre::Context;
 use macro_rules_attribute::apply;
-use tempfile::TempDir;
 
 use crate::{
     logging::log,

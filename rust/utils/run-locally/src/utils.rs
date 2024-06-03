@@ -124,7 +124,7 @@ pub fn get_matching_lines(file: &File, search_string: &str) -> io::Result<Vec<St
     // Read lines and collect those that contain the search string
     let matching_lines: Vec<String> = reader
         .lines()
-        .filter_map(Result::ok)
+        .map_while(Result::ok)
         .filter(|line| line.contains(search_string))
         .collect();
 

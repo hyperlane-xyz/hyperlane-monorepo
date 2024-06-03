@@ -31,8 +31,7 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use tempfile::{tempdir, TempDir};
-use tokio::time::error::Elapsed;
+use tempfile::tempdir;
 
 use crate::{
     config::Config,
@@ -53,9 +52,9 @@ mod program;
 mod solana;
 mod utils;
 
-pub const AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
+pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
-    fs::create_dir_all(&dir).unwrap();
+    fs::create_dir_all(dir).unwrap();
     dir
 });
 
@@ -101,6 +100,7 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 /// cleanup purposes at this time.
 #[derive(Default)]
 struct State {
+    #[allow(clippy::type_complexity)]
     agents: HashMap<String, (Child, Option<Arc<Mutex<File>>>)>,
     watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
     data: Vec<Box<dyn ArbitraryData>>,
@@ -431,7 +431,7 @@ fn main() -> ExitCode {
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
         let validator = validator_env.spawn(
             make_static(format!("VL{}", 1 + i)),
-            Some(&AGENT_LOGGING_DIR),
+            Some(AGENT_LOGGING_DIR.as_ref()),
         );
         state.push_agent(validator);
     }

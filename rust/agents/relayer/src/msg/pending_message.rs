@@ -279,8 +279,7 @@ impl PendingOperation for PendingMessage {
                     self.tx_cost_estimate
                         .as_ref()
                         .map(|e| e.gas_limit)
-                        .unwrap_or(state.gas_limit)
-                        .clone(),
+                        .unwrap_or(state.gas_limit),
                 );
             }
             Err(e) => {
