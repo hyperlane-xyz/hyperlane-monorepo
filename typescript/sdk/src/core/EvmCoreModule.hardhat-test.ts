@@ -10,6 +10,7 @@ import {
   TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -95,32 +96,12 @@ describe('EvmCoreModule', async () => {
 
     it('should deploy ISM factories', () => {
       // Each ISM factory
-      expect(evmCoreModule.serialize().staticMerkleRootMultisigIsmFactory).to
-        .exist;
-      expect(
-        evmCoreModule.serialize().staticMerkleRootMultisigIsmFactory,
-      ).to.not.equal(constants.AddressZero);
+      const deployedContracts = evmCoreModule.serialize();
 
-      expect(evmCoreModule.serialize().staticMessageIdMultisigIsmFactory).to
-        .exist;
-      expect(
-        evmCoreModule.serialize().staticMessageIdMultisigIsmFactory,
-      ).to.not.equal(constants.AddressZero);
-
-      expect(evmCoreModule.serialize().staticAggregationIsmFactory).to.exist;
-      expect(
-        evmCoreModule.serialize().staticAggregationIsmFactory,
-      ).to.not.equal(constants.AddressZero);
-
-      expect(evmCoreModule.serialize().staticAggregationHookFactory).to.exist;
-      expect(
-        evmCoreModule.serialize().staticAggregationHookFactory,
-      ).to.not.equal(constants.AddressZero);
-
-      expect(evmCoreModule.serialize().domainRoutingIsmFactory).to.exist;
-      expect(evmCoreModule.serialize().domainRoutingIsmFactory).to.not.equal(
-        constants.AddressZero,
-      );
+      objMap(deployedContracts as any, (_, address) => {
+        expect(address).to.exist;
+        expect(address).to.not.equal(constants.AddressZero);
+      });
     });
 
     it('should deploy proxyAdmin', () => {
