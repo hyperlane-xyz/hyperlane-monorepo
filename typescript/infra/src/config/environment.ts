@@ -55,6 +55,7 @@ export type EnvironmentConfig = {
     context?: Contexts,
     role?: Role,
     connectionType?: RpcConsensusType,
+    useSecrets?: boolean,
   ) => Promise<MultiProvider>;
   getKeys: (
     context?: Contexts,

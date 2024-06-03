@@ -15,6 +15,7 @@ import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
+import { inCIMode } from '../utils/utils.js';
 
 import { DeployEnvironment } from './environment.js';
 
@@ -94,7 +95,7 @@ export async function getRegistryForEnvironment(
   useSecrets: boolean = true,
 ): Promise<IRegistry> {
   let overrides = defaultChainMetadataOverrides;
-  if (useSecrets) {
+  if (useSecrets && !inCIMode()) {
     overrides = objMerge(
       overrides,
       await getSecretMetadataOverrides(deployEnv, chains),

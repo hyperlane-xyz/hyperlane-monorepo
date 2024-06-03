@@ -42,11 +42,12 @@ export const environment: EnvironmentConfig = {
   getMultiProvider: async (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-    connectionType?: RpcConsensusType,
+    _connectionType?: RpcConsensusType,
+    useSecrets?: boolean,
   ) =>
     getMultiProviderForRole(
       environmentName,
-      await getRegistry(),
+      await getRegistry(useSecrets),
       context,
       role,
       undefined,

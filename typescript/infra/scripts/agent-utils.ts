@@ -52,6 +52,7 @@ import {
   assertContext,
   assertRole,
   getInfraPath,
+  inCIMode,
   readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
@@ -314,9 +315,8 @@ export async function getMultiProviderForRole(
   const chainMetadata = await registry.getMetadata();
   debugLog(`Getting multiprovider for ${role} role`);
   const multiProvider = new MultiProvider(chainMetadata);
-  if (process.env.CI === 'true') {
-    debugLog('Returning multiprovider with default RPCs in CI');
-    // Return the multiProvider with default RPCs
+  if (inCIMode()) {
+    debugLog('Running in CI, returning multiprovider without secret keys');
     return multiProvider;
   }
   await promiseObjAll(
@@ -341,7 +341,7 @@ export async function getKeysForRole(
   role: Role,
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
-  if (process.env.CI === 'true') {
+  if (inCIMode()) {
     debugLog('No keys to return in CI');
     return {};
   }
