@@ -20,6 +20,7 @@ import {
   ProtocolType,
   ensure0x,
   objMap,
+  pick,
   retryAsync,
   rootLogger,
   sleep,
@@ -28,7 +29,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { testnetConfigs } from '../../config/environments/testnet4/chains.js';
 import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
@@ -166,7 +166,6 @@ async function main(): Promise<boolean> {
   logger.debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
-  // const coreConfig = getCoreConfigStub(environment);
 
   const { app, core, igp, multiProvider, keys } =
     await getHelloWorldMultiProtocolApp(
@@ -550,7 +549,14 @@ async function updateWalletBalanceMetricFor(
 }
 
 // Get a core config intended for testing Kathy without secret access
-export function getCoreConfigStub(environment: DeployEnvironment) {
+export async function getCoreConfigStub(environment: DeployEnvironment) {
+  const environmentConfig = getEnvironmentConfig(environment);
+  // Don't fetch any secrets.
+  const registry = await environmentConfig.getRegistry(false);
+  const testnetConfigs = pick(
+    await registry.getMetadata(),
+    environmentConfig.supportedChainNames,
+  );
   const multiProvider = new MultiProvider({
     // Desired chains here. Key must have funds on these chains
     ...testnetConfigs,

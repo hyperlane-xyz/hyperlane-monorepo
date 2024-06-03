@@ -1,3 +1,4 @@
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   BridgeAdapterConfig,
   ChainMap,
@@ -5,6 +6,7 @@ import {
   ChainName,
   CoreConfig,
   IgpConfig,
+  MultiProtocolProvider,
   MultiProvider,
   OwnableConfig,
   RpcConsensusType,
@@ -39,17 +41,21 @@ export const envNameToAgentEnv: Record<DeployEnvironment, AgentEnvironment> = {
 
 export type EnvironmentConfig = {
   environment: DeployEnvironment;
-  chainMetadataConfigs: ChainMap<ChainMetadata>;
+  supportedChainNames: ChainName[];
+  // Get the registry with or without environment-specific secrets.
+  getRegistry: (useSecrets?: boolean) => Promise<IRegistry>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
   igp: ChainMap<IgpConfig>;
   owners: ChainMap<OwnableConfig>;
   infra: InfrastructureConfig;
+  getMultiProtocolProvider: () => Promise<MultiProtocolProvider>;
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
     connectionType?: RpcConsensusType,
+    useSecrets?: boolean,
   ) => Promise<MultiProvider>;
   getKeys: (
     context?: Contexts,

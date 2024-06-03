@@ -12,6 +12,7 @@ import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
+import {ECDSAServiceManagerBase} from "../../contracts/avs/ECDSAServiceManagerBase.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
 
 import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
@@ -42,6 +43,11 @@ contract DeployAVS is Script {
         );
         string memory json = vm.readFile(path);
 
+        proxyAdmin = ProxyAdmin(
+            json.readAddress(
+                string(abi.encodePacked(".", targetEnv, ".proxyAdmin"))
+            )
+        );
         avsDirectory = IAVSDirectory(
             json.readAddress(
                 string(abi.encodePacked(".", targetEnv, ".avsDirectory"))
@@ -88,14 +94,13 @@ contract DeployAVS is Script {
         }
     }
 
-    function run(string memory network) external {
+    function run(string memory network, string memory metadataUri) external {
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployerAddress = vm.addr(deployerPrivateKey);
 
         _loadEigenlayerAddresses(network);
 
         vm.startBroadcast(deployerPrivateKey);
-
-        proxyAdmin = new ProxyAdmin();
 
         ECDSAStakeRegistry stakeRegistryImpl = new ECDSAStakeRegistry(
             delegationManager
@@ -118,7 +123,7 @@ contract DeployAVS is Script {
             address(proxyAdmin),
             abi.encodeWithSelector(
                 HyperlaneServiceManager.initialize.selector,
-                msg.sender
+                address(deployerAddress)
             )
         );
 
@@ -131,7 +136,24 @@ contract DeployAVS is Script {
                 quorum
             )
         );
+
+        HyperlaneServiceManager hsm = HyperlaneServiceManager(
+            address(hsmProxy)
+        );
+
         require(success, "Failed to initialize ECDSAStakeRegistry");
+        require(
+            ECDSAStakeRegistry(address(stakeRegistryProxy)).owner() ==
+                address(deployerAddress),
+            "Owner of ECDSAStakeRegistry is not the deployer"
+        );
+        require(
+            HyperlaneServiceManager(address(hsmProxy)).owner() ==
+                address(deployerAddress),
+            "Owner of HyperlaneServiceManager is not the deployer"
+        );
+
+        hsm.updateAVSMetadataURI(metadataUri);
 
         console.log(
             "ECDSAStakeRegistry Implementation: ",
