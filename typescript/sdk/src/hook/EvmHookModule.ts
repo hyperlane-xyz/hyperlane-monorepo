@@ -9,8 +9,10 @@ import {
   InterchainGasPaymaster,
   OPStackHook,
   OPStackIsm__factory,
+  Ownable__factory,
   PausableHook,
   ProtocolFee,
+  ProtocolFee__factory,
   StaticAggregationHook,
   StaticAggregationHookFactory__factory,
   StaticAggregationHook__factory,
@@ -21,6 +23,8 @@ import {
   ProtocolType,
   addressToBytes32,
   configDeepEquals,
+  eqAddress,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -50,6 +54,7 @@ import {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  IMMUTABLE_HOOK_TYPE,
   IgpHookConfig,
   OpStackHookConfig,
   PausableHookConfig,
@@ -113,8 +118,98 @@ export class EvmHookModule extends HyperlaneModule<
       : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
-  public async update(_config: HookConfig): Promise<AnnotatedEV5Transaction[]> {
-    throw new Error('Method not implemented.');
+  public async update(
+    targetConfig: HookConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    // save current config for comparison
+    // normalize the config to ensure it's in a consistent format for comparison
+    const currentConfig = normalizeConfig(await this.read());
+
+    // Update the config
+    this.args.config = targetConfig;
+
+    // If configs match, no updates needed
+    if (configDeepEquals(currentConfig, targetConfig)) {
+      return [];
+    }
+
+    // Else, we have to figure out what an update for this Hook entails
+
+    // If target config is an address Hook, just update the address
+    // if config -> address Hook, update address
+    // if address Hook -> address Hook, update address
+    if (typeof targetConfig === 'string') {
+      // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
+      this.args.addresses.deployedHook = targetConfig;
+      return [];
+    }
+
+    // Check if we need to deploy a new Hook
+    if (
+      // if address Hook -> config, do a new deploy
+      typeof currentConfig === 'string' ||
+      // if config -> config, AND types are different, do a new deploy
+      currentConfig.type !== targetConfig.type ||
+      // if it is an immutable Hook, do a new deploy
+      IMMUTABLE_HOOK_TYPE.includes(targetConfig.type)
+    ) {
+      const contract = await this.deploy({
+        config: targetConfig,
+      });
+
+      this.args.addresses.deployedHook = contract.address;
+      return [];
+    }
+
+    let updateTxs: AnnotatedEV5Transaction[];
+
+    switch (targetConfig.type) {
+      case HookType.INTERCHAIN_GAS_PAYMASTER:
+        // TODO: IGP
+        updateTxs = [];
+        break;
+      case HookType.PROTOCOL_FEE:
+        updateTxs = await this.updateProtocolFeeHook({
+          currentConfig,
+          targetConfig,
+        });
+        break;
+      case HookType.PAUSABLE:
+        // PausableHooks are simple, only need to check ownership
+        updateTxs = [];
+        break;
+      case HookType.ROUTING:
+      case HookType.FALLBACK_ROUTING:
+        updateTxs = await this.updateRoutingHook({
+          currentConfig,
+          targetConfig,
+        });
+        break;
+      default:
+        // MERKLE_TREE, AGGREGATION and OP_STACK hooks should already be handled before the switch
+        throw new Error(`Unsupported hook type: ${targetConfig.type}`);
+    }
+
+    // Lastly, check if the resolved owner is different from the current owner
+    const owner = await Ownable__factory.connect(
+      this.args.addresses.deployedHook,
+      this.multiProvider.getProvider(this.chain),
+    ).owner();
+
+    // Return an ownership transfer transaction if required
+    if (!eqAddress(targetConfig.owner, owner)) {
+      updateTxs.push({
+        annotation: 'Transferring ownership of ownable ISM...',
+        chainId: this.domainId,
+        to: this.args.addresses.deployedHook,
+        data: Ownable__factory.createInterface().encodeFunctionData(
+          'transferOwnership(address)',
+          [targetConfig.owner],
+        ),
+      });
+    }
+
+    return updateTxs;
   }
 
   // manually write static create function
@@ -184,29 +279,76 @@ export class EvmHookModule extends HyperlaneModule<
     return routingHookUpdates;
   }
 
+  protected async updateProtocolFeeHook({
+    currentConfig,
+    targetConfig,
+  }: {
+    currentConfig: ProtocolFeeHookConfig;
+    targetConfig: ProtocolFeeHookConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs = [];
+    const protocolFeeInterface = ProtocolFee__factory.createInterface();
+
+    // if maxProtocolFee has changed, deploy a new hook
+    if (currentConfig.maxProtocolFee !== targetConfig.maxProtocolFee) {
+      const hook = await this.deployProtocolFeeHook({ config: targetConfig });
+      this.args.addresses.deployedHook = hook.address;
+      return [];
+    }
+
+    // Update protocol fee if changed
+    if (currentConfig.protocolFee !== targetConfig.protocolFee) {
+      updateTxs.push({
+        annotation: `Updating protocol fee from ${currentConfig.protocolFee} to ${targetConfig.protocolFee}`,
+        chainId: this.domainId,
+        to: this.args.addresses.deployedHook,
+        data: protocolFeeInterface.encodeFunctionData(
+          'setProtocolFee(uint256)',
+          [targetConfig.protocolFee],
+        ),
+      });
+    }
+
+    // Update beneficiary if changed
+    if (currentConfig.beneficiary !== targetConfig.beneficiary) {
+      updateTxs.push({
+        annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
+        chainId: this.domainId,
+        to: this.args.addresses.deployedHook,
+        data: protocolFeeInterface.encodeFunctionData(
+          'setBeneficiary(address)',
+          [targetConfig.beneficiary],
+        ),
+      });
+    }
+
+    // Return the transactions to update the protocol fee hook
+    return updateTxs;
+  }
+
   // Updates a routing hook
   protected async updateRoutingHook({
-    current,
-    target,
+    currentConfig,
+    targetConfig,
   }: {
-    current: DomainRoutingHookConfig | FallbackRoutingHookConfig;
-    target: DomainRoutingHookConfig | FallbackRoutingHookConfig;
+    currentConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
+    targetConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
   }): Promise<AnnotatedEV5Transaction[]> {
     // Deploy a new fallback hook if the fallback config has changed
     if (
-      target.type === HookType.FALLBACK_ROUTING &&
+      targetConfig.type === HookType.FALLBACK_ROUTING &&
       !configDeepEquals(
-        target.fallback,
-        (current as FallbackRoutingHookConfig).fallback,
+        targetConfig.fallback,
+        (currentConfig as FallbackRoutingHookConfig).fallback,
       )
     ) {
-      const hook = await this.deploy({ config: target });
+      const hook = await this.deploy({ config: targetConfig });
       this.args.addresses.deployedHook = hook.address;
     }
 
     const routingUpdates = await this.computeRoutingHooksToSet({
-      currentDomains: current.domains,
-      targetDomains: target.domains,
+      currentDomains: currentConfig.domains,
+      targetDomains: targetConfig.domains,
     });
 
     // Return if no updates are required
@@ -221,7 +363,7 @@ export class EvmHookModule extends HyperlaneModule<
         chainId: this.domainId,
         to: this.args.addresses.deployedHook,
         data: DomainRoutingHook__factory.createInterface().encodeFunctionData(
-          'setHooks',
+          'setHooks((uint32,address)[])',
           [routingUpdates],
         ),
       },
