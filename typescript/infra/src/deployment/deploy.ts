@@ -29,7 +29,6 @@ import { DeployEnvironment, envNameToAgentEnv } from '../config/environment.js';
 import { getCosmosChainGasPrice } from '../config/gas-oracle.js';
 import {
   chainIsProtocol,
-  isEthereumProtocolChain,
   readJSONAtPath,
   writeJsonAtPath,
   writeMergedJSONAtPath,
@@ -123,18 +122,15 @@ export async function writeAgentConfig(
   environment: DeployEnvironment,
 ) {
   const addresses = getAddresses(environment, Modules.CORE);
-  const ethereumAddressesForEnv = objFilter(
+  const addressesForEnv = objFilter(
     addresses,
     (chain, _): _ is ChainAddresses => multiProvider.hasChain(chain),
   );
 
-  const core = HyperlaneCore.fromAddressesMap(
-    ethereumAddressesForEnv,
-    multiProvider,
-  );
+  const core = HyperlaneCore.fromAddressesMap(addressesForEnv, multiProvider);
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
   const startBlocks = await promiseObjAll(
-    objMap(ethereumAddressesForEnv, async (chain, _) => {
+    objMap(addressesForEnv, async (chain, _) => {
       // If the index.from is specified in the chain metadata, use that.
       const indexFrom = multiProvider.getChainMetadata(chain).index?.from;
       if (indexFrom !== undefined) {
@@ -178,7 +174,7 @@ export async function writeAgentConfig(
   const agentConfig = buildAgentConfig(
     environmentChains,
     multiProvider,
-    ethereumAddressesForEnv as ChainMap<HyperlaneDeploymentArtifacts>,
+    addressesForEnv as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
     additionalConfig,
   );
