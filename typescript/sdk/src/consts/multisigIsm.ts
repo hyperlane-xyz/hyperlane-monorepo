@@ -125,11 +125,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  holesky: {
-    threshold: 1,
-    validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
-  },
-
   gnosis: {
     threshold: 2,
     validators: [
@@ -138,6 +133,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xdb96116d13a2fadde9742d7cc88474a5ed39a03a', // everstake
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
+  },
+
+  holesky: {
+    threshold: 1,
+    validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
   },
 
   inevm: {
