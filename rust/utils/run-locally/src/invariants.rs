@@ -26,22 +26,12 @@ pub fn termination_invariants_met(
     solana_config_path: Option<&Path>,
 ) -> eyre::Result<bool> {
     let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
-    let total_messages_expected = eth_messages_expected + SOL_MESSAGES_EXPECTED;
-
-    let log_file_name = format!("RLY-output.log");
-    let log_file_path = AGENT_LOGGING_DIR.join(log_file_name);
-    let relayer_logfile = File::open(log_file_path)?;
-    let file = relayer_logfile;
-
-    let gas_expenditure_log_count = get_matching_lines(&file, GAS_EXPENDITURE_LOG_MESSAGE)
-        .unwrap()
-        .len();
-
-    // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
-    assert_eq!(
-        gas_expenditure_log_count as u32, total_messages_expected,
-        "Didn't record gas payment for all delivered messages"
-    );
+    let sol_messages_expected = if config.sealevel_enabled {
+        SOL_MESSAGES_EXPECTED
+    } else {
+        0
+    };
+    let total_messages_expected = eth_messages_expected + sol_messages_expected;
 
     let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
@@ -72,6 +62,19 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+
+    let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
+    let relayer_logfile = File::open(log_file_path)?;
+    let gas_expenditure_log_count =
+        get_matching_lines(&relayer_logfile, GAS_EXPENDITURE_LOG_MESSAGE)
+            .unwrap()
+            .len();
+
+    // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
+    assert_eq!(
+        gas_expenditure_log_count as u32, total_messages_expected,
+        "Didn't record gas payment for all delivered messages"
+    );
 
     let gas_payment_sealevel_events_count = fetch_metric(
         "9092",
