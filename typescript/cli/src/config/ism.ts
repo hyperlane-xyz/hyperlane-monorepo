@@ -4,7 +4,6 @@ import { z } from 'zod';
 import {
   AggregationIsmConfig,
   ChainMap,
-  ChainName,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
@@ -14,18 +13,10 @@ import {
 
 import { CommandContext } from '../context/types.js';
 import {
-  errorRed,
-  log,
-  logBlue,
-  logBoldUnderlinedRed,
-  logGreen,
-  logRed,
-} from '../logger.js';
-import {
   detectAndConfirmOrPrompt,
   runMultiChainSelectionStep,
 } from '../utils/chains.js';
-import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
+import { readYamlOrJson } from '../utils/files.js';
 
 const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
   (ismConfigMap) => {
@@ -49,8 +40,6 @@ const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
   },
 );
 
-type IsmConfigMap = z.infer<typeof IsmConfigMapSchema>;
-
 export function parseIsmConfig(filePath: string) {
   const config = readYamlOrJson(filePath);
   if (!config) throw new Error(`No ISM config found at ${filePath}`);
@@ -70,51 +59,7 @@ export function readIsmConfig(filePath: string) {
 }
 
 export function isValildIsmConfig(config: any) {
-  return IsmConfigMapSchema.safeParse(config).success;
-}
-
-export async function createIsmConfigMap({
-  context,
-  outPath,
-  shouldUseDefault = true,
-}: {
-  context: CommandContext;
-  outPath: string;
-  shouldUseDefault: boolean;
-}) {
-  logBlue('Creating a new advanced ISM config');
-  logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
-  logRed(
-    'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
-  );
-  const chains = await runMultiChainSelectionStep(
-    context.chainMetadata,
-    'Select chains to configure ISM for',
-    true,
-  );
-
-  const result: IsmConfigMap = {};
-  for (const chain of chains) {
-    log(`\nSet values for chain ${chain}:`);
-    result[chain] = shouldUseDefault
-      ? await createTrustedRelayerConfig(context)
-      : await createIsmConfig(context, chain, chains);
-
-    // TODO consider re-enabling. Disabling based on feedback from @nambrot for now.
-    // repeat = await confirm({
-    //   message: 'Use this same config for remaining chains?',
-    // });
-  }
-
-  if (isValildIsmConfig(result)) {
-    logGreen(`ISM config is valid, writing to file ${outPath}`);
-    mergeYamlOrJson(outPath, result);
-  } else {
-    errorRed(
-      `ISM config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/ism.yaml for an example`,
-    );
-    throw new Error('Invalid ISM config');
-  }
+  return IsmConfigSchema.safeParse(config).success;
 }
 
 const ISM_TYPE_DESCRIPTIONS: Record<IsmType, string> = {
@@ -136,8 +81,6 @@ const ISM_TYPE_DESCRIPTIONS: Record<IsmType, string> = {
 
 export async function createIsmConfig(
   context: CommandContext,
-  remote: ChainName,
-  origins: ChainName[],
 ): Promise<IsmConfig> {
   const moduleType = await select({
     message: 'Select ISM type',
@@ -157,9 +100,9 @@ export async function createIsmConfig(
     moduleType === IsmType.ROUTING ||
     moduleType === IsmType.FALLBACK_ROUTING
   ) {
-    return createRoutingConfig(context, moduleType, remote, origins);
+    return createRoutingConfig(context, moduleType);
   } else if (moduleType === IsmType.AGGREGATION) {
-    return createAggregationConfig(context, remote, origins);
+    return createAggregationConfig(context);
   } else if (moduleType === IsmType.TEST_ISM) {
     return { type: IsmType.TEST_ISM };
   } else if (moduleType === IsmType.TRUSTED_RELAYER) {
@@ -205,8 +148,6 @@ export async function createTrustedRelayerConfig(
 
 export async function createAggregationConfig(
   context: CommandContext,
-  remote: ChainName,
-  chains: ChainName[],
 ): Promise<AggregationIsmConfig> {
   const isms = parseInt(
     await input({
@@ -224,7 +165,7 @@ export async function createAggregationConfig(
 
   const modules: Array<IsmConfig> = [];
   for (let i = 0; i < isms; i++) {
-    modules.push(await createIsmConfig(context, remote, chains));
+    modules.push(await createIsmConfig(context));
   }
   return {
     type: IsmType.AGGREGATION,
@@ -236,21 +177,24 @@ export async function createAggregationConfig(
 export async function createRoutingConfig(
   context: CommandContext,
   type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING,
-  remote: ChainName,
-  chains: ChainName[],
 ): Promise<IsmConfig> {
   const owner = await input({
     message: 'Enter owner address for routing ISM',
   });
   const ownerAddress = owner;
-  const origins = chains.filter((chain) => chain !== remote);
+
+  const chains = await runMultiChainSelectionStep(
+    context.chainMetadata,
+    'Select chains to configure ISM for',
+    true,
+  );
 
   const domainsMap: ChainMap<IsmConfig> = {};
-  for (const chain of origins) {
+  for (const chain of chains) {
     await confirm({
       message: `You are about to configure ISM from source chain ${chain}. Continue?`,
     });
-    const config = await createIsmConfig(context, chain, chains);
+    const config = await createIsmConfig(context);
     domainsMap[chain] = config;
   }
   return {

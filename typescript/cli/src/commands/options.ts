@@ -109,9 +109,10 @@ export const agentConfigCommandOption = (
 export const outputFileCommandOption = (
   defaultPath?: string,
   demandOption = false,
+  description = 'Output file path',
 ): Options => ({
   type: 'string',
-  description: 'Output file path',
+  description,
   default: defaultPath,
   alias: 'o',
   demandOption,

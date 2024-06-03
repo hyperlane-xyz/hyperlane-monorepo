@@ -18,9 +18,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, log, logBlue, logGreen, logRed } from '../logger.js';
+import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
+import { readYamlOrJson } from '../utils/files.js';
 
 // TODO: deprecate in favor of CoreConfigSchema
 const HooksConfigSchema = z.object({
@@ -30,10 +30,6 @@ const HooksConfigSchema = z.object({
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
 const HooksConfigMapSchema = z.record(HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
-
-export function isValidHookConfigMap(config: any) {
-  return HooksConfigMapSchema.safeParse(config).success;
-}
 
 export function presetHookConfigs(owner: Address): HooksConfig {
   return {
@@ -65,46 +61,13 @@ export function readHooksConfigMap(filePath: string) {
   return hooks;
 }
 
-export async function createHooksConfigMap({
-  context,
-  outPath,
-}: {
-  context: CommandContext;
-  outPath: string;
-}) {
-  logBlue('Creating a new hook config');
-  const chains = await runMultiChainSelectionStep(context.chainMetadata);
-
-  const result: HooksConfigMap = {};
-  for (const chain of chains) {
-    for (const hookRequirements of ['required', 'default']) {
-      log(`\nSet ${hookRequirements} hook for chain ${chain}:`);
-      const remotes = chains.filter((c) => c !== chain);
-      result[chain] = {
-        ...result[chain],
-        [hookRequirements]: await createHookConfig(context, chain, remotes),
-      };
-    }
-    if (isValidHookConfigMap(result)) {
-      logGreen(`Hook config is valid, writing to file ${outPath}`);
-      mergeYamlOrJson(outPath, result);
-    } else {
-      errorRed(
-        `Hook config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/hooks.yaml for an example`,
-      );
-      throw new Error('Invalid hook config');
-    }
-  }
-}
-
 export async function createHookConfig(
   context: CommandContext,
-  chain: ChainName,
-  remotes: ChainName[],
+  selectMessage = 'Select hook type',
 ): Promise<HookConfig> {
   let lastConfig: HookConfig;
   const hookType = await select({
-    message: 'Select hook type',
+    message: selectMessage,
     choices: [
       {
         value: HookType.MERKLE_TREE,
@@ -141,23 +104,20 @@ export async function createHookConfig(
   if (hookType === HookType.MERKLE_TREE) {
     lastConfig = { type: HookType.MERKLE_TREE };
   } else if (hookType === HookType.PROTOCOL_FEE) {
-    lastConfig = await createProtocolFeeConfig(context, chain);
+    lastConfig = await createProtocolFeeConfig();
     // } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
     //   lastConfig = await createIGPConfig(remotes);
   } else if (hookType === HookType.AGGREGATION) {
-    lastConfig = await createAggregationConfig(context, chain, remotes);
+    lastConfig = await createAggregationConfig(context);
   } else if (hookType === HookType.ROUTING) {
-    lastConfig = await createRoutingConfig(context, chain, remotes);
+    lastConfig = await createRoutingConfig(context);
   } else {
     throw new Error(`Invalid hook type: ${hookType}`);
   }
   return lastConfig;
 }
 
-export async function createProtocolFeeConfig(
-  context: CommandContext,
-  chain: ChainName,
-): Promise<HookConfig> {
+export async function createProtocolFeeConfig(): Promise<HookConfig> {
   const owner = await input({
     message: 'Enter owner address for protocol fee hook',
   });
@@ -178,18 +138,12 @@ export async function createProtocolFeeConfig(
   // TODO: input in gwei, wei, etc
   const maxProtocolFee = toWei(
     await input({
-      message: `Enter max protocol fee ${nativeTokenAndDecimals(
-        context,
-        chain,
-      )} e.g. 1.0) for protocol fee hook`,
+      message: `Enter max protocol fee for protocol fee hook`,
     }),
   );
   const protocolFee = toWei(
     await input({
-      message: `Enter protocol fee in ${nativeTokenAndDecimals(
-        context,
-        chain,
-      )} e.g. 0.01) for protocol fee hook`,
+      message: `Enter protocol fee in for protocol fee hook`,
     }),
   );
   if (BigNumberJs(protocolFee).gt(maxProtocolFee)) {
@@ -253,8 +207,6 @@ export async function createIGPConfig(
 
 export async function createAggregationConfig(
   context: CommandContext,
-  chain: ChainName,
-  remotes: ChainName[],
 ): Promise<HookConfig> {
   const hooksNum = parseInt(
     await input({
@@ -265,7 +217,7 @@ export async function createAggregationConfig(
   const hooks: Array<HookConfig> = [];
   for (let i = 0; i < hooksNum; i++) {
     logBlue(`Creating hook ${i + 1} of ${hooksNum} ...`);
-    hooks.push(await createHookConfig(context, chain, remotes));
+    hooks.push(await createHookConfig(context));
   }
   return {
     type: HookType.AGGREGATION,
@@ -275,20 +227,19 @@ export async function createAggregationConfig(
 
 export async function createRoutingConfig(
   context: CommandContext,
-  origin: ChainName,
-  remotes: ChainName[],
 ): Promise<HookConfig> {
   const owner = await input({
     message: 'Enter owner address for routing ISM',
   });
   const ownerAddress = owner;
+  const chains = await runMultiChainSelectionStep(context.chainMetadata);
 
   const domainsMap: ChainMap<HookConfig> = {};
-  for (const chain of remotes) {
+  for (const chain of chains) {
     await confirm({
       message: `You are about to configure hook for remote chain ${chain}. Continue?`,
     });
-    const config = await createHookConfig(context, origin, remotes);
+    const config = await createHookConfig(context);
     domainsMap[chain] = config;
   }
   return {
@@ -296,12 +247,4 @@ export async function createRoutingConfig(
     owner: ownerAddress,
     domains: domainsMap,
   };
-}
-
-function nativeTokenAndDecimals(context: CommandContext, chain: ChainName) {
-  return `10^${
-    context.chainMetadata[chain].nativeToken?.decimals ?? '18'
-  } which you cannot exceed (in ${
-    context.chainMetadata[chain].nativeToken?.symbol ?? 'eth'
-  }`;
 }
