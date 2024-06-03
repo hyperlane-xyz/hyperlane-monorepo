@@ -137,6 +137,7 @@ impl GasPaymentEnforcer {
         debug!(
             msg=%message,
             ?outcome,
+            "{}",
             GAS_EXPENDITURE_LOG_MESSAGE,
         );
         self.db.process_gas_expenditure(InterchainGasExpenditure {
