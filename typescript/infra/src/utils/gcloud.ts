@@ -1,3 +1,4 @@
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import fs from 'fs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -5,6 +6,8 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { rm, writeFile } from 'fs/promises';
 
 import { execCmd, execCmdAndParseJson } from './utils.js';
+
+export const GCP_PROJECT_ID = 'abacus-labs-dev';
 
 interface IamCondition {
   title: string;
@@ -32,15 +35,36 @@ export async function fetchGCPSecret(
     );
     output = envVarOverride;
   } else {
-    [output] = await execCmd(
-      `gcloud secrets versions access latest --secret ${secretName}`,
-    );
+    output = await fetchLatestGCPSecret(secretName);
   }
 
   if (parseJson) {
     return JSON.parse(output);
   }
   return output;
+}
+
+export async function fetchLatestGCPSecret(secretName: string) {
+  const client = new SecretManagerServiceClient({
+    projectId: GCP_PROJECT_ID,
+  });
+  const [secretVersion] = await client.accessSecretVersion({
+    name: `projects/${GCP_PROJECT_ID}/secrets/${secretName}/versions/latest`,
+  });
+  const secretData = secretVersion.payload?.data;
+  if (!secretData) {
+    throw new Error(`Secret ${secretName} missing payload`);
+  }
+
+  // Handle both string and Uint8Array
+  let dataStr: string;
+  if (typeof secretData === 'string') {
+    dataStr = secretData;
+  } else {
+    dataStr = new TextDecoder().decode(secretData);
+  }
+
+  return dataStr;
 }
 
 // If the environment variable GCP_SECRET_OVERRIDES_ENABLED is `true`,

@@ -106,7 +106,7 @@ const AgentCosmosChainMetadataSchema = z.object({
     amount: z
       .string()
       .regex(/^(\d*[.])?\d+$/)
-      .describe('The the gas price, in denom, to pay for each unit of gas'),
+      .describe('The gas price, in denom, to pay for each unit of gas'),
   }),
   contractAddressBytes: z
     .number()
@@ -399,6 +399,16 @@ export function buildAgentConfig(
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
+    if (metadata?.protocol === ProtocolType.Cosmos) {
+      // Note: the gRPC URL format in the registry lacks a correct http:// or https:// prefix at the moment,
+      // which is expected by the agents. For now, we intentionally skip this.
+      delete metadata.grpcUrls;
+
+      // The agents expect gasPrice.amount and gasPrice.denom and ignore the transaction overrides.
+      // To reduce confusion when looking at the config, we remove the transaction overrides.
+      delete metadata.transactionOverrides;
+    }
+
     const chainConfig: AgentChainMetadata = {
       ...metadata,
       ...addresses[chain],

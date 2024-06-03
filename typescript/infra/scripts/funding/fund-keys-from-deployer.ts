@@ -381,7 +381,7 @@ class ContextFunder {
       [Role.Kathy]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
-    const chains = getEnvironmentConfig(environment).chainMetadataConfigs;
+    const { supportedChainNames } = getEnvironmentConfig(environment);
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
@@ -392,7 +392,7 @@ class ContextFunder {
       }
       fundableRoleKeys[role] = roleAddress;
 
-      for (const chain of Object.keys(chains)) {
+      for (const chain of supportedChainNames) {
         if (!roleKeysPerChain[chain as ChainName]) {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
@@ -575,10 +575,18 @@ class ContextFunder {
   }
 
   private getDesiredBalanceForRole(chain: ChainName, role: Role): BigNumber {
-    const desiredBalanceEther =
-      role === Role.Kathy && this.desiredKathyBalancePerChain[chain]
-        ? this.desiredKathyBalancePerChain[chain]
-        : this.desiredBalancePerChain[chain];
+    let desiredBalanceEther: string | undefined;
+    if (role === Role.Kathy) {
+      const desiredKathyBalance = this.desiredKathyBalancePerChain[chain];
+      if (desiredKathyBalance === undefined) {
+        logger.warn({ chain }, 'No desired balance for Kathy, not funding');
+        desiredBalanceEther = '0';
+      } else {
+        desiredBalanceEther = this.desiredKathyBalancePerChain[chain];
+      }
+    } else {
+      desiredBalanceEther = this.desiredBalancePerChain[chain];
+    }
     let desiredBalance = ethers.utils.parseEther(desiredBalanceEther ?? '0');
     if (this.context === Contexts.ReleaseCandidate) {
       desiredBalance = desiredBalance

@@ -82,7 +82,7 @@ where
                 // from the loop (the sleep duration)
                 #[allow(clippy::never_loop)]
                 CursorAction::Query(range) => loop {
-                    debug!(?range, "Looking for for events in index range");
+                    debug!(?range, "Looking for events in index range");
 
                     let logs = match self.indexer.fetch_logs(range.clone()).await {
                         Ok(logs) => logs,
