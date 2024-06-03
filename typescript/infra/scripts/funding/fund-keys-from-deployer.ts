@@ -381,7 +381,7 @@ class ContextFunder {
       [Role.Kathy]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
-    const chains = getEnvironmentConfig(environment).supportedChainNames;
+    const { supportedChainNames: chains } = getEnvironmentConfig(environment);
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
