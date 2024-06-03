@@ -204,6 +204,7 @@ abstract contract HypTokenTest is Test {
             DESTINATION,
             BOB.addressToBytes32(),
             _amount,
+            "",
             address(noopHook)
         );
         _processTransfers(BOB, _amount);

@@ -68,6 +68,7 @@ abstract contract TokenRouter is GasRouter {
      * @param _destination The identifier of the destination chain.
      * @param _recipient The address of the recipient on the destination chain.
      * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hookMetadata The metadata passed into the hook
      * @param _hook The post dispatch hook to be called by the Mailbox
      * @return messageId The identifier of the dispatched message.
      */
@@ -75,6 +76,7 @@ abstract contract TokenRouter is GasRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amountOrId,
+        bytes calldata _hookMetadata,
         address _hook
     ) external payable virtual returns (bytes32 messageId) {
         return
@@ -83,6 +85,7 @@ abstract contract TokenRouter is GasRouter {
                 _recipient,
                 _amountOrId,
                 msg.value,
+                _hookMetadata,
                 _hook
             );
     }
@@ -99,6 +102,7 @@ abstract contract TokenRouter is GasRouter {
                 _recipient,
                 _amountOrId,
                 _value,
+                _GasRouter_hookMetadata(_destination),
                 address(hook)
             );
     }
@@ -108,8 +112,9 @@ abstract contract TokenRouter is GasRouter {
         bytes32 _recipient,
         uint256 _amountOrId,
         uint256 _value,
+        bytes memory _hookMetadata,
         address _hook
-    ) internal returns (bytes32 messageId) {
+    ) internal virtual returns (bytes32 messageId) {
         bytes memory _tokenMetadata = _transferFromSender(_amountOrId);
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
@@ -117,10 +122,11 @@ abstract contract TokenRouter is GasRouter {
             _tokenMetadata
         );
 
-        messageId = _GasRouter_dispatch(
+        messageId = _Router_dispatch(
             _destination,
             _value,
             _tokenMessage,
+            _hookMetadata,
             _hook
         );
 
