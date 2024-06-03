@@ -1,13 +1,23 @@
 import { CommandModule } from 'yargs';
 
-import { createHooksConfigMap } from '../config/hooks.js';
-import { createIsmConfigMap } from '../config/ism.js';
+import { HookConfigSchema, IsmConfig } from '@hyperlane-xyz/sdk';
+
+import { createHookConfig } from '../config/hooks.js';
+import { createIsmConfig, createTrustedRelayerConfig } from '../config/ism.js';
 import { CommandModuleWithContext } from '../context/types.js';
 import { readHookConfig } from '../hook/read.js';
 import { readIsmConfig } from '../ism/read.js';
-import { log, logGray, warnYellow } from '../logger.js';
+import {
+  log,
+  logBlue,
+  logBoldUnderlinedRed,
+  logGray,
+  logRed,
+  warnYellow,
+} from '../logger.js';
+import { writeYamlOrJson } from '../utils/files.js';
 
-import { deployCore } from './deploy.js';
+import { deploy } from './deploy.js';
 import {
   addressCommandOption,
   chainCommandOption,
@@ -22,7 +32,7 @@ export const coreCommand: CommandModule = {
   describe: 'Manage core Hyperlane contracts & configs',
   builder: (yargs) =>
     yargs
-      .command(deployCore)
+      .command(deploy)
       .command(config)
       .command(read)
       .version(false)
@@ -32,8 +42,7 @@ export const coreCommand: CommandModule = {
 
 export const config: CommandModuleWithContext<{
   ismAdvanced: boolean;
-  ismOut: string;
-  hooksOut: string;
+  config: string;
 }> = {
   command: 'config',
   describe: 'Create a core configuration, including ISMs and hooks.',
@@ -43,22 +52,44 @@ export const config: CommandModuleWithContext<{
       describe: 'Create an advanced ISM & hook configuration',
       default: false,
     },
-    ismOut: outputFileCommandOption('./configs/ism.yaml'),
-    hooksOut: outputFileCommandOption('./configs/hooks.yaml'),
+    config: outputFileCommandOption(
+      './configs/core-config.yaml',
+      false,
+      'The path to a JSON or YAML file with a core deployment config.',
+    ),
   },
-  handler: async ({ context, ismAdvanced, ismOut, hooksOut }) => {
+  handler: async ({ context, ismAdvanced, config }) => {
     logGray('Hyperlane Core Configure');
     logGray('------------------------');
 
-    await createIsmConfigMap({
+    // Create default Ism config (advanced or trusted)
+    let defaultIsm: IsmConfig;
+    if (ismAdvanced) {
+      logBlue('Creating a new advanced ISM config');
+      logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
+      logRed(
+        'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
+      );
+      defaultIsm = await createIsmConfig(context);
+    } else {
+      defaultIsm = await createTrustedRelayerConfig(context);
+    }
+
+    // Create default and required Hook config
+    const defaultHook = await createHookConfig(
       context,
-      outPath: ismOut,
-      shouldUseDefault: !ismAdvanced,
-    });
-    await createHooksConfigMap({
+      'Select default hook type',
+    );
+    const requiredHook = await createHookConfig(
       context,
-      outPath: hooksOut,
-    });
+      'Select required hook type',
+    );
+
+    // Validate
+    HookConfigSchema.parse(requiredHook);
+    HookConfigSchema.parse(defaultHook);
+
+    writeYamlOrJson(config, { defaultIsm, defaultHook, requiredHook });
 
     process.exit(0);
   },

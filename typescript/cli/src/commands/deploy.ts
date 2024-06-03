@@ -18,6 +18,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   originCommandOption,
+  outputFileCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
 
@@ -70,7 +71,7 @@ const agentCommand: CommandModuleWithContext<{
  * @param commandName - the deploy command key used to look up the deployFunction
  * @returns A command module used to deploy Hyperlane contracts.
  */
-export const deployCore: CommandModuleWithWriteContext<{
+export const deploy: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
   dryRun: string;
@@ -80,12 +81,11 @@ export const deployCore: CommandModuleWithWriteContext<{
   describe: 'Deploy Hyperlane contracts',
   builder: {
     chain: chainCommandOption,
-    config: {
-      type: 'string',
-      description:
-        'The path to a JSON or YAML file with a core deployment config.',
-      demandOption: true,
-    },
+    config: outputFileCommandOption(
+      './configs/core-config.yaml',
+      false,
+      'The path to a JSON or YAML file with a core deployment config.',
+    ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
   },

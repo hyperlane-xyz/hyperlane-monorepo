@@ -2,7 +2,6 @@ import { input, select } from '@inquirer/prompts';
 
 import {
   ChainMap,
-  ChainName,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -144,8 +143,8 @@ export async function createWarpRouteDeployConfig({
     );
 
     const interchainSecurityModule = shouldUseDefault
-      ? await createDefaultWarpIsmConfig(context, chain)
-      : await createIsmConfig(context, chain, warpChains);
+      ? await createDefaultWarpIsmConfig(context)
+      : await createIsmConfig(context);
 
     switch (type) {
       case TokenType.collateral:
@@ -199,13 +198,12 @@ export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
 
 async function createDefaultWarpIsmConfig(
   context: CommandContext,
-  remote: ChainName,
 ): Promise<IsmConfig> {
   return {
     type: IsmType.AGGREGATION,
     modules: [
       await createTrustedRelayerConfig(context),
-      await createRoutingConfig(context, IsmType.FALLBACK_ROUTING, remote, []),
+      await createRoutingConfig(context, IsmType.FALLBACK_ROUTING),
     ],
     threshold: 1,
   };
