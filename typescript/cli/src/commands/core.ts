@@ -1,11 +1,6 @@
 import { CommandModule } from 'yargs';
 
-import {
-  EvmCoreReader,
-  HookConfigSchema,
-  IsmConfig,
-  IsmConfigSchema,
-} from '@hyperlane-xyz/sdk';
+import { CoreConfigSchema, EvmCoreReader, IsmConfig } from '@hyperlane-xyz/sdk';
 
 import { createHookConfig } from '../config/hooks.js';
 import { createIsmConfig, createTrustedRelayerConfig } from '../config/ism.js';
@@ -31,18 +26,18 @@ export const coreCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(deploy)
-      .command(config)
+      .command(configure)
       .command(read)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
 };
 
-export const config: CommandModuleWithContext<{
+export const configure: CommandModuleWithContext<{
   ismAdvanced: boolean;
   config: string;
 }> = {
-  command: 'config',
+  command: 'configure',
   describe: 'Create a core configuration, including ISMs and hooks.',
   builder: {
     ismAdvanced: {

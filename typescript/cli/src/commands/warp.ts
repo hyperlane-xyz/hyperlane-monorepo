@@ -20,15 +20,15 @@ export const warpCommand: CommandModule = {
   command: 'warp',
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
-    yargs.command(config).command(read).version(false).demandCommand(),
+    yargs.command(configure).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
-export const config: CommandModuleWithContext<{
+export const configure: CommandModuleWithContext<{
   ismAdvanced: boolean;
   out: string;
 }> = {
-  command: 'config',
+  command: 'configure',
   describe: 'Create a warp route configuration.',
   builder: {
     ismAdvanced: {
