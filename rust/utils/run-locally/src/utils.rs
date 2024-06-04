@@ -130,16 +130,3 @@ pub fn get_matching_lines(file: &File, search_string: &str) -> io::Result<Vec<St
 
     Ok(matching_lines)
 }
-
-#[cfg(test)]
-mod test {
-
-    #[test]
-    fn gets_matching_lines() {
-        let file = std::fs::File::open("/tmp/test_logs/RLY-output.log").unwrap();
-        let lines = super::get_matching_lines(&file, "Gas used by message submission").unwrap();
-        println!("Lines found: {:?}", lines);
-        // assert_eq!(lines.len(), 1);
-        // assert_eq!(lines[0], "name = \"run-locally\"");
-    }
-}

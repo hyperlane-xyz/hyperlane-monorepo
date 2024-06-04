@@ -245,7 +245,6 @@ impl Program {
         let log_file = logs_dir.map(|logs_dir| {
             let log_file_name = format!("{}-output.log", log_prefix);
             let log_file_path = logs_dir.join(log_file_name);
-            println!("{} logging to: {:?}", self.get_bin_name(), log_file_path);
             let log_file = OpenOptions::new()
                 .append(true)
                 .create(true)
