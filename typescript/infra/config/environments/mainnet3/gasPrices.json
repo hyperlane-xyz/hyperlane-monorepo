@@ -86,5 +86,17 @@
   "zetachain": {
     "amount": "0.0001",
     "decimals": 9
+  },
+  "linea": {
+    "amount": "0.0001",
+    "decimals": 9
+  },
+  "sei": {
+    "amount": "0.0001",
+    "decimals": 9
+  },
+  "fraxtal": {
+    "amount": "0.0001",
+    "decimals": 9
   }
 }

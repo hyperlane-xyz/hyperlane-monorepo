@@ -97,6 +97,12 @@ pub enum KnownHyperlaneDomain {
 
     PlumeTestnet = 161221135,
 
+    Fraxtal = 252,
+
+    Linea = 59144,
+
+    Sei = 1329,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,

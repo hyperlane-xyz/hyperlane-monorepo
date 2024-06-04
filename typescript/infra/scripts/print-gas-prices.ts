@@ -1,10 +1,8 @@
+import { Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  MultiProtocolProvider,
-  ProviderType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   GasPriceConfig,
@@ -34,16 +32,17 @@ async function getGasPrice(
   mpp: MultiProtocolProvider,
   chain: string,
 ): Promise<GasPriceConfig> {
-  const provider = mpp.getProvider(chain);
-  switch (provider.type) {
-    case ProviderType.EthersV5: {
-      const gasPrice = await provider.provider.getGasPrice();
+  const protocolType = mpp.getProtocol(chain);
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
+      const provider = mpp.getProvider(chain);
+      const gasPrice = await (provider.provider as Provider).getGasPrice();
       return {
         amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
         decimals: 9,
       };
     }
-    case ProviderType.CosmJsWasm: {
+    case ProtocolType.Cosmos: {
       const { amount } = await getCosmosChainGasPrice(chain);
 
       return {
@@ -51,14 +50,14 @@ async function getGasPrice(
         decimals: 1,
       };
     }
-    case ProviderType.SolanaWeb3:
+    case ProtocolType.Sealevel:
       // TODO get a reasonable value
       return {
         amount: '0.001',
         decimals: 9,
       };
     default:
-      throw new Error(`Unsupported provider type: ${provider.type}`);
+      throw new Error(`Unsupported protocol type: ${protocolType}`);
   }
 }
 
