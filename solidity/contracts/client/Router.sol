@@ -186,7 +186,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     }
 
     /**
-     * @deprecated Use `_Router_dispatch` instead
+     * DEPRECATED: Use `_Router_dispatch` instead
      * @dev For backward compatibility with v2 client contracts
      */
     function _dispatch(
@@ -221,7 +221,7 @@ abstract contract Router is MailboxClient, IMessageRecipient {
     }
 
     /**
-     * @deprecated Use `_Router_quoteDispatch` instead
+     * DEPRECATED: Use `_Router_quoteDispatch` instead
      * @dev For backward compatibility with v2 client contracts
      */
     function _quoteDispatch(
