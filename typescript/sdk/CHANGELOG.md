@@ -1,5 +1,24 @@
 # @hyperlane-xyz/sdk
 
+## 3.14.0
+
+### Minor Changes
+
+- eb23e7729: Add create() with EvmCoreModule
+- 1ec61debd: Support hook config objects in warp config
+- 4663018fc: Implement hyperlane core config to return CoreConfig
+- 5e5886f2c: Add EvmIcaModule.create()
+- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
+- 3dabcbdca: Adds zod validation on tx submitter populated txs & re-uses ICA params for transformer.
+- 1d0d1bb36: Implements `hyperlane core deploy`
+- 4bf7301ea: Adds further zod schema validation support throughout the SDK, namely for /transactions.
+
+### Patch Changes
+
+- Updated dependencies [341b8affd]
+  - @hyperlane-xyz/utils@3.14.0
+  - @hyperlane-xyz/core@3.14.0
+
 ## 3.13.0
 
 ### Minor Changes

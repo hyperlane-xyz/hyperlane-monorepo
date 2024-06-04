@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 3.14.0
+
+### Minor Changes
+
+- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
+
 ## 3.13.0
 
 ### Minor Changes

@@ -1,5 +1,31 @@
 # @hyperlane-xyz/cli
 
+## 3.14.0
+
+### Minor Changes
+
+- 1ec61debd: Support hook config objects in warp config
+- 4663018fc: Implement hyperlane core config to return CoreConfig
+- 84bc0bd7f: Adds 'hyperlane warp config'.
+- b560bfc26: Adds 'hyperlane core config'.
+- ba4c9a7da: Add warp send in favor of send transfer.
+- 7089c910f: Adds 'hyperlane warp read'.
+- 1d0d1bb36: Implements `hyperlane core deploy`
+- 44a2ffa1b: Adds 'hyperlane core read'.
+
+### Patch Changes
+
+- Updated dependencies [eb23e7729]
+- Updated dependencies [1ec61debd]
+- Updated dependencies [4663018fc]
+- Updated dependencies [5e5886f2c]
+- Updated dependencies [341b8affd]
+- Updated dependencies [3dabcbdca]
+- Updated dependencies [1d0d1bb36]
+- Updated dependencies [4bf7301ea]
+  - @hyperlane-xyz/sdk@3.14.0
+  - @hyperlane-xyz/utils@3.14.0
+
 ## 3.13.0
 
 ### Minor Changes
