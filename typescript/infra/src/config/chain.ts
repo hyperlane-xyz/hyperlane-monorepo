@@ -39,7 +39,6 @@ export async function fetchProvider(
     chainId,
     rpcData.map((url) => ({ http: url })),
     undefined,
-    // disable retry for quorum
     defaultRetry,
   );
 }
