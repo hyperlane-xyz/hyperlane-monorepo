@@ -21,9 +21,7 @@
     ]
   },
   "holesky": {
-    "validators": [
-      "0x7ab28ad88bb45867137ea823af88e2cb02359c03"
-    ]
+    "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
   },
   "plumetestnet": {
     "validators": [
@@ -47,8 +45,6 @@
     ]
   },
   "solanatestnet": {
-    "validators": [
-      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
-    ]
+    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
   }
 }
