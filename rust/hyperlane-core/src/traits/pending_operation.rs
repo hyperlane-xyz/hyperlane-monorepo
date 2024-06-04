@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
-    ChainResult, FixedPointNumber, HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxCostEstimate,
-    TxOutcome, H256, U256,
+    ChainResult, FixedPointNumber, HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256,
+    U256,
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
@@ -73,11 +73,8 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the outcome of the `submit` call
     fn set_submission_outcome(&mut self, outcome: TxOutcome);
 
-    /// Set the estimated the cost of the `submit` call
-    fn set_tx_cost_estimate(&mut self, estimate: TxCostEstimate);
-
     /// Get the estimated the cost of the `submit` call
-    fn get_tx_cost_estimate(&self) -> Option<&TxCostEstimate>;
+    fn get_tx_cost_estimate(&self) -> Option<U256>;
 
     /// This will be called after the operation has been submitted and is
     /// responsible for checking if the operation has reached a point at
@@ -113,9 +110,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 pub fn total_estimated_cost(ops: &[Box<dyn PendingOperation>]) -> U256 {
     ops.iter()
         .fold(U256::zero(), |acc, op| match op.get_tx_cost_estimate() {
-            Some(cost_estimate) => acc.saturating_add(cost_estimate.gas_limit),
+            Some(cost_estimate) => acc.saturating_add(cost_estimate),
             None => {
-                warn!("Cannot set operation outcome without a cost estimate set previously");
+                warn!(operation=?op, "No cost estimate available for operation, defaulting to 0");
                 acc
             }
         })

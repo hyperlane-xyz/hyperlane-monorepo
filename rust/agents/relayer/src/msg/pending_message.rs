@@ -11,7 +11,7 @@ use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_batch_operation, make_op_try, BatchItem, ChainCommunicationError, ChainResult,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    PendingOperation, PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -66,8 +66,6 @@ pub struct PendingMessage {
     next_attempt_after: Option<Instant>,
     #[new(default)]
     submission_outcome: Option<TxOutcome>,
-    #[new(default)]
-    tx_cost_estimate: Option<TxCostEstimate>,
 }
 
 impl Debug for PendingMessage {
@@ -218,7 +216,6 @@ impl PendingOperation for PendingMessage {
                 .await,
             "estimating costs for process call"
         );
-        self.set_tx_cost_estimate(tx_cost_estimate.clone());
 
         // If the gas payment requirement hasn't been met, move to the next tick.
         let Some(gas_limit) = op_try!(
@@ -274,13 +271,7 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_operation_outcome(
-                    outcome,
-                    self.tx_cost_estimate
-                        .as_ref()
-                        .map(|e| e.gas_limit)
-                        .unwrap_or(state.gas_limit),
-                );
+                self.set_operation_outcome(outcome, state.gas_limit);
             }
             Err(e) => {
                 error!(error=?e, "Error when processing message");
@@ -292,12 +283,8 @@ impl PendingOperation for PendingMessage {
         self.submission_outcome = Some(outcome);
     }
 
-    fn set_tx_cost_estimate(&mut self, estimate: TxCostEstimate) {
-        self.tx_cost_estimate = Some(estimate);
-    }
-
-    fn get_tx_cost_estimate(&self) -> Option<&TxCostEstimate> {
-        self.tx_cost_estimate.as_ref()
+    fn get_tx_cost_estimate(&self) -> Option<U256> {
+        self.submission_data.as_ref().map(|d| d.gas_limit)
     }
 
     async fn confirm(&mut self) -> PendingOperationResult {
@@ -344,7 +331,7 @@ impl PendingOperation for PendingMessage {
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
     ) {
-        let Some(operation_estimate) = self.get_tx_cost_estimate().cloned() else {
+        let Some(operation_estimate) = self.get_tx_cost_estimate() else {
             warn!("Cannot set operation outcome without a cost estimate set previously");
             return;
         };
@@ -358,7 +345,7 @@ impl PendingOperation for PendingMessage {
         match gas_used_by_batch_operation(
             &submission_outcome,
             submission_estimated_cost,
-            operation_estimate.gas_limit,
+            operation_estimate,
         ) {
             Ok(gas_used_by_operation) => {
                 self.set_submission_outcome(TxOutcome {
@@ -367,7 +354,7 @@ impl PendingOperation for PendingMessage {
                 });
                 debug!(
                     actual_gas_for_message = ?gas_used_by_operation,
-                    message_gas_estimate = ?operation_estimate.gas_limit,
+                    message_gas_estimate = ?operation_estimate,
                     submission_gas_estimate = ?submission_estimated_cost,
                     message = ?self.message,
                     "Gas used by message submission"

@@ -169,10 +169,6 @@ mod test {
             todo!()
         }
 
-        fn set_tx_cost_estimate(&mut self, _estimate: TxCostEstimate) {
-            todo!()
-        }
-
         fn get_tx_cost_estimate(&self) -> Option<&TxCostEstimate> {
             todo!()
         }
