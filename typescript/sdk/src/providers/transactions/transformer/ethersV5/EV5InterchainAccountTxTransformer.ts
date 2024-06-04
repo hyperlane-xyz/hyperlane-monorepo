@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { CallData, assert, objKeys, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, objKeys, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
@@ -9,16 +9,17 @@ import {
 } from '../../../../middleware/account/InterchainAccount.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { PopulatedTransaction } from '../../types.js';
+import { CallData, PopulatedTransaction } from '../../types.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
-import { EV5InterchainAccountTxTransformerProps } from './EV5TxTransformerTypes.js';
+import { EV5InterchainAccountTxTransformerProps } from './types.js';
 
 export class EV5InterchainAccountTxTransformer
   implements EV5TxTransformerInterface
 {
-  public readonly txTransformerType: TxTransformerType = TxTransformerType.ICA;
+  public readonly txTransformerType: TxTransformerType =
+    TxTransformerType.INTERCHAIN_ACCOUNT;
   protected readonly logger: Logger = rootLogger.child({
     module: 'ica-transformer',
   });
@@ -39,11 +40,11 @@ export class EV5InterchainAccountTxTransformer
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
       (
         txChainToInnerCalls: Record<ChainName, CallData[]>,
-        { to, data, value, chainId }: PopulatedTransaction,
+        { to, data, chainId }: PopulatedTransaction,
       ) => {
         const txChain = this.multiProvider.getChainName(chainId);
         txChainToInnerCalls[txChain] ||= [];
-        txChainToInnerCalls[txChain].push({ to, data, value });
+        txChainToInnerCalls[txChain].push({ to, data });
         return txChainToInnerCalls;
       },
       {},

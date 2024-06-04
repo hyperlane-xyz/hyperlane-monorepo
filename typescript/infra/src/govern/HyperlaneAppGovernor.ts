@@ -197,7 +197,13 @@ export abstract class HyperlaneAppGovernor<
         const callRemote = await this.interchainAccount.getCallRemote({
           chain: origin,
           destination: chain,
-          innerCalls: [call],
+          innerCalls: [
+            {
+              to: call.to,
+              data: call.data,
+              value: call.value?.toString() || '0',
+            },
+          ],
           config: accountConfig,
         });
         if (!callRemote.to || !callRemote.data) {
