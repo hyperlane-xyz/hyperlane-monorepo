@@ -99,7 +99,7 @@ mod test {
     use super::*;
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, MpmcChannel,
-        PendingOperationResult, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+        PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
     };
     use std::{
         collections::VecDeque,
@@ -169,7 +169,7 @@ mod test {
             todo!()
         }
 
-        fn get_tx_cost_estimate(&self) -> Option<&TxCostEstimate> {
+        fn get_tx_cost_estimate(&self) -> Option<U256> {
             todo!()
         }
 
