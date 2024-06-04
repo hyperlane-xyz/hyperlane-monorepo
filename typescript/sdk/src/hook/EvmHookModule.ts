@@ -7,6 +7,7 @@ import {
   IL1CrossDomainMessenger__factory,
   IPostDispatchHook__factory,
   InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
   OPStackHook,
   OPStackIsm__factory,
   Ownable__factory,
@@ -17,6 +18,7 @@ import {
   StaticAggregationHookFactory__factory,
   StaticAggregationHook__factory,
   StorageGasOracle,
+  StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -163,10 +165,13 @@ export class EvmHookModule extends HyperlaneModule<
 
     let updateTxs: AnnotatedEV5Transaction[];
 
+    // obtain the update txs for each hook type
     switch (targetConfig.type) {
       case HookType.INTERCHAIN_GAS_PAYMASTER:
-        // TODO: IGP
-        updateTxs = [];
+        updateTxs = await this.updateIgpHook({
+          currentConfig,
+          targetConfig,
+        });
         break;
       case HookType.PROTOCOL_FEE:
         updateTxs = await this.updateProtocolFeeHook({
@@ -199,7 +204,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Return an ownership transfer transaction if required
     if (!eqAddress(targetConfig.owner, owner)) {
       updateTxs.push({
-        annotation: 'Transferring ownership of ownable ISM...',
+        annotation: 'Transferring ownership of ownable Hook...',
         chainId: this.domainId,
         to: this.args.addresses.deployedHook,
         data: Ownable__factory.createInterface().encodeFunctionData(
@@ -277,6 +282,197 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     return routingHookUpdates;
+  }
+
+  protected async updateIgpHook({
+    currentConfig,
+    targetConfig,
+  }: {
+    currentConfig: IgpHookConfig;
+    targetConfig: IgpHookConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs = [];
+    const igpInterface = InterchainGasPaymaster__factory.createInterface();
+
+    // Update beneficiary if changed
+    if (!eqAddress(currentConfig.beneficiary, targetConfig.beneficiary)) {
+      updateTxs.push({
+        annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
+        chainId: this.domainId,
+        to: this.args.addresses.deployedHook,
+        data: igpInterface.encodeFunctionData('setBeneficiary(address)', [
+          targetConfig.beneficiary,
+        ]),
+      });
+    }
+
+    // get gasOracleAddress using any remote domain in the current config
+    let gasOracle;
+    const domainKeys = Object.keys(currentConfig.oracleConfig);
+
+    // If possible, reuse and reconfigure the gas oracle from the first remote we know.
+    // Otherwise if there are no remotes in current config, deploy a new gas oracle with our target config.
+    // We should be reusing the same oracle for all remotes, but if not, the updateIgpRemoteGasParams step will rectify this
+    if (domainKeys.length > 0) {
+      const domainId = this.multiProvider.getDomainId(domainKeys[0]);
+      ({ gasOracle } = await InterchainGasPaymaster__factory.connect(
+        this.args.addresses.deployedHook,
+        this.multiProvider.getSignerOrProvider(this.chain),
+      )['destinationGasConfigs(uint32)'](domainId));
+
+      // update storage gas oracle
+      // Note: this will only update the gas oracle for remotes that are in the target config
+      updateTxs.push(
+        ...(await this.updateStorageGasOracle({
+          gasOracle,
+          currentOracleConfig: currentConfig.oracleConfig,
+          targetOracleConfig: targetConfig.oracleConfig,
+          targetOverhead: targetConfig.overhead, // used to log example remote gas costs
+        })),
+      );
+    } else {
+      const newGasOracle = await this.deployStorageGasOracle({
+        config: targetConfig,
+      });
+      gasOracle = newGasOracle.address;
+    }
+
+    // update igp remote gas params
+    // Note: this will only update the gas params for remotes that are in the target config
+    updateTxs.push(
+      ...(await this.updateIgpRemoteGasParams({
+        interchainGasPaymaster: this.args.addresses.deployedHook,
+        gasOracle,
+        currentOverheads: currentConfig.overhead,
+        targetOverheads: targetConfig.overhead,
+      })),
+    );
+
+    return updateTxs;
+  }
+
+  protected async updateIgpRemoteGasParams({
+    interchainGasPaymaster,
+    gasOracle,
+    currentOverheads,
+    targetOverheads,
+  }: {
+    interchainGasPaymaster: Address;
+    gasOracle: Address;
+    currentOverheads?: IgpConfig['overhead'];
+    targetOverheads: IgpConfig['overhead'];
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    for (const [remote, gasOverhead] of Object.entries(targetOverheads)) {
+      // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
+
+      if (!remoteDomain) {
+        this.logger.warn(
+          `Skipping overhead ${this.chain} -> ${remote}. Expected if the remote domain is not in the MultiProvider.`,
+        );
+        continue;
+      }
+
+      // only update if the gas overhead has changed
+      if (currentOverheads?.[remote] !== gasOverhead) {
+        this.logger.debug(
+          `Setting gas params for ${this.chain} -> ${remote}: gasOverhead = ${gasOverhead} gasOracle = ${gasOracle}`,
+        );
+        gasParamsToSet.push({
+          remoteDomain,
+          config: {
+            gasOverhead,
+            gasOracle,
+          },
+        });
+      }
+    }
+
+    if (gasParamsToSet.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        annotation: `Updating overhead for domains ${Object.keys(
+          targetOverheads,
+        ).join(', ')}...`,
+        chainId: this.domainId,
+        to: interchainGasPaymaster,
+        data: InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
+          'setDestinationGasConfigs((uint32,(address,uint96))[])',
+          [gasParamsToSet],
+        ),
+      },
+    ];
+  }
+
+  protected async updateStorageGasOracle({
+    gasOracle,
+    currentOracleConfig,
+    targetOracleConfig,
+    targetOverhead,
+  }: {
+    gasOracle: Address;
+    currentOracleConfig?: IgpConfig['oracleConfig'];
+    targetOracleConfig: IgpConfig['oracleConfig'];
+    targetOverhead: IgpConfig['overhead'];
+  }): Promise<AnnotatedEV5Transaction[]> {
+    this.logger.info(`Updating gas oracle configuration from ${this.chain}...`);
+    const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+
+    for (const [remote, target] of Object.entries(targetOracleConfig)) {
+      // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      const current = currentOracleConfig?.[remote];
+      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
+
+      if (!remoteDomain) {
+        this.logger.warn(
+          `Skipping gas oracle update ${this.chain} -> ${remote}. Expected if the remote domain is not in the MultiProvider.`,
+        );
+        continue;
+      }
+
+      // only update if the oracle config has changed
+      if (!current || !configDeepEquals(current, target)) {
+        configsToSet.push({ remoteDomain, ...target });
+
+        // Log an example remote gas cost
+        const exampleRemoteGas = (targetOverhead[remote] ?? 200_000) + 50_000;
+        const exampleRemoteGasCost = BigNumber.from(target.tokenExchangeRate)
+          .mul(target.gasPrice)
+          .mul(exampleRemoteGas)
+          .div(TOKEN_EXCHANGE_RATE_SCALE);
+        this.logger.info(
+          `${
+            this.chain
+          } -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
+            exampleRemoteGasCost,
+          )}`,
+        );
+      }
+    }
+
+    if (configsToSet.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        annotation: `Updating gas oracle config for domains ${Object.keys(
+          targetOracleConfig,
+        ).join(', ')}...`,
+        chainId: this.domainId,
+        to: gasOracle,
+        data: StorageGasOracle__factory.createInterface().encodeFunctionData(
+          'setRemoteGasDataConfigs((uint32,uint128,uint128)[])',
+          [configsToSet],
+        ),
+      },
+    ];
   }
 
   protected async updateProtocolFeeHook({
@@ -664,10 +860,12 @@ export class EvmHookModule extends HyperlaneModule<
     storageGasOracle: StorageGasOracle;
     config: IgpConfig;
   }): Promise<InterchainGasPaymaster> {
+    // Set the deployer as the owner of the IGP for configuration purposes
     const deployerAddress = await this.multiProvider.getSignerAddress(
       this.chain,
     );
 
+    // Deploy the InterchainGasPaymaster
     const igp = await this.deployer.deployProxiedContract({
       chain: this.chain,
       contractKey: HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -677,35 +875,16 @@ export class EvmHookModule extends HyperlaneModule<
       initializeArgs: [deployerAddress, config.beneficiary],
     });
 
-    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
-    for (const [remote, gasOverhead] of Object.entries(config.overhead)) {
-      // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
-      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
-      if (!remoteDomain) {
-        this.logger.warn(
-          `Skipping overhead ${this.chain} -> ${remote}. Expected if the remote is a non-EVM chain.`,
-        );
-        continue;
-      }
+    // Obtain the transactions to set the gas params for each remote
+    const configureTxs = await this.updateIgpRemoteGasParams({
+      interchainGasPaymaster: igp.address,
+      gasOracle: storageGasOracle.address,
+      targetOverheads: config.overhead,
+    });
 
-      this.logger.debug(
-        `Setting gas params for ${this.chain} -> ${remote}: gasOverhead = ${gasOverhead} gasOracle = ${storageGasOracle.address}`,
-      );
-      gasParamsToSet.push({
-        remoteDomain,
-        config: {
-          gasOverhead,
-          gasOracle: storageGasOracle.address,
-        },
-      });
-    }
-
-    if (gasParamsToSet.length > 0) {
-      await this.multiProvider.handleTx(
-        this.chain,
-        igp.setDestinationGasConfigs(gasParamsToSet, this.txOverrides),
-      );
+    // Set the gas params for each remote
+    for (const tx of configureTxs) {
+      await this.multiProvider.sendTransaction(this.chain, tx);
     }
 
     // Transfer igp to the configured owner
@@ -722,57 +901,23 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     config: IgpConfig;
   }): Promise<StorageGasOracle> {
+    // Deploy the StorageGasOracle, by default msg.sender is the owner
     const gasOracle = await this.deployer.deployContract({
       chain: this.chain,
       contractKey: 'storageGasOracle',
       constructorArgs: [],
     });
 
-    if (!config.oracleConfig) {
-      this.logger.debug('No oracle config provided, skipping...');
-      return gasOracle;
-    }
+    // Obtain the transactions to set the gas params for each remote
+    const configureTxs = await this.updateStorageGasOracle({
+      gasOracle: gasOracle.address,
+      targetOracleConfig: config.oracleConfig,
+      targetOverhead: config.overhead,
+    });
 
-    this.logger.info(`Configuring gas oracle from ${this.chain}...`);
-    const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
-
-    for (const [remote, desired] of Object.entries(config.oracleConfig)) {
-      // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
-      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
-      if (!remoteDomain) {
-        this.logger.warn(
-          `Skipping gas oracle ${this.chain} -> ${remote}.` +
-            ' Expected if the remote is a non-EVM chain or the remote domain is not the in the MultiProvider.',
-        );
-        continue;
-      }
-
-      configsToSet.push({
-        remoteDomain,
-        ...desired,
-      });
-
-      // Log an example remote gas cost
-      const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
-      const exampleRemoteGasCost = BigNumber.from(desired.tokenExchangeRate)
-        .mul(desired.gasPrice)
-        .mul(exampleRemoteGas)
-        .div(TOKEN_EXCHANGE_RATE_SCALE);
-      this.logger.info(
-        `${
-          this.chain
-        } -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
-          exampleRemoteGasCost,
-        )}`,
-      );
-    }
-
-    if (configsToSet.length > 0) {
-      await this.multiProvider.handleTx(
-        this.chain,
-        gasOracle.setRemoteGasDataConfigs(configsToSet, this.txOverrides),
-      );
+    // Set the gas params for each remote
+    for (const tx of configureTxs) {
+      await this.multiProvider.sendTransaction(this.chain, tx);
     }
 
     // Transfer gas oracle to the configured owner
