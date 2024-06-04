@@ -1,11 +1,6 @@
 import { CommandModule } from 'yargs';
 
-import {
-  EvmCoreReader,
-  HookConfigSchema,
-  IsmConfig,
-  IsmConfigSchema,
-} from '@hyperlane-xyz/sdk';
+import { CoreConfigSchema, EvmCoreReader, IsmConfig } from '@hyperlane-xyz/sdk';
 
 import { createHookConfig } from '../config/hooks.js';
 import { createIsmConfig, createTrustedRelayerConfig } from '../config/ism.js';
@@ -17,6 +12,7 @@ import {
   logGray,
   logRed,
 } from '../logger.js';
+import { detectAndConfirmOrPrompt } from '../utils/chains.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 import { deploy } from './deploy.js';
@@ -30,19 +26,19 @@ export const coreCommand: CommandModule = {
   describe: 'Manage core Hyperlane contracts & configs',
   builder: (yargs) =>
     yargs
+      .command(configure)
       .command(deploy)
-      .command(config)
       .command(read)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
 };
 
-export const config: CommandModuleWithContext<{
+export const configure: CommandModuleWithContext<{
   ismAdvanced: boolean;
   config: string;
 }> = {
-  command: 'config',
+  command: 'configure',
   describe: 'Create a core configuration, including ISMs and hooks.',
   builder: {
     ismAdvanced: {
@@ -59,6 +55,12 @@ export const config: CommandModuleWithContext<{
   handler: async ({ context, ismAdvanced, config: configFilePath }) => {
     logGray('Hyperlane Core Configure');
     logGray('------------------------');
+
+    const owner = await detectAndConfirmOrPrompt(
+      async () => context.signer?.getAddress(),
+      'Enter the desired',
+      'owner address',
+    );
 
     // Create default Ism config (advanced or trusted)
     let defaultIsm: IsmConfig;
@@ -84,11 +86,15 @@ export const config: CommandModuleWithContext<{
     );
 
     // Validate
-    IsmConfigSchema.parse(defaultIsm);
-    HookConfigSchema.parse(requiredHook);
-    HookConfigSchema.parse(defaultHook);
+    const coreConfig = {
+      owner,
+      defaultIsm,
+      defaultHook,
+      requiredHook,
+    };
+    CoreConfigSchema.parse(coreConfig);
 
-    writeYamlOrJson(configFilePath, { defaultIsm, defaultHook, requiredHook });
+    writeYamlOrJson(configFilePath, coreConfig);
 
     process.exit(0);
   },

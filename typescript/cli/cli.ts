@@ -6,7 +6,6 @@ import type { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import './env.js';
 import { avsCommand } from './src/commands/avs.js';
-import { chainsCommand } from './src/commands/chains.js';
 import { configCommand } from './src/commands/config.js';
 import { coreCommand } from './src/commands/core.js';
 import { deployCommand } from './src/commands/deploy.js';
@@ -18,6 +17,7 @@ import {
   registryUriCommandOption,
   skipConfirmationOption,
 } from './src/commands/options.js';
+import { registryCommand } from './src/commands/registry.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
 import { validatorCommand } from './src/commands/validator.js';
@@ -51,10 +51,10 @@ try {
       contextMiddleware,
     ])
     .command(avsCommand)
-    .command(chainsCommand)
     .command(configCommand)
     .command(coreCommand)
     .command(deployCommand)
+    .command(registryCommand)
     .command(sendCommand)
     .command(statusCommand)
     .command(validatorCommand)

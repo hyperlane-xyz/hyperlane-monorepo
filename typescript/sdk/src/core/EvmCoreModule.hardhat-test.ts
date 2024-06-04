@@ -17,10 +17,12 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
+import { CoreConfig } from './types.js';
 
 describe('EvmCoreModule', async () => {
   const CHAIN = TestChainName.test1;
   const DELAY = 1892391283182;
+  let config: CoreConfig;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let evmCoreModule: EvmCoreModule;
@@ -33,7 +35,7 @@ describe('EvmCoreModule', async () => {
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const config = {
+    config = {
       ...testCoreConfig([CHAIN])[CHAIN],
       upgrade: {
         timelock: {
@@ -122,10 +124,8 @@ describe('EvmCoreModule', async () => {
       );
     });
 
-    it('should set mailbox owner to proxyAdmin', async () => {
-      expect(await mailboxContract.owner()).to.equal(
-        evmCoreModule.serialize().proxyAdmin,
-      );
+    it('should set mailbox owner to config owner', async () => {
+      expect(await mailboxContract.owner()).to.equal(config.owner);
     });
 
     it('should deploy mailbox default Ism', async () => {
