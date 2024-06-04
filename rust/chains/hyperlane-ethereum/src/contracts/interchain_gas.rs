@@ -6,17 +6,15 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::RawLog;
 use ethers::prelude::Middleware;
-use ethers_contract::{ContractError, EthLogDecode, LogMeta as EthersLogMeta};
-use ethers_core::types::H256 as EthersH256;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
     InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512,
 };
-use tracing::{instrument, warn};
+use tracing::instrument;
 
+use super::utils::fetch_raw_logs_and_log_meta;
 use crate::interfaces::i_interchain_gas_paymaster::{
     GasPaymentFilter, IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal,
     IINTERCHAINGASPAYMASTER_ABI,
@@ -133,44 +131,25 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let ethers_tx_hash: EthersH256 = tx_hash.into();
-        let receipt = self
-            .provider
-            .get_transaction_receipt(ethers_tx_hash)
-            .await
-            .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
-        let Some(receipt) = receipt else {
-            warn!(%tx_hash, "No receipt found for tx hash");
-            return Ok(vec![]);
-        };
-
-        let logs: Vec<_> = receipt
-            .logs
-            .into_iter()
-            .filter_map(|log| {
-                // Filter out logs that aren't emitted by this contract
-                if log.address != self.contract.address() {
-                    return None;
-                }
-                let raw_log = RawLog {
-                    topics: log.topics.clone(),
-                    data: log.data.to_vec(),
-                };
-                let log_meta: EthersLogMeta = (&log).into();
-                let gas_payment_filter = GasPaymentFilter::decode_log(&raw_log).ok();
-                gas_payment_filter.map(|log| {
-                    (
-                        Indexed::new(InterchainGasPayment {
-                            message_id: H256::from(log.message_id),
-                            destination: log.destination_domain,
-                            payment: log.payment.into(),
-                            gas_amount: log.gas_amount.into(),
-                        }),
-                        log_meta.into(),
-                    )
-                })
-            })
-            .collect();
+        let logs = fetch_raw_logs_and_log_meta::<GasPaymentFilter, M>(
+            tx_hash,
+            self.provider.clone(),
+            self.contract.address(),
+        )
+        .await?
+        .into_iter()
+        .map(|(log, log_meta)| {
+            (
+                Indexed::new(InterchainGasPayment {
+                    message_id: H256::from(log.message_id),
+                    destination: log.destination_domain,
+                    payment: log.payment.into(),
+                    gas_amount: log.gas_amount.into(),
+                }),
+                log_meta,
+            )
+        })
+        .collect();
         Ok(logs)
     }
 }

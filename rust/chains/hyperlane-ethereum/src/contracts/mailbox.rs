@@ -7,13 +7,12 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::{AbiEncode, Detokenize, RawLog};
+use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
-use ethers_contract::{builders::ContractCall, ContractError, EthEvent, LogMeta as EthersLogMeta};
-use ethers_core::types::H256 as EthersH256;
+use ethers_contract::builders::ContractCall;
 use futures_util::future::join_all;
 use hyperlane_core::H512;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use hyperlane_core::{
     utils::bytes_to_hex, BatchItem, ChainCommunicationError, ChainResult, ContractLocator,
@@ -32,6 +31,7 @@ use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
 use super::multicall::{self, build_multicall};
+use super::utils::fetch_raw_logs_and_log_meta;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -165,39 +165,20 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let ethers_tx_hash: EthersH256 = tx_hash.into();
-        let receipt = self
-            .provider
-            .get_transaction_receipt(ethers_tx_hash)
-            .await
-            .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
-        let Some(receipt) = receipt else {
-            warn!(%tx_hash, "No receipt found for tx hash");
-            return Ok(vec![]);
-        };
-
-        let logs: Vec<_> = receipt
-            .logs
-            .into_iter()
-            .filter_map(|log| {
-                // Filter out logs that aren't emitted by this contract
-                if log.address != self.contract.address() {
-                    return None;
-                }
-                let raw_log = RawLog {
-                    topics: log.topics.clone(),
-                    data: log.data.to_vec(),
-                };
-                let log_meta: EthersLogMeta = (&log).into();
-                let dispatch_filter = DispatchFilter::decode_log(&raw_log).ok();
-                dispatch_filter.map(|event| {
-                    (
-                        HyperlaneMessage::from(event.message.to_vec()).into(),
-                        log_meta.into(),
-                    )
-                })
-            })
-            .collect();
+        let logs = fetch_raw_logs_and_log_meta::<DispatchFilter, M>(
+            tx_hash,
+            self.provider.clone(),
+            self.contract.address(),
+        )
+        .await?
+        .into_iter()
+        .map(|(log, log_meta)| {
+            (
+                HyperlaneMessage::from(log.message.to_vec()).into(),
+                log_meta,
+            )
+        })
+        .collect();
         Ok(logs)
     }
 }

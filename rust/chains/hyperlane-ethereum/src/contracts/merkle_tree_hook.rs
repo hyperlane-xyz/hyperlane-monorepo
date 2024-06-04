@@ -4,17 +4,14 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::RawLog;
 use ethers::prelude::Middleware;
-use ethers_contract::{ContractError, EthEvent, LogMeta as EthersLogMeta};
-use ethers_core::types::H256 as EthersH256;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H160, H256, H512,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
@@ -22,6 +19,8 @@ use crate::interfaces::merkle_tree_hook::{
 };
 use crate::tx::call_with_lag;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
+
+use super::utils::fetch_raw_logs_and_log_meta;
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
@@ -152,95 +151,22 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        let raw_logs_and_log_meta = fetch_raw_logs_and_log_meta::<InsertedIntoTreeFilter, M>(
+        let logs = fetch_raw_logs_and_log_meta::<InsertedIntoTreeFilter, M>(
             tx_hash,
             self.provider.clone(),
             self.contract.address(),
-        )?;
-        let merkle_insertion_logs = raw_logs_and_log_meta?
-            .into_iter()
-            .filter_map(|(log, log_meta)| {
-                log.map(|log| {
-                    (
-                        MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
-                        log_meta,
-                    )
-                })
-            })
-            .collect();
-        // let ethers_tx_hash: EthersH256 = tx_hash.into();
-        // let receipt = self
-        //     .provider
-        //     .get_transaction_receipt(ethers_tx_hash)
-        //     .await
-        //     .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
-        // let Some(receipt) = receipt else {
-        //     warn!(%tx_hash, "No receipt found for tx hash");
-        //     return Ok(vec![]);
-        // };
-
-        // let logs: Vec<_> = receipt
-        //     .logs
-        //     .into_iter()
-        //     .filter_map(|log| {
-        //         // Filter out logs that aren't emitted by this contract
-        //         if log.address != self.contract.address() {
-        //             return None;
-        //         }
-        //         let raw_log = RawLog {
-        //             topics: log.topics.clone(),
-        //             data: log.data.to_vec(),
-        //         };
-        //         let log_meta: EthersLogMeta = (&log).into();
-        //         let merkle_insertion_filter = InsertedIntoTreeFilter::decode_log(&raw_log).ok();
-        //         merkle_insertion_filter.map(|log| {
-        //             (
-        //                 MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
-        //                 log_meta.into(),
-        //             )
-        //         })
-        //     })
-        //     .collect();
-        Ok(logs)
-    }
-}
-
-pub async fn fetch_raw_logs_and_log_meta<T: EthEvent, M>(
-    tx_hash: H512,
-    provider: Arc<M>,
-    contract_address: H160,
-) -> ChainResult<Vec<(Option<T>, LogMeta)>>
-where
-    M: Middleware + 'static,
-{
-    let ethers_tx_hash: EthersH256 = tx_hash.into();
-    let receipt = provider
-        .get_transaction_receipt(ethers_tx_hash)
-        .await
-        .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
-    let Some(receipt) = receipt else {
-        warn!(%tx_hash, "No receipt found for tx hash");
-        return Ok(vec![]);
-    };
-
-    let logs: Vec<(Option<T>, LogMeta)> = receipt
-        .logs
+        )
+        .await?
         .into_iter()
-        .filter_map(|log| {
-            // Filter out logs that aren't emitted by this contract
-            if log.address != contract_address.into() {
-                return None;
-            }
-            let raw_log = RawLog {
-                topics: log.topics.clone(),
-                data: log.data.to_vec(),
-            };
-            let log_meta: EthersLogMeta = (&log).into();
-            let event_filter = T::decode_log(&raw_log).ok();
-            event_filter.map(|log| (Some(log), log_meta.into()))
+        .map(|(log, log_meta)| {
+            (
+                MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
+                log_meta,
+            )
         })
         .collect();
-    Ok(logs)
+        Ok(logs)
+    }
 }
 
 #[async_trait]
