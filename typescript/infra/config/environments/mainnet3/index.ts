@@ -1,5 +1,4 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import {
   getKeysForRole,
@@ -42,7 +41,6 @@ export const environment: EnvironmentConfig = {
   getMultiProvider: async (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-    _connectionType?: RpcConsensusType,
     useSecrets?: boolean,
   ) =>
     getMultiProviderForRole(

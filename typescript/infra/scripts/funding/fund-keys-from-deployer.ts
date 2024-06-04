@@ -191,7 +191,6 @@ async function main() {
   const multiProvider = await config.getMultiProvider(
     Contexts.Hyperlane, // Always fund from the hyperlane context
     Role.Deployer, // Always fund from the deployer
-    argv.connectionType,
   );
 
   let contextFunders: ContextFunder[];

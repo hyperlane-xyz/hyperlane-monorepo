@@ -33,7 +33,6 @@ export async function getHelloWorldApp(
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
-    connectionType,
   );
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
 
@@ -66,7 +65,6 @@ export async function getHelloWorldMultiProtocolApp(
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
-    connectionType,
   );
 
   const envAddresses = getEnvAddresses(coreConfig.environment);

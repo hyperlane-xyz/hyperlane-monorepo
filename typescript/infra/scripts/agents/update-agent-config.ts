@@ -9,7 +9,6 @@ async function main() {
   let multiProvider = await envConfig.getMultiProvider(
     undefined,
     undefined,
-    undefined,
     // Don't use secrets
     false,
   );
