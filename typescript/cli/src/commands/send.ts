@@ -10,7 +10,7 @@ import { sendTestMessage } from '../send/message.js';
  */
 export const sendCommand: CommandModule = {
   command: 'send',
-  describe: 'Send a test message or transfer',
+  describe: 'Send a test message',
   builder: (yargs) =>
     yargs.command(messageCommand).version(false).demandCommand(),
   handler: () => log('Command required'),
