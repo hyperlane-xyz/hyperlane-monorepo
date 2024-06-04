@@ -25,8 +25,8 @@ export const coreCommand: CommandModule = {
   describe: 'Manage core Hyperlane contracts & configs',
   builder: (yargs) =>
     yargs
-      .command(deploy)
       .command(configure)
+      .command(deploy)
       .command(read)
       .version(false)
       .demandCommand(),

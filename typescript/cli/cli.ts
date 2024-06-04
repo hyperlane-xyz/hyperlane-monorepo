@@ -51,10 +51,10 @@ try {
       contextMiddleware,
     ])
     .command(avsCommand)
-    .command(registryCommand)
     .command(configCommand)
     .command(coreCommand)
     .command(deployCommand)
+    .command(registryCommand)
     .command(sendCommand)
     .command(statusCommand)
     .command(validatorCommand)
