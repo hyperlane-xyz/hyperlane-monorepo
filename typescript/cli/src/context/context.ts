@@ -99,8 +99,8 @@ export async function getDryRunContext(
   logBlue(`Dry-running against chain: ${chain}`);
   await verifyAnvil();
 
-  const multiProvider = await getMultiProvider(registry);
-  await forkNetworkToMultiProvider(multiProvider, chain);
+  let multiProvider = await getMultiProvider(registry);
+  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
 
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
@@ -114,7 +114,7 @@ export async function getDryRunContext(
     chainMetadata: multiProvider.metadata,
     key: impersonatedKey,
     signer: impersonatedSigner,
-    multiProvider: multiProvider,
+    multiProvider,
     skipConfirmation: !!skipConfirmation,
     isDryRun: true,
     dryRunChain: chain,

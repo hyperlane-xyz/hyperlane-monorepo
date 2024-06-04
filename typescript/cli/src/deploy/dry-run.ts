@@ -19,12 +19,14 @@ import { toUpperCamelCase } from './utils.js';
 export async function forkNetworkToMultiProvider(
   multiProvider: MultiProvider,
   chain: string,
-) {
+): Promise<MultiProvider> {
   multiProvider = multiProvider.extendChainMetadata({
     [chain]: { blocks: { confirmations: 0 } },
   });
 
   await setFork(multiProvider, chain);
+
+  return multiProvider;
 }
 
 /**
