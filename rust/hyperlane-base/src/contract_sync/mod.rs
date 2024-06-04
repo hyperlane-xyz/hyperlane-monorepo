@@ -258,7 +258,7 @@ pub trait ContractSyncer<T>: Send + Sync {
 pub struct SyncOptions<T> {
     // Keep as optional fields for now to run them simultaneously.
     // Might want to refactor into an enum later, where we either index with a cursor or rely on receiving
-    // txids from a channel to other inedxing tasks
+    // txids from a channel to other indexing tasks
     cursor: Option<Box<dyn ContractSyncCursor<T>>>,
     tx_id_recv: Option<BroadcastReceiver<H512>>,
 }

@@ -15,7 +15,7 @@ use hyperlane_core::{
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
     InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512,
 };
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::interfaces::i_interchain_gas_paymaster::{
     GasPaymentFilter, IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal,
@@ -140,6 +140,7 @@ where
             .await
             .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
         let Some(receipt) = receipt else {
+            warn!(%tx_hash, "No receipt found for tx hash");
             return Ok(vec![]);
         };
 
@@ -147,6 +148,10 @@ where
             .logs
             .into_iter()
             .filter_map(|log| {
+                // Filter out logs that aren't emitted by this contract
+                if log.address != self.contract.address() {
+                    return None;
+                }
                 let raw_log = RawLog {
                     topics: log.topics.clone(),
                     data: log.data.to_vec(),

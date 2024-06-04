@@ -13,7 +13,7 @@ use ethers_contract::{builders::ContractCall, ContractError, EthEvent, LogMeta a
 use ethers_core::types::H256 as EthersH256;
 use futures_util::future::join_all;
 use hyperlane_core::H512;
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use hyperlane_core::{
     utils::bytes_to_hex, BatchItem, ChainCommunicationError, ChainResult, ContractLocator,
@@ -172,6 +172,7 @@ where
             .await
             .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
         let Some(receipt) = receipt else {
+            warn!(%tx_hash, "No receipt found for tx hash");
             return Ok(vec![]);
         };
 
@@ -179,6 +180,10 @@ where
             .logs
             .into_iter()
             .filter_map(|log| {
+                // Filter out logs that aren't emitted by this contract
+                if log.address != self.contract.address() {
+                    return None;
+                }
                 let raw_log = RawLog {
                     topics: log.topics.clone(),
                     data: log.data.to_vec(),
