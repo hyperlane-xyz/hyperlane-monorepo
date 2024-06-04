@@ -58,10 +58,6 @@ export function readIsmConfig(filePath: string) {
   return parsedConfig;
 }
 
-export function isValildIsmConfig(config: any) {
-  return IsmConfigSchema.safeParse(config).success;
-}
-
 const ISM_TYPE_DESCRIPTIONS: Record<IsmType, string> = {
   [IsmType.MESSAGE_ID_MULTISIG]: 'Validators need to sign just this messageId',
   [IsmType.MERKLE_ROOT_MULTISIG]:
