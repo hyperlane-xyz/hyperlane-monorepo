@@ -1,4 +1,4 @@
-import { ChainMap, ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { DockerConfig } from '../agent/agent.js';
 

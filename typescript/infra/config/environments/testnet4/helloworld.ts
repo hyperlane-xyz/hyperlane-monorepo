@@ -1,5 +1,3 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
-
 import {
   HelloWorldConfig,
   HelloWorldKathyRunMode,

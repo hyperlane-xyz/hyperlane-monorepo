@@ -8,8 +8,6 @@ import {
   ChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
-  RpcConsensusType,
-  RpcUrl,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 

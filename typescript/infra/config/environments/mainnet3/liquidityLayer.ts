@@ -2,7 +2,6 @@ import {
   BridgeAdapterConfig,
   BridgeAdapterType,
   ChainMap,
-  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
 import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware.js';

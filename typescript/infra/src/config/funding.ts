@@ -1,4 +1,4 @@
-import { ChainMap, RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
 import { FundableRole, Role } from '../roles.js';
