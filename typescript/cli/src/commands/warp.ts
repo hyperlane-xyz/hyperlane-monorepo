@@ -3,15 +3,21 @@ import { CommandModule } from 'yargs';
 import { EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
 
 import { createWarpRouteDeployConfig } from '../config/warp.js';
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  CommandModuleWithWriteContext,
+} from '../context/types.js';
 import { log, logGray, logGreen } from '../logger.js';
+import { sendTestTransfer } from '../send/transfer.js';
 import { writeFileAtPath } from '../utils/files.js';
 
 import {
   addressCommandOption,
   chainCommandOption,
   outputFileCommandOption,
+  warpCoreConfigCommandOption,
 } from './options.js';
+import { MessageOptionsArgTypes, messageOptions } from './send.js';
 
 /**
  * Parent command
@@ -20,7 +26,13 @@ export const warpCommand: CommandModule = {
   command: 'warp',
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
-    yargs.command(configure).command(read).version(false).demandCommand(),
+    yargs
+      .command(configure)
+      .command(read)
+      .command(send)
+      .version(false)
+      .demandCommand(),
+
   handler: () => log('Command required'),
 };
 
@@ -85,6 +97,55 @@ export const read: CommandModuleWithContext<{
       logGreen(`✅ Warp route config read successfully:`);
       log(JSON.stringify(warpRouteConfig, null, 4));
     }
+    process.exit(0);
+  },
+};
+
+const send: CommandModuleWithWriteContext<
+  MessageOptionsArgTypes & {
+    warp: string;
+    router?: string;
+    wei: string;
+    recipient?: string;
+  }
+> = {
+  command: 'send',
+  describe: 'Send a test token transfer on a warp route',
+  builder: {
+    ...messageOptions,
+    warp: warpCoreConfigCommandOption,
+    wei: {
+      type: 'string',
+      description: 'Amount in wei to send',
+      default: 1,
+    },
+    recipient: {
+      type: 'string',
+      description: 'Token recipient address (defaults to sender)',
+    },
+  },
+  handler: async ({
+    context,
+    origin,
+    destination,
+    timeout,
+    quick,
+    relay,
+    warp,
+    wei,
+    recipient,
+  }) => {
+    await sendTestTransfer({
+      context,
+      warpConfigPath: warp,
+      origin,
+      destination,
+      wei,
+      recipient,
+      timeoutSec: timeout,
+      skipWaitForDelivery: quick,
+      selfRelay: relay,
+    });
     process.exit(0);
   },
 };

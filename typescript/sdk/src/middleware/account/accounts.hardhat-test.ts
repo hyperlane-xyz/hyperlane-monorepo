@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber, constants } from 'ethers';
+import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -84,7 +84,7 @@ describe('InterchainAccounts', async () => {
     const call = {
       to: recipient.address,
       data,
-      value: BigNumber.from('0'),
+      value: '0',
     };
     const quote = await local['quoteGasPayment(uint32)'](
       multiProvider.getDomainId(remoteChain),
