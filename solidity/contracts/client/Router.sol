@@ -185,7 +185,10 @@ abstract contract Router is MailboxClient, IMessageRecipient {
             );
     }
 
-    // for backward compatibility with v2 contracts
+    /**
+     * @deprecated Use `_Router_dispatch` instead
+     * @dev For backward compatibility with v2 client contracts
+     */
     function _dispatch(
         uint32 _destinationDomain,
         bytes memory _messageBody
@@ -217,7 +220,10 @@ abstract contract Router is MailboxClient, IMessageRecipient {
             );
     }
 
-    // for backward compatibility with v2 contracts
+    /**
+     * @deprecated Use `_Router_quoteDispatch` instead
+     * @dev For backward compatibility with v2 client contracts
+     */
     function _quoteDispatch(
         uint32 _destinationDomain,
         bytes memory _messageBody
