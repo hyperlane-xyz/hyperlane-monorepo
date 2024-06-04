@@ -263,7 +263,7 @@ export class EvmCoreModule extends HyperlaneModule<
     await multiProvider.handleTx(
       chain,
       mailbox.initialize(
-        proxyAdmin,
+        config.owner,
         deployedDefaultIsm,
         deployedDefaultHook.address,
         deployedRequiredHook.address,

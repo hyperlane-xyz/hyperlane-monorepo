@@ -56,7 +56,7 @@ export async function getContext({
   const registry = getRegistry(registryUri, registryOverrideUri);
 
   let signer: ethers.Wallet | undefined = undefined;
-  if (requiresKey) {
+  if (key || requiresKey) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
   const multiProvider = await getMultiProvider(registry, signer);

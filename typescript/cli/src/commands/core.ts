@@ -12,6 +12,7 @@ import {
   logGray,
   logRed,
 } from '../logger.js';
+import { detectAndConfirmOrPrompt } from '../utils/chains.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 import { deploy } from './deploy.js';
@@ -55,6 +56,12 @@ export const configure: CommandModuleWithContext<{
     logGray('Hyperlane Core Configure');
     logGray('------------------------');
 
+    const owner = await detectAndConfirmOrPrompt(
+      async () => context.signer?.getAddress(),
+      'Enter the desired',
+      'owner address',
+    );
+
     // Create default Ism config (advanced or trusted)
     let defaultIsm: IsmConfig;
     if (ismAdvanced) {
@@ -79,11 +86,15 @@ export const configure: CommandModuleWithContext<{
     );
 
     // Validate
-    IsmConfigSchema.parse(defaultIsm);
-    HookConfigSchema.parse(requiredHook);
-    HookConfigSchema.parse(defaultHook);
+    const coreConfig = {
+      owner,
+      defaultIsm,
+      defaultHook,
+      requiredHook,
+    };
+    CoreConfigSchema.parse(coreConfig);
 
-    writeYamlOrJson(configFilePath, { defaultIsm, defaultHook, requiredHook });
+    writeYamlOrJson(configFilePath, coreConfig);
 
     process.exit(0);
   },
