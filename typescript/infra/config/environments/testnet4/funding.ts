@@ -30,6 +30,8 @@ export const keyFunderConfig: KeyFunderConfig = {
     bsctestnet: '5',
     fuji: '5',
     plumetestnet: '0.2',
+    holesky: '5',
+    // Funder boosts itself upto 5x balance on L2 before dispersing funds
     scrollsepolia: '1',
     sepolia: '5',
   },

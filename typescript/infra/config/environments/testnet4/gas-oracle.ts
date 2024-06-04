@@ -19,6 +19,7 @@ import { ethereumChainNames } from './chains.js';
 const gasPrices: ChainMap<BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
+  holesky: ethers.utils.parseUnits('10', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
@@ -48,6 +49,7 @@ const chainTokenRarity: ChainMap<Rarity> = {
   alfajores: Rarity.Common,
   fuji: Rarity.Rare,
   bsctestnet: Rarity.Rare,
+  holesky: Rarity.Common,
   sepolia: Rarity.Mythic,
   scrollsepolia: Rarity.Rare,
   chiado: Rarity.Common,
