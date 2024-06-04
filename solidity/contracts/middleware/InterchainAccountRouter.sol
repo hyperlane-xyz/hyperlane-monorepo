@@ -625,7 +625,8 @@ contract InterchainAccountRouter is Router {
                 _destination,
                 _router,
                 _body,
-                _hookMetadata
+                _hookMetadata,
+                hook
             );
     }
 

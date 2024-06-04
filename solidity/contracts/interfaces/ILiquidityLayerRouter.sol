@@ -9,5 +9,5 @@ interface ILiquidityLayerRouter {
         uint256 _amount,
         string calldata _bridge,
         bytes calldata _messageBody
-    ) external returns (bytes32);
+    ) external payable returns (bytes32);
 }

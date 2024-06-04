@@ -106,6 +106,20 @@ contract InterchainQueryRouter is Router {
         );
     }
 
+    function _dispatch(
+        uint32 _destinationDomain,
+        bytes memory _messageBody
+    ) internal returns (bytes32) {
+        return
+            _Router_dispatch(
+                _destinationDomain,
+                msg.value,
+                _messageBody,
+                "",
+                address(hook)
+            );
+    }
+
     /**
      * @notice Handles a message from remote enrolled Interchain Query Router.
      * @param _origin The domain of the chain that sent the message.

@@ -185,21 +185,6 @@ abstract contract Router is MailboxClient, IMessageRecipient {
             );
     }
 
-    // for backward compatibility with v2 contracts
-    function _dispatch(
-        uint32 _destinationDomain,
-        bytes memory _messageBody
-    ) internal returns (bytes32) {
-        return
-            _Router_dispatch(
-                _destinationDomain,
-                msg.value,
-                _messageBody,
-                "",
-                address(hook)
-            );
-    }
-
     function _Router_quoteDispatch(
         uint32 _destinationDomain,
         bytes memory _messageBody,
