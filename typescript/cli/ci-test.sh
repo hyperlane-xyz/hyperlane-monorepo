@@ -245,7 +245,7 @@ run_hyperlane_send_message() {
     WARP_CONFIG_FILE="$REGISTRY_PATH/deployments/warp_routes/FAKE/${CHAIN1}-${CHAIN2}-config.yaml"
 
     echo -e "\nSending test warp transfer"
-    yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
         --registry $REGISTRY_PATH \
         --overrides " " \
         --origin ${CHAIN1} \
