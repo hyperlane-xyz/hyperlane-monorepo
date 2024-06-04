@@ -1,5 +1,17 @@
 # @hyperlane-xyz/core
 
+## 4.0.0
+
+### Major Changes
+
+- 97f7a5627: Merge branch 'cli-2.0' into main.
+
+### Patch Changes
+
+- Updated dependencies [341b8affd]
+- Updated dependencies [97f7a5627]
+  - @hyperlane-xyz/utils@4.0.0
+
 ## 3.13.0
 
 ### Minor Changes
