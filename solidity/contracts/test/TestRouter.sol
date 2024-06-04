@@ -31,6 +31,6 @@ contract TestRouter is Router {
     }
 
     function dispatch(uint32 _destination, bytes memory _msg) external payable {
-        _Router_dispatch(_destination, msg.value, _msg, "", address(hook));
+        _dispatch(_destination, _msg);
     }
 }
