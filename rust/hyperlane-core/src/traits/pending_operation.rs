@@ -130,7 +130,7 @@ pub fn gas_used_by_batch_operation(
     let total_estimated_cost = FixedPointNumber::try_from(batch_estimated_cost)?;
     let gas_used_by_operation = (gas_used_by_batch * gas_limit)
         .checked_div(&total_estimated_cost)
-        .ok_or(eyre::eyre!("Divison by zero"))?;
+        .ok_or(eyre::eyre!("Division by zero"))?;
     gas_used_by_operation.try_into()
 }
 
