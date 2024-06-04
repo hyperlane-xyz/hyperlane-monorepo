@@ -44,7 +44,6 @@ function getLiquidityLayerRelayerHelmValues(
       runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,
-      connectionType: relayerConfig.connectionType,
     },
     image: {
       repository: relayerConfig.docker.repo,

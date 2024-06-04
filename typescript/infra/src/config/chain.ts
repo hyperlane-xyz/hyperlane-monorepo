@@ -26,7 +26,6 @@ export const defaultRetry: ProviderRetryOptions = {
 
 export async function fetchProvider(
   chainName: ChainName,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
   const chainMetadata = getChain(chainName);
   if (!chainMetadata) {
@@ -38,22 +37,13 @@ export async function fetchProvider(
     throw Error(`No RPC URLs found for chain: ${chainName}`);
   }
 
-  if (connectionType === RpcConsensusType.Single) {
-    return HyperlaneSmartProvider.fromRpcUrl(chainId, rpcData[0], defaultRetry);
-  } else if (
-    connectionType === RpcConsensusType.Quorum ||
-    connectionType === RpcConsensusType.Fallback
-  ) {
-    return new HyperlaneSmartProvider(
-      chainId,
-      rpcData.map((url) => ({ http: url })),
-      undefined,
-      // disable retry for quorum
-      connectionType === RpcConsensusType.Fallback ? defaultRetry : undefined,
-    );
-  } else {
-    throw Error(`Unsupported connectionType: ${connectionType}`);
-  }
+  return new HyperlaneSmartProvider(
+    chainId,
+    rpcData.map((url) => ({ http: url })),
+    undefined,
+    // disable retry for quorum
+    defaultRetry,
+  );
 }
 
 export function getChainMetadatas(chains: Array<ChainName>) {

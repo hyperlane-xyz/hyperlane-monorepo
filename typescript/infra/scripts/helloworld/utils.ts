@@ -8,7 +8,6 @@ import {
   MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
-  RpcConsensusType,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
   filterChainMapToProtocol,
@@ -28,7 +27,6 @@ export async function getHelloWorldApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
@@ -60,7 +58,6 @@ export async function getHelloWorldMultiProtocolApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,

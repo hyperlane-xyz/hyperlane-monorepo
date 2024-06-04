@@ -9,7 +9,6 @@ import {
   ChainName,
   HyperlaneIgp,
   MultiProvider,
-  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -176,11 +175,6 @@ async function main() {
       'Array indicating target balance to fund Kathy for each chain. Each element is expected as <chainName>=<balance>',
     )
     .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
-
-    .string('connection-type')
-    .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', RpcConsensusType.Single)
-    .demandOption('connection-type')
 
     .boolean('skip-igp-claim')
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
