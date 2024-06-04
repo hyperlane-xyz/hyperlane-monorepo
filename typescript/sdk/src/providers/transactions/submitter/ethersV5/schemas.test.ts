@@ -30,9 +30,8 @@ describe('ethersV5 submitter props schemas', () => {
     });
 
     it('should fail parsing invalid props', () => {
-      const invalidProps: EV5GnosisSafeTxSubmitterProps = {
+      const invalidProps = {
         chain: CHAIN_MOCK,
-        safeAddress: ADDRESS_MOCK,
       };
       const result =
         EV5GnosisSafeTxSubmitterPropsSchema.safeParse(invalidProps);

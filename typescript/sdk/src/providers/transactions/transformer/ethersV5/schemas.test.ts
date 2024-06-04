@@ -24,8 +24,8 @@ describe('ethersV5 transformer props schemas', () => {
         hookMetadata: HOOK_METADATA_MOCK,
       };
       const result =
-        EV5InterchainAccountTxTransformerPropsSchema.parse(validProps);
-      expect(result).to.be.true;
+        EV5InterchainAccountTxTransformerPropsSchema.safeParse(validProps);
+      expect(result.success).to.be.true;
     });
 
     it('should fail parsing props when required fields are missing', () => {
