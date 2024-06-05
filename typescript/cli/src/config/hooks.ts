@@ -81,22 +81,10 @@ export async function createHookConfig(
         description: 'Charge fees for each message dispatch from this chain',
       },
       {
-        value: HookType.INTERCHAIN_GAS_PAYMASTER,
-        name: HookType.INTERCHAIN_GAS_PAYMASTER,
-        description:
-          'Allow for payments for expected gas to be paid by the relayer while delivering on remote chain',
-      },
-      {
         value: HookType.AGGREGATION,
         name: HookType.AGGREGATION,
         description:
           'Aggregate multiple hooks into a single hook (e.g. merkle tree + IGP) which will be called in sequence',
-      },
-      {
-        value: HookType.ROUTING,
-        name: HookType.ROUTING,
-        description:
-          'Each destination domain can have its own hook configured via DomainRoutingHook',
       },
     ],
     pageSize: 10,
@@ -105,12 +93,8 @@ export async function createHookConfig(
     lastConfig = { type: HookType.MERKLE_TREE };
   } else if (hookType === HookType.PROTOCOL_FEE) {
     lastConfig = await createProtocolFeeConfig();
-    // } else if (hookType === HookType.INTERCHAIN_GAS_PAYMASTER) {
-    //   lastConfig = await createIGPConfig(remotes);
   } else if (hookType === HookType.AGGREGATION) {
     lastConfig = await createAggregationConfig(context);
-  } else if (hookType === HookType.ROUTING) {
-    lastConfig = await createRoutingConfig(context);
   } else {
     throw new Error(`Invalid hook type: ${hookType}`);
   }
