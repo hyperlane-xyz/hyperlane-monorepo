@@ -235,7 +235,7 @@ impl KnownHyperlaneDomain {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
                 Moonbeam, Gnosis, MantaPacific, Neutron, Injective, InEvm, Ancient8, Blast,
-                Mode, Redstone, Viction, Zetachain
+                Mode, Redstone, Viction, Zetachain, Fraxtal, Linea, Sei
             ],
             Testnet: [
                 Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet, Fuji, BinanceSmartChainTestnet, Holesky
@@ -253,6 +253,7 @@ impl KnownHyperlaneDomain {
                 Optimism, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, InEvm, Ancient8, Blast, Mode, Redstone, Viction,
                 Zetachain, MoonbaseAlpha, ScrollSepolia, Chiado, MantaPacific, PlumeTestnet,
+                Fraxtal, Linea, Sei,
                 Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
@@ -270,7 +271,7 @@ impl KnownHyperlaneDomain {
                 Ethereum, Sepolia, Holesky, Polygon, Avalanche, Fuji, Optimism,
                 BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
                 ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm, Ancient8, Blast, Mode, Redstone,
-                Viction, Zetachain,
+                Viction, Zetachain, Fraxtal, Linea, Sei,
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991
             ],
         })
