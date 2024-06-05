@@ -1,45 +1,65 @@
 import { ethers } from 'ethers';
 
-import { MultiProtocolProvider, ProviderType } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ChainMap,
+  MultiProtocolProvider,
+  ProviderType,
+} from '@hyperlane-xyz/sdk';
 
-import { mainnetConfigs } from '../config/environments/mainnet3/chains.js';
-import { getCosmosChainGasPrice } from '../src/config/gas-oracle.js';
+import {
+  GasPriceConfig,
+  getCosmosChainGasPrice,
+} from '../src/config/gas-oracle.js';
+
+import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {
-  const allMetadatas = mainnetConfigs;
+  const environmentConfig = getEnvironmentConfig('mainnet3');
 
-  const mpp = new MultiProtocolProvider(allMetadatas);
+  const mpp = await environmentConfig.getMultiProtocolProvider();
 
-  const prices = await promiseObjAll(
-    objMap(allMetadatas, async (chain, metadata) => {
-      const provider = mpp.getProvider(chain);
-      switch (provider.type) {
-        case ProviderType.EthersV5: {
-          const gasPrice = await provider.provider.getGasPrice();
-          return {
-            amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
-            decimals: 9,
-          };
-        }
-        case ProviderType.CosmJsWasm: {
-          const { amount } = await getCosmosChainGasPrice(chain);
-
-          return {
-            amount,
-            decimals: 1,
-          };
-        }
-        case ProviderType.SolanaWeb3:
-          // TODO get a reasonable value
-          return '0.001';
-        default:
-          throw new Error(`Unsupported provider type: ${provider.type}`);
-      }
-    }),
+  const prices: ChainMap<GasPriceConfig> = Object.fromEntries(
+    await Promise.all(
+      environmentConfig.supportedChainNames.map(async (chain) => [
+        chain,
+        await getGasPrice(mpp, chain),
+      ]),
+    ),
   );
 
   console.log(JSON.stringify(prices, null, 2));
+}
+
+async function getGasPrice(
+  mpp: MultiProtocolProvider,
+  chain: string,
+): Promise<GasPriceConfig> {
+  const provider = mpp.getProvider(chain);
+  switch (provider.type) {
+    case ProviderType.EthersV5: {
+      const gasPrice = await provider.provider.getGasPrice();
+      return {
+        amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
+        decimals: 9,
+      };
+    }
+    case ProviderType.CosmJsWasm: {
+      const { amount } = await getCosmosChainGasPrice(chain);
+
+      return {
+        amount,
+        decimals: 1,
+      };
+    }
+    case ProviderType.SolanaWeb3:
+      // TODO get a reasonable value
+      return {
+        amount: '0.001',
+        decimals: 9,
+      };
+    default:
+      throw new Error(`Unsupported provider type: ${provider.type}`);
+  }
 }
 
 main()

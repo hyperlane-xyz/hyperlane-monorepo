@@ -1,7 +1,11 @@
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  MergedRegistry,
+  PartialRegistry,
+} from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
@@ -35,10 +39,18 @@ export function setRegistry(reg: FileSystemRegistry) {
   registry = reg;
 }
 
+/**
+ * Gets a FileSystemRegistry whose contents are found at the environment
+ * variable `REGISTRY_URI`, or `DEFAULT_REGISTRY_URI` if no env var is specified.
+ * This registry will not have any environment-specific overrides applied,
+ * and is useful for synchronous registry operations that do not require
+ * any overrides.
+ * @returns A FileSystemRegistry.
+ */
 export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
-    rootLogger.info('Using registry URI:', registryUri);
+    rootLogger.info({ registryUri }, 'Using registry URI');
     registry = new FileSystemRegistry({
       uri: registryUri,
       logger: rootLogger.child({ module: 'infra-registry' }),
@@ -110,4 +122,27 @@ export function getMainnetAddresses(): ChainMap<ChainAddresses> {
 
 export function getTestnetAddresses(): ChainMap<ChainAddresses> {
   return getEnvAddresses('testnet4');
+}
+
+/**
+ * Gets a registry, applying the provided overrides. The base registry
+ * that the overrides are applied to is the registry returned by `getRegistry`.
+ * @param chainMetadataOverrides Chain metadata overrides.
+ * @param chainAddressesOverrides Chain address overrides.
+ * @returns A MergedRegistry merging the registry from `getRegistry` and the overrides.
+ */
+export function getRegistryWithOverrides(
+  chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {},
+  chainAddressesOverrides: ChainMap<Partial<ChainAddresses>> = {},
+): MergedRegistry {
+  const baseRegistry = getRegistry();
+
+  const overrideRegistry = new PartialRegistry({
+    chainMetadata: chainMetadataOverrides,
+    chainAddresses: chainAddressesOverrides,
+  });
+
+  return new MergedRegistry({
+    registries: [baseRegistry, overrideRegistry],
+  });
 }

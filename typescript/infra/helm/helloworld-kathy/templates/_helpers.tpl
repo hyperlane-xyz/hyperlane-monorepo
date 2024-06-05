@@ -91,10 +91,6 @@ The helloworld-kathy container
 {{- if .Values.hyperlane.cycleOnce }}
   - --cycle-once
 {{- end }}
-{{- if .Values.hyperlane.connectionType }}
-  - --connection-type
-  - {{ .Values.hyperlane.connectionType }}
-{{- end }}
 {{- if .Values.hyperlane.cyclesBetweenEthereumMessages }}
   - --cycles-between-ethereum-messages
   - "{{ .Values.hyperlane.cyclesBetweenEthereumMessages }}"
