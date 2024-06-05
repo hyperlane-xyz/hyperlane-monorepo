@@ -73,85 +73,51 @@ export class EvmERC20WarpRouteReader {
    * Derives the token type for a given Warp Route address using specific methods
    *
    * @param warpRouteAddress - The Warp Route address to derive the token type for.
-   * @returns The derived token type, which can be one of: collateralVault, collateral, synthetic, or native.
+   * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
+    const contractTypes: Partial<
+      Record<TokenType, { factory: any; method: string }>
+    > = {
+      collateralVault: {
+        factory: HypERC20CollateralVaultDeposit__factory,
+        method: 'vault',
+      },
+      collateral: {
+        factory: HypERC20Collateral__factory,
+        method: 'wrappedToken',
+      },
+      synthetic: {
+        factory: HypERC20__factory,
+        method: 'decimals',
+      },
+    };
+
+    // First, try checking token specific methods
+    for (const [type, { factory, method }] of Object.entries(contractTypes)) {
+      try {
+        const warpRoute = factory.connect(warpRouteAddress, this.provider);
+        await warpRoute[method]();
+        return type as TokenType;
+      } catch (e) {
+        continue;
+      }
+    }
+
+    // Finally check native
+    // Using estimateGas to send 1 wei. Success implies that the Warp Route has a receive() function
     try {
-      return Promise.any([
-        this.isCollateralVault(warpRouteAddress),
-        this.isCollateral(warpRouteAddress),
-        this.isSynthetic(warpRouteAddress),
-        this.isNative(warpRouteAddress),
-      ]);
+      await this.multiProvider.estimateGas(this.chain, {
+        to: warpRouteAddress,
+        from: await this.multiProvider.getSignerAddress(this.chain),
+        value: BigNumber.from(1),
+      });
+      return TokenType.native;
     } catch (e) {
       throw Error(
         `Error accessing token specific method, implying this is not a supported token.`,
       );
     }
-  }
-
-  /**
-   * Checks if the given Warp Route address represents a collateral vault token.
-   * It implies that the Warp Route has a `vault()` function.
-   *
-   * @param warpRouteAddress - The Warp Route address to check.
-   * @returns `TokenType.collateralVault` if the Warp Route address represents a collateral vault token, otherwise throws an error.
-   */
-  async isCollateralVault(warpRouteAddress: Address): Promise<TokenType> {
-    const collateralVault = HypERC20CollateralVaultDeposit__factory.connect(
-      warpRouteAddress,
-      this.provider,
-    );
-    await collateralVault.vault();
-    return TokenType.collateralVault;
-  }
-
-  /**
-   * Checks if the given Warp Route address represents a collateral token.
-   * It implies that the Warp Route has a wrappedToken() function.
-   *
-   * @param warpRouteAddress - The Warp Route address to check.
-   * @returns `TokenType.collateral` if the Warp Route address represents a collateral token, otherwise throws an error.
-   */
-  async isCollateral(warpRouteAddress: Address): Promise<TokenType> {
-    const collateralVault = HypERC20Collateral__factory.connect(
-      warpRouteAddress,
-      this.provider,
-    );
-    await collateralVault.wrappedToken();
-    return TokenType.collateral;
-  }
-
-  /**
-   * Checks if the given Warp Route address represents a synthetic token.
-   * It implies that the Warp Route has a decimals() function.
-   *
-   * @param warpRouteAddress - The Warp Route address to check.
-   * @returns `TokenType.synthetic` if the Warp Route address represents a synthetic token, otherwise throws an error.
-   */
-  async isSynthetic(warpRouteAddress: Address): Promise<TokenType> {
-    const collateralVault = HypERC20__factory.connect(
-      warpRouteAddress,
-      this.provider,
-    );
-    await collateralVault.decimals();
-    return TokenType.synthetic;
-  }
-
-  /**
-   * Checks if the given Warp Route address represents a native token.
-   * It implies that the Warp Route has a receive() function
-   *
-   * @param warpRouteAddress - The Warp Route address to check.
-   * @returns `TokenType.native` if the Warp Route address represents a native token, otherwise throws an error.
-   */
-  async isNative(warpRouteAddress: Address): Promise<TokenType> {
-    await this.multiProvider.estimateGas(this.chain, {
-      to: warpRouteAddress,
-      from: await this.multiProvider.getSignerAddress(this.chain),
-      value: BigNumber.from(1),
-    });
-    return TokenType.native;
   }
 
   /**
