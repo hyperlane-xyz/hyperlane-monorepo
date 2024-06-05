@@ -204,7 +204,7 @@ describe('EvmHookModule', async () => {
     };
   });
 
-  // Helper method for checking whether ISM module matches a given config
+  // Helper method for checking whether Hook module matches a given config
   async function hookModuleMatchesConfig({
     hook,
     config,
@@ -236,10 +236,10 @@ describe('EvmHookModule', async () => {
     ).to.be.true;
   });
 
-  // create a new ISM and verify that it matches the config
+  // create a new Hook and verify that it matches the config
   async function createHook(
     config: HookConfig,
-  ): Promise<{ ism: EvmHookModule; initialHookAddress: Address }> {
+  ): Promise<{ hook: EvmHookModule; initialHookAddress: Address }> {
     console.log('Creating hook with config: ', stringifyObject(config));
     const hook = await EvmHookModule.create({
       chain,
@@ -250,7 +250,7 @@ describe('EvmHookModule', async () => {
     });
     testConfig = config;
     testHook = hook;
-    return { ism: hook, initialHookAddress: hook.serialize().deployedHook };
+    return { hook, initialHookAddress: hook.serialize().deployedHook };
   }
 
   describe('create', async () => {
@@ -362,7 +362,7 @@ describe('EvmHookModule', async () => {
     // });
 
     for (let i = 0; i < 16; i++) {
-      it(`deploys a random ism config #${i}`, async () => {
+      it(`deploys a random hook config #${i}`, async () => {
         // random config with depth 0-2
         const config = randomHookConfig();
         await createHook(config);
