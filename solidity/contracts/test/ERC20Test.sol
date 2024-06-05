@@ -77,4 +77,16 @@ contract XERC20Test is ERC20Test, IXERC20 {
     function owner() external returns (address) {
         return address(0x0);
     }
+
+    function burningCurrentLimitOf(
+        address _bridge
+    ) external view returns (uint256) {
+        return type(uint256).max;
+    }
+
+    function mintingCurrentLimitOf(
+        address _bridge
+    ) external view returns (uint256) {
+        return type(uint256).max;
+    }
 }
