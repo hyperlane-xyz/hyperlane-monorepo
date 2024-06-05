@@ -10,6 +10,7 @@ import {
   HypERC20__factory,
   HypXERC20Lockbox,
   HypXERC20Lockbox__factory,
+  IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -319,33 +320,23 @@ export class EvmHypXERC20LockboxAdapter extends EvmHypCollateralAdapter {
   async belowMintLimit(weiAmount: Numberish) {
     const xERC20 = await this.lockbox.xERC20();
 
-    const result = await this.getProvider().call({
-      data: encodeFunctionData({
-        abi: XERC20Abi,
-        functionName: 'mintingCurrentLimitOf',
-        // @ts-expect-error
-        args: [this.contract.address as any as `0x${String}`],
-      }),
-      to: xERC20,
-    });
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).mintingCurrentLimitOf(this.contract.address);
 
-    return BigInt(result) >= BigInt(weiAmount);
+    return limit.gte(weiAmount);
   }
 
   async belowBurnLimit(weiAmount: Numberish) {
     const xERC20 = await this.lockbox.xERC20();
 
-    const result = await this.getProvider().call({
-      data: encodeFunctionData({
-        abi: XERC20Abi,
-        functionName: 'burningCurrentLimitOf',
-        // @ts-expect-error
-        args: [this.contract.address as any as `0x${String}`],
-      }),
-      to: xERC20,
-    });
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).burningCurrentLimitOf(this.contract.address);
 
-    return BigInt(result) >= BigInt(weiAmount);
+    return limit.gte(weiAmount);
   }
 }
 
