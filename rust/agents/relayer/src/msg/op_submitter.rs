@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
@@ -108,17 +109,17 @@ impl SerialSubmitter {
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
-            retry_rx.clone(),
+            Arc::new(retry_rx.clone()),
         );
         let submit_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "submit_queue".to_string(),
-            retry_rx.clone(),
+            Arc::new(retry_rx.clone()),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
-            retry_rx,
+            Arc::new(retry_rx),
         );
 
         let tasks = [

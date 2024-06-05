@@ -18,7 +18,10 @@ pub enum CursorType {
 const TX_ID_CHANNEL_CAPACITY: Option<usize> = Some(1_000_000);
 
 pub trait Indexable {
+    /// Returns the configured cursor type of this type for the given domain, (e.g. `SequenceAware` or `RateLimited`)
     fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType;
+    /// Indexing tasks may have channels open between them to share information that improves reliability (such as the txid where a message event was indexed).
+    /// By default this method is None, and it should return a channel capacity if this indexing task is to broadcast anything to other tasks.
     fn broadcast_channel_size() -> Option<usize> {
         None
     }

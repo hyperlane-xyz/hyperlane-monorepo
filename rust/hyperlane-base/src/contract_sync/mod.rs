@@ -10,11 +10,11 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
     SequenceAwareIndexer,
 };
-use hyperlane_core::{BroadcastReceiver, Indexed, LogMeta, H512};
+use hyperlane_core::{Indexed, LogMeta, H512};
 pub use metrics::ContractSyncMetrics;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use tokio::sync::broadcast::error::TryRecvError;
-use tokio::sync::broadcast::Sender as BroadcastSender;
+use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::time::sleep;
 use tracing::{debug, info, instrument, trace, warn};
 
@@ -66,11 +66,8 @@ where
         &self.domain
     }
 
-    fn get_new_receive_tx_channel(&self) -> Option<BroadcastReceiver<H512>> {
-        // Create a new channel if it doesn't exist
-        self.broadcast_sender
-            .as_ref()
-            .map(|tx| BroadcastReceiver::new(tx.clone(), tx.subscribe()))
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+        self.broadcast_sender.clone()
     }
 
     /// Sync logs and write them to the LogStore
@@ -87,8 +84,9 @@ where
             .with_label_values(&[label, chain_name]);
 
         loop {
-            if let Some(recv) = opts.tx_id_recv.as_mut() {
-                self.fetch_logs_from_receiver(recv, &stored_logs_metric)
+            if let Some(broadcaster) = opts.tx_id_broadcaster.as_mut() {
+                let mut rx = broadcaster.subscribe();
+                self.fetch_logs_from_receiver(&mut rx, &stored_logs_metric)
                     .await;
             }
             if let Some(cursor) = opts.cursor.as_mut() {
@@ -250,7 +248,7 @@ pub trait ContractSyncer<T>: Send + Sync {
     fn domain(&self) -> &HyperlaneDomain;
 
     /// If this syncer is also a broadcaster, return the channel to receive txids
-    fn get_new_receive_tx_channel(&self) -> Option<BroadcastReceiver<H512>>;
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>>;
 }
 
 #[derive(new)]
@@ -260,14 +258,14 @@ pub struct SyncOptions<T> {
     // Might want to refactor into an enum later, where we either index with a cursor or rely on receiving
     // txids from a channel to other indexing tasks
     cursor: Option<Box<dyn ContractSyncCursor<T>>>,
-    tx_id_recv: Option<BroadcastReceiver<H512>>,
+    tx_id_broadcaster: Option<BroadcastSender<H512>>,
 }
 
 impl<T> From<Box<dyn ContractSyncCursor<T>>> for SyncOptions<T> {
     fn from(cursor: Box<dyn ContractSyncCursor<T>>) -> Self {
         Self {
             cursor: Some(cursor),
-            tx_id_recv: None,
+            tx_id_broadcaster: None,
         }
     }
 }
@@ -305,8 +303,8 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_new_receive_tx_channel(&self) -> Option<BroadcastReceiver<H512>> {
-        ContractSync::get_new_receive_tx_channel(self)
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+        ContractSync::get_broadcaster(self)
     }
 }
 
@@ -344,7 +342,7 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_new_receive_tx_channel(&self) -> Option<BroadcastReceiver<H512>> {
-        ContractSync::get_new_receive_tx_channel(self)
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+        ContractSync::get_broadcaster(self)
     }
 }
