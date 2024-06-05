@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
@@ -261,6 +261,7 @@ where
 
     /// Returns a ContractCall that processes the provided message.
     /// If the provided tx_gas_limit is None, gas estimation occurs.
+    #[instrument]
     async fn process_contract_call(
         &self,
         message: &HyperlaneMessage,
@@ -271,7 +272,17 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await
+        let mut tx = fill_tx_gas_params(tx, tx_gas_limit, self.provider.clone()).await?;
+        if self.domain.id() == 22222 {
+            if let Ok(gas_price) = std::env::var("NAUTILUS_GAS_PRICE")
+                .unwrap_or_default()
+                .parse::<U256>()
+            {
+                debug!(%gas_price, "Using custom gas price for Nautilus");
+                tx = tx.gas_price(gas_price);
+            }
+        }
+        Ok(tx)
     }
 }
 
