@@ -1450,6 +1450,9 @@
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "storageGasOracle": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4",
       "testRecipient": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54",
+      "transactionOverrides": {
+        "gasPrice": 1000000000
+      },
       "validatorAnnounce": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
     },
     "viction": {

@@ -223,6 +223,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  osmosis: {
+    threshold: 1,
+    validators: ['0xea483af11c19fa41b16c31d1534c2a486a92bcac'],
+  },
+
   plumetestnet: {
     threshold: 1,
     validators: ['0xe765a214849f3ecdf00793b97d00422f2d408ea6'],

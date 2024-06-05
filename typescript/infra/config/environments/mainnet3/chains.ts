@@ -46,6 +46,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 2 * 10 ** 9, // 2 gwei
     },
   },
+  sei: {
+    transactionOverrides: {
+      gasPrice: 1 * 10 ** 9, // 2 gwei
+    },
+  },
   moonbeam: {
     transactionOverrides: {
       maxFeePerGas: 350 * 10 ** 9, // 350 gwei

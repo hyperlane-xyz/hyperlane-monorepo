@@ -164,6 +164,18 @@ export const validatorChainConfig = (
         'optimism',
       ),
     },
+    osmosis: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('osmosis'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xea483af11c19fa41b16c31d1534c2a486a92bcac'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'osmosis',
+      ),
+    },
     moonbeam: {
       interval: 5,
       reorgPeriod: getReorgPeriod('moonbeam'),
