@@ -19,6 +19,7 @@ export const supportedChainNames = [
   'moonbeam',
   'neutron',
   'optimism',
+  'osmosis',
   'polygon',
   'polygonzkevm',
   'redstone',
