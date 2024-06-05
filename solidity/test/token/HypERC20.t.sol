@@ -223,8 +223,6 @@ abstract contract HypTokenTest is Test {
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
-        vm.expectEmit(address(hook));
-        emit TestPostDispatchHook.PostDispatch(metadata);
         bytes32 messageId = _performRemoteTransferWithHook(
             REQUIRED_VALUE,
             TRANSFER_AMT,

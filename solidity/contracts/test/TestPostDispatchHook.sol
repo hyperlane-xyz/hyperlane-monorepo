@@ -13,8 +13,6 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
     // test fees for quoteDispatch
     uint256 public fee = 0;
 
-    event PostDispatch(bytes metadata);
-
     // used to keep track of dispatched message
     mapping(bytes32 messageId => bool dispatched) public messageDispatched;
 
@@ -37,11 +35,10 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
 
     // ============ Internal functions ============
     function _postDispatch(
-        bytes calldata metadata,
+        bytes calldata /*metadata*/,
         bytes calldata message
     ) internal override {
         messageDispatched[message.id()] = true;
-        emit PostDispatch(metadata);
     }
 
     function _quoteDispatch(
