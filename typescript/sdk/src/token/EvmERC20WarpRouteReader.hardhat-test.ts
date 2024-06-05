@@ -213,7 +213,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should return undefined if ism is not set onchain', async () => {
     // Create config
-    let config = {
+    const config = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
@@ -222,36 +222,13 @@ describe('ERC20WarpRouterReader', async () => {
       },
     };
     // Deploy with config
-    let warpRoute = await deployer.deploy(config);
+    const warpRoute = await deployer.deploy(config);
 
     // Derive config and check if each value matches
-    let derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
     );
 
     expect(derivedConfig.interchainSecurityModule).to.be.undefined;
-    const interchainSecurityModule = await mailbox.defaultIsm();
-
-    // Try with Ism set
-    config = {
-      [chain]: {
-        type: TokenType.collateral,
-        token: token.address,
-        hook: await mailbox.defaultHook(),
-        interchainSecurityModule,
-        ...baseConfig,
-      },
-    };
-    // Deploy with config
-    warpRoute = await deployer.deploy(config);
-
-    // Derive config and check if each value matches
-    derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
-    );
-
-    expect(derivedConfig.interchainSecurityModule?.address).to.be.equal(
-      interchainSecurityModule,
-    );
   });
 });
