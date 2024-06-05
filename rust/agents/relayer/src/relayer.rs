@@ -20,7 +20,7 @@ use hyperlane_core::{
 };
 use tokio::{
     sync::{
-        broadcast::{Receiver, Sender},
+        broadcast::Sender,
         mpsc::{self, UnboundedReceiver, UnboundedSender},
         RwLock,
     },
@@ -307,7 +307,7 @@ impl BaseAgent for Relayer {
 
         // run server
         let broadcast_tx = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let custom_routes = relayer_server::routes(broadcast_tx);
+        let custom_routes = relayer_server::routes(broadcast_tx.clone());
 
         let server = self
             .core
@@ -329,7 +329,7 @@ impl BaseAgent for Relayer {
                 self.run_destination_submitter(
                     dest_domain,
                     receive_channel,
-                    broadcast_tx.subscribe(),
+                    broadcast_tx.clone(),
                     // Default to submitting one message at a time if there is no batch config
                     self.core.settings.chains[dest_domain.name()]
                         .connection
@@ -356,8 +356,7 @@ impl BaseAgent for Relayer {
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
-                .map(|sync| sync.get_broadcaster())
-                .flatten();
+                .and_then(|sync| sync.get_broadcaster());
             tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
             tasks.push(
                 self.run_interchain_gas_payment_sync(
@@ -519,7 +518,7 @@ impl Relayer {
         &self,
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<QueueOperation>,
-        retry_receiver_channel: Receiver<MessageRetryRequest>,
+        retry_receiver_channel: Sender<MessageRetryRequest>,
         batch_size: u32,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {

@@ -5,7 +5,9 @@ use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use prometheus::{IntCounter, IntGaugeVec};
+use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
@@ -14,8 +16,8 @@ use tracing::{info, warn};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    BatchItem, BroadcastReceiver, ChainCommunicationError, ChainResult, HyperlaneDomain,
-    HyperlaneDomainProtocol, HyperlaneMessage, TxOutcome,
+    BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneMessage, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -78,7 +80,7 @@ pub struct SerialSubmitter {
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<QueueOperation>,
     /// Receiver for retry requests.
-    retry_rx: BroadcastReceiver<MessageRetryRequest>,
+    retry_tx: Sender<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
@@ -102,24 +104,24 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
-            retry_rx,
+            retry_tx,
             max_batch_size,
             task_monitor,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
-            Arc::new(retry_rx.clone()),
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
         let submit_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "submit_queue".to_string(),
-            Arc::new(retry_rx.clone()),
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
-            Arc::new(retry_rx),
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
 
         let tasks = [

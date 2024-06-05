@@ -17,7 +17,7 @@ pub type QueueOperation = Box<dyn PendingOperation>;
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: Arc<Receiver<MessageRetryRequest>>,
+    retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
     queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
 }
@@ -72,7 +72,7 @@ impl OpQueue {
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
         let mut message_retry_requests = vec![];
-        while let Ok(message_id) = self.retry_rx.try_recv() {
+        while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
             message_retry_requests.push(message_id);
         }
         if message_retry_requests.is_empty() {
@@ -224,12 +224,12 @@ mod test {
         let mut op_queue_1 = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
-            Arc::new(broadcaster.subscribe()),
+            Arc::new(Mutex::new(broadcaster.subscribe())),
         );
         let mut op_queue_2 = OpQueue::new(
             metrics,
             queue_metrics_label,
-            Arc::new(broadcaster.subscribe()),
+            Arc::new(Mutex::new(broadcaster.subscribe())),
         );
 
         // Add some operations to the queue with increasing `next_attempt_after` values
@@ -293,7 +293,7 @@ mod test {
         let mut op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
-            Arc::new(broadcaster.subscribe()),
+            Arc::new(Mutex::new(broadcaster.subscribe())),
         );
 
         // Add some operations to the queue with increasing `next_attempt_after` values

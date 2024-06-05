@@ -114,7 +114,7 @@ mod tests {
 
     fn setup_test_server() -> (SocketAddr, Receiver<MessageRetryRequest>) {
         let broadcast_tx = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let message_retry_api = MessageRetryApi::new(broadcast_tx);
+        let message_retry_api = MessageRetryApi::new(broadcast_tx.clone());
         let (path, retry_router) = message_retry_api.get_route();
         let app = Router::new().nest(path, retry_router);
 
