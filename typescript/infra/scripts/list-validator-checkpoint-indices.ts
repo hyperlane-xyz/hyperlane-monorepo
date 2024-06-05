@@ -1,6 +1,6 @@
 import { concurrentMap } from '@hyperlane-xyz/utils';
 
-import { S3Validator } from '../src/agents/aws/validator.js';
+import { InfraS3Validator } from '../src/agents/aws/validator.js';
 
 import { getArgs, getValidatorsByChain } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
@@ -26,7 +26,7 @@ async function main() {
       let identifier = validator;
       if (storageLocations.length == 1 && storageLocations[0].length == 1) {
         try {
-          const s3Validator = await S3Validator.fromStorageLocation(
+          const s3Validator = await InfraS3Validator.fromStorageLocation(
             storageLocations[0][0],
           );
           identifier = storageLocations[0][0];

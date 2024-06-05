@@ -13,7 +13,7 @@ use hyperlane_core::{
     SequenceIndexed,
 };
 use itertools::Itertools;
-use tracing::{debug, warn};
+use tracing::{debug, instrument, warn};
 
 use super::{LastIndexedSnapshot, TargetSnapshot};
 
@@ -54,6 +54,11 @@ impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
 }
 
 impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
+    #[instrument(
+        skip(db, latest_sequence_querier),
+        fields(chunk_size, next_sequence, start_block, index_mode),
+        ret
+    )]
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
@@ -87,6 +92,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// If there are no logs to index, returns `None`.
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
+    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         self.skip_indexed().await?;
@@ -431,6 +437,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     /// - Even if the logs include a gap, in practice these logs will have already been inserted into the DB.
     ///   This means that while gaps result in a rewind here, already known logs may be "fast forwarded" through,
     ///   and the cursor won't actually end up re-indexing already known logs.
+    #[instrument(err, ret, skip(logs), fields(range=?range, logs=?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>()))]
     async fn update(
         &mut self,
         logs: Vec<(Indexed<T>, LogMeta)>,
