@@ -25,11 +25,7 @@ import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
 } from '../token/TokenStandard.js';
-import {
-  EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
-  EvmHypXERC20LockboxAdapter,
-  EvmTokenAdapter,
-} from '../token/adapters/EvmTokenAdapter.js';
+import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
 import {
   IHypXERC20Adapter,
   ITokenAdapter,
