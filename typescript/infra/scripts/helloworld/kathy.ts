@@ -11,7 +11,6 @@ import {
   MultiProtocolCore,
   MultiProvider,
   ProviderType,
-  RpcConsensusType,
   TypedTransactionReceipt,
   resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
@@ -128,16 +127,6 @@ function getKathyArgs() {
       chainStrs.map((chainStr: string) => assertChain(chainStr)),
     )
 
-    .string('connection-type')
-    .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', RpcConsensusType.Single)
-    .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
-      RpcConsensusType.Fallback,
-    ])
-    .demandOption('connection-type')
-
     .number('cycles-between-ethereum-messages')
     .describe(
       'cycles-between-ethereum-messages',
@@ -156,7 +145,6 @@ async function main(): Promise<boolean> {
     fullCycleTime,
     messageSendTimeout,
     messageReceiptTimeout,
-    connectionType,
     cyclesBetweenEthereumMessages,
   } = await getKathyArgs();
 
@@ -173,7 +161,6 @@ async function main(): Promise<boolean> {
       context,
       Role.Kathy,
       undefined,
-      connectionType,
     );
 
   const appChains = app.chains();
