@@ -1,25 +1,13 @@
 import { CommandModule } from 'yargs';
 
-import {
-  CommandModuleWithContext,
-  CommandModuleWithWriteContext,
-} from '../context/types.js';
+import { CommandModuleWithContext } from '../context/types.js';
 import { runKurtosisAgentDeploy } from '../deploy/agent.js';
-import { runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray } from '../logger.js';
-import { readYamlOrJson } from '../utils/files.js';
 
 import {
   agentConfigCommandOption,
   agentTargetsCommandOption,
-  chainCommandOption,
-  dryRunCommandOption,
-  fromAddressCommandOption,
   originCommandOption,
-  outputFileCommandOption,
-  warpDeploymentConfigCommandOption,
 } from './options.js';
 
 /**
@@ -29,11 +17,7 @@ export const deployCommand: CommandModule = {
   command: 'deploy',
   describe: 'Permissionlessly deploy a Hyperlane contracts or extensions',
   builder: (yargs) =>
-    yargs
-      .command(warpCommand)
-      .command(agentCommand)
-      .version(false)
-      .demandCommand(),
+    yargs.command(agentCommand).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
@@ -61,80 +45,6 @@ const agentCommand: CommandModuleWithContext<{
       relayChains: targets,
       agentConfigurationPath: config,
     });
-    process.exit(0);
-  },
-};
-
-/**
- * Generates a command module for deploying Hyperlane contracts, given a command
- *
- * @param commandName - the deploy command key used to look up the deployFunction
- * @returns A command module used to deploy Hyperlane contracts.
- */
-export const deploy: CommandModuleWithWriteContext<{
-  chain: string;
-  config: string;
-  dryRun: string;
-  fromAddress: string;
-}> = {
-  command: 'deploy',
-  describe: 'Deploy Hyperlane contracts',
-  builder: {
-    chain: chainCommandOption,
-    config: outputFileCommandOption(
-      './configs/core-config.yaml',
-      false,
-      'The path to a JSON or YAML file with a core deployment config.',
-    ),
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
-  },
-  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
-    logGray(`------------------------------------------------`);
-
-    try {
-      await runCoreDeploy({
-        context,
-        chain,
-        config: readYamlOrJson(configFilePath),
-      });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
-    process.exit(0);
-  },
-};
-
-/**
- * Warp command
- */
-const warpCommand: CommandModuleWithWriteContext<{
-  config: string;
-  'dry-run': string;
-  'from-address': string;
-}> = {
-  command: 'warp',
-  describe: 'Deploy Warp Route contracts',
-  builder: {
-    config: warpDeploymentConfigCommandOption,
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
-  },
-  handler: async ({ context, config, dryRun }) => {
-    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
-    logGray('------------------------------------------------');
-
-    try {
-      await runWarpRouteDeploy({
-        context,
-        warpRouteDeploymentConfigPath: config,
-      });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
     process.exit(0);
   },
 };
