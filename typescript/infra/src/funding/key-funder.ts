@@ -48,7 +48,6 @@ function getKeyFunderHelmValues(
       chains: agentConfig.environmentChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
-      connectionType: keyFunderConfig.connectionType,
       desiredBalancePerChain: keyFunderConfig.desiredBalancePerChain,
       desiredKathyBalancePerChain: keyFunderConfig.desiredKathyBalancePerChain,
     },

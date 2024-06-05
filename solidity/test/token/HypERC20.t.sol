@@ -19,7 +19,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {XERC20Test, FiatTokenTest, ERC20Test} from "../../contracts/test/ERC20Test.sol";
+import {XERC20LockboxTest, XERC20Test, FiatTokenTest, ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
@@ -27,6 +27,7 @@ import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchH
 
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
+import {HypXERC20Lockbox} from "../../contracts/token/extensions/HypXERC20Lockbox.sol";
 import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {IFiatToken} from "../../contracts/token/interfaces/IFiatToken.sol";
 import {HypXERC20} from "../../contracts/token/extensions/HypXERC20.sol";
@@ -440,6 +441,80 @@ contract HypXERC20Test is HypTokenTest {
             abi.encodeCall(IXERC20.mint, (ALICE, TRANSFER_AMT))
         );
         _handleLocalTransfer(TRANSFER_AMT);
+    }
+}
+
+contract HypXERC20LockboxTest is HypTokenTest {
+    using TypeCasts for address;
+    HypXERC20Lockbox internal xerc20Lockbox;
+
+    function setUp() public override {
+        super.setUp();
+
+        XERC20LockboxTest lockbox = new XERC20LockboxTest(
+            NAME,
+            SYMBOL,
+            TOTAL_SUPPLY,
+            DECIMALS
+        );
+        primaryToken = ERC20Test(address(lockbox.ERC20()));
+
+        localToken = new HypXERC20Lockbox(
+            address(lockbox),
+            address(localMailbox)
+        );
+        xerc20Lockbox = HypXERC20Lockbox(address(localToken));
+
+        xerc20Lockbox.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        primaryToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    uint256 constant MAX_INT = 2 ** 256 - 1;
+
+    function testApproval() public {
+        assertEq(
+            xerc20Lockbox.xERC20().allowance(
+                address(localToken),
+                address(xerc20Lockbox.lockbox())
+            ),
+            MAX_INT
+        );
+        assertEq(
+            xerc20Lockbox.wrappedToken().allowance(
+                address(localToken),
+                address(xerc20Lockbox.lockbox())
+            ),
+            MAX_INT
+        );
+    }
+
+    function testRemoteTransfer() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        vm.expectCall(
+            address(xerc20Lockbox.xERC20()),
+            abi.encodeCall(IXERC20.burn, (address(localToken), TRANSFER_AMT))
+        );
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+
+    function testHandle() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        vm.expectCall(
+            address(xerc20Lockbox.xERC20()),
+            abi.encodeCall(IXERC20.mint, (address(localToken), TRANSFER_AMT))
+        );
+        _handleLocalTransfer(TRANSFER_AMT);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore + TRANSFER_AMT);
     }
 }
 
