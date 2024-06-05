@@ -60,6 +60,7 @@ export const configure: CommandModuleWithContext<{
       async () => context.signer?.getAddress(),
       'Enter the desired',
       'owner address',
+      'signer',
     );
 
     // Create default Ism config (advanced or trusted)

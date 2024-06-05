@@ -114,6 +114,7 @@ export async function createWarpRouteDeployConfig({
     async () => context.signer?.getAddress(),
     'Enter the desired',
     'owner address',
+    'signer',
   );
 
   const warpChains = await runMultiChainSelectionStep(
@@ -140,6 +141,7 @@ export async function createWarpRouteDeployConfig({
       },
       `For ${chain}, enter the`,
       'mailbox address',
+      'hyperlane-registry',
     );
 
     const interchainSecurityModule = shouldUseDefault
