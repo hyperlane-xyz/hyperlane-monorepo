@@ -6,7 +6,7 @@ import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { MinimalTokenMetadata } from '../config.js';
+import { TokenMetadata } from '../types.js';
 
 import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
 import {
@@ -43,7 +43,7 @@ export class CosmNativeTokenAdapter
     return BigInt(coin.amount);
   }
 
-  getMetadata(): Promise<MinimalTokenMetadata> {
+  getMetadata(): Promise<TokenMetadata> {
     throw new Error('Metadata not available to native tokens');
   }
 

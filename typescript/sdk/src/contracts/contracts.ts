@@ -146,6 +146,15 @@ export function attachContractsMapAndGetForeignDeployments<
   };
 }
 
+export function attachAndConnectContracts<F extends HyperlaneFactories>(
+  addresses: HyperlaneAddresses<F>,
+  factories: F,
+  connection: Connection,
+): HyperlaneContracts<F> {
+  const contracts = attachContracts(addresses, factories);
+  return connectContracts(contracts, connection);
+}
+
 export function connectContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
   connection: Connection,

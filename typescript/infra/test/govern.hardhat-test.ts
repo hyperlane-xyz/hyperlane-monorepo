@@ -26,7 +26,6 @@ import {
   TestChainName,
   TestCoreApp,
   TestCoreDeployer,
-  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -134,6 +133,8 @@ describe('ICA governance', async () => {
       localRouter: remote.address,
     };
 
+    accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
+
     const recipientF = new TestRecipient__factory(signer);
     recipient = await recipientF.deploy();
 
@@ -145,23 +146,15 @@ describe('ICA governance', async () => {
         recipient,
       },
     };
-    // missing ica
     const configMap = {
       [localChain]: { owner: signer.address },
-      [remoteChain]: {
-        owner: { origin: TestChainName.test1, owner: signer.address },
-      },
+      [remoteChain]: { owner: accountOwner },
     };
 
     const app = new TestApp(contractsMap, multiProvider);
     const checker = new TestChecker(multiProvider, app, configMap);
     governor = new HyperlaneTestGovernor(checker, icaApp);
 
-    accountOwner = await resolveOrDeployAccountOwner(
-      multiProvider,
-      remoteChain,
-      accountConfig,
-    );
     await recipient.transferOwnership(accountOwner);
   });
 

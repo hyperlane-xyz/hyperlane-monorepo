@@ -164,6 +164,13 @@ export function withBuildArtifactPath<T>(args: Argv<T>) {
     .alias('b', 'buildArtifactPath');
 }
 
+export function withConcurrentDeploy<T>(args: Argv<T>) {
+  return args
+    .describe('concurrentDeploy', 'If enabled, runs all deploys concurrently')
+    .boolean('concurrentDeploy')
+    .default('concurrentDeploy', false);
+}
+
 // not requiring to build coreConfig to get agentConfig
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;

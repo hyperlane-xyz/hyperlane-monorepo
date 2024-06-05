@@ -1,5 +1,45 @@
 # @hyperlane-xyz/infra
 
+## 4.0.0-alpha
+
+### Minor Changes
+
+- 1ec61debd: Support hook config objects in warp config
+- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
+
+### Patch Changes
+
+- Updated dependencies [eb23e7729]
+- Updated dependencies [1ec61debd]
+- Updated dependencies [4663018fc]
+- Updated dependencies [5e5886f2c]
+- Updated dependencies [341b8affd]
+- Updated dependencies [3dabcbdca]
+- Updated dependencies [1d0d1bb36]
+- Updated dependencies [74c879fa1]
+- Updated dependencies [4bf7301ea]
+  - @hyperlane-xyz/sdk@4.0.0-alpha
+  - @hyperlane-xyz/utils@4.0.0-alpha
+  - @hyperlane-xyz/helloworld@4.0.0-alpha
+
+## 3.13.0
+
+### Minor Changes
+
+- 39ea7cdef: Implement multi collateral warp routes
+- 0cf692e73: Implement metadata builder fetching from message
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [b6b26e2bb]
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/helloworld@3.13.0
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.12.0
 
 ### Patch Changes

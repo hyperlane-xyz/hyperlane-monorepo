@@ -1,3 +1,4 @@
+import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -11,42 +12,12 @@ import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logGreen, logPink } from '../logger.js';
+import { log, logBlue, logGray, logGreen, logPink } from '../logger.js';
 import { gasBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
 import { completeDryRun } from './dry-run.js';
-
-export async function runPreflightChecks({
-  context,
-  origin,
-  remotes,
-  minGas,
-  chainsToGasCheck,
-}: {
-  context: WriteCommandContext;
-  origin: ChainName;
-  remotes: ChainName[];
-  minGas: string;
-  chainsToGasCheck?: ChainName[];
-}) {
-  log('Running pre-flight checks...');
-
-  if (!origin || !remotes?.length) throw new Error('Invalid chain selection');
-  logGreen('✅ Chain selections are valid');
-
-  if (remotes.includes(origin))
-    throw new Error('Origin and remotes must be distinct');
-  logGreen('✅ Origin and remote are distinct');
-
-  return runPreflightChecksForChains({
-    context,
-    chains: [origin, ...remotes],
-    minGas,
-    chainsToGasCheck,
-  });
-}
 
 export async function runPreflightChecksForChains({
   context,
@@ -83,6 +54,31 @@ export async function runPreflightChecksForChains({
     minGas,
   );
   if (sufficient) logGreen('✅ Balances are sufficient');
+}
+
+export async function runDeployPlanStep({
+  context,
+  chain,
+}: {
+  context: WriteCommandContext;
+  chain: ChainName;
+}) {
+  const { signer, skipConfirmation } = context;
+  const address = await signer.getAddress();
+
+  logBlue('\nDeployment plan');
+  logGray('===============');
+  log(`Transaction signer and owner of new contracts will be ${address}`);
+  log(`Deploying to ${chain}`);
+  log(
+    `There are several contracts required for each chain but contracts in your provided registries will be skipped`,
+  );
+
+  if (skipConfirmation) return;
+  const isConfirmed = await confirm({
+    message: 'Is this deployment plan correct?',
+  });
+  if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
 // from parsed types

@@ -8,6 +8,8 @@ on:
     paths:
       # For now, because this image is only used to use `infra`, we just build for infra changes
       - 'typescript/infra/**'
+      - 'Dockerfile'
+      - '.dockerignore'
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
   cancel-in-progress: true
@@ -74,3 +76,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # To always fetch the latest registry, we use the date as the cache key
+          build-args: |
+            REGISTRY_CACHE=${{ steps.taggen.outputs.TAG_DATE }}
