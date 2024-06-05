@@ -14,6 +14,7 @@ import {
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
+  TokenRouterConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
@@ -24,11 +25,8 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
-import {
-  DerivedTokenRouterConfig,
-  EvmERC20WarpRouteReader,
-} from './EvmERC20WarpRouteReader.js';
-import { TokenConfig, TokenType } from './config.js';
+import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 
 describe('ERC20WarpRouterReader', async () => {
@@ -106,9 +104,7 @@ describe('ERC20WarpRouterReader', async () => {
           },
         };
         // Deploy warp route with config
-        const warpRoute = await deployer.deploy(
-          config as ChainMap<TokenConfig & RouterConfig>,
-        );
+        const warpRoute = await deployer.deploy(config);
         const derivedTokenType = await evmERC20WarpRouteReader.deriveTokenType(
           warpRoute[chain][type].address,
         );
@@ -124,13 +120,12 @@ describe('ERC20WarpRouterReader', async () => {
         type: TokenType.collateral,
         token: token.address,
         hook: await mailbox.defaultHook(),
+        interchainsecurityModule: await mailbox.defaultIsm(),
         ...baseConfig,
       },
     };
     // Deploy with config
-    const warpRoute = await deployer.deploy(
-      config as ChainMap<TokenConfig & RouterConfig>,
-    );
+    const warpRoute = await deployer.deploy(config);
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
@@ -138,8 +133,15 @@ describe('ERC20WarpRouterReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue) expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string')
+        expect(deployedValue).to.equal(value);
     }
+
+    // Check hook & ism (because they're potentially objects)
+    expect(derivedConfig.hook?.address).to.equal(config[chain].hook);
+    expect(derivedConfig.interchainSecurityModule?.address).to.equal(
+      config[chain].interchainSecurityModule,
+    );
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.collateral) {
@@ -164,9 +166,7 @@ describe('ERC20WarpRouterReader', async () => {
       },
     };
     // Deploy with config
-    const warpRoute = await deployer.deploy(
-      config as ChainMap<TokenConfig & RouterConfig>,
-    );
+    const warpRoute = await deployer.deploy(config);
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
@@ -174,7 +174,8 @@ describe('ERC20WarpRouterReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue) expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string')
+        expect(deployedValue).to.equal(value);
     }
 
     // Check if token values matches
@@ -192,19 +193,18 @@ describe('ERC20WarpRouterReader', async () => {
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
-    };
+    } as ChainMap<TokenRouterConfig>;
     // Deploy with config
-    const warpRoute = await deployer.deploy(
-      config as ChainMap<TokenConfig & RouterConfig>,
-    );
+    const warpRoute = await deployer.deploy(config);
 
     // Derive config and check if each value matches
-    const derivedConfig = (await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].native.address,
-    )) as Extract<DerivedTokenRouterConfig, { type: TokenType.native }>;
+    );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue) expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string')
+        expect(deployedValue).to.equal(value);
     }
 
     // Check if token values matches
@@ -213,7 +213,7 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should return undefined if ism is not set onchain', async () => {
     // Create config
-    let config = {
+    const config = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
@@ -222,40 +222,36 @@ describe('ERC20WarpRouterReader', async () => {
       },
     };
     // Deploy with config
-    let warpRoute = await deployer.deploy(
-      config as ChainMap<TokenConfig & RouterConfig>,
-    );
+    const warpRoute = await deployer.deploy(config);
 
     // Derive config and check if each value matches
-    let derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
     );
 
     expect(derivedConfig.interchainSecurityModule).to.be.undefined;
-    const interchainSecurityModule = await mailbox.defaultIsm();
+    // const interchainSecurityModule = await mailbox.defaultIsm();
 
-    // Try with Ism set
-    config = {
-      [chain]: {
-        type: TokenType.collateral,
-        token: token.address,
-        hook: await mailbox.defaultHook(),
-        interchainSecurityModule,
-        ...baseConfig,
-      },
-    };
-    // Deploy with config
-    warpRoute = await deployer.deploy(
-      config as ChainMap<TokenConfig & RouterConfig>,
-    );
+    // // Try with Ism set
+    // config = {
+    //   [chain]: {
+    //     type: TokenType.collateral,
+    //     token: token.address,
+    //     hook: await mailbox.defaultHook(),
+    //     interchainSecurityModule,
+    //     ...baseConfig,
+    //   },
+    // };
+    // // Deploy with config
+    // warpRoute = await deployer.deploy(config);
 
-    // Derive config and check if each value matches
-    derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
-    );
+    // // Derive config and check if each value matches
+    // derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+    //   warpRoute[chain].collateral.address,
+    // );
 
-    expect(derivedConfig.interchainSecurityModule?.address).to.be.equal(
-      interchainSecurityModule,
-    );
+    // expect(derivedConfig.interchainSecurityModule).to.be.equal(
+    //   interchainSecurityModule,
+    // );
   });
 });

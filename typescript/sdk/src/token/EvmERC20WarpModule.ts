@@ -4,23 +4,20 @@ import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleArgs,
+  HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
-import {
-  DerivedTokenRouterConfig,
-  EvmERC20WarpRouteReader,
-} from './EvmERC20WarpRouteReader.js';
-import { HypERC20Config } from './config.js';
+import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Factories } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
+import { TokenRouterConfig } from './schemas.js';
 
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
-  DerivedTokenRouterConfig,
+  TokenRouterConfig,
   HyperlaneAddresses<HypERC20Factories> & {
     deployedTokenRoute: Address;
   }
@@ -32,8 +29,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleArgs<
-      DerivedTokenRouterConfig,
+    args: HyperlaneModuleParams<
+      TokenRouterConfig,
       HyperlaneAddresses<HypERC20Factories> & {
         deployedTokenRoute: Address;
       }
@@ -50,7 +47,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  public async read(): Promise<DerivedTokenRouterConfig> {
+  public async read(): Promise<TokenRouterConfig> {
     return this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
@@ -65,8 +62,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
   public async update(
-    _expectedConfig: DerivedTokenRouterConfig,
-  ): Promise<EthersV5Transaction[]> {
+    _expectedConfig: TokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
     throw Error('Not implemented');
   }
 
@@ -80,16 +77,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    */
   public static async create(params: {
     chain: ChainNameOrId;
-    config: DerivedTokenRouterConfig;
+    config: TokenRouterConfig;
     multiProvider: MultiProvider;
   }): Promise<EvmERC20WarpModule> {
     const { chain, config, multiProvider } = params;
     const chainName = multiProvider.getChainName(chain);
     const deployer = new HypERC20Deployer(multiProvider);
-    const deployedContracts = await deployer.deployContracts(
-      chainName,
-      config as HypERC20Config,
-    );
+    const deployedContracts = await deployer.deployContracts(chainName, config);
 
     return new EvmERC20WarpModule(multiProvider, {
       addresses: {

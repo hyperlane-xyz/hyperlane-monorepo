@@ -29,8 +29,8 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
-import { DerivedTokenRouterConfig } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
+import { TokenRouterConfig } from './schemas.js';
 
 describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_NAME = 'fake';
@@ -88,7 +88,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       type: TokenType.collateral,
       token: token.address,
       hook: hookAddress,
-    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+    };
 
     // Deploy using WarpModule
     const evmERC20WarpModule = await EvmERC20WarpModule.create({
@@ -116,7 +116,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       token: vault.address,
       hook: hookAddress,
       ...baseConfig,
-    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+    };
 
     // Deploy using WarpModule
     const evmERC20WarpModule = await EvmERC20WarpModule.create({
@@ -152,7 +152,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       decimals: TOKEN_DECIMALS,
       totalSupply: TOKEN_SUPPLY,
       ...baseConfig,
-    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+    };
 
     // Deploy using WarpModule
     const evmERC20WarpModule = await EvmERC20WarpModule.create({
@@ -181,7 +181,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       type: TokenType.native,
       hook: hookAddress,
       ...baseConfig,
-    } as DerivedTokenRouterConfig; // cast because baseConfig doesn't fully confirm to DerivedTokenRouterConfig
+    } as TokenRouterConfig;
 
     // Deploy using WarpModule
     const evmERC20WarpModule = await EvmERC20WarpModule.create({

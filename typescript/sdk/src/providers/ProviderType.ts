@@ -22,7 +22,7 @@ import type {
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
