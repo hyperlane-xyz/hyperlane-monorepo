@@ -1,4 +1,5 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
+import { encodeFunctionData } from 'viem';
 
 import {
   ERC20,
@@ -7,6 +8,8 @@ import {
   HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
+  HypXERC20Lockbox,
+  HypXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -276,6 +279,73 @@ export class EvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) =>
       t.populateTransferTx(params),
     );
+  }
+}
+
+const XERC20Abi = [
+  {
+    inputs: [{ internalType: 'address', name: '_bridge', type: 'address' }],
+    name: 'mintingCurrentLimitOf',
+    outputs: [{ internalType: 'uint256', name: '_limit', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: '_bridge', type: 'address' }],
+    name: 'burningCurrentLimitOf',
+    outputs: [{ internalType: 'uint256', name: '_limit', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+// Interacts with EvmHypXERC20Lockbox contracts
+export class EvmHypXERC20LockboxAdapter extends EvmHypCollateralAdapter {
+  lockbox: HypXERC20Lockbox;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.lockbox = HypXERC20Lockbox__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async belowMintLimit(weiAmount: Numberish) {
+    const xERC20 = await this.lockbox.xERC20();
+
+    const result = await this.getProvider().call({
+      data: encodeFunctionData({
+        abi: XERC20Abi,
+        functionName: 'mintingCurrentLimitOf',
+        // @ts-expect-error
+        args: [this.contract.address as any as `0x${String}`],
+      }),
+      to: xERC20,
+    });
+
+    return BigInt(result) >= BigInt(weiAmount);
+  }
+
+  async belowBurnLimit(weiAmount: Numberish) {
+    const xERC20 = await this.lockbox.xERC20();
+
+    const result = await this.getProvider().call({
+      data: encodeFunctionData({
+        abi: XERC20Abi,
+        functionName: 'burningCurrentLimitOf',
+        // @ts-expect-error
+        args: [this.contract.address as any as `0x${String}`],
+      }),
+      to: xERC20,
+    });
+
+    return BigInt(result) >= BigInt(weiAmount);
   }
 }
 

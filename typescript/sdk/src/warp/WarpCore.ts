@@ -25,7 +25,10 @@ import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
 } from '../token/TokenStandard.js';
-import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
+import {
+  EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmHypXERC20LockboxAdapter,
+} from '../token/adapters/EvmTokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -433,6 +436,10 @@ export class WarpCore {
     }
 
     const adapter = destinationToken.getAdapter(this.multiProvider);
+    if (adapter instanceof EvmHypXERC20LockboxAdapter) {
+      return await adapter.belowMintLimit(originTokenAmount.amount);
+    }
+
     const destinationBalance = await adapter.getBalance(
       destinationToken.addressOrDenom,
     );
@@ -503,6 +510,17 @@ export class WarpCore {
 
     const amountError = this.validateAmount(originTokenAmount);
     if (amountError) return amountError;
+
+    const destinationCollateralError = await this.validateDestinationCollateral(
+      originTokenAmount,
+      destination,
+    );
+    if (destinationCollateralError) return destinationCollateralError;
+
+    const originCollateralError = await this.validateOriginCollateral(
+      originTokenAmount,
+    );
+    if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
       originTokenAmount,
@@ -592,6 +610,7 @@ export class WarpCore {
     senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
     const { token, amount } = originTokenAmount;
+
     const { amount: senderBalance } = await token.getBalance(
       this.multiProvider,
       sender,
@@ -632,6 +651,38 @@ export class WarpCore {
       if (igpTokenBalance.amount < igpQuote.amount) {
         return { amount: `Insufficient ${igpQuote.token.symbol} for gas` };
       }
+    }
+
+    return null;
+  }
+
+  /**
+   * Ensure the sender has sufficient balances for transfer and interchain gas
+   */
+  protected async validateDestinationCollateral(
+    originTokenAmount: TokenAmount,
+    destination: ChainNameOrId,
+  ): Promise<Record<string, string> | null> {
+    const valid = await this.isDestinationCollateralSufficient({
+      originTokenAmount,
+      destination,
+    });
+    if (!valid) return { amount: 'Insufficient collateral on destination' };
+
+    return null;
+  }
+
+  /**
+   * Ensure the sender has sufficient balances for transfer and interchain gas
+   */
+  protected async validateOriginCollateral(
+    originTokenAmount: TokenAmount,
+  ): Promise<Record<string, string> | null> {
+    const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
+
+    if (adapter instanceof EvmHypXERC20LockboxAdapter) {
+      const valid = await adapter.belowBurnLimit(originTokenAmount.amount);
+      if (!valid) return { amount: 'Insufficient burn limit on origin' };
     }
 
     return null;
