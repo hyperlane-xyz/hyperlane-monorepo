@@ -508,6 +508,10 @@ contract HypXERC20LockboxTest is HypTokenTest {
 
     function testHandle() public {
         uint256 balanceBefore = localToken.balanceOf(ALICE);
+        vm.expectCall(
+            address(xerc20Lockbox.xERC20()),
+            abi.encodeCall(IXERC20.mint, (address(localToken), TRANSFER_AMT))
+        );
         _handleLocalTransfer(TRANSFER_AMT);
         assertEq(localToken.balanceOf(ALICE), balanceBefore + TRANSFER_AMT);
     }

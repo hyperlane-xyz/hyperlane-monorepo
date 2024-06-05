@@ -41,7 +41,7 @@ contract ezETH is Script {
     function run() external {
         address deployer = address(this);
         bytes32 recipient = deployer.addressToBytes32();
-        bytes memory tokenMessage = TokenMessage.format(recipient, amount);
+        bytes memory tokenMessage = TokenMessage.format(recipient, amount, "");
         vm.selectFork(ethereumFork);
         HypXERC20Lockbox hypXERC20Lockbox = new HypXERC20Lockbox(
             ethereumLockbox,
