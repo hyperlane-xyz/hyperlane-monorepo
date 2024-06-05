@@ -1,5 +1,4 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
-import { encodeFunctionData } from 'viem';
 
 import {
   ERC20,
@@ -9,8 +8,6 @@ import {
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypXERC20,
-  HypXERC20Lockbox,
-  HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
@@ -289,7 +286,7 @@ export class EvmHypCollateralAdapter
 // Interacts with HypXERC20Lockbox contracts
 export class EvmHypXERC20LockboxAdapter
   extends EvmHypCollateralAdapter
-  implements IHypXERC20Adapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
 {
   constructor(
     public readonly chainName: ChainName,
