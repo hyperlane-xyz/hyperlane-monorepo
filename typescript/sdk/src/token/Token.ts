@@ -41,6 +41,7 @@ import {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
@@ -215,7 +216,7 @@ export class Token implements IToken {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypXERC20) {
-      return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
+      return new EvmHypXERC20Adapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypXERC20Lockbox) {

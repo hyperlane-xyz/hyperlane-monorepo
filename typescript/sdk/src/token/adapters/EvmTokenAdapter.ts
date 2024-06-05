@@ -8,8 +8,10 @@ import {
   HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
+  HypXERC20,
   HypXERC20Lockbox,
   HypXERC20Lockbox__factory,
+  HypXERC20__factory,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -29,6 +31,7 @@ import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
+  IHypXERC20Adapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
@@ -283,26 +286,33 @@ export class EvmHypCollateralAdapter
   }
 }
 
-const XERC20Abi = [
-  {
-    inputs: [{ internalType: 'address', name: '_bridge', type: 'address' }],
-    name: 'mintingCurrentLimitOf',
-    outputs: [{ internalType: 'uint256', name: '_limit', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ internalType: 'address', name: '_bridge', type: 'address' }],
-    name: 'burningCurrentLimitOf',
-    outputs: [{ internalType: 'uint256', name: '_limit', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const;
+// Interacts with HypXERC20Lockbox contracts
+export class EvmHypXERC20LockboxAdapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
 
-// Interacts with EvmHypXERC20Lockbox contracts
-export class EvmHypXERC20LockboxAdapter extends EvmHypCollateralAdapter {
-  lockbox: HypXERC20Lockbox;
+  // Lockbox has infinite mint rights
+  async belowMintLimit(_weiAmount: Numberish) {
+    return true;
+  }
+
+  // Lockbox has infinite burn rights
+  async belowBurnLimit(_weiAmount: Numberish) {
+    return true;
+  }
+}
+
+// Interacts with HypXERC20 contracts
+export class EvmHypXERC20Adapter extends EvmHypCollateralAdapter {
+  hypXERC20: HypXERC20;
 
   constructor(
     public readonly chainName: ChainName,
@@ -311,14 +321,14 @@ export class EvmHypXERC20LockboxAdapter extends EvmHypCollateralAdapter {
   ) {
     super(chainName, multiProvider, addresses);
 
-    this.lockbox = HypXERC20Lockbox__factory.connect(
+    this.hypXERC20 = HypXERC20__factory.connect(
       addresses.token,
       this.getProvider(),
     );
   }
 
   async belowMintLimit(weiAmount: Numberish) {
-    const xERC20 = await this.lockbox.xERC20();
+    const xERC20 = await this.hypXERC20.wrappedToken();
 
     const limit = await IXERC20__factory.connect(
       xERC20,
@@ -329,7 +339,7 @@ export class EvmHypXERC20LockboxAdapter extends EvmHypCollateralAdapter {
   }
 
   async belowBurnLimit(weiAmount: Numberish) {
-    const xERC20 = await this.lockbox.xERC20();
+    const xERC20 = await this.hypXERC20.wrappedToken();
 
     const limit = await IXERC20__factory.connect(
       xERC20,
