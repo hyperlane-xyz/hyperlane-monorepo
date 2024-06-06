@@ -29,17 +29,39 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  */
 contract ArbL2ToL1Ism is
     CrossChainEnabledArbitrumL1,
-    AbstractMessageIdAuthorizedIsm
+    IInterchainSecurityModule
 {
     // ============ Constants ============
 
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.NULL);
 
+    // ============ Public Storage ============
+    /// @notice address for the authorized hook
+    bytes32 public immutable authorizedHook;
+
     // ============ Constructor ============
 
-    constructor(address _outbox) CrossChainEnabledArbitrumL1(_outbox) {
-        require(Address.isContract(_outbox), "ArbL2ToL1Ism: invalid ArbOutbox");
+    constructor(
+        address _bridge,
+        bytes32 _hook
+    ) CrossChainEnabledArbitrumL1(_bridge) {
+        require(
+            Address.isContract(_bridge),
+            "ArbL2ToL1Ism: invalid Arbitrum Bridge"
+        );
+        require(_hook != bytes32(0), "ArbL2ToL1Ism: invalid authorized hook");
+        authorizedHook = _hook;
+    }
+
+    // ============ Initializer ============
+
+    function verify(
+        bytes calldata,
+        /*_metadata*/
+        bytes calldata message
+    ) external returns (bool) {
+        return _isAuthorized();
     }
 
     // ============ Internal function ============
@@ -47,7 +69,7 @@ contract ArbL2ToL1Ism is
     /**
      * @notice Check if sender is authorized to message `verifyMessageId`.
      */
-    function _isAuthorized() internal view override returns (bool) {
+    function _isAuthorized() internal view returns (bool) {
         return
             _crossChainSender() == TypeCasts.bytes32ToAddress(authorizedHook);
     }

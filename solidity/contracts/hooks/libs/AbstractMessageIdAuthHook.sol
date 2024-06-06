@@ -58,7 +58,7 @@ abstract contract AbstractMessageIdAuthHook is
     }
 
     /// @inheritdoc IPostDispatchHook
-    function hookType() external pure returns (uint8) {
+    function hookType() external pure virtual returns (uint8) {
         return uint8(IPostDispatchHook.Types.ID_AUTH_ISM);
     }
 
@@ -68,7 +68,7 @@ abstract contract AbstractMessageIdAuthHook is
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal override {
+    ) internal virtual override {
         bytes32 id = message.id();
         require(
             _isLatestDispatched(id),

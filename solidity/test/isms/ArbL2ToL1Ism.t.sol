@@ -7,18 +7,17 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {Message} from "../../contracts/libs/Message.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {ArbL2ToL1Hook} from "../../contracts/hooks/ArbL2ToL1Hook.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
-contract ArbTest is Test {
+contract ArbL2ToL1IsmTest is Test {
     uint8 internal constant HYPERLANE_VERSION = 1;
     uint32 internal constant MAINNET_DOMAIN = 1;
     uint32 internal constant ARBITRUM_DOMAIN = 42161;
 
     address internal constant L2_ARBSYS_ADDRESS =
         0x0000000000000000000000000000000000000064;
-
-    uint256 internal arbitrumFork;
 
     TestMailbox public l2Mailbox;
     ArbL2ToL1Hook public hook;
@@ -31,8 +30,6 @@ contract ArbTest is Test {
     bytes32 internal messageId;
 
     function setUp() public {
-        arbitrumFork = vm.createFork(vm.rpcUrl("arbitrum"));
-
         testRecipient = new TestRecipient();
 
         encodedMessage = _encodeTestMessage();
@@ -40,8 +37,6 @@ contract ArbTest is Test {
     }
 
     function deployArbHook() public {
-        vm.selectFork(arbitrumFork);
-
         l2Mailbox = new TestMailbox(ARBITRUM_DOMAIN);
         hook = new ArbL2ToL1Hook(
             address(l2Mailbox),
@@ -57,14 +52,17 @@ contract ArbTest is Test {
         deployArbHook();
     }
 
-    function testFork_postDispatch() public {
+    function test_postDispatch() public {
         deployAll();
+
+        bytes memory encodedHookData = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (messageId)
+        );
 
         l2Mailbox.updateLatestDispatchedId(messageId);
 
-        vm.selectFork(arbitrumFork);
-
-        hook.postDispatch("", encodedMessage);
+        hook.postDispatch(encodedHookData, encodedMessage);
     }
 
     /* ============ helper functions ============ */

@@ -14,9 +14,14 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
+import {AbstractPostDispatchHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
+import {Mailbox} from "../Mailbox.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
+import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {MailboxClient} from "../client/MailboxClient.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -28,8 +33,9 @@ import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
  * the native Arbitrum bridge.
  * @notice This works only for L2 -> L1 messages and has the 7 day delay as specified by the ArbSys contract.
  */
-contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
+contract ArbL2ToL1Hook is AbstractPostDispatchHook, MailboxClient {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ Events ============
 
@@ -38,6 +44,10 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
 
     // ============ Constants ============
 
+    // left-padded address for ISM to verify messages
+    bytes32 public immutable remoteMailbox;
+    // Domain of chain on which the ISM is deployed
+    uint32 public immutable destinationDomain;
     // precompile contract on L2 for sending messages to L1
     ArbSys public immutable arbSys;
 
@@ -46,10 +56,17 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     constructor(
         address _mailbox,
         uint32 _destinationDomain,
-        bytes32 _ism,
+        bytes32 _remoteMailbox,
         address _arbSys
-    ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
-        require(Address.isContract(_arbSys), "OPStackHook: invalid messenger");
+    ) MailboxClient(_mailbox) {
+        require(
+            _destinationDomain != 0,
+            "AbstractMessageIdAuthHook: invalid destination domain"
+        );
+        remoteMailbox = _remoteMailbox;
+        destinationDomain = _destinationDomain;
+
+        require(Address.isContract(_arbSys), "ArbL2ToL1Hook: invalid ArbSys");
         arbSys = ArbSys(_arbSys);
     }
 
@@ -61,19 +78,33 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         return 0; // gas subsidized by the L2
     }
 
-    /// @inheritdoc AbstractMessageIdAuthHook
-    function _sendMessageId(
-        bytes calldata,
-        bytes memory payload
+    /// @inheritdoc IPostDispatchHook
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.ARBITRUM_L2_TO_L1_HOOK);
+    }
+
+    // ============ Internal functions ============
+
+    /// @inheritdoc AbstractPostDispatchHook
+    function _postDispatch(
+        bytes calldata metadata,
+        bytes calldata message
     ) internal override {
-        uint256 leafNum = arbSys.sendTxToL1(
-            TypeCasts.bytes32ToAddress(ism),
-            payload
+        bytes32 id = message.id();
+        require(
+            _isLatestDispatched(id),
+            "ArbL2ToL1Hook: message not latest dispatched"
+        );
+        require(
+            message.destination() == destinationDomain,
+            "ArbL2ToL1Hook: invalid destination domain"
         );
 
-        // TODO: if too expensive, remove this
-        // (uint256 size, , ) = arbSys.sendMerkleTreeState();
+        bytes memory payload = abi.encodeCall(
+            Mailbox.process,
+            (metadata, message)
+        );
 
-        emit ArbSysMerkleTreeUpdated(leafNum, leafNum);
+        arbSys.sendTxToL1(TypeCasts.bytes32ToAddress(remoteMailbox), payload);
     }
 }
