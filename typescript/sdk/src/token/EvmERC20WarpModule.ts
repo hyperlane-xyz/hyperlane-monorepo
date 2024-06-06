@@ -1,7 +1,5 @@
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { serializeContracts } from '../contracts/contracts.js';
-import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -11,14 +9,13 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
-import { HypERC20Factories } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import { TokenRouterConfig } from './schemas.js';
 
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   TokenRouterConfig,
-  HyperlaneAddresses<HypERC20Factories> & {
+  {
     deployedTokenRoute: Address;
   }
 > {
@@ -31,7 +28,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<
       TokenRouterConfig,
-      HyperlaneAddresses<HypERC20Factories> & {
+      {
         deployedTokenRoute: Address;
       }
     >,
@@ -87,7 +84,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     return new EvmERC20WarpModule(multiProvider, {
       addresses: {
-        ...serializeContracts(deployedContracts),
         deployedTokenRoute: deployedContracts[config.type].address,
       },
       chain,
