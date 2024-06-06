@@ -2,18 +2,22 @@ import { CommandModule } from 'yargs';
 
 import { EvmCoreReader } from '@hyperlane-xyz/sdk';
 
+import { createCoreDeployConfig } from '../config/core.js';
+import {
+  CommandModuleWithContext,
+  CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runCoreDeploy } from '../deploy/core.js';
+import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
+import { log, logGray } from '../logger.js';
+import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+
 import {
   chainCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
 } from './options.js';
-import { log, logGray } from '../logger.js';
-import { createCoreDeployConfig } from '../config/core.js';
-import { CommandModuleWithContext, CommandModuleWithWriteContext } from '../context/types.js';
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
-import { runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 
 /**
  * Parent command
