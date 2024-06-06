@@ -76,7 +76,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     return new EvmERC20WarpModule(multiProvider, {
       addresses: {
-        [config.type]: deployedContracts[config.type].address,
+        deployedTokenRoute: deployedContracts[config.type].address,
       },
       chain,
       config,
