@@ -353,13 +353,13 @@ describe('HyperlaneIsmFactory', async () => {
       });
       const existingIsm = ism.address;
       const domainsBefore = await (ism as DomainRoutingIsm).domains();
-
       // deleting the domain and removing from multiprovider should unenroll the domain
       // NB: we'll deploy new multisigIsms for the domains bc of new factories but the routingIsm address should be the same because of existingIsmAddress
       delete exampleRoutingConfig.domains['test3'];
       multiProvider = multiProvider.intersect([
         TestChainName.test1,
-        'test2',
+        TestChainName.test2,
+        TestChainName.test4,
       ]).result;
       ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
       ismFactory = new HyperlaneIsmFactory(

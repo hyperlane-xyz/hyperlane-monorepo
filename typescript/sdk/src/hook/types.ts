@@ -27,6 +27,7 @@ export enum OnchainHookType {
 }
 
 export enum HookType {
+  CUSTOM = 'custom',
   MERKLE_TREE = 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
   AGGREGATION = 'aggregationHook',

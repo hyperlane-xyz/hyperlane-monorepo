@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   IAggregationIsm,
+  IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
@@ -39,6 +40,7 @@ export enum ModuleType {
 // this enum can be adjusted as per deployments necessary
 // meant for the deployer and checker
 export enum IsmType {
+  CUSTOM = 'custom',
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
@@ -73,6 +75,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.OP_STACK:
     case IsmType.TEST_ISM:
     case IsmType.PAUSABLE:
+    case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
       return ModuleType.NULL;
   }
@@ -111,6 +114,7 @@ export type AggregationIsmConfig = {
 export type IsmConfig = z.infer<typeof IsmConfigSchema>;
 
 export type DeployedIsmType = {
+  [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
