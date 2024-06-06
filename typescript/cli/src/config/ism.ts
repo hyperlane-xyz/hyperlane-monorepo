@@ -71,8 +71,6 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
   [IsmType.TEST_ISM]:
     'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
-  [IsmType.OP_STACK]: '',
-  [IsmType.PAUSABLE]: '',
 };
 
 export async function createIsmConfig(
@@ -80,10 +78,12 @@ export async function createIsmConfig(
 ): Promise<IsmConfig> {
   const moduleType = await select({
     message: 'Select ISM type',
-    choices: Object.values(IsmType).map((value) => ({
-      value,
-      description: ISM_TYPE_DESCRIPTIONS[value],
-    })),
+    choices: Object.entries(ISM_TYPE_DESCRIPTIONS).map(
+      ([value, description]) => ({
+        value,
+        description,
+      }),
+    ),
     pageSize: 10,
   });
 
@@ -105,7 +105,7 @@ export async function createIsmConfig(
     return createTrustedRelayerConfig(context);
   }
 
-  throw new Error(`Invalid ISM type: ${moduleType}}`);
+  throw new Error(`Invalid ISM type: ${moduleType}`);
 }
 
 export async function createMultisigConfig(
