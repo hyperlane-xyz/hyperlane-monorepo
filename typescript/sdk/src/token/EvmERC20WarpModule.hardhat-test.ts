@@ -98,9 +98,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     });
 
     // Let's derive it's onchain token type
-    const { collateral } = evmERC20WarpModule.serialize();
+    const { deployedTokenRoute } = evmERC20WarpModule.serialize();
     const tokenType: TokenType =
-      await evmERC20WarpModule.reader.deriveTokenType(collateral);
+      await evmERC20WarpModule.reader.deriveTokenType(deployedTokenRoute);
     expect(tokenType).to.equal(TokenType.collateral);
   });
 
@@ -126,14 +126,17 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     });
 
     // Let's derive it's onchain token type
-    const { collateralVault } = evmERC20WarpModule.serialize();
+    const { deployedTokenRoute } = evmERC20WarpModule.serialize();
     const tokenType: TokenType =
-      await evmERC20WarpModule.reader.deriveTokenType(collateralVault);
+      await evmERC20WarpModule.reader.deriveTokenType(deployedTokenRoute);
     expect(tokenType).to.equal(TokenType.collateralVault);
 
     // Validate onchain token values
     const collateralVaultContract =
-      HypERC20CollateralVaultDeposit__factory.connect(collateralVault, signer);
+      HypERC20CollateralVaultDeposit__factory.connect(
+        deployedTokenRoute,
+        signer,
+      );
     await validateCoreValues(collateralVaultContract);
     expect(await collateralVaultContract.vault()).to.equal(vault.address);
     expect(await collateralVaultContract.wrappedToken()).to.equal(
@@ -161,13 +164,16 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     });
 
     // Let's derive it's onchain token type
-    const { synthetic } = evmERC20WarpModule.serialize();
+    const { deployedTokenRoute } = evmERC20WarpModule.serialize();
     const tokenType: TokenType =
-      await evmERC20WarpModule.reader.deriveTokenType(synthetic);
+      await evmERC20WarpModule.reader.deriveTokenType(deployedTokenRoute);
     expect(tokenType).to.equal(TokenType.synthetic);
 
     // Validate onchain token values
-    const syntheticContract = HypERC20__factory.connect(synthetic, signer);
+    const syntheticContract = HypERC20__factory.connect(
+      deployedTokenRoute,
+      signer,
+    );
     await validateCoreValues(syntheticContract);
     expect(await syntheticContract.name()).to.equal(TOKEN_NAME);
     expect(await syntheticContract.symbol()).to.equal(TOKEN_NAME);
@@ -190,13 +196,16 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     });
 
     // Let's derive it's onchain token type
-    const { native } = evmERC20WarpModule.serialize();
+    const { deployedTokenRoute } = evmERC20WarpModule.serialize();
     const tokenType: TokenType =
-      await evmERC20WarpModule.reader.deriveTokenType(native);
+      await evmERC20WarpModule.reader.deriveTokenType(deployedTokenRoute);
     expect(tokenType).to.equal(TokenType.native);
 
     // Validate onchain token values
-    const nativeContract = HypNative__factory.connect(native, signer);
+    const nativeContract = HypNative__factory.connect(
+      deployedTokenRoute,
+      signer,
+    );
     await validateCoreValues(nativeContract);
   });
 });
