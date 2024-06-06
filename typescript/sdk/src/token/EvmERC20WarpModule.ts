@@ -34,7 +34,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     >,
   ) {
     super(args);
-
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
   }
 

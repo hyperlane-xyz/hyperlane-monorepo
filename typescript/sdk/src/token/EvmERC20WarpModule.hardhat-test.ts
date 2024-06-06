@@ -132,13 +132,16 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(tokenType).to.equal(TokenType.collateralVault);
 
     // Validate onchain token values
-    const collateralVault = HypERC20CollateralVaultDeposit__factory.connect(
-      deployedTokenRoute,
-      signer,
+    const collateralVaultContract =
+      HypERC20CollateralVaultDeposit__factory.connect(
+        deployedTokenRoute,
+        signer,
+      );
+    await validateCoreValues(collateralVaultContract);
+    expect(await collateralVaultContract.vault()).to.equal(vault.address);
+    expect(await collateralVaultContract.wrappedToken()).to.equal(
+      token.address,
     );
-    await validateCoreValues(collateralVault);
-    expect(await collateralVault.vault()).to.equal(vault.address);
-    expect(await collateralVault.wrappedToken()).to.equal(token.address);
   });
 
   it('should create with a a synthetic config', async () => {
@@ -167,12 +170,15 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(tokenType).to.equal(TokenType.synthetic);
 
     // Validate onchain token values
-    const synthetic = HypERC20__factory.connect(deployedTokenRoute, signer);
-    await validateCoreValues(synthetic);
-    expect(await synthetic.name()).to.equal(TOKEN_NAME);
-    expect(await synthetic.symbol()).to.equal(TOKEN_NAME);
-    expect(await synthetic.decimals()).to.equal(TOKEN_DECIMALS);
-    expect(await synthetic.totalSupply()).to.equal(TOKEN_SUPPLY);
+    const syntheticContract = HypERC20__factory.connect(
+      deployedTokenRoute,
+      signer,
+    );
+    await validateCoreValues(syntheticContract);
+    expect(await syntheticContract.name()).to.equal(TOKEN_NAME);
+    expect(await syntheticContract.symbol()).to.equal(TOKEN_NAME);
+    expect(await syntheticContract.decimals()).to.equal(TOKEN_DECIMALS);
+    expect(await syntheticContract.totalSupply()).to.equal(TOKEN_SUPPLY);
   });
 
   it('should create with a a native config', async () => {
@@ -196,7 +202,10 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(tokenType).to.equal(TokenType.native);
 
     // Validate onchain token values
-    const native = HypNative__factory.connect(deployedTokenRoute, signer);
-    await validateCoreValues(native);
+    const nativeContract = HypNative__factory.connect(
+      deployedTokenRoute,
+      signer,
+    );
+    await validateCoreValues(nativeContract);
   });
 });

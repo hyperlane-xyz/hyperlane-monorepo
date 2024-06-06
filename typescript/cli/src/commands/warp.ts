@@ -7,6 +7,8 @@ import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
+import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
+import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { writeFileAtPath } from '../utils/files.js';
@@ -14,8 +16,11 @@ import { writeFileAtPath } from '../utils/files.js';
 import {
   addressCommandOption,
   chainCommandOption,
+  dryRunCommandOption,
+  fromAddressCommandOption,
   outputFileCommandOption,
   warpCoreConfigCommandOption,
+  warpDeploymentConfigCommandOption,
 } from './options.js';
 import { MessageOptionsArgTypes, messageOptions } from './send.js';
 
@@ -28,12 +33,42 @@ export const warpCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(configure)
+      .command(deploy)
       .command(read)
       .command(send)
       .version(false)
       .demandCommand(),
 
   handler: () => log('Command required'),
+};
+
+export const deploy: CommandModuleWithWriteContext<{
+  config: string;
+  'dry-run': string;
+  'from-address': string;
+}> = {
+  command: 'deploy',
+  describe: 'Deploy Warp Route contracts',
+  builder: {
+    config: warpDeploymentConfigCommandOption,
+    'dry-run': dryRunCommandOption,
+    'from-address': fromAddressCommandOption,
+  },
+  handler: async ({ context, config, dryRun }) => {
+    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
+    logGray('------------------------------------------------');
+
+    try {
+      await runWarpRouteDeploy({
+        context,
+        warpRouteDeploymentConfigPath: config,
+      });
+    } catch (error: any) {
+      evaluateIfDryRunFailure(error, dryRun);
+      throw error;
+    }
+    process.exit(0);
+  },
 };
 
 export const configure: CommandModuleWithContext<{

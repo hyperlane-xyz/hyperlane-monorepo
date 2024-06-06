@@ -4,7 +4,12 @@ import { CoreConfigSchema, EvmCoreReader, IsmConfig } from '@hyperlane-xyz/sdk';
 
 import { createHookConfig } from '../config/hooks.js';
 import { createIsmConfig, createTrustedRelayerConfig } from '../config/ism.js';
-import { CommandModuleWithContext } from '../context/types.js';
+import {
+  CommandModuleWithContext,
+  CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runCoreDeploy } from '../deploy/core.js';
+import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import {
   log,
   logBlue,
@@ -13,10 +18,14 @@ import {
   logRed,
 } from '../logger.js';
 import { detectAndConfirmOrPrompt } from '../utils/chains.js';
-import { writeYamlOrJson } from '../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
-import { deploy } from './deploy.js';
-import { chainCommandOption, outputFileCommandOption } from './options.js';
+import {
+  chainCommandOption,
+  dryRunCommandOption,
+  fromAddressCommandOption,
+  outputFileCommandOption,
+} from './options.js';
 
 /**
  * Parent command
@@ -32,6 +41,48 @@ export const coreCommand: CommandModule = {
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
+};
+
+/**
+ * Generates a command module for deploying Hyperlane contracts, given a command
+ *
+ * @param commandName - the deploy command key used to look up the deployFunction
+ * @returns A command module used to deploy Hyperlane contracts.
+ */
+export const deploy: CommandModuleWithWriteContext<{
+  chain: string;
+  config: string;
+  dryRun: string;
+  fromAddress: string;
+}> = {
+  command: 'deploy',
+  describe: 'Deploy Hyperlane contracts',
+  builder: {
+    chain: chainCommandOption,
+    config: outputFileCommandOption(
+      './configs/core-config.yaml',
+      false,
+      'The path to a JSON or YAML file with a core deployment config.',
+    ),
+    'dry-run': dryRunCommandOption,
+    'from-address': fromAddressCommandOption,
+  },
+  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
+    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
+    logGray(`------------------------------------------------`);
+
+    try {
+      await runCoreDeploy({
+        context,
+        chain,
+        config: readYamlOrJson(configFilePath),
+      });
+    } catch (error: any) {
+      evaluateIfDryRunFailure(error, dryRun);
+      throw error;
+    }
+    process.exit(0);
+  },
 };
 
 export const configure: CommandModuleWithContext<{
