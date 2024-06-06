@@ -22,7 +22,7 @@ import {
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
-  createIsmConfig,
+  createIsmConfigWithWarningOrDefault,
   createRoutingConfig,
   createTrustedRelayerConfig,
 } from './ism.js';
@@ -102,11 +102,11 @@ export function isValidWarpRouteDeployConfig(config: any) {
 export async function createWarpRouteDeployConfig({
   context,
   outPath,
-  shouldUseDefault = false,
+  advanced = false,
 }: {
   context: CommandContext;
   outPath: string;
-  shouldUseDefault: boolean;
+  advanced: boolean;
 }) {
   logBlue('Creating a new warp route deployment config');
 
@@ -144,9 +144,11 @@ export async function createWarpRouteDeployConfig({
       'hyperlane-registry',
     );
 
-    const interchainSecurityModule = shouldUseDefault
-      ? await createDefaultWarpIsmConfig(context)
-      : await createIsmConfig(context);
+    const interchainSecurityModule = await createIsmConfigWithWarningOrDefault({
+      context,
+      defaultFn: createDefaultWarpIsmConfig,
+      advanced,
+    });
 
     switch (type) {
       case TokenType.collateral:
@@ -180,7 +182,7 @@ export async function createWarpRouteDeployConfig({
 
   try {
     const parsed = WarpRouteDeployConfigSchema.parse(result);
-    logGreen(`Warp Route config is valid, writing to file ${outPath}`);
+    logBlue(`Warp Route config is valid, writing to file ${outPath}`);
     writeYamlOrJson(outPath, parsed);
   } catch (e) {
     errorRed(
@@ -188,6 +190,8 @@ export async function createWarpRouteDeployConfig({
     );
     throw e;
   }
+
+  logGreen('✅ Successfully created new warp route deployment config');
 }
 
 // Note, this is different than the function above which reads a config

@@ -72,24 +72,27 @@ export const deploy: CommandModuleWithWriteContext<{
 };
 
 export const configure: CommandModuleWithContext<{
-  ismAdvanced: boolean;
+  advanced: boolean;
   out: string;
 }> = {
   command: 'configure',
   describe: 'Create a warp route configuration.',
   builder: {
-    ismAdvanced: {
+    advanced: {
       type: 'boolean',
-      describe: 'Create an advanced ISM & hook configuration',
+      describe: 'Create an advanced ISM',
       default: false,
     },
     out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
   },
-  handler: async ({ context, ismAdvanced, out }) => {
+  handler: async ({ context, advanced, out }) => {
+    logGray('Hyperlane Warp Configure');
+    logGray('------------------------');
+
     await createWarpRouteDeployConfig({
       context,
       outPath: out,
-      shouldUseDefault: !ismAdvanced,
+      advanced,
     });
     process.exit(0);
   },
