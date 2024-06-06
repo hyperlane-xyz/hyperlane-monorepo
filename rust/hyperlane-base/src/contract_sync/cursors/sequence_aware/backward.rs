@@ -73,6 +73,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
         // Skip any already indexed logs.
         tokio::select! {
             res = self.skip_indexed() => res?,
+            // return early to allow the forward cursor to also make progress
             _ = sleep(MAX_BACWARD_SYNC_BLOCKING_TIME) => { return Ok(None); }
         };
 
