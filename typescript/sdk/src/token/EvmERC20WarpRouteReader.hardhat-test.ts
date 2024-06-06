@@ -137,11 +137,14 @@ describe('ERC20WarpRouterReader', async () => {
         expect(deployedValue).to.equal(value);
     }
 
-    // Check hook & ism (because they're potentially objects)
-    expect(derivedConfig.hook?.address).to.equal(config[chain].hook);
-    expect(derivedConfig.interchainSecurityModule?.address).to.equal(
-      config[chain].interchainSecurityModule,
+    // Check hook because they're potentially objects
+    expect(derivedConfig.hook).to.deep.equal(
+      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
+        config[chain].hook as string,
+      ),
     );
+    // Check ism. should return undefined
+    expect(derivedConfig.interchainSecurityModule).to.be.undefined;
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.collateral) {

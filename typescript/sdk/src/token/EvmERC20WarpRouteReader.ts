@@ -5,26 +5,21 @@ import {
   HypERC20Collateral__factory,
   HypERC20__factory,
 } from '@hyperlane-xyz/core';
-import { HookConfig, TokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  MailboxClientConfig,
+  TokenRouterConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
-import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { EvmHookReader } from '../hook/EvmHookReader.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 
+import { CollateralExtensions } from './config.js';
 import { TokenMetadata } from './types.js';
-
-type WarpRouteBaseMetadata = Record<'mailbox' | 'owner', string> & {
-  hook?: HookConfig;
-  interchainSecurityModule?: DerivedIsmConfig;
-};
-
-export type DerivedTokenRouterConfig = TokenRouterConfig & {
-  hook?: DerivedHookConfig;
-  interchainSecurityModule?: DerivedIsmConfig;
-};
 
 export class EvmERC20WarpRouteReader {
   protected readonly logger = rootLogger.child({
@@ -53,10 +48,12 @@ export class EvmERC20WarpRouteReader {
    */
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
-  ): Promise<DerivedTokenRouterConfig> {
+  ): Promise<TokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
-    const fetchedBaseMetadata = await this.fetchBaseMetadata(warpRouteAddress);
+    const fetchedBaseMetadata = await this.fetchMailboxClientConfig(
+      warpRouteAddress,
+    );
     const fetchedTokenMetadata = await this.fetchTokenMetadata(
       type,
       warpRouteAddress,
@@ -66,7 +63,7 @@ export class EvmERC20WarpRouteReader {
       ...fetchedBaseMetadata,
       ...fetchedTokenMetadata,
       type,
-    } as DerivedTokenRouterConfig;
+    } as TokenRouterConfig;
   }
 
   /**
@@ -126,9 +123,9 @@ export class EvmERC20WarpRouteReader {
    * @param routerAddress - The address of the Warp Route contract.
    * @returns The base metadata for the Warp Route contract, including the mailbox, owner, hook, and ism.
    */
-  async fetchBaseMetadata(
+  async fetchMailboxClientConfig(
     routerAddress: Address,
-  ): Promise<WarpRouteBaseMetadata> {
+  ): Promise<MailboxClientConfig> {
     const warpRoute = HypERC20Collateral__factory.connect(
       routerAddress,
       this.provider,
@@ -166,7 +163,7 @@ export class EvmERC20WarpRouteReader {
     type: TokenType,
     tokenAddress: Address,
   ): Promise<TokenMetadata & { token?: string }> {
-    if (type === TokenType.collateral || type === TokenType.collateralVault) {
+    if (CollateralExtensions.includes(type)) {
       const erc20 = HypERC20Collateral__factory.connect(
         tokenAddress,
         this.provider,

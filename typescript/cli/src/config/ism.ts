@@ -58,7 +58,7 @@ export function readIsmConfig(filePath: string) {
   return parsedConfig;
 }
 
-const ISM_TYPE_DESCRIPTIONS: Record<IsmType, string> = {
+const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   [IsmType.MESSAGE_ID_MULTISIG]: 'Validators need to sign just this messageId',
   [IsmType.MERKLE_ROOT_MULTISIG]:
     'Validators need to sign the root of the merkle tree of all messages from origin chain',
@@ -73,7 +73,6 @@ const ISM_TYPE_DESCRIPTIONS: Record<IsmType, string> = {
     'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
   [IsmType.OP_STACK]: '',
   [IsmType.PAUSABLE]: '',
-  [IsmType.CUSTOM]: '',
 };
 
 export async function createIsmConfig(
