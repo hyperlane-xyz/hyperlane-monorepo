@@ -1,5 +1,18 @@
 # @hyperlane-xyz/cli
 
+## 4.0.0-alpha.0
+
+### Minor Changes
+
+- 6db9fa9ad: Implement hyperlane warp deploy
+
+### Patch Changes
+
+- Updated dependencies [bdcbe1d16]
+- Updated dependencies [6db9fa9ad]
+  - @hyperlane-xyz/sdk@4.0.0-alpha.0
+  - @hyperlane-xyz/utils@4.0.0-alpha.0
+
 ## 4.0.0-alpha
 
 ### Major Changes

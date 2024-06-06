@@ -1,0 +1,17 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@hyperlane-xyz/core": "4.0.0-alpha",
+    "@hyperlane-xyz/ccip-server": "4.0.0-alpha",
+    "@hyperlane-xyz/cli": "4.0.0-alpha",
+    "@hyperlane-xyz/helloworld": "4.0.0-alpha",
+    "@hyperlane-xyz/infra": "4.0.0-alpha",
+    "@hyperlane-xyz/sdk": "4.0.0-alpha",
+    "@hyperlane-xyz/utils": "4.0.0-alpha"
+  },
+  "changesets": [
+    "five-baboons-smoke",
+    "slimy-toys-argue"
+  ]
+}

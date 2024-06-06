@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sdk
 
+## 4.0.0-alpha.0
+
+### Minor Changes
+
+- bdcbe1d16: Add EvmWarpModule with create()
+- 6db9fa9ad: Implement hyperlane warp deploy
+
+### Patch Changes
+
+- @hyperlane-xyz/core@4.0.0-alpha.0
+- @hyperlane-xyz/utils@4.0.0-alpha.0
+
 ## 4.0.0-alpha
 
 ### Major Changes
