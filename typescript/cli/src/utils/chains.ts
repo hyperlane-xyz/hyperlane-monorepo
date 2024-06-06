@@ -78,13 +78,16 @@ export async function detectAndConfirmOrPrompt(
   detect: () => Promise<string | undefined>,
   prompt: string,
   label: string,
+  source?: string,
 ): Promise<string> {
   let detectedValue: string | undefined;
   try {
     detectedValue = await detect();
     if (detectedValue) {
       const confirmed = await confirm({
-        message: `Detected ${label} as ${detectedValue}, is this correct?`,
+        message: `Detected ${label} as ${detectedValue}${
+          source ? ` from ${source}` : ''
+        }, is this correct?`,
       });
       if (confirmed) {
         return detectedValue;

@@ -48,6 +48,7 @@ export async function createChainConfig({
     },
     'Enter http or https',
     'rpc url',
+    'JSON RPC provider',
   );
   const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
@@ -60,6 +61,7 @@ export async function createChainConfig({
     },
     'Enter (one word, lower case)',
     'chain name',
+    'JSON RPC provider',
   );
 
   const chainId = parseInt(
@@ -70,6 +72,7 @@ export async function createChainConfig({
       },
       'Enter a (number)',
       'chain id',
+      'JSON RPC provider',
     ),
     10,
   );
