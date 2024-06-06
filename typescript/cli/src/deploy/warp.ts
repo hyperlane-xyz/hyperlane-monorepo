@@ -1,20 +1,18 @@
 import { confirm } from '@inquirer/prompts';
 
 import {
-  EvmERC20WarpModule,
   HypERC20Deployer,
+  HypERC721Deployer,
   HyperlaneContractsMap,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
-  attachContractsMap,
   getTokenConnectionId,
-  hypERC20factories,
   isTokenMetadata,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
@@ -112,30 +110,20 @@ async function executeDeploy(params: DeployParams) {
     context: { registry, multiProvider, isDryRun, dryRunChain },
   } = params;
 
-  const warpDeployconfig: WarpRouteDeployConfig =
+  const deployer = configMap.isNft
+    ? new HypERC721Deployer(multiProvider)
+    : new HypERC20Deployer(multiProvider);
+
+  const config: WarpRouteDeployConfig =
     isDryRun && dryRunChain
       ? { [dryRunChain]: configMap[dryRunChain] }
       : configMap;
 
-  const deployedAddressesMap = await promiseObjAll(
-    objMap(warpDeployconfig, async (chain, config) => {
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
-        chain,
-        config,
-        multiProvider,
-      });
+  const deployedContracts = await deployer.deploy(config);
 
-      return evmERC20WarpModule.serialize();
-    }),
-  );
   logGreen('✅ Hyp token deployments complete');
 
-  const deployedContractMap = attachContractsMap(
-    deployedAddressesMap,
-    hypERC20factories,
-  );
-
-  const warpCoreConfig = await getWarpCoreConfig(params, deployedContractMap);
+  const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
   if (!isDryRun) {
     log('Writing deployment artifacts');
     await registry.addWarpRoute(warpCoreConfig);
