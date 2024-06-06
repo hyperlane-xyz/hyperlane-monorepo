@@ -117,6 +117,14 @@ export function withContext<T>(args: Argv<T>) {
     .demandOption('context');
 }
 
+export function withChain<T>(args: Argv<T>) {
+  return args
+    .describe('chain', 'chain name')
+    .choices('chain', getChains())
+    .demandOption('chain')
+    .alias('c', 'chain');
+}
+
 export function withProtocol<T>(args: Argv<T>) {
   return args
     .describe('protocol', 'protocol type')
@@ -174,6 +182,17 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .describe('concurrentDeploy', 'If enabled, runs all deploys concurrently')
     .boolean('concurrentDeploy')
     .default('concurrentDeploy', false);
+}
+
+export function withRpcUrls<T>(args: Argv<T>) {
+  return args
+    .describe(
+      'rpcUrls',
+      'rpc urls in a comma separated list, in order of preference',
+    )
+    .string('rpcUrls')
+    .demandOption('rpcUrls')
+    .alias('r', 'rpcUrls');
 }
 
 // not requiring to build coreConfig to get agentConfig
