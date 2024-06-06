@@ -73,7 +73,6 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
     'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
   [IsmType.OP_STACK]: '',
   [IsmType.PAUSABLE]: '',
-  [IsmType.CUSTOM]: '',
 };
 
 export async function createIsmConfig(
