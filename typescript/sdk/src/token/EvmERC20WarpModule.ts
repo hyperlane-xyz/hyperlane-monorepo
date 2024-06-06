@@ -15,9 +15,7 @@ import { TokenRouterConfig } from './schemas.js';
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   TokenRouterConfig,
-  {
-    deployedTokenRoute: Address;
-  }
+  Record<string, Address>
 > {
   protected logger = rootLogger.child({
     module: 'EvmERC20WarpModule',
@@ -26,15 +24,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<
-      TokenRouterConfig,
-      {
-        deployedTokenRoute: Address;
-      }
-    >,
+    args: HyperlaneModuleParams<TokenRouterConfig, Record<string, Address>>,
   ) {
     super(args);
-
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
   }
 
@@ -84,7 +76,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     return new EvmERC20WarpModule(multiProvider, {
       addresses: {
-        deployedTokenRoute: deployedContracts[config.type].address,
+        [config.type]: deployedContracts[config.type].address,
       },
       chain,
       config,

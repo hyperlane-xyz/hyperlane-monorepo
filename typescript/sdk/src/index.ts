@@ -447,6 +447,7 @@ export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
+  hypERC20factories,
   HypERC20Factories,
   HypERC721Factories,
   TokenFactories,
@@ -505,3 +506,4 @@ export { S3Config, S3Wrapper, S3Receipt } from './aws/s3.js';
 export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
 
 export { EvmCoreModule, DeployedCoreAdresses } from './core/EvmCoreModule.js';
+export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
