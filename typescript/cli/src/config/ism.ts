@@ -19,7 +19,7 @@ import {
 } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 
-import { callWithConfigCreationLogsAsync } from './utils.js';
+import { callWithConfigCreationLogs } from './utils.js';
 
 const IsmConfigMapSchema = z.record(IsmConfigSchema).refine(
   (ismConfigMap) => {
@@ -110,7 +110,7 @@ export async function createIsmConfig(
   }
 }
 
-export const createMerkleRootMultisigConfig = callWithConfigCreationLogsAsync(
+export const createMerkleRootMultisigConfig = callWithConfigCreationLogs(
   async (): Promise<MultisigIsmConfig> => {
     const thresholdInput = await input({
       message:
@@ -132,7 +132,7 @@ export const createMerkleRootMultisigConfig = callWithConfigCreationLogsAsync(
   IsmType.MERKLE_ROOT_MULTISIG,
 );
 
-export const createMessageIdMultisigConfig = callWithConfigCreationLogsAsync(
+export const createMessageIdMultisigConfig = callWithConfigCreationLogs(
   async (): Promise<MultisigIsmConfig> => {
     const thresholdInput = await input({
       message:
@@ -154,7 +154,7 @@ export const createMessageIdMultisigConfig = callWithConfigCreationLogsAsync(
   IsmType.MESSAGE_ID_MULTISIG,
 );
 
-export const createTrustedRelayerConfig = callWithConfigCreationLogsAsync(
+export const createTrustedRelayerConfig = callWithConfigCreationLogs(
   async (context: CommandContext): Promise<TrustedRelayerIsmConfig> => {
     const relayer = await detectAndConfirmOrPrompt(
       async () => context.signer?.getAddress(),
@@ -169,7 +169,7 @@ export const createTrustedRelayerConfig = callWithConfigCreationLogsAsync(
   IsmType.TRUSTED_RELAYER,
 );
 
-export const createAggregationConfig = callWithConfigCreationLogsAsync(
+export const createAggregationConfig = callWithConfigCreationLogs(
   async (context: CommandContext): Promise<AggregationIsmConfig> => {
     const isms = parseInt(
       await input({
@@ -198,7 +198,7 @@ export const createAggregationConfig = callWithConfigCreationLogsAsync(
   IsmType.AGGREGATION,
 );
 
-export const createRoutingConfig = callWithConfigCreationLogsAsync(
+export const createRoutingConfig = callWithConfigCreationLogs(
   async (context: CommandContext): Promise<IsmConfig> => {
     const owner = await input({
       message: 'Enter owner address for routing ISM',
@@ -228,7 +228,7 @@ export const createRoutingConfig = callWithConfigCreationLogsAsync(
   IsmType.ROUTING,
 );
 
-export const createFallbackRoutingConfig = callWithConfigCreationLogsAsync(
+export const createFallbackRoutingConfig = callWithConfigCreationLogs(
   async (context: CommandContext): Promise<IsmConfig> => {
     const owner = await input({
       message: 'Enter owner address for fallback routing ISM',

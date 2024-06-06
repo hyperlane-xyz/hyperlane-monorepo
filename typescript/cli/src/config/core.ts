@@ -43,7 +43,7 @@ export async function createCoreDeployConfig({
     defaultHook = await createHookConfig(context, 'Select default hook type');
     requiredHook = await createHookConfig(context, 'Select required hook type');
   } else {
-    defaultHook = createMerkleTreeConfig();
+    defaultHook = await createMerkleTreeConfig();
     requiredHook = await createProtocolFeeConfig();
   }
 

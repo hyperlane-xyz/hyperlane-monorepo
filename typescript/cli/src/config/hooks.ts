@@ -22,10 +22,7 @@ import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 
-import {
-  callWithConfigCreationLogsAsync,
-  callWithConfigCreationLogsSync,
-} from './utils.js';
+import { callWithConfigCreationLogs } from './utils.js';
 
 // TODO: deprecate in favor of CoreConfigSchema
 const HooksConfigSchema = z.object({
@@ -106,14 +103,14 @@ export async function createHookConfig(
   }
 }
 
-export const createMerkleTreeConfig = callWithConfigCreationLogsSync(
-  (): HookConfig => {
+export const createMerkleTreeConfig = callWithConfigCreationLogs(
+  async (): Promise<HookConfig> => {
     return { type: HookType.MERKLE_TREE };
   },
   HookType.MERKLE_TREE,
 );
 
-export const createProtocolFeeConfig = callWithConfigCreationLogsAsync(
+export const createProtocolFeeConfig = callWithConfigCreationLogs(
   async (): Promise<HookConfig> => {
     const owner = await input({
       message: 'Enter owner address for protocol fee hook',
@@ -159,7 +156,7 @@ export const createProtocolFeeConfig = callWithConfigCreationLogsAsync(
 );
 
 // TODO: make this usable
-export const createIGPConfig = callWithConfigCreationLogsAsync(
+export const createIGPConfig = callWithConfigCreationLogs(
   async (remotes: ChainName[]): Promise<HookConfig> => {
     const owner = await input({
       message: 'Enter owner address for IGP hook',
@@ -204,7 +201,7 @@ export const createIGPConfig = callWithConfigCreationLogsAsync(
   HookType.INTERCHAIN_GAS_PAYMASTER,
 );
 
-export const createAggregationConfig = callWithConfigCreationLogsAsync(
+export const createAggregationConfig = callWithConfigCreationLogs(
   async (context: CommandContext): Promise<HookConfig> => {
     const hooksNum = parseInt(
       await input({
@@ -225,7 +222,7 @@ export const createAggregationConfig = callWithConfigCreationLogsAsync(
   HookType.AGGREGATION,
 );
 
-export const createRoutingConfig = callWithConfigCreationLogsAsync(
+export const createRoutingConfig = callWithConfigCreationLogs(
   async (context: CommandContext): Promise<HookConfig> => {
     const owner = await input({
       message: 'Enter owner address for routing ISM',
