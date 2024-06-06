@@ -5,6 +5,7 @@ import hre from 'hardhat';
 import {
   Address,
   configDeepEquals,
+  eqAddress,
   normalizeConfig,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
@@ -30,6 +31,7 @@ import {
   MerkleTreeHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
+  RoutingHookConfig,
 } from './types.js';
 
 const hookTypes = Object.values(HookType);
@@ -163,6 +165,9 @@ describe('EvmHookModule', async () => {
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
+  let exampleRoutingConfig: DomainRoutingHookConfig;
+  let exampleFallbackRoutingConfig: FallbackRoutingHookConfig;
+
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -202,6 +207,29 @@ describe('EvmHookModule', async () => {
       proxyAdmin: proxyAdmin.address,
       validatorAnnounce: validatorAnnounce.address,
     };
+
+    const baseRoutingConfig: RoutingHookConfig = {
+      owner: await multiProvider.getSignerAddress(chain),
+      domains: Object.fromEntries(
+        testChains.map((c) => [
+          c,
+          {
+            type: HookType.MERKLE_TREE,
+          },
+        ]),
+      ),
+    };
+
+    exampleRoutingConfig = {
+      ...baseRoutingConfig,
+      type: HookType.ROUTING,
+    };
+
+    exampleFallbackRoutingConfig = {
+      ...baseRoutingConfig,
+      type: HookType.FALLBACK_ROUTING,
+      fallback: { type: HookType.MERKLE_TREE },
+    };
   });
 
   // Helper method for checking whether Hook module matches a given config
@@ -223,6 +251,20 @@ describe('EvmHookModule', async () => {
       console.error('Expected config:\n', stringifyObject(normalizedConfig));
     }
     return matches;
+  }
+
+  // Helper method to expect exactly N updates to be applied
+  async function expectTxsAndUpdate(
+    hook: EvmHookModule,
+    config: HookConfig,
+    n: number,
+  ) {
+    const txs = await hook.update(config);
+    expect(txs.length).to.equal(n);
+
+    for (const tx of txs) {
+      await multiProvider.sendTransaction(chain, tx);
+    }
   }
 
   // hook module and config for testing
@@ -484,5 +526,36 @@ describe('EvmHookModule', async () => {
       };
       await createHook(config);
     });
+  });
+
+  describe('update', async () => {
+    for (const config of [exampleRoutingConfig, exampleFallbackRoutingConfig]) {
+      it(`should update ${config.type} hook`, async () => {
+        const { hook, initialHookAddress } = await createHook(config);
+
+        // update the hook with some random new config
+        const newConfig = randomHookConfig();
+
+        // expect a fresh hook to be deployed which means 0 txs returned
+        await expectTxsAndUpdate(hook, newConfig, 1);
+
+        // expect a fresh hook address
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
+      });
+
+      it(`should skip deployment with warning if no chain metadata configured ${config.type}`, async () => {
+        // create a new Hook
+        const { hook } = await createHook(config);
+
+        // add config for a domain the multiprovider doesn't have
+        config.domains['test5'] = {
+          type: HookType.MERKLE_TREE,
+        };
+
+        // expect 0 txs, as adding test5 domain is no-op
+        await expectTxsAndUpdate(hook, config, 0);
+      });
+    }
   });
 });
