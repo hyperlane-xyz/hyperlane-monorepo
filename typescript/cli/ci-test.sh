@@ -162,7 +162,7 @@ run_hyperlane_deploy_warp_dry_run() {
     update_deployer_balance;
 
     echo -e "\nDry-running warp route deployments to Alfajores"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --dry-run alfajores \
         --overrides ${TEST_CONFIGS_PATH}/dry-run \
         --config ${TEST_CONFIGS_PATH}/dry-run/warp-route-deployment.yaml \
@@ -200,7 +200,7 @@ run_hyperlane_deploy_warp() {
     update_deployer_balance;
 
     echo -e "\nDeploying hypNative warp route"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry $REGISTRY_PATH \
         --overrides " " \
         --config $WARP_DEPLOY_CONFIG_PATH \
@@ -213,7 +213,7 @@ run_hyperlane_deploy_warp() {
         /tmp/warp-collateral-deployment.json \
 
     echo "Deploying hypCollateral warp route"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry $REGISTRY_PATH \
         --overrides " " \
         --config /tmp/warp-collateral-deployment.json \
