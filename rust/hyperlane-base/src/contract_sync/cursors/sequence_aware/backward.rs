@@ -9,9 +9,12 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceIndexed,
 };
 use itertools::Itertools;
+use tokio::time::sleep;
 use tracing::{debug, instrument, warn};
 
 use super::{LastIndexedSnapshot, TargetSnapshot};
+
+const MAX_BACKWARD_SYNC_BLOCKING_TIME: Duration = Duration::from_secs(5);
 
 /// A sequence-aware cursor that syncs backward until there are no earlier logs to index.
 pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
@@ -68,7 +71,11 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
-        self.skip_indexed().await?;
+        tokio::select! {
+            res = self.skip_indexed() => res?,
+            // return early to allow the forward cursor to also make progress
+            _ = sleep(MAX_BACKWARD_SYNC_BLOCKING_TIME) => { return Ok(None); }
+        };
 
         // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
         // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
