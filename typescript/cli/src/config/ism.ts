@@ -1,4 +1,4 @@
-import { confirm, input, select } from '@inquirer/prompts';
+import { input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
 import {
@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
-import { logBlue, logBoldUnderlinedRed, logRed } from '../logger.js';
+import { log, logBlue, logBoldUnderlinedRed, logRed } from '../logger.js';
 import {
   detectAndConfirmOrPrompt,
   runMultiChainSelectionStep,
@@ -79,6 +79,12 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
 export async function createAdvancedIsmConfig(
   context: CommandContext,
 ): Promise<IsmConfig> {
+  logBlue('Creating a new advanced ISM config');
+  logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
+  logRed(
+    'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
+  );
+
   const moduleType = await select({
     message: 'Select ISM type',
     choices: Object.entries(ISM_TYPE_DESCRIPTIONS).map(
@@ -219,9 +225,7 @@ export const createRoutingConfig = callWithConfigCreationLogs(
 
     const domainsMap: ChainMap<IsmConfig> = {};
     for (const chain of chains) {
-      await confirm({
-        message: `You are about to configure routing ISM from source chain ${chain}. Continue?`,
-      });
+      log(`You are about to configure routing ISM from source chain ${chain}.`);
       const config = await createAdvancedIsmConfig(context);
       domainsMap[chain] = config;
     }
@@ -249,9 +253,9 @@ export const createFallbackRoutingConfig = callWithConfigCreationLogs(
 
     const domainsMap: ChainMap<IsmConfig> = {};
     for (const chain of chains) {
-      await confirm({
-        message: `You are about to configure fallback routing ISM from source chain ${chain}. Continue?`,
-      });
+      log(
+        `You are about to configure fallback routing ISM from source chain ${chain}.`,
+      );
       const config = await createAdvancedIsmConfig(context);
       domainsMap[chain] = config;
     }
@@ -263,24 +267,3 @@ export const createFallbackRoutingConfig = callWithConfigCreationLogs(
   },
   IsmType.FALLBACK_ROUTING,
 );
-
-export async function createIsmConfig({
-  context,
-  advanced = false,
-  defaultFn,
-}: {
-  context: CommandContext;
-  advanced: boolean;
-  defaultFn: (context: CommandContext) => Promise<IsmConfig>;
-}): Promise<IsmConfig> {
-  if (advanced) {
-    logBlue('Creating a new advanced ISM config');
-    logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
-    logRed(
-      'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
-    );
-    return createAdvancedIsmConfig(context);
-  }
-
-  return defaultFn(context);
-}

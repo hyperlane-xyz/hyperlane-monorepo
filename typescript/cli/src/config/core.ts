@@ -12,7 +12,7 @@ import {
   createMerkleTreeConfig,
   createProtocolFeeConfig,
 } from './hooks.js';
-import { createIsmConfig, createTrustedRelayerConfig } from './ism.js';
+import { createAdvancedIsmConfig, createTrustedRelayerConfig } from './ism.js';
 
 export async function createCoreDeployConfig({
   context,
@@ -32,11 +32,9 @@ export async function createCoreDeployConfig({
     'signer',
   );
 
-  const defaultIsm: IsmConfig = await createIsmConfig({
-    context,
-    advanced,
-    defaultFn: createTrustedRelayerConfig,
-  });
+  const defaultIsm: IsmConfig = advanced
+    ? await createAdvancedIsmConfig(context)
+    : await createTrustedRelayerConfig(context, advanced);
 
   let defaultHook: HookConfig, requiredHook: HookConfig;
   if (advanced) {

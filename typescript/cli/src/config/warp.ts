@@ -27,7 +27,7 @@ import {
 } from '../utils/files.js';
 
 import {
-  createIsmConfig,
+  createAdvancedIsmConfig,
   createRoutingConfig,
   createTrustedRelayerConfig,
 } from './ism.js';
@@ -149,11 +149,9 @@ export async function createWarpRouteDeployConfig({
       'hyperlane-registry',
     );
 
-    const interchainSecurityModule = await createIsmConfig({
-      context,
-      defaultFn: createDefaultWarpIsmConfig,
-      advanced,
-    });
+    const interchainSecurityModule = advanced
+      ? await createAdvancedIsmConfig(context)
+      : await createDefaultWarpIsmConfig(context);
 
     switch (type) {
       case TokenType.collateral:
