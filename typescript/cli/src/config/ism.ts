@@ -252,11 +252,6 @@ export const createRoutingConfig = callWithConfigCreationLogs(
 
 export const createFallbackRoutingConfig = callWithConfigCreationLogs(
   async (context: CommandContext): Promise<IsmConfig> => {
-    const owner = await input({
-      message: 'Enter owner address for fallback routing ISM',
-    });
-    const ownerAddress = owner;
-
     const chains = await runMultiChainSelectionStep(
       context.chainMetadata,
       'Select chains to configure fallback routing ISM for',
@@ -273,7 +268,7 @@ export const createFallbackRoutingConfig = callWithConfigCreationLogs(
     }
     return {
       type: IsmType.FALLBACK_ROUTING,
-      owner: ownerAddress,
+      owner: '',
       domains: domainsMap,
     };
   },
