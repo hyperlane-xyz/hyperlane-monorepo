@@ -84,10 +84,8 @@ where
             .with_label_values(&[label, chain_name]);
 
         loop {
-            if let Some(broadcaster) = opts.tx_id_broadcaster.as_mut() {
-                let mut rx = broadcaster.subscribe();
-                self.fetch_logs_from_receiver(&mut rx, &stored_logs_metric)
-                    .await;
+            if let Some(rx) = opts.tx_id_receiver.as_mut() {
+                self.fetch_logs_from_receiver(rx, &stored_logs_metric).await;
             }
             if let Some(cursor) = opts.cursor.as_mut() {
                 self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
@@ -258,14 +256,14 @@ pub struct SyncOptions<T> {
     // Might want to refactor into an enum later, where we either index with a cursor or rely on receiving
     // txids from a channel to other indexing tasks
     cursor: Option<Box<dyn ContractSyncCursor<T>>>,
-    tx_id_broadcaster: Option<BroadcastSender<H512>>,
+    tx_id_receiver: Option<BroadcastReceiver<H512>>,
 }
 
 impl<T> From<Box<dyn ContractSyncCursor<T>>> for SyncOptions<T> {
     fn from(cursor: Box<dyn ContractSyncCursor<T>>) -> Self {
         Self {
             cursor: Some(cursor),
-            tx_id_broadcaster: None,
+            tx_id_receiver: None,
         }
     }
 }

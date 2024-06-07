@@ -8,7 +8,10 @@ use hyperlane_base::{
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetricsUpdater, SyncOptions,
 };
 use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
-use tokio::{sync::broadcast::Sender, task::JoinHandle};
+use tokio::{
+    sync::broadcast::{Receiver, Sender},
+    task::JoinHandle,
+};
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
 use crate::{chain_scraper::HyperlaneSqlDb, db::ScraperDb, settings::ScraperSettings};
@@ -152,7 +155,7 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db.clone(),
                 index_settings.clone(),
-                maybe_broadcaster.clone(),
+                maybe_broadcaster.clone().map(|b| b.subscribe()),
             )
             .await,
         );
@@ -163,7 +166,7 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db,
                 index_settings.clone(),
-                maybe_broadcaster,
+                maybe_broadcaster.map(|b| b.subscribe()),
             )
             .await,
         );
@@ -212,7 +215,7 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         db: HyperlaneSqlDb,
         index_settings: IndexSettings,
-        broadcast_tx: Option<Sender<H512>>,
+        tx_id_receiver: Option<Receiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
         let sync = self
             .as_ref()
@@ -229,7 +232,7 @@ impl Scraper {
         let label = "message_delivery";
         let cursor = sync.cursor(index_settings.clone()).await;
         tokio::spawn(async move {
-            sync.sync(label, SyncOptions::new(Some(cursor), broadcast_tx))
+            sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
                 .await
         })
         .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
@@ -242,7 +245,7 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         db: HyperlaneSqlDb,
         index_settings: IndexSettings,
-        broadcast_tx: Option<Sender<H512>>,
+        tx_id_receiver: Option<Receiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
         let sync = self
             .as_ref()
@@ -259,7 +262,7 @@ impl Scraper {
         let label = "gas_payment";
         let cursor = sync.cursor(index_settings.clone()).await;
         tokio::spawn(async move {
-            sync.sync(label, SyncOptions::new(Some(cursor), broadcast_tx))
+            sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
                 .await
         })
         .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
