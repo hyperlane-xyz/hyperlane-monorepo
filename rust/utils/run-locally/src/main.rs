@@ -200,15 +200,6 @@ fn main() -> ExitCode {
             r#"[{
                 "type": "minimum",
                 "payment": "1",
-                "matchingList": [
-                    {
-                        "originDomain": ["13375","13376"],
-                        "destinationDomain": ["13375","13376"]
-                    }
-                ]
-            },
-            {
-                "type": "none"
             }]"#,
         )
         .arg(
@@ -412,7 +403,6 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            // if termination_invariants_met(&config, starting_relayer_balance)
             if termination_invariants_met(
                 &config,
                 starting_relayer_balance,

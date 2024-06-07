@@ -83,11 +83,11 @@ pub struct SealevelMerkleTreeHookIndexer(SealevelMailboxIndexer);
 
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        let messages = Indexer::<HyperlaneMessage>::fetch_logs(&self.0, range).await?;
+        let messages = Indexer::<HyperlaneMessage>::fetch_logs_in_range(&self.0, range).await?;
         let merkle_tree_insertions = messages
             .into_iter()
             .map(|(m, meta)| (message_to_merkle_tree_insertion(m.inner()).into(), meta))
