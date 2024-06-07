@@ -412,9 +412,10 @@ impl ChainConf {
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support interchain gas paymaster yet")
-            }
+            ChainConnectionConf::Starknet(_) => Err(eyre!(
+                "Starknet does not support interchain gas paymaster yet"
+            ))
+            .context(ctx),
         }
         .context(ctx)
     }
@@ -455,9 +456,10 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support interchain gas payment indexer yet")
-            }
+            ChainConnectionConf::Starknet(_) => Err(eyre!(
+                "Starknet does not support interchain gas payment indexer yet"
+            ))
+            .context(ctx),
         }
         .context(ctx)
     }

@@ -7,6 +7,7 @@ use std::{env, fs};
 use macro_rules_attribute::apply;
 use maplit::hashmap;
 use tempfile::tempdir;
+use utils::to_strk_message_bytes;
 
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
@@ -415,7 +416,7 @@ fn run_locally() {
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
 
-    let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
+    let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap_or_default();
 
     // dispatch messages
     let mut dispatched_messages = 0;
@@ -447,16 +448,33 @@ fn run_locally() {
                 node.launch_resp.endpoint.rpc_addr.clone(),
             );
 
+            let (strk_msg_len, strk_msg) = to_strk_message_bytes(msg_body);
+            let strk_msg_str = strk_msg
+                .iter()
+                .map(|v| format!("0x{:x}", v))
+                .collect::<Vec<String>>();
+
+            let initial_args = vec![
+                target.domain.to_string(),
+                target.deployments.mock_receiver.clone(),
+                strk_msg_len.to_string(),
+                strk_msg_str.len().to_string(),
+            ];
+
+            // we set the options to `None` for now
+            // which means no hook nor hook_metadata
+            let options_args = vec!["1".to_string(), "1".to_string()];
+
+            let args = initial_args
+                .into_iter()
+                .chain(strk_msg_str)
+                .chain(options_args)
+                .collect();
+
             cli.send_tx(
                 node.deployments.mailbox.clone(),
                 "dispatch".to_string(),
-                vec![
-                    target.domain.to_string(),
-                    target.deployments.mock_receiver.clone(),
-                    hex::encode(msg_body),
-                    "0".to_string(),
-                    "0".to_string(),
-                ],
+                args,
             );
         }
     }
