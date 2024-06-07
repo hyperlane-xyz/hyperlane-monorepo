@@ -1,3 +1,4 @@
+import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import { EvmCoreReader } from '@hyperlane-xyz/sdk';
@@ -9,7 +10,7 @@ import {
 } from '../context/types.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { log, logGray } from '../logger.js';
+import { log, logGray, logGreen } from '../logger.js';
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
@@ -139,7 +140,11 @@ export const read: CommandModuleWithContext<{
     const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
     const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
 
-    writeYamlOrJson(configFilePath, coreConfig);
+    writeYamlOrJson(configFilePath, coreConfig, 'yaml');
+    logGreen(
+      `✅ Warp route config written successfully to ${configFilePath}:\n`,
+    );
+    log(yamlStringify(coreConfig, null, 2));
 
     process.exit(0);
   },

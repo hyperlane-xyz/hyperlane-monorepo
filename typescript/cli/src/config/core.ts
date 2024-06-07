@@ -64,7 +64,7 @@ export async function createCoreDeployConfig({
     });
     logBlue(`Core config is valid, writing to file ${configFilePath}:\n`);
     log(yamlStringify(coreConfig, null, 2));
-    writeYamlOrJson(configFilePath, coreConfig);
+    writeYamlOrJson(configFilePath, coreConfig, 'yaml');
     logGreen('✅ Successfully created new core deployment config:');
   } catch (e) {
     errorRed(`Core deployment config is invalid.`);

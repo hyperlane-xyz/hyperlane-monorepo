@@ -1,4 +1,5 @@
 import { input, select } from '@inquirer/prompts';
+import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
@@ -14,7 +15,7 @@ import {
 import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   detectAndConfirmOrPrompt,
   runMultiChainSelectionStep,
@@ -181,17 +182,17 @@ export async function createWarpRouteDeployConfig({
   }
 
   try {
-    const parsed = WarpRouteDeployConfigSchema.parse(result);
-    logBlue(`Warp Route config is valid, writing to file ${outPath}`);
-    writeYamlOrJson(outPath, parsed);
+    const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
+    logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
+    log(yamlStringify(warpRouteDeployConfig, null, 2));
+    writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
+    logGreen('✅ Successfully created new warp route deployment config');
   } catch (e) {
     errorRed(
       `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
     );
     throw e;
   }
-
-  logGreen('✅ Successfully created new warp route deployment config');
 }
 
 // Note, this is different than the function above which reads a config
