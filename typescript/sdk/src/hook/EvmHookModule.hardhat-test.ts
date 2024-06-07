@@ -1,10 +1,11 @@
 /* eslint-disable no-console */
+import assert from 'assert';
 import { expect } from 'chai';
+import { Signer } from 'ethers';
 import hre from 'hardhat';
 
 import {
   Address,
-  configDeepEquals,
   eqAddress,
   normalizeConfig,
   stringifyObject,
@@ -31,7 +32,6 @@ import {
   MerkleTreeHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
-  RoutingHookConfig,
 } from './types.js';
 
 const hookTypes = Object.values(HookType);
@@ -160,16 +160,17 @@ function randomHookConfig(
 describe('EvmHookModule', async () => {
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
+  let fundingAccount: Signer;
 
   const chain = TestChainName.test4;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
-  let exampleRoutingConfig: DomainRoutingHookConfig;
-  let exampleFallbackRoutingConfig: FallbackRoutingHookConfig;
+  let exampleRoutingConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
 
   beforeEach(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    const [signer, funder] = await hre.ethers.getSigners();
+    fundingAccount = funder;
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
@@ -208,8 +209,8 @@ describe('EvmHookModule', async () => {
       validatorAnnounce: validatorAnnounce.address,
     };
 
-    const baseRoutingConfig: RoutingHookConfig = {
-      owner: await multiProvider.getSignerAddress(chain),
+    exampleRoutingConfig = {
+      owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
       domains: Object.fromEntries(
         testChains.map((c) => [
           c,
@@ -218,39 +219,21 @@ describe('EvmHookModule', async () => {
           },
         ]),
       ),
-    };
-
-    exampleRoutingConfig = {
-      ...baseRoutingConfig,
-      type: HookType.ROUTING,
-    };
-
-    exampleFallbackRoutingConfig = {
-      ...baseRoutingConfig,
       type: HookType.FALLBACK_ROUTING,
       fallback: { type: HookType.MERKLE_TREE },
     };
   });
 
-  // Helper method for checking whether Hook module matches a given config
-  async function hookModuleMatchesConfig({
-    hook,
-    config,
-  }: {
-    hook: EvmHookModule;
-    config: HookConfig;
-  }): Promise<boolean> {
-    const normalizedDerivedConfig = normalizeConfig(await hook.read());
-    const normalizedConfig = normalizeConfig(config);
-    const matches = configDeepEquals(normalizedDerivedConfig, normalizedConfig);
-    if (!matches) {
-      console.error(
-        'Derived config:\n',
-        stringifyObject(normalizedDerivedConfig),
-      );
-      console.error('Expected config:\n', stringifyObject(normalizedConfig));
-    }
-    return matches;
+  // Helper method for create a new multiprovider with an impersonated account
+  async function impersonateAccount(account: Address): Promise<MultiProvider> {
+    await hre.ethers.provider.send('hardhat_impersonateAccount', [account]);
+    await fundingAccount.sendTransaction({
+      to: account,
+      value: hre.ethers.utils.parseEther('1.0'),
+    });
+    return MultiProvider.createTestMultiProvider({
+      signer: hre.ethers.provider.getSigner(account),
+    });
   }
 
   // Helper method to expect exactly N updates to be applied
@@ -273,9 +256,9 @@ describe('EvmHookModule', async () => {
 
   // expect that the hook matches the config after all tests
   afterEach(async () => {
-    expect(
-      await hookModuleMatchesConfig({ hook: testHook, config: testConfig }),
-    ).to.be.true;
+    const normalizedDerivedConfig = normalizeConfig(await testHook.read());
+    const normalizedConfig = normalizeConfig(testConfig);
+    assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
 
   // create a new Hook and verify that it matches the config
@@ -290,8 +273,8 @@ describe('EvmHookModule', async () => {
       coreAddresses,
       multiProvider,
     });
-    testConfig = config;
     testHook = hook;
+    testConfig = config;
     return { hook, initialHookAddress: hook.serialize().deployedHook };
   }
 
@@ -529,32 +512,101 @@ describe('EvmHookModule', async () => {
   });
 
   describe('update', async () => {
-    for (const config of [exampleRoutingConfig, exampleFallbackRoutingConfig]) {
-      it(`should update ${config.type} hook`, async () => {
-        const { hook, initialHookAddress } = await createHook(config);
+    for (const type of [HookType.ROUTING, HookType.FALLBACK_ROUTING]) {
+      beforeEach(() => {
+        exampleRoutingConfig.type = type as
+          | HookType.ROUTING
+          | HookType.FALLBACK_ROUTING;
+      });
+
+      it(`should update ${type} hook`, async () => {
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(
+          exampleRoutingConfig,
+        );
 
         // update the hook with some random new config
-        const newConfig = randomHookConfig();
+        const newConfig: MerkleTreeHookConfig = {
+          type: HookType.MERKLE_TREE,
+        };
+        testConfig = newConfig;
 
         // expect a fresh hook to be deployed which means 0 txs returned
-        await expectTxsAndUpdate(hook, newConfig, 1);
+        await expectTxsAndUpdate(hook, newConfig, 0);
 
         // expect a fresh hook address
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.false;
+      });
+
+      it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {
+        // create a new hook
+        const { hook } = await createHook(exampleRoutingConfig);
+
+        // add config for a domain the multiprovider doesn't have
+        const updatedConfig: HookConfig = {
+          ...exampleRoutingConfig,
+          domains: {
+            ...exampleRoutingConfig.domains,
+            test5: { type: HookType.MERKLE_TREE },
+          },
+        };
+
+        // expect 0 txs, as adding test5 domain is no-op
+        await expectTxsAndUpdate(hook, updatedConfig, 0);
+      });
+
+      it(`updates owner in an existing ${type}`, async () => {
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(
+          exampleRoutingConfig,
+        );
+
+        // change the config owner
+        exampleRoutingConfig.owner = randomAddress();
+
+        // expect 1 tx to transfer ownership
+        await expectTxsAndUpdate(hook, exampleRoutingConfig, 1);
+
+        // expect the hook address to be the same
         expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
           .be.true;
       });
 
-      it(`should skip deployment with warning if no chain metadata configured ${config.type}`, async () => {
-        // create a new Hook
-        const { hook } = await createHook(config);
+      it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(
+          exampleRoutingConfig,
+        );
 
-        // add config for a domain the multiprovider doesn't have
-        config.domains['test5'] = {
-          type: HookType.MERKLE_TREE,
-        };
+        // expect 0 updates
+        await expectTxsAndUpdate(hook, exampleRoutingConfig, 0);
 
-        // expect 0 txs, as adding test5 domain is no-op
-        await expectTxsAndUpdate(hook, config, 0);
+        // expect the hook address to be the same
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
+      });
+
+      it(`update owner in an existing ${type} not owned by deployer`, async () => {
+        // hook owner is not the deployer
+        exampleRoutingConfig.owner = randomAddress();
+        const originalOwner = exampleRoutingConfig.owner;
+
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(
+          exampleRoutingConfig,
+        );
+
+        // update the config owner and impersonate the original owner
+        exampleRoutingConfig.owner = randomAddress();
+        multiProvider = await impersonateAccount(originalOwner);
+
+        // expect 1 tx to transfer ownership
+        await expectTxsAndUpdate(hook, exampleRoutingConfig, 1);
+
+        // expect the hook address to be unchanged
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
       });
     }
   });
