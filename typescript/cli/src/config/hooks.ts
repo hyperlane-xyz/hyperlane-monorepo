@@ -82,6 +82,12 @@ export async function createHookConfig({
     message: selectMessage,
     choices: [
       {
+        value: HookType.AGGREGATION,
+        name: HookType.AGGREGATION,
+        description:
+          'Aggregate multiple hooks into a single hook (e.g. merkle tree + IGP) which will be called in sequence',
+      },
+      {
         value: HookType.MERKLE_TREE,
         name: HookType.MERKLE_TREE,
         description:
@@ -92,23 +98,17 @@ export async function createHookConfig({
         name: HookType.PROTOCOL_FEE,
         description: 'Charge fees for each message dispatch from this chain',
       },
-      {
-        value: HookType.AGGREGATION,
-        name: HookType.AGGREGATION,
-        description:
-          'Aggregate multiple hooks into a single hook (e.g. merkle tree + IGP) which will be called in sequence',
-      },
     ],
     pageSize: 10,
   });
 
   switch (hookType) {
+    case HookType.AGGREGATION:
+      return createAggregationConfig(context, advanced);
     case HookType.MERKLE_TREE:
       return createMerkleTreeConfig();
     case HookType.PROTOCOL_FEE:
       return createProtocolFeeConfig(context, advanced);
-    case HookType.AGGREGATION:
-      return createAggregationConfig(context, advanced);
     default:
       throw new Error(`Invalid hook type: ${hookType}`);
   }

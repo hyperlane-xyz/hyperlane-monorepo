@@ -62,18 +62,18 @@ export function readIsmConfig(filePath: string) {
 }
 
 const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
-  [IsmType.MESSAGE_ID_MULTISIG]: 'Validators need to sign just this messageId',
-  [IsmType.MERKLE_ROOT_MULTISIG]:
-    'Validators need to sign the root of the merkle tree of all messages from origin chain',
-  [IsmType.ROUTING]:
-    'Each origin chain can be verified by the specified ISM type via RoutingISM',
-  [IsmType.FALLBACK_ROUTING]:
-    "You can specify ISM type for specific chains you like and fallback to mailbox's default ISM for other chains via DefaultFallbackRoutingISM",
   [IsmType.AGGREGATION]:
     'You can aggregate multiple ISMs into one ISM via AggregationISM',
-  [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
+  [IsmType.FALLBACK_ROUTING]:
+    "You can specify ISM type for specific chains you like and fallback to mailbox's default ISM for other chains via DefaultFallbackRoutingISM",
+  [IsmType.MERKLE_ROOT_MULTISIG]:
+    'Validators need to sign the root of the merkle tree of all messages from origin chain',
+  [IsmType.MESSAGE_ID_MULTISIG]: 'Validators need to sign just this messageId',
+  [IsmType.ROUTING]:
+    'Each origin chain can be verified by the specified ISM type via RoutingISM',
   [IsmType.TEST_ISM]:
     'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
+  [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
 };
 
 export async function createAdvancedIsmConfig(
@@ -91,16 +91,16 @@ export async function createAdvancedIsmConfig(
   });
 
   switch (moduleType) {
-    case IsmType.MESSAGE_ID_MULTISIG:
-      return createMessageIdMultisigConfig(context);
-    case IsmType.MERKLE_ROOT_MULTISIG:
-      return createMerkleRootMultisigConfig(context);
-    case IsmType.ROUTING:
-      return createRoutingConfig(context);
-    case IsmType.FALLBACK_ROUTING:
-      return createFallbackRoutingConfig(context);
     case IsmType.AGGREGATION:
       return createAggregationConfig(context);
+    case IsmType.FALLBACK_ROUTING:
+      return createFallbackRoutingConfig(context);
+    case IsmType.MERKLE_ROOT_MULTISIG:
+      return createMerkleRootMultisigConfig(context);
+    case IsmType.MESSAGE_ID_MULTISIG:
+      return createMessageIdMultisigConfig(context);
+    case IsmType.ROUTING:
+      return createRoutingConfig(context);
     case IsmType.TEST_ISM:
       return { type: IsmType.TEST_ISM };
     case IsmType.TRUSTED_RELAYER:
