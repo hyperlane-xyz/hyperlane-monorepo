@@ -1,7 +1,11 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import { ChainMetadata, ChainMetadataSchema } from '@hyperlane-xyz/sdk';
+import {
+  ChainMetadata,
+  ChainMetadataSchema,
+  ZChainName,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -52,17 +56,10 @@ export async function createChainConfig({
   );
   const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
-  const name = await detectAndConfirmOrPrompt(
-    async () => {
-      const clientName = await provider.send('web3_clientVersion', []);
-      const port = rpcUrl.split(':').slice(-1);
-      const client = clientName.split('/')[0];
-      return `${client}${port}`;
-    },
-    'Enter (one word, lower case)',
-    'chain name',
-    'JSON RPC provider',
-  );
+  const name = await input({
+    message: 'Enter chain name (one word, lower case)',
+    validate: (chainName) => ZChainName.safeParse(chainName).success,
+  });
 
   const chainId = parseInt(
     await detectAndConfirmOrPrompt(

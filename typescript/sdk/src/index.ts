@@ -155,7 +155,7 @@ export {
 } from './ism/multisig.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
-export { ZHash } from './metadata/customZodTypes.js';
+export { ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {
   BlockExplorer,
   ChainMetadata,
