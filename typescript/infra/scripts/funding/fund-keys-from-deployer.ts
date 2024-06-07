@@ -11,7 +11,13 @@ import {
   MultiProvider,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  objFilter,
+  objMap,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
@@ -37,6 +43,7 @@ import {
   assertContext,
   assertFundableRole,
   assertRole,
+  chainIsProtocol,
   isEthereumProtocolChain,
   readJSONAtPath,
 } from '../../src/utils/utils.js';
@@ -60,9 +67,8 @@ const nativeBridges = {
   },
 };
 
-const wethContract = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
+const wethContract = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
 
-const L1Chains: ChainName[] = ['cosmos'];
 const L2Chains: ChainName[] = ['optimism', 'arbitrum', 'base'];
 
 const L2ToL1: ChainMap<ChainName> = {
@@ -261,16 +267,17 @@ class ContextFunder {
     public readonly desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
     public readonly desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
   ) {
-    // At the moment, only blessed EVM chains are supported
+    // At the moment, only blessed EVM/Cosmos chains are supported
     roleKeysPerChain = objFilter(
       roleKeysPerChain,
       (chain, _roleKeys): _roleKeys is Record<Role, BaseAgentKey[]> => {
         const valid =
-          isEthereumProtocolChain(chain) &&
+          (isEthereumProtocolChain(chain) ||
+            chainIsProtocol(chain, ProtocolType.Cosmos)) &&
           multiProvider.tryGetChainName(chain) !== null;
         if (!valid) {
           logger.warn(
-            'Skipping funding for non-blessed or non-Ethereum chain',
+            'Skipping funding for non-blessed or non-Ethereum/non-Cosmos chain',
             {
               chain,
             },
@@ -445,7 +452,7 @@ class ContextFunder {
         }
 
         failureOccurred ||= await gracefullyHandleError(
-          () => this.bridgeIfL1(chain),
+          () => this.bridgeIfCosmos(chain),
           chain,
           'Error bridging to L1',
         );
@@ -518,9 +525,11 @@ class ContextFunder {
     return failureOccurred;
   }
 
-  private async bridgeIfL1(chain: ChainName) {
-    if (L1Chains.includes(chain)) {
-      const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
+  private async bridgeIfCosmos(chain: ChainName) {
+    if (chainIsProtocol(chain, ProtocolType.Cosmos)) {
+      const funderAddress = await this.multiProvider.getSignerAddress(
+        'ethereum',
+      )!; // Deployer key is on EVM chain
       const desiredBalanceEther = ethers.utils.parseUnits(
         this.desiredBalancePerChain[chain],
         'ether',
@@ -531,7 +540,7 @@ class ContextFunder {
         desiredBalanceEther.mul(5),
       );
       if (bridgeAmount.gt(0)) {
-        await this.bridgeToL1(chain, funderAddress, bridgeAmount);
+        await this.bridgeToCosmos(chain, funderAddress, bridgeAmount);
       }
     }
   }
@@ -680,19 +689,19 @@ class ContextFunder {
     });
   }
 
-  private async bridgeToL1(l1Chain: ChainName, to: string, amount: BigNumber) {
-    // Logger info here, then put the wrapped eth logic in the bridgeToCosmos function.
-    logger.info('Bridging ETH to alternative L1', {
+  // "To" is a tendermint address that describes a user and the chain they're on
+  private async bridgeToCosmos(to: string, amount: BigNumber) {
+    logger.info('Bridging ETH to Cosmos', {
       amount: ethers.utils.formatEther(amount),
       l1Funder: await getAddressInfo(
-        await this.multiProvider.getSignerAddress(l1Chain),
-        l1Chain,
-        this.multiProvider.getProvider(l1Chain),
+        await this.multiProvider.getSignerAddress('ethereum'),
+        'ethereum',
+        this.multiProvider.getProvider('ethereum'),
       ),
     });
 
-    const tx = await this.bridgeToCosmos(l1Chain, wethContract, amount, to);
-    await this.multiProvider.handleTx(l1Chain, tx);
+    const tx = await this.depositCosmos(wethContract, amount, to);
+    await this.multiProvider.handleTx('ethereum', tx);
   }
 
   private async bridgeToL2(l2Chain: ChainName, to: string, amount: BigNumber) {
@@ -792,14 +801,12 @@ class ContextFunder {
     );
   }
 
-  private async bridgeToCosmos(
-    l1Chain: ChainName,
+  private async depositCosmos(
     tokenContract: Address,
     amount: BigNumber,
-    to: String,
+    to: String, // Cosmos address that begins with the chain prefix (eg, inj...)
   ) {
-
-    const l1ChainSigner = this.multiProvider.getSigner(l1Chain);
+    const l1ChainSigner = this.multiProvider.getSigner('ethereum');
 
     const gravityBridge = new ethers.Contract(
       nativeBridges.cosmos.gravity,
@@ -807,20 +814,22 @@ class ContextFunder {
       l1ChainSigner,
     );
 
-    const approvalIface = new ethers.utils.Interface([
-      'function approve(address spender, uint256 amount) returns bool',
-    ]);
-    approvalIface.encodeFunctionData('approve', [tokenContract, amount]);
+    const abi = [
+      'function approve(address spender, uint256 amount) returns (bool)',
+      'function decimals() view returns (uint8)',
+      'function deposit() payable',
+    ];
 
-    const ercContract = new ethers.Contract(
-      tokenContract,
-      approvalIface,
-      l1ChainSigner,
-    );
+    const ercContract = new ethers.Contract(tokenContract, abi, l1ChainSigner);
 
     const approval = await ercContract.approve(tokenContract, amount);
+    const deposit = await ercContract.deposit({ value: amount }); // Wrap ETH into WETH to transfer to Cosmos chain
 
-    return gravityBridge.sendToCosmos(tokenContract, to, amount);
+    const gasLimit = BigNumber.from('100000'); // In order to avoid error related to uncertain gas fees
+
+    return gravityBridge.sendToCosmos(tokenContract, to, amount, {
+      gasLimit: gasLimit,
+    });
   }
 
   private async updateWalletBalanceGauge(chain: ChainName) {
