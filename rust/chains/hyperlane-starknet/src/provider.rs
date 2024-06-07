@@ -153,6 +153,6 @@ impl HyperlaneProvider for StarknetProvider {
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        todo!()
+        Ok(None)
     }
 }

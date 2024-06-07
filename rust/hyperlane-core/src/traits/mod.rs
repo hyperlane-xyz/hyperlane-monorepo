@@ -92,7 +92,8 @@ impl TryFrom<InvokeTransactionReceipt> for TxOutcome {
 
     fn try_from(receipt: InvokeTransactionReceipt) -> ChainResult<Self> {
         Ok(Self {
-            transaction_id: H512::from_slice(receipt.transaction_hash.to_bytes_be().as_slice()),
+            transaction_id: H256::from_slice(receipt.transaction_hash.to_bytes_be().as_slice())
+                .into(),
             executed: receipt.execution_result == ExecutionResult::Succeeded,
             gas_used: U256::from_big_endian(receipt.actual_fee.amount.to_bytes_be().as_slice()),
             gas_price: U256::one().try_into()?,
