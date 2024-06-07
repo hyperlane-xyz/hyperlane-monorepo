@@ -259,7 +259,7 @@ impl PendingOperation for PendingMessage {
 
         let state = self
             .submission_data
-            .take()
+            .clone()
             .expect("Pending message must be prepared before it can be submitted");
 
         // We use the estimated gas limit from the prior call to
@@ -343,8 +343,8 @@ impl PendingOperation for PendingMessage {
         ) {
             Ok(gas_used_by_operation) => gas_used_by_operation,
             Err(e) => {
-                warn!(error = %e, "Error when calculating gas used by operation. Are gas estimates enabled for this chain?");
-                return;
+                warn!(error = %e, "Error when calculating gas used by operation, falling back to charging the full cost of the tx. Are gas estimates enabled for this chain?");
+                submission_outcome.gas_used
             }
         };
         let operation_outcome = TxOutcome {

@@ -134,6 +134,7 @@ impl GasPaymentEnforcer {
     }
 
     pub fn record_tx_outcome(&self, message: &HyperlaneMessage, outcome: TxOutcome) -> Result<()> {
+        // This log is required in E2E, hence the use of a `const`
         debug!(
             msg=%message,
             ?outcome,
