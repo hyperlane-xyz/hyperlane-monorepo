@@ -110,11 +110,14 @@ export function withContext<T>(args: Argv<T>) {
     .demandOption('context');
 }
 
+export function withChainRequired<T>(args: Argv<T>) {
+  return withChain(args).demandOption('chain');
+}
+
 export function withChain<T>(args: Argv<T>) {
   return args
     .describe('chain', 'chain name')
     .choices('chain', getChains())
-    .demandOption('chain')
     .alias('c', 'chain');
 }
 

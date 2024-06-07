@@ -45,7 +45,7 @@ export async function fetchGCPSecret(
 }
 
 export async function fetchLatestGCPSecret(secretName: string) {
-  const client = await setSecretManagerServiceClient();
+  const client = await getSecretManagerServiceClient();
   const [secretVersion] = await client.accessSecretVersion({
     name: `projects/${GCP_PROJECT_ID}/secrets/${secretName}/versions/latest`,
   });
@@ -109,7 +109,7 @@ export async function gcpSecretExistsUsingClient(
   client?: SecretManagerServiceClient,
 ): Promise<boolean> {
   if (!client) {
-    client = await setSecretManagerServiceClient();
+    client = await getSecretManagerServiceClient();
   }
 
   try {
@@ -127,7 +127,7 @@ export async function gcpSecretExistsUsingClient(
 }
 
 export async function getGcpSecretLatestVersionName(secretName: string) {
-  const client = await setSecretManagerServiceClient();
+  const client = await getSecretManagerServiceClient();
   const [version] = await client.getSecretVersion({
     name: `projects/${GCP_PROJECT_ID}/secrets/${secretName}/versions/latest`,
   });
@@ -135,7 +135,7 @@ export async function getGcpSecretLatestVersionName(secretName: string) {
   return version?.name;
 }
 
-export async function setSecretManagerServiceClient() {
+export async function getSecretManagerServiceClient() {
   return new SecretManagerServiceClient({
     projectId: GCP_PROJECT_ID,
   });
@@ -184,7 +184,7 @@ export async function setGCPSecretUsingClient(
   secret: string,
   labels?: Record<string, string>,
 ) {
-  const client = await setSecretManagerServiceClient();
+  const client = await getSecretManagerServiceClient();
 
   const exists = await gcpSecretExistsUsingClient(secretName, client);
   if (!exists) {
@@ -211,7 +211,7 @@ export async function addGCPSecretVersion(
   client?: SecretManagerServiceClient,
 ) {
   if (!client) {
-    client = await setSecretManagerServiceClient();
+    client = await getSecretManagerServiceClient();
   }
 
   const [version] = await client.addSecretVersion({
@@ -224,7 +224,7 @@ export async function addGCPSecretVersion(
 }
 
 export async function disableGCPSecretVersion(secretName: string) {
-  const client = await setSecretManagerServiceClient();
+  const client = await getSecretManagerServiceClient();
 
   const [version] = await client.disableSecretVersion({
     name: secretName,

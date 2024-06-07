@@ -2,10 +2,10 @@ import {
   getSecretRpcEndpoints,
   secretRpcEndpointsExist,
 } from '../../src/agents/index.js';
-import { getArgs, withChain } from '../agent-utils.js';
+import { getArgs, withChainRequired } from '../agent-utils.js';
 
 async function main() {
-  const { environment, chain } = await withChain(getArgs()).argv;
+  const { environment, chain } = await withChainRequired(getArgs()).argv;
   const secretExists = await secretRpcEndpointsExist(environment, chain);
   if (!secretExists) {
     console.log(

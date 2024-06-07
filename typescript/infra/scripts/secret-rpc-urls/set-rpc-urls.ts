@@ -9,7 +9,7 @@ import {
 } from '../../src/agents/index.js';
 import { disableGCPSecretVersion } from '../../src/utils/gcloud.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
-import { getArgs, withChain, withRpcUrls } from '../agent-utils.js';
+import { getArgs, withChainRequired, withRpcUrls } from '../agent-utils.js';
 
 async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
   let providersSucceeded = true;
@@ -29,7 +29,7 @@ async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
 
 async function main() {
   const { environment, chain, rpcUrls } = await withRpcUrls(
-    withChain(getArgs()),
+    withChainRequired(getArgs()),
   ).argv;
 
   const rpcUrlsArray = rpcUrls
