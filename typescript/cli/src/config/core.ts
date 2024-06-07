@@ -30,6 +30,7 @@ export async function createCoreDeployConfig({
     async () => context.signer?.getAddress(),
     'Enter the desired',
     'owner address',
+    'signer',
   );
 
   const defaultIsm: IsmConfig = await createIsmConfigWithWarningOrDefault({

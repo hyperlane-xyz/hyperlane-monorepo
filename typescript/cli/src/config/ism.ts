@@ -160,6 +160,7 @@ export const createTrustedRelayerConfig = callWithConfigCreationLogs(
       async () => context.signer?.getAddress(),
       'For trusted relayer ISM, enter',
       'relayer address',
+      'signer',
     );
     return {
       type: IsmType.TRUSTED_RELAYER,
