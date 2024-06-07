@@ -336,7 +336,7 @@ export async function getSecretRpcEndpointsLatestVersionName(
   return getGcpSecretLatestVersionName(getSecretName(environment, chainName));
 }
 
-export async function secretRcpEndpointsExist(
+export async function secretRpcEndpointsExist(
   environment: string,
   chainName: ChainName,
 ): Promise<boolean> {

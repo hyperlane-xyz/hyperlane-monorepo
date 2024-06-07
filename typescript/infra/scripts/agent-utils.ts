@@ -101,13 +101,6 @@ export function withModuleAndFork<T>(args: Argv<T>) {
     .alias('f', 'fork');
 }
 
-export function withNetwork<T>(args: Argv<T>) {
-  return args
-    .describe('network', 'network to target')
-    .choices('network', getChains())
-    .alias('n', 'network');
-}
-
 export function withContext<T>(args: Argv<T>) {
   return args
     .describe('context', 'deploy context')

@@ -45,9 +45,7 @@ export async function fetchGCPSecret(
 }
 
 export async function fetchLatestGCPSecret(secretName: string) {
-  const client = new SecretManagerServiceClient({
-    projectId: GCP_PROJECT_ID,
-  });
+  const client = await setSecretManagerServiceClient();
   const [secretVersion] = await client.accessSecretVersion({
     name: `projects/${GCP_PROJECT_ID}/secrets/${secretName}/versions/latest`,
   });
@@ -111,9 +109,7 @@ export async function gcpSecretExistsUsingClient(
   client?: SecretManagerServiceClient,
 ): Promise<boolean> {
   if (!client) {
-    client = new SecretManagerServiceClient({
-      projectId: GCP_PROJECT_ID,
-    });
+    client = await setSecretManagerServiceClient();
   }
 
   try {
@@ -125,20 +121,24 @@ export async function gcpSecretExistsUsingClient(
 
     return secrets.length > 0;
   } catch (e) {
-    console.error(`Failed to list secrets: ${e}`);
+    debugLog(`Error checking if secret exists: ${e}`);
     throw e;
   }
 }
 
 export async function getGcpSecretLatestVersionName(secretName: string) {
-  const client = new SecretManagerServiceClient({
-    projectId: GCP_PROJECT_ID,
-  });
+  const client = await setSecretManagerServiceClient();
   const [version] = await client.getSecretVersion({
     name: `projects/${GCP_PROJECT_ID}/secrets/${secretName}/versions/latest`,
   });
 
   return version?.name;
+}
+
+export async function setSecretManagerServiceClient() {
+  return new SecretManagerServiceClient({
+    projectId: GCP_PROJECT_ID,
+  });
 }
 
 /**
@@ -176,17 +176,15 @@ export async function setGCPSecret(
 
 /**
  * Sets a GCP secret using the SecretManagerServiceClient. Create secret if it doesn't exist and add a new version or update the existing one.
- * @remark consider supporting labels in the future.
  * @param secretName The name of the secret to set.
  * @param secret The secret to set.
  */
 export async function setGCPSecretUsingClient(
   secretName: string,
   secret: string,
+  labels?: Record<string, string>,
 ) {
-  const client = new SecretManagerServiceClient({
-    projectId: GCP_PROJECT_ID,
-  });
+  const client = await setSecretManagerServiceClient();
 
   const exists = await gcpSecretExistsUsingClient(secretName, client);
   if (!exists) {
@@ -199,6 +197,7 @@ export async function setGCPSecretUsingClient(
         replication: {
           automatic: {},
         },
+        labels,
       },
     });
     debugLog(`Created new GCP secret for ${secretName}`);
@@ -212,9 +211,7 @@ export async function addGCPSecretVersion(
   client?: SecretManagerServiceClient,
 ) {
   if (!client) {
-    client = new SecretManagerServiceClient({
-      projectId: GCP_PROJECT_ID,
-    });
+    client = await setSecretManagerServiceClient();
   }
 
   const [version] = await client.addSecretVersion({
@@ -227,9 +224,7 @@ export async function addGCPSecretVersion(
 }
 
 export async function disableGCPSecretVersion(secretName: string) {
-  const client = new SecretManagerServiceClient({
-    projectId: GCP_PROJECT_ID,
-  });
+  const client = await setSecretManagerServiceClient();
 
   const [version] = await client.disableSecretVersion({
     name: secretName,

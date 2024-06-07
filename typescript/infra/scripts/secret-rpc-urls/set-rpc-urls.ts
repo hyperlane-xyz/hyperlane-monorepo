@@ -4,10 +4,11 @@ import { ethers } from 'ethers';
 import {
   getSecretRpcEndpoints,
   getSecretRpcEndpointsLatestVersionName,
-  secretRcpEndpointsExist,
+  secretRpcEndpointsExist,
   setSecretRpcEndpoints,
 } from '../../src/agents/index.js';
 import { disableGCPSecretVersion } from '../../src/utils/gcloud.js';
+import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChain, withRpcUrls } from '../agent-utils.js';
 
 async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
@@ -15,7 +16,8 @@ async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
   for (const url of rpcUrlsArray) {
     const provider = new ethers.providers.StaticJsonRpcProvider(url);
     try {
-      await provider.getBlockNumber();
+      const blockNumber = await provider.getBlockNumber();
+      console.log(`Valid provider for ${url} with block number ${blockNumber}`);
     } catch (e) {
       console.error(`Provider failed: ${url}`);
       providersSucceeded = false;
@@ -42,7 +44,7 @@ async function main() {
 
   const secretPayload = JSON.stringify(rpcUrlsArray);
 
-  const secretExists = await secretRcpEndpointsExist(environment, chain);
+  const secretExists = await secretRpcEndpointsExist(environment, chain);
   if (!secretExists) {
     console.log(
       `No secret rpc urls found for ${chain} in ${environment} environment\n`,
@@ -67,39 +69,52 @@ async function main() {
     process.exit(0);
   }
 
-  console.log('\nTesting providers...');
-  const testPassed = await testProviders(rpcUrlsArray);
-  if (!testPassed) {
-    console.error('At least one provider failed. Exiting.');
-    process.exit(1);
+  if (isEthereumProtocolChain(chain)) {
+    console.log('\nTesting providers...');
+    const testPassed = await testProviders(rpcUrlsArray);
+    if (!testPassed) {
+      console.error('At least one provider failed. Exiting.');
+      process.exit(1);
+    }
+
+    const confirmedProviders = await confirm({
+      message: `All providers passed. Do you want to continue setting the secret?\n`,
+    });
+
+    if (!confirmedProviders) {
+      console.log('Exiting without setting secret.');
+      process.exit(0);
+    }
+  } else {
+    console.log(
+      'Skipping provider testing as chain is not an Ethereum protocol chain.',
+    );
   }
 
-  try {
-    let latestVersionName;
-    if (secretExists) {
-      latestVersionName = await getSecretRpcEndpointsLatestVersionName(
-        environment,
-        chain,
-      );
-    }
-    console.log(`Setting secret...`);
-    await setSecretRpcEndpoints(environment, chain, secretPayload);
-    console.log(`Added secret version!`);
+  let latestVersionName;
+  if (secretExists) {
+    latestVersionName = await getSecretRpcEndpointsLatestVersionName(
+      environment,
+      chain,
+    );
+  }
+  console.log(`Setting secret...`);
+  await setSecretRpcEndpoints(environment, chain, secretPayload);
+  console.log(`Added secret version!`);
 
-    if (latestVersionName) {
-      try {
-        await disableGCPSecretVersion(latestVersionName);
-        console.log(`Disabled previous version of the secret!`);
-      } catch (e) {
-        console.log(`Could not disable previous version of the secret`);
-      }
+  if (latestVersionName) {
+    try {
+      await disableGCPSecretVersion(latestVersionName);
+      console.log(`Disabled previous version of the secret!`);
+    } catch (e) {
+      console.log(`Could not disable previous version of the secret`);
     }
-  } catch (e) {
-    console.error(`Failed to set secret: ${e}`);
-    process.exit(1);
   }
 }
 
 main()
   .then()
-  .catch(() => process.exit(1));
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

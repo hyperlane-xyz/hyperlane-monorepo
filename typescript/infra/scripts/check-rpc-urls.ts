@@ -15,7 +15,7 @@ async function main() {
   const providers: [string, ethers.providers.JsonRpcProvider][] = [];
   for (const chain of chains) {
     rootLogger.debug(`Building providers for ${chain}`);
-    const rpcData = [...(await getSecretRpcEndpoints(environment, chain))];
+    const rpcData = await getSecretRpcEndpoints(environment, chain);
     for (const url of rpcData)
       providers.push([chain, new ethers.providers.StaticJsonRpcProvider(url)]);
   }
