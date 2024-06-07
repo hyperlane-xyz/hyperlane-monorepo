@@ -9,7 +9,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
-    gas_used_by_batch_operation, make_op_try, BatchItem, ChainCommunicationError, ChainResult,
+    gas_used_by_operation, make_op_try, BatchItem, ChainCommunicationError, ChainResult,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
     PendingOperation, PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
 };
@@ -335,35 +335,39 @@ impl PendingOperation for PendingMessage {
             warn!("Cannot set operation outcome without a cost estimate set previously");
             return;
         };
-        if let Err(e) = self
-            .ctx
-            .origin_gas_payment_enforcer
-            .record_tx_outcome(&self.message, submission_outcome.clone())
-        {
-            error!(error=?e, "Error when recording tx outcome");
-        }
-        match gas_used_by_batch_operation(
+        // calculate the gas used by the operation
+        let gas_used_by_operation = match gas_used_by_operation(
             &submission_outcome,
             submission_estimated_cost,
             operation_estimate,
         ) {
-            Ok(gas_used_by_operation) => {
-                self.set_submission_outcome(TxOutcome {
-                    gas_used: gas_used_by_operation,
-                    ..submission_outcome
-                });
-                debug!(
-                    actual_gas_for_message = ?gas_used_by_operation,
-                    message_gas_estimate = ?operation_estimate,
-                    submission_gas_estimate = ?submission_estimated_cost,
-                    message = ?self.message,
-                    "Gas used by message submission"
-                );
-            }
+            Ok(gas_used_by_operation) => gas_used_by_operation,
             Err(e) => {
                 warn!(error = %e, "Error when calculating gas used by operation. Are gas estimates enabled for this chain?");
+                return;
             }
+        };
+        let operation_outcome = TxOutcome {
+            gas_used: gas_used_by_operation,
+            ..submission_outcome
+        };
+        // record it in the db, to subtract from the sender's igp allowance
+        if let Err(e) = self
+            .ctx
+            .origin_gas_payment_enforcer
+            .record_tx_outcome(&self.message, operation_outcome.clone())
+        {
+            error!(error=?e, "Error when recording tx outcome");
         }
+        // set the outcome in `Self` as well, for later logging
+        self.set_submission_outcome(operation_outcome);
+        debug!(
+            actual_gas_for_message = ?gas_used_by_operation,
+            message_gas_estimate = ?operation_estimate,
+            submission_gas_estimate = ?submission_estimated_cost,
+            message = ?self.message,
+            "Gas used by message submission"
+        );
     }
 
     fn next_attempt_after(&self) -> Option<Instant> {

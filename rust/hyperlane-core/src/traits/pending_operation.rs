@@ -118,18 +118,20 @@ pub fn total_estimated_cost(ops: &[Box<dyn PendingOperation>]) -> U256 {
         })
 }
 
-/// Calculate the gas used by an operation in a batch, by looking at the total cost of the batch,
+/// Calculate the gas used by an operation (either in a batch or single-submission), by looking at the total cost of the tx,
 /// and the estimated cost of the operation compared to the sum of the estimates of all operations in the batch.
-pub fn gas_used_by_batch_operation(
-    batch_outcome: &TxOutcome,
-    batch_estimated_cost: U256,
+/// When using this for single-submission rather than a batch,
+/// the `tx_estimated_cost` should be the same as the `tx_estimated_cost`
+pub fn gas_used_by_operation(
+    tx_outcome: &TxOutcome,
+    tx_estimated_cost: U256,
     operation_estimated_cost: U256,
 ) -> ChainResult<U256> {
-    let gas_used_by_batch = FixedPointNumber::try_from(batch_outcome.gas_used)?;
-    let gas_limit = FixedPointNumber::try_from(operation_estimated_cost)?;
-    let total_estimated_cost = FixedPointNumber::try_from(batch_estimated_cost)?;
-    let gas_used_by_operation = (gas_used_by_batch * gas_limit)
-        .checked_div(&total_estimated_cost)
+    let gas_used_by_tx = FixedPointNumber::try_from(tx_outcome.gas_used)?;
+    let operation_gas_estimate = FixedPointNumber::try_from(operation_estimated_cost)?;
+    let tx_gas_estimate = FixedPointNumber::try_from(tx_estimated_cost)?;
+    let gas_used_by_operation = (gas_used_by_tx * operation_gas_estimate)
+        .checked_div(&tx_gas_estimate)
         .ok_or(eyre::eyre!("Division by zero"))?;
     gas_used_by_operation.try_into()
 }
