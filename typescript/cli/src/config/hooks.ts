@@ -167,9 +167,9 @@ export const createProtocolFeeConfig = callWithConfigCreationLogs(
       : PROTOCOL_FEE_DEFAULT;
     if (BigNumberJs(protocolFee).gt(maxProtocolFee)) {
       errorRed(
-        `Protocol fee (${protocolFee}) cannot be greater than max protocol fee (${maxProtocolFee})`,
+        `Protocol fee (${protocolFee}) cannot be greater than max protocol fee (${maxProtocolFee}).`,
       );
-      throw new Error('Invalid protocol fee');
+      throw new Error('Invalid protocol fee.');
     }
     return {
       type: HookType.PROTOCOL_FEE,

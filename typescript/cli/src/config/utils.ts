@@ -12,7 +12,7 @@ export function callWithConfigCreationLogs<T extends IsmConfig | HookConfig>(
       const result = await fn(...args);
       return result;
     } finally {
-      logGray(`Created ${type}`!);
+      logGray(`Created ${type}!`);
     }
   };
 }

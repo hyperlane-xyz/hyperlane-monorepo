@@ -113,7 +113,7 @@ export async function createWarpRouteDeployConfig({
   outPath: string;
   advanced: boolean;
 }) {
-  logBlue('Creating a new warp route deployment config');
+  logBlue('Creating a new warp route deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
     async () => context.signer?.getAddress(),
@@ -188,10 +188,10 @@ export async function createWarpRouteDeployConfig({
     logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
     log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
     writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
-    logGreen('✅ Successfully created new warp route deployment config');
+    logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
-      `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
+      `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example.`,
     );
     throw e;
   }

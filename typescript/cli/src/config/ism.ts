@@ -12,7 +12,13 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
-import { log, logBlue, logBoldUnderlinedRed, logRed } from '../logger.js';
+import {
+  errorRed,
+  log,
+  logBlue,
+  logBoldUnderlinedRed,
+  logRed,
+} from '../logger.js';
 import {
   detectAndConfirmOrPrompt,
   runMultiChainSelectionStep,
@@ -112,7 +118,7 @@ export async function createAdvancedIsmConfig(
     case IsmType.TRUSTED_RELAYER:
       return createTrustedRelayerConfig(context, true);
     default:
-      throw new Error(`Invalid ISM type: ${moduleType}}`);
+      throw new Error(`Invalid ISM type: ${moduleType}.`);
   }
 }
 
@@ -120,14 +126,20 @@ export const createMerkleRootMultisigConfig = callWithConfigCreationLogs(
   async (): Promise<MultisigIsmConfig> => {
     const validatorsInput = await input({
       message:
-        'Enter validator addresses (comma separated list) for merkle root multisig ISM',
+        'Enter validator addresses (comma separated list) for merkle root multisig ISM:',
     });
     const validators = validatorsInput.split(',').map((v) => v.trim());
     const thresholdInput = await input({
       message:
-        'Enter threshold of validators (number) for merkle root multisig ISM',
+        'Enter threshold of validators (number) for merkle root multisig ISM:',
     });
     const threshold = parseInt(thresholdInput, 10);
+    if (threshold > validators.length) {
+      errorRed(
+        `Merkle root multisig signer threshold (${threshold}) cannot be greater than total number of validators (${validators.length}).`,
+      );
+      throw new Error('Invalid protocol fee.');
+    }
     return {
       type: IsmType.MERKLE_ROOT_MULTISIG,
       threshold,

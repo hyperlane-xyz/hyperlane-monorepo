@@ -23,7 +23,7 @@ export async function createCoreDeployConfig({
   configFilePath: string;
   advanced: boolean;
 }) {
-  logBlue('Creating a new core deployment config');
+  logBlue('Creating a new core deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
     async () => context.signer?.getAddress(),
@@ -63,7 +63,7 @@ export async function createCoreDeployConfig({
     logBlue(`Core config is valid, writing to file ${configFilePath}:\n`);
     log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
     writeYamlOrJson(configFilePath, coreConfig, 'yaml');
-    logGreen('✅ Successfully created new core deployment config:');
+    logGreen('✅ Successfully created new core deployment config.');
   } catch (e) {
     errorRed(`Core deployment config is invalid.`);
     throw e;
