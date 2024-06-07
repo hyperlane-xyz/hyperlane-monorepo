@@ -12,7 +12,7 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { writeYamlOrJson } from '../utils/files.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
   addressCommandOption,
@@ -135,7 +135,7 @@ export const read: CommandModuleWithContext<{
     } else {
       logGreen(`✅ Warp route config read successfully:\n`);
     }
-    log(yamlStringify(warpRouteConfig, null, 2));
+    log(indentYamlOrJson(yamlStringify(warpRouteConfig, null, 2), 4));
     process.exit(0);
   },
 };

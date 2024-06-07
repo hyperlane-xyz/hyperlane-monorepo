@@ -11,7 +11,11 @@ import {
 import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { log, logGray, logGreen } from '../logger.js';
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 
 import {
   chainCommandOption,
@@ -144,7 +148,7 @@ export const read: CommandModuleWithContext<{
     logGreen(
       `✅ Warp route config written successfully to ${configFilePath}:\n`,
     );
-    log(yamlStringify(coreConfig, null, 2));
+    log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
 
     process.exit(0);
   },

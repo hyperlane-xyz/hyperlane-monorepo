@@ -20,7 +20,11 @@ import {
   detectAndConfirmOrPrompt,
   runMultiChainSelectionStep,
 } from '../utils/chains.js';
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 
 import {
   createIsmConfig,
@@ -184,7 +188,7 @@ export async function createWarpRouteDeployConfig({
   try {
     const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
     logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
-    log(yamlStringify(warpRouteDeployConfig, null, 2));
+    log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
     writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
     logGreen('✅ Successfully created new warp route deployment config');
   } catch (e) {

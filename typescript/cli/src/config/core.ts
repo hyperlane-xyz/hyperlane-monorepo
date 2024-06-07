@@ -5,7 +5,7 @@ import { CoreConfigSchema, HookConfig, IsmConfig } from '@hyperlane-xyz/sdk';
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { detectAndConfirmOrPrompt } from '../utils/chains.js';
-import { writeYamlOrJson } from '../utils/files.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
   createHookConfig,
@@ -63,7 +63,7 @@ export async function createCoreDeployConfig({
       requiredHook,
     });
     logBlue(`Core config is valid, writing to file ${configFilePath}:\n`);
-    log(yamlStringify(coreConfig, null, 2));
+    log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
     writeYamlOrJson(configFilePath, coreConfig, 'yaml');
     logGreen('✅ Successfully created new core deployment config:');
   } catch (e) {
