@@ -31,7 +31,7 @@ const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
 const STARKNET_CLI_VERSION: &str = "0.2.8";
 
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/astraly-labs/hyperlane_starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "0.0.4";
+const CAIRO_HYPERLANE_VERSION: &str = "0.0.5";
 
 #[allow(dead_code)]
 pub fn install_starknet(

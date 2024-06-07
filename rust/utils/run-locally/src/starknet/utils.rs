@@ -153,7 +153,7 @@ pub(crate) fn deploy_all(
     cli.invoke(
         ism_aggregate.clone(),
         "set_modules",
-        vec![ism_multisig.clone()],
+        vec!["1".to_string(), ism_multisig.clone()],
     );
 
     // deploy merkle hook
