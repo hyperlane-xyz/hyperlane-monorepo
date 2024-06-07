@@ -16,7 +16,8 @@ use hyperlane_base::{
     SyncOptions,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
+    H512, U256,
 };
 use tokio::{
     sync::{
@@ -34,7 +35,6 @@ use crate::{
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
-        op_queue::QueueOperation,
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         processor::{MessageProcessor, MessageProcessorMetrics},

@@ -1,15 +1,12 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
+use hyperlane_core::{PendingOperation, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
 
 use crate::server::MessageRetryRequest;
-
-use super::pending_operation::PendingOperation;
-
-pub type QueueOperation = Box<dyn PendingOperation>;
 
 /// Queue of generic operations that can be submitted to a destination chain.
 /// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
@@ -109,9 +106,9 @@ impl OpQueue {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::msg::pending_operation::PendingOperationResult;
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, TryBatchAs, TxOutcome, H256,
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
+        TryBatchAs, TxOutcome, H256, U256,
     };
     use std::{
         collections::VecDeque,
@@ -182,10 +179,22 @@ mod test {
             todo!()
         }
 
+        fn get_tx_cost_estimate(&self) -> Option<U256> {
+            todo!()
+        }
+
         /// This will be called after the operation has been submitted and is
         /// responsible for checking if the operation has reached a point at
         /// which we consider it safe from reorgs.
         async fn confirm(&mut self) -> PendingOperationResult {
+            todo!()
+        }
+
+        fn set_operation_outcome(
+            &mut self,
+            _submission_outcome: TxOutcome,
+            _submission_estimated_cost: U256,
+        ) {
             todo!()
         }
 
