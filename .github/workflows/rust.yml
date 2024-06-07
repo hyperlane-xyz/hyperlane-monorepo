@@ -28,7 +28,7 @@ jobs:
     runs-on: larger-runner
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions-rs/toolchain@v1
@@ -56,7 +56,7 @@ jobs:
     runs-on: larger-runner
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions-rs/toolchain@v1
