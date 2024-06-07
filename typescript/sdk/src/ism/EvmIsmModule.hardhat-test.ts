@@ -136,7 +136,7 @@ describe('EvmIsmModule', async () => {
     // example routing config
     exampleRoutingConfig = {
       type: IsmType.ROUTING,
-      owner: await multiProvider.getSignerAddress(chain),
+      owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
       domains: Object.fromEntries(
         testChains
           .filter((c) => c !== TestChainName.test4)
@@ -242,15 +242,17 @@ describe('EvmIsmModule', async () => {
         // create a new ISM
         const { ism } = await createIsm(exampleRoutingConfig);
 
-        // add config for a domain the multiprovider doesn't have
-        exampleRoutingConfig.domains['test5'] = {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          threshold: 1,
-          validators: [randomAddress()],
+        // create an updated config with a domain the multiprovider doesn't have
+        const updatedRoutingConfig: IsmConfig = {
+          ...exampleRoutingConfig,
+          domains: {
+            ...exampleRoutingConfig.domains,
+            test5: randomMultisigIsmConfig(3, 5),
+          },
         };
 
         // expect 0 txs, as adding test5 domain is no-op
-        await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
+        await expectTxsAndUpdate(ism, updatedRoutingConfig, 0);
       });
 
       it(`update route in an existing ${type}`, async () => {
@@ -416,10 +418,14 @@ describe('EvmIsmModule', async () => {
 
       // point to new mailbox
       ism.setNewMailbox(newMailboxAddress);
+      console.log(mailboxAddress);
+      console.log(newMailboxAddress);
 
       // expect a new ISM to be deployed, so no in-place updates to return
       await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
 
+      console.log(initialIsmAddress);
+      console.log(ism.serialize().deployedIsm);
       // expect the ISM address to be different
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .false;

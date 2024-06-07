@@ -136,21 +136,32 @@ export class EvmIsmModule extends HyperlaneModule<
     // Update the config
     this.args.config = targetConfig;
 
-    // moduleMatchesConfig expects any domain filtering to have been done already
+    // if it's a fallback routing ISM, do a mailbox diff check
+    // Note: we have to do this before the configDeepEquals check
+    // because the mailbox address is not part of the config
+    let mailboxDiff = false;
+    const provider = this.multiProvider.getProvider(this.chain);
     if (
       typeof targetConfig !== 'string' &&
-      (targetConfig.type === IsmType.ROUTING ||
-        targetConfig.type === IsmType.FALLBACK_ROUTING)
+      targetConfig.type === currentConfig.type &&
+      targetConfig.type === IsmType.FALLBACK_ROUTING
     ) {
-      // filter for known domains
-      const { availableDomains } = this.filterRoutingIsmDomains({
-        config: targetConfig,
-      });
-      targetConfig.domains = availableDomains;
+      // can only retreive mailbox address if current ISM type is also Fallback Routing
+      const mailboxAddress =
+        currentConfig.type === IsmType.FALLBACK_ROUTING
+          ? await MailboxClient__factory.connect(
+              this.args.addresses.deployedIsm,
+              provider,
+            ).mailbox()
+          : ''; // empty string to force a mailbox diff
+
+      // if mailbox delta, deploy new ISM
+      // this will always be the case if the current ISM is not a fallback routing ISM
+      mailboxDiff = !eqAddress(mailboxAddress, this.args.addresses.mailbox);
     }
 
     // If configs match, no updates needed
-    if (configDeepEquals(currentConfig, targetConfig)) {
+    if (!mailboxDiff && configDeepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
@@ -167,6 +178,8 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // Check if we need to deploy a new ISM
     if (
+      // if mailbox needs to be updated on fallback routing ISM, do a new deploy
+      mailboxDiff ||
       // if address ISM -> config, do a new deploy
       typeof currentConfig === 'string' ||
       // if config -> config, AND types are different, do a new deploy
@@ -195,32 +208,7 @@ export class EvmIsmModule extends HyperlaneModule<
       destination: this.chain,
       ismType: targetConfig.type,
     });
-    const provider = this.multiProvider.getProvider(this.chain);
-
     logger.debug(`Updating ${targetConfig.type} on ${this.chain}`);
-
-    // if it's a fallback routing ISM, do a mailbox diff check and deploy a new ISM if needed
-    if (targetConfig.type === IsmType.FALLBACK_ROUTING) {
-      // can only retreive mailbox address if current ISM type is also Fallback Routing
-      const mailboxAddress =
-        currentConfig.type === IsmType.FALLBACK_ROUTING
-          ? await MailboxClient__factory.connect(
-              this.args.addresses.deployedIsm,
-              provider,
-            ).mailbox()
-          : ''; // empty string to force a mailbox diff
-
-      // if mailbox delta, deploy new routing ISM before updating
-      // this will always be the case if the current ISM is not a fallback routing ISM
-      if (!eqAddress(mailboxAddress, this.args.addresses.mailbox)) {
-        const newIsm = await this.deployRoutingIsm({
-          config: targetConfig,
-          logger,
-        });
-
-        this.args.addresses.deployedIsm = newIsm.address;
-      }
-    }
 
     // if it's either of the routing ISMs, update their submodules
     let updateTxs: AnnotatedEV5Transaction[] = [];
@@ -300,6 +288,20 @@ export class EvmIsmModule extends HyperlaneModule<
   }): Promise<AnnotatedEV5Transaction[]> {
     const routingIsmInterface = DomainRoutingIsm__factory.createInterface();
     const updateTxs = [];
+
+    // filter out domains which are not part of the multiprovider
+    current = {
+      ...current,
+      domains: this.filterRoutingIsmDomains({
+        config: current,
+      }).availableDomains,
+    };
+    target = {
+      ...target,
+      domains: this.filterRoutingIsmDomains({
+        config: target,
+      }).availableDomains,
+    };
 
     const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
       current,
@@ -463,7 +465,10 @@ export class EvmIsmModule extends HyperlaneModule<
       this.filterRoutingIsmDomains({
         config,
       });
-    config.domains = availableDomains;
+    config = {
+      ...config,
+      domains: availableDomains,
+    };
 
     // deploy the submodules first
     const submoduleAddresses: Address[] = await Promise.all(
@@ -581,7 +586,7 @@ export class EvmIsmModule extends HyperlaneModule<
   public setNewMailbox(newMailboxAddress: Address): void {
     const currentMailboxAddress = this.args.addresses.mailbox;
 
-    if (currentMailboxAddress === newMailboxAddress) {
+    if (eqAddress(currentMailboxAddress, newMailboxAddress)) {
       this.logger.debug(
         `Mailbox address is already set to ${newMailboxAddress}`,
       );
