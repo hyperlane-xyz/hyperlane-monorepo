@@ -95,5 +95,5 @@ export async function detectAndConfirmOrPrompt(
     }
     // eslint-disable-next-line no-empty
   } catch (e) {}
-  return input({ message: `${prompt} ${label}`, default: detectedValue });
+  return input({ message: `${prompt} ${label}:`, default: detectedValue });
 }

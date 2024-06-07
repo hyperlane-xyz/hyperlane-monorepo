@@ -1,3 +1,4 @@
+import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import { EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
@@ -132,8 +133,8 @@ export const read: CommandModuleWithContext<{
       writeFileAtPath(out, JSON.stringify(warpRouteConfig, null, 4) + '\n');
       logGreen(`✅ Warp route config written successfully to ${out}.`);
     } else {
-      logGreen(`✅ Warp route config read successfully:`);
-      log(JSON.stringify(warpRouteConfig, null, 4));
+      logGreen(`✅ Warp route config read successfully:\n`);
+      log('\t' + yamlStringify(warpRouteConfig, null, 2));
     }
     process.exit(0);
   },

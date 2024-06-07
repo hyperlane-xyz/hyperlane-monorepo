@@ -22,7 +22,7 @@ import {
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
-  createIsmConfigWithWarningOrDefault,
+  createIsmConfig,
   createRoutingConfig,
   createTrustedRelayerConfig,
 } from './ism.js';
@@ -144,7 +144,7 @@ export async function createWarpRouteDeployConfig({
       'hyperlane-registry',
     );
 
-    const interchainSecurityModule = await createIsmConfigWithWarningOrDefault({
+    const interchainSecurityModule = await createIsmConfig({
       context,
       defaultFn: createDefaultWarpIsmConfig,
       advanced,

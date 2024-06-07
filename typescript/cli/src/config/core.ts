@@ -1,7 +1,9 @@
+import { stringify as yamlStringify } from 'yaml';
+
 import { CoreConfigSchema, HookConfig, IsmConfig } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { detectAndConfirmOrPrompt } from '../utils/chains.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
@@ -10,10 +12,7 @@ import {
   createMerkleTreeConfig,
   createProtocolFeeConfig,
 } from './hooks.js';
-import {
-  createIsmConfigWithWarningOrDefault,
-  createTrustedRelayerConfig,
-} from './ism.js';
+import { createIsmConfig, createTrustedRelayerConfig } from './ism.js';
 
 export async function createCoreDeployConfig({
   context,
@@ -33,19 +32,27 @@ export async function createCoreDeployConfig({
     'signer',
   );
 
-  const defaultIsm: IsmConfig = await createIsmConfigWithWarningOrDefault({
+  const defaultIsm: IsmConfig = await createIsmConfig({
     context,
-    defaultFn: createTrustedRelayerConfig,
     advanced,
+    defaultFn: createTrustedRelayerConfig,
   });
 
   let defaultHook: HookConfig, requiredHook: HookConfig;
   if (advanced) {
-    defaultHook = await createHookConfig(context, 'Select default hook type');
-    requiredHook = await createHookConfig(context, 'Select required hook type');
+    defaultHook = await createHookConfig({
+      context,
+      selectMessage: 'Select default hook type',
+      advanced,
+    });
+    requiredHook = await createHookConfig({
+      context,
+      selectMessage: 'Select required hook type',
+      advanced,
+    });
   } else {
     defaultHook = await createMerkleTreeConfig();
-    requiredHook = await createProtocolFeeConfig();
+    requiredHook = await createProtocolFeeConfig(context, advanced);
   }
 
   try {
@@ -55,12 +62,12 @@ export async function createCoreDeployConfig({
       defaultHook,
       requiredHook,
     });
-    logBlue(`Core config is valid, writing to file ${configFilePath}`);
+    logBlue(`Core config is valid, writing to file ${configFilePath}:\n`);
+    log(yamlStringify(coreConfig, null, 2));
     writeYamlOrJson(configFilePath, coreConfig);
+    logGreen('✅ Successfully created new core deployment config:');
   } catch (e) {
     errorRed(`Core deployment config is invalid.`);
     throw e;
   }
-
-  logGreen('✅ Successfully created new core deployment config');
 }
