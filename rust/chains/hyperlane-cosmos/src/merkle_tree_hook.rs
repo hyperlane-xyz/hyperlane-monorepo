@@ -283,7 +283,7 @@ impl CosmosMerkleTreeHookIndexer {
 #[async_trait]
 impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     /// Fetch list of logs between `range` of blocks
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {

@@ -220,15 +220,6 @@ fn main() -> ExitCode {
             r#"[{
                 "type": "minimum",
                 "payment": "1",
-                "matchingList": [
-                    {
-                        "originDomain": ["13375","13376"],
-                        "destinationDomain": ["13375","13376"]
-                    }
-                ]
-            },
-            {
-                "type": "none"
             }]"#,
         )
         .arg(

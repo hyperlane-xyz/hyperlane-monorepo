@@ -1,10 +1,10 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::{MpmcReceiver, PendingOperation, QueueOperation};
+use hyperlane_core::{PendingOperation, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
-use tokio::sync::Mutex;
-use tracing::{info, instrument};
+use tokio::sync::{broadcast::Receiver, Mutex};
+use tracing::{debug, info, instrument};
 
 use crate::server::MessageRetryRequest;
 
@@ -14,7 +14,7 @@ use crate::server::MessageRetryRequest;
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: MpmcReceiver<MessageRetryRequest>,
+    retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
     queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
 }
@@ -37,7 +37,7 @@ impl OpQueue {
     }
 
     /// Pop multiple elements at once from the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
@@ -51,6 +51,15 @@ impl OpQueue {
                 break;
             }
         }
+        // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
+        // to avoid spamming the logs
+        if !popped.is_empty() {
+            debug!(
+                queue_label = %self.queue_metrics_label,
+                operations = ?popped,
+                "Popped OpQueue operations"
+            );
+        }
         popped
     }
 
@@ -60,7 +69,7 @@ impl OpQueue {
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
         let mut message_retry_requests = vec![];
-        while let Ok(message_id) = self.retry_rx.receiver.try_recv() {
+        while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
             message_retry_requests.push(message_id);
         }
         if message_retry_requests.is_empty() {
@@ -98,13 +107,14 @@ impl OpQueue {
 mod test {
     use super::*;
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, MpmcChannel,
-        PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
+        TryBatchAs, TxOutcome, H256, U256,
     };
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
     };
+    use tokio::sync;
 
     #[derive(Debug, Clone)]
     struct MockPendingOperation {
@@ -219,13 +229,17 @@ mod test {
     #[tokio::test]
     async fn test_multiple_op_queues_message_id() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
-        let mpmc_channel = MpmcChannel::new(100);
+        let broadcaster = sync::broadcast::Sender::new(100);
         let mut op_queue_1 = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
-            mpmc_channel.receiver(),
+            Arc::new(Mutex::new(broadcaster.subscribe())),
         );
-        let mut op_queue_2 = OpQueue::new(metrics, queue_metrics_label, mpmc_channel.receiver());
+        let mut op_queue_2 = OpQueue::new(
+            metrics,
+            queue_metrics_label,
+            Arc::new(Mutex::new(broadcaster.subscribe())),
+        );
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
@@ -251,11 +265,10 @@ mod test {
         }
 
         // Retry by message ids
-        let mpmc_tx = mpmc_channel.sender();
-        mpmc_tx
+        broadcaster
             .send(MessageRetryRequest::MessageId(op_ids[1]))
             .unwrap();
-        mpmc_tx
+        broadcaster
             .send(MessageRetryRequest::MessageId(op_ids[2]))
             .unwrap();
 
@@ -285,11 +298,11 @@ mod test {
     #[tokio::test]
     async fn test_destination_domain() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
-        let mpmc_channel = MpmcChannel::new(100);
+        let broadcaster = sync::broadcast::Sender::new(100);
         let mut op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
-            mpmc_channel.receiver(),
+            Arc::new(Mutex::new(broadcaster.subscribe())),
         );
 
         // Add some operations to the queue with increasing `next_attempt_after` values
@@ -311,8 +324,7 @@ mod test {
         }
 
         // Retry by domain
-        let mpmc_tx = mpmc_channel.sender();
-        mpmc_tx
+        broadcaster
             .send(MessageRetryRequest::DestinationDomain(
                 destination_domain_2.id(),
             ))

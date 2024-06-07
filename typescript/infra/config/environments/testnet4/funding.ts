@@ -1,5 +1,3 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
-
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
@@ -9,7 +7,7 @@ import { environment } from './chains.js';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'b22a0f4-20240523-140812',
+    tag: 'efa9025-20240605-091304',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -23,7 +21,6 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  connectionType: RpcConsensusType.Fallback,
   // desired balance config
   desiredBalancePerChain: {
     alfajores: '5',

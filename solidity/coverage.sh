@@ -14,7 +14,7 @@ fi
 lcov --version
 
 # exclude FastTokenRouter until https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2806
-EXCLUDE="*test* *mock* *node_modules* *FastHyp*"
+EXCLUDE="*test* *mock* *node_modules* *script* *FastHyp*"
 lcov \
     --rc lcov_branch_coverage=1 \
     --remove lcov.info $EXCLUDE \

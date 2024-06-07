@@ -9,7 +9,6 @@ import {
   CoreConfig,
   MultiProtocolProvider,
   MultiProvider,
-  RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {

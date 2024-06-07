@@ -9,7 +9,6 @@ import {
   MultiProtocolProvider,
   MultiProvider,
   OwnableConfig,
-  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { objKeys } from '@hyperlane-xyz/utils';
 
@@ -54,7 +53,6 @@ export type EnvironmentConfig = {
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
-    connectionType?: RpcConsensusType,
     useSecrets?: boolean,
   ) => Promise<MultiProvider>;
   getKeys: (
