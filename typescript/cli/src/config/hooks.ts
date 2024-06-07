@@ -19,8 +19,13 @@ import {
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
-import { runMultiChainSelectionStep } from '../utils/chains.js';
+import {
+  detectAndConfirmOrPrompt,
+  runMultiChainSelectionStep,
+} from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
+
+import { callWithConfigCreationLogs } from './utils.js';
 
 // TODO: deprecate in favor of CoreConfigSchema
 const HooksConfigSchema = z.object({
@@ -30,6 +35,9 @@ const HooksConfigSchema = z.object({
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
 const HooksConfigMapSchema = z.record(HooksConfigSchema);
 export type HooksConfigMap = z.infer<typeof HooksConfigMapSchema>;
+
+const MAX_PROTOCOL_FEE_DEFAULT: string = toWei('0.1');
+const PROTOCOL_FEE_DEFAULT: string = toWei('0');
 
 export function presetHookConfigs(owner: Address): HooksConfig {
   return {
@@ -61,14 +69,24 @@ export function readHooksConfigMap(filePath: string) {
   return hooks;
 }
 
-export async function createHookConfig(
-  context: CommandContext,
+export async function createHookConfig({
+  context,
   selectMessage = 'Select hook type',
-): Promise<HookConfig> {
-  let lastConfig: HookConfig;
+  advanced = false,
+}: {
+  context: CommandContext;
+  selectMessage?: string;
+  advanced?: boolean;
+}): Promise<HookConfig> {
   const hookType = await select({
     message: selectMessage,
     choices: [
+      {
+        value: HookType.AGGREGATION,
+        name: HookType.AGGREGATION,
+        description:
+          'Aggregate multiple hooks into a single hook (e.g. merkle tree + IGP) which will be called in sequence',
+      },
       {
         value: HookType.MERKLE_TREE,
         name: HookType.MERKLE_TREE,
@@ -80,155 +98,188 @@ export async function createHookConfig(
         name: HookType.PROTOCOL_FEE,
         description: 'Charge fees for each message dispatch from this chain',
       },
-      {
-        value: HookType.AGGREGATION,
-        name: HookType.AGGREGATION,
-        description:
-          'Aggregate multiple hooks into a single hook (e.g. merkle tree + IGP) which will be called in sequence',
-      },
     ],
     pageSize: 10,
   });
-  if (hookType === HookType.MERKLE_TREE) {
-    lastConfig = { type: HookType.MERKLE_TREE };
-  } else if (hookType === HookType.PROTOCOL_FEE) {
-    lastConfig = await createProtocolFeeConfig();
-  } else if (hookType === HookType.AGGREGATION) {
-    lastConfig = await createAggregationConfig(context);
-  } else {
-    throw new Error(`Invalid hook type: ${hookType}`);
+
+  switch (hookType) {
+    case HookType.AGGREGATION:
+      return createAggregationConfig(context, advanced);
+    case HookType.MERKLE_TREE:
+      return createMerkleTreeConfig();
+    case HookType.PROTOCOL_FEE:
+      return createProtocolFeeConfig(context, advanced);
+    default:
+      throw new Error(`Invalid hook type: ${hookType}`);
   }
-  return lastConfig;
 }
 
-export async function createProtocolFeeConfig(): Promise<HookConfig> {
-  const owner = await input({
-    message: 'Enter owner address for protocol fee hook',
-  });
-  const ownerAddress = normalizeAddressEvm(owner);
-  let beneficiary;
-  let sameAsOwner = false;
-  sameAsOwner = await confirm({
-    message: 'Use this same address for the beneficiary?',
-  });
-  if (sameAsOwner) {
-    beneficiary = ownerAddress;
-  } else {
-    beneficiary = await input({
-      message: 'Enter beneficiary address for protocol fee hook',
-    });
-  }
-  const beneficiaryAddress = normalizeAddressEvm(beneficiary);
-  // TODO: input in gwei, wei, etc
-  const maxProtocolFee = toWei(
-    await input({
-      message: `Enter max protocol fee for protocol fee hook`,
-    }),
-  );
-  const protocolFee = toWei(
-    await input({
-      message: `Enter protocol fee in for protocol fee hook`,
-    }),
-  );
-  if (BigNumberJs(protocolFee).gt(maxProtocolFee)) {
-    errorRed('Protocol fee cannot be greater than max protocol fee');
-    throw new Error('Invalid protocol fee');
-  }
+export const createMerkleTreeConfig = callWithConfigCreationLogs(
+  async (): Promise<HookConfig> => {
+    return { type: HookType.MERKLE_TREE };
+  },
+  HookType.MERKLE_TREE,
+);
 
-  return {
-    type: HookType.PROTOCOL_FEE,
-    maxProtocolFee: maxProtocolFee.toString(),
-    protocolFee: protocolFee.toString(),
-    beneficiary: beneficiaryAddress,
-    owner: ownerAddress,
-  };
-}
+export const createProtocolFeeConfig = callWithConfigCreationLogs(
+  async (
+    context: CommandContext,
+    advanced: boolean = false,
+  ): Promise<HookConfig> => {
+    const unnormalizedOwner =
+      !advanced && context.signer
+        ? await context.signer.getAddress()
+        : await detectAndConfirmOrPrompt(
+            async () => context.signer?.getAddress(),
+            'For protocol fee hook, enter',
+            'owner address',
+            'signer',
+          );
+    const owner = normalizeAddressEvm(unnormalizedOwner);
+    let beneficiary = owner;
+
+    const isBeneficiarySameAsOwner = advanced
+      ? await confirm({
+          message: `Use this same address (${owner}) for the beneficiary?`,
+        })
+      : true;
+
+    if (!isBeneficiarySameAsOwner) {
+      const unnormalizedBeneficiary = await input({
+        message: 'Enter beneficiary address for protocol fee hook:',
+      });
+      beneficiary = normalizeAddressEvm(unnormalizedBeneficiary);
+    }
+    // TODO: input in gwei, wei, etc
+    const maxProtocolFee = advanced
+      ? toWei(
+          await input({
+            message: `Enter max protocol fee for protocol fee hook (in wei):`,
+          }),
+        )
+      : MAX_PROTOCOL_FEE_DEFAULT;
+    const protocolFee = advanced
+      ? toWei(
+          await input({
+            message: `Enter protocol fee for protocol fee hook (in wei):`,
+          }),
+        )
+      : PROTOCOL_FEE_DEFAULT;
+    if (BigNumberJs(protocolFee).gt(maxProtocolFee)) {
+      errorRed(
+        `Protocol fee (${protocolFee}) cannot be greater than max protocol fee (${maxProtocolFee}).`,
+      );
+      throw new Error('Invalid protocol fee.');
+    }
+    return {
+      type: HookType.PROTOCOL_FEE,
+      maxProtocolFee,
+      protocolFee,
+      beneficiary,
+      owner,
+    };
+  },
+  HookType.PROTOCOL_FEE,
+);
 
 // TODO: make this usable
-export async function createIGPConfig(
-  remotes: ChainName[],
-): Promise<HookConfig> {
-  const owner = await input({
-    message: 'Enter owner address for IGP hook',
-  });
-  const ownerAddress = normalizeAddressEvm(owner);
-  let beneficiary, oracleKey;
-  let sameAsOwner = false;
-  sameAsOwner = await confirm({
-    message: 'Use this same address for the beneficiary and gasOracleKey?',
-  });
-  if (sameAsOwner) {
-    beneficiary = ownerAddress;
-    oracleKey = ownerAddress;
-  } else {
-    beneficiary = await input({
-      message: 'Enter beneficiary address for IGP hook',
+export const createIGPConfig = callWithConfigCreationLogs(
+  async (remotes: ChainName[]): Promise<HookConfig> => {
+    const unnormalizedOwner = await input({
+      message: 'Enter owner address for IGP hook',
     });
-    oracleKey = await input({
-      message: 'Enter gasOracleKey address for IGP hook',
+    const owner = normalizeAddressEvm(unnormalizedOwner);
+    let beneficiary = owner;
+    let oracleKey = owner;
+
+    const beneficiarySameAsOwner = await confirm({
+      message: 'Use this same address for the beneficiary and gasOracleKey?',
     });
-  }
-  const beneficiaryAddress = normalizeAddressEvm(beneficiary);
-  const oracleKeyAddress = normalizeAddressEvm(oracleKey);
-  const overheads: ChainMap<number> = {};
-  for (const chain of remotes) {
-    const overhead = parseInt(
+
+    if (!beneficiarySameAsOwner) {
+      const unnormalizedBeneficiary = await input({
+        message: 'Enter beneficiary address for IGP hook',
+      });
+      beneficiary = normalizeAddressEvm(unnormalizedBeneficiary);
+      const unnormalizedOracleKey = await input({
+        message: 'Enter gasOracleKey address for IGP hook',
+      });
+      oracleKey = normalizeAddressEvm(unnormalizedOracleKey);
+    }
+    const overheads: ChainMap<number> = {};
+    for (const chain of remotes) {
+      const overhead = parseInt(
+        await input({
+          message: `Enter overhead for ${chain} (eg 75000) for IGP hook`,
+        }),
+      );
+      overheads[chain] = overhead;
+    }
+    return {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      beneficiary,
+      owner,
+      oracleKey,
+      overhead: overheads,
+      oracleConfig: {},
+    };
+  },
+  HookType.INTERCHAIN_GAS_PAYMASTER,
+);
+
+export const createAggregationConfig = callWithConfigCreationLogs(
+  async (
+    context: CommandContext,
+    advanced: boolean = false,
+  ): Promise<HookConfig> => {
+    const hooksNum = parseInt(
       await input({
-        message: `Enter overhead for ${chain} (eg 75000) for IGP hook`,
+        message: 'Enter the number of hooks to aggregate (number)',
       }),
+      10,
     );
-    overheads[chain] = overhead;
-  }
-  return {
-    type: HookType.INTERCHAIN_GAS_PAYMASTER,
-    beneficiary: beneficiaryAddress,
-    owner: ownerAddress,
-    oracleKey: oracleKeyAddress,
-    overhead: overheads,
-    oracleConfig: {},
-  };
-}
+    const hooks: Array<HookConfig> = [];
+    for (let i = 0; i < hooksNum; i++) {
+      logBlue(`Creating hook ${i + 1} of ${hooksNum} ...`);
+      hooks.push(
+        await createHookConfig({
+          context,
+          advanced,
+        }),
+      );
+    }
+    return {
+      type: HookType.AGGREGATION,
+      hooks,
+    };
+  },
+  HookType.AGGREGATION,
+);
 
-export async function createAggregationConfig(
-  context: CommandContext,
-): Promise<HookConfig> {
-  const hooksNum = parseInt(
-    await input({
-      message: 'Enter the number of hooks to aggregate (number)',
-    }),
-    10,
-  );
-  const hooks: Array<HookConfig> = [];
-  for (let i = 0; i < hooksNum; i++) {
-    logBlue(`Creating hook ${i + 1} of ${hooksNum} ...`);
-    hooks.push(await createHookConfig(context));
-  }
-  return {
-    type: HookType.AGGREGATION,
-    hooks,
-  };
-}
-
-export async function createRoutingConfig(
-  context: CommandContext,
-): Promise<HookConfig> {
-  const owner = await input({
-    message: 'Enter owner address for routing ISM',
-  });
-  const ownerAddress = owner;
-  const chains = await runMultiChainSelectionStep(context.chainMetadata);
-
-  const domainsMap: ChainMap<HookConfig> = {};
-  for (const chain of chains) {
-    await confirm({
-      message: `You are about to configure hook for remote chain ${chain}. Continue?`,
+export const createRoutingConfig = callWithConfigCreationLogs(
+  async (
+    context: CommandContext,
+    advanced: boolean = false,
+  ): Promise<HookConfig> => {
+    const owner = await input({
+      message: 'Enter owner address for routing ISM',
     });
-    const config = await createHookConfig(context);
-    domainsMap[chain] = config;
-  }
-  return {
-    type: HookType.ROUTING,
-    owner: ownerAddress,
-    domains: domainsMap,
-  };
-}
+    const ownerAddress = owner;
+    const chains = await runMultiChainSelectionStep(context.chainMetadata);
+
+    const domainsMap: ChainMap<HookConfig> = {};
+    for (const chain of chains) {
+      await confirm({
+        message: `You are about to configure hook for remote chain ${chain}. Continue?`,
+      });
+      const config = await createHookConfig({ context, advanced });
+      domainsMap[chain] = config;
+    }
+    return {
+      type: HookType.ROUTING,
+      owner: ownerAddress,
+      domains: domainsMap,
+    };
+  },
+  HookType.ROUTING,
+);

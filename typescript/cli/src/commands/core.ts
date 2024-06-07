@@ -1,24 +1,21 @@
+import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { CoreConfigSchema, EvmCoreReader, IsmConfig } from '@hyperlane-xyz/sdk';
+import { EvmCoreReader } from '@hyperlane-xyz/sdk';
 
-import { createHookConfig } from '../config/hooks.js';
-import { createIsmConfig, createTrustedRelayerConfig } from '../config/ism.js';
+import { createCoreDeployConfig } from '../config/core.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
+import { log, logGray, logGreen } from '../logger.js';
 import {
-  log,
-  logBlue,
-  logBoldUnderlinedRed,
-  logGray,
-  logRed,
-} from '../logger.js';
-import { detectAndConfirmOrPrompt } from '../utils/chains.js';
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 
 import {
   chainCommandOption,
@@ -86,13 +83,13 @@ export const deploy: CommandModuleWithWriteContext<{
 };
 
 export const configure: CommandModuleWithContext<{
-  ismAdvanced: boolean;
+  advanced: boolean;
   config: string;
 }> = {
   command: 'configure',
   describe: 'Create a core configuration, including ISMs and hooks.',
   builder: {
-    ismAdvanced: {
+    advanced: {
       type: 'boolean',
       describe: 'Create an advanced ISM & hook configuration',
       default: false,
@@ -103,50 +100,15 @@ export const configure: CommandModuleWithContext<{
       'The path to output a Core Config JSON or YAML file.',
     ),
   },
-  handler: async ({ context, ismAdvanced, config: configFilePath }) => {
+  handler: async ({ context, advanced, config: configFilePath }) => {
     logGray('Hyperlane Core Configure');
     logGray('------------------------');
 
-    const owner = await detectAndConfirmOrPrompt(
-      async () => context.signer?.getAddress(),
-      'Enter the desired',
-      'owner address',
-      'signer',
-    );
-
-    // Create default Ism config (advanced or trusted)
-    let defaultIsm: IsmConfig;
-    if (ismAdvanced) {
-      logBlue('Creating a new advanced ISM config');
-      logBoldUnderlinedRed('WARNING: USE AT YOUR RISK.');
-      logRed(
-        'Advanced ISM configs require knowledge of different ISM types and how they work together topologically. If possible, use the basic ISM configs are recommended.',
-      );
-      defaultIsm = await createIsmConfig(context);
-    } else {
-      defaultIsm = await createTrustedRelayerConfig(context);
-    }
-
-    // Create default and required Hook config
-    const defaultHook = await createHookConfig(
+    await createCoreDeployConfig({
       context,
-      'Select default hook type',
-    );
-    const requiredHook = await createHookConfig(
-      context,
-      'Select required hook type',
-    );
-
-    // Validate
-    const coreConfig = {
-      owner,
-      defaultIsm,
-      defaultHook,
-      requiredHook,
-    };
-    CoreConfigSchema.parse(coreConfig);
-
-    writeYamlOrJson(configFilePath, coreConfig);
+      configFilePath,
+      advanced,
+    });
 
     process.exit(0);
   },
@@ -182,7 +144,11 @@ export const read: CommandModuleWithContext<{
     const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
     const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
 
-    writeYamlOrJson(configFilePath, coreConfig);
+    writeYamlOrJson(configFilePath, coreConfig, 'yaml');
+    logGreen(
+      `✅ Warp route config written successfully to ${configFilePath}:\n`,
+    );
+    log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
 
     process.exit(0);
   },

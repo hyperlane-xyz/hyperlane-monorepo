@@ -1,4 +1,5 @@
 import { input, select } from '@inquirer/prompts';
+import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
@@ -14,15 +15,19 @@ import {
 import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   detectAndConfirmOrPrompt,
   runMultiChainSelectionStep,
 } from '../utils/chains.js';
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 
 import {
-  createIsmConfig,
+  createAdvancedIsmConfig,
   createRoutingConfig,
   createTrustedRelayerConfig,
 } from './ism.js';
@@ -102,13 +107,13 @@ export function isValidWarpRouteDeployConfig(config: any) {
 export async function createWarpRouteDeployConfig({
   context,
   outPath,
-  shouldUseDefault = false,
+  advanced = false,
 }: {
   context: CommandContext;
   outPath: string;
-  shouldUseDefault: boolean;
+  advanced: boolean;
 }) {
-  logBlue('Creating a new warp route deployment config');
+  logBlue('Creating a new warp route deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
     async () => context.signer?.getAddress(),
@@ -144,9 +149,9 @@ export async function createWarpRouteDeployConfig({
       'hyperlane-registry',
     );
 
-    const interchainSecurityModule = shouldUseDefault
-      ? await createDefaultWarpIsmConfig(context)
-      : await createIsmConfig(context);
+    const interchainSecurityModule = advanced
+      ? await createAdvancedIsmConfig(context)
+      : await createDefaultWarpIsmConfig(context);
 
     switch (type) {
       case TokenType.collateral:
@@ -179,12 +184,14 @@ export async function createWarpRouteDeployConfig({
   }
 
   try {
-    const parsed = WarpRouteDeployConfigSchema.parse(result);
-    logGreen(`Warp Route config is valid, writing to file ${outPath}`);
-    writeYamlOrJson(outPath, parsed);
+    const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
+    logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
+    log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
+    writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
+    logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
-      `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
+      `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example.`,
     );
     throw e;
   }

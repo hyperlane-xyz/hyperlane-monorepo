@@ -1,3 +1,4 @@
+import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import { EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
@@ -11,7 +12,7 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { writeFileAtPath } from '../utils/files.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
   addressCommandOption,
@@ -72,24 +73,27 @@ export const deploy: CommandModuleWithWriteContext<{
 };
 
 export const configure: CommandModuleWithContext<{
-  ismAdvanced: boolean;
+  advanced: boolean;
   out: string;
 }> = {
   command: 'configure',
   describe: 'Create a warp route configuration.',
   builder: {
-    ismAdvanced: {
+    advanced: {
       type: 'boolean',
-      describe: 'Create an advanced ISM & hook configuration',
+      describe: 'Create an advanced ISM',
       default: false,
     },
     out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
   },
-  handler: async ({ context, ismAdvanced, out }) => {
+  handler: async ({ context, advanced, out }) => {
+    logGray('Hyperlane Warp Configure');
+    logGray('------------------------');
+
     await createWarpRouteDeployConfig({
       context,
       outPath: out,
-      shouldUseDefault: !ismAdvanced,
+      advanced,
     });
     process.exit(0);
   },
@@ -126,12 +130,12 @@ export const read: CommandModuleWithContext<{
       address,
     );
     if (out) {
-      writeFileAtPath(out, JSON.stringify(warpRouteConfig, null, 4) + '\n');
-      logGreen(`✅ Warp route config written successfully to ${out}.`);
+      writeYamlOrJson(out, warpRouteConfig, 'yaml');
+      logGreen(`✅ Warp route config written successfully to ${out}:\n`);
     } else {
-      logGreen(`✅ Warp route config read successfully:`);
-      log(JSON.stringify(warpRouteConfig, null, 4));
+      logGreen(`✅ Warp route config read successfully:\n`);
     }
+    log(indentYamlOrJson(yamlStringify(warpRouteConfig, null, 2), 4));
     process.exit(0);
   },
 };
