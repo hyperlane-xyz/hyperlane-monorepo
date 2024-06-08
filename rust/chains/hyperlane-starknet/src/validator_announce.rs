@@ -12,6 +12,7 @@ use hyperlane_core::{
 use hyperlane_core::{Announcement, Encode, SignedType, ValidatorAnnounce};
 use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
+use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::{instrument, trace};
@@ -142,22 +143,26 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             .into_iter()
             .map(EthAddress)
             .collect();
-        let storage_locations = self
+
+        let storage_locations_res = self
             .contract
             .get_announced_storage_locations(&validators_calldata)
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        Ok(storage_locations
+        let storage_locations = storage_locations_res
             .into_iter()
             .map(|inner_vec| {
                 inner_vec
                     .into_iter()
-                    .map(|element| element.to_string())
+                    .map(|element| parse_cairo_short_string(&element))
                     .collect()
             })
-            .collect())
+            .collect::<Result<Vec<Vec<String>>, ParseCairoShortStringError>>()
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+
+        Ok(storage_locations)
     }
 
     #[instrument(ret, skip(self))]
