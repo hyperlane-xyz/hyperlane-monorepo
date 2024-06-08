@@ -6,6 +6,7 @@
 
 pub use error::*;
 pub use indexer::*;
+pub use interchain_gas::*;
 pub use ism::*;
 pub use mailbox::*;
 pub use merkle_tree_hook::*;
@@ -21,6 +22,7 @@ mod contracts;
 
 mod error;
 mod indexer;
+mod interchain_gas;
 mod ism;
 mod mailbox;
 mod merkle_tree_hook;

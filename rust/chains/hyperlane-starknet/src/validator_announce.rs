@@ -34,7 +34,7 @@ where
     }
 }
 
-/// A reference to a Mailbox contract on some Starknet chain
+/// A reference to a ValidatorAnnounce contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetValidatorAnnounce {
@@ -44,7 +44,7 @@ pub struct StarknetValidatorAnnounce {
 }
 
 impl StarknetValidatorAnnounce {
-    /// Create a reference to a mailbox at a specific Starknet address on some
+    /// Create a reference to a ValidatorAnnounce at a specific Starknet address on some
     /// chain
     pub fn new(
         conn: &ConnectionConf,

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, LogMeta, MerkleTreeInsertion,
-    SequenceAwareIndexer, H256, U256,
+    ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, InterchainGasPayment,
+    LogMeta, MerkleTreeInsertion, SequenceAwareIndexer, H256, U256,
 };
 use starknet::core::types::{
     BlockId, BlockTag, EventFilter, FieldElement, MaybePendingBlockWithTxHashes,
@@ -369,5 +369,34 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
         Ok((Some(sequence), tip))
+    }
+}
+
+/// Interchain Gas Paymaster
+
+/// A reference to a InterchainGasPaymasterIndexer contract on some Starknet chain
+#[derive(Debug, Clone)]
+pub struct StarknetInterchainGasPaymasterIndexer {}
+
+#[async_trait]
+impl Indexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
+    async fn fetch_logs(
+        &self,
+        _range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        Ok(Default::default())
+    }
+
+    #[instrument(level = "debug", err, ret, skip(self))]
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        Ok(0)
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.get_finalized_block_number().await?;
+        Ok((None, tip))
     }
 }

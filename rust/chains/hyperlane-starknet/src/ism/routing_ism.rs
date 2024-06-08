@@ -29,7 +29,7 @@ where
     }
 }
 
-/// A reference to a Mailbox contract on some Starknet chain
+/// A reference to a RoutingISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetRoutingIsm {
@@ -39,7 +39,7 @@ pub struct StarknetRoutingIsm {
 }
 
 impl StarknetRoutingIsm {
-    /// Create a reference to a mailbox at a specific Starknet address on some
+    /// Create a reference to a RoutingISM at a specific Starknet address on some
     /// chain
     pub fn new(
         conn: &ConnectionConf,

@@ -29,7 +29,7 @@ where
     }
 }
 
-/// A reference to a Mailbox contract on some Starknet chain
+/// A reference to a MultisigISM contract on some Starknet chain
 #[derive(Debug)]
 #[allow(unused)]
 pub struct StarknetMultisigIsm {
@@ -39,7 +39,7 @@ pub struct StarknetMultisigIsm {
 }
 
 impl StarknetMultisigIsm {
-    /// Create a reference to a mailbox at a specific Starknet address on some
+    /// Create a reference to a MultisigISM at a specific Starknet address on some
     /// chain
     pub fn new(
         conn: &ConnectionConf,
