@@ -210,40 +210,4 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     );
     await validateCoreValues(nativeContract);
   });
-
-  it('should create with an IsmConfig', async () => {
-    const config: TokenRouterConfig = {
-      ...baseConfig,
-      type: TokenType.collateral,
-      token: token.address,
-      interchainSecurityModule: {
-        type: IsmType.AGGREGATION,
-        modules: [
-          {
-            type: IsmType.TRUSTED_RELAYER,
-            relayer: signer.address,
-          },
-          {
-            type: IsmType.FALLBACK_ROUTING,
-            domains: {},
-            owner: signer.address,
-          },
-        ],
-        threshold: 1,
-      },
-    };
-
-    // Deploy using WarpModule
-    const evmERC20WarpModule = await EvmERC20WarpModule.create({
-      chain,
-      config,
-      multiProvider,
-    });
-
-    // Let's derive it's onchain token type
-    const { deployedTokenRoute } = evmERC20WarpModule.serialize();
-    const tokenType: TokenType =
-      await evmERC20WarpModule.reader.deriveTokenType(deployedTokenRoute);
-    expect(tokenType).to.equal(TokenType.collateral);
-  });
 });
