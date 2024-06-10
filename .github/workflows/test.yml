@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - '*' # run against all branches
+    paths-ignore:
+      - '*.md'
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab

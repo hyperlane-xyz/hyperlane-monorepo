@@ -9,6 +9,7 @@ on:
     paths-ignore:
       - 'rust/**'
       - .github/workflows/rust.yml
+      - '*.md'
   # Support for merge queues
   merge_group:
 
