@@ -12,7 +12,7 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -26,11 +26,7 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 
-import {
-  createAdvancedIsmConfig,
-  createRoutingConfig,
-  createTrustedRelayerConfig,
-} from './ism.js';
+import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
@@ -151,7 +147,7 @@ export async function createWarpRouteDeployConfig({
 
     const interchainSecurityModule = advanced
       ? await createAdvancedIsmConfig(context)
-      : await createDefaultWarpIsmConfig(context);
+      : await createDefaultWarpIsmConfig(owner);
 
     switch (type) {
       case TokenType.collateral:
@@ -205,14 +201,27 @@ export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
   return WarpCoreConfigSchema.parse(config);
 }
 
-async function createDefaultWarpIsmConfig(
-  context: CommandContext,
-): Promise<IsmConfig> {
+/**
+ * Creates a default configuration for an ISM with a TRUSTED_RELAYER and FALLBACK_ROUTING.
+ *
+ * Properties relayer and owner and both set as input owner.
+ *
+ * @param owner - The address of the owner of the ISM.
+ * @returns The default Aggregation ISM configuration.
+ */
+async function createDefaultWarpIsmConfig(owner: Address): Promise<IsmConfig> {
   return {
     type: IsmType.AGGREGATION,
     modules: [
-      await createTrustedRelayerConfig(context),
-      await createRoutingConfig(context, IsmType.FALLBACK_ROUTING),
+      {
+        type: IsmType.TRUSTED_RELAYER,
+        relayer: owner,
+      },
+      {
+        type: IsmType.FALLBACK_ROUTING,
+        domains: {},
+        owner,
+      },
     ],
     threshold: 1,
   };
