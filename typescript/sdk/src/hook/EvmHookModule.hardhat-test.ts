@@ -28,8 +28,8 @@ import {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
+  IMMUTABLE_HOOK_TYPE,
   IgpHookConfig,
-  MerkleTreeHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
@@ -158,14 +158,14 @@ function randomHookConfig(
 }
 
 describe('EvmHookModule', async () => {
+  const chain = TestChainName.test4;
+
+  // beforeEach
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
   let fundingAccount: Signer;
-
-  const chain = TestChainName.test4;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
-
   let exampleRoutingConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
 
   beforeEach(async () => {
@@ -209,6 +209,7 @@ describe('EvmHookModule', async () => {
       validatorAnnounce: validatorAnnounce.address,
     };
 
+    // reusable for routing/fallback routing specific tests
     exampleRoutingConfig = {
       owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
       domains: Object.fromEntries(
@@ -279,118 +280,39 @@ describe('EvmHookModule', async () => {
   }
 
   describe('create', async () => {
+    // generate a random config for each hook type
+    const exampleHookConfigs: HookConfig[] = [
+      // include an address config
+      randomAddress(),
+      ...hookTypes
+        // need to setup deploying/mocking IL1CrossDomainMessenger before this test can be enabled
+        .filter(
+          (hookType) =>
+            hookType !== HookType.OP_STACK && hookType !== HookType.CUSTOM,
+        )
+        // generate a random config for each hook type
+        .map((hookType) => {
+          return randomHookConfig(0, 1, hookType);
+        }),
+    ];
+
+    // test deployment of each hookType, except OP_STACK and CUSTOM
+    // minimum depth only
+    for (const config of exampleHookConfigs) {
+      it(`deploys a hook of type ${
+        typeof config === 'string' ? 'address' : config.type
+      }`, async () => {
+        await createHook(config);
+      });
+    }
+
+    // manually include test for CUSTOM hook type
     it('deploys a hook of type CUSTOM', async () => {
       const config: HookConfig = randomAddress();
       await createHook(config);
     });
 
-    it('deploys a hook of type MERKLE_TREE', async () => {
-      const config: MerkleTreeHookConfig = {
-        type: HookType.MERKLE_TREE,
-      };
-      await createHook(config);
-    });
-
-    it('deploys a hook of type INTERCHAIN_GAS_PAYMASTER', async () => {
-      const owner = randomAddress();
-      const config: IgpHookConfig = {
-        owner,
-        type: HookType.INTERCHAIN_GAS_PAYMASTER,
-        beneficiary: randomAddress(),
-        oracleKey: owner,
-        overhead: Object.fromEntries(
-          testChains.map((c) => [c, Math.floor(Math.random() * 100)]),
-        ),
-        oracleConfig: Object.fromEntries(
-          testChains.map((c) => [
-            c,
-            {
-              tokenExchangeRate: randomInt(1234567891234).toString(),
-              gasPrice: randomInt(1234567891234).toString(),
-            },
-          ]),
-        ),
-      };
-      await createHook(config);
-    });
-
-    it('deploys a hook of type PROTOCOL_FEE', async () => {
-      const { maxProtocolFee, protocolFee } = randomProtocolFee();
-      const config: ProtocolFeeHookConfig = {
-        owner: randomAddress(),
-        type: HookType.PROTOCOL_FEE,
-        maxProtocolFee,
-        protocolFee,
-        beneficiary: randomAddress(),
-      };
-      await createHook(config);
-    });
-
-    it('deploys a hook of type ROUTING', async () => {
-      const config: DomainRoutingHookConfig = {
-        owner: randomAddress(),
-        type: HookType.ROUTING,
-        domains: Object.fromEntries(
-          testChains
-            .filter((c) => c !== TestChainName.test4)
-            .map((c) => [
-              c,
-              {
-                type: HookType.MERKLE_TREE,
-              },
-            ]),
-        ),
-      };
-      await createHook(config);
-    });
-
-    it('deploys a hook of type FALLBACK_ROUTING', async () => {
-      const config: FallbackRoutingHookConfig = {
-        owner: randomAddress(),
-        type: HookType.FALLBACK_ROUTING,
-        fallback: { type: HookType.MERKLE_TREE },
-        domains: Object.fromEntries(
-          testChains
-            .filter((c) => c !== TestChainName.test4)
-            .map((c) => [
-              c,
-              {
-                type: HookType.MERKLE_TREE,
-              },
-            ]),
-        ),
-      };
-      await createHook(config);
-    });
-
-    it('deploys a hook of type AGGREGATION', async () => {
-      const config: AggregationHookConfig = {
-        type: HookType.AGGREGATION,
-        hooks: [{ type: HookType.MERKLE_TREE }, { type: HookType.MERKLE_TREE }],
-      };
-      await createHook(config);
-    });
-
-    it('deploys a hook of type PAUSABLE', async () => {
-      const config: PausableHookConfig = {
-        owner: randomAddress(),
-        type: HookType.PAUSABLE,
-        paused: false,
-      };
-      await createHook(config);
-    });
-
-    // it('deploys a hook of type OP_STACK', async () => {
-    // need to setup deploying/mocking IL1CrossDomainMessenger before this test can be enabled
-    //   const config: OpStackHookConfig = {
-    //     owner: randomAddress(),
-    //     type: HookType.OP_STACK,
-    //     nativeBridge: randomAddress(),
-    //     destinationChain: 'testChain',
-    //   };
-    //   await createHook(config);
-    // });
-
+    // random configs upto depth 2
     for (let i = 0; i < 16; i++) {
       it(`deploys a random hook config #${i}`, async () => {
         // random config with depth 0-2
@@ -399,6 +321,7 @@ describe('EvmHookModule', async () => {
       });
     }
 
+    // manual test to catch regressions on a complex config type
     it('regression test #1', async () => {
       const config: HookConfig = {
         type: HookType.AGGREGATION,
@@ -532,7 +455,77 @@ describe('EvmHookModule', async () => {
         .false;
     });
 
-    // TODO: INTERCHAIN_GAS_PAYMASTER
+    const createDeployerOwnedIgpHookConfig =
+      async (): Promise<IgpHookConfig> => {
+        const owner = await multiProvider.getSignerAddress(chain);
+        return {
+          owner,
+          type: HookType.INTERCHAIN_GAS_PAYMASTER,
+          beneficiary: randomAddress(),
+          oracleKey: owner,
+          overhead: Object.fromEntries(
+            testChains.map((c) => [c, Math.floor(Math.random() * 100)]),
+          ),
+          oracleConfig: Object.fromEntries(
+            testChains.map((c) => [
+              c,
+              {
+                tokenExchangeRate: randomInt(1234567891234).toString(),
+                gasPrice: randomInt(1234567891234).toString(),
+              },
+            ]),
+          ),
+        };
+      };
+
+    it('should update beneficiary in IGP', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      // change the beneficiary
+      config.beneficiary = randomAddress();
+
+      // expect 1 tx to update the beneficiary
+      await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    it('should update the overheads in IGP', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      // change the overheads
+      config.overhead = Object.fromEntries(
+        testChains.map((c) => [c, Math.floor(Math.random() * 100)]),
+      );
+
+      // expect 1 tx to update the overheads
+      await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    it('should update the oracle config in IGP', async () => {
+      const config = await createDeployerOwnedIgpHookConfig();
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      // change the oracle config
+      config.oracleConfig = Object.fromEntries(
+        testChains.map((c) => [
+          c,
+          {
+            tokenExchangeRate: randomInt(987654321).toString(),
+            gasPrice: randomInt(987654321).toString(),
+          },
+        ]),
+      );
+
+      // expect 1 tx to update the oracle config
+      await expectTxsAndUpdate(hook, config, 1);
+    });
 
     it('should update protocol fee in protocol fee hook', async () => {
       const config: ProtocolFeeHookConfig = {
@@ -596,7 +589,6 @@ describe('EvmHookModule', async () => {
       await expectTxsAndUpdate(hook, config, 1);
     });
 
-    // ROUTING, FALLBACK_ROUTING
     for (const type of [HookType.ROUTING, HookType.FALLBACK_ROUTING]) {
       beforeEach(() => {
         exampleRoutingConfig.type = type as
@@ -635,19 +627,29 @@ describe('EvmHookModule', async () => {
           .be.true;
       });
 
-      // TODO: add domains when updating
+      it(`updates an existing ${type} with new domains`, async () => {
+        exampleRoutingConfig = {
+          owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+          domains: {
+            test1: {
+              type: HookType.MERKLE_TREE,
+            },
+          },
+          type: HookType.FALLBACK_ROUTING,
+          fallback: { type: HookType.MERKLE_TREE },
+        };
 
-      // TODO: restructure so every ownable hook does this ownership test
-      it(`updates owner in an existing ${type}`, async () => {
         // create a new hook
         const { hook, initialHookAddress } = await createHook(
           exampleRoutingConfig,
         );
 
-        // change the config owner
-        exampleRoutingConfig.owner = randomAddress();
+        // add a new domain
+        exampleRoutingConfig.domains[TestChainName.test2] = {
+          type: HookType.MERKLE_TREE,
+        };
 
-        // expect 1 tx to transfer ownership
+        // expect 1 tx to update the domains
         await expectTxsAndUpdate(hook, exampleRoutingConfig, 1);
 
         // expect the hook address to be the same
@@ -655,47 +657,38 @@ describe('EvmHookModule', async () => {
           .be.true;
       });
 
-      // TODO: restructure so every ownable hook does this ownership test
-      it(`update owner in an existing ${type} not owned by deployer`, async () => {
-        // hook owner is not the deployer
-        exampleRoutingConfig.owner = randomAddress();
-        const originalOwner = exampleRoutingConfig.owner;
+      it(`updates an existing ${type} with new domains`, async () => {
+        exampleRoutingConfig = {
+          owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+          domains: {
+            test1: {
+              type: HookType.MERKLE_TREE,
+            },
+          },
+          type: HookType.FALLBACK_ROUTING,
+          fallback: { type: HookType.MERKLE_TREE },
+        };
 
         // create a new hook
         const { hook, initialHookAddress } = await createHook(
           exampleRoutingConfig,
         );
 
-        // update the config owner and impersonate the original owner
-        exampleRoutingConfig.owner = randomAddress();
-        multiProvider = await impersonateAccount(originalOwner);
+        // add multiple new domains
+        exampleRoutingConfig.domains[TestChainName.test2] = {
+          type: HookType.MERKLE_TREE,
+        };
+        exampleRoutingConfig.domains[TestChainName.test3] = {
+          type: HookType.MERKLE_TREE,
+        };
+        exampleRoutingConfig.domains[TestChainName.test4] = {
+          type: HookType.MERKLE_TREE,
+        };
 
-        // expect 1 tx to transfer ownership
+        // expect 1 tx to update the domains
         await expectTxsAndUpdate(hook, exampleRoutingConfig, 1);
 
-        // expect the hook address to be unchanged
-        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
-          .be.true;
-      });
-
-      // TODO: restructure so every ownable hook does this ownership test
-      it(`update owner in an existing ${type} not owned by deployer and no change`, async () => {
-        // hook owner is not the deployer
-        exampleRoutingConfig.owner = randomAddress();
-        const originalOwner = exampleRoutingConfig.owner;
-
-        // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
-
-        // impersonate the original owner
-        multiProvider = await impersonateAccount(originalOwner);
-
-        // expect 0 updates
-        await expectTxsAndUpdate(hook, exampleRoutingConfig, 0);
-
-        // expect the hook address to be unchanged
+        // expect the hook address to be the same
         expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
           .be.true;
       });
@@ -731,5 +724,80 @@ describe('EvmHookModule', async () => {
       // expect 0 updates
       await expectTxsAndUpdate(hook, config, 0);
     });
+
+    // generate a random config for each ownable hook type
+    const ownableHooks = hookTypes
+      .filter((hookType) => !IMMUTABLE_HOOK_TYPE.includes(hookType))
+      .map((hookType) => {
+        return randomHookConfig(0, 1, hookType);
+      });
+
+    for (const config of ownableHooks) {
+      assert(
+        typeof config !== 'string',
+        'Address is not an ownable hook config',
+      );
+      assert(
+        'owner' in config,
+        'Ownable hook config must have an owner property',
+      );
+
+      it(`updates owner in an existing ${config.type}`, async () => {
+        // hook owned by the deployer
+        config.owner = await multiProvider.getSignerAddress(chain);
+
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(config);
+
+        // change the config owner
+        config.owner = randomAddress();
+
+        // expect 1 tx to transfer ownership
+        await expectTxsAndUpdate(hook, config, 1);
+
+        // expect the hook address to be the same
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
+      });
+
+      it(`update owner in an existing ${config.type} not owned by deployer`, async () => {
+        // hook owner is not the deployer
+        config.owner = randomAddress();
+        const originalOwner = config.owner;
+
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(config);
+
+        // update the config owner and impersonate the original owner
+        config.owner = randomAddress();
+        multiProvider = await impersonateAccount(originalOwner);
+
+        // expect 1 tx to transfer ownership
+        await expectTxsAndUpdate(hook, config, 1);
+
+        // expect the hook address to be unchanged
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
+      });
+
+      it(`update owner in an existing ${config.type} not owned by deployer and no change`, async () => {
+        // hook owner is not the deployer
+        config.owner = randomAddress();
+        const originalOwner = config.owner;
+
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(config);
+
+        // impersonate the original owner
+        multiProvider = await impersonateAccount(originalOwner);
+
+        // expect 0 updates
+        await expectTxsAndUpdate(hook, config, 0);
+
+        // expect the hook address to be unchanged
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
+      });
+    }
   });
 });
