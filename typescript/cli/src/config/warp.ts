@@ -204,7 +204,7 @@ export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
 /**
  * Creates a default configuration for an ISM with a TRUSTED_RELAYER and FALLBACK_ROUTING.
  *
- * Properties relayer and owner and both set as input owner.
+ * Properties relayer and owner are both set as input owner.
  *
  * @param owner - The address of the owner of the ISM.
  * @returns The default Aggregation ISM configuration.
