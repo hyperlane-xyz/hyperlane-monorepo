@@ -434,20 +434,22 @@ export class WarpCore {
       return true;
     }
 
+    let destinationBalance: bigint;
+
     const adapter = destinationToken.getAdapter(this.multiProvider);
     if (
       destinationToken.standard === TokenStandard.EvmHypXERC20 ||
       destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
     ) {
-      const mintLimit = await (
+      destinationBalance = await (
         adapter as IHypXERC20Adapter<unknown>
       ).getMintLimit();
-      return mintLimit >= BigInt(originTokenAmount.amount);
+    } else {
+      destinationBalance = await adapter.getBalance(
+        destinationToken.addressOrDenom,
+      );
     }
 
-    const destinationBalance = await adapter.getBalance(
-      destinationToken.addressOrDenom,
-    );
     const destinationBalanceInOriginDecimals = convertDecimals(
       destinationToken.decimals,
       originToken.decimals,
