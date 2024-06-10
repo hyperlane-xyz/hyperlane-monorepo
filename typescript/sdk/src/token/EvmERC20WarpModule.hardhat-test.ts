@@ -211,7 +211,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     await validateCoreValues(nativeContract);
   });
 
-  it.only('should create with an IsmConfig', async () => {
+  it('should create with an IsmConfig', async () => {
     const config: TokenRouterConfig = {
       ...baseConfig,
       type: TokenType.collateral,
