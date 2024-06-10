@@ -147,7 +147,7 @@ export async function createWarpRouteDeployConfig({
 
     const interchainSecurityModule = advanced
       ? await createAdvancedIsmConfig(context)
-      : await createDefaultWarpIsmConfig(owner);
+      : createDefaultWarpIsmConfig(owner);
 
     switch (type) {
       case TokenType.collateral:
@@ -209,7 +209,7 @@ export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
  * @param owner - The address of the owner of the ISM.
  * @returns The default Aggregation ISM configuration.
  */
-async function createDefaultWarpIsmConfig(owner: Address): Promise<IsmConfig> {
+function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
   return {
     type: IsmType.AGGREGATION,
     modules: [
