@@ -1,0 +1,32 @@
+{
+  "chains": {
+    "anvil8545": {
+      "name": "anvil8545",
+      "chainId": 31337,
+      "domainId": 31337,
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "http://localhost:8545"
+        }
+      ],
+      "staticMerkleRootMultisigIsmFactory": "0x546fC2f0f0D651d6eDa084F4231b65b49857eD55",
+      "staticMessageIdMultisigIsmFactory": "0x49FaE880a25e4d715B38829C83F9Cb2BDA40E4D0",
+      "staticAggregationIsmFactory": "0x5Da08612465f067CDbeA97D0d32DD3a012C7aDBf",
+      "staticAggregationHookFactory": "0xdca4C6Ce756013015dB53dda59420fCFaf429bca",
+      "domainRoutingIsmFactory": "0x8004C1975cFd117e3aBeed4358500B4b7F9C3D5E",
+      "interchainSecurityModule": "0xe1a0292Ac8cf6b27C6E7b3254a9f1863a54E5829",
+      "domainRoutingIsm": "0xe1a0292Ac8cf6b27C6E7b3254a9f1863a54E5829",
+      "merkleTreeHook": "0x42599A4780784b92D02EfAA69DAC2DC401730eD9",
+      "protocolFee": "0xc3A82aFfe47c9F68a7D4e3B68a994E3192d2FCAB",
+      "testRecipient": "0xD7b09d3Ff66abd8bbf24c023A0Ae34298bc5CB6a",
+      "mailbox": "0xD8824cA6d7C87Ac747631121e45062F076609762",
+      "proxyAdmin": "0x96b768d7790A4dE644ab2Ada1A4D1aa79977ce11",
+      "validatorAnnounce": "0x326FcC17826b1B1EFC65Ea7Ea07c3A6Ea7E9d695",
+      "index": {
+        "from": 8
+      }
+    }
+  },
+  "defaultRpcConsensusType": "fallback"
+}

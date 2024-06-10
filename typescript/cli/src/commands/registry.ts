@@ -1,10 +1,13 @@
-import { CommandModule } from 'yargs';
+import { CommandModule, Options } from 'yargs';
 
+import { createAgentConfig } from '../config/agent.js';
 import { CommandModuleWithContext } from '../context/types.js';
-import { log, logBlue, logGray, logTable } from '../logger.js';
+import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
 
-const ChainTypes = ['mainnet', 'testnet'];
-type ChainType = (typeof ChainTypes)[number];
+import { outputFileCommandOption } from './options.js';
+
+export const ChainTypes = ['mainnet', 'testnet'];
+export type ChainType = (typeof ChainTypes)[number];
 
 /**
  * Parent command
@@ -16,6 +19,7 @@ export const registryCommand: CommandModule = {
     yargs
       .command(listCommand)
       .command(addressesCommand)
+      .command(createAgentConfigCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -86,5 +90,90 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
       logGray('----------------------------------');
       log(JSON.stringify(result, null, 2));
     }
+  },
+};
+
+const chainTargetsCommandOption: Options = {
+  type: 'string',
+  description: 'Comma-separated list of chain names',
+  alias: 'c',
+  // TODO choices: ... can we configure this so that it's a list of chain names including any new chains added to the local registry
+};
+
+const environmentCommandOption: Options = {
+  type: 'string',
+  description: 'The name of the environment to deploy to',
+  alias: 'e',
+  choices: ChainTypes,
+};
+
+const createAgentConfigCommand: CommandModuleWithContext<{
+  chains?: string;
+  environment?: string;
+  out: string;
+}> = {
+  command: 'agent-config',
+  describe: 'Create a new agent config',
+  builder: {
+    chains: chainTargetsCommandOption,
+    environment: environmentCommandOption,
+    out: outputFileCommandOption(
+      './configs/agent-config.json',
+      false,
+      'The path to output an agent config JSON file.',
+    ),
+  },
+  // TODO: make chains and environment mutually exclusive, but require one of them
+  // builder: (yargs: Argv<{}>) =>
+  //   yargs
+  //     .option('chains', chainTargetsCommandOption)
+  //     .option('environment', environmentCommandOption)
+  //     .option(
+  //       'config',
+  //       outputFileCommandOption(
+  //         './configs/agent-config.json',
+  //         false,
+  //         'The path to output an agent config JSON file.',
+  //       ),
+  //     )
+  //     .check((argv) => {
+  //       if (!argv.chains && !argv.environment) {
+  //         throw new Error(
+  //           'Either --chains or --environment must be specified.',
+  //         );
+  //       }
+  //       return true;
+  //     })
+  //     .check((argv) => {
+  //       if (argv.chains && argv.environment) {
+  //         throw new Error(
+  //           '--chains and --environment cannot be specified together.',
+  //         );
+  //       }
+  //       return true;
+  //     }),
+  handler: async ({ context, chains, environment, out }) => {
+    const { registry } = context;
+
+    let chainNames;
+    if (chains) {
+      chainNames = chains.split(',');
+      const validChainNames = await registry.getChains();
+
+      const invalidChainNames = chainNames.filter(
+        (chainName) => !validChainNames.includes(chainName),
+      );
+      if (invalidChainNames.length > 0) {
+        logRed(
+          `Invalid chain names: ${invalidChainNames
+            .join(', ')
+            .replace(/, $/, '')}`,
+        );
+        process.exit(1);
+      }
+    }
+
+    await createAgentConfig({ context, chains: chainNames, environment, out });
+    process.exit(0);
   },
 };
