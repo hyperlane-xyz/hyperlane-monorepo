@@ -135,7 +135,7 @@ async function executeDeploy(params: DeployParams) {
     ismFactoryDeployer,
   );
 
-  // For each chain in WarpRouteConfig, deploy and return a modified config with the ISM as address strings
+  // For each chain in deployedFactoriesAddresses, deploy and return a modified config with the ISM as address strings
   // We need an address because the Deployer cannot handle IsmConfig objects directly
   const modifiedConfig = await deployWarpIsm(
     config,
@@ -176,7 +176,7 @@ async function fetchOrDeployIsmFactoryAddresses(
 }
 
 /**
- * Deploys the Warp ISM for each chain in the provided `WarpRouteDeployConfig`.
+ * Deploys the Warp ISM for each chain in the provided `deployedFactoriesAddresses`.
  * @returns IsmConfig with each Ism as an address string
  */
 async function deployWarpIsm(
