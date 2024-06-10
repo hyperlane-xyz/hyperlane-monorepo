@@ -12,6 +12,7 @@ import {
   OPStackIsm__factory,
   Ownable__factory,
   PausableHook,
+  PausableHook__factory,
   ProtocolFee,
   ProtocolFee__factory,
   StaticAggregationHook,
@@ -180,8 +181,10 @@ export class EvmHookModule extends HyperlaneModule<
         });
         break;
       case HookType.PAUSABLE:
-        // PausableHooks are simple, only need to check ownership
-        updateTxs = [];
+        updateTxs = await this.updatePausableHook({
+          currentConfig,
+          targetConfig,
+        });
         break;
       case HookType.ROUTING:
       case HookType.FALLBACK_ROUTING:
@@ -282,6 +285,34 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     return routingHookUpdates;
+  }
+
+  protected async updatePausableHook({
+    currentConfig,
+    targetConfig,
+  }: {
+    currentConfig: PausableHookConfig;
+    targetConfig: PausableHookConfig;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const updateTxs = [];
+
+    if (currentConfig.paused !== targetConfig.paused) {
+      // Have to encode separately otherwise tsc will complain
+      // about being unable to infer types correctly
+      const pausableInterface = PausableHook__factory.createInterface();
+      const data = targetConfig.paused
+        ? pausableInterface.encodeFunctionData('pause')
+        : pausableInterface.encodeFunctionData('unpause');
+
+      updateTxs.push({
+        annotation: `Updating paused state to ${targetConfig.paused}`,
+        chainId: this.domainId,
+        to: this.args.addresses.deployedHook,
+        data,
+      });
+    }
+
+    return updateTxs;
   }
 
   protected async updateIgpHook({
@@ -540,6 +571,7 @@ export class EvmHookModule extends HyperlaneModule<
     ) {
       const hook = await this.deploy({ config: targetConfig });
       this.args.addresses.deployedHook = hook.address;
+      return [];
     }
 
     const routingUpdates = await this.computeRoutingHooksToSet({

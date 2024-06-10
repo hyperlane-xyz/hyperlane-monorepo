@@ -512,31 +512,96 @@ describe('EvmHookModule', async () => {
   });
 
   describe('update', async () => {
+    it('should update by deploying a new aggregation hook', async () => {
+      const config: AggregationHookConfig = {
+        type: HookType.AGGREGATION,
+        hooks: [randomHookConfig(0, 2), randomHookConfig(0, 2)],
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // change the hooks
+      config.hooks = [randomHookConfig(0, 2), randomHookConfig(0, 2)];
+
+      // expect 0 tx to be returned, as it should deploy a new aggregation hook
+      await expectTxsAndUpdate(hook, config, 0);
+
+      // expect the hook address to be different
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+    });
+
+    // TODO: INTERCHAIN_GAS_PAYMASTER
+
+    it('should update protocol fee in protocol fee hook', async () => {
+      const config: ProtocolFeeHookConfig = {
+        owner: await multiProvider.getSignerAddress(chain),
+        type: HookType.PROTOCOL_FEE,
+        maxProtocolFee: '1000',
+        protocolFee: '100',
+        beneficiary: randomAddress(),
+      };
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      // change the protocol fee
+      config.protocolFee = '200';
+
+      // expect 1 tx to update the protocol fee
+      await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    it('should update max fee in protocol fee hook', async () => {
+      const config: ProtocolFeeHookConfig = {
+        owner: await multiProvider.getSignerAddress(chain),
+        type: HookType.PROTOCOL_FEE,
+        maxProtocolFee: '1000',
+        protocolFee: '100',
+        beneficiary: randomAddress(),
+      };
+
+      // create a new hook
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // change the protocol fee
+      config.maxProtocolFee = '2000';
+
+      // expect 0 tx to update the max protocol fee as it has to deploy a new hook
+      await expectTxsAndUpdate(hook, config, 0);
+
+      // expect the hook address to be different
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+    });
+
+    it('should update paused state of pausable hook', async () => {
+      const config: PausableHookConfig = {
+        owner: randomAddress(),
+        type: HookType.PAUSABLE,
+        paused: false,
+      };
+
+      // create a new hook
+      const { hook } = await createHook(config);
+
+      // change the paused state
+      config.paused = true;
+
+      // impersonate the hook owner
+      multiProvider = await impersonateAccount(config.owner);
+
+      // expect 1 tx to update the paused state
+      await expectTxsAndUpdate(hook, config, 1);
+    });
+
+    // ROUTING, FALLBACK_ROUTING
     for (const type of [HookType.ROUTING, HookType.FALLBACK_ROUTING]) {
       beforeEach(() => {
         exampleRoutingConfig.type = type as
           | HookType.ROUTING
           | HookType.FALLBACK_ROUTING;
-      });
-
-      it(`should update ${type} hook`, async () => {
-        // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
-
-        // update the hook with some random new config
-        const newConfig: MerkleTreeHookConfig = {
-          type: HookType.MERKLE_TREE,
-        };
-        testConfig = newConfig;
-
-        // expect a fresh hook to be deployed which means 0 txs returned
-        await expectTxsAndUpdate(hook, newConfig, 0);
-
-        // expect a fresh hook address
-        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
-          .be.false;
       });
 
       it(`should skip deployment with warning if no chain metadata configured ${type}`, async () => {
@@ -556,6 +621,23 @@ describe('EvmHookModule', async () => {
         await expectTxsAndUpdate(hook, updatedConfig, 0);
       });
 
+      it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(
+          exampleRoutingConfig,
+        );
+
+        // expect 0 updates
+        await expectTxsAndUpdate(hook, exampleRoutingConfig, 0);
+
+        // expect the hook address to be the same
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
+      });
+
+      // TODO: add domains when updating
+
+      // TODO: restructure so every ownable hook does this ownership test
       it(`updates owner in an existing ${type}`, async () => {
         // create a new hook
         const { hook, initialHookAddress } = await createHook(
@@ -573,20 +655,7 @@ describe('EvmHookModule', async () => {
           .be.true;
       });
 
-      it(`no changes to an existing ${type} means no redeployment or updates`, async () => {
-        // create a new hook
-        const { hook, initialHookAddress } = await createHook(
-          exampleRoutingConfig,
-        );
-
-        // expect 0 updates
-        await expectTxsAndUpdate(hook, exampleRoutingConfig, 0);
-
-        // expect the hook address to be the same
-        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
-          .be.true;
-      });
-
+      // TODO: restructure so every ownable hook does this ownership test
       it(`update owner in an existing ${type} not owned by deployer`, async () => {
         // hook owner is not the deployer
         exampleRoutingConfig.owner = randomAddress();
@@ -608,6 +677,59 @@ describe('EvmHookModule', async () => {
         expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
           .be.true;
       });
+
+      // TODO: restructure so every ownable hook does this ownership test
+      it(`update owner in an existing ${type} not owned by deployer and no change`, async () => {
+        // hook owner is not the deployer
+        exampleRoutingConfig.owner = randomAddress();
+        const originalOwner = exampleRoutingConfig.owner;
+
+        // create a new hook
+        const { hook, initialHookAddress } = await createHook(
+          exampleRoutingConfig,
+        );
+
+        // impersonate the original owner
+        multiProvider = await impersonateAccount(originalOwner);
+
+        // expect 0 updates
+        await expectTxsAndUpdate(hook, exampleRoutingConfig, 0);
+
+        // expect the hook address to be unchanged
+        expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to
+          .be.true;
+      });
     }
+
+    it(`update fallback in an existing fallback routing hook`, async () => {
+      // create a new hook
+      const config = exampleRoutingConfig as FallbackRoutingHookConfig;
+      const { hook, initialHookAddress } = await createHook(config);
+
+      // change the fallback
+      config.fallback = {
+        type: HookType.PROTOCOL_FEE,
+        owner: randomAddress(),
+        maxProtocolFee: '9000',
+        protocolFee: '350',
+        beneficiary: randomAddress(),
+      };
+
+      // expect 0 tx as it will have to deploy a new fallback routing hook
+      await expectTxsAndUpdate(hook, config, 0);
+
+      // expect the hook address to be different
+      expect(eqAddress(initialHookAddress, hook.serialize().deployedHook)).to.be
+        .false;
+    });
+
+    it(`update fallback in an existing fallback routing hook with no change`, async () => {
+      // create a new hook
+      const config = exampleRoutingConfig as FallbackRoutingHookConfig;
+      const { hook } = await createHook(config);
+
+      // expect 0 updates
+      await expectTxsAndUpdate(hook, config, 0);
+    });
   });
 });
