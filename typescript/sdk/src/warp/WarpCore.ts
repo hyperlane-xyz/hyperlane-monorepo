@@ -24,12 +24,10 @@ import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
+  TokenStandard,
 } from '../token/TokenStandard.js';
 import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
-import {
-  IHypXERC20Adapter,
-  ITokenAdapter,
-} from '../token/adapters/ITokenAdapter.js';
+import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -46,13 +44,6 @@ export interface WarpCoreOptions {
   localFeeConstants?: FeeConstantConfig;
   interchainFeeConstants?: FeeConstantConfig;
   routeBlacklist?: RouteBlacklist;
-}
-
-function isXERC20Adapter<T>(x: ITokenAdapter<T>): x is IHypXERC20Adapter<T> {
-  return (
-    !!(x as any as IHypXERC20Adapter<T>).belowBurnLimit &&
-    !!(x as any as IHypXERC20Adapter<T>).belowMintLimit
-  );
 }
 
 export class WarpCore {
@@ -444,8 +435,13 @@ export class WarpCore {
     }
 
     const adapter = destinationToken.getAdapter(this.multiProvider);
-    if (isXERC20Adapter(adapter)) {
-      return await adapter.belowMintLimit(originTokenAmount.amount);
+    if (
+      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
+    ) {
+      return await (adapter as IHypXERC20Adapter<unknown>).belowMintLimit(
+        originTokenAmount.amount,
+      );
     }
 
     const destinationBalance = await adapter.getBalance(
@@ -688,8 +684,13 @@ export class WarpCore {
   ): Promise<Record<string, string> | null> {
     const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
 
-    if (isXERC20Adapter(adapter)) {
-      const valid = await adapter.belowBurnLimit(originTokenAmount.amount);
+    if (
+      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20 ||
+      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20Lockbox
+    ) {
+      const valid = await (
+        adapter as IHypXERC20Adapter<unknown>
+      ).belowBurnLimit(originTokenAmount.amount);
       if (!valid) return { amount: 'Insufficient burn limit on origin' };
     }
 
