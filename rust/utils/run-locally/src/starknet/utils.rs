@@ -90,6 +90,7 @@ pub(crate) fn declare_all(
             "hyperlane_starknet_merkle_tree_hook" => declared_classes.hpl_hook_merkle = class_hash,
             "hyperlane_starknet_mailbox" => declared_classes.hpl_mailbox = class_hash,
             "hyperlane_starknet_ism" => declared_classes.hpl_test_mock_ism = class_hash,
+            "hyperlane_starknet_pausable" => declared_classes.hpl_ism_pausable = class_hash,
             "hyperlane_starknet_hook" => declared_classes.hpl_test_mock_hook = class_hash,
             "hyperlane_starknet_aggregation" => declared_classes.hpl_ism_aggregate = class_hash,
             "hyperlane_starknet_message_recipient" => {
@@ -118,13 +119,6 @@ pub(crate) fn deploy_all(
     declarations: DeclaredClasses,
     domain: u32,
 ) -> Deployments {
-    // deploy mailbox
-    println!("Deploying mailbox");
-    let mailbox = cli.deploy(
-        declarations.hpl_mailbox,
-        vec![domain.to_string(), deployer.clone()],
-    );
-
     // deploy ism - routing ism with empty routes
     println!("Deploying routing ism");
     let ism_routing = cli.deploy(declarations.hpl_ism_routing, vec![deployer.clone()]);
@@ -140,7 +134,9 @@ pub(crate) fn deploy_all(
     println!("Deploying multisig ism");
     let ism_multisig = cli.deploy(declarations.hpl_ism_multisig, vec![deployer.clone()]);
 
-    // TODO: deploy pausable ism
+    // deploy pausable ism
+    println!("Deploying pausable ism");
+    let ism_pausable = cli.deploy(declarations.hpl_ism_pausable, vec![deployer.clone()]);
 
     // deploy ism - aggregation
     println!("Deploying aggregation ism");
@@ -153,23 +149,49 @@ pub(crate) fn deploy_all(
     cli.invoke(
         ism_aggregate.clone(),
         "set_modules",
-        vec!["1".to_string(), ism_multisig.clone()],
+        vec!["2".to_string(), ism_multisig.clone(), ism_pausable],
+    );
+
+    // deploy mailbox
+    println!("Deploying mailbox");
+    let mailbox = cli.deploy(
+        declarations.hpl_mailbox,
+        vec![
+            domain.to_string(),
+            deployer.clone(),
+            ism_multisig.clone(),
+            "0".to_string(),
+            "0".to_string(),
+        ],
     );
 
     // deploy merkle hook
     println!("Deploying merkle hook");
     let hook_merkle = cli.deploy(declarations.hpl_hook_merkle, vec![mailbox.clone()]);
 
-    // initialize mailbox
-    println!("Initializing mailbox");
+    // set default/required hook
+
+    // ---------- mock area -----------
+
+    // deploy mock receiver
+    println!("Deploying mock receiver");
+    let mock_receiver = cli.deploy(
+        declarations.hpl_test_mock_msg_receiver,
+        vec![ism_multisig.clone()],
+    );
+
+    // deploy mock hook
+    println!("Deploying mock hook");
+    let mock_hook = cli.deploy(declarations.hpl_test_mock_hook, vec![]);
+
+    let mock_ism = cli.deploy(declarations.hpl_test_mock_ism, vec![]);
+
+    println!("Setting default/required hook");
+    cli.invoke(mailbox.clone(), "set_default_hook", vec![mock_hook.clone()]);
     cli.invoke(
         mailbox.clone(),
-        "initialize",
-        vec![
-            ism_aggregate.clone(),
-            hook_merkle.clone(),
-            hook_merkle.clone(),
-        ],
+        "set_required_hook",
+        vec![mock_hook.clone()],
     );
 
     // TODO: deploy routing hook
@@ -177,18 +199,6 @@ pub(crate) fn deploy_all(
     // deploy va
     println!("Deploying validator announce");
     let va = cli.deploy(declarations.hpl_validator_announce, vec![mailbox.clone()]);
-
-    // ---------- mock area -----------
-
-    // deploy mock receiver
-    println!("Deploying mock receiver");
-    let mock_receiver = cli.deploy(declarations.hpl_test_mock_msg_receiver, vec![]);
-
-    // deploy mock hook
-    println!("Deploying mock hook");
-    let mock_hook = cli.deploy(declarations.hpl_test_mock_hook, vec![]);
-
-    let mock_ism = cli.deploy(declarations.hpl_test_mock_ism, vec![]);
 
     Deployments {
         mailbox,

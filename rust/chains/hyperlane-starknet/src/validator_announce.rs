@@ -160,7 +160,10 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
                     .collect()
             })
             .collect::<Result<Vec<Vec<String>>, ParseCairoShortStringError>>()
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+            .map_err(Into::<HyperlaneStarknetError>::into)?
+            .into_iter()
+            .map(|inner_vec| vec![inner_vec.join("")]) // Concatenate strings in each inner vector
+            .collect();
 
         Ok(storage_locations)
     }
