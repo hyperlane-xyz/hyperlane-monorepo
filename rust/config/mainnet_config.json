@@ -1041,8 +1041,8 @@
       "name": "polygon",
       "nativeToken": {
         "decimals": 18,
-        "name": "Ether",
-        "symbol": "ETH"
+        "name": "Matic",
+        "symbol": "MATIC"
       },
       "pausableHook": "0x748040afB89B8FdBb992799808215419d36A0930",
       "pausableIsm": "0x6741e91fFDC31c7786E3684427c628dad06299B0",
