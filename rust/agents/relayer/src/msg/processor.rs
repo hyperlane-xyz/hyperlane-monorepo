@@ -138,7 +138,10 @@ impl DirectionalNonceIterator {
     #[instrument]
     fn iterate(&mut self) {
         match self.direction {
-            NonceDirection::High => self.nonce = self.nonce.map(|n| n.saturating_add(1)),
+            NonceDirection::High => {
+                self.nonce = self.nonce.map(|n| n.saturating_add(1));
+                debug!(?self, "Iterating high nonce");
+            }
             NonceDirection::Low => {
                 if let Some(nonce) = self.nonce {
                     // once the message with nonce zero is processed, we should stop going backwards
@@ -155,6 +158,7 @@ impl DirectionalNonceIterator {
         if let Some(message) = self.indexed_message_with_nonce()? {
             Self::update_max_nonce_gauge(&message, metrics);
             if !self.is_message_processed()? {
+                debug!(?message, iterator=?self, "Found processable message");
                 return Ok(MessageStatus::Processable(message));
             } else {
                 return Ok(MessageStatus::Processed);
@@ -235,7 +239,11 @@ impl ProcessorExt for MessageProcessor {
         // nonce.
         // Scan until we find next nonce without delivery confirmation.
         if let Some(msg) = self.try_get_unprocessed_message().await? {
-            debug!(?msg, "Processor working on message");
+            debug!(
+                ?msg,
+                cursor = ?self.nonce_iterator,
+                "Processor working on message"
+            );
             let destination = msg.destination;
 
             // Skip if not whitelisted.
