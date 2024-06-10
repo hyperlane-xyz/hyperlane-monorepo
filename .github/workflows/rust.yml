@@ -6,6 +6,7 @@ on:
     paths:
       - 'rust/**'
       - .github/workflows/rust.yml
+      - '!*.md'
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab
