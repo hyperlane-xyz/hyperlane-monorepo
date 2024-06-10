@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   HyperlaneContractsMap,
+  IsmType,
   RouterConfig,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
@@ -57,6 +58,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     );
     expect(await deployedToken.owner()).to.equal(signer.address);
   }
+
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -82,7 +84,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     hookAddress = await mailbox.defaultHook();
   });
 
-  it('should create with a a collateral config', async () => {
+  it('should create with a collateral config', async () => {
     const config = {
       ...baseConfig,
       type: TokenType.collateral,
@@ -144,7 +146,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     );
   });
 
-  it('should create with a a synthetic config', async () => {
+  it('should create with a synthetic config', async () => {
     const config = {
       type: TokenType.synthetic,
       token: token.address,
@@ -181,7 +183,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(await syntheticContract.totalSupply()).to.equal(TOKEN_SUPPLY);
   });
 
-  it('should create with a a native config', async () => {
+  it('should create with a native config', async () => {
     const config = {
       type: TokenType.native,
       hook: hookAddress,
@@ -207,5 +209,41 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       signer,
     );
     await validateCoreValues(nativeContract);
+  });
+
+  it.only('should create with an IsmConfig', async () => {
+    const config: TokenRouterConfig = {
+      ...baseConfig,
+      type: TokenType.collateral,
+      token: token.address,
+      interchainSecurityModule: {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: signer.address,
+          },
+          {
+            type: IsmType.FALLBACK_ROUTING,
+            domains: {},
+            owner: signer.address,
+          },
+        ],
+        threshold: 1,
+      },
+    };
+
+    // Deploy using WarpModule
+    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      chain,
+      config,
+      multiProvider,
+    });
+
+    // Let's derive it's onchain token type
+    const { deployedTokenRoute } = evmERC20WarpModule.serialize();
+    const tokenType: TokenType =
+      await evmERC20WarpModule.reader.deriveTokenType(deployedTokenRoute);
+    expect(tokenType).to.equal(TokenType.collateral);
   });
 });
