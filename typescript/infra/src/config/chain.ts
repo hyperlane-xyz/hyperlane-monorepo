@@ -8,8 +8,6 @@ import {
   ChainName,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
-  RpcConsensusType,
-  RpcUrl,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
@@ -26,7 +24,6 @@ export const defaultRetry: ProviderRetryOptions = {
 
 export async function fetchProvider(
   chainName: ChainName,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ): Promise<providers.Provider> {
   const chainMetadata = getChain(chainName);
   if (!chainMetadata) {
@@ -38,22 +35,12 @@ export async function fetchProvider(
     throw Error(`No RPC URLs found for chain: ${chainName}`);
   }
 
-  if (connectionType === RpcConsensusType.Single) {
-    return HyperlaneSmartProvider.fromRpcUrl(chainId, rpcData[0], defaultRetry);
-  } else if (
-    connectionType === RpcConsensusType.Quorum ||
-    connectionType === RpcConsensusType.Fallback
-  ) {
-    return new HyperlaneSmartProvider(
-      chainId,
-      rpcData.map((url) => ({ http: url })),
-      undefined,
-      // disable retry for quorum
-      connectionType === RpcConsensusType.Fallback ? defaultRetry : undefined,
-    );
-  } else {
-    throw Error(`Unsupported connectionType: ${connectionType}`);
-  }
+  return new HyperlaneSmartProvider(
+    chainId,
+    rpcData.map((url) => ({ http: url })),
+    undefined,
+    defaultRetry,
+  );
 }
 
 export function getChainMetadatas(chains: Array<ChainName>) {
@@ -119,7 +106,7 @@ export async function getSecretMetadataOverrides(
 
   const secretRpcUrls = await Promise.all(
     chains.map(async (chain) => {
-      const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain, true);
+      const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain);
       return {
         chain,
         rpcUrls,

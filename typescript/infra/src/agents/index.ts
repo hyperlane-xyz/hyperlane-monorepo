@@ -17,7 +17,12 @@ import { ScraperConfigHelper } from '../config/agent/scraper.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { AgentRole, Role } from '../roles.js';
-import { fetchGCPSecret } from '../utils/gcloud.js';
+import {
+  fetchGCPSecret,
+  gcpSecretExistsUsingClient,
+  getGcpSecretLatestVersionName,
+  setGCPSecretUsingClient,
+} from '../utils/gcloud.js';
 import {
   HelmCommand,
   buildHelmChartDependencies,
@@ -287,6 +292,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   }
 }
 
+export function getSecretName(
+  environment: string,
+  chainName: ChainName,
+): string {
+  return `${environment}-rpc-endpoints-${chainName}`;
+}
+
 export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
   return {
     accessKeyId: await fetchGCPSecret(
@@ -303,17 +315,11 @@ export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
 export async function getSecretRpcEndpoints(
   environment: string,
   chainName: ChainName,
-  multipleEndpoints = false,
 ): Promise<string[]> {
-  const secret = await fetchGCPSecret(
-    `${environment}-rpc-endpoint${multipleEndpoints ? 's' : ''}-${chainName}`,
-    multipleEndpoints,
-  );
-  if (typeof secret != 'string' && !Array.isArray(secret)) {
-    throw Error(`Expected secret for ${chainName} rpc endpoint`);
-  }
+  const secret = await fetchGCPSecret(getSecretName(environment, chainName));
+
   if (!Array.isArray(secret)) {
-    return [secret.trimEnd()];
+    throw Error(`Expected secret for ${chainName} rpc endpoint`);
   }
 
   return secret.map((i) => {
@@ -321,6 +327,29 @@ export async function getSecretRpcEndpoints(
       throw new Error(`Expected string in rpc endpoint array for ${chainName}`);
     return i.trimEnd();
   });
+}
+
+export async function getSecretRpcEndpointsLatestVersionName(
+  environment: string,
+  chainName: ChainName,
+) {
+  return getGcpSecretLatestVersionName(getSecretName(environment, chainName));
+}
+
+export async function secretRpcEndpointsExist(
+  environment: string,
+  chainName: ChainName,
+): Promise<boolean> {
+  return gcpSecretExistsUsingClient(getSecretName(environment, chainName));
+}
+
+export async function setSecretRpcEndpoints(
+  environment: string,
+  chainName: ChainName,
+  endpoints: string,
+) {
+  const secretName = getSecretName(environment, chainName);
+  await setGCPSecretUsingClient(secretName, endpoints);
 }
 
 export async function getSecretDeployerKey(

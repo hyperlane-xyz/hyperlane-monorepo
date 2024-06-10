@@ -9,7 +9,6 @@ import {
   CoreConfig,
   MultiProtocolProvider,
   MultiProvider,
-  RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -102,13 +101,6 @@ export function withModuleAndFork<T>(args: Argv<T>) {
     .alias('f', 'fork');
 }
 
-export function withNetwork<T>(args: Argv<T>) {
-  return args
-    .describe('network', 'network to target')
-    .choices('network', getChains())
-    .alias('n', 'network');
-}
-
 export function withContext<T>(args: Argv<T>) {
   return args
     .describe('context', 'deploy context')
@@ -116,6 +108,17 @@ export function withContext<T>(args: Argv<T>) {
     .coerce('context', assertContext)
     .alias('x', 'context')
     .demandOption('context');
+}
+
+export function withChainRequired<T>(args: Argv<T>) {
+  return withChain(args).demandOption('chain');
+}
+
+export function withChain<T>(args: Argv<T>) {
+  return args
+    .describe('chain', 'chain name')
+    .choices('chain', getChains())
+    .alias('c', 'chain');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -175,6 +178,17 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .describe('concurrentDeploy', 'If enabled, runs all deploys concurrently')
     .boolean('concurrentDeploy')
     .default('concurrentDeploy', false);
+}
+
+export function withRpcUrls<T>(args: Argv<T>) {
+  return args
+    .describe(
+      'rpcUrls',
+      'rpc urls in a comma separated list, in order of preference',
+    )
+    .string('rpcUrls')
+    .demandOption('rpcUrls')
+    .alias('r', 'rpcUrls');
 }
 
 // not requiring to build coreConfig to get agentConfig

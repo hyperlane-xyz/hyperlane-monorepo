@@ -19,6 +19,8 @@ use crate::{
 
 mod policies;
 
+pub const GAS_EXPENDITURE_LOG_MESSAGE: &str = "Recording gas expenditure for message";
+
 #[async_trait]
 pub trait GasPaymentPolicy: Debug + Send + Sync {
     /// Returns Some(gas_limit) if the policy has approved the transaction or
@@ -132,6 +134,13 @@ impl GasPaymentEnforcer {
     }
 
     pub fn record_tx_outcome(&self, message: &HyperlaneMessage, outcome: TxOutcome) -> Result<()> {
+        // This log is required in E2E, hence the use of a `const`
+        debug!(
+            msg=%message,
+            ?outcome,
+            "{}",
+            GAS_EXPENDITURE_LOG_MESSAGE,
+        );
         self.db.process_gas_expenditure(InterchainGasExpenditure {
             message_id: message.id(),
             gas_used: outcome.gas_used,

@@ -222,6 +222,7 @@
         "reorgPeriod": 2
       },
       "chainId": 17000,
+      "displayName": "Holesky",
       "domainId": 17000,
       "domainRoutingIsmFactory": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "fallbackRoutingHook": "0x07009DA2249c388aD0f416a235AfE90D784e1aAc",
@@ -245,7 +246,7 @@
       "proxyAdmin": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
       "rpcUrls": [
         {
-          "http": "https://holesky.drpc.org"
+          "http": "https://ethereum-holesky-rpc.publicnode.com"
         }
       ],
       "staticAggregationHookFactory": "0x589C201a07c26b4725A4A829d772f24423da480B",
