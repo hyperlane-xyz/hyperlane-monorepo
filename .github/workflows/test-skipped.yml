@@ -9,7 +9,6 @@ on:
     paths:
       - '*.md'
   merge_group:
-  workflow_dispatch:
 
 concurrency:
   group: e2e-${{ github.ref }}
