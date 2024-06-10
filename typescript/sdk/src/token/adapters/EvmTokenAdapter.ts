@@ -309,7 +309,10 @@ export class EvmHypXERC20LockboxAdapter
 }
 
 // Interacts with HypXERC20 contracts
-export class EvmHypXERC20Adapter extends EvmHypCollateralAdapter {
+export class EvmHypXERC20Adapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
+{
   hypXERC20: HypXERC20;
 
   constructor(
@@ -333,7 +336,7 @@ export class EvmHypXERC20Adapter extends EvmHypCollateralAdapter {
       this.getProvider(),
     ).mintingCurrentLimitOf(this.contract.address);
 
-    return limit;
+    return BigInt(limit.toString());
   }
 
   async getBurnLimit() {
@@ -344,7 +347,7 @@ export class EvmHypXERC20Adapter extends EvmHypCollateralAdapter {
       this.getProvider(),
     ).burningCurrentLimitOf(this.contract.address);
 
-    return limit;
+    return BigInt(limit.toString());
   }
 }
 
