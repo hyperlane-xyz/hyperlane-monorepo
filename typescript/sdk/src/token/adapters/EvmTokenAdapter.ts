@@ -1,4 +1,5 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
+import { maxUint256 } from 'viem';
 
 import {
   ERC20,
@@ -297,13 +298,13 @@ export class EvmHypXERC20LockboxAdapter
   }
 
   // Lockbox has infinite mint rights
-  async belowMintLimit(_weiAmount: Numberish) {
-    return true;
+  async getMintLimit() {
+    return maxUint256;
   }
 
   // Lockbox has infinite burn rights
-  async belowBurnLimit(_weiAmount: Numberish) {
-    return true;
+  async getBurnLimit() {
+    return maxUint256;
   }
 }
 
@@ -324,7 +325,7 @@ export class EvmHypXERC20Adapter extends EvmHypCollateralAdapter {
     );
   }
 
-  async belowMintLimit(weiAmount: Numberish) {
+  async getMintLimit() {
     const xERC20 = await this.hypXERC20.wrappedToken();
 
     const limit = await IXERC20__factory.connect(
@@ -332,10 +333,10 @@ export class EvmHypXERC20Adapter extends EvmHypCollateralAdapter {
       this.getProvider(),
     ).mintingCurrentLimitOf(this.contract.address);
 
-    return limit.gte(weiAmount);
+    return limit;
   }
 
-  async belowBurnLimit(weiAmount: Numberish) {
+  async getBurnLimit() {
     const xERC20 = await this.hypXERC20.wrappedToken();
 
     const limit = await IXERC20__factory.connect(
@@ -343,7 +344,7 @@ export class EvmHypXERC20Adapter extends EvmHypCollateralAdapter {
       this.getProvider(),
     ).burningCurrentLimitOf(this.contract.address);
 
-    return limit.gte(weiAmount);
+    return limit;
   }
 }
 

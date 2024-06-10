@@ -439,9 +439,10 @@ export class WarpCore {
       destinationToken.standard === TokenStandard.EvmHypXERC20 ||
       destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
     ) {
-      return await (adapter as IHypXERC20Adapter<unknown>).belowMintLimit(
-        originTokenAmount.amount,
-      );
+      const mintLimit = await (
+        adapter as IHypXERC20Adapter<unknown>
+      ).getMintLimit();
+      return mintLimit >= BigInt(originTokenAmount.amount);
     }
 
     const destinationBalance = await adapter.getBalance(
@@ -688,10 +689,12 @@ export class WarpCore {
       originTokenAmount.token.standard === TokenStandard.EvmHypXERC20 ||
       originTokenAmount.token.standard === TokenStandard.EvmHypXERC20Lockbox
     ) {
-      const valid = await (
+      const burnLimit = await (
         adapter as IHypXERC20Adapter<unknown>
-      ).belowBurnLimit(originTokenAmount.amount);
-      if (!valid) return { amount: 'Insufficient burn limit on origin' };
+      ).getBurnLimit();
+      if (burnLimit < BigInt(originTokenAmount.amount)) {
+        return { amount: 'Insufficient burn limit on origin' };
+      }
     }
 
     return null;
