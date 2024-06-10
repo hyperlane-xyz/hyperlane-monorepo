@@ -412,10 +412,12 @@ impl ChainConf {
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
-            ChainConnectionConf::Starknet(_) => Err(eyre!(
-                "Starknet does not support interchain gas paymaster yet"
-            ))
-            .context(ctx),
+            ChainConnectionConf::Starknet(conf) => {
+                let paymaster = Box::new(h_starknet::StarknetInterchainGasPaymaster::new(
+                    conf, &locator,
+                )?);
+                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
         }
         .context(ctx)
     }
@@ -456,10 +458,10 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
-            ChainConnectionConf::Starknet(_) => Err(eyre!(
-                "Starknet does not support interchain gas payment indexer yet"
-            ))
-            .context(ctx),
+            ChainConnectionConf::Starknet(_) => {
+                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer {});
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
         }
         .context(ctx)
     }
