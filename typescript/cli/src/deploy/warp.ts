@@ -165,8 +165,10 @@ async function fetchOrDeployIsmFactoryAddresses(
     objMap(config, async (chain, _config) => {
       const chainAddresses = await registry.getChainAddresses(chain);
       if (chainAddresses) {
+        logGray('Registry factory addresses loaded');
         return chainAddresses; // Can includes other addresses
       } else {
+        logGray('Registry factory addresses not found, deploying');
         return serializeContracts(
           await ismFactoryDeployer.deployContracts(chain),
         );
