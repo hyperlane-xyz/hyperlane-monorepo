@@ -143,7 +143,6 @@ async function executeDeploy(params: DeployParams) {
     deployedFactoriesAddresses,
     ismFactoryDeployer,
   );
-  console.log('modifiedConfig', modifiedConfig);
   const deployedContracts = await deployer.deploy(modifiedConfig);
 
   logGreen('✅ Hyp token deployments complete');
@@ -186,7 +185,6 @@ async function deployWarpIsm(
   deployedFactoriesAddresses: HyperlaneAddressesMap<any>,
   ismFactoryDeployer: HyperlaneDeployer<any, any>,
 ) {
-  console.log('deployedFactoriesAddresses', deployedFactoriesAddresses);
   return promiseObjAll(
     objMap(
       deployedFactoriesAddresses,
