@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { ChainType } from '../commands/registry.js';
+import { ChainType } from '../commands/types.js';
 import { CommandContext } from '../context/types.js';
 import { logBlue, logGreen, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
@@ -22,15 +22,13 @@ export async function createAgentConfig({
   environment?: ChainType;
   out: string;
 }) {
-  logBlue(`\nCreating agent config...`);
+  logBlue('\nCreating agent config...');
 
   const { registry, multiProvider, chainMetadata } = context;
   const addresses = await registry.getAddresses();
 
-  let agentChains;
-  if (chains) {
-    agentChains = chains;
-  } else {
+  let agentChains = chains;
+  if (!agentChains) {
     const metadata = Object.values(chainMetadata).filter((c) => {
       if (environment === 'mainnet') return !c.isTestnet;
       else return !!c.isTestnet;
@@ -53,7 +51,6 @@ export async function createAgentConfig({
         const deployedBlock = await mailbox.deployedBlock();
         return deployedBlock.toNumber();
       } catch (err) {
-        // TODO: how to this in the CLI? should this be surfaced to the user as a warning, should it require an interaction?
         warnYellow(
           `Failed to get deployed block, defaulting to 0 for index for ${chain}`,
         );
@@ -62,7 +59,7 @@ export async function createAgentConfig({
     }),
   );
 
-  // TODO: consider adding additional config used to pass in gas prices for Cosmos chains
+  // @TODO: consider adding additional config used to pass in gas prices for Cosmos chains
   const agentConfig = buildAgentConfig(
     agentChains,
     multiProvider,
@@ -70,6 +67,7 @@ export async function createAgentConfig({
     startBlocks,
   );
 
-  writeYamlOrJson(out, agentConfig);
-  logGreen(`Agent config successfully written to ${out}`);
+  logBlue(`Agent config is valid, writing to file ${out}`);
+  writeYamlOrJson(out, agentConfig, 'json');
+  logGreen(`✅ Agent config successfully written to ${out}`);
 }

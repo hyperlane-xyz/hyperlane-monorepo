@@ -1,13 +1,15 @@
-import { CommandModule, Options } from 'yargs';
+import { CommandModule } from 'yargs';
 
 import { createAgentConfig } from '../config/agent.js';
 import { CommandModuleWithContext } from '../context/types.js';
 import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
 
-import { outputFileCommandOption } from './options.js';
-
-export const ChainTypes = ['mainnet', 'testnet'];
-export type ChainType = (typeof ChainTypes)[number];
+import {
+  chainTargetsCommandOption,
+  environmentCommandOption,
+  outputFileCommandOption,
+} from './options.js';
+import { ChainType, ChainTypes } from './types.js';
 
 /**
  * Parent command
@@ -93,20 +95,9 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
   },
 };
 
-const chainTargetsCommandOption: Options = {
-  type: 'string',
-  description: 'Comma-separated list of chain names',
-  alias: 'c',
-  // TODO choices: ... can we configure this so that it's a list of chain names including any new chains added to the local registry
-};
-
-const environmentCommandOption: Options = {
-  type: 'string',
-  description: 'The name of the environment to deploy to',
-  alias: 'e',
-  choices: ChainTypes,
-};
-
+/**
+ * agent-config command
+ */
 const createAgentConfigCommand: CommandModuleWithContext<{
   chains?: string;
   environment?: string;
@@ -124,17 +115,17 @@ const createAgentConfigCommand: CommandModuleWithContext<{
     ),
   },
   // TODO: make chains and environment mutually exclusive, but require one of them
-  // builder: (yargs: Argv<{}>) =>
+  // builder: (yargs) => {
   //   yargs
   //     .option('chains', chainTargetsCommandOption)
-  //     .option('environment', environmentCommandOption)
+  //     .option('environment', environmentCommandOption as Options<string>)
   //     .option(
-  //       'config',
+  //       'out',
   //       outputFileCommandOption(
   //         './configs/agent-config.json',
   //         false,
   //         'The path to output an agent config JSON file.',
-  //       ),
+  //       ) as Options<string>,
   //     )
   //     .check((argv) => {
   //       if (!argv.chains && !argv.environment) {
@@ -151,17 +142,22 @@ const createAgentConfigCommand: CommandModuleWithContext<{
   //         );
   //       }
   //       return true;
-  //     }),
+  //     });
+
+  //   return yargs as any as Argv<{
+  //     chains?: string | undefined;
+  //     environment?: string | undefined;
+  //     out: string;
+  //   }>;
+  // },
   handler: async ({ context, chains, environment, out }) => {
-    const { registry } = context;
+    const { multiProvider } = context;
 
     let chainNames;
     if (chains) {
       chainNames = chains.split(',');
-      const validChainNames = await registry.getChains();
-
       const invalidChainNames = chainNames.filter(
-        (chainName) => !validChainNames.includes(chainName),
+        (chainName) => !multiProvider.hasChain(chainName),
       );
       if (invalidChainNames.length > 0) {
         logRed(
