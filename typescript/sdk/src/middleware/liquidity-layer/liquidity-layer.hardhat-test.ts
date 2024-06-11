@@ -33,6 +33,7 @@ import {
   PortalAdapterConfig,
 } from './LiquidityLayerRouterDeployer.js';
 
+// eslint-disable-next-line jest/no-disabled-tests
 describe.skip('LiquidityLayerRouter', async () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
