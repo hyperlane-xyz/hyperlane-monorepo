@@ -18,13 +18,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: yarn-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             **/node_modules
@@ -35,13 +35,13 @@ jobs:
         run: yarn install
 
       - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: onbjerg/foundry-toolchain@v1
 
       - name: forge-build
         run: cd solidity && forge build --build-info
 
       - name: Static analysis
-        uses: crytic/slither-action@v0.4.0
+        uses: crytic/slither-action@v0.3.0
         id: slither
         with:
           target: 'solidity/'
