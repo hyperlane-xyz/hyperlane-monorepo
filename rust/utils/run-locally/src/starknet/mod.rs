@@ -32,7 +32,7 @@ const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
 const STARKNET_CLI_VERSION: &str = "0.2.8";
 
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/astraly-labs/hyperlane_starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "0.0.7";
+const CAIRO_HYPERLANE_VERSION: &str = "0.0.9";
 
 #[allow(dead_code)]
 pub fn install_starknet(
@@ -485,7 +485,6 @@ fn run_locally() {
     };
 
     // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
-    // TODO: refactor to share code
     let loop_start = Instant::now();
     let mut failure_occurred = false;
     loop {
@@ -521,22 +520,23 @@ fn termination_invariants_met(
     messages_expected: u32,
     starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
-    let gas_payments_scraped = fetch_metric(
-        &relayer_metrics_port.to_string(),
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payment"},
-    )?
-    .iter()
-    .sum::<u32>();
-    let expected_gas_payments = messages_expected;
-    if gas_payments_scraped != expected_gas_payments {
-        log!(
-            "Relayer has indexed {} gas payments, expected {}",
-            gas_payments_scraped,
-            expected_gas_payments
-        );
-        return Ok(false);
-    }
+    // Commented as IGP is not implemented for Starknet
+    // let gas_payments_scraped = fetch_metric(
+    //     &relayer_metrics_port.to_string(),
+    //     "hyperlane_contract_sync_stored_events",
+    //     &hashmap! {"data_type" => "gas_payment"},
+    // )?
+    // .iter()
+    // .sum::<u32>();
+    // let expected_gas_payments = messages_expected;
+    // if gas_payments_scraped != expected_gas_payments {
+    //     log!(
+    //         "Relayer has indexed {} gas payments, expected {}",
+    //         gas_payments_scraped,
+    //         expected_gas_payments
+    //     );
+    //     return Ok(false);
+    // }
 
     let delivered_messages_scraped = fetch_metric(
         &relayer_metrics_port.to_string(),
