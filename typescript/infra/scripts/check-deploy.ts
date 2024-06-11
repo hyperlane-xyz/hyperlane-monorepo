@@ -64,7 +64,10 @@ async function check() {
     }
   }
 
-  const { core, chainAddresses } = await getHyperlaneCore(environment);
+  const { core, chainAddresses } = await getHyperlaneCore(
+    environment,
+    multiProvider,
+  );
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
     chainAddresses,
     multiProvider,
