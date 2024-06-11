@@ -1,5 +1,13 @@
 # @hyperlane-xyz/sdk
 
+## 4.0.0-alpha.1
+
+### Patch Changes
+
+- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
+  - @hyperlane-xyz/core@4.0.0-alpha.1
+  - @hyperlane-xyz/utils@4.0.0-alpha.1
+
 ## 4.0.0-alpha.0
 
 ### Minor Changes

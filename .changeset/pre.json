@@ -2,16 +2,19 @@
   "mode": "pre",
   "tag": "alpha",
   "initialVersions": {
-    "@hyperlane-xyz/core": "4.0.0-alpha",
-    "@hyperlane-xyz/ccip-server": "4.0.0-alpha",
-    "@hyperlane-xyz/cli": "4.0.0-alpha",
-    "@hyperlane-xyz/helloworld": "4.0.0-alpha",
-    "@hyperlane-xyz/infra": "4.0.0-alpha",
-    "@hyperlane-xyz/sdk": "4.0.0-alpha",
-    "@hyperlane-xyz/utils": "4.0.0-alpha"
+    "@hyperlane-xyz/core": "4.0.0-alpha.0",
+    "@hyperlane-xyz/ccip-server": "4.0.0-alpha.0",
+    "@hyperlane-xyz/cli": "4.0.0-alpha.0",
+    "@hyperlane-xyz/helloworld": "4.0.0-alpha.0",
+    "@hyperlane-xyz/infra": "4.0.0-alpha.0",
+    "@hyperlane-xyz/sdk": "4.0.0-alpha.0",
+    "@hyperlane-xyz/utils": "4.0.0-alpha.0"
   },
   "changesets": [
+    "bright-emus-double",
     "five-baboons-smoke",
+    "late-rings-attack",
+    "sharp-geckos-wash",
     "slimy-toys-argue"
   ]
 }
