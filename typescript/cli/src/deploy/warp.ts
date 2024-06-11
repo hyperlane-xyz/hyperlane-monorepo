@@ -158,7 +158,22 @@ async function deployAndResolveWarpIsm(
 ): Promise<WarpRouteDeployConfig> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
-      logGray('Loading Registry factory addresses');
+      // Skip deployment if Ism is empty, or a string
+      if (
+        !config.interchainSecurityModule ||
+        typeof config.interchainSecurityModule === 'string'
+      ) {
+        logGray(
+          `Config Ism is ${
+            !config.interchainSecurityModule
+              ? 'empty'
+              : config.interchainSecurityModule
+          }, skipping deployment`,
+        );
+        return config;
+      }
+
+      logBlue('Loading Registry factory addresses');
       let chainAddresses = await registry.getChainAddresses(chain); // Can includes other addresses
 
       if (!chainAddresses) {
@@ -188,7 +203,7 @@ async function deployAndResolveWarpIsm(
         },
       );
 
-      logGray(`Finished creating ${config.type} Ism for chain ${chain}`);
+      logGreen(`Finished creating ${config.type} Ism for chain ${chain}`);
       return { ...warpConfig[chain], interchainSecurityModule: deployedIsm };
     }),
   );
