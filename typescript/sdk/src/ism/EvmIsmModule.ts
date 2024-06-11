@@ -468,12 +468,13 @@ export class EvmIsmModule extends HyperlaneModule<
 
       // initialize the fallback routing ISM
       logger.debug('Initializing fallback routing ISM ...');
-      await ism['initialize(address,uint32[],address[])'](
+      const tx = await ism['initialize(address,uint32[],address[])'](
         config.owner,
         availableDomainIds,
         submoduleAddresses,
       );
 
+      await this.multiProvider.handleTx(this.chain, tx);
       // return the fallback routing ISM
       return ism;
     }
@@ -536,12 +537,12 @@ export class EvmIsmModule extends HyperlaneModule<
     config: AggregationIsmConfig;
     logger: Logger;
   }): Promise<IAggregationIsm> {
-    const addresses: Address[] = await Promise.all(
-      config.modules.map(async (module) => {
-        const submodule = await this.deploy({ config: module });
-        return submodule.address;
-      }),
-    );
+    const addresses: Address[] = [];
+    // Needs to be deployed sequentially because Ethers will throw `Error: replacement fee too low`
+    for (const module of config.modules) {
+      const submodule = await this.deploy({ config: module });
+      addresses.push(submodule.address);
+    }
 
     const factoryName = 'staticAggregationIsmFactory';
     const address = await EvmIsmModule.deployStaticAddressSet({

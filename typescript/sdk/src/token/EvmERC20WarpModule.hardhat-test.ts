@@ -57,6 +57,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     );
     expect(await deployedToken.owner()).to.equal(signer.address);
   }
+
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -82,7 +83,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     hookAddress = await mailbox.defaultHook();
   });
 
-  it('should create with a a collateral config', async () => {
+  it('should create with a collateral config', async () => {
     const config = {
       ...baseConfig,
       type: TokenType.collateral,
@@ -144,7 +145,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     );
   });
 
-  it('should create with a a synthetic config', async () => {
+  it('should create with a synthetic config', async () => {
     const config = {
       type: TokenType.synthetic,
       token: token.address,
@@ -181,7 +182,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(await syntheticContract.totalSupply()).to.equal(TOKEN_SUPPLY);
   });
 
-  it('should create with a a native config', async () => {
+  it('should create with a native config', async () => {
     const config = {
       type: TokenType.native,
       hook: hookAddress,
