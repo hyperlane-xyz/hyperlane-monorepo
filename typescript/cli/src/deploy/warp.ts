@@ -1,4 +1,5 @@
 import { confirm } from '@inquirer/prompts';
+import { stringify as yamlStringify } from 'yaml';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -25,7 +26,11 @@ import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
-import { isFile, runFileSelectionStep } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  isFile,
+  runFileSelectionStep,
+} from '../utils/files.js';
 
 import {
   completeDeploy,
@@ -146,7 +151,7 @@ async function executeDeploy(params: DeployParams) {
     log('Writing deployment artifacts');
     await registry.addWarpRoute(warpCoreConfig);
   }
-  log(JSON.stringify(warpCoreConfig, null, 2));
+  log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
   logBlue('Deployment is complete!');
 }
 
@@ -183,7 +188,9 @@ async function deployAndResolveWarpIsm(
         ) as Record<string, string>;
       }
 
-      logGray(`Creating ${config.type} Ism for chain ${chain}`);
+      logGray(
+        `Creating ${config.interchainSecurityModule.type} Ism for ${config.type} token on ${chain} chain`,
+      );
 
       const deployedIsm = await createWarpIsm(
         chain,
@@ -203,7 +210,9 @@ async function deployAndResolveWarpIsm(
         },
       );
 
-      logGreen(`Finished creating ${config.type} Ism for chain ${chain}`);
+      logGreen(
+        `Finished creating ${config.interchainSecurityModule.type} Ism for ${config.type} token on ${chain} chain`,
+      );
       return { ...warpConfig[chain], interchainSecurityModule: deployedIsm };
     }),
   );
