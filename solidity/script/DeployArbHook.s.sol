@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Script.sol";
 
+import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {ArbL2ToL1Hook} from "../../contracts/hooks/ArbL2ToL1Hook.sol";
 import {ArbL2ToL1Ism} from "../../contracts/isms/hook/ArbL2ToL1Ism.sol";
@@ -17,6 +18,10 @@ contract DeployArbHook is Script {
     uint32 constant L1_DOMAIN = 11155111;
     address constant L1_MAILBOX = 0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766;
     address constant L1_BRIDGE = 0x38f918D0E9F1b721EDaA41302E399fa1B79333a9;
+    address constant L1_OUTBOX = 0x65f07C7D521164a4d5DaC6eB8Fac8DA067A3B78F;
+    address constant L1_ISM = 0x65f07C7D521164a4d5DaC6eB8Fac8DA067A3B78F; // placeholder
+    bytes32 TEST_RECIPIENT =
+        0x0000000000000000000000009d476894157cd08516c5226217474843378e3327;
 
     address constant ARBSYS = 0x0000000000000000000000000000000000000064;
     address constant L2_MAILBOX = 0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8;
@@ -27,7 +32,7 @@ contract DeployArbHook is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        ism = new ArbL2ToL1Ism(L1_BRIDGE, TypeCasts.addressToBytes32(L2_HOOK));
+        ism = new ArbL2ToL1Ism(L1_BRIDGE, L1_OUTBOX);
 
         TestRecipient testRecipient = new TestRecipient();
         testRecipient.setInterchainSecurityModule(address(ism));
@@ -45,6 +50,50 @@ contract DeployArbHook is Script {
             L1_DOMAIN,
             TypeCasts.addressToBytes32(L1_MAILBOX),
             ARBSYS
+        );
+
+        vm.stopBroadcast();
+    }
+
+    function setAuthorizedHook() external {
+        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        ism = ArbL2ToL1Ism(L1_ISM);
+        ism.setAuthorizedHook(TypeCasts.addressToBytes32(L2_HOOK));
+
+        vm.stopBroadcast();
+    }
+
+    function testSendMessage() public {
+        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        vm.startBroadcast(deployerPrivateKey);
+
+        Mailbox l2Mailbox = Mailbox(L2_MAILBOX);
+        // ArbL2ToL1Hook hooky = ArbL2ToL1Hook(L2_HOOK);
+        hook = new ArbL2ToL1Hook(
+            L2_MAILBOX,
+            L1_DOMAIN,
+            TypeCasts.addressToBytes32(L1_MAILBOX),
+            ARBSYS
+        );
+
+        //     function dispatch(
+        //     uint32 destinationDomain,
+        //     bytes32 recipientAddress,
+        //     bytes calldata messageBody,
+        //     bytes calldata metadata,
+        //     IPostDispatchHook hook
+        // )
+        bytes memory message = hex"c0ffee";
+        bytes memory hookMetadata = abi.encodePacked("");
+        l2Mailbox.dispatch{value: 1e15}(
+            L1_DOMAIN,
+            TEST_RECIPIENT,
+            message,
+            hookMetadata,
+            hook
         );
 
         vm.stopBroadcast();
