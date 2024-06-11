@@ -114,7 +114,8 @@ describe('BaseMetadataBuilder', () => {
       );
   });
 
-  describe('#build', () => {
+  // eslint-disable-next-line jest/no-disabled-tests
+  describe.skip('#build', () => {
     let origin: ChainName;
     let destination: ChainName;
     let context: MetadataContext;
@@ -165,8 +166,7 @@ describe('BaseMetadataBuilder', () => {
     });
 
     for (let i = 0; i < NUM_RUNS; i++) {
-      // eslint-disable-next-line jest/no-disabled-tests
-      it.skip(`should build valid metadata for random ism config (${i})`, async () => {
+      it(`should build valid metadata for random ism config (${i})`, async () => {
         // must call process for trusted relayer to be able to verify
         await core
           .getContracts(destination)
