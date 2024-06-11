@@ -4293,6 +4293,12 @@
       "constructorArguments": "00000000000000000000000002d16bc51af6bfd153d67ca61754cf912e82c4d9",
       "isProxy": false,
       "name": "ValidatorAnnounce"
+    },
+    {
+      "address": "0x01aA8200936B475762Ee28D38B43a6cFe9076E52",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "mantapacific": [
