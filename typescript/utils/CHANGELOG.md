@@ -1,6 +1,6 @@
 # @hyperlane-xyz/utils
 
-## 4.0.0-alpha.1
+## 4.0.0-alpha.2
 
 ## 4.0.0-alpha.0
 

@@ -1,13 +1,13 @@
 # @hyperlane-xyz/infra
 
-## 4.0.0-alpha.1
+## 4.0.0-alpha.2
 
 ### Patch Changes
 
 - Updated dependencies [6b63c5d82]
-  - @hyperlane-xyz/sdk@4.0.0-alpha.1
-  - @hyperlane-xyz/helloworld@4.0.0-alpha.1
-  - @hyperlane-xyz/utils@4.0.0-alpha.1
+  - @hyperlane-xyz/sdk@4.0.0-alpha.2
+  - @hyperlane-xyz/helloworld@4.0.0-alpha.2
+  - @hyperlane-xyz/utils@4.0.0-alpha.2
 
 ## 4.0.0-alpha.0
 
