@@ -12,13 +12,11 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainName } from '../types.js';
 
 import { IgpFactories, igpFactories } from './contracts.js';
 import { serializeDifference } from './oracle/types.js';
 import { IgpConfig } from './types.js';
-
-const gasOracleCache: ChainMap<boolean> = {};
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -105,12 +103,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       return gasOracle;
     }
 
-    if (gasOracleCache[chain]) {
-      // Already configured
-      this.logger.debug({ chain }, 'Gas oracle already configured, skipping');
-      return gasOracle;
-    }
-
     this.logger.info(`Configuring gas oracle from ${chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
@@ -164,8 +156,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         ),
       );
     }
-
-    gasOracleCache[chain] = true;
 
     return gasOracle;
   }
