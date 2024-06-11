@@ -117,8 +117,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fraxtal: {
-    threshold: 1,
-    validators: ['0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1'],
+    threshold: 2,
+    validators: [
+      '0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   fuji: {
@@ -164,8 +167,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   linea: {
-    threshold: 1,
-    validators: ['0xf2d5409a59e0f5ae7635aff73685624904a77d94'],
+    threshold: 2,
+    validators: [
+      '0xf2d5409a59e0f5ae7635aff73685624904a77d94',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   mantapacific: {
@@ -280,8 +287,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   sei: {
-    threshold: 1,
-    validators: ['0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5'],
+    threshold: 2,
+    validators: [
+      '0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   sepolia: {

@@ -63,7 +63,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     moonbeam: true,
     neutron: true,
     optimism: true,
-    osmosis: true,
+    osmosis: false,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
@@ -92,7 +92,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
     optimism: true,
-    osmosis: true,
+    osmosis: false,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
@@ -229,7 +229,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '258af36-20240605-115606',
+      tag: 'b134b04-20240605-133033',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),

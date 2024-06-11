@@ -16,7 +16,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.010946949",
+    "amount": "0.01649352",
     "decimals": 9
   },
   "bsc": {
@@ -36,7 +36,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "3.236596353",
+    "amount": "5.877696928",
     "decimals": 9
   },
   "inevm": {
@@ -48,7 +48,7 @@
     "decimals": 1
   },
   "linea": {
-    "amount": "0.0603535",
+    "amount": "0.110844655",
     "decimals": 9
   },
   "mantapacific": {
