@@ -16,7 +16,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   HyperlaneContractsMap,
-  IsmType,
   RouterConfig,
   TestChainName,
 } from '@hyperlane-xyz/sdk';

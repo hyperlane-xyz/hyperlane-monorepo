@@ -5,7 +5,7 @@ import {
   EvmIsmModule,
   HypERC20Deployer,
   HypERC721Deployer,
-  HyperlaneAddressesMap,
+  HyperlaneAddresses,
   HyperlaneContractsMap,
   HyperlaneDeployer,
   HyperlaneProxyFactoryDeployer,
@@ -129,20 +129,14 @@ async function executeDeploy(params: DeployParams) {
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
 
   // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
-  const deployedFactoriesAddresses = await fetchOrDeployIsmFactoryAddresses(
+  // Then return a modified config with the ism address as a string
+  const modifiedConfig = await deployAndResolveWarpIsm(
     config,
+    multiProvider,
     registry,
     ismFactoryDeployer,
   );
 
-  // For each chain in deployedFactoriesAddresses, deploy and return a modified config with the ISM as address strings
-  // We need an address because the Deployer cannot handle IsmConfig objects directly
-  const modifiedConfig = await deployWarpIsm(
-    config,
-    multiProvider,
-    deployedFactoriesAddresses,
-    ismFactoryDeployer,
-  );
   const deployedContracts = await deployer.deploy(modifiedConfig);
 
   logGreen('✅ Hyp token deployments complete');
@@ -156,69 +150,85 @@ async function executeDeploy(params: DeployParams) {
   logBlue('Deployment is complete!');
 }
 
-async function fetchOrDeployIsmFactoryAddresses(
-  config: WarpRouteDeployConfig,
+async function deployAndResolveWarpIsm(
+  warpConfig: WarpRouteDeployConfig,
+  multiProvider: MultiProvider,
   registry: IRegistry,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
-): Promise<HyperlaneAddressesMap<any>> {
+): Promise<WarpRouteDeployConfig> {
   return promiseObjAll(
-    objMap(config, async (chain, _config) => {
-      const chainAddresses = await registry.getChainAddresses(chain);
-      if (chainAddresses) {
-        logGray('Registry factory addresses loaded');
-        return chainAddresses; // Can includes other addresses
-      } else {
+    objMap(warpConfig, async (chain, config) => {
+      logGray('Loading Registry factory addresses');
+      let chainAddresses = await registry.getChainAddresses(chain); // Can includes other addresses
+
+      if (!chainAddresses) {
         logGray('Registry factory addresses not found, deploying');
-        return serializeContracts(
+        chainAddresses = serializeContracts(
           await ismFactoryDeployer.deployContracts(chain),
-        );
+        ) as Record<string, string>;
       }
+
+      logGray(`Creating ${config.type} Ism for chain ${chain}`);
+
+      const deployedIsm = await createWarpIsm(
+        chain,
+        warpConfig,
+        multiProvider,
+        ismFactoryDeployer,
+        {
+          domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
+          staticAggregationHookFactory:
+            chainAddresses.staticAggregationHookFactory,
+          staticAggregationIsmFactory:
+            chainAddresses.staticAggregationIsmFactory,
+          staticMerkleRootMultisigIsmFactory:
+            chainAddresses.staticMerkleRootMultisigIsmFactory,
+          staticMessageIdMultisigIsmFactory:
+            chainAddresses.staticMessageIdMultisigIsmFactory,
+        },
+      );
+
+      logGray(`Finished creating ${config.type} Ism for chain ${chain}`);
+      return { ...warpConfig[chain], interchainSecurityModule: deployedIsm };
     }),
   );
 }
 
 /**
- * Deploys the Warp ISM for each chain in the provided `deployedFactoriesAddresses`.
- * @returns IsmConfig with each Ism as an address string
+ * Deploys the Warp ISM for a given config
+ *
+ * @returns The deployed ism address
  */
-async function deployWarpIsm(
-  config: WarpRouteDeployConfig,
+async function createWarpIsm(
+  chain: string,
+  warpConfig: WarpRouteDeployConfig,
   multiProvider: MultiProvider,
-  deployedFactoriesAddresses: HyperlaneAddressesMap<any>,
   ismFactoryDeployer: HyperlaneDeployer<any, any>,
-) {
-  return promiseObjAll(
-    objMap(
-      deployedFactoriesAddresses,
-      async (
-        chain,
-        {
-          domainRoutingIsmFactory,
-          staticAggregationHookFactory,
-          staticAggregationIsmFactory,
-          staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory,
-        },
-      ) => {
-        const evmIsmModule = await EvmIsmModule.create({
-          chain,
-          multiProvider,
-          deployer: ismFactoryDeployer,
-          mailbox: config[chain].mailbox,
-          factories: {
-            domainRoutingIsmFactory,
-            staticAggregationHookFactory,
-            staticAggregationIsmFactory,
-            staticMerkleRootMultisigIsmFactory,
-            staticMessageIdMultisigIsmFactory,
-          },
-          config: config[chain].interchainSecurityModule!,
-        });
-        const { deployedIsm } = evmIsmModule.serialize();
-        return { ...config[chain], interchainSecurityModule: deployedIsm };
-      },
-    ),
-  );
+  factoryAddresses: HyperlaneAddresses<any>,
+): Promise<string> {
+  const {
+    domainRoutingIsmFactory,
+    staticAggregationHookFactory,
+    staticAggregationIsmFactory,
+    staticMerkleRootMultisigIsmFactory,
+    staticMessageIdMultisigIsmFactory,
+  } = factoryAddresses;
+  const evmIsmModule = await EvmIsmModule.create({
+    chain,
+    multiProvider,
+    deployer: ismFactoryDeployer,
+    mailbox: warpConfig[chain].mailbox,
+    factories: {
+      domainRoutingIsmFactory,
+      staticAggregationHookFactory,
+      staticAggregationIsmFactory,
+      staticMerkleRootMultisigIsmFactory,
+      staticMessageIdMultisigIsmFactory,
+    },
+    config: warpConfig[chain].interchainSecurityModule!,
+  });
+  const { deployedIsm } = evmIsmModule.serialize();
+  return deployedIsm;
 }
 
 async function getWarpCoreConfig(
