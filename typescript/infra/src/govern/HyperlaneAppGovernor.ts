@@ -21,6 +21,8 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
+import { customSafeChains } from '../../config/environments/mainnet3/owners.js';
+
 import {
   ManualMultiSend,
   MultiSend,
@@ -157,15 +159,21 @@ export abstract class HyperlaneAppGovernor<
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {
-      for (const call of this.calls[chain]) {
-        let submissionType = await this.inferCallSubmissionType(chain, call);
-        if (submissionType === SubmissionType.MANUAL) {
-          submissionType = await this.inferICAEncodedSubmissionType(
-            chain,
-            call,
-          );
+      try {
+        for (const call of this.calls[chain]) {
+          let submissionType = await this.inferCallSubmissionType(chain, call);
+          if (submissionType === SubmissionType.MANUAL) {
+            submissionType = await this.inferICAEncodedSubmissionType(
+              chain,
+              call,
+            );
+          }
+          call.submissionType = submissionType;
         }
-        call.submissionType = submissionType;
+      } catch (error) {
+        console.error(
+          `Error inferring call submission types for chain ${chain}: ${error}`,
+        );
       }
     }
   }
@@ -253,16 +261,31 @@ export abstract class HyperlaneAppGovernor<
       // This should implicitly check whether or not the owner is a gnosis
       // safe.
       if (!this.canPropose[chain].has(safeAddress)) {
-        this.canPropose[chain].set(
-          safeAddress,
-          await canProposeSafeTransactions(
+        try {
+          const canPropose = await canProposeSafeTransactions(
             signerAddress,
             chain,
             multiProvider,
             safeAddress,
-          ),
-        );
+          );
+          this.canPropose[chain].set(safeAddress, canPropose);
+        } catch (error) {
+          // manual SAFEs on mantapacific/scroll
+          // if we hit this error on those chains, assume you can propose and try to continue
+          if (
+            error instanceof Error &&
+            error.message.includes('Invalid MultiSend contract address') &&
+            customSafeChains.includes(chain)
+          ) {
+            return SubmissionType.MANUAL;
+          } else {
+            console.error(
+              `Failed to determine if signer can propose safe transactions: ${error}`,
+            );
+          }
+        }
       }
+
       // 2b. Check if calling from the owner/safeAddress will succeed.
       if (
         this.canPropose[chain].get(safeAddress) &&
@@ -271,6 +294,7 @@ export abstract class HyperlaneAppGovernor<
         return SubmissionType.SAFE;
       }
     }
+
     return SubmissionType.MANUAL;
   }
 

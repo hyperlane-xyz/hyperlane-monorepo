@@ -29,6 +29,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
+  polygonzkevm: {
+    transactionOverrides: {
+      gasPrice: 1 * 10 ** 9, // 1 gwei
+    },
+  },
   ethereum: {
     blocks: {
       confirmations: 3,
@@ -48,7 +53,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   },
   sei: {
     transactionOverrides: {
-      gasPrice: 1 * 10 ** 9, // 2 gwei
+      gasPrice: 2 * 10 ** 9, // 2 gwei
     },
   },
   moonbeam: {
