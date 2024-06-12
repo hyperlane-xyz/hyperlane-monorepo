@@ -427,7 +427,7 @@ fn main() -> ExitCode {
         state.push_agent(validator);
     }
 
-    state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
+    state.push_agent(relayer_env.clone().spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
     if let Some((solana_config_path, (_, solana_path))) =
         solana_config_path.clone().zip(solana_paths.clone())
@@ -447,6 +447,7 @@ fn main() -> ExitCode {
     kathy_env_zero_insertion.clone().run().join();
     state.push_agent(
         kathy_env_single_insertion
+            .clone()
             .flag("mineforever")
             .spawn("KTY", None),
     );
@@ -498,6 +499,22 @@ fn main() -> ExitCode {
 
         sleep(Duration::from_secs(5));
     }
+
+    // restart the relayer and send some messages to test fast startup
+    let relayer = state.agents.get_mut("RLY").unwrap();
+    log!("Stopping relayer to test fast startup...");
+    stop_child(&mut relayer.0);
+
+    // send some messages to test fast startup
+    log!("Sending messages to test fast startup...");
+    kathy_env_single_insertion.clone().run().join();
+    sleep(Duration::from_secs(10));
+
+    // start relayer
+    log!("Starting relayer to test fast startup...");
+    state.push_agent(relayer_env.clone().spawn("RLY", Some(&AGENT_LOGGING_DIR)));
+
+    sleep(Duration::from_secs(50));
 
     if failure_occurred {
         log!("E2E tests failed");
