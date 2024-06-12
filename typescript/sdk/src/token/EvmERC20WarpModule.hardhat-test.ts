@@ -272,5 +272,49 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expect(updatedConfig).to.deep.equal(interchainSecurityModule);
       }
     });
+
+    it.only('should not deployset a new Ism if the config is the same', async () => {
+      const config = {
+        type: TokenType.native,
+        hook: hookAddress,
+        ...baseConfig,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+
+      const owner = randomAddress();
+      const interchainSecurityModule: IsmConfig = {
+        type: IsmType.PAUSABLE,
+        owner,
+        paused: false,
+      };
+      const expectedConfig: TokenRouterConfig = {
+        ...actualConfig,
+        interchainSecurityModule: {
+          type: IsmType.PAUSABLE,
+          owner,
+          paused: false,
+        },
+      };
+
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = normalizeConfig(
+        (await evmERC20WarpModule.read()).interchainSecurityModule,
+      );
+
+      expect(updatedConfig).to.deep.equal(interchainSecurityModule);
+
+      // Deploy with the same config
+      const txs = await evmERC20WarpModule.update(expectedConfig);
+
+      expect(txs.length).to.equal(0);
+    });
   });
 });

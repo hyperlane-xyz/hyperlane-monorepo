@@ -2,7 +2,8 @@ import { MailboxClient__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
-  deepEquals,
+  configDeepEquals,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -82,15 +83,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Updates an existing Warp route ISM with a given configuration.
-   *
-   * This method handles two cases:
-   * 1. If the `config.interchainSecurityModule.address` is undefined
-   *  - Deploys a new ISM module
-   *  - Updates the contract's ISM.
-   * 2. If the `config.interchainSecurityModule.address` is defined.
-   *  - Checks if the current onchain ISM configuration matches the provided configuration.
-   *  - Updates the contract's ISM.
+   * Deploys and updates an existing Warp route ISM with a given config.
    *
    * @param expectedconfig - The expected token router configuration, including the ISM configuration.
    * @param actualConfig - The on-chain router configuration, including the ISM configuration.
@@ -101,16 +94,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [];
-    if (expectedconfig.interchainSecurityModule) {
-      if (
-        !deepEquals(
-          expectedconfig.interchainSecurityModule,
-          actualConfig.interchainSecurityModule,
-        )
-      ) {
+    const expectedIsmConfig = expectedconfig.interchainSecurityModule;
+    const actualIsmConfig = normalizeConfig(
+      actualConfig.interchainSecurityModule,
+    );
+    if (expectedIsmConfig) {
+      if (!configDeepEquals(expectedIsmConfig, actualIsmConfig)) {
         const deployedIsm = await this.deployIsm(
           expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
-          expectedconfig.interchainSecurityModule,
+          expectedIsmConfig,
           expectedconfig.mailbox,
         );
         const contractToUpdate = MailboxClient__factory.connect(
@@ -123,7 +115,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           to: contractToUpdate.address,
           data: contractToUpdate.interface.encodeFunctionData(
             'setInterchainSecurityModule',
-            [deployedIsm], // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+            [deployedIsm],
           ),
         });
       }
@@ -168,23 +160,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [];
     if (expectedConfig.hook) {
-      // @todo Uncomment after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
-      // const contractToUpdate = await this.args.addresses[
-      //   expectedConfig.type
-      // ].deployed();
-      // // If an address is not defined, deploy a new Hook
-      // const expectedHookConfig = !expectedConfig.hook.address
-      //   ? await this.deployHook(expectedConfig.hook)
-      //   : expectedConfig.hook;
-      // const actualHookConfig = actualConfig.hook;
-      // if (!deepEquals(expectedHookConfig, actualHookConfig)) {
-      //   transactions.push({
-      //     transaction: await contractToUpdate.populateTransaction.setHook(
-      //       expectedHookConfig.address,
-      //     ),
-      //     type: ProviderType.EthersV5,
-      //   });
-      // }
+      // @todo Implement after https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3861 is merged,
     }
     return transactions;
   }
