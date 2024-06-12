@@ -74,12 +74,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   public async update(
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    const actualConfig = await this.read(); // @TODO add normalizer
+    const actualConfig = await this.read();
 
-    return Promise.all([
+    return [
       ...(await this.updateIsm(expectedConfig, actualConfig)),
       ...(await this.updateHook(expectedConfig, actualConfig)),
-    ]);
+    ];
   }
 
   /**
@@ -146,7 +146,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     });
 
     // Attach the deployedIsm address
-    return ism.serialize().deployedIsm; // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+    return ism.serialize().deployedIsm;
   }
 
   /**
