@@ -20,6 +20,9 @@
       "0x43e915573d9f1383cbf482049e4a012290759e7f"
     ]
   },
+  "holesky": {
+    "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
+  },
   "plumetestnet": {
     "validators": [
       "0xe765a214849f3ecdf00793b97d00422f2d408ea6",

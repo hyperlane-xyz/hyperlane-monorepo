@@ -13,12 +13,12 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, ProcessMessage},
     CoreMetrics,
 };
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, instrument, trace};
 
-use super::{metadata::AppContextClassifier, op_queue::QueueOperation, pending_message::*};
+use super::{metadata::AppContextClassifier, pending_message::*};
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel

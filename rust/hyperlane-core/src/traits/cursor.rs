@@ -1,4 +1,8 @@
-use std::{fmt, ops::RangeInclusive, time::Duration};
+use std::{
+    fmt::{self, Debug},
+    ops::RangeInclusive,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
@@ -9,7 +13,7 @@ use crate::{Indexed, LogMeta};
 /// A cursor governs event indexing for a contract.
 #[async_trait]
 #[auto_impl(Box)]
-pub trait ContractSyncCursor<T>: Send + Sync + 'static {
+pub trait ContractSyncCursor<T>: Debug + Send + Sync + 'static {
     /// The next block range that should be queried.
     /// This method should be tolerant to being called multiple times in a row
     /// without any updates in between.

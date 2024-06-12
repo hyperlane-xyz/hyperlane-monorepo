@@ -7,6 +7,10 @@ on:
   pull_request:
     branches:
       - '*' # run against all branches
+    paths-ignore:
+      - '*.md'
+  # Support for merge queues
+  merge_group:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -224,7 +228,7 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
     needs: [yarn-build, checkout-registry]
     strategy:
       matrix:
@@ -325,7 +329,7 @@ jobs:
 
   cli-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
     needs: [yarn-build, checkout-registry]
     strategy:
       matrix:

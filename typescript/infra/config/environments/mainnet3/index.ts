@@ -1,16 +1,20 @@
-import { ChainMetadata, RpcConsensusType } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
+import { IRegistry } from '@hyperlane-xyz/registry';
 
 import {
   getKeysForRole,
+  getMultiProtocolProvider,
   getMultiProviderForRole,
 } from '../../../scripts/agent-utils.js';
+import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
 import { agents } from './agent.js';
-import { environment as environmentName, mainnetConfigs } from './chains.js';
+import {
+  chainMetadataOverrides,
+  environment as environmentName,
+} from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
 import { helloWorld } from './helloworld.js';
@@ -18,34 +22,38 @@ import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
 import { owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
+
+const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+  getRegistryForEnvironment(
+    environmentName,
+    supportedChainNames,
+    chainMetadataOverrides,
+    useSecrets,
+  );
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
-  chainMetadataConfigs: mainnetConfigs,
-  getMultiProvider: (
+  supportedChainNames,
+  getRegistry,
+  getMultiProtocolProvider: async () =>
+    getMultiProtocolProvider(await getRegistry()),
+  getMultiProvider: async (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-    connectionType?: RpcConsensusType,
-  ) => {
-    const config = objFilter(
-      mainnetConfigs,
-      (_, chainMetadata): chainMetadata is ChainMetadata =>
-        chainMetadata.protocol === ProtocolType.Ethereum,
-    );
-
-    return getMultiProviderForRole(
-      config,
+    useSecrets?: boolean,
+  ) =>
+    getMultiProviderForRole(
       environmentName,
+      await getRegistry(useSecrets),
       context,
       role,
       undefined,
-      connectionType,
-    );
-  },
+    ),
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-  ) => getKeysForRole(mainnetConfigs, environmentName, context, role),
+  ) => getKeysForRole(environmentName, supportedChainNames, context, role),
   agents,
   core,
   igp,

@@ -28,11 +28,13 @@ ethers-contract.workspace = true
 tokio.workspace = true
 maplit.workspace = true
 nix = { workspace = true, features = ["signal"], default-features = false }
+once_cell.workspace = true
 tempfile.workspace = true
 ureq = { workspace = true, default-features = false }
 which.workspace = true
 macro_rules_attribute.workspace = true
 regex.workspace = true
+relayer = { path = "../../agents/relayer"}
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
 

@@ -29,6 +29,7 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
     // Operator info
     uint256 operatorPrivateKey = 0xdeadbeef;
     address operator;
+    address avsSigningKey = address(0xc0ffee);
 
     bytes32 emptySalt;
     uint256 maxExpiry = type(uint256).max;
@@ -97,9 +98,11 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 emptySalt,
                 maxExpiry
             );
+
+        vm.prank(operator);
         _ecdsaStakeRegistry.registerOperatorWithSignature(
-            operator,
-            operatorSignature
+            operatorSignature,
+            avsSigningKey
         );
 
         // assert
@@ -122,12 +125,13 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 maxExpiry
             );
 
+        vm.prank(operator);
         vm.expectRevert(
             "EIP1271SignatureUtils.checkSignature_EIP1271: signature not from signer"
         );
         _ecdsaStakeRegistry.registerOperatorWithSignature(
-            operator,
-            operatorSignature
+            operatorSignature,
+            avsSigningKey
         );
 
         // assert
@@ -409,9 +413,10 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
                 maxExpiry
             );
 
+        vm.prank(operator);
         _ecdsaStakeRegistry.registerOperatorWithSignature(
-            operator,
-            operatorSignature
+            operatorSignature,
+            avsSigningKey
         );
     }
 

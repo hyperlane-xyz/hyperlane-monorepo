@@ -1,11 +1,11 @@
 {
   "name": "@hyperlane-xyz/helloworld",
   "description": "A basic skeleton of an Hyperlane app",
-  "version": "3.12.2",
+  "version": "3.13.0",
   "dependencies": {
-    "@hyperlane-xyz/core": "3.12.2",
+    "@hyperlane-xyz/core": "3.13.0",
     "@hyperlane-xyz/registry": "1.3.0",
-    "@hyperlane-xyz/sdk": "3.12.2",
+    "@hyperlane-xyz/sdk": "3.13.0",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "ethers": "^5.7.2"
   },
