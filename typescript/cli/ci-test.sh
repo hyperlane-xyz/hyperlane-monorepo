@@ -34,11 +34,11 @@ _main() {
     run_hyperlane_deploy_warp;
     run_hyperlane_send_message;
 
-    cd ./rust;
+    # cd ./rust;
 
-    run_validator;
-    run_relayer;
-    run_hyperlane_status;
+    # run_validator;
+    # run_relayer;
+    # run_hyperlane_status;
 
     kill_anvil;
 
@@ -75,6 +75,7 @@ prepare_environment_vars() {
 }
 
 prepare_anvil() {
+
     CHAIN1_PORT=8545
     CHAIN2_PORT=8555
 
@@ -142,12 +143,11 @@ run_hyperlane_deploy_core_dry_run() {
     update_deployer_balance;
 
     echo -e "\nDry-running contract deployments to Alfajores"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
+    yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
         --dry-run alfajores \
         --registry ${TEST_CONFIGS_PATH}/dry-run \
         --overrides " " \
-        $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
-        --ism ${TEST_CONFIGS_PATH}/dry-run/ism.yaml \
+        --config ${EXAMPLES_PATH}/core-config.yaml \
         --from-address 0xfaD1C94469700833717Fa8a3017278BC1cA8031C \
         --yes
 
@@ -162,7 +162,7 @@ run_hyperlane_deploy_warp_dry_run() {
     update_deployer_balance;
 
     echo -e "\nDry-running warp route deployments to Alfajores"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --dry-run alfajores \
         --overrides ${TEST_CONFIGS_PATH}/dry-run \
         --config ${TEST_CONFIGS_PATH}/dry-run/warp-route-deployment.yaml \
@@ -175,14 +175,21 @@ run_hyperlane_deploy_warp_dry_run() {
 run_hyperlane_deploy_core() {
     update_deployer_balance;
 
-    echo -e "\nDeploying contracts to ${CHAIN1} and ${CHAIN2}"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy core \
+    echo -e "\nDeploying contracts to ${CHAIN1}"
+    yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
         --registry $REGISTRY_PATH \
         --overrides " " \
-        --targets ${CHAIN1},${CHAIN2} \
-        $(if [ "$HOOK_FLAG" == "true" ]; then echo "--hook ${EXAMPLES_PATH}/hooks.yaml"; fi) \
-        --ism $CORE_ISM_PATH \
-        --agent /tmp/agent-config.json \
+        --config ${EXAMPLES_PATH}/core-config.yaml \
+        --chain $CHAIN1 \
+        --key $ANVIL_KEY \
+        --yes
+
+    echo -e "\nDeploying contracts to ${CHAIN2}"
+    yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
+        --registry $REGISTRY_PATH \
+        --overrides " " \
+        --config ${EXAMPLES_PATH}/core-config.yaml \
+        --chain $CHAIN2 \
         --key $ANVIL_KEY \
         --yes
 
@@ -193,7 +200,7 @@ run_hyperlane_deploy_warp() {
     update_deployer_balance;
 
     echo -e "\nDeploying hypNative warp route"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry $REGISTRY_PATH \
         --overrides " " \
         --config $WARP_DEPLOY_CONFIG_PATH \
@@ -206,7 +213,7 @@ run_hyperlane_deploy_warp() {
         /tmp/warp-collateral-deployment.json \
 
     echo "Deploying hypCollateral warp route"
-    yarn workspace @hyperlane-xyz/cli run hyperlane deploy warp \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry $REGISTRY_PATH \
         --overrides " " \
         --config /tmp/warp-collateral-deployment.json \
@@ -238,7 +245,7 @@ run_hyperlane_send_message() {
     WARP_CONFIG_FILE="$REGISTRY_PATH/deployments/warp_routes/FAKE/${CHAIN1}-${CHAIN2}-config.yaml"
 
     echo -e "\nSending test warp transfer"
-    yarn workspace @hyperlane-xyz/cli run hyperlane send transfer \
+    yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
         --registry $REGISTRY_PATH \
         --overrides " " \
         --origin ${CHAIN1} \

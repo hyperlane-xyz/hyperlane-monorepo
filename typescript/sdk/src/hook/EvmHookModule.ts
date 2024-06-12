@@ -3,11 +3,11 @@ import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleArgs,
+  HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import { HookFactories } from './contracts.js';
@@ -27,7 +27,7 @@ export class EvmHookModule extends HyperlaneModule<
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly deployer: HyperlaneDeployer<any, any>,
-    args: HyperlaneModuleArgs<
+    args: HyperlaneModuleParams<
       HookConfig,
       HyperlaneAddresses<HookFactories> & {
         deployedHook: Address;
@@ -39,10 +39,10 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<HookConfig> {
-    return await this.reader.deriveHookConfig(this.args.addresses.deployedHook);
+    return this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
-  public async update(_config: HookConfig): Promise<EthersV5Transaction[]> {
+  public async update(_config: HookConfig): Promise<AnnotatedEV5Transaction[]> {
     throw new Error('Method not implemented.');
   }
 

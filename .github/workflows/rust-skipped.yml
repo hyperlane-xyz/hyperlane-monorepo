@@ -9,6 +9,8 @@ on:
     paths-ignore:
       - 'rust/**'
       - .github/workflows/rust.yml
+  # Support for merge queues
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always

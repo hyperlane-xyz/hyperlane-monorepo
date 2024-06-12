@@ -1,5 +1,25 @@
 # @hyperlane-xyz/utils
 
+## 4.0.0-alpha.2
+
+## 4.0.0-alpha.0
+
+## 4.0.0-alpha
+
+### Major Changes
+
+- 74c879fa1: Merge branch 'cli-2.0' into main.
+
+### Minor Changes
+
+- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
+
+## 3.13.0
+
+### Minor Changes
+
+- 0cf692e73: Implement metadata builder fetching from message
+
 ## 3.12.0
 
 ### Minor Changes

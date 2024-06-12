@@ -1,5 +1,41 @@
 # @hyperlane-xyz/core
 
+## 4.0.0-alpha.2
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.0.0-alpha.2
+
+## 4.0.0-alpha.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.0.0-alpha.0
+
+## 4.0.0
+
+### Major Changes
+
+- 74c879fa1: Merge branch 'cli-2.0' into main.
+
+### Patch Changes
+
+- Updated dependencies [341b8affd]
+- Updated dependencies [74c879fa1]
+  - @hyperlane-xyz/utils@4.0.0-alpha
+
+## 3.13.0
+
+### Minor Changes
+
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- b440d98be: Added support for registering/deregistering from the Hyperlane AVS
+
+### Patch Changes
+
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.12.0
 
 ### Patch Changes

@@ -1,6 +1,7 @@
 import { input } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
@@ -14,6 +15,14 @@ export type ArtifactsFile = {
   filename: string;
   description: string;
 };
+
+export function resolvePath(filePath: string): string {
+  if (filePath.startsWith('~')) {
+    const homedir = os.homedir();
+    return path.join(homedir, filePath.slice(1));
+  }
+  return filePath;
+}
 
 export function isFile(filepath: string) {
   if (!filepath) return false;
@@ -200,4 +209,12 @@ export async function runFileSelectionStep(
 
   if (filename) return filename;
   else throw new Error(`No filepath entered ${description}`);
+}
+
+export function indentYamlOrJson(str: string, indentLevel: number): string {
+  const indent = ' '.repeat(indentLevel);
+  return str
+    .split('\n')
+    .map((line) => indent + line)
+    .join('\n');
 }

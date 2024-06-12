@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - '*' # run against all branches
+  # Support for merge queues
+  merge_group:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -19,7 +21,8 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  REGISTRY_URI: ../../node_modules/@hyperlane-xyz/registry/dist
+  # Alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
+  REGISTRY_URI: ${{ github.workspace }}/../hyperlane-registry
 
 jobs:
   yarn-install:
@@ -81,6 +84,31 @@ jobs:
       - name: build
         run: yarn build
 
+  checkout-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: hyperlane-xyz/hyperlane-registry
+          ref: main
+          path: ./hyperlane-registry
+
+      # Put alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
+      # actions/checkout doesn't allow you to checkout a repository outside of the workspace.
+      # See https://github.com/actions/checkout/issues/197.
+      - run: mv ./hyperlane-registry ../
+
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
+
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+
   lint-prettier:
     runs-on: ubuntu-latest
     needs: [yarn-install]
@@ -113,7 +141,7 @@ jobs:
 
   yarn-test:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-build, checkout-registry]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -132,12 +160,23 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
+
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Unit Tests
         run: yarn test:ci
 
   agent-configs:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-build, checkout-registry]
     strategy:
       fail-fast: false
       matrix:
@@ -164,6 +203,17 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
+
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Generate ${{ matrix.environment }} agent config
         run: |
           cd typescript/infra
@@ -176,8 +226,8 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [yarn-build]
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    needs: [yarn-build, checkout-registry]
     strategy:
       matrix:
         e2e-type: [cosmwasm, non-cosmwasm]
@@ -230,6 +280,17 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
+
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: cargo-cache
         uses: actions/cache@v3
         with:
@@ -266,8 +327,8 @@ jobs:
 
   cli-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
-    needs: [yarn-build]
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
+    needs: [yarn-build, checkout-registry]
     strategy:
       matrix:
         include:
@@ -323,6 +384,17 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
+
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: cargo-cache
         uses: actions/cache@v3
         with:
@@ -335,7 +407,7 @@ jobs:
 
   env-test:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-build, checkout-registry]
     strategy:
       fail-fast: false
       matrix:
@@ -362,6 +434,17 @@ jobs:
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
+
+      - name: registry-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
+          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
         run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}

@@ -5,7 +5,7 @@ import {IFiatToken} from "../interfaces/IFiatToken.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 // see https://github.com/circlefin/stablecoin-evm/blob/master/doc/tokendesign.md#issuing-and-destroying-tokens
-contract HypFiatTokenCollateral is HypERC20Collateral {
+contract HypFiatToken is HypERC20Collateral {
     constructor(
         address _fiatToken,
         address _mailbox

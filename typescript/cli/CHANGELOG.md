@@ -1,5 +1,82 @@
 # @hyperlane-xyz/cli
 
+## 4.0.0-alpha.2
+
+### Minor Changes
+
+- 4040db723: Fix createDefaultWarpIsmConfig to default to trusted relayer and fallback routing without prompts
+
+### Patch Changes
+
+- 3283eefd6: Removes default pattern for chain name when creating a new chain.
+- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
+- Updated dependencies [6b63c5d82]
+  - @hyperlane-xyz/sdk@4.0.0-alpha.2
+  - @hyperlane-xyz/utils@4.0.0-alpha.2
+
+## 4.0.0-alpha.0
+
+### Minor Changes
+
+- 6db9fa9ad: Implement hyperlane warp deploy
+
+### Patch Changes
+
+- Updated dependencies [bdcbe1d16]
+- Updated dependencies [6db9fa9ad]
+  - @hyperlane-xyz/sdk@4.0.0-alpha.0
+  - @hyperlane-xyz/utils@4.0.0-alpha.0
+
+## 4.0.0-alpha
+
+### Major Changes
+
+- 74c879fa1: Merge branch 'cli-2.0' into main.
+
+### Minor Changes
+
+- 1ec61debd: Support hook config objects in warp config
+- 4663018fc: Implement hyperlane core config to return CoreConfig
+- 84bc0bd7f: Adds 'hyperlane warp config'.
+- b560bfc26: Adds 'hyperlane core config'.
+- 642bc686d: Rename chain and config commands. Update hl core configure to prompt user for owner.
+- ba4c9a7da: Add warp send in favor of send transfer.
+- 7089c910f: Adds 'hyperlane warp read'.
+- 1d0d1bb36: Implements `hyperlane core deploy`
+- 44a2ffa1b: Adds 'hyperlane core read'.
+
+### Patch Changes
+
+- Updated dependencies [eb23e7729]
+- Updated dependencies [1ec61debd]
+- Updated dependencies [4663018fc]
+- Updated dependencies [5e5886f2c]
+- Updated dependencies [341b8affd]
+- Updated dependencies [3dabcbdca]
+- Updated dependencies [1d0d1bb36]
+- Updated dependencies [74c879fa1]
+- Updated dependencies [4bf7301ea]
+  - @hyperlane-xyz/sdk@4.0.0
+  - @hyperlane-xyz/utils@4.0.0-alpha
+
+## 3.13.0
+
+### Minor Changes
+
+- b22a0f453: Add hyperlane validator address command to retrieve validator address from AWS
+- 39ea7cdef: Implement multi collateral warp routes
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- b440d98be: Added support for registering/deregistering from the Hyperlane AVS
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
 ## 3.12.0
 
 ### Minor Changes

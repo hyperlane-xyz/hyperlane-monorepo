@@ -63,8 +63,8 @@ export function testCoreConfig(
 }
 
 const TEST_ORACLE_CONFIG = {
-  gasPrice: ethers.utils.parseUnits('1', 'gwei'),
-  tokenExchangeRate: ethers.utils.parseUnits('1', 10),
+  gasPrice: ethers.utils.parseUnits('1', 'gwei').toString(),
+  tokenExchangeRate: ethers.utils.parseUnits('1', 10).toString(),
 };
 
 export function testIgpConfig(
@@ -75,6 +75,7 @@ export function testIgpConfig(
     chains.map((local) => [
       local,
       {
+        type: HookType.INTERCHAIN_GAS_PAYMASTER,
         owner,
         oracleKey: owner,
         beneficiary: owner,

@@ -9,8 +9,8 @@ type ChainType = (typeof ChainTypes)[number];
 /**
  * Parent command
  */
-export const chainsCommand: CommandModule = {
-  command: 'chains',
+export const registryCommand: CommandModule = {
+  command: 'registry',
   describe: 'View information about Hyperlane chains in a registry',
   builder: (yargs) =>
     yargs

@@ -1,3 +1,4 @@
+import { MailboxClient__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -5,10 +6,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
-  HyperlaneModuleArgs,
+  HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
@@ -17,26 +18,17 @@ import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  EthersV5Transaction,
-  createAnnotatedEthersV5Transaction,
-} from '../providers/ProviderType.js';
-import { RouterConfig } from '../router/types.js';
-import { ChainMap, ChainNameOrId } from '../types.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { ChainNameOrId } from '../types.js';
 
-import {
-  DerivedTokenRouterConfig,
-  DerivedTokenType,
-  EvmERC20WarpRouteReader,
-} from './EvmERC20WarpRouteReader.js';
-import { TokenConfig } from './config.js';
-import { HypERC20Factories } from './contracts.js';
+import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
+import { TokenRouterConfig } from './schemas.js';
 
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
-  DerivedTokenRouterConfig,
-  HyperlaneContracts<HypERC20Factories> & {
+  TokenRouterConfig,
+  {
     deployedTokenRoute: Address;
   }
 > {
@@ -47,15 +39,14 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleArgs<
-      DerivedTokenRouterConfig,
-      HyperlaneContracts<HypERC20Factories> & {
+    args: HyperlaneModuleParams<
+      TokenRouterConfig,
+      {
         deployedTokenRoute: Address;
       }
     >,
   ) {
     super(args);
-
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
   }
 
@@ -65,7 +56,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param address - The address to derive the token router configuration from.
    * @returns A promise that resolves to the token router configuration.
    */
-  public async read(): Promise<DerivedTokenRouterConfig> {
+  public async read(): Promise<TokenRouterConfig> {
     return this.reader.deriveWarpRouteConfig(
       this.args.addresses.deployedTokenRoute,
     );
@@ -80,9 +71,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
   public async update(
-    expectedConfig: DerivedTokenRouterConfig,
-  ): Promise<EthersV5Transaction[]> {
-    const actualConfig = await this.read();
+    expectedConfig: TokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const actualConfig = await this.read(); // @TODO add normalizer
 
     return Promise.all([
       ...(await this.updateIsm(expectedConfig, actualConfig)),
@@ -106,37 +97,39 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns An array of Ethereum transactions that need to be executed to update the ISM configuration.
    */
   async updateIsm(
-    expectedconfig: DerivedTokenRouterConfig,
-    actualConfig: DerivedTokenRouterConfig,
-  ): Promise<EthersV5Transaction[]> {
-    const transactions: EthersV5Transaction[] = [];
+    expectedconfig: TokenRouterConfig,
+    actualConfig: TokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const transactions: AnnotatedEV5Transaction[] = [];
     if (expectedconfig.interchainSecurityModule) {
-      const contractToUpdate = await this.args.addresses[
-        expectedconfig.type as DerivedTokenType
-      ].deployed();
+      const contractToUpdate = MailboxClient__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.args.chain),
+      );
 
       // If an address is not defined, deploy a new Ism
-      const expectedIsmConfig = !expectedconfig.interchainSecurityModule.address
+      const expectedIsmConfig = !expectedconfig.interchainSecurityModule
         ? await this.deployIsm(
-            expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
+            expectedconfig.ismFactoryAddresses!,
             expectedconfig.interchainSecurityModule,
+            expectedconfig.mailbox,
           )
         : expectedconfig.interchainSecurityModule;
       const actualIsmConfig = actualConfig.interchainSecurityModule;
+
+      // call warpRoute.setInterchainSecurityModule
       if (!deepEquals(expectedIsmConfig, actualIsmConfig)) {
-        transactions.push(
-          createAnnotatedEthersV5Transaction({
-            annotation: `Setting ISM for Warp Route to ${
-              (expectedIsmConfig as any).address
-            }`,
-            chainId: Number(this.multiProvider.getChainId(this.args.chain)),
-            to: contractToUpdate.address,
-            data: contractToUpdate.interface.encodeFunctionData(
-              'setInterchainSecurityModule',
-              [(expectedIsmConfig as any).address], // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
-            ),
-          }),
-        );
+        transactions.push({
+          annotation: `Setting ISM for Warp Route to ${
+            (expectedIsmConfig as any).address
+          }`,
+          chainId: Number(this.multiProvider.getChainId(this.args.chain)),
+          to: contractToUpdate.address,
+          data: contractToUpdate.interface.encodeFunctionData(
+            'setInterchainSecurityModule',
+            [(expectedIsmConfig as any).address], // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+          ),
+        });
       }
     }
     return transactions;
@@ -151,6 +144,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   public async deployIsm(
     ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
     interchainSecurityModule: IsmConfig,
+    mailbox: Address,
   ): Promise<IsmConfig> {
     const ism = await EvmIsmModule.create({
       chain: this.args.chain,
@@ -158,6 +152,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       deployer: new HyperlaneProxyFactoryDeployer(this.multiProvider),
       factories: ismFactoryAddresses,
       multiProvider: this.multiProvider,
+      mailbox,
     });
 
     // Attach the deployedIsm address
@@ -173,10 +168,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns An array of Ethereum transactions that can be executed to update the hook.
    */
   async updateHook(
-    expectedConfig: DerivedTokenRouterConfig,
-    actualConfig: DerivedTokenRouterConfig,
-  ): Promise<EthersV5Transaction[]> {
-    const transactions: EthersV5Transaction[] = [];
+    expectedConfig: TokenRouterConfig,
+    _actualConfig: TokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const transactions: AnnotatedEV5Transaction[] = [];
     if (expectedConfig.hook) {
       // @todo Uncomment after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
       // const contractToUpdate = await this.args.addresses[
@@ -222,20 +217,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    */
   public static async create(params: {
     chain: ChainNameOrId;
-    config: DerivedTokenRouterConfig;
+    config: TokenRouterConfig;
     multiProvider: MultiProvider;
   }): Promise<EvmERC20WarpModule> {
     const { chain, config, multiProvider } = params;
+    const chainName = multiProvider.getChainName(chain);
     const deployer = new HypERC20Deployer(multiProvider);
-    const deployedContracts = await deployer.deploy({
-      [chain]: config,
-    } as ChainMap<TokenConfig & RouterConfig>);
+    const deployedContracts = await deployer.deployContracts(chainName, config);
 
     return new EvmERC20WarpModule(multiProvider, {
       addresses: {
-        ...deployedContracts[chain],
-        deployedTokenRoute:
-          deployedContracts[chain][config.type as DerivedTokenType].address,
+        deployedTokenRoute: deployedContracts[config.type].address,
       },
       chain,
       config,

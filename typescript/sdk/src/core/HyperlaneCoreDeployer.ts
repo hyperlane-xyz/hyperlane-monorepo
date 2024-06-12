@@ -1,5 +1,6 @@
 import {
   IPostDispatchHook,
+  IPostDispatchHook__factory,
   Mailbox,
   TestRecipient,
   ValidatorAnnounce,
@@ -32,12 +33,14 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
   ) {
     super(multiProvider, coreFactories, {
       logger: rootLogger.child({ module: 'CoreDeployer' }),
       chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
@@ -68,11 +71,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       'mailbox',
       proxyAdmin,
       [domain],
-    );
-    // resolve the owner account so that the subsequent calls terminate early
-    config.owner = await this.resolveInterchainAccountAsOwner(
-      chain,
-      config.owner,
     );
 
     let defaultIsm = await mailbox.defaultIsm();
@@ -111,15 +109,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // configure mailbox
     try {
-      const owner = await this.resolveInterchainAccountAsOwner(
-        chain,
-        config.owner,
-      );
       this.logger.debug('Initializing mailbox');
       await this.multiProvider.handleTx(
         chain,
         mailbox.initialize(
-          owner,
+          config.owner,
           defaultIsm,
           defaultHook.address,
           requiredHook.address,
@@ -133,7 +127,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         !e.message.includes('Reverted 0x08c379a') &&
         // Handle situation where the gas estimation fails on the call function,
         // then the real error reason is not available in `e.message`, but rather in `e.error.reason`
-        !e.error?.reason?.includes('already initialized')
+        !e.error?.reason?.includes('already initialized') &&
+        // Some providers, like on Viction, return a generic error message for all revert reasons
+        !e.message.includes('always failing transaction')
       ) {
         throw e;
       }
@@ -144,7 +140,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       await this.configureHook(
         chain,
         mailbox,
-        defaultHook,
+        defaultHook.address,
         (_mailbox) => _mailbox.defaultHook(),
         (_mailbox, _hook) =>
           _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
@@ -153,7 +149,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       await this.configureHook(
         chain,
         mailbox,
-        requiredHook,
+        requiredHook.address,
         (_mailbox) => _mailbox.requiredHook(),
         (_mailbox, _hook) =>
           _mailbox.populateTransaction.setRequiredHook(_hook, { ...overrides }),
@@ -189,6 +185,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     config: HookConfig,
     coreAddresses: Partial<CoreAddresses>,
   ): Promise<IPostDispatchHook> {
+    if (typeof config === 'string') {
+      return IPostDispatchHook__factory.connect(
+        config,
+        this.multiProvider.getProvider(chain),
+      );
+    }
+
     const hooks = await this.hookDeployer.deployContracts(
       chain,
       config,

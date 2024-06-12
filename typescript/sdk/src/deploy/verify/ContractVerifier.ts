@@ -137,7 +137,7 @@ export class ContractVerifier {
           break;
         default:
           errorMessage = `Verification failed. ${
-            result.result ?? response.statusText
+            JSON.stringify(result.result) ?? response.statusText
           }`;
           break;
       }
@@ -155,7 +155,7 @@ export class ContractVerifier {
 
     if (result.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
       const errorMessage = `Verification failed. ${
-        result.result ?? response.statusText
+        JSON.stringify(result.result) ?? response.statusText
       }`;
       verificationLogger.debug(errorMessage);
       throw new Error(`[${chain}] ${errorMessage}`);

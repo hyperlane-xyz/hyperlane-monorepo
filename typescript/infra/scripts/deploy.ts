@@ -7,7 +7,6 @@ import {
   ChainMap,
   ContractVerifier,
   ExplorerLicenseType,
-  FallbackRoutingHookConfig,
   HypERC20Deployer,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -25,7 +24,6 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
-import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
 import { deployWithArtifacts } from '../src/deployment/deploy.js';
@@ -42,6 +40,7 @@ import {
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
+  withConcurrentDeploy,
   withContext,
   withModuleAndFork,
   withNetwork,
@@ -56,8 +55,11 @@ async function main() {
     environment,
     network,
     buildArtifactPath,
+    concurrentDeploy,
   } = await withContext(
-    withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    withConcurrentDeploy(
+      withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
@@ -113,6 +115,7 @@ async function main() {
       multiProvider,
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   } else if (module === Modules.WARP) {
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
@@ -193,11 +196,7 @@ async function main() {
     );
     // Config is intended to be changed for ad-hoc use cases:
     config = {
-      ethereum: {
-        ...(coreConfig.ethereum.defaultHook as FallbackRoutingHookConfig)
-          .domains.ancient8,
-        owner: DEPLOYER,
-      },
+      ethereum: coreConfig.ethereum.defaultHook,
     };
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);

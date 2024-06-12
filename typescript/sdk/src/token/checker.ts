@@ -8,20 +8,19 @@ import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker.js';
 import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
+import { HypERC20Factories } from './contracts.js';
 import {
-  ERC20RouterConfig,
-  HypERC20Config,
-  TokenMetadata,
+  TokenRouterConfig,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
-} from './config.js';
-import { HypERC20Factories } from './contracts.js';
+} from './schemas.js';
+import { TokenMetadata } from './types.js';
 
 export class HypERC20Checker extends HyperlaneRouterChecker<
   HypERC20Factories,
   HypERC20App,
-  ERC20RouterConfig
+  TokenRouterConfig
 > {
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
@@ -31,10 +30,10 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
   async checkToken(chain: ChainName): Promise<void> {
     const checkERC20 = async (
       token: ERC20,
-      config: HypERC20Config,
+      config: TokenRouterConfig,
     ): Promise<void> => {
       const checks: {
-        method: keyof TokenMetadata | 'decimals';
+        method: keyof ERC20 & keyof TokenMetadata;
         violationType: string;
       }[] = [
         { method: 'symbol', violationType: 'TokenSymbolMismatch' },

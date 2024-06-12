@@ -1,13 +1,17 @@
 import { ethers } from 'ethers';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import {
+  GithubRegistry,
+  IRegistry,
+  MergedRegistry,
+} from '@hyperlane-xyz/registry';
+import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { isNullish } from '@hyperlane-xyz/utils';
+import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
-import { MergedRegistry } from '../registry/MergedRegistry.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
@@ -52,7 +56,7 @@ export async function getContext({
   const registry = getRegistry(registryUri, registryOverrideUri);
 
   let signer: ethers.Wallet | undefined = undefined;
-  if (requiresKey) {
+  if (key || requiresKey) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
   const multiProvider = await getMultiProvider(registry, signer);
@@ -81,7 +85,7 @@ export async function getDryRunContext(
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, true);
+  const registry = getRegistry(registryUri, registryOverrideUri);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -95,9 +99,8 @@ export async function getDryRunContext(
   logBlue(`Dry-running against chain: ${chain}`);
   await verifyAnvil();
 
-  const multiProvider = await getMultiProvider(registry);
-  await forkNetworkToMultiProvider(multiProvider, chain);
-
+  let multiProvider = await getMultiProvider(registry);
+  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
     key,
@@ -127,14 +130,25 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
-  isDryRun?: boolean,
 ): IRegistry {
-  const registryUris = [primaryRegistryUri, overrideRegistryUri]
-    .map((r) => r.trim())
-    .filter((r) => !!r);
+  const logger = rootLogger.child({ module: 'MergedRegistry' });
+  const registries = [primaryRegistryUri, overrideRegistryUri]
+    .map((uri) => uri.trim())
+    .filter((uri) => !!uri)
+    .map((uri, index) => {
+      const childLogger = logger.child({ uri, index });
+      if (isHttpsUrl(uri)) {
+        return new GithubRegistry({ uri, logger: childLogger });
+      } else {
+        return new FileSystemRegistry({
+          uri,
+          logger: childLogger,
+        });
+      }
+    });
   return new MergedRegistry({
-    registryUris,
-    isDryRun,
+    registries,
+    logger,
   });
 }
 
