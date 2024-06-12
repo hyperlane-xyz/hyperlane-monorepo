@@ -102,32 +102,28 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [];
     if (expectedconfig.interchainSecurityModule) {
-      const contractToUpdate = MailboxClient__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.args.chain),
-      );
-
-      // If an address is not defined, deploy a new Ism
-      const expectedIsmConfig = !expectedconfig.interchainSecurityModule
-        ? await this.deployIsm(
-            expectedconfig.ismFactoryAddresses!,
-            expectedconfig.interchainSecurityModule,
-            expectedconfig.mailbox,
-          )
-        : expectedconfig.interchainSecurityModule;
-      const actualIsmConfig = actualConfig.interchainSecurityModule;
-
-      // call warpRoute.setInterchainSecurityModule
-      if (!deepEquals(expectedIsmConfig, actualIsmConfig)) {
+      if (
+        !deepEquals(
+          expectedconfig.interchainSecurityModule,
+          actualConfig.interchainSecurityModule,
+        )
+      ) {
+        const deployedIsm = await this.deployIsm(
+          expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
+          expectedconfig.interchainSecurityModule,
+          expectedconfig.mailbox,
+        );
+        const contractToUpdate = MailboxClient__factory.connect(
+          this.args.addresses.deployedTokenRoute,
+          this.multiProvider.getProvider(this.args.chain),
+        );
         transactions.push({
-          annotation: `Setting ISM for Warp Route to ${
-            (expectedIsmConfig as any).address
-          }`,
+          annotation: `Setting ISM for Warp Route to ${deployedIsm}`,
           chainId: Number(this.multiProvider.getChainId(this.args.chain)),
           to: contractToUpdate.address,
           data: contractToUpdate.interface.encodeFunctionData(
             'setInterchainSecurityModule',
-            [(expectedIsmConfig as any).address], // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
+            [deployedIsm], // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
           ),
         });
       }
@@ -145,7 +141,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
     interchainSecurityModule: IsmConfig,
     mailbox: Address,
-  ): Promise<IsmConfig> {
+  ): Promise<Address> {
     const ism = await EvmIsmModule.create({
       chain: this.args.chain,
       config: interchainSecurityModule,
@@ -156,8 +152,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     });
 
     // Attach the deployedIsm address
-    (interchainSecurityModule as any).address = ism.serialize().deployedIsm; // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
-    return interchainSecurityModule;
+    return ism.serialize().deployedIsm; // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
   }
 
   /**

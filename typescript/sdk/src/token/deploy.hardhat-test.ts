@@ -1,4 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
