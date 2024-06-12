@@ -94,7 +94,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [];
-    const expectedIsmConfig = expectedconfig.interchainSecurityModule;
+    const expectedIsmConfig = normalizeConfig(
+      expectedconfig.interchainSecurityModule,
+    );
     const actualIsmConfig = normalizeConfig(
       actualConfig.interchainSecurityModule,
     );

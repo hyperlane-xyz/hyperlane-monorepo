@@ -15,7 +15,6 @@ import {
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
-  EvmIsmModule,
   HyperlaneContractsMap,
   IsmConfig,
   IsmType,
@@ -273,7 +272,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       }
     });
 
-    it.only('should not deployset a new Ism if the config is the same', async () => {
+    it('should not deployset a new Ism if the config is the same', async () => {
       const config = {
         type: TokenType.native,
         hook: hookAddress,
