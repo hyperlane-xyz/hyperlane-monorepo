@@ -63,7 +63,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     moonbeam: true,
     neutron: true,
     optimism: true,
-    osmosis: false,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
@@ -221,7 +221,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5a9ab13-20240611-135815',
+      tag: '59451d6-20240612-171611',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -229,7 +229,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '5a9ab13-20240611-135815',
+      tag: '59451d6-20240612-171611',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -238,7 +238,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5a9ab13-20240611-135815',
+      tag: '59451d6-20240612-171611',
     },
   },
 };
