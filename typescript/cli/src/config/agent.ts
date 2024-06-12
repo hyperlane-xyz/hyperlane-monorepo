@@ -1,4 +1,7 @@
+import { fromError } from 'zod-validation-error';
+
 import {
+  AgentConfigSchema,
   ChainMap,
   HyperlaneCore,
   HyperlaneDeploymentArtifacts,
@@ -8,7 +11,7 @@ import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { ChainType } from '../commands/types.js';
 import { CommandContext } from '../context/types.js';
-import { logBlue, logGreen, warnYellow } from '../logger.js';
+import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 export async function createAgentConfig({
@@ -66,6 +69,16 @@ export async function createAgentConfig({
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
+
+  try {
+    AgentConfigSchema.parse(agentConfig);
+  } catch (e) {
+    const error = fromError(e);
+    logRed(
+      `Agent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${error.toString()}`,
+    );
+    process.exit(1);
+  }
 
   logBlue(`Agent config is valid, writing to file ${out}`);
   writeYamlOrJson(out, agentConfig, 'json');

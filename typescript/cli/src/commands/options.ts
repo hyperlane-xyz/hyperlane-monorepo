@@ -112,7 +112,6 @@ export const chainTargetsCommandOption: Options = {
   type: 'string',
   description: 'Comma-separated list of chain names',
   alias: 'c',
-  // TODO choices: ... can we configure this so that it's a list of chain names including any new chains added to the local registry
 };
 
 export const environmentCommandOption: Options = {

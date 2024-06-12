@@ -1,7 +1,7 @@
-import { CommandModule } from 'yargs';
+import { Argv, CommandModule } from 'yargs';
 
 import { createAgentConfig } from '../config/agent.js';
-import { CommandModuleWithContext } from '../context/types.js';
+import { CommandContext, CommandModuleWithContext } from '../context/types.js';
 import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
 
 import {
@@ -105,52 +105,53 @@ const createAgentConfigCommand: CommandModuleWithContext<{
 }> = {
   command: 'agent-config',
   describe: 'Create a new agent config',
-  builder: {
-    chains: chainTargetsCommandOption,
-    environment: environmentCommandOption,
-    out: outputFileCommandOption(
-      './configs/agent-config.json',
-      false,
-      'The path to output an agent config JSON file.',
-    ),
-  },
-  // TODO: make chains and environment mutually exclusive, but require one of them
-  // builder: (yargs) => {
-  //   yargs
-  //     .option('chains', chainTargetsCommandOption)
-  //     .option('environment', environmentCommandOption as Options<string>)
-  //     .option(
-  //       'out',
-  //       outputFileCommandOption(
-  //         './configs/agent-config.json',
-  //         false,
-  //         'The path to output an agent config JSON file.',
-  //       ) as Options<string>,
-  //     )
-  //     .check((argv) => {
-  //       if (!argv.chains && !argv.environment) {
-  //         throw new Error(
-  //           'Either --chains or --environment must be specified.',
-  //         );
-  //       }
-  //       return true;
-  //     })
-  //     .check((argv) => {
-  //       if (argv.chains && argv.environment) {
-  //         throw new Error(
-  //           '--chains and --environment cannot be specified together.',
-  //         );
-  //       }
-  //       return true;
-  //     });
+  builder: (yargs) => {
+    yargs
+      .option('chains', chainTargetsCommandOption)
+      .option('environment', environmentCommandOption)
+      .option(
+        'out',
+        outputFileCommandOption(
+          './configs/agent-config.json',
+          false,
+          'The path to output an agent config JSON file.',
+        ),
+      )
+      .check((argv) => {
+        if (!argv.chains && !argv.environment) {
+          throw new Error(
+            'Either --chains or --environment must be specified.',
+          );
+        }
+        return true;
+      })
+      .check((argv) => {
+        if (argv.chains && argv.environment) {
+          throw new Error(
+            '--chains and --environment cannot be specified together.',
+          );
+        }
+        return true;
+      });
 
-  //   return yargs as any as Argv<{
-  //     chains?: string | undefined;
-  //     environment?: string | undefined;
-  //     out: string;
-  //   }>;
-  // },
-  handler: async ({ context, chains, environment, out }) => {
+    return yargs as Argv<{
+      chains?: string;
+      environment?: string;
+      out: string;
+      context: CommandContext;
+    }>;
+  },
+  handler: async ({
+    context,
+    chains,
+    environment,
+    out,
+  }: {
+    context: CommandContext;
+    chains?: string;
+    environment?: string;
+    out: string;
+  }) => {
     const { multiProvider } = context;
 
     let chainNames;
