@@ -538,7 +538,6 @@ export class EvmIsmModule extends HyperlaneModule<
     logger: Logger;
   }): Promise<IAggregationIsm> {
     const addresses: Address[] = [];
-    // Needs to be deployed sequentially because Ethers will throw `Error: replacement fee too low`
     for (const module of config.modules) {
       const submodule = await this.deploy({ config: module });
       addresses.push(submodule.address);

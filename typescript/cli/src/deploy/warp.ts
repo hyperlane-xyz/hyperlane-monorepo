@@ -133,8 +133,6 @@ async function executeDeploy(params: DeployParams) {
 
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
 
-  // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
-  // Then return a modified config with the ism address as a string
   const modifiedConfig = await deployAndResolveWarpIsm(
     config,
     multiProvider,
@@ -163,7 +161,6 @@ async function deployAndResolveWarpIsm(
 ): Promise<WarpRouteDeployConfig> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
-      // Skip deployment if Ism is empty, or a string
       if (
         !config.interchainSecurityModule ||
         typeof config.interchainSecurityModule === 'string'
@@ -179,7 +176,7 @@ async function deployAndResolveWarpIsm(
       }
 
       logBlue('Loading Registry factory addresses');
-      let chainAddresses = await registry.getChainAddresses(chain); // Can includes other addresses
+      let chainAddresses = await registry.getChainAddresses(chain);
 
       if (!chainAddresses) {
         logGray('Registry factory addresses not found, deploying');
