@@ -162,7 +162,11 @@ async function getWarpCoreConfig(
     }
 
     const collateralAddressOrDenom =
-      config.type === TokenType.collateral ? config.token : undefined;
+      // todo: should this match typescript/cli/src/config/warp.ts line 136?
+      config.type === TokenType.collateral ||
+      config.type == TokenType.collateralFiat
+        ? config.token
+        : undefined;
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
