@@ -167,7 +167,10 @@ pub(crate) fn deploy_all(
 
     // deploy merkle hook
     println!("Deploying merkle hook");
-    let hook_merkle = cli.deploy(declarations.hpl_hook_merkle, vec![mailbox.clone()]);
+    let hook_merkle = cli.deploy(
+        declarations.hpl_hook_merkle,
+        vec![mailbox.clone(), deployer.clone()],
+    );
 
     // set default/required hook
 
@@ -187,11 +190,15 @@ pub(crate) fn deploy_all(
     let mock_ism = cli.deploy(declarations.hpl_test_mock_ism, vec![]);
 
     println!("Setting default/required hook");
-    cli.invoke(mailbox.clone(), "set_default_hook", vec![mock_hook.clone()]);
+    cli.invoke(
+        mailbox.clone(),
+        "set_default_hook",
+        vec![hook_merkle.clone()],
+    );
     cli.invoke(
         mailbox.clone(),
         "set_required_hook",
-        vec![mock_hook.clone()],
+        vec![hook_merkle.clone()],
     );
 
     // TODO: deploy routing hook

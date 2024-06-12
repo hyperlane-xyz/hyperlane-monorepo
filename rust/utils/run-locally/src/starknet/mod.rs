@@ -32,7 +32,7 @@ const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
 const STARKNET_CLI_VERSION: &str = "0.2.8";
 
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/astraly-labs/hyperlane_starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "0.0.9";
+const CAIRO_HYPERLANE_VERSION: &str = "0.0.10";
 
 #[allow(dead_code)]
 pub fn install_starknet(
@@ -152,6 +152,7 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
     let node: AgentHandles = cli
         .arg("host", config.node_addr_base.clone())
         .arg("port", config.node_port_base.to_string())
+        .arg("block-time", "1000".to_string())
         .spawn("STARKNET");
 
     let endpoint: StarknetEndpoint = StarknetEndpoint {

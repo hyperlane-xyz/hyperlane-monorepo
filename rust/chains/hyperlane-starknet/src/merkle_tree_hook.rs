@@ -8,6 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use cainome::cairo_serde::{CairoSerde, U256 as StarknetU256};
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
     ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, MerkleTreeHook, H256,
@@ -157,16 +158,15 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
                 .map_err(Into::<HyperlaneStarknetError>::into)?,
         };
 
+        let mut branch = tree
+            .branch
+            .iter()
+            .map(|b| H256::from_slice(b.to_bytes_be().as_slice()))
+            .collect::<Vec<H256>>();
+        branch.resize(TREE_DEPTH, H256::zero());
+
         Ok(IncrementalMerkle {
-            branch: tree
-                .branch
-                .iter()
-                .map(|b| H256::from_slice(b.to_bytes_be().as_slice()))
-                .collect::<Vec<H256>>()
-                // we're iterating over a fixed-size array and want to collect into a
-                // fixed-size array of the same size (32), so this is safe
-                .try_into()
-                .unwrap(),
+            branch: branch.try_into().unwrap(),
             count: StarknetU256::cairo_serialized_size(&tree.count),
         })
     }

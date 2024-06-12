@@ -303,40 +303,42 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
 
         let chunk_size = range.end() - range.start() + 1;
 
-        let events: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = self
-            .contract
-            .provider
-            .get_events(filter, None, chunk_size.into())
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?
-            .events
-            .into_iter()
-            .map(|event| {
-                // TODO: remove unwraps
-                let merkle_tree_insertion = MerkleTreeInsertion::new(
-                    event.data[2].try_into().unwrap(),
-                    (event.data[0], event.data[1]).try_into().unwrap(),
-                )
-                .into();
+        let events: Result<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>, HyperlaneStarknetError> =
+            self.contract
+                .provider
+                .get_events(filter, None, chunk_size.into())
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?
+                .events
+                .into_iter()
+                .map(|event| {
+                    let leaf_index: u32 = event.data[2]
+                        .try_into()
+                        .map_err(Into::<HyperlaneStarknetError>::into)?;
+                    let message_id: H256 = (event.data[0], event.data[1])
+                        .try_into()
+                        .map_err(Into::<HyperlaneStarknetError>::into)?;
+                    let merkle_tree_insertion =
+                        MerkleTreeInsertion::new(leaf_index, message_id).into();
 
-                let meta = LogMeta {
-                    address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
-                    block_number: event.block_number.unwrap(),
-                    block_hash: H256::from_slice(
-                        event.block_hash.unwrap().to_bytes_be().as_slice(),
-                    ),
-                    transaction_id: H256::from_slice(
-                        event.transaction_hash.to_bytes_be().as_slice(),
-                    )
-                    .into(),
-                    transaction_index: 0,   // TODO: what to put here?
-                    log_index: U256::one(), // TODO: what to put here?
-                };
-                (merkle_tree_insertion, meta)
-            })
-            .collect();
+                    let meta = LogMeta {
+                        address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
+                        block_number: event.block_number.unwrap(),
+                        block_hash: H256::from_slice(
+                            event.block_hash.unwrap().to_bytes_be().as_slice(),
+                        ),
+                        transaction_id: H256::from_slice(
+                            event.transaction_hash.to_bytes_be().as_slice(),
+                        )
+                        .into(),
+                        transaction_index: 0,   // TODO: what to put here?
+                        log_index: U256::one(), // TODO: what to put here?
+                    };
+                    Ok((merkle_tree_insertion, meta))
+                })
+                .collect();
 
-        Ok(events)
+        Ok(events?)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
