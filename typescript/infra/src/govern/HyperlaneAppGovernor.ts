@@ -277,6 +277,7 @@ export abstract class HyperlaneAppGovernor<
                 'Invalid MultiSendCallOnly contract address',
               ))
           ) {
+            console.warn(`${error.message}: Setting submission type to MANUAL`);
             return SubmissionType.MANUAL;
           } else {
             console.error(
