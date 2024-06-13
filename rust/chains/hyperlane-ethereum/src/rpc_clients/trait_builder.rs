@@ -218,12 +218,14 @@ pub trait BuildableWithProvider {
             // gas pricing issues. So we first wrap the provider in a gas escalator middleware.
             // - When txs reach the gas escalator, they will already have been signed by the signer middleware,
             // so they are ready to be retried
+            let signing_provider = wrap_with_signer(provider, signer.clone()).await;
             let gas_escalator_provider =
-                wrap_with_gas_escalator(provider, &conn.transaction_overrides);
-            let signing_provider = wrap_with_signer(gas_escalator_provider, signer)
+                wrap_with_gas_escalator(signing_provider, &conn.transaction_overrides);
+            let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
-            self.build_with_provider(signing_provider, conn, locator)
+
+            self.build_with_provider(nonce_manager_provider, conn, locator)
         } else {
             self.build_with_provider(provider, conn, locator)
         }
@@ -244,15 +246,20 @@ pub trait BuildableWithProvider {
 async fn wrap_with_signer<M: Middleware>(
     provider: M,
     signer: Signers,
-) -> Result<SignerMiddleware<NonceManagerMiddleware<M>, Signers>, M::Error> {
+) -> SignerMiddleware<M, Signers> {
+    SignerMiddleware::new(provider, signer)
+}
+
+async fn wrap_with_nonce_manager<M: Middleware>(
+    provider: M,
+    signer: Signers,
+) -> Result<NonceManagerMiddleware<M>, M::Error> {
     let provider_chain_id = provider.get_chainid().await?;
     let signer = ethers::signers::Signer::with_chain_id(signer, provider_chain_id.as_u64());
 
     let address = ethers::prelude::Signer::address(&signer);
-    let provider = NonceManagerMiddleware::new(provider, address);
-
-    let signing_provider = SignerMiddleware::new(provider, signer);
-    Ok(signing_provider)
+    let nonce_manager_provider = NonceManagerMiddleware::new(provider, address);
+    Ok(nonce_manager_provider)
 }
 
 fn build_polygon_gas_oracle(chain: ethers_core::types::Chain) -> ChainResult<Box<dyn GasOracle>> {

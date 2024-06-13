@@ -227,7 +227,18 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
     ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
         let start = Instant::now();
         let tx: TypedTransaction = tx.into();
-
+        // print tx type based on enum variants
+        match tx {
+            TypedTransaction::Legacy(_) => {
+                println!("~~~ sending Legacy transaction");
+            }
+            TypedTransaction::Eip2930(_) => {
+                println!("~~~ sending EIP-2930 transaction");
+            }
+            TypedTransaction::Eip1559(_) => {
+                println!("~~~ sending EIP-1559 transaction");
+            }
+        }
         let chain = {
             let data = self.conf.read().await;
             chain_name(&data.chain).to_owned()
