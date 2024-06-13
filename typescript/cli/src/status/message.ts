@@ -1,4 +1,5 @@
 import { input } from '@inquirer/prompts';
+import { ContractReceipt } from 'ethers';
 
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
@@ -57,7 +58,7 @@ export async function checkMessageStatus({
 
     const receipt = await core.getDispatchTx(origin, messageId);
     const messages = core.getDispatchedMessages(receipt);
-    await core.relayMessage(messages[0]);
+    await core.relayMessage(messages[0], receipt as ContractReceipt);
     logGreen(`Message ${messageId} was self-relayed!`);
   }
 }

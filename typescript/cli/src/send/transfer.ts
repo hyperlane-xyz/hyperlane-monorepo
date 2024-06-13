@@ -164,7 +164,7 @@ async function executeDelivery({
   logBlue(`Message ID: ${message.id}`);
 
   if (selfRelay) {
-    await core.relayMessage(message);
+    await core.relayMessage(message, transferTxReceipt);
     logGreen('Message was self-relayed!');
     return;
   }
