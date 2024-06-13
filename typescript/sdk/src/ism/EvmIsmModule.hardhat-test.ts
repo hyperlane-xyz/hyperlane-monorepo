@@ -314,7 +314,6 @@ describe('EvmIsmModule', async () => {
         const numDomainsAfter = Object.keys(
           ((await ism.read()) as RoutingIsmConfig).domains,
         ).length;
-        console.log(numDomainsBefore, numDomainsAfter);
         expect(numDomainsBefore - 1).to.equal(numDomainsAfter);
       });
 
@@ -418,14 +417,10 @@ describe('EvmIsmModule', async () => {
 
       // point to new mailbox
       ism.setNewMailbox(newMailboxAddress);
-      console.log(mailboxAddress);
-      console.log(newMailboxAddress);
 
       // expect a new ISM to be deployed, so no in-place updates to return
       await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
 
-      console.log(initialIsmAddress);
-      console.log(ism.serialize().deployedIsm);
       // expect the ISM address to be different
       expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
         .false;
