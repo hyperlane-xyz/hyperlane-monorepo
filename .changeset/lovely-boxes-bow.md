@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/cli': patch
+'@hyperlane-xyz/cli': minor
 ---
 
 Add command to support creating agent configs

@@ -6,8 +6,6 @@ import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../utils/env.js';
 
-import { ChainTypes } from './types.js';
-
 /* Global options */
 
 export const logFormatCommandOption: Options = {
@@ -112,13 +110,7 @@ export const chainTargetsCommandOption: Options = {
   type: 'string',
   description: 'Comma-separated list of chain names',
   alias: 'c',
-};
-
-export const environmentCommandOption: Options = {
-  type: 'string',
-  description: 'The name of the environment to deploy to',
-  alias: 'e',
-  choices: ChainTypes,
+  demandOption: true,
 };
 
 export const outputFileCommandOption = (

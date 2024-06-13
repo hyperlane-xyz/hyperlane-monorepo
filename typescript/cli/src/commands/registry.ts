@@ -1,4 +1,4 @@
-import { Argv, CommandModule } from 'yargs';
+import { CommandModule } from 'yargs';
 
 import { createAgentConfig } from '../config/agent.js';
 import { CommandContext, CommandModuleWithContext } from '../context/types.js';
@@ -6,7 +6,6 @@ import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
 
 import {
   chainTargetsCommandOption,
-  environmentCommandOption,
   outputFileCommandOption,
 } from './options.js';
 import { ChainType, ChainTypes } from './types.js';
@@ -99,78 +98,45 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
  * agent-config command
  */
 const createAgentConfigCommand: CommandModuleWithContext<{
-  chains?: string;
-  environment?: string;
+  chains: string;
   out: string;
 }> = {
   command: 'agent-config',
   describe: 'Create a new agent config',
-  builder: (yargs) => {
-    yargs
-      .option('chains', chainTargetsCommandOption)
-      .option('environment', environmentCommandOption)
-      .option(
-        'out',
-        outputFileCommandOption(
-          './configs/agent-config.json',
-          false,
-          'The path to output an agent config JSON file.',
-        ),
-      )
-      .check((argv) => {
-        if (!argv.chains && !argv.environment) {
-          throw new Error(
-            'Either --chains or --environment must be specified.',
-          );
-        }
-        return true;
-      })
-      .check((argv) => {
-        if (argv.chains && argv.environment) {
-          throw new Error(
-            '--chains and --environment cannot be specified together.',
-          );
-        }
-        return true;
-      });
 
-    return yargs as Argv<{
-      chains?: string;
-      environment?: string;
-      out: string;
-      context: CommandContext;
-    }>;
+  builder: {
+    chains: chainTargetsCommandOption,
+    out: outputFileCommandOption(
+      './configs/agent-config.json',
+      false,
+      'The path to output an agent config JSON file.',
+    ),
   },
   handler: async ({
     context,
     chains,
-    environment,
     out,
   }: {
     context: CommandContext;
-    chains?: string;
-    environment?: string;
+    chains: string;
     out: string;
   }) => {
     const { multiProvider } = context;
 
-    let chainNames;
-    if (chains) {
-      chainNames = chains.split(',');
-      const invalidChainNames = chainNames.filter(
-        (chainName) => !multiProvider.hasChain(chainName),
+    const chainNames = chains.split(',');
+    const invalidChainNames = chainNames.filter(
+      (chainName) => !multiProvider.hasChain(chainName),
+    );
+    if (invalidChainNames.length > 0) {
+      logRed(
+        `Invalid chain names: ${invalidChainNames
+          .join(', ')
+          .replace(/, $/, '')}`,
       );
-      if (invalidChainNames.length > 0) {
-        logRed(
-          `Invalid chain names: ${invalidChainNames
-            .join(', ')
-            .replace(/, $/, '')}`,
-        );
-        process.exit(1);
-      }
+      process.exit(1);
     }
 
-    await createAgentConfig({ context, chains: chainNames, environment, out });
+    await createAgentConfig({ context, chains: chainNames, out });
     process.exit(0);
   },
 };

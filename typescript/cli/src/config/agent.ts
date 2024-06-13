@@ -9,35 +9,23 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { ChainType } from '../commands/types.js';
 import { CommandContext } from '../context/types.js';
-import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
+import { logBlue, logGreen, logRed } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 export async function createAgentConfig({
   context,
   chains,
-  environment,
   out,
 }: {
   context: CommandContext;
-  chains?: string[];
-  environment?: ChainType;
+  chains: string[];
   out: string;
 }) {
   logBlue('\nCreating agent config...');
 
   const { registry, multiProvider, chainMetadata } = context;
   const addresses = await registry.getAddresses();
-
-  let agentChains = chains;
-  if (!agentChains) {
-    const metadata = Object.values(chainMetadata).filter((c) => {
-      if (environment === 'mainnet') return !c.isTestnet;
-      else return !!c.isTestnet;
-    });
-    agentChains = metadata.map((c) => c.name);
-  }
 
   const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
@@ -54,17 +42,17 @@ export async function createAgentConfig({
         const deployedBlock = await mailbox.deployedBlock();
         return deployedBlock.toNumber();
       } catch (err) {
-        warnYellow(
-          `Failed to get deployed block, defaulting to 0 for index for ${chain}`,
+        logRed(
+          `Failed to get deployed block to set an index for ${chain}, this is potentially an issue with rpc provider or a misconfiguration`,
         );
-        return 0;
+        process.exit(1);
       }
     }),
   );
 
   // @TODO: consider adding additional config used to pass in gas prices for Cosmos chains
   const agentConfig = buildAgentConfig(
-    agentChains,
+    chains,
     multiProvider,
     addresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
@@ -73,9 +61,10 @@ export async function createAgentConfig({
   try {
     AgentConfigSchema.parse(agentConfig);
   } catch (e) {
-    const error = fromError(e);
     logRed(
-      `Agent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${error.toString()}`,
+      `Agent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${fromError(
+        e,
+      ).toString()}`,
     );
     process.exit(1);
   }
