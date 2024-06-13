@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 3.14.0
+
+### Minor Changes
+
+- f4bbfcf08: AVS deployment on mainnet
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@3.14.0
+- @hyperlane-xyz/utils@3.14.0
+
 ## 3.13.0
 
 ### Minor Changes
