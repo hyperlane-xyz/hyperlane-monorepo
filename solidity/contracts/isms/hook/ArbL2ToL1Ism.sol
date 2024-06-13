@@ -41,12 +41,22 @@ contract ArbL2ToL1Ism is
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.ARB_L2_TO_L1);
 
+    uint256 private constant _LOCKED = 1;
+    uint256 private constant _UNLOCKED = 2;
+    uint256 private _lock = _LOCKED;
+
     // ============ Public Storage ============
 
     /// @notice address for the authorized hook
     bytes32 public authorizedHook;
 
     IOutbox public arbOutbox;
+
+    modifier unlocked() {
+        require(_lock == _UNLOCKED, "ArbL2ToL1Ism: locked");
+        _;
+        _lock = _LOCKED;
+    }
 
     // ============ Constructor ============
 
@@ -69,7 +79,7 @@ contract ArbL2ToL1Ism is
 
     // ============ External Functions ============
 
-    function verifyMessageId(bytes32 messageId) external {
+    function verifyMessageId(bytes32 messageId) external unlocked {
         require(_isAuthorized(), "ArbL2ToL1Ism: unauthorized hook");
     }
 
@@ -77,6 +87,7 @@ contract ArbL2ToL1Ism is
         bytes calldata _metadata,
         bytes calldata message
     ) external returns (bool) {
+        _unlock();
         (
             uint256 index,
             address l2Sender,
@@ -139,5 +150,9 @@ contract ArbL2ToL1Ism is
     function _isAuthorized() internal view returns (bool) {
         return
             _crossChainSender() == TypeCasts.bytes32ToAddress(authorizedHook);
+    }
+
+    function _unlock() internal view returns (bool) {
+        return _lock == _UNLOCKED;
     }
 }
