@@ -77,7 +77,7 @@ export abstract class HyperlaneAppGovernor<
     }
   }
 
-  protected async sendCalls(chain: ChainName, confirm: boolean) {
+  protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
     const calls = this.calls[chain];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
@@ -93,14 +93,15 @@ export abstract class HyperlaneAppGovernor<
         calls.map((c) =>
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
         );
-        const response =
-          !confirm ||
-          (await prompts({
-            type: 'confirm',
-            name: 'value',
-            message: 'Can you confirm?',
-            initial: false,
-          }));
+
+        const { value: confirmed } = await prompts({
+          type: 'confirm',
+          name: 'value',
+          message: 'Can you confirm?',
+          initial: false,
+        });
+
+        const response = !requestConfirmation || confirmed;
         return !!response;
       }
       return false;
