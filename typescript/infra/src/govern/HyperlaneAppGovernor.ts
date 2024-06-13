@@ -21,8 +21,6 @@ import {
   objMap,
 } from '@hyperlane-xyz/utils';
 
-import { customSafeChains } from '../../config/environments/mainnet3/owners.js';
-
 import {
   ManualMultiSend,
   MultiSend,
@@ -270,12 +268,14 @@ export abstract class HyperlaneAppGovernor<
           );
           this.canPropose[chain].set(safeAddress, canPropose);
         } catch (error) {
-          // manual SAFEs on mantapacific/scroll
-          // if we hit this error on those chains, assume you can propose and try to continue
+          // if we hit this error, it's like a custom safe chain
+          // so let's fallback to a manual submission
           if (
             error instanceof Error &&
-            error.message.includes('Invalid MultiSend contract address') &&
-            customSafeChains.includes(chain)
+            (error.message.includes('Invalid MultiSend contract address') ||
+              error.message.includes(
+                'Invalid MultiSendCallOnly contract address',
+              ))
           ) {
             return SubmissionType.MANUAL;
           } else {

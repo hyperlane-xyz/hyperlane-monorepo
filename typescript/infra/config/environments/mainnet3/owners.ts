@@ -41,8 +41,6 @@ export const safes: ChainMap<Address | undefined> = {
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
 };
 
-export const customSafeChains = ['mantapacific', 'scroll'];
-
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 // NOTE: if you wanna use ICA governance, you can do the following:
