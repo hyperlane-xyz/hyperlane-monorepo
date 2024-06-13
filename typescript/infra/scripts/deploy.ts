@@ -40,10 +40,10 @@ import {
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
+  withChain,
   withConcurrentDeploy,
   withContext,
   withModuleAndFork,
-  withNetwork,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
@@ -53,12 +53,12 @@ async function main() {
     module,
     fork,
     environment,
-    network,
+    chain,
     buildArtifactPath,
     concurrentDeploy,
   } = await withContext(
     withConcurrentDeploy(
-      withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+      withChain(withModuleAndFork(withBuildArtifactPath(getArgs()))),
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
@@ -227,7 +227,7 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
-    const confirmConfig = network ? config[network] : config;
+    const confirmConfig = chain ? config[chain] : config;
     console.log(JSON.stringify(confirmConfig, null, 2));
     const { value: confirmed } = await prompts({
       type: 'confirm',
@@ -244,7 +244,7 @@ async function main() {
     config,
     deployer,
     cache,
-    network ?? fork,
+    chain ?? fork,
     agentConfig,
   );
 }
