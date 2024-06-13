@@ -24,6 +24,7 @@ import { InterchainQueryChecker } from './InterchainQueryChecker.js';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer.js';
 import { InterchainQueryFactories } from './contracts.js';
 
+// eslint-disable-next-line jest/no-disabled-tests
 describe.skip('InterchainQueryRouter', async () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;

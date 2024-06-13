@@ -1,0 +1,109 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches:
+      - '*'
+    paths:
+      - '*.md'
+      - '!**/*'
+  merge_group:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+jobs:
+  yarn-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instant pass
+        run: echo "yarn-install job passed"
+
+  yarn-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instant pass
+        run: echo "yarn-build job passed"
+
+  checkout-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instant pass
+        run: echo "checkout-registry job passed"
+
+  lint-prettier:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instant pass
+        run: echo "lint-prettier job passed"
+
+  yarn-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instant pass
+        run: echo "yarn-test job passed"
+
+  agent-configs:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [mainnet3, testnet4]
+    steps:
+      - name: Instant pass
+        run: echo "agent-configs job passed"
+
+  e2e-matrix:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    strategy:
+      matrix:
+        e2e-type: [cosmwasm, non-cosmwasm]
+    steps:
+      - name: Instant pass
+        run: echo "e2e-matrix job passed"
+
+  e2e:
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Instant pass
+        run: echo "e2e job passed"
+
+  cli-e2e:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    strategy:
+      matrix:
+        include:
+          - test-type: preset_hook_enabled
+          - test-type: configure_hook_enabled
+          - test-type: pi_with_core_chain
+    steps:
+      - name: Instant pass
+        run: echo "cli-e2e job passed"
+
+  env-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [mainnet3]
+        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        module: [core, igp]
+        include:
+          - environment: testnet4
+            chain: sepolia
+            module: core
+    steps:
+      - name: Instant pass
+        run: echo "env-test job passed"
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instant pass
+        run: echo "coverage job passed"

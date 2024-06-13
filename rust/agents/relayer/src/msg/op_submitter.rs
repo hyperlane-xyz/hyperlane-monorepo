@@ -244,6 +244,7 @@ async fn prepare_task(
                     metrics.ops_dropped.inc();
                 }
                 PendingOperationResult::Confirm => {
+                    debug!(?op, "Pushing operation to confirm queue");
                     confirm_queue.push(op).await;
                 }
             }
