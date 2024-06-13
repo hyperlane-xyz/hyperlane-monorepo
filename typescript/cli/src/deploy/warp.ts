@@ -162,7 +162,8 @@ async function getWarpCoreConfig(
     }
 
     const collateralAddressOrDenom =
-      // todo: should this match typescript/cli/src/config/warp.ts line 136?
+      // todo: merge this with CollateralExtensions when CLI 2.0 is out
+      // https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3838/files#diff-a1429ad1c3e9d3fe43d28f08333e95f6c79176b6d36873e42e455e5e806826aaR16
       config.type === TokenType.collateral ||
       config.type == TokenType.collateralFiat
         ? config.token
