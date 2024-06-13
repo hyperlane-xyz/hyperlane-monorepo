@@ -57,7 +57,7 @@ export async function checkMessageStatus({
 
     const receipt = await core.getDispatchTx(origin, messageId);
     const messages = core.getDispatchedMessages(receipt);
-    await core.relayMessage(messages[0]);
+    await core.relayMessage(messages[0], receipt);
     logGreen(`Message ${messageId} was self-relayed!`);
   }
 }
