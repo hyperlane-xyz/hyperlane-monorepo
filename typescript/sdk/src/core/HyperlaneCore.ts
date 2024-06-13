@@ -174,7 +174,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async relayMessage(
     message: DispatchedMessage,
-    dispatchTx: TransactionReceipt,
+    dispatchTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt> {
     const metadata = await this.buildMetadata(message, dispatchTx);
 
@@ -277,7 +277,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   async getDispatchTx(
     originChain: ChainName,
     messageId: string,
-  ): Promise<ethers.ContractReceipt | ViemTxReceipt> {
+  ): Promise<ethers.ContractReceipt> {
     const mailbox = this.contractsMap[originChain].mailbox;
     const filter = mailbox.filters.DispatchId(messageId);
     const matchingEvents = await mailbox.queryFilter(filter);
