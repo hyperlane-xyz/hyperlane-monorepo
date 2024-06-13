@@ -1,5 +1,13 @@
 # @hyperlane-xyz/helloworld
 
+## 4.0.0-beta
+
+### Patch Changes
+
+- Updated dependencies [9304fe241]
+  - @hyperlane-xyz/sdk@4.0.0-beta
+  - @hyperlane-xyz/core@4.0.0-beta
+
 ## 4.0.0-alpha.2
 
 ### Patch Changes

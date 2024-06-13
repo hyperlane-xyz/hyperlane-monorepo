@@ -1,5 +1,7 @@
 # @hyperlane-xyz/ccip-server
 
+## 4.0.0-beta
+
 ## 4.0.0-alpha.2
 
 ## 4.0.0-alpha.0

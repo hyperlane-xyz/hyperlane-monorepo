@@ -1,5 +1,16 @@
 # @hyperlane-xyz/sdk
 
+## 4.0.0-beta
+
+### Minor Changes
+
+- 9304fe241: Use metadata builders in message relaying
+
+### Patch Changes
+
+- @hyperlane-xyz/core@4.0.0-beta
+- @hyperlane-xyz/utils@4.0.0-beta
+
 ## 4.0.0-alpha.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 4.0.0-beta
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.0.0-beta
+
 ## 4.0.0-alpha.2
 
 ### Patch Changes

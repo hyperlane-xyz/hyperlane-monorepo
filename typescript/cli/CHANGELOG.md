@@ -1,5 +1,18 @@
 # @hyperlane-xyz/cli
 
+## 4.0.0-beta
+
+### Minor Changes
+
+- 9304fe241: Use metadata builders in message relaying
+- 35f869950: Add command to support creating agent configs
+
+### Patch Changes
+
+- Updated dependencies [9304fe241]
+  - @hyperlane-xyz/sdk@4.0.0-beta
+  - @hyperlane-xyz/utils@4.0.0-beta
+
 ## 4.0.0-alpha.2
 
 ### Minor Changes
