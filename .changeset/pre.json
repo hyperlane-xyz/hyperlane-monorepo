@@ -1,14 +1,14 @@
 {
-  "mode": "exit",
-  "tag": "alpha",
+  "mode": "pre",
+  "tag": "beta",
   "initialVersions": {
-    "@hyperlane-xyz/core": "4.0.0-alpha.0",
-    "@hyperlane-xyz/ccip-server": "4.0.0-alpha.0",
-    "@hyperlane-xyz/cli": "4.0.0-alpha.0",
-    "@hyperlane-xyz/helloworld": "4.0.0-alpha.0",
-    "@hyperlane-xyz/infra": "4.0.0-alpha.0",
-    "@hyperlane-xyz/sdk": "4.0.0-alpha.0",
-    "@hyperlane-xyz/utils": "4.0.0-alpha.0"
+    "@hyperlane-xyz/core": "4.0.0-alpha.2",
+    "@hyperlane-xyz/ccip-server": "4.0.0-alpha.2",
+    "@hyperlane-xyz/cli": "4.0.0-alpha.2",
+    "@hyperlane-xyz/helloworld": "4.0.0-alpha.2",
+    "@hyperlane-xyz/infra": "4.0.0-alpha.2",
+    "@hyperlane-xyz/sdk": "4.0.0-alpha.2",
+    "@hyperlane-xyz/utils": "4.0.0-alpha.2"
   },
   "changesets": [
     "bright-emus-double",
