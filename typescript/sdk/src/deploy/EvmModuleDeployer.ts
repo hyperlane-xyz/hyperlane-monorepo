@@ -258,11 +258,20 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = multiProvider.getTransactionOverrides(chain);
-      const hash = await factory['deploy(address[],uint8)'](
+
+      // estimate gas
+      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
         values,
         threshold,
         overrides,
       );
+
+      // add 10% buffer
+      const hash = await factory['deploy(address[],uint8)'](values, threshold, {
+        ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+      });
+
       await multiProvider.handleTx(chain, hash);
     } else {
       logger.debug(
