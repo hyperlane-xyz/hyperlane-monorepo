@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 3.14.0
+
+### Patch Changes
+
+- a8a68f6f6: fix: make XERC20 and XERC20 Lockbox proxy-able
+  - @hyperlane-xyz/utils@3.14.0
+
 ## 3.13.0
 
 ### Minor Changes

@@ -271,7 +271,7 @@ fn launch_cosmos_validator(
         .hyp_env("SIGNER_SIGNER_TYPE", "hexKey")
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
-        .spawn("VAL");
+        .spawn("VAL", None);
 
     validator
 }
@@ -299,7 +299,7 @@ fn launch_cosmos_relayer(
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
         .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("RLY");
+        .spawn("RLY", None);
 
     relayer
 }

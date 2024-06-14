@@ -7,6 +7,10 @@ on:
   pull_request:
     branches:
       - '*' # run against all branches
+    paths-ignore:
+      - '*.md'
+  # Support for merge queues
+  merge_group:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -26,17 +30,17 @@ jobs:
   yarn-install:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -57,14 +61,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-install]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -72,7 +76,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -85,7 +89,7 @@ jobs:
   checkout-registry:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: hyperlane-xyz/hyperlane-registry
           ref: main
@@ -101,7 +105,7 @@ jobs:
       - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
@@ -111,14 +115,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-install]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # check out full history
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -141,17 +145,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-build, checkout-registry]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -163,7 +167,7 @@ jobs:
       - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
@@ -180,13 +184,13 @@ jobs:
       matrix:
         environment: [mainnet3, testnet4]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -194,7 +198,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -206,7 +210,7 @@ jobs:
       - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
@@ -224,23 +228,23 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
     needs: [yarn-build, checkout-registry]
     strategy:
       matrix:
         e2e-type: [cosmwasm, non-cosmwasm]
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
@@ -263,7 +267,7 @@ jobs:
           make-default: true
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -271,7 +275,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -283,14 +287,14 @@ jobs:
       - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: cargo-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo
@@ -325,7 +329,7 @@ jobs:
 
   cli-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main')
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
     needs: [yarn-build, checkout-registry]
     strategy:
       matrix:
@@ -334,17 +338,17 @@ jobs:
           - test-type: configure_hook_enabled
           - test-type: pi_with_core_chain
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
@@ -367,7 +371,7 @@ jobs:
           make-default: true
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -375,7 +379,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -387,14 +391,14 @@ jobs:
       - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: cargo-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo
@@ -418,15 +422,15 @@ jobs:
             module: core
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -438,7 +442,7 @@ jobs:
       - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
 
       - name: registry-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
@@ -452,13 +456,13 @@ jobs:
     needs: [yarn-test]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -466,7 +470,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -474,7 +478,7 @@ jobs:
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run tests with coverage
         run: yarn coverage
@@ -482,6 +486,6 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=4096
 
       - name: Upload coverage reports to Codecov with GitHub Action
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

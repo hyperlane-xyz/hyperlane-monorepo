@@ -13,13 +13,15 @@ use hyperlane_base::{
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
     BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
+    SyncOptions,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, MpmcChannel,
-    MpmcReceiver, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
+    H512, U256,
 };
 use tokio::{
     sync::{
+        broadcast::{Receiver, Sender},
         mpsc::{self, UnboundedReceiver, UnboundedSender},
         RwLock,
     },
@@ -33,7 +35,6 @@ use crate::{
     msg::{
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
-        op_queue::QueueOperation,
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
         processor::{MessageProcessor, MessageProcessorMetrics},
@@ -134,7 +135,7 @@ impl BaseAgent for Relayer {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
-        let message_syncs = settings
+        let message_syncs: HashMap<_, Arc<dyn ContractSyncer<HyperlaneMessage>>> = settings
             .contract_syncs::<HyperlaneMessage, _>(
                 settings.origin_chains.iter(),
                 &core_metrics,
@@ -305,8 +306,8 @@ impl BaseAgent for Relayer {
         }
 
         // run server
-        let mpmc_channel = MpmcChannel::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let custom_routes = relayer_server::routes(mpmc_channel.sender());
+        let sender = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let custom_routes = relayer_server::routes(sender.clone());
 
         let server = self
             .core
@@ -328,7 +329,7 @@ impl BaseAgent for Relayer {
                 self.run_destination_submitter(
                     dest_domain,
                     receive_channel,
-                    mpmc_channel.receiver(),
+                    sender.clone(),
                     // Default to submitting one message at a time if there is no batch config
                     self.core.settings.chains[dest_domain.name()]
                         .connection
@@ -352,14 +353,26 @@ impl BaseAgent for Relayer {
         }
 
         for origin in &self.origin_chains {
+            let maybe_broadcaster = self
+                .message_syncs
+                .get(origin)
+                .and_then(|sync| sync.get_broadcaster());
             tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
             tasks.push(
-                self.run_interchain_gas_payment_sync(origin, task_monitor.clone())
-                    .await,
+                self.run_interchain_gas_payment_sync(
+                    origin,
+                    maybe_broadcaster.clone().map(|b| b.subscribe()),
+                    task_monitor.clone(),
+                )
+                .await,
             );
             tasks.push(
-                self.run_merkle_tree_hook_syncs(origin, task_monitor.clone())
-                    .await,
+                self.run_merkle_tree_hook_syncs(
+                    origin,
+                    maybe_broadcaster.map(|b| b.subscribe()),
+                    task_monitor.clone(),
+                )
+                .await,
             );
         }
 
@@ -394,7 +407,7 @@ impl Relayer {
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
-                .sync("dispatched_messages", cursor)
+                .sync("dispatched_messages", cursor.into())
                 .await
         }))
         .instrument(info_span!("MessageSync"))
@@ -403,6 +416,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
+        tx_id_receiver: Option<Receiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
@@ -413,7 +427,13 @@ impl Relayer {
             .clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            contract_sync.clone().sync("gas_payments", cursor).await
+            contract_sync
+                .clone()
+                .sync(
+                    "gas_payments",
+                    SyncOptions::new(Some(cursor), tx_id_receiver),
+                )
+                .await
         }))
         .instrument(info_span!("IgpSync"))
     }
@@ -421,13 +441,20 @@ impl Relayer {
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
+        tx_id_receiver: Option<Receiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            contract_sync.clone().sync("merkle_tree_hook", cursor).await
+            contract_sync
+                .clone()
+                .sync(
+                    "merkle_tree_hook",
+                    SyncOptions::new(Some(cursor), tx_id_receiver),
+                )
+                .await
         }))
         .instrument(info_span!("MerkleTreeHookSync"))
     }
@@ -498,7 +525,7 @@ impl Relayer {
         &self,
         destination: &HyperlaneDomain,
         receiver: UnboundedReceiver<QueueOperation>,
-        retry_receiver_channel: MpmcReceiver<MessageRetryRequest>,
+        retry_receiver_channel: Sender<MessageRetryRequest>,
         batch_size: u32,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {

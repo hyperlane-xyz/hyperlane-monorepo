@@ -17,16 +17,37 @@ contract HypXERC20Lockbox is HypERC20Collateral {
     ) HypERC20Collateral(address(IXERC20Lockbox(_lockbox).ERC20()), _mailbox) {
         lockbox = IXERC20Lockbox(_lockbox);
         xERC20 = lockbox.XERC20();
+        approveLockbox();
+    }
 
-        // grant infinite approvals to lockbox
+    /**
+     * @notice Approve the lockbox to spend the wrapped token and xERC20
+     * @dev This function is idempotent and need not be access controlled
+     */
+    function approveLockbox() public {
         require(
-            IERC20(wrappedToken).approve(_lockbox, MAX_INT),
+            IERC20(wrappedToken).approve(address(lockbox), MAX_INT),
             "erc20 lockbox approve failed"
         );
         require(
-            xERC20.approve(_lockbox, MAX_INT),
+            xERC20.approve(address(lockbox), MAX_INT),
             "xerc20 lockbox approve failed"
         );
+    }
+
+    /**
+     * @notice Initialize the contract
+     * @param _hook The address of the hook contract
+     * @param _ism The address of the interchain security module
+     * @param _owner The address of the owner
+     */
+    function initialize(
+        address _hook,
+        address _ism,
+        address _owner
+    ) public override initializer {
+        approveLockbox();
+        _MailboxClient_initialize(_hook, _ism, _owner);
     }
 
     function _transferFromSender(
