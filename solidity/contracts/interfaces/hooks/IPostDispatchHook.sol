@@ -25,8 +25,7 @@ interface IPostDispatchHook {
         PAUSABLE,
         PROTOCOL_FEE,
         LAYER_ZERO_V1,
-        Rate_Limited_Hook,
-        ARBITRUM_L2_TO_L1_HOOK
+        Rate_Limited_Hook
     }
 
     /**

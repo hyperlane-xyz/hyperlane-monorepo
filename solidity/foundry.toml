@@ -14,7 +14,11 @@ fs_permissions = [
     { access = "read", path = "./script/avs/"},
     { access = "write", path = "./fixtures" }
 ]
-ignored_warnings_from = ['fx-portal']
+ignored_warnings_from = [
+    'lib',
+    'test',
+    'contracts/test'
+]
 
 [profile.ci]
 verbosity = 4
@@ -23,7 +27,6 @@ verbosity = 4
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
 polygon = "https://rpc.ankr.com/polygon"
-arbitrum = "https://arbitrum.llamarpc.com"
 
 [fuzz]
 runs = 50
