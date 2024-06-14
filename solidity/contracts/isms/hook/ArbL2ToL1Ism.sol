@@ -68,6 +68,7 @@ contract ArbL2ToL1Ism is
             Address.isContract(_bridge),
             "ArbL2ToL1Ism: invalid Arbitrum Bridge"
         );
+        arbOutbox = IOutbox(_outbox);
     }
 
     // ============ Initializer ============
@@ -88,7 +89,9 @@ contract ArbL2ToL1Ism is
         bytes calldata message
     ) external returns (bool) {
         _unlock();
+
         (
+            bytes32[] memory proof,
             uint256 index,
             address l2Sender,
             address to,
@@ -96,11 +99,12 @@ contract ArbL2ToL1Ism is
             uint256 l1Block,
             uint256 l2Timestamp,
             uint256 value,
-            bytes memory data,
-            bytes32[] memory proof
+            uint256 unused,
+            bytes memory data
         ) = abi.decode(
                 _metadata,
                 (
+                    bytes32[],
                     uint256,
                     address,
                     address,
@@ -108,8 +112,8 @@ contract ArbL2ToL1Ism is
                     uint256,
                     uint256,
                     uint256,
-                    bytes,
-                    bytes32[]
+                    uint256,
+                    bytes
                 )
             );
 
@@ -152,7 +156,7 @@ contract ArbL2ToL1Ism is
             _crossChainSender() == TypeCasts.bytes32ToAddress(authorizedHook);
     }
 
-    function _unlock() internal view returns (bool) {
-        return _lock == _UNLOCKED;
+    function _unlock() internal {
+        _lock = _UNLOCKED;
     }
 }

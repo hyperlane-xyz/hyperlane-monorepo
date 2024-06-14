@@ -49,7 +49,6 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes32 _ism,
         address _arbSys
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
-        require(Address.isContract(_arbSys), "ArbL2ToL1Hook: invalid ArbSys");
         arbSys = ArbSys(_arbSys);
     }
 
