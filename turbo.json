@@ -10,6 +10,10 @@
     "test": {
       "dependsOn": ["build"],
       "cache": false
-    }
+    },
+    "clean": {},
+    "prettier": {},
+    "lint": {},
+    "coverage": {}
   }
 }
