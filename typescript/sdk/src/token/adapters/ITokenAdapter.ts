@@ -40,3 +40,8 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
+
+export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
+  getMintLimit(): Promise<bigint>;
+  getBurnLimit(): Promise<bigint>;
+}
