@@ -13,7 +13,6 @@
     },
     "clean": {},
     "prettier": {},
-    "lint": {},
-    "coverage": {}
+    "lint": {}
   }
 }

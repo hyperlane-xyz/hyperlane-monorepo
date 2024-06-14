@@ -27,7 +27,7 @@
     "clean": "turbo run clean",
     "prettier": "turbo run prettier",
     "lint": "turbo run lint",
-    "coverage": "turbo run coverage",
+    "coverage": "yarn workspaces foreach --all --parallel run coverage",
     "version:prepare": "yarn changeset version && yarn workspaces foreach --all --parallel run version:update && yarn install --no-immutable",
     "version:check": "yarn changeset status",
     "release": "turbo run build && yarn changeset publish",
