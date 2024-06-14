@@ -7,6 +7,21 @@ import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 import { ENV } from '../utils/env.js';
 
 /* Global options */
+// TODO: add enum for aliases
+// const enum OptionAliases {
+//   'SkipConfirmation' = 'y',
+//   'RegistryUri' = 'r',
+//   'PrivateKey' = 'k',
+//   'OutputFile' = 'o',
+//   'InputFile' = 'i',
+//   'Chain' = 'c',
+//   'WarpConfig' = 'w',
+// }
+
+export const makeOptionRequired = (option: Options): Options => ({
+  ...option,
+  demandOption: true,
+});
 
 export const logFormatCommandOption: Options = {
   type: 'string',
@@ -148,6 +163,12 @@ export const dryRunCommandOption: Options = {
 export const chainCommandOption: Options = {
   type: 'string',
   description: 'The specific chain to perform operations with.',
+};
+
+export const validatorCommandOption: Options = {
+  type: 'string',
+  description: 'Comma separated list of validator addresses',
+  demandOption: true,
 };
 
 export const addressCommandOption = (
