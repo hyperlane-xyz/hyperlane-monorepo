@@ -6,6 +6,8 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp.js';
+export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
+export { S3Validator } from './aws/validator.js';
 export {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
@@ -45,9 +47,14 @@ export {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from './contracts/types.js';
+export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
+export {
+  HyperlaneRelayer,
+  RelayerCacheSchema,
+} from './core/HyperlaneRelayer.js';
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
@@ -65,7 +72,6 @@ export {
   coreFactories,
 } from './core/contracts.js';
 export { HyperlaneLifecyleEvent } from './core/events.js';
-export { EvmCoreReader } from './core/EvmCoreReader.js';
 export {
   CoreConfig,
   CoreViolationType,
@@ -86,7 +92,6 @@ export {
   OwnableConfig,
   OwnerViolation,
   ViolationType,
-  resolveOrDeployAccountOwner,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
@@ -110,10 +115,7 @@ export {
   SealevelOverheadIgpDataSchema,
 } from './gas/adapters/serialization.js';
 export { IgpFactories, igpFactories } from './gas/contracts.js';
-export {
-  GasOracleContractType,
-  StorageGasOracleConfig,
-} from './gas/oracle/types.js';
+export { StorageGasOracleConfig } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
   IgpBeneficiaryViolation,
@@ -123,8 +125,9 @@ export {
   IgpViolation,
   IgpViolationType,
 } from './gas/types.js';
-export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
 export { EvmHookReader } from './hook/EvmHookReader.js';
+export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
+export { HookConfigSchema } from './hook/schemas.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -138,12 +141,17 @@ export {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types.js';
+export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
 } from './ism/multisig.js';
-export { EvmIsmReader } from './ism/EvmIsmReader.js';
+export {
+  AggregationIsmConfigSchema,
+  IsmConfigObjectSchema,
+  IsmConfigSchema,
+} from './ism/schemas.js';
 export {
   AggregationIsmConfig,
   DeployedIsm,
@@ -155,6 +163,7 @@ export {
   OpStackIsmConfig,
   PausableIsmConfig,
   RoutingIsmConfig,
+  TrustedRelayerIsmConfig,
 } from './ism/types.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
 export {
@@ -305,20 +314,20 @@ export {
 } from './providers/providerBuilders.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
-export {
-  EV5GnosisSafeTxSubmitterProps,
-  EV5ImpersonatedAccountTxSubmitterProps,
-} from './providers/transactions/submitter/ethersV5/EV5TxSubmitterTypes.js';
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
+export {
+  EV5GnosisSafeTxSubmitterProps,
+  EV5ImpersonatedAccountTxSubmitterProps,
+} from './providers/transactions/submitter/ethersV5/EV5TxSubmitterTypes.js';
 export { TxTransformerInterface } from './providers/transactions/transformer/TxTransformerInterface.js';
 export { TxTransformerType } from './providers/transactions/transformer/TxTransformerTypes.js';
-export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/EV5TxTransformerTypes.js';
 export { EV5InterchainAccountTxTransformer } from './providers/transactions/transformer/ethersV5/EV5InterchainAccountTxTransformer.js';
 export { EV5TxTransformerInterface } from './providers/transactions/transformer/ethersV5/EV5TxTransformerInterface.js';
+export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/EV5TxTransformerTypes.js';
 export { GasRouterDeployer } from './router/GasRouterDeployer.js';
 export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker.js';
 export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer.js';
@@ -336,6 +345,7 @@ export {
   SealevelRouterAdapter,
 } from './router/adapters/SealevelRouterAdapter.js';
 export { IGasRouterAdapter, IRouterAdapter } from './router/adapters/types.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
@@ -424,6 +434,7 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
+export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
@@ -454,22 +465,17 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 
-export { AggregationIsmConfigSchema } from './ism/schemas.js';
-export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
-  WarpRouteDeployConfigSchema,
-  TokenRouterConfigSchema,
   CollateralConfig,
   NativeConfig,
+  TokenRouterConfigSchema,
+  WarpRouteDeployConfigSchema,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
   isTokenMetadata,
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';
-export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
-export { S3Validator } from './aws/validator.js';
-export { S3Config, S3Wrapper, S3Receipt } from './aws/s3.js';
 
 // prettier-ignore
 // @ts-ignore

@@ -82,11 +82,22 @@ export class EvmIsmReader implements IsmReader {
       case ModuleType.MESSAGE_ID_MULTISIG:
         return this.deriveMultisigConfig(address);
       case ModuleType.NULL:
-        return this.deriveNullConfig(address);
+        return {
+          type: IsmType.TEST_ISM,
+          address,
+        };
+      // return this.deriveNullConfig(address);
       case ModuleType.CCIP_READ:
         throw new Error('CCIP_READ does not have a corresponding IsmType');
       default:
-        throw new Error('Unknown ModuleType');
+        this.logger.warn(`Unknown module type ${moduleType}`, {
+          moduleType,
+          address,
+        });
+        return {
+          type: moduleType,
+          address,
+        };
     }
   }
 

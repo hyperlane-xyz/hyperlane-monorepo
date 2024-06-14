@@ -6,7 +6,6 @@ import {
   ChainMap,
   ChainName,
   CoreConfig,
-  GasOracleContractType,
   HooksConfig,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
@@ -370,7 +369,6 @@ export function buildIgpConfigMap(
   const configMap: ChainMap<IgpConfig> = {};
   for (const chain of chains) {
     const overhead: ChainMap<number> = {};
-    const gasOracleType: ChainMap<GasOracleContractType> = {};
     for (const remote of chains) {
       if (chain === remote) continue;
       // TODO: accurate estimate of gas from ChainMap<ISMConfig>
@@ -384,12 +382,10 @@ export function buildIgpConfigMap(
         threshold,
         validatorsLength,
       );
-      gasOracleType[remote] = GasOracleContractType.StorageGasOracle;
     }
     configMap[chain] = {
       owner,
       beneficiary: owner,
-      gasOracleType,
       overhead,
       oracleKey: owner,
     };

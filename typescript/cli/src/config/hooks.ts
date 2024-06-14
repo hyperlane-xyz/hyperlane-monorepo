@@ -6,7 +6,8 @@ import { z } from 'zod';
 import {
   ChainMap,
   ChainName,
-  GasOracleContractType,
+  HookConfig,
+  HookConfigSchema,
   HookType,
   HooksConfig,
 } from '@hyperlane-xyz/sdk';
@@ -21,51 +22,6 @@ import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen, logRed } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';
-
-const ProtocolFeeSchema = z.object({
-  type: z.literal(HookType.PROTOCOL_FEE),
-  owner: z.string(),
-  beneficiary: z.string(),
-  maxProtocolFee: z.string(),
-  protocolFee: z.string(),
-});
-
-const MerkleTreeSchema = z.object({
-  type: z.literal(HookType.MERKLE_TREE),
-});
-
-const IGPSchema = z.object({
-  type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
-  owner: z.string(),
-  beneficiary: z.string(),
-  overhead: z.record(z.number()),
-  gasOracleType: z.record(z.literal(GasOracleContractType.StorageGasOracle)),
-  oracleKey: z.string(),
-});
-
-const RoutingConfigSchema: z.ZodSchema<any> = z.lazy(() =>
-  z.object({
-    type: z.literal(HookType.ROUTING),
-    owner: z.string(),
-    domains: z.record(HookConfigSchema),
-  }),
-);
-
-const AggregationConfigSchema: z.ZodSchema<any> = z.lazy(() =>
-  z.object({
-    type: z.literal(HookType.AGGREGATION),
-    hooks: z.array(HookConfigSchema),
-  }),
-);
-
-const HookConfigSchema = z.union([
-  ProtocolFeeSchema,
-  MerkleTreeSchema,
-  IGPSchema,
-  RoutingConfigSchema,
-  AggregationConfigSchema,
-]);
-export type HookConfig = z.infer<typeof HookConfigSchema>;
 
 const HooksConfigSchema = z.object({
   required: HookConfigSchema,
@@ -296,10 +252,6 @@ export async function createIGPConfig(
     owner: ownerAddress,
     oracleKey: oracleKeyAddress,
     overhead: overheads,
-    gasOracleType: objMap(
-      overheads,
-      () => GasOracleContractType.StorageGasOracle,
-    ),
   };
 }
 

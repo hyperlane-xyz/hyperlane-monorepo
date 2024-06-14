@@ -61,6 +61,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
+      paused: false,
       ...ownerConfig,
     };
 
@@ -81,6 +82,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
+      paused: false,
       ...ownerConfig,
     };
 

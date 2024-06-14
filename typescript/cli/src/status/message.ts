@@ -1,9 +1,11 @@
+import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
-import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { log, logBlue, logGreen } from '../logger.js';
+import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function checkMessageStatus({
@@ -12,17 +14,19 @@ export async function checkMessageStatus({
   destination,
   origin,
   selfRelay,
+  dispatchTx,
 }: {
   context: CommandContext;
+  dispatchTx?: string;
   messageId?: string;
   destination?: ChainName;
   origin?: ChainName;
   selfRelay?: boolean;
 }) {
-  if (!destination) {
-    destination = await runSingleChainSelectionStep(
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
       context.chainMetadata,
-      'Select the destination chain',
+      'Select the origin chain',
     );
   }
 
@@ -37,27 +41,50 @@ export async function checkMessageStatus({
     chainAddresses,
     context.multiProvider,
   );
-  const mailbox = core.getContracts(destination).mailbox;
+
+  let dispatchedTx: TransactionReceipt;
+  if (!dispatchTx) {
+    try {
+      dispatchedTx = await core.getDispatchTx(origin, messageId);
+    } catch (e) {
+      logRed(`Failed to infer dispatch transaction for message ${messageId}`);
+    }
+    dispatchTx = await input({
+      message: 'Provide dispatch transaction hash',
+    });
+  }
+
+  dispatchedTx ??= await context.multiProvider
+    .getProvider(origin)
+    .getTransactionReceipt(dispatchTx);
+
+  const messages = core.getDispatchedMessages(dispatchedTx);
+  const match = messages.find((m) => m.id === messageId);
+  assert(match, `Message ${messageId} not found in dispatch tx ${dispatchTx}`);
+  const message = match;
+
+  let deliveredTx: TransactionReceipt;
+
   log(`Checking status of message ${messageId} on ${destination}`);
-  const delivered = await mailbox.delivered(messageId);
+  const delivered = await core.isDelivered(message);
   if (delivered) {
     logGreen(`Message ${messageId} was delivered`);
-    return;
-  }
-  logBlue(`Message ${messageId} was not yet delivered`);
+    deliveredTx = await core.getProcessedReceipt(message);
+  } else {
+    logBlue(`Message ${messageId} was not yet delivered`);
 
-  if (selfRelay) {
-    // TODO: implement option for tx receipt input
-    if (!origin) {
-      origin = await runSingleChainSelectionStep(
-        context.chainMetadata,
-        'Select the origin chain',
-      );
+    if (!selfRelay) {
+      return;
     }
 
-    const receipt = await core.getDispatchTx(origin, messageId);
-    const messages = core.getDispatchedMessages(receipt);
-    await core.relayMessage(messages[0]);
-    logGreen(`Message ${messageId} was self-relayed!`);
+    const relayer = new HyperlaneRelayer(core);
+    deliveredTx = await relayer.relayMessage(dispatchedTx);
   }
+
+  logGreen(
+    `Message ${messageId} delivered in ${context.multiProvider.getExplorerTxUrl(
+      message.parsed.destination,
+      { hash: deliveredTx.transactionHash },
+    )}`,
+  );
 }

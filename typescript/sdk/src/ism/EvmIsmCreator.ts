@@ -31,7 +31,6 @@ import {
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { resolveOrDeployAccountOwner } from '../deploy/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -171,17 +170,8 @@ export class EvmIsmCreator {
           destination,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
-          [
-            await resolveOrDeployAccountOwner(
-              this.multiProvider,
-              destination,
-              config.owner,
-            ),
-          ],
+          [config.owner],
         );
-        await this.deployer.transferOwnershipOfContracts(destination, config, {
-          [IsmType.PAUSABLE]: contract,
-        });
         break;
       case IsmType.TRUSTED_RELAYER:
         assert(
@@ -331,11 +321,7 @@ export class EvmIsmCreator {
       }
     } else {
       const isms: ChainMap<Address> = {};
-      const owner = await resolveOrDeployAccountOwner(
-        this.multiProvider,
-        destination,
-        config.owner,
-      );
+      const owner = config.owner;
 
       for (const origin of Object.keys(config.domains)) {
         const ism = await this.deploy({
@@ -416,11 +402,7 @@ export class EvmIsmCreator {
     );
 
     const isms: ChainMap<Address> = {};
-    const owner = await resolveOrDeployAccountOwner(
-      this.multiProvider,
-      destination,
-      config.owner,
-    );
+    const owner = config.owner;
 
     for (const origin of Object.keys(config.domains)) {
       const ism = await this.deploy({
