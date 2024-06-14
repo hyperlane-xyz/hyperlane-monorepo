@@ -9,6 +9,7 @@ import { log, logRed, logTip } from '../logger.js';
 // A special value marker to indicate user selected
 // a new chain in the list
 const NEW_CHAIN_MARKER = '__new__';
+const DEFAULT_PAGE_SIZE = 15;
 
 export async function runSingleChainSelectionStep(
   chainMetadata: ChainMap<ChainMetadata>,
@@ -18,7 +19,7 @@ export async function runSingleChainSelectionStep(
   const chain = (await select({
     message,
     choices,
-    pageSize: 30,
+    pageSize: process.stdout.rows - 2 || DEFAULT_PAGE_SIZE, // subtract 2, to exclude previous prompt text
   })) as string;
   handleNewChain([chain]);
   return chain;
@@ -35,7 +36,7 @@ export async function runMultiChainSelectionStep(
     const chains = (await checkbox({
       message,
       choices,
-      pageSize: 30,
+      pageSize: process.stdout.rows - 2 || DEFAULT_PAGE_SIZE, // subtract 2, to exclude previous prompt text
     })) as string[];
     handleNewChain(chains);
     if (requireMultiple && chains?.length < 2) {
