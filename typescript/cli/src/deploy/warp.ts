@@ -1,6 +1,10 @@
 import { confirm } from '@inquirer/prompts';
 
 import {
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+} from '@hyperlane-xyz/core';
+import {
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneContractsMap,
@@ -161,13 +165,36 @@ async function getWarpCoreConfig(
       throw new Error('Missing decimals on token metadata');
     }
 
-    const collateralAddressOrDenom =
+    const collateralAddressOrDenom = await (async () => {
+      if (config.type === TokenType.XERC20Lockbox) {
+        const provider = context.multiProvider.tryGetProvider(chainName);
+        if (!provider) {
+          throw new Error(`Unable to pull provider for ${chainName}`);
+        }
+
+        const xERC20 = await HypXERC20Lockbox__factory.connect(
+          config.token,
+          provider,
+        ).xERC20();
+        const wrappedToken = await HypXERC20__factory.connect(
+          xERC20,
+          provider,
+        ).wrappedToken();
+        return wrappedToken;
+      }
+
       // todo: merge this with CollateralExtensions when CLI 2.0 is out
       // https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3838/files#diff-a1429ad1c3e9d3fe43d28f08333e95f6c79176b6d36873e42e455e5e806826aaR16
-      config.type === TokenType.collateral ||
-      config.type == TokenType.collateralFiat
-        ? config.token
-        : undefined;
+      if (
+        config.type === TokenType.collateral ||
+        config.type === TokenType.XERC20 ||
+        config.type === TokenType.collateralFiat
+      ) {
+        return config.token;
+      }
+
+      return undefined;
+    })();
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
