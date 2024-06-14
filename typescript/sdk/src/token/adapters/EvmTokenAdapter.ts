@@ -305,7 +305,6 @@ export class EvmHypXERC20LockboxAdapter
     );
   }
 
-  // Lockbox has infinite mint rights
   async getMintLimit() {
     const xERC20 = await this.hypXERC20Lockbox.xERC20();
 
@@ -317,7 +316,6 @@ export class EvmHypXERC20LockboxAdapter
     return BigInt(limit.toString());
   }
 
-  // Lockbox has infinite burn rights
   async getBurnLimit() {
     const xERC20 = await this.hypXERC20Lockbox.xERC20();
 
