@@ -162,7 +162,11 @@ async function getWarpCoreConfig(
     }
 
     const collateralAddressOrDenom =
-      config.type === TokenType.collateral ? config.token : undefined;
+      config.type === TokenType.collateral ||
+      config.type === TokenType.XERC20 ||
+      config.type === TokenType.XERC20Lockbox
+        ? config.token
+        : undefined;
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
