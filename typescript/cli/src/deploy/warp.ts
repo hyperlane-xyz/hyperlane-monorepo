@@ -142,9 +142,12 @@ async function executeDeploy(params: DeployParams) {
     ismFactoryDeployer,
   );
 
+  logGreen('✅ ISM deployments complete');
+  log(`Deploying Warp contracts`);
+
   const deployedContracts = await deployer.deploy(modifiedConfig);
 
-  logGreen('✅ Hyp token deployments complete');
+  logGreen('✅ Warp contract deployments complete');
 
   const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
   if (!isDryRun) {
