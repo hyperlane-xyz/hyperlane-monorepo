@@ -1,4 +1,5 @@
-import { providers } from 'ethers';
+import { BigNumber, providers } from 'ethers';
+import { resolveProperties } from 'ethers/lib/utils.js';
 import { Logger } from 'pino';
 
 import {
@@ -95,6 +96,41 @@ export class HyperlaneSmartProvider
     }
 
     this.supportedMethods = [...supportedMethods.values()];
+  }
+
+  async getPriorityFee() {
+    try {
+      return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
+    } catch (error) {
+      return BigNumber.from('1500000000');
+    }
+  }
+
+  async getFeeData(): Promise<providers.FeeData> {
+    // override hardcoded getFeedata
+    const { block, gasPrice } = await resolveProperties({
+      block: this.getBlock('latest'),
+      gasPrice: this.getGasPrice().catch((error) => {
+        // @TODO: Why is this now failing on Calaveras?
+        //console.log(error);
+        return null;
+      }),
+    });
+
+    let lastBaseFeePerGas = null,
+      maxFeePerGas = null,
+      maxPriorityFeePerGas = null;
+
+    if (block && block.baseFeePerGas) {
+      // We may want to compute this more accurately in the future,
+      // using the formula "check if the base fee is correct".
+      // See: https://eips.ethereum.org/EIPS/eip-1559
+      lastBaseFeePerGas = block.baseFeePerGas;
+      maxPriorityFeePerGas = await this.getPriorityFee();
+      maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
+    }
+
+    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
   }
 
   static fromChainMetadata(

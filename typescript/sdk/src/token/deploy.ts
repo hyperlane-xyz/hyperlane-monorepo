@@ -87,51 +87,61 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadata | undefined> {
-    for (const [chain, config] of Object.entries(configMap)) {
-      if (isTokenMetadata(config)) {
-        return config;
-      }
-
-      if (isNativeConfig(config)) {
-        const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
-        if (nativeToken) {
-          return { totalSupply: 0, ...nativeToken };
+    try {
+      for (const [chain, config] of Object.entries(configMap)) {
+        if (isTokenMetadata(config)) {
+          return config;
         }
-      }
 
-      if (isCollateralConfig(config)) {
-        const provider = multiProvider.getProvider(chain);
+        if (isNativeConfig(config)) {
+          const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
+          if (nativeToken) {
+            return { totalSupply: 0, ...nativeToken };
+          }
+        }
 
-        if (config.isNft) {
-          const erc721 = ERC721Enumerable__factory.connect(
-            config.token,
-            provider,
-          );
-          const [name, symbol, totalSupply] = await Promise.all([
-            erc721.name(),
-            erc721.symbol(),
-            erc721.totalSupply(),
+        if (isCollateralConfig(config)) {
+          const provider = multiProvider.getProvider(chain);
+
+          if (config.isNft) {
+            const erc721 = ERC721Enumerable__factory.connect(
+              config.token,
+              provider,
+            );
+            const [name, symbol, totalSupply] = await Promise.all([
+              erc721.name(),
+              erc721.symbol(),
+              erc721.totalSupply(),
+            ]);
+            return {
+              name,
+              symbol,
+              totalSupply: totalSupply.toString(),
+            };
+          }
+
+          const erc20 = ERC20__factory.connect(config.token, provider);
+          const [name, symbol, totalSupply, decimals] = await Promise.all([
+            erc20.name(),
+            erc20.symbol(),
+            erc20.totalSupply(),
+            erc20.decimals(),
           ]);
+
           return {
             name,
             symbol,
             totalSupply: totalSupply.toString(),
+            decimals,
           };
         }
-
-        const erc20 = ERC20__factory.connect(config.token, provider);
-        const [name, symbol, totalSupply, decimals] = await Promise.all([
-          erc20.name(),
-          erc20.symbol(),
-          erc20.totalSupply(),
-          erc20.decimals(),
-        ]);
-
-        return { name, symbol, totalSupply: totalSupply.toString(), decimals };
       }
-    }
 
-    return undefined;
+      return undefined;
+    } catch (error) {
+      console.error(`Could not derive token metadata`, configMap, error);
+      return undefined;
+    }
   }
 
   async deploy(configMap: WarpRouteDeployConfig) {
@@ -139,6 +149,7 @@ abstract class TokenDeployer<
       this.multiProvider,
       configMap,
     );
+    this.logger.debug({ tokenMetadata }, `Derived token metadata`);
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       ...tokenMetadata,
       gas: gasOverhead(config.type),
