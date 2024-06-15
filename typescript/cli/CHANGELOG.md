@@ -1,5 +1,18 @@
 # @hyperlane-xyz/cli
 
+## 3.15.0
+
+### Minor Changes
+
+- 51bfff683: Mint/burn limit checking for xERC20 bridging
+  Corrects CLI output for HypXERC20 and HypXERC20Lockbox deployments
+
+### Patch Changes
+
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/sdk@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
+
 ## 3.14.0
 
 ### Minor Changes
