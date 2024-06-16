@@ -61,6 +61,11 @@ export async function createChainConfig({
     validate: (chainName) => ZChainName.safeParse(chainName).success,
   });
 
+  const displayName = await input({
+    message: 'Enter chain display name',
+    default: name[0].toUpperCase() + name.slice(1),
+  });
+
   const chainId = parseInt(
     await detectAndConfirmOrPrompt(
       async () => {
@@ -76,6 +81,7 @@ export async function createChainConfig({
 
   const metadata: ChainMetadata = {
     name,
+    displayName,
     chainId,
     domainId: chainId,
     protocol: ProtocolType.Ethereum,
