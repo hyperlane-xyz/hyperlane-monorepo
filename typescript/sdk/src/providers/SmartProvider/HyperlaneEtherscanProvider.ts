@@ -24,6 +24,7 @@ export class HyperlaneEtherscanProvider
     ProviderMethod.Call,
     ProviderMethod.EstimateGas,
     ProviderMethod.SendTransaction,
+    ProviderMethod.MaxPriorityFeePerGas,
   ]);
 
   constructor(

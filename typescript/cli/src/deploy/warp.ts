@@ -125,7 +125,7 @@ async function executeDeploy(params: DeployParams) {
 
   const deployedContracts = await deployer.deploy(config);
 
-  logGreen('✅ Hyp token deployments complete');
+  logGreen('✅ Warp contract deployments complete');
 
   const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
   if (!isDryRun) {
