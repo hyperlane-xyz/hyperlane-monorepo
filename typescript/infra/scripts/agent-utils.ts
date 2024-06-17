@@ -4,7 +4,6 @@ import yargs, { Argv } from 'yargs';
 import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
-  ChainMetadata,
   ChainName,
   CoreConfig,
   MultiProtocolProvider,
@@ -16,7 +15,6 @@ import {
   ProtocolType,
   objFilter,
   objMap,
-  objMerge,
   promiseObjAll,
   rootLogger,
   symmetricDifference,
@@ -36,10 +34,6 @@ import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';
 import { RootAgentConfig } from '../src/config/agent/agent.js';
-import {
-  fetchProvider,
-  getSecretMetadataOverrides,
-} from '../src/config/chain.js';
 import {
   AgentEnvironment,
   DeployEnvironment,
@@ -424,6 +418,18 @@ export function writeAddresses(
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
 ) {
+  addressesMap = Object.fromEntries(
+    Object.entries(addressesMap).map(([chain, addresses]) => [
+      chain,
+      // Filter out any non-string writes
+      // e.g. remote domain metadata that might be present
+      objFilter(
+        addresses,
+        (_, value): value is string => typeof value === 'string',
+      ),
+    ]),
+  );
+
   if (isRegistryModule(environment, module)) {
     for (const [chainName, addresses] of Object.entries(addressesMap)) {
       getRegistry().updateChain({ chainName, addresses });
