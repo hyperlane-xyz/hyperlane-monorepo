@@ -9,8 +9,9 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
-    BatchItem, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneMessage, Mailbox, MessageSubmissionData, TryBatchAs, TxOutcome, H256, U256,
+    gas_used_by_operation, make_op_try, BatchItem, ChainCommunicationError, ChainResult,
+    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
+    PendingOperation, PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -18,7 +19,6 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use super::{
     gas_payment::GasPaymentEnforcer,
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
-    pending_operation::*,
 };
 
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
@@ -259,7 +259,7 @@ impl PendingOperation for PendingMessage {
 
         let state = self
             .submission_data
-            .take()
+            .clone()
             .expect("Pending message must be prepared before it can be submitted");
 
         // We use the estimated gas limit from the prior call to
@@ -271,7 +271,7 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                self.set_submission_outcome(outcome);
+                self.set_operation_outcome(outcome, state.gas_limit);
             }
             Err(e) => {
                 error!(error=?e, "Error when processing message");
@@ -281,6 +281,10 @@ impl PendingOperation for PendingMessage {
 
     fn set_submission_outcome(&mut self, outcome: TxOutcome) {
         self.submission_outcome = Some(outcome);
+    }
+
+    fn get_tx_cost_estimate(&self) -> Option<U256> {
+        self.submission_data.as_ref().map(|d| d.gas_limit)
     }
 
     async fn confirm(&mut self) -> PendingOperationResult {
@@ -313,15 +317,6 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
-            if let Some(outcome) = &self.submission_outcome {
-                if let Err(e) = self
-                    .ctx
-                    .origin_gas_payment_enforcer
-                    .record_tx_outcome(&self.message, outcome.clone())
-                {
-                    error!(error=?e, "Error when recording tx outcome");
-                }
-            }
             warn!(
                 tx_outcome=?self.submission_outcome,
                 message_id=?self.message.id(),
@@ -329,6 +324,50 @@ impl PendingOperation for PendingMessage {
             );
             self.on_reprepare()
         }
+    }
+
+    fn set_operation_outcome(
+        &mut self,
+        submission_outcome: TxOutcome,
+        submission_estimated_cost: U256,
+    ) {
+        let Some(operation_estimate) = self.get_tx_cost_estimate() else {
+            warn!("Cannot set operation outcome without a cost estimate set previously");
+            return;
+        };
+        // calculate the gas used by the operation
+        let gas_used_by_operation = match gas_used_by_operation(
+            &submission_outcome,
+            submission_estimated_cost,
+            operation_estimate,
+        ) {
+            Ok(gas_used_by_operation) => gas_used_by_operation,
+            Err(e) => {
+                warn!(error = %e, "Error when calculating gas used by operation, falling back to charging the full cost of the tx. Are gas estimates enabled for this chain?");
+                submission_outcome.gas_used
+            }
+        };
+        let operation_outcome = TxOutcome {
+            gas_used: gas_used_by_operation,
+            ..submission_outcome
+        };
+        // record it in the db, to subtract from the sender's igp allowance
+        if let Err(e) = self
+            .ctx
+            .origin_gas_payment_enforcer
+            .record_tx_outcome(&self.message, operation_outcome.clone())
+        {
+            error!(error=?e, "Error when recording tx outcome");
+        }
+        // set the outcome in `Self` as well, for later logging
+        self.set_submission_outcome(operation_outcome);
+        debug!(
+            actual_gas_for_message = ?gas_used_by_operation,
+            message_gas_estimate = ?operation_estimate,
+            submission_gas_estimate = ?submission_estimated_cost,
+            message = ?self.message,
+            "Gas used by message submission"
+        );
     }
 
     fn next_attempt_after(&self) -> Option<Instant> {
@@ -343,7 +382,6 @@ impl PendingOperation for PendingMessage {
         self.reset_attempts();
     }
 
-    #[cfg(test)]
     fn set_retries(&mut self, retries: u32) {
         self.set_retries(retries);
     }

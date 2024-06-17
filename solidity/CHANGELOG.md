@@ -1,5 +1,23 @@
 # @hyperlane-xyz/core
 
+## 3.15.0
+
+### Minor Changes
+
+- 51bfff683: Mint/burn limit checking for xERC20 bridging
+  Corrects CLI output for HypXERC20 and HypXERC20Lockbox deployments
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@3.15.0
+
+## 3.14.0
+
+### Patch Changes
+
+- a8a68f6f6: fix: make XERC20 and XERC20 Lockbox proxy-able
+  - @hyperlane-xyz/utils@3.14.0
+
 ## 3.13.0
 
 ### Minor Changes

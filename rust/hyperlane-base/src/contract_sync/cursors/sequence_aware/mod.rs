@@ -62,6 +62,7 @@ pub enum SyncDirection {
 
 /// A cursor that prefers to sync forward, but will sync backward if there is nothing to
 /// sync forward.
+#[derive(Debug)]
 pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,

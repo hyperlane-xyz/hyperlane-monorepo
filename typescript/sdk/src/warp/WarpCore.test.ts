@@ -222,7 +222,7 @@ describe('WarpCore', () => {
 
     const invalidAmount = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(-10),
-      destination: test1.name,
+      destination: test2.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
@@ -230,7 +230,7 @@ describe('WarpCore', () => {
 
     const insufficientBalance = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
-      destination: test1.name,
+      destination: test2.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
