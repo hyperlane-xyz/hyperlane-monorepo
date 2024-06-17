@@ -1,5 +1,4 @@
-import { BigNumber, providers } from 'ethers';
-import { resolveProperties } from 'ethers/lib/utils.js';
+import { BigNumber, providers, utils } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -108,7 +107,8 @@ export class HyperlaneSmartProvider
 
   async getFeeData(): Promise<providers.FeeData> {
     // override hardcoded getFeedata
-    const { block, gasPrice } = await resolveProperties({
+    // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
+    const { block, gasPrice } = await utils.resolveProperties({
       block: this.getBlock('latest'),
       gasPrice: this.getGasPrice().catch((error) => {
         // @TODO: Why is this now failing on Calaveras?
@@ -117,11 +117,11 @@ export class HyperlaneSmartProvider
       }),
     });
 
-    let lastBaseFeePerGas = null,
-      maxFeePerGas = null,
-      maxPriorityFeePerGas = null;
+    let lastBaseFeePerGas: BigNumber | null = null,
+      maxFeePerGas: BigNumber | null = null,
+      maxPriorityFeePerGas: BigNumber | null = null;
 
-    if (block && block.baseFeePerGas) {
+    if (block?.baseFeePerGas) {
       // We may want to compute this more accurately in the future,
       // using the formula "check if the base fee is correct".
       // See: https://eips.ethereum.org/EIPS/eip-1559

@@ -158,10 +158,6 @@ export class HyperlaneJsonRpcProvider
     return combinedResults;
   }
 
-  get maxPriorityFeePerGas(): Promise<BigNumber> {
-    return this.perform('eth_maxPriorityFeePerGas', {});
-  }
-
   getBaseUrl(): string {
     return this.connection.url;
   }
