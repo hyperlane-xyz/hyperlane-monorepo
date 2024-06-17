@@ -36,6 +36,7 @@ import {
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
+import { inCIMode } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -87,10 +88,9 @@ async function main() {
 
   // if none provided, instantiate a default verifier with the default core contract build artifact
   // fetch explorer API keys from GCP
-  const apiKeys = await fetchExplorerApiKeys();
   const contractVerifier = new ContractVerifier(
     multiProvider,
-    apiKeys,
+    inCIMode() ? {} : await fetchExplorerApiKeys(),
     buildArtifactPath
       ? extractBuildArtifact(buildArtifactPath)
       : coreBuildArtifact,
