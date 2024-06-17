@@ -327,17 +327,6 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     }
 }
 
-impl<T: Debug> Debug for BackwardSequenceAwareSyncCursor<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BackwardSequenceAwareSyncCursor")
-            .field("chunk_size", &self.chunk_size)
-            .field("current_indexing_snapshot", &self.current_indexing_snapshot)
-            .field("last_indexed_snapshot", &self.last_indexed_snapshot)
-            .field("index_mode", &self.index_mode)
-            .finish()
-    }
-}
-
 #[async_trait]
 impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     for BackwardSequenceAwareSyncCursor<T>

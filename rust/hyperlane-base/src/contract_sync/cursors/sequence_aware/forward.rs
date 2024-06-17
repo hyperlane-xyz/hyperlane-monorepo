@@ -403,18 +403,6 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     }
 }
 
-impl<T: Debug> Debug for ForwardSequenceAwareSyncCursor<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ForwardSequenceAwareSyncCursor")
-            .field("chunk_size", &self.chunk_size)
-            .field("current_indexing_snapshot", &self.current_indexing_snapshot)
-            .field("last_indexed_snapshot", &self.last_indexed_snapshot)
-            .field("target_snapshot", &self.target_snapshot)
-            .field("index_mode", &self.index_mode)
-            .finish()
-    }
-}
-
 #[async_trait]
 impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     for ForwardSequenceAwareSyncCursor<T>
