@@ -107,7 +107,7 @@ async function main() {
                 mailbox: (await registry.getChainAddresses(chain))!.mailbox,
                 interchainSecurityModule: {
                   type: IsmType.AGGREGATION,
-                  threshold: 1,
+                  threshold: 2,
                   modules: [
                     {
                       type: IsmType.ROUTING,
