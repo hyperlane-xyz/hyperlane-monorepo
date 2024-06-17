@@ -36,24 +36,16 @@ contract HypNative is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as interchain gas payment and `msg.sender` as refund address.
+     * @dev uses (`msg.value` - `_amount`) as hook payment and `msg.sender` as refund address.
      */
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable virtual override returns (bytes32 messageId) {
+    ) external payable virtual override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 gasPayment = msg.value - _amount;
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _amount,
-                gasPayment,
-                bytes(""),
-                address(0)
-            );
+        uint256 _hookPayment = msg.value - _amount;
+        return _transferRemote(_destination, _recipient, _amount, _hookPayment);
     }
 
     function balanceOf(
