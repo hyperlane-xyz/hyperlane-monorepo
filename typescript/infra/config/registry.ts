@@ -1,7 +1,11 @@
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  MergedRegistry,
+  PartialRegistry,
+} from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   ChainMap,
@@ -110,4 +114,27 @@ export function getMainnetAddresses(): ChainMap<ChainAddresses> {
 
 export function getTestnetAddresses(): ChainMap<ChainAddresses> {
   return getEnvAddresses('testnet4');
+}
+
+/**
+ * Gets a registry, applying the provided overrides. The base registry
+ * that the overrides are applied to is the registry returned by `getRegistry`.
+ * @param chainMetadataOverrides Chain metadata overrides.
+ * @param chainAddressesOverrides Chain address overrides.
+ * @returns A MergedRegistry merging the registry from `getRegistry` and the overrides.
+ */
+export function getRegistryWithOverrides(
+  chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {},
+  chainAddressesOverrides: ChainMap<Partial<ChainAddresses>> = {},
+): MergedRegistry {
+  const baseRegistry = getRegistry();
+
+  const overrideRegistry = new PartialRegistry({
+    chainMetadata: chainMetadataOverrides,
+    chainAddresses: chainAddressesOverrides,
+  });
+
+  return new MergedRegistry({
+    registries: [baseRegistry, overrideRegistry],
+  });
 }

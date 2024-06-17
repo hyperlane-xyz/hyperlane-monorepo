@@ -1,48 +1,12 @@
 # @hyperlane-xyz/sdk
 
-## 4.0.0-alpha.2
+## 3.14.0
 
 ### Patch Changes
 
-- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
-  - @hyperlane-xyz/core@4.0.0-alpha.2
-  - @hyperlane-xyz/utils@4.0.0-alpha.2
-
-## 4.0.0-alpha.0
-
-### Minor Changes
-
-- bdcbe1d16: Add EvmWarpModule with create()
-- 6db9fa9ad: Implement hyperlane warp deploy
-
-### Patch Changes
-
-- @hyperlane-xyz/core@4.0.0-alpha.0
-- @hyperlane-xyz/utils@4.0.0-alpha.0
-
-## 4.0.0-alpha
-
-### Major Changes
-
-- 74c879fa1: Merge branch 'cli-2.0' into main.
-
-### Minor Changes
-
-- eb23e7729: Add create() with EvmCoreModule
-- 1ec61debd: Support hook config objects in warp config
-- 4663018fc: Implement hyperlane core config to return CoreConfig
-- 5e5886f2c: Add EvmIcaModule.create()
-- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
-- 3dabcbdca: Adds zod validation on tx submitter populated txs & re-uses ICA params for transformer.
-- 1d0d1bb36: Implements `hyperlane core deploy`
-- 4bf7301ea: Adds further zod schema validation support throughout the SDK, namely for /transactions.
-
-### Patch Changes
-
-- Updated dependencies [341b8affd]
-- Updated dependencies [74c879fa1]
-  - @hyperlane-xyz/utils@4.0.0-alpha
-  - @hyperlane-xyz/core@4.0.0-alpha
+- Updated dependencies [a8a68f6f6]
+  - @hyperlane-xyz/core@3.14.0
+  - @hyperlane-xyz/utils@3.14.0
 
 ## 3.13.0
 
