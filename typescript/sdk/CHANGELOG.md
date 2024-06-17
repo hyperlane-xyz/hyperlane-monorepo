@@ -1,5 +1,15 @@
 # @hyperlane-xyz/sdk
 
+## 3.15.1
+
+### Patch Changes
+
+- acaa22cd9: Do not consider xERC20 a collateral standard to fix fungibility checking logic while maintaining mint limit checking
+- 921e449b4: Support priorityFee fetching from RPC and some better logging
+- Updated dependencies [6620fe636]
+  - @hyperlane-xyz/core@3.15.1
+  - @hyperlane-xyz/utils@3.15.1
+
 ## 3.15.0
 
 ### Minor Changes
