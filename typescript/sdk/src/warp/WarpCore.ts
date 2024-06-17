@@ -22,6 +22,7 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
+  MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
@@ -427,7 +428,10 @@ export class WarpCore {
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
 
-    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard)) {
+    if (
+      !TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard) &&
+      !MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
+    ) {
       this.logger.debug(
         `${destinationToken.symbol} is not collateralized, skipping`,
       );
