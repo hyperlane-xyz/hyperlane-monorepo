@@ -139,7 +139,7 @@ abstract class TokenDeployer<
 
       return undefined;
     } catch (error) {
-      console.error(`Could not derive token metadata`, configMap, error);
+      rootLogger.error(`Could not derive token metadata`, configMap, error);
       throw error;
     }
   }

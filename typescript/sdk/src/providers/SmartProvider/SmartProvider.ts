@@ -110,9 +110,7 @@ export class HyperlaneSmartProvider
     // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
     const { block, gasPrice } = await utils.resolveProperties({
       block: this.getBlock('latest'),
-      gasPrice: this.getGasPrice().catch((error) => {
-        // @TODO: Why is this now failing on Calaveras?
-        //console.log(error);
+      gasPrice: this.getGasPrice().catch(() => {
         return null;
       }),
     });
