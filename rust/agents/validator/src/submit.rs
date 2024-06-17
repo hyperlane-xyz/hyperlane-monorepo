@@ -255,7 +255,10 @@ impl ValidatorSubmitter {
     ) -> ChainResult<()> {
         let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
 
-        for queued_checkpoint in checkpoints {
+        // Submits checkpoints to the store in reverse order. This speeds up processing historic checkpoints (those before the validator is spun up),
+        // since those are the most likely to make messages become processable.
+        // A side effect is that new checkpoints will also be submitted in reverse order.
+        for queued_checkpoint in checkpoints.into_iter().rev() {
             let existing = self
                 .checkpoint_syncer
                 .fetch_checkpoint(queued_checkpoint.index)
