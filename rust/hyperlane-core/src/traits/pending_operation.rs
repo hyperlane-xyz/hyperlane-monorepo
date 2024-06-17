@@ -4,10 +4,16 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::{
+    ChainResult, FixedPointNumber, HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256,
+    U256,
+};
 use async_trait::async_trait;
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256};
+use num::CheckedDiv;
+use tracing::warn;
 
-use super::op_queue::QueueOperation;
+/// Boxed operation that can be stored in an operation queue
+pub type QueueOperation = Box<dyn PendingOperation>;
 
 /// A pending operation that will be run by the submitter and cause a
 /// transaction to be sent.
@@ -67,10 +73,20 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the outcome of the `submit` call
     fn set_submission_outcome(&mut self, outcome: TxOutcome);
 
+    /// Get the estimated the cost of the `submit` call
+    fn get_tx_cost_estimate(&self) -> Option<U256>;
+
     /// This will be called after the operation has been submitted and is
     /// responsible for checking if the operation has reached a point at
     /// which we consider it safe from reorgs.
     async fn confirm(&mut self) -> PendingOperationResult;
+
+    /// Record the outcome of the operation
+    fn set_operation_outcome(
+        &mut self,
+        submission_outcome: TxOutcome,
+        submission_estimated_cost: U256,
+    );
 
     /// Get the earliest instant at which this should next be attempted.
     ///
@@ -85,9 +101,39 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// retried immediately.
     fn reset_attempts(&mut self);
 
-    #[cfg(test)]
     /// Set the number of times this operation has been retried.
+    #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
+}
+
+/// Utility fn to calculate the total estimated cost of an operation batch
+pub fn total_estimated_cost(ops: &[Box<dyn PendingOperation>]) -> U256 {
+    ops.iter()
+        .fold(U256::zero(), |acc, op| match op.get_tx_cost_estimate() {
+            Some(cost_estimate) => acc.saturating_add(cost_estimate),
+            None => {
+                warn!(operation=?op, "No cost estimate available for operation, defaulting to 0");
+                acc
+            }
+        })
+}
+
+/// Calculate the gas used by an operation (either in a batch or single-submission), by looking at the total cost of the tx,
+/// and the estimated cost of the operation compared to the sum of the estimates of all operations in the batch.
+/// When using this for single-submission rather than a batch,
+/// the `tx_estimated_cost` should be the same as the `tx_estimated_cost`
+pub fn gas_used_by_operation(
+    tx_outcome: &TxOutcome,
+    tx_estimated_cost: U256,
+    operation_estimated_cost: U256,
+) -> ChainResult<U256> {
+    let gas_used_by_tx = FixedPointNumber::try_from(tx_outcome.gas_used)?;
+    let operation_gas_estimate = FixedPointNumber::try_from(operation_estimated_cost)?;
+    let tx_gas_estimate = FixedPointNumber::try_from(tx_estimated_cost)?;
+    let gas_used_by_operation = (gas_used_by_tx * operation_gas_estimate)
+        .checked_div(&tx_gas_estimate)
+        .ok_or(eyre::eyre!("Division by zero"))?;
+    gas_used_by_operation.try_into()
 }
 
 impl Display for QueueOperation {
@@ -138,6 +184,7 @@ impl Ord for QueueOperation {
     }
 }
 
+/// Possible outcomes of performing an action on a pending operation (such as `prepare`, `submit` or `confirm`).
 #[derive(Debug)]
 pub enum PendingOperationResult {
     /// Promote to the next step
@@ -153,6 +200,7 @@ pub enum PendingOperationResult {
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.
+#[macro_export]
 macro_rules! make_op_try {
     ($on_retry:expr) => {
         /// Handle a result and either return early with retry or a critical failure on
@@ -181,5 +229,3 @@ macro_rules! make_op_try {
                         }
     };
 }
-
-pub(super) use make_op_try;

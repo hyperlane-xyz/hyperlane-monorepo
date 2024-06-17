@@ -41,6 +41,18 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
+impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForwardSequenceAwareSyncCursor")
+            .field("chunk_size", &self.chunk_size)
+            .field("last_indexed_snapshot", &self.last_indexed_snapshot)
+            .field("current_indexing_snapshot", &self.current_indexing_snapshot)
+            .field("target_snapshot", &self.target_snapshot)
+            .field("index_mode", &self.index_mode)
+            .finish()
+    }
+}
+
 impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     #[instrument(
         skip(db, latest_sequence_querier),
@@ -493,7 +505,7 @@ pub(crate) mod test {
     where
         T: Sequenced + Debug,
     {
-        async fn fetch_logs(
+        async fn fetch_logs_in_range(
             &self,
             _range: RangeInclusive<u32>,
         ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {

@@ -216,6 +216,16 @@ where
     }
 }
 
+impl<T> Debug for RateLimitedContractSyncCursor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RateLimitedContractSyncCursor")
+            .field("tip", &self.tip)
+            .field("last_tip_update", &self.last_tip_update)
+            .field("sync_state", &self.sync_state)
+            .finish()
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
@@ -234,7 +244,7 @@ pub(crate) mod test {
 
         #[async_trait]
         impl Indexer<()> for Indexer {
-            async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(hyperlane_core::Indexed<()> , LogMeta)>>;
+            async fn fetch_logs_in_range(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(hyperlane_core::Indexed<()> , LogMeta)>>;
             async fn get_finalized_block_number(&self) -> ChainResult<u32>;
         }
     }

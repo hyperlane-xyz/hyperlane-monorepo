@@ -39,10 +39,18 @@ export function setRegistry(reg: FileSystemRegistry) {
   registry = reg;
 }
 
+/**
+ * Gets a FileSystemRegistry whose contents are found at the environment
+ * variable `REGISTRY_URI`, or `DEFAULT_REGISTRY_URI` if no env var is specified.
+ * This registry will not have any environment-specific overrides applied,
+ * and is useful for synchronous registry operations that do not require
+ * any overrides.
+ * @returns A FileSystemRegistry.
+ */
 export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
-    rootLogger.info('Using registry URI:', registryUri);
+    rootLogger.info({ registryUri }, 'Using registry URI');
     registry = new FileSystemRegistry({
       uri: registryUri,
       logger: rootLogger.child({ module: 'infra-registry' }),

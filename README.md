@@ -103,3 +103,9 @@ See [`rust/README.md`](rust/README.md)
 - Create a summary of change highlights
 - Create a "breaking changes" section with any changes required
 - Deploy agents with the new image tag (if it makes sense to)
+
+### Releasing packages to NPM
+
+We use [changesets](https://github.com/changesets/changesets) to release to NPM. You can use the `release` script in `package.json` to publish.
+
+For an alpha or beta version, follow the directions [here](https://github.com/changesets/changesets/blob/main/docs/prereleases.md).
