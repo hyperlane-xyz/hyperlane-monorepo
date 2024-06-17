@@ -376,15 +376,18 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
             .await
             .into_iter()
             .flatten()
-            .filter_map(|(logs_res, block_number)| match logs_res {
-                Ok(logs) => Some(logs),
-                Err(err) => {
+            .map(|(logs, block_number)| {
+                if let Err(err) = &logs {
                     warn!(?err, ?block_number, "Failed to fetch logs for block");
-                    None
                 }
+                logs
             })
+            // Propagate errors from any of the queries. This will cause the entire range to be retried,
+            // including successful ones, but we don't have a way to handle partial failures in a range for now.
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
             .flatten()
-            .map(|(log, meta)| (log.into(), meta))
+            .map(|(log, meta)| (Indexed::new(log), meta))
             .collect();
 
         Ok(result)
