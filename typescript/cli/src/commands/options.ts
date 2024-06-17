@@ -7,16 +7,6 @@ import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 import { ENV } from '../utils/env.js';
 
 /* Global options */
-// TODO: add enum for aliases
-// const enum OptionAliases {
-//   'SkipConfirmation' = 'y',
-//   'RegistryUri' = 'r',
-//   'PrivateKey' = 'k',
-//   'OutputFile' = 'o',
-//   'InputFile' = 'i',
-//   'Chain' = 'c',
-//   'WarpConfig' = 'w',
-// }
 
 export const makeOptionRequired = (option: Options): Options => ({
   ...option,

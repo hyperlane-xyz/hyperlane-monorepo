@@ -8,7 +8,7 @@ import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';
 export const checkValidatorSetup = async (
   context: CommandContext,
   chain: string,
-  validators: Address[],
+  validators: Set<Address>,
 ) => {
   const { multiProvider, registry } = context;
 
@@ -22,22 +22,29 @@ export const checkValidatorSetup = async (
     multiProvider.getProvider(chain),
   );
 
+  let merkleTreeLatestCheckpointIndex: number | undefined;
   try {
     const [_, latestCheckpointIndex] = await merkleTreeHook[
       'latestCheckpoint()'
     ]();
+
+    merkleTreeLatestCheckpointIndex = latestCheckpointIndex;
     logBlue(
-      `\nLatest check point index of incremental merkle tree: ${latestCheckpointIndex}\n`,
+      `\nLatest check point index of incremental merkle tree: ${merkleTreeLatestCheckpointIndex}\n`,
     );
   } catch (err) {
-    warnYellow('Failed to fetch latest checkpoint index of merkleTreeHook\n');
+    warnYellow(
+      `❗️ Failed to fetch latest checkpoint index of merkleTreeHook on ${chain} \n`,
+    );
   }
 
   let announcedValidators;
   try {
     announcedValidators = await validatorAnnounce.getAnnouncedValidators();
   } catch (err) {
-    errorRed('Failed to fetch announced validators\n');
+    errorRed(
+      `❌ Failed to fetch announced validators for ${chain}. Exiting.\n`,
+    );
     process.exit(1);
   }
 
@@ -55,9 +62,11 @@ export const checkValidatorSetup = async (
     }
   }
 
-  const errorList: string[] = [];
+  const errorSet = new Set<string>();
+  errorSet.add('Validator pre flight check failed:');
+
   if (unconfirmedValidators.size > 0) {
-    errorList.push('Some validators have not been announced');
+    errorSet.add('Some validators have not been announced.');
   }
 
   let failedToReadError = false;
@@ -77,26 +86,51 @@ export const checkValidatorSetup = async (
         await s3Validator.getLatestCheckpointIndex();
 
       logBlue(
-        `Validator ${validator} announced with storage locations: ${s3StorageLocation}, latest checkpoint index: ${latestCheckpointIndex}`,
+        `✅ Validator ${validator} announced\nstorage location: ${s3StorageLocation}\nlatest checkpoint index: ${latestCheckpointIndex}`,
       );
+
+      // check is latestCheckpointIndex is within 1% of the merkleTreeLatestCheckpointIndex
+      if (merkleTreeLatestCheckpointIndex) {
+        const diff = Math.abs(
+          latestCheckpointIndex - merkleTreeLatestCheckpointIndex,
+        );
+        if (diff > merkleTreeLatestCheckpointIndex / 100) {
+          errorRed(
+            `❌ Validator is not signing the latest available checkpoint\n\n`,
+          );
+          errorSet.add(
+            `Some validators are not signing the latest available checkpoint\n`,
+          );
+        } else {
+          logBlue(
+            `✅ Validator is signing the latest available checkpoint\n\n`,
+          );
+        }
+      } else {
+        warnYellow(
+          `❗️ Cannot compare validator checkpoint signatures to latest check point \n`,
+        );
+      }
     } catch (err) {
-      errorRed(`Failed to fetch storage locations for validator ${validator}`);
+      errorRed(
+        `❌ Failed to fetch storage locations for validator ${validator}, this may be due to the storage location not being an S3 bucket\n\n`,
+      );
       failedToReadError = true;
     }
   }
 
   for (const validator of unconfirmedValidators) {
-    errorRed(`Validator ${validator} has not been announced`);
+    errorRed(`❌ Validator ${validator} has not been announced\n`);
   }
 
   if (failedToReadError) {
-    errorList.push('Failed to fetch storage locations for some validators');
+    errorSet.add('Failed to fetch storage locations for some validators.');
   }
 
-  if (errorList.length > 0) {
-    errorRed(`\n❌ ${errorList.join('\n')}`);
+  if (errorSet.size > 1) {
+    errorRed(`\n❌ ${Array.from(errorSet).join('\n')}`);
     process.exit(1);
   } else {
-    logGreen(`\n✅ All validators have been announced`);
+    logGreen(`\n✅ Validator pre flight check passed`);
   }
 };

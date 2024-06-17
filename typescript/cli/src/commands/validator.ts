@@ -2,12 +2,13 @@ import { CommandModule } from 'yargs';
 
 import {
   Address,
+  ProtocolType,
   isValidAddress,
   normalizeAddress,
 } from '@hyperlane-xyz/utils';
 
 import { CommandModuleWithContext } from '../context/types.js';
-import { log, logRed } from '../logger.js';
+import { errorRed, log } from '../logger.js';
 import { getValidatorAddress } from '../validator/address.js';
 import { checkValidatorSetup } from '../validator/preFlightCheck.js';
 
@@ -75,31 +76,44 @@ const preFlightCheckCommand: CommandModuleWithContext<{
     validators: validatorCommandOption,
   },
   handler: async ({ context, chain, validators }) => {
-    const { multiProvider } = context;
+    const { multiProvider, registry } = context;
 
     // validate chain
     if (!multiProvider.hasChain(chain)) {
-      logRed(`Chain ${chain} is not supported by the current configuration`);
+      errorRed(`❌ ${chain} is not supported by the current configuration`);
+      process.exit(1);
+    }
+
+    const chainMetadata = await registry.getChainMetadata(chain);
+    if (!chainMetadata) {
+      errorRed(`\n❌ Unable to fetch metadata for chain ${chain}. Exiting.`);
+      process.exit(1);
+    }
+
+    if (chainMetadata && chainMetadata.protocol !== ProtocolType.Ethereum) {
+      errorRed(
+        `\n❌ Validator pre flight check only supports EVM chains. Exiting.`,
+      );
       process.exit(1);
     }
 
     // validate validators addresses
-    // TODO: how do we handle non EVM addresses
-    // TODO: consider using set
     const validatorList = validators.split(',');
-    const invalidAddresses: string[] = [];
-    const validAddresses: Address[] = [];
+    const invalidAddresses: Set<Address> = new Set();
+    const validAddresses: Set<Address> = new Set();
 
     for (const address of validatorList) {
       if (isValidAddress(address)) {
-        validAddresses.push(normalizeAddress(address));
+        validAddresses.add(normalizeAddress(address));
       } else {
-        invalidAddresses.push(address);
+        invalidAddresses.add(address);
       }
     }
 
-    if (invalidAddresses.length > 0) {
-      logRed(`Invalid addresses: ${invalidAddresses.join(', ')}`);
+    if (invalidAddresses.size > 0) {
+      errorRed(
+        `❌ Invalid addresses: ${Array.from(invalidAddresses).join(', ')}`,
+      );
       process.exit(1);
     }
 
