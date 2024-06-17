@@ -94,15 +94,15 @@ export abstract class HyperlaneAppGovernor<
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
         );
 
+        if (!requestConfirmation) return true;
+
         const { value: confirmed } = await prompts({
           type: 'confirm',
           name: 'value',
           message: 'Can you confirm?',
           initial: false,
         });
-
-        const response = !requestConfirmation || confirmed;
-        return !!response;
+        return !!confirmed;
       }
       return false;
     };
