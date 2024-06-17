@@ -9,7 +9,15 @@ import { log, logRed, logTip } from '../logger.js';
 // A special value marker to indicate user selected
 // a new chain in the list
 const NEW_CHAIN_MARKER = '__new__';
-const DEFAULT_PAGE_SIZE = 15;
+
+// Returns a dynamic pageSize based on process.stdout.rows
+const calculatePageSize = (
+  skipSize: number = 0, // number of lines to skip. Can be used to skip previous prompts
+  defaultPageSize: number = 15, // default when pageSize is too small
+) =>
+  process.stdout.rows > skipSize
+    ? process.stdout.rows - skipSize
+    : defaultPageSize;
 
 export async function runSingleChainSelectionStep(
   chainMetadata: ChainMap<ChainMetadata>,
@@ -19,7 +27,7 @@ export async function runSingleChainSelectionStep(
   const chain = (await select({
     message,
     choices,
-    pageSize: process.stdout.rows - 2 || DEFAULT_PAGE_SIZE, // subtract 2, to exclude previous prompt text
+    pageSize: calculatePageSize(2),
   })) as string;
   handleNewChain([chain]);
   return chain;
@@ -36,7 +44,7 @@ export async function runMultiChainSelectionStep(
     const chains = (await checkbox({
       message,
       choices,
-      pageSize: process.stdout.rows - 2 || DEFAULT_PAGE_SIZE, // subtract 2, to exclude previous prompt text
+      pageSize: calculatePageSize(2),
     })) as string[];
     handleNewChain(chains);
     if (requireMultiple && chains?.length < 2) {
