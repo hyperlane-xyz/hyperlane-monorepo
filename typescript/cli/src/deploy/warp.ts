@@ -183,10 +183,7 @@ async function getWarpCoreConfig(
         return wrappedToken;
       }
 
-      if (
-        config.type === TokenType.collateral ||
-        config.type === TokenType.XERC20
-      ) {
+      if (config.type === TokenType.collateral) {
         return config.token;
       }
 
