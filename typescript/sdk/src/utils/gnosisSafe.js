@@ -16,9 +16,19 @@ export function getSafeService(chain, multiProvider) {
 export function getSafe(chain, multiProvider, safeAddress) {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
+
+  const domainId = multiProvider.getDomainId(chain);
+  const contractNetworks = {
+    [domainId]: {
+      multiSendAddress: safeAddress,
+      multiSendCallOnlyAddress: safeAddress,
+    },
+  };
+
   return Safe.default.create({
     ethAdapter,
-    safeAddress: safeAddress,
+    safeAddress,
+    contractNetworks,
   });
 }
 

@@ -47,6 +47,9 @@
       "0x749d6e7ad949e522c92181dc77f7bbc1c5d71506"
     ]
   },
+  "fraxtal": {
+    "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
+  },
   "gnosis": {
     "validators": [
       "0xd4df66a859585678f2ea8357161d896be19cc1ca",
@@ -63,6 +66,9 @@
   },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
+  },
+  "linea": {
+    "validators": ["0xf2d5409a59e0f5ae7635aff73685624904a77d94"]
   },
   "mantapacific": {
     "validators": [
@@ -95,6 +101,9 @@
       "0x779a17e035018396724a6dec8a59bda1b5adf738"
     ]
   },
+  "osmosis": {
+    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
+  },
   "polygon": {
     "validators": [
       "0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac",
@@ -118,6 +127,9 @@
       "0xb37fe43a9f47b7024c2d5ae22526cc66b5261533",
       "0x7210fa0a6be39a75cb14d682ebfb37e2b53ecbe5"
     ]
+  },
+  "sei": {
+    "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]

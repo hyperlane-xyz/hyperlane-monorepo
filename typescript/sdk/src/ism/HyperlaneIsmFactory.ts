@@ -356,11 +356,27 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       } else {
         // deploying new domain routing ISM
-        const tx = await domainRoutingIsmFactory.deploy(
+        const owner = await resolveOrDeployAccountOwner(
+          this.multiProvider,
+          destination,
           config.owner,
+        );
+        // estimate gas
+        const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+          owner,
           safeConfigDomains,
           submoduleAddresses,
           overrides,
+        );
+        // add 10% buffer
+        const tx = await domainRoutingIsmFactory.deploy(
+          owner,
+          safeConfigDomains,
+          submoduleAddresses,
+          {
+            ...overrides,
+            gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+          },
         );
         receipt = await this.multiProvider.handleTx(destination, tx);
 
@@ -440,11 +456,19 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const hash = await factory['deploy(address[],uint8)'](
+
+      // estimate gas
+      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
         sorted,
         threshold,
         overrides,
       );
+      // add 10% buffer
+      const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+        ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+      });
+
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
     } else {

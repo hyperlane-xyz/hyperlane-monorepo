@@ -22,10 +22,13 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
+  MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
+  TokenStandard,
 } from '../token/TokenStandard.js';
 import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
+import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -425,17 +428,32 @@ export class WarpCore {
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
 
-    if (!TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard)) {
+    if (
+      !TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard) &&
+      !MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
+    ) {
       this.logger.debug(
         `${destinationToken.symbol} is not collateralized, skipping`,
       );
       return true;
     }
 
+    let destinationBalance: bigint;
+
     const adapter = destinationToken.getAdapter(this.multiProvider);
-    const destinationBalance = await adapter.getBalance(
-      destinationToken.addressOrDenom,
-    );
+    if (
+      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
+      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
+    ) {
+      destinationBalance = await (
+        adapter as IHypXERC20Adapter<unknown>
+      ).getMintLimit();
+    } else {
+      destinationBalance = await adapter.getBalance(
+        destinationToken.addressOrDenom,
+      );
+    }
+
     const destinationBalanceInOriginDecimals = convertDecimals(
       destinationToken.decimals,
       originToken.decimals,
@@ -503,6 +521,17 @@ export class WarpCore {
 
     const amountError = this.validateAmount(originTokenAmount);
     if (amountError) return amountError;
+
+    const destinationCollateralError = await this.validateDestinationCollateral(
+      originTokenAmount,
+      destination,
+    );
+    if (destinationCollateralError) return destinationCollateralError;
+
+    const originCollateralError = await this.validateOriginCollateral(
+      originTokenAmount,
+    );
+    if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
       originTokenAmount,
@@ -592,6 +621,7 @@ export class WarpCore {
     senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
     const { token, amount } = originTokenAmount;
+
     const { amount: senderBalance } = await token.getBalance(
       this.multiProvider,
       sender,
@@ -631,6 +661,45 @@ export class WarpCore {
       );
       if (igpTokenBalance.amount < igpQuote.amount) {
         return { amount: `Insufficient ${igpQuote.token.symbol} for gas` };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Ensure the sender has sufficient balances for transfer and interchain gas
+   */
+  protected async validateDestinationCollateral(
+    originTokenAmount: TokenAmount,
+    destination: ChainNameOrId,
+  ): Promise<Record<string, string> | null> {
+    const valid = await this.isDestinationCollateralSufficient({
+      originTokenAmount,
+      destination,
+    });
+    if (!valid) return { amount: 'Insufficient collateral on destination' };
+
+    return null;
+  }
+
+  /**
+   * Ensure the sender has sufficient balances for transfer and interchain gas
+   */
+  protected async validateOriginCollateral(
+    originTokenAmount: TokenAmount,
+  ): Promise<Record<string, string> | null> {
+    const adapter = originTokenAmount.token.getAdapter(this.multiProvider);
+
+    if (
+      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20 ||
+      originTokenAmount.token.standard === TokenStandard.EvmHypXERC20Lockbox
+    ) {
+      const burnLimit = await (
+        adapter as IHypXERC20Adapter<unknown>
+      ).getBurnLimit();
+      if (burnLimit < BigInt(originTokenAmount.amount)) {
+        return { amount: 'Insufficient burn limit on origin' };
       }
     }
 
