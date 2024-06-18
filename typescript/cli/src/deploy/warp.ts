@@ -1,6 +1,10 @@
 import { confirm } from '@inquirer/prompts';
 
 import {
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+} from '@hyperlane-xyz/core';
+import {
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneContractsMap,
@@ -121,7 +125,7 @@ async function executeDeploy(params: DeployParams) {
 
   const deployedContracts = await deployer.deploy(config);
 
-  logGreen('✅ Hyp token deployments complete');
+  logGreen('✅ Warp contract deployments complete');
 
   const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
   if (!isDryRun) {
@@ -161,8 +165,30 @@ async function getWarpCoreConfig(
       throw new Error('Missing decimals on token metadata');
     }
 
-    const collateralAddressOrDenom =
-      config.type === TokenType.collateral ? config.token : undefined;
+    const collateralAddressOrDenom = await (async () => {
+      if (config.type === TokenType.XERC20Lockbox) {
+        const provider = context.multiProvider.tryGetProvider(chainName);
+        if (!provider) {
+          throw new Error(`Unable to pull provider for ${chainName}`);
+        }
+
+        const xERC20 = await HypXERC20Lockbox__factory.connect(
+          config.token,
+          provider,
+        ).xERC20();
+        const wrappedToken = await HypXERC20__factory.connect(
+          xERC20,
+          provider,
+        ).wrappedToken();
+        return wrappedToken;
+      }
+
+      if (config.type === TokenType.collateral) {
+        return config.token;
+      }
+
+      return undefined;
+    })();
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],

@@ -172,6 +172,7 @@ jobs:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          fail-on-cache-miss: true
 
       - name: Unit Tests
         run: yarn test:ci
@@ -215,6 +216,7 @@ jobs:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          fail-on-cache-miss: true
 
       - name: Generate ${{ matrix.environment }} agent config
         run: |
@@ -292,6 +294,7 @@ jobs:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          fail-on-cache-miss: true
 
       - name: cargo-cache
         uses: actions/cache@v4
@@ -396,6 +399,7 @@ jobs:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          fail-on-cache-miss: true
 
       - name: cargo-cache
         uses: actions/cache@v4
@@ -447,6 +451,7 @@ jobs:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          fail-on-cache-miss: true
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
         run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}

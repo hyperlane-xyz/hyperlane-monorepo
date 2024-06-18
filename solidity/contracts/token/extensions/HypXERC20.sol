@@ -8,7 +8,9 @@ contract HypXERC20 is HypERC20Collateral {
     constructor(
         address _xerc20,
         address _mailbox
-    ) HypERC20Collateral(_xerc20, _mailbox) {}
+    ) HypERC20Collateral(_xerc20, _mailbox) {
+        _disableInitializers();
+    }
 
     function _transferFromSender(
         uint256 _amountOrId

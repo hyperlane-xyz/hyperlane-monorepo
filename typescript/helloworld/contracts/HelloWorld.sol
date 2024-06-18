@@ -83,12 +83,6 @@ contract HelloWorld is Router {
     }
 
     // ============ Internal functions ============
-    function _metadata(
-        uint32 /*_destinationDomain*/
-    ) internal view override returns (bytes memory) {
-        return StandardHookMetadata.overrideGasLimit(HANDLE_GAS_AMOUNT);
-    }
-
     /**
      * @notice Handles a message from a remote router.
      * @dev Only called for messages sent from a remote router, as enforced by Router.sol.

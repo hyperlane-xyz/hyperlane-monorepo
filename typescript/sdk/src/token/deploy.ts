@@ -135,10 +135,17 @@ abstract class TokenDeployer<
   }
 
   async deploy(configMap: WarpRouteDeployConfig) {
-    const tokenMetadata = await TokenDeployer.deriveTokenMetadata(
-      this.multiProvider,
-      configMap,
-    );
+    let tokenMetadata: TokenMetadata | undefined;
+    try {
+      tokenMetadata = await TokenDeployer.deriveTokenMetadata(
+        this.multiProvider,
+        configMap,
+      );
+    } catch (err) {
+      this.logger.error('Failed to derive token metadata', err, configMap);
+      throw err;
+    }
+
     const resolvedConfigMap = objMap(configMap, (_, config) => ({
       ...tokenMetadata,
       gas: gasOverhead(config.type),
