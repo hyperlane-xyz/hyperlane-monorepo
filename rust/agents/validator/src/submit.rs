@@ -6,6 +6,7 @@ use std::vec;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{ChainCommunicationError, ChainResult, MerkleTreeHook};
 use prometheus::IntGauge;
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -60,13 +61,14 @@ impl ValidatorSubmitter {
     /// Submits signed checkpoints from index 0 until the target checkpoint (inclusive).
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
-        let mut tree = IncrementalMerkle::default();
+        let tree = Arc::new(Mutex::new(IncrementalMerkle::default()));
         call_and_retry_indefinitely(|| {
             let target_checkpoint = target_checkpoint;
             let self_clone = self.clone();
+            let tree = tree.clone();
             Box::pin(async move {
                 self_clone
-                    .submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
+                    .submit_checkpoints_until_correctness_checkpoint(tree, &target_checkpoint)
                     .await?;
                 Ok(())
             })
@@ -80,7 +82,7 @@ impl ValidatorSubmitter {
     }
 
     /// Submits signed checkpoints indefinitely, starting from the `tree`.
-    pub(crate) async fn checkpoint_submitter(self, mut tree: IncrementalMerkle) {
+    pub(crate) async fn checkpoint_submitter(self, tree: IncrementalMerkle) {
         // How often to log checkpoint info - once every minute
         let checkpoint_info_log_period = Duration::from_secs(60);
         // The instant in which we last logged checkpoint info, if at all
@@ -98,6 +100,7 @@ impl ValidatorSubmitter {
             true
         };
 
+        let tree = Arc::new(Mutex::new(tree));
         loop {
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = call_and_retry_indefinitely(|| {
@@ -110,12 +113,14 @@ impl ValidatorSubmitter {
                 .latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
 
+            let tree_count = async {
+                let tree = tree.lock().await;
+                tree.count()
+            }
+            .await;
+
             if should_log_checkpoint_info() {
-                info!(
-                    ?latest_checkpoint,
-                    tree_count = tree.count(),
-                    "Latest checkpoint"
-                );
+                info!(?latest_checkpoint, tree_count, "Latest checkpoint");
             }
 
             // This may occur e.g. if RPC providers are unreliable and make calls against
@@ -123,27 +128,23 @@ impl ValidatorSubmitter {
             //
             // In this case, we just sleep a bit until we fetch a new latest checkpoint
             // that at least meets the tree.
-            if tree_exceeds_checkpoint(&latest_checkpoint, &tree) {
+            if tree_exceeds_checkpoint(&latest_checkpoint, tree_count) {
                 debug!(
                     ?latest_checkpoint,
-                    tree_count = tree.count(),
-                    "Latest checkpoint is behind tree, sleeping briefly"
+                    tree_count, "Latest checkpoint is behind tree, sleeping briefly"
                 );
                 sleep(self.interval).await;
                 continue;
             }
 
-            tree = call_and_retry_indefinitely(|| {
-                let mut tree = tree;
+            call_and_retry_indefinitely(|| {
                 let self_clone = self.clone();
+                let tree = tree.clone();
                 Box::pin(async move {
                     self_clone
-                        .submit_checkpoints_until_correctness_checkpoint(
-                            &mut tree,
-                            &latest_checkpoint,
-                        )
+                        .submit_checkpoints_until_correctness_checkpoint(tree, &latest_checkpoint)
                         .await?;
-                    Ok(tree)
+                    Ok(())
                 })
             })
             .await;
@@ -160,12 +161,13 @@ impl ValidatorSubmitter {
     /// Only submits the signed checkpoints once the correctness checkpoint is reached.
     async fn submit_checkpoints_until_correctness_checkpoint(
         &self,
-        tree: &mut IncrementalMerkle,
+        tree: Arc<Mutex<IncrementalMerkle>>,
         correctness_checkpoint: &Checkpoint,
     ) -> ChainResult<()> {
         // This should never be called with a tree that is ahead of the correctness checkpoint.
+        let mut tree = tree.lock().await;
         assert!(
-            !tree_exceeds_checkpoint(correctness_checkpoint, tree),
+            !tree_exceeds_checkpoint(correctness_checkpoint, tree.count()),
             "tree (count: {}) is ahead of correctness checkpoint {:?}",
             tree.count(),
             correctness_checkpoint,
@@ -192,7 +194,7 @@ impl ValidatorSubmitter {
                 let message_id = insertion.message_id();
                 tree.ingest(message_id);
 
-                let checkpoint = self.checkpoint(tree);
+                let checkpoint = self.checkpoint(&tree);
 
                 checkpoint_queue.push(CheckpointWithMessageId {
                     checkpoint,
@@ -215,7 +217,7 @@ impl ValidatorSubmitter {
             tree.index(),
         );
 
-        let checkpoint = self.checkpoint(tree);
+        let checkpoint = self.checkpoint(&tree);
 
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
@@ -293,10 +295,10 @@ impl ValidatorSubmitter {
 }
 
 /// Returns whether the tree exceeds the checkpoint.
-fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) -> bool {
+fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree_count: usize) -> bool {
     // tree.index() will panic if the tree is empty, so we use tree.count() instead
     // and convert the correctness_checkpoint.index to a count by adding 1.
-    checkpoint.index + 1 < tree.count() as u32
+    checkpoint.index + 1 < tree_count as u32
 }
 
 #[derive(Clone)]
