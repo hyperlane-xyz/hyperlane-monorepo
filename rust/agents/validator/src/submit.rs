@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{ChainCommunicationError, ChainResult, MerkleTreeHook};
+use hyperlane_core::{ChainResult, MerkleTreeHook};
 use prometheus::IntGauge;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -62,18 +62,8 @@ impl ValidatorSubmitter {
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
         let tree = Arc::new(Mutex::new(IncrementalMerkle::default()));
-        call_and_retry_indefinitely(|| {
-            let target_checkpoint = target_checkpoint;
-            let self_clone = self.clone();
-            let tree = tree.clone();
-            Box::pin(async move {
-                self_clone
-                    .submit_checkpoints_until_correctness_checkpoint(tree, &target_checkpoint)
-                    .await?;
-                Ok(())
-            })
-        })
-        .await;
+        self.submit_checkpoints_until_correctness_checkpoint(tree, &target_checkpoint)
+            .await;
 
         info!(
             ?target_checkpoint,
@@ -136,18 +126,8 @@ impl ValidatorSubmitter {
                 sleep(self.interval).await;
                 continue;
             }
-
-            call_and_retry_indefinitely(|| {
-                let self_clone = self.clone();
-                let tree = tree.clone();
-                Box::pin(async move {
-                    self_clone
-                        .submit_checkpoints_until_correctness_checkpoint(tree, &latest_checkpoint)
-                        .await?;
-                    Ok(())
-                })
-            })
-            .await;
+            self.submit_checkpoints_until_correctness_checkpoint(tree.clone(), &latest_checkpoint)
+                .await;
 
             self.metrics
                 .latest_checkpoint_processed
@@ -163,7 +143,7 @@ impl ValidatorSubmitter {
         &self,
         tree: Arc<Mutex<IncrementalMerkle>>,
         correctness_checkpoint: &Checkpoint,
-    ) -> ChainResult<()> {
+    ) {
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         let mut tree = tree.lock().await;
         assert!(
@@ -184,7 +164,14 @@ impl ValidatorSubmitter {
         while tree.count() as u32 <= correctness_checkpoint.index {
             if let Some(insertion) = self
                 .message_db
-                .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?
+                .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))
+                .expect(
+                    format!(
+                        "Database is missing merkle insertion for index {}",
+                        tree.count()
+                    )
+                    .as_str(),
+                )
             {
                 debug!(
                     index = insertion.index(),
@@ -227,9 +214,7 @@ impl ValidatorSubmitter {
                 ?correctness_checkpoint,
                 "Incorrect tree root, something went wrong"
             );
-            return Err(ChainCommunicationError::CustomError(
-                "Incorrect tree root, something went wrong".to_string(),
-            ));
+            panic!("Incorrect tree root, something went wrong");
         }
 
         if !checkpoint_queue.is_empty() {
@@ -239,15 +224,23 @@ impl ValidatorSubmitter {
                 "Reached tree consistency"
             );
 
-            self.sign_and_submit_checkpoints(checkpoint_queue).await?;
+            call_and_retry_indefinitely(|| {
+                let self_clone = self.clone();
+                let checkpoint_queue = checkpoint_queue.clone();
+                Box::pin(async move {
+                    self_clone
+                        .sign_and_submit_checkpoints(checkpoint_queue)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await;
 
             info!(
                 index = checkpoint.index,
                 "Signed all queued checkpoints until index"
             );
         }
-
-        Ok(())
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
