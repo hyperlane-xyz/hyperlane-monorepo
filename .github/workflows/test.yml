@@ -329,7 +329,7 @@ jobs:
 
   cli-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build, checkout-registry]
     strategy:
       matrix:
