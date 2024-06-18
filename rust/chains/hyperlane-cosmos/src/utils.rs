@@ -35,7 +35,7 @@ pub(crate) async fn get_block_height_for_lag(
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) async fn execute_and_parse_log_futures<T>(
+pub(crate) async fn execute_and_parse_log_futures<T: Into<Indexed<T>>>(
     logs_futures: Vec<JoinHandle<(Result<Vec<(T, LogMeta)>, ChainCommunicationError>, u32)>>,
 ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
     // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
@@ -55,7 +55,7 @@ pub(crate) async fn execute_and_parse_log_futures<T>(
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .flatten()
-        .map(|(log, meta)| (Indexed::new(log), meta))
+        .map(|(log, meta)| (log.into(), meta))
         .collect();
     Ok(result)
 }
