@@ -6,7 +6,6 @@ use std::vec;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{ChainResult, MerkleTreeHook};
 use prometheus::IntGauge;
-use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
@@ -254,6 +253,7 @@ impl ValidatorSubmitter {
 
     /// Signs and submits any previously unsubmitted checkpoints.
     async fn sign_and_submit_checkpoints(&self, checkpoints: Vec<CheckpointWithMessageId>) {
+        let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
         // Submits checkpoints to the store in reverse order. This speeds up processing historic checkpoints (those before the validator is spun up),
         // since those are the most likely to make messages become processable.
         // A side effect is that new checkpoints will also be submitted in reverse order.
@@ -270,6 +270,18 @@ impl ValidatorSubmitter {
             })
             .await;
         }
+
+        call_and_retry_indefinitely(|| {
+            let self_clone = self.clone();
+            Box::pin(async move {
+                self_clone
+                    .checkpoint_syncer
+                    .update_latest_index(last_checkpoint.index)
+                    .await?;
+                Ok(())
+            })
+        })
+        .await;
     }
 }
 
