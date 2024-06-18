@@ -324,7 +324,7 @@ jobs:
     steps:
       - name: Report Matrix Result
         run: |
-          echo "All e2e-matrix jobs have completed."
+          echo "All e2e-matrix jobs have been completed."
           # You can add additional commands here to report the result as needed
 
   cli-e2e:
