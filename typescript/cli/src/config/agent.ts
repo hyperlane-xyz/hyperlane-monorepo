@@ -1,5 +1,7 @@
+import { confirm } from '@inquirer/prompts';
 import { fromError } from 'zod-validation-error';
 
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AgentConfigSchema,
   ChainMap,
@@ -7,30 +9,56 @@ import {
   HyperlaneDeploymentArtifacts,
   buildAgentConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { objFilter, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
+import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 export async function createAgentConfig({
   context,
   chains,
   out,
+  skipPrompts = false,
 }: {
   context: CommandContext;
-  chains: string[];
+  chains?: string[];
   out: string;
+  skipPrompts?: boolean;
 }) {
   logBlue('\nCreating agent config...');
 
   const { registry, multiProvider, chainMetadata } = context;
   const addresses = await registry.getAddresses();
 
-  const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
+  if (!chains) {
+    if (skipPrompts) {
+      logBlue(
+        '\nNo chains provided, generating agent config for all supported chains',
+      );
+    } else {
+      const proceedWithAllChains = await confirm({
+        message:
+          '\nNo chains provided, would you like to generate the agent config for all supported chains?',
+      });
+      if (!proceedWithAllChains) {
+        errorRed('❌ Agent config creation aborted');
+        process.exit(1);
+      }
+    }
+  }
 
+  let chainAddresses = addresses;
+  if (chains) {
+    // Filter out only the chains that are provided
+    chainAddresses = objFilter(addresses, (chain, _): _ is ChainAddresses => {
+      return chains.includes(chain);
+    });
+  }
+
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const startBlocks = await promiseObjAll(
-    objMap(addresses, async (chain, _) => {
+    objMap(chainAddresses, async (chain, _) => {
       // If the index.from is specified in the chain metadata, use that.
       const indexFrom = chainMetadata[chain].index?.from;
       if (indexFrom !== undefined) {
@@ -42,34 +70,63 @@ export async function createAgentConfig({
         const deployedBlock = await mailbox.deployedBlock();
         return deployedBlock.toNumber();
       } catch (err) {
-        logRed(
-          `Failed to get deployed block to set an index for ${chain}, this is potentially an issue with rpc provider or a misconfiguration`,
+        errorRed(
+          `❌ Failed to get deployed block to set an index for ${chain}, this is potentially an issue with rpc provider or a misconfiguration`,
         );
         process.exit(1);
       }
     }),
   );
 
+  if (!skipPrompts) {
+    // set interchainGasPaymaster to 0x0 if it is missing
+    for (const [chain, addressesRecord] of Object.entries(chainAddresses)) {
+      if (!addressesRecord.interchainGasPaymaster) {
+        warnYellow(`interchainGasPaymaster address is missing for ${chain}`);
+        const zeroIGPAddress = await confirm({
+          message: `Would you like to set the interchainGasPaymaster address to 0x0 for ${chain}?`,
+        });
+
+        if (zeroIGPAddress) {
+          chainAddresses[chain].interchainGasPaymaster =
+            '0x0000000000000000000000000000000000000000';
+        }
+      }
+    }
+  }
+
   // @TODO: consider adding additional config used to pass in gas prices for Cosmos chains
   const agentConfig = buildAgentConfig(
-    chains,
+    chains ?? Object.keys(chainAddresses),
     multiProvider,
-    addresses as ChainMap<HyperlaneDeploymentArtifacts>,
+    chainAddresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
   );
 
-  try {
-    AgentConfigSchema.parse(agentConfig);
-  } catch (e) {
-    errorRed(
-      `Agent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${fromError(
-        e,
-      ).toString()}`,
+  const result = AgentConfigSchema.safeParse(agentConfig);
+  if (!result.success) {
+    const errorMessage = fromError(result.error).toString();
+    warnYellow(
+      `\nAgent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${errorMessage}`,
     );
-    process.exit(1);
+
+    if (skipPrompts) {
+      logBlue('Creating agent config anyway...');
+    } else {
+      const continueAnyway = await confirm({
+        message: 'Would you like to continue anyway?',
+      });
+
+      if (!continueAnyway) {
+        errorRed('\n❌ Agent config creation aborted');
+        process.exit(1);
+      }
+    }
+  } else {
+    logGreen('✅ Agent config successfully created');
   }
 
-  logBlue(`Agent config is valid, writing to file ${out}`);
+  logBlue(`\nWriting agent config to file ${out}`);
   writeYamlOrJson(out, agentConfig, 'json');
   logGreen(`✅ Agent config successfully written to ${out}`);
 }
