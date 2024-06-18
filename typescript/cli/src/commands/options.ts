@@ -87,12 +87,11 @@ export const warpDeploymentConfigCommandOption: Options = {
   alias: 'w',
 };
 
-export const warpCoreConfigCommandOption: Options = {
+export const warpRouteConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
   alias: 'w',
-  // TODO make this optional and have the commands get it from the registry
-  demandOption: true,
+  demandOption: false,
 };
 
 export const agentConfigCommandOption = (

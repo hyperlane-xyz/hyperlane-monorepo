@@ -20,8 +20,8 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
-  warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
+  warpRouteConfigCommandOption,
 } from './options.js';
 import { MessageOptionsArgTypes, messageOptions } from './send.js';
 
@@ -142,7 +142,7 @@ export const read: CommandModuleWithContext<{
 
 const send: CommandModuleWithWriteContext<
   MessageOptionsArgTypes & {
-    warp: string;
+    config?: string;
     router?: string;
     wei: string;
     recipient?: string;
@@ -152,7 +152,7 @@ const send: CommandModuleWithWriteContext<
   describe: 'Send a test token transfer on a warp route',
   builder: {
     ...messageOptions,
-    warp: warpCoreConfigCommandOption,
+    config: warpRouteConfigCommandOption,
     wei: {
       type: 'string',
       description: 'Amount in wei to send',
@@ -170,13 +170,13 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
-    warp,
+    config,
     wei,
     recipient,
   }) => {
     await sendTestTransfer({
       context,
-      warpConfigPath: warp,
+      warpConfigPath: config,
       origin,
       destination,
       wei,

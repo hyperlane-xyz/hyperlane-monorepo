@@ -5683,9 +5683,9 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:1.3.0"
-    "@hyperlane-xyz/sdk": "npm:3.15.0"
-    "@hyperlane-xyz/utils": "npm:3.15.0"
+    "@hyperlane-xyz/registry": "npm:2.1.0"
+    "@hyperlane-xyz/sdk": "npm:4.0.0-alpha.2"
+    "@hyperlane-xyz/utils": "npm:4.0.0-alpha.2"
     "@inquirer/prompts": "npm:^3.0.0"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
@@ -5767,6 +5767,24 @@ __metadata:
     "@ethersproject/providers": "*"
     "@types/sinon-chai": "*"
   checksum: efa01d943dd5b67830bb7244291c8ba9849472e804dff589463de76d3c03e56bc8d62454b575a6621aa1b8b53cc0d1d3b752a83d34f4b328ecd85e1ff23230d5
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/core@npm:4.0.0-alpha.2":
+  version: 4.0.0-alpha.2
+  resolution: "@hyperlane-xyz/core@npm:4.0.0-alpha.2"
+  dependencies:
+    "@eth-optimism/contracts": "npm:^0.6.0"
+    "@hyperlane-xyz/utils": "npm:4.0.0-alpha.2"
+    "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
+    "@openzeppelin/contracts": "npm:^4.9.3"
+    "@openzeppelin/contracts-upgradeable": "npm:^v4.9.3"
+    fx-portal: "npm:^1.0.3"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+    "@types/sinon-chai": "*"
+  checksum: 6da69c8b20efe8bbf9042c722b9dc3cb72c3b3f60d456cbcea7c0a4b6a32aac059cc2bb9c960f2b53fcd4eede2b3bf326139393e6d4c50382ef13aa8e84f169a
   languageName: node
   linkType: hard
 
@@ -5886,6 +5904,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@hyperlane-xyz/registry@npm:2.1.0":
+  version: 2.1.0
+  resolution: "@hyperlane-xyz/registry@npm:2.1.0"
+  dependencies:
+    yaml: "npm:^2"
+    zod: "npm:^3.21.2"
+  checksum: cfcd441dcbb4886a4ecd90dffaeb7a0fd81c0a126423b23cf100cd554470fe88ceb35b41271d779f0390c42293fd2c799742eeff6dd42ca42f3c799a8e88b96b
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/sdk@npm:3.15.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
@@ -5962,6 +5990,36 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@hyperlane-xyz/sdk@npm:4.0.0-alpha.2":
+  version: 4.0.0-alpha.2
+  resolution: "@hyperlane-xyz/sdk@npm:4.0.0-alpha.2"
+  dependencies:
+    "@aws-sdk/client-s3": "npm:^3.74.0"
+    "@cosmjs/cosmwasm-stargate": "npm:^0.31.3"
+    "@cosmjs/stargate": "npm:^0.31.3"
+    "@hyperlane-xyz/core": "npm:4.0.0-alpha.2"
+    "@hyperlane-xyz/utils": "npm:4.0.0-alpha.2"
+    "@safe-global/api-kit": "npm:1.3.0"
+    "@safe-global/protocol-kit": "npm:1.3.0"
+    "@solana/spl-token": "npm:^0.3.8"
+    "@solana/web3.js": "npm:^1.78.0"
+    "@types/coingecko-api": "npm:^1.0.10"
+    "@wagmi/chains": "npm:^1.8.0"
+    bignumber.js: "npm:^9.1.1"
+    coingecko-api: "npm:^1.0.10"
+    cosmjs-types: "npm:^0.9.0"
+    cross-fetch: "npm:^3.1.5"
+    ethers: "npm:^5.7.2"
+    pino: "npm:^8.19.0"
+    viem: "npm:^1.20.0"
+    zod: "npm:^3.21.2"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+  checksum: ddb9bb4b114271293b5e72d5bc2e052fdeeb8c06cc53058fd3cb6dcb04db83376225ce83c8729e0cbbfaefb8be085366c2b9cebc04c67d8e769e8478622a4b1c
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/utils@npm:3.15.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
@@ -5989,6 +6047,20 @@ __metadata:
     bignumber.js: "npm:^9.1.1"
     ethers: "npm:^5.7.2"
   checksum: c76f36913c572702b9dfe22fd868db6fed01c0da9485319e33e8d00a6b8a1bfdcecb5f61c8a3fd8ccbef0b36809e8055db62d75d0c6759d5e079ee330586bcd1
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/utils@npm:4.0.0-alpha.2":
+  version: 4.0.0-alpha.2
+  resolution: "@hyperlane-xyz/utils@npm:4.0.0-alpha.2"
+  dependencies:
+    "@cosmjs/encoding": "npm:^0.31.3"
+    "@solana/web3.js": "npm:^1.78.0"
+    bignumber.js: "npm:^9.1.1"
+    ethers: "npm:^5.7.2"
+    pino: "npm:^8.19.0"
+    yaml: "npm:^2.4.1"
+  checksum: 1076698cca3001012f15b13e061ef2e751480f8e39449b391314ae42517d263983d2ff03269e56eea5773b25f806f9a14d99196d1ca1f98d64989c6e35130db9
   languageName: node
   linkType: hard
 

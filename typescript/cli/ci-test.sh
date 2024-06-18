@@ -250,7 +250,6 @@ run_hyperlane_send_message() {
         --overrides " " \
         --origin ${CHAIN1} \
         --destination ${CHAIN2} \
-        --warp ${WARP_CONFIG_FILE} \
         --quick \
         --key $ANVIL_KEY \
         | tee /tmp/message2

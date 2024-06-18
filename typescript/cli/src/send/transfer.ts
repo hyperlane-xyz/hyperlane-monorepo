@@ -30,7 +30,7 @@ export async function sendTestTransfer({
   selfRelay,
 }: {
   context: WriteCommandContext;
-  warpConfigPath: string;
+  warpConfigPath?: string;
   origin?: ChainName;
   destination?: ChainName;
   wei: string;
@@ -39,23 +39,61 @@ export async function sendTestTransfer({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { chainMetadata } = context;
+  const { chainMetadata /* registry */ } = context;
 
-  const warpCoreConfig = readWarpRouteConfig(warpConfigPath);
+  // let token: Token;
+  // const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
+  // if (tokensForRoute.length === 0) {
+  //   logRed(`No Warp Routes found from ${origin} to ${destination}`);
+  //   throw new Error('Error finding warp route');
+  // } else if (tokensForRoute.length === 1) {
+  //   token = tokensForRoute[0];
+  // } else {
+  //   const routerAddress = await runTokenSelectionStep(
+  //     tokensForRoute,
+  //     'Select the token to send'
+  //   );
+  //   token = warpCore.findToken(origin, routerAddress)!;
+  // }
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain to send from',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the destination chain',
+      'Select the destination chain to send to',
     );
   }
+
+  // TODO: Remove
+  const warpCoreConfig: WarpCoreConfig = readWarpRouteConfig(warpConfigPath!);
+
+  // let warpCoreConfig: WarpCoreConfig;
+  // if (warpConfigPath) {
+  //   warpCoreConfig = readWarpRouteConfig(warpConfigPath);
+  // } else {
+  //   const warpRouteConfigMap = await registry.getWarpRoutes({
+  //     symbol,
+  //     chainName: origin
+  //   }),
+
+  //   if (!safeParsedWarpCoreConfig.success)
+  //     throw new Error(
+  //       `Error parsing warp route config from registry: ${safeParsedWarpCoreConfig.error.message}`,
+  //     );
+
+  //   warpRouteConfigMap.forEach((warpRouteConfig: WarpCoreConfig) => {
+  //     if (warpRouteConfig.chainName === destination) {
+  //       warpCoreConfig = routeConfig;
+  //     }
+  //   });
+  //   warpCoreConfig = safeParsedWarpCoreConfig.data;
+  // }
 
   await runPreflightChecksForChains({
     context,
@@ -116,6 +154,7 @@ async function executeDelivery({
     warpCoreConfig,
   );
 
+  // TODO: Remove
   let token: Token;
   const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
   if (tokensForRoute.length === 0) {
@@ -128,6 +167,7 @@ async function executeDelivery({
     const routerAddress = await runTokenSelectionStep(tokensForRoute);
     token = warpCore.findToken(origin, routerAddress)!;
   }
+  // TODO: Remove END
 
   const senderAddress = await signer.getAddress();
   const errors = await warpCore.validateTransfer({
