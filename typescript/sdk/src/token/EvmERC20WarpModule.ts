@@ -24,7 +24,7 @@ import { ChainNameOrId } from '../types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
-import { TokenRouterConfig } from './schemas.js';
+import { TokenRouterConfig, TokenRouterConfigSchema } from './schemas.js';
 
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -75,23 +75,24 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const actualConfig = await this.read();
+    TokenRouterConfigSchema.parse(expectedConfig);
 
     return [
-      ...(await this.updateIsm(expectedConfig, actualConfig)),
-      ...(await this.updateHook(expectedConfig, actualConfig)),
+      ...(await this.updateIsm(actualConfig, expectedConfig)),
+      ...(await this.updateHook(actualConfig, expectedConfig)),
     ];
   }
 
   /**
    * Deploys and updates an existing Warp route ISM with a given config.
    *
-   * @param expectedconfig - The expected token router configuration, including the ISM configuration.
    * @param actualConfig - The on-chain router configuration, including the ISM configuration.
+   * @param expectedconfig - The expected token router configuration, including the ISM configuration.
    * @returns An array of Ethereum transactions that need to be executed to update the ISM configuration.
    */
   async updateIsm(
-    expectedconfig: TokenRouterConfig,
     actualConfig: TokenRouterConfig,
+    expectedconfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [];
     const expectedIsmConfig = normalizeConfig(
@@ -152,13 +153,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   /**
    * Updates an existing Warp route Hook with a given configuration.
    *
-   * @param expectedConfig - The token router configuration, including the hook configuration to update.
    * @param actualConfig - The on-chain router configuration, including the hook configuration to update.
+   * @param expectedConfig - The token router configuration, including the hook configuration to update.
    * @returns An array of Ethereum transactions that can be executed to update the hook.
    */
   async updateHook(
-    expectedConfig: TokenRouterConfig,
     _actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [];
     if (expectedConfig.hook) {
