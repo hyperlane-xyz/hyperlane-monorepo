@@ -84,7 +84,7 @@ const ezEthValidators = {
     ],
   },
 };
-const zeroAddress = '0x0000000000000000000000000000000000000000';
+const zeroAddress = '0x0000000000000000000000000000000000000001';
 
 async function main() {
   const registry = new GithubRegistry();
