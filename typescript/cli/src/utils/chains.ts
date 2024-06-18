@@ -6,18 +6,11 @@ import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
 import { log, logRed, logTip } from '../logger.js';
 
+import { calculatePageSize } from './cli-options.js';
+
 // A special value marker to indicate user selected
 // a new chain in the list
 const NEW_CHAIN_MARKER = '__new__';
-
-// Returns a dynamic pageSize based on process.stdout.rows
-const calculatePageSize = (
-  skipSize: number = 0, // number of lines to skip. Can be used to skip previous prompts
-  defaultPageSize: number = 15, // default when pageSize is too small
-) =>
-  process.stdout.rows > skipSize
-    ? process.stdout.rows - skipSize
-    : defaultPageSize;
 
 export async function runSingleChainSelectionStep(
   chainMetadata: ChainMap<ChainMetadata>,
