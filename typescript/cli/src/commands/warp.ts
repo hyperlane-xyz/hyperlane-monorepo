@@ -1,7 +1,12 @@
+import { select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { ChainMap, EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  EvmERC20WarpRouteReader,
+  WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { createWarpRouteDeployConfig } from '../config/warp.js';
@@ -11,7 +16,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logGray, logGreen } from '../logger.js';
+import { log, logGray, logGreen, logRed } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
@@ -136,13 +141,26 @@ export const read: CommandModuleWithContext<{
         symbol,
       });
       const routes = Object.entries(matching);
-      if (routes.length !== 1) {
-        logGreen(`No (or multiple) warp routes found for symbol ${symbol}`);
+
+      let warpCoreConfig: WarpCoreConfig;
+      if (routes.length === 0) {
+        logRed(`No warp routes found for symbol ${symbol}`);
         process.exit(0);
+      } else if (routes.length === 1) {
+        warpCoreConfig = routes[0][1];
+      } else {
+        logGreen(`Multiple warp routes found for symbol ${symbol}`);
+        const chosenRouteId = await select({
+          message: 'Select from matching warp routes',
+          choices: routes.map(([routeId, _]) => ({
+            value: routeId,
+          })),
+        });
+        warpCoreConfig = matching[chosenRouteId];
       }
-      const [_, warpRouteConfig] = routes[0];
+
       addresses = Object.fromEntries(
-        warpRouteConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
       );
     } else if (chain && address) {
       addresses = {
