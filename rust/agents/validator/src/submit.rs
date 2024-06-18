@@ -143,7 +143,7 @@ impl ValidatorSubmitter {
     ) {
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
-            !tree_exceeds_checkpoint(correctness_checkpoint, &tree),
+            !tree_exceeds_checkpoint(correctness_checkpoint, tree),
             "tree (count: {}) is ahead of correctness checkpoint {:?}",
             tree.count(),
             correctness_checkpoint,
@@ -176,7 +176,7 @@ impl ValidatorSubmitter {
                 let message_id = insertion.message_id();
                 tree.ingest(message_id);
 
-                let checkpoint = self.checkpoint(&tree);
+                let checkpoint = self.checkpoint(tree);
 
                 checkpoint_queue.push(CheckpointWithMessageId {
                     checkpoint,
@@ -199,7 +199,7 @@ impl ValidatorSubmitter {
             tree.index(),
         );
 
-        let checkpoint = self.checkpoint(&tree);
+        let checkpoint = self.checkpoint(tree);
 
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
