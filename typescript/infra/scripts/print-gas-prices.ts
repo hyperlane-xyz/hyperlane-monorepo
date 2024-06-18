@@ -1,26 +1,26 @@
+import { Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  MultiProtocolProvider,
-  ProviderType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
+// Intentionally circumvent `mainnet3/index.ts` and `getEnvironmentConfig('mainnet3')`
+// to avoid circular dependencies.
+import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
+import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import {
   GasPriceConfig,
   getCosmosChainGasPrice,
 } from '../src/config/gas-oracle.js';
 
-import { getEnvironmentConfig } from './core-utils.js';
-
 async function main() {
-  const environmentConfig = getEnvironmentConfig('mainnet3');
-
-  const mpp = await environmentConfig.getMultiProtocolProvider();
+  const registry = await getMainnet3Registry();
+  const chainMetadata = await registry.getMetadata();
+  const mpp = new MultiProtocolProvider(chainMetadata);
 
   const prices: ChainMap<GasPriceConfig> = Object.fromEntries(
     await Promise.all(
-      environmentConfig.supportedChainNames.map(async (chain) => [
+      mainnet3SupportedChainNames.map(async (chain) => [
         chain,
         await getGasPrice(mpp, chain),
       ]),
@@ -34,16 +34,17 @@ async function getGasPrice(
   mpp: MultiProtocolProvider,
   chain: string,
 ): Promise<GasPriceConfig> {
-  const provider = mpp.getProvider(chain);
-  switch (provider.type) {
-    case ProviderType.EthersV5: {
-      const gasPrice = await provider.provider.getGasPrice();
+  const protocolType = mpp.getProtocol(chain);
+  switch (protocolType) {
+    case ProtocolType.Ethereum: {
+      const provider = mpp.getProvider(chain);
+      const gasPrice = await (provider.provider as Provider).getGasPrice();
       return {
         amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
         decimals: 9,
       };
     }
-    case ProviderType.CosmJsWasm: {
+    case ProtocolType.Cosmos: {
       const { amount } = await getCosmosChainGasPrice(chain);
 
       return {
@@ -51,14 +52,14 @@ async function getGasPrice(
         decimals: 1,
       };
     }
-    case ProviderType.SolanaWeb3:
+    case ProtocolType.Sealevel:
       // TODO get a reasonable value
       return {
         amount: '0.001',
         decimals: 9,
       };
     default:
-      throw new Error(`Unsupported provider type: ${provider.type}`);
+      throw new Error(`Unsupported protocol type: ${protocolType}`);
   }
 }
 
