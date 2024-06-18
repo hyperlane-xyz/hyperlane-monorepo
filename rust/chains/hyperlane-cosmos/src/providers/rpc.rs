@@ -239,6 +239,8 @@ impl WasmIndexer for CosmosWasmIndexer {
         let client = self.provider.rpc().clone();
         debug!(?block_number, cursor_label, domain=?self.provider.domain, "Getting logs in block");
 
+        // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
+        // than indexing latency, so we do them sequentially.
         let block = Self::get_block(client.clone(), block_number).await?;
         let block_results = Self::get_block_results(client.clone(), block_number).await?;
 
