@@ -8,6 +8,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {ArbL2ToL1Hook} from "../../contracts/hooks/ArbL2ToL1Hook.sol";
 import {ArbL2ToL1Ism} from "../../contracts/isms/hook/ArbL2ToL1Ism.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {TestIsm} from "../../contracts/test/TestIsm.sol";
 
 contract DeployArbHook is Script {
     uint256 deployerPrivateKey;
@@ -51,6 +52,21 @@ contract DeployArbHook is Script {
             TypeCasts.addressToBytes32(L1_ISM),
             ARBSYS
         );
+
+        vm.stopBroadcast();
+    }
+
+    function deployTestRecipient() external {
+        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        TestIsm noopIsm = new TestIsm();
+        noopIsm.setVerify(true);
+        TestRecipient testRecipient = new TestRecipient();
+        testRecipient.setInterchainSecurityModule(address(noopIsm));
+
+        console.log("TestRecipient address: %s", address(testRecipient));
 
         vm.stopBroadcast();
     }

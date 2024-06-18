@@ -94,11 +94,13 @@ async function executeDelivery({
   const destinationDomain = multiProvider.getDomainId(destination);
   let txReceipt: ethers.ContractReceipt;
   try {
-    const recipient = chainAddresses[destination].testRecipient;
+    // const recipient = chainAddresses[destination].testRecipient;
+    const recipient = '0x76189acFA212298d7022624a4633411eE0d2f26F';
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
     const formattedRecipient = addressToBytes32(recipient);
+    log('Formatted recipient: ', formattedRecipient);
 
     log('Getting gas quote');
     const value = await mailbox[
@@ -131,7 +133,8 @@ async function executeDelivery({
     logBlue(`Message ID: ${message.id}`);
     log(`Message: ${JSON.stringify(message)}`);
 
-    if (selfRelay) {
+    console.log('Selfrelay option: ', selfRelay);
+    if (selfRelay == selfRelay) {
       const relayer = new HyperlaneRelayer(core);
       log('Attempting self-relay of message');
       await relayer.relayMessage(txReceipt);

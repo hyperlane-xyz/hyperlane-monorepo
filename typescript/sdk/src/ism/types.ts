@@ -34,6 +34,7 @@ export enum ModuleType {
   MESSAGE_ID_MULTISIG,
   NULL,
   CCIP_READ,
+  ARB_L2_TO_L1,
 }
 
 // this enum can be adjusted as per deployments necessary
