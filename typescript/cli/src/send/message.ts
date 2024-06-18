@@ -95,7 +95,7 @@ async function executeDelivery({
   let txReceipt: ethers.ContractReceipt;
   try {
     // const recipient = chainAddresses[destination].testRecipient;
-    const recipient = '0x76189acFA212298d7022624a4633411eE0d2f26F';
+    const recipient = '0x17B49047111c19301FC7503edE306E1739D31bcD';
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
