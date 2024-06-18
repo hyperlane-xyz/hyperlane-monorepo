@@ -141,6 +141,21 @@ export const ChainMetadataSchemaObject = z.object({
       'Specify a comma separated list of custom GRPC URLs to use for this chain. If not specified, the default GRPC urls will be used.',
     ),
 
+  deployer: z
+    .object({
+      name: z.string().describe('The name of the deployer.'),
+      email: z
+        .string()
+        .email()
+        .optional()
+        .describe('The email address of the deployer.'),
+      url: z.string().url().optional().describe('The URL of the deployer.'),
+    })
+    .optional()
+    .describe(
+      'Identity information of the deployer of a Hyperlane instance to this chain',
+    ),
+
   displayName: z
     .string()
     .optional()
