@@ -1,7 +1,8 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
+import { ChainMap, EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
@@ -100,42 +101,73 @@ export const configure: CommandModuleWithContext<{
 };
 
 export const read: CommandModuleWithContext<{
-  chain: string;
-  address: string;
-  out: string;
+  chain?: string;
+  address?: string;
+  out?: string;
+  symbol?: string;
 }> = {
   command: 'read',
   describe: 'Reads the warp route config at the given path.',
   builder: {
+    symbol: {
+      type: 'string',
+      description: 'Identify warp route in registry by symbol',
+      demandOption: false,
+    },
     chain: {
       ...chainCommandOption,
-      demandOption: true,
+      demandOption: false,
     },
     address: addressCommandOption(
       'Address of the router contract to read.',
-      true,
+      false,
     ),
     out: outputFileCommandOption(),
   },
-  handler: async ({ context, chain, address, out }) => {
+  handler: async ({ context, chain, address, out, symbol }) => {
     logGray('Hyperlane Warp Reader');
     logGray('---------------------');
 
     const { multiProvider } = context;
-    const evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
-      multiProvider,
-      chain,
+
+    let addresses: ChainMap<string>;
+    if (symbol) {
+      const matching = await context.registry.getWarpRoutes({
+        symbol,
+      });
+      const routes = Object.entries(matching);
+      if (routes.length !== 1) {
+        logGreen(`No (or multiple) warp routes found for symbol ${symbol}`);
+        process.exit(0);
+      }
+      const [_, warpRouteConfig] = routes[0];
+      addresses = Object.fromEntries(
+        warpRouteConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+      );
+    } else if (chain && address) {
+      addresses = {
+        [chain]: address,
+      };
+    } else {
+      logGreen(`Please specify either a symbol or chain and address`);
+      process.exit(0);
+    }
+
+    const config = await promiseObjAll(
+      objMap(addresses, async (chain, address) =>
+        new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
+          address,
+        ),
+      ),
     );
-    const warpRouteConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      address,
-    );
+
     if (out) {
-      writeYamlOrJson(out, warpRouteConfig, 'yaml');
+      writeYamlOrJson(out, config, 'yaml');
       logGreen(`✅ Warp route config written successfully to ${out}:\n`);
     } else {
       logGreen(`✅ Warp route config read successfully:\n`);
     }
-    log(indentYamlOrJson(yamlStringify(warpRouteConfig, null, 2), 4));
+    log(indentYamlOrJson(yamlStringify(config, null, 2), 4));
     process.exit(0);
   },
 };
