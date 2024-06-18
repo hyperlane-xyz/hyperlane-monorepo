@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
-  objFilter,
   objMap,
   objMerge,
   promiseObjAll,
@@ -30,6 +29,7 @@ import { DeployEnvironment, envNameToAgentEnv } from '../config/environment.js';
 import { getCosmosChainGasPrice } from '../config/gas-oracle.js';
 import {
   chainIsProtocol,
+  filterRemoteDomainMetadata,
   readJSONAtPath,
   writeJsonAtPath,
   writeMergedJSONAtPath,
@@ -128,22 +128,7 @@ export async function writeAgentConfig(
     Modules.CORE,
   ) as ChainMap<ChainAddresses>;
 
-  // Filter out chains that are not supported by the multiProvider
-  // Explicitly extract only the necessary contracts
-  const addressesForEnv = Object.fromEntries(
-    Object.entries(addressesMap)
-      .filter(([chain, _]) => multiProvider.hasChain(chain))
-      .map(([chain, addresses]) => [
-        chain,
-        // Filter out any non-string writes
-        // e.g. remote domain metadata that might be present
-        objFilter(
-          addresses,
-          (_, value): value is string => typeof value === 'string',
-        ),
-      ]),
-  );
-
+  const addressesForEnv = filterRemoteDomainMetadata(addressesMap);
   const core = HyperlaneCore.fromAddressesMap(addressesForEnv, multiProvider);
 
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment

@@ -44,6 +44,7 @@ import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
+  filterRemoteDomainMetadata,
   getInfraPath,
   inCIMode,
   readJSONAtPath,
@@ -418,17 +419,7 @@ export function writeAddresses(
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
 ) {
-  addressesMap = Object.fromEntries(
-    Object.entries(addressesMap).map(([chain, addresses]) => [
-      chain,
-      // Filter out any non-string writes
-      // e.g. remote domain metadata that might be present
-      objFilter(
-        addresses,
-        (_, value): value is string => typeof value === 'string',
-      ),
-    ]),
-  );
+  addressesMap = filterRemoteDomainMetadata(addressesMap);
 
   if (isRegistryModule(environment, module)) {
     for (const [chainName, addresses] of Object.entries(addressesMap)) {
