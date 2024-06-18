@@ -120,7 +120,7 @@ export const read: CommandModuleWithContext<{
   config: string;
 }> = {
   command: 'read',
-  describe: 'Reads onchain ISM & Hook configurations for given addresses',
+  describe: 'Reads onchain Core configuration for a given mailbox address',
   builder: {
     chain: {
       ...chainCommandOption,
