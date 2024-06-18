@@ -27,6 +27,7 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
@@ -212,6 +213,10 @@ const metricAppContexts = [
     name: 'ancient8_ethereum_usdc',
     matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
   },
+  {
+    name: 'renzo_ezeth',
+    matchingList: routerMatchingList(renzoEzEthAddresses),
+  },
 ];
 
 const hyperlane: RootAgentConfig = {
@@ -223,7 +228,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '59451d6-20240612-171611',
+      tag: '2e10408-20240618-183333',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
