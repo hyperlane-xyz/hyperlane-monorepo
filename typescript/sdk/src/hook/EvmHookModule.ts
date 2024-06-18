@@ -248,7 +248,7 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.MERKLE_TREE:
         return this.deployer.deployContract({
           chain: this.chain,
-          contractKey: config.type,
+          contractKey: HookType.MERKLE_TREE,
           constructorArgs: [this.args.addresses.mailbox],
         });
       case HookType.INTERCHAIN_GAS_PAYMASTER:
@@ -528,8 +528,8 @@ export class EvmHookModule extends HyperlaneModule<
 
     const igp = await this.deployer.deployProxiedContract({
       chain: this.chain,
-      contractKey: 'interchainGasPaymaster',
-      contractName: 'interchainGasPaymaster',
+      contractKey: HookType.INTERCHAIN_GAS_PAYMASTER,
+      contractName: HookType.INTERCHAIN_GAS_PAYMASTER,
       proxyAdmin: this.args.addresses.proxyAdmin,
       constructorArgs: [],
       initializeArgs: [deployerAddress, config.beneficiary],
