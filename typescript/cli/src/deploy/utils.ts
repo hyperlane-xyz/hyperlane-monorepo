@@ -132,7 +132,7 @@ export async function completeDeploy(
       `\t- Gas required for ${command} ${
         isDryRun ? 'dry-run' : 'deploy'
       } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol
+        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
       }`,
     );
   }
