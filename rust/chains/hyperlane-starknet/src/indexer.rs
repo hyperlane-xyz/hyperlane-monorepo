@@ -292,7 +292,7 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        let key = get_selector_from_name("Dispatch").unwrap(); // safe to unwrap
+        let key = get_selector_from_name("InsertedIntoTree").unwrap(); // safe to unwrap
 
         let filter = EventFilter {
             from_block: Some(BlockId::Number((*range.start()).into())),
@@ -318,6 +318,10 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
                     let message_id: H256 = (event.data[0], event.data[1])
                         .try_into()
                         .map_err(Into::<HyperlaneStarknetError>::into)?;
+
+                    println!("leaf_index: {}, message_id: {}", leaf_index, message_id);
+                    println!("raw event: {:?}", event);
+
                     let merkle_tree_insertion =
                         MerkleTreeInsertion::new(leaf_index, message_id).into();
 
