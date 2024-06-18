@@ -242,7 +242,6 @@ impl BaseAgent for Relayer {
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     db,
-                    5,
                     IsmAwareAppContextClassifier::new(
                         mailboxes[destination].clone(),
                         settings.metric_app_contexts.clone(),
