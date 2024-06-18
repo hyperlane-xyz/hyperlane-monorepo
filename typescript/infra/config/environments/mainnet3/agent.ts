@@ -126,6 +126,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     polygon: true,
     polygonzkevm: true,
     redstone: true,
+    // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
+    // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
     scroll: true,
     // Has RPC non-compliance that breaks scraping.

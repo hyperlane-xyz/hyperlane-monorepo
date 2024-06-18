@@ -269,7 +269,7 @@ export abstract class HyperlaneAppGovernor<
           );
           this.canPropose[chain].set(safeAddress, canPropose);
         } catch (error) {
-          // if we hit this error, it's like a custom safe chain
+          // if we hit this error, it's likely a custom safe chain
           // so let's fallback to a manual submission
           if (
             error instanceof Error &&

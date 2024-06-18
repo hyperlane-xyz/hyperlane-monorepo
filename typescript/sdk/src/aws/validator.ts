@@ -63,12 +63,8 @@ export class S3Validator extends BaseValidator {
   }
 
   async getAnnouncement(): Promise<Announcement> {
-    const resp = await this.s3Bucket.getS3Obj<S3Announcement>(ANNOUNCEMENT_KEY);
-    if (!resp) {
-      throw new Error('No announcement found');
-    }
-
-    return resp.data.value;
+    const { value } = await this.getSignedAnnouncement();
+    return value;
   }
 
   async getSignedAnnouncement(): Promise<S3Announcement> {
