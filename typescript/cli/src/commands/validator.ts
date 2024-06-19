@@ -3,8 +3,8 @@ import { CommandModule } from 'yargs';
 import {
   Address,
   ProtocolType,
-  isValidAddress,
-  normalizeAddress,
+  isValidAddressEvm,
+  normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
 import { CommandModuleWithContext } from '../context/types.js';
@@ -19,7 +19,7 @@ import {
   awsRegionCommandOption,
   awsSecretKeyCommandOption,
   chainCommandOption,
-  makeOptionRequired,
+  demandOption,
   validatorCommandOption,
 } from './options.js';
 
@@ -69,28 +69,26 @@ const preFlightCheckCommand: CommandModuleWithContext<{
   chain: string;
   validators: string;
 }> = {
-  command: 'preflightCheck',
+  command: 'check',
   describe: 'Check the validator has announced correctly for a given chain',
   builder: {
-    chain: makeOptionRequired(chainCommandOption),
+    chain: demandOption(chainCommandOption),
     validators: validatorCommandOption,
   },
   handler: async ({ context, chain, validators }) => {
-    const { multiProvider, registry } = context;
+    const { multiProvider } = context;
 
     // validate chain
     if (!multiProvider.hasChain(chain)) {
-      errorRed(`❌ ${chain} is not supported by the current configuration`);
+      errorRed(
+        `❌ No metadata found for ${chain}. Ensure it is included in your configured registry.`,
+      );
       process.exit(1);
     }
 
-    const chainMetadata = await registry.getChainMetadata(chain);
-    if (!chainMetadata) {
-      errorRed(`\n❌ Unable to fetch metadata for chain ${chain}. Exiting.`);
-      process.exit(1);
-    }
+    const chainMetadata = multiProvider.getChainMetadata(chain);
 
-    if (chainMetadata && chainMetadata.protocol !== ProtocolType.Ethereum) {
+    if (chainMetadata.protocol !== ProtocolType.Ethereum) {
       errorRed(
         `\n❌ Validator pre flight check only supports EVM chains. Exiting.`,
       );
@@ -103,8 +101,8 @@ const preFlightCheckCommand: CommandModuleWithContext<{
     const validAddresses: Set<Address> = new Set();
 
     for (const address of validatorList) {
-      if (isValidAddress(address)) {
-        validAddresses.add(normalizeAddress(address));
+      if (isValidAddressEvm(address)) {
+        validAddresses.add(normalizeAddressEvm(address));
       } else {
         invalidAddresses.add(address);
       }

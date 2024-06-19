@@ -1,6 +1,6 @@
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import { HyperlaneCore, S3Validator } from '@hyperlane-xyz/sdk';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';
@@ -24,63 +24,53 @@ export const checkValidatorSetup = async (
 
   let merkleTreeLatestCheckpointIndex: number | undefined;
   try {
-    const [_, latestCheckpointIndex] = await merkleTreeHook[
-      'latestCheckpoint()'
-    ]();
+    const [_, latestCheckpointIndex] = await merkleTreeHook.latestCheckpoint();
 
     merkleTreeLatestCheckpointIndex = latestCheckpointIndex;
     logBlue(
-      `\nLatest check point index of incremental merkle tree: ${merkleTreeLatestCheckpointIndex}\n`,
+      `\nLatest checkpoint index of incremental merkle tree: ${merkleTreeLatestCheckpointIndex}\n`,
     );
   } catch (err) {
     warnYellow(
-      `❗️ Failed to fetch latest checkpoint index of merkleTreeHook on ${chain} \n`,
+      `❗️ Failed to fetch latest checkpoint index of merkleTreeHook on ${chain}: ${err} \n`,
     );
-  }
-
-  let announcedValidators;
-  try {
-    announcedValidators = await validatorAnnounce.getAnnouncedValidators();
-  } catch (err) {
-    errorRed(
-      `❌ Failed to fetch announced validators for ${chain}. Exiting.\n`,
-    );
-    process.exit(1);
-  }
-
-  const confirmedValidators = new Set<Address>();
-  const unconfirmedValidators = new Set<Address>();
-
-  for (const validator of validators) {
-    const matches = announcedValidators.filter((address) =>
-      eqAddress(address, validator),
-    );
-    if (matches.length === 0) {
-      unconfirmedValidators.add(validator);
-    } else {
-      confirmedValidators.add(validator);
-    }
   }
 
   const errorSet = new Set<string>();
-  errorSet.add('Validator pre flight check failed:');
 
-  if (unconfirmedValidators.size > 0) {
-    errorSet.add('Some validators have not been announced.');
+  const validatorsArray = Array.from(validators);
+  let validatorStorageLocations: string[][] | undefined;
+
+  try {
+    validatorStorageLocations =
+      await validatorAnnounce.getAnnouncedStorageLocations(validatorsArray);
+  } catch (e) {
+    errorSet.add('Failed to read announced storage locations on chain.');
   }
 
-  let failedToReadError = false;
-  for (const validator of confirmedValidators) {
-    let storageLocations;
-    try {
-      storageLocations = await validatorAnnounce.getAnnouncedStorageLocations([
-        validator,
-      ]);
-      const s3StorageLocation = storageLocations[0][0];
+  if (validatorStorageLocations) {
+    for (let i = 0; i < validatorsArray.length; i++) {
+      const validator = validatorsArray[i];
+      const storageLocations = validatorStorageLocations[i];
 
-      const s3Validator = await S3Validator.fromStorageLocation(
-        s3StorageLocation,
-      );
+      if (storageLocations.length === 0) {
+        errorRed(`❌ Validator ${validator} has not been announced\n`);
+        errorSet.add('Some validators have not been announced.');
+        continue;
+      }
+
+      const s3StorageLocation = storageLocations[0];
+
+      let s3Validator: S3Validator;
+      try {
+        s3Validator = await S3Validator.fromStorageLocation(s3StorageLocation);
+      } catch (e) {
+        errorRed(
+          `❌ Failed to fetch storage locations for validator ${validator}, this may be due to the storage location not being an S3 bucket\n\n`,
+        );
+        errorSet.add('Failed to fetch storage locations for some validators.');
+        continue;
+      }
 
       const latestCheckpointIndex =
         await s3Validator.getLatestCheckpointIndex();
@@ -99,7 +89,7 @@ export const checkValidatorSetup = async (
             `❌ Validator is not signing the latest available checkpoint\n\n`,
           );
           errorSet.add(
-            `Some validators are not signing the latest available checkpoint\n`,
+            `Some validators are not signing the latest available checkpoint`,
           );
         } else {
           logBlue(
@@ -108,27 +98,18 @@ export const checkValidatorSetup = async (
         }
       } else {
         warnYellow(
-          `❗️ Cannot compare validator checkpoint signatures to latest check point \n`,
+          `❗️ Cannot compare validator checkpoint signatures to latest checkpoint in the incremental merkletree, merkletree checkpoint could not be read\n`,
         );
       }
-    } catch (err) {
-      errorRed(
-        `❌ Failed to fetch storage locations for validator ${validator}, this may be due to the storage location not being an S3 bucket\n\n`,
-      );
-      failedToReadError = true;
     }
   }
 
-  for (const validator of unconfirmedValidators) {
-    errorRed(`❌ Validator ${validator} has not been announced\n`);
-  }
-
-  if (failedToReadError) {
-    errorSet.add('Failed to fetch storage locations for some validators.');
-  }
-
-  if (errorSet.size > 1) {
-    errorRed(`\n❌ ${Array.from(errorSet).join('\n')}`);
+  if (errorSet.size > 0) {
+    errorRed(
+      `\n❌ Validator pre flight check failed:\n${Array.from(errorSet).join(
+        '\n',
+      )}`,
+    );
     process.exit(1);
   } else {
     logGreen(`\n✅ Validator pre flight check passed`);

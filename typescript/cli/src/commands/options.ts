@@ -8,7 +8,7 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
-export const makeOptionRequired = (option: Options): Options => ({
+export const demandOption = (option: Options): Options => ({
   ...option,
   demandOption: true,
 });
