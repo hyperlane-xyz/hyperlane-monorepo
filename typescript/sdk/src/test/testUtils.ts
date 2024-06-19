@@ -63,25 +63,31 @@ const TEST_ORACLE_CONFIG = {
   tokenExchangeRate: ethers.utils.parseUnits('1', 10),
 };
 
+const OVERHEAD_COST = 60000;
+
 export function testIgpConfig(
   chains: ChainName[],
   owner = nonZeroAddress,
 ): ChainMap<IgpConfig> {
   return Object.fromEntries(
-    chains.map((local) => [
-      local,
-      {
-        owner,
-        oracleKey: owner,
-        beneficiary: owner,
-        // TODO: these should be one map
-        overhead: Object.fromEntries(
-          exclude(local, chains).map((remote) => [remote, 60000]),
-        ),
-        oracleConfig: Object.fromEntries(
-          exclude(local, chains).map((remote) => [remote, TEST_ORACLE_CONFIG]),
-        ),
-      },
-    ]),
+    chains.map((local: ChainName) => {
+      const overhead: [ChainName, number][] = [];
+      const oracleConfig: [ChainName, typeof TEST_ORACLE_CONFIG][] = [];
+
+      exclude(local, chains).forEach((remote: ChainName) => {
+        overhead.push([remote, OVERHEAD_COST]);
+        oracleConfig.push([remote, TEST_ORACLE_CONFIG]);
+      });
+      return [
+        local,
+        {
+          owner,
+          oracleKey: owner,
+          beneficiary: owner,
+          overhead: Object.fromEntries(overhead),
+          oracleConfig: Object.fromEntries(oracleConfig),
+        },
+      ];
+    }),
   );
 }
