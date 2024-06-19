@@ -1,5 +1,5 @@
 import { BigNumber, providers, utils } from 'ethers';
-import { Logger } from 'pino';
+import pino, { Logger } from 'pino';
 
 import {
   raceWithContext,
@@ -95,6 +95,11 @@ export class HyperlaneSmartProvider
     }
 
     this.supportedMethods = [...supportedMethods.values()];
+  }
+
+
+  setLogLevel(level: pino.LevelWithSilentOrString) {
+    this.logger.level = level;
   }
 
   async getPriorityFee(): Promise<BigNumber> {

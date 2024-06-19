@@ -6,11 +6,17 @@ import {
   HypERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
+  HyperlaneSmartProvider,
   MailboxClientConfig,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  getLogLevel,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
@@ -90,12 +96,20 @@ export class EvmERC20WarpRouteReader {
       },
     };
 
+    // Temporarily turn off SmartProvider logging
+    // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
+    this.setSmartProviderLogLevel('silent');
+
     // First, try checking token specific methods
-    for (const [type, { factory, method }] of Object.entries(contractTypes)) {
+    for (const [tokenType, { factory, method }] of Object.entries(
+      contractTypes,
+    )) {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
-        return type as TokenType;
+
+        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
+        return tokenType as TokenType;
       } catch (e) {
         continue;
       }
@@ -114,6 +128,8 @@ export class EvmERC20WarpRouteReader {
       throw Error(
         `Error accessing token specific method, implying this is not a supported token.`,
       );
+    } finally {
+      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
   }
 
@@ -202,5 +218,16 @@ export class EvmERC20WarpRouteReader {
     ]);
 
     return { name, symbol, decimals, totalSupply: totalSupply.toString() };
+  }
+
+  /**
+   * Conditionally sets the log level for a smart provider.
+   *
+   * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
+   */
+  protected setSmartProviderLogLevel(level: string) {
+    if ('setLogLevel' in this.provider) {
+      (this.provider as HyperlaneSmartProvider).setLogLevel(level);
+    }
   }
 }
