@@ -37,7 +37,7 @@ const hookTypes = Object.values(HookType);
 function randomHookType(): HookType {
   // OP_STACK filtering is temporary until we have a way to deploy the required contracts
   const filteredHookTypes = hookTypes.filter(
-    (type) => type !== HookType.OP_STACK,
+    (type) => type !== HookType.OP_STACK && type !== HookType.CUSTOM,
   );
   return filteredHookTypes[
     Math.floor(Math.random() * filteredHookTypes.length)
@@ -254,6 +254,11 @@ describe('EvmHookModule', async () => {
   }
 
   describe('create', async () => {
+    it('deploys a hook of type CUSTOM', async () => {
+      const config: HookConfig = randomAddress();
+      await createHook(config);
+    });
+
     it('deploys a hook of type MERKLE_TREE', async () => {
       const config: MerkleTreeHookConfig = {
         type: HookType.MERKLE_TREE,
