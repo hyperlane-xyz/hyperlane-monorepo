@@ -6,6 +6,8 @@ import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
 import { log, logRed, logTip } from '../logger.js';
 
+import { calculatePageSize } from './cli-options.js';
+
 // A special value marker to indicate user selected
 // a new chain in the list
 const NEW_CHAIN_MARKER = '__new__';
@@ -18,7 +20,7 @@ export async function runSingleChainSelectionStep(
   const chain = (await select({
     message,
     choices,
-    pageSize: 30,
+    pageSize: calculatePageSize(2),
   })) as string;
   handleNewChain([chain]);
   return chain;
@@ -35,7 +37,7 @@ export async function runMultiChainSelectionStep(
     const chains = (await checkbox({
       message,
       choices,
-      pageSize: 30,
+      pageSize: calculatePageSize(2),
     })) as string[];
     handleNewChain(chains);
     if (requireMultiple && chains?.length < 2) {
