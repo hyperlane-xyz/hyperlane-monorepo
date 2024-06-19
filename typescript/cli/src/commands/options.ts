@@ -8,6 +8,11 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const demandOption = (option: Options): Options => ({
+  ...option,
+  demandOption: true,
+});
+
 export const logFormatCommandOption: Options = {
   type: 'string',
   description: 'Log output format',
@@ -148,6 +153,12 @@ export const dryRunCommandOption: Options = {
 export const chainCommandOption: Options = {
   type: 'string',
   description: 'The specific chain to perform operations with.',
+};
+
+export const validatorCommandOption: Options = {
+  type: 'string',
+  description: 'Comma separated list of validator addresses',
+  demandOption: true,
 };
 
 export const addressCommandOption = (
