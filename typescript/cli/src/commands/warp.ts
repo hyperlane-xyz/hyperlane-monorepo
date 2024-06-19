@@ -1,4 +1,3 @@
-import { select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
@@ -9,7 +8,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { createWarpRouteDeployConfig } from '../config/warp.js';
+import {
+  createWarpRouteDeployConfig,
+  readWarpCoreConfig,
+} from '../config/warp.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
@@ -19,6 +21,7 @@ import { runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
   addressCommandOption,
@@ -26,6 +29,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
+  symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
@@ -112,11 +116,10 @@ export const read: CommandModuleWithContext<{
   symbol?: string;
 }> = {
   command: 'read',
-  describe: 'Reads the warp route config at the given path.',
+  describe: 'Derive the warp route config from onchain artifacts',
   builder: {
     symbol: {
-      type: 'string',
-      description: 'Identify warp route in registry by symbol',
+      ...symbolCommandOption,
       demandOption: false,
     },
     chain: {
@@ -137,28 +140,10 @@ export const read: CommandModuleWithContext<{
 
     let addresses: ChainMap<string>;
     if (symbol) {
-      const matching = await context.registry.getWarpRoutes({
+      const warpCoreConfig = await selectRegistryWarpRoute(
+        context.registry,
         symbol,
-      });
-      const routes = Object.entries(matching);
-
-      let warpCoreConfig: WarpCoreConfig;
-      if (routes.length === 0) {
-        logRed(`No warp routes found for symbol ${symbol}`);
-        process.exit(0);
-      } else if (routes.length === 1) {
-        warpCoreConfig = routes[0][1];
-      } else {
-        logGreen(`Multiple warp routes found for symbol ${symbol}`);
-        const chosenRouteId = await select({
-          message: 'Select from matching warp routes',
-          choices: routes.map(([routeId, _]) => ({
-            value: routeId,
-          })),
-        });
-        warpCoreConfig = matching[chosenRouteId];
-      }
-
+      );
       addresses = Object.fromEntries(
         warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
       );
@@ -192,7 +177,8 @@ export const read: CommandModuleWithContext<{
 
 const send: CommandModuleWithWriteContext<
   MessageOptionsArgTypes & {
-    warp: string;
+    warp?: string;
+    symbol?: string;
     router?: string;
     wei: string;
     recipient?: string;
@@ -202,10 +188,17 @@ const send: CommandModuleWithWriteContext<
   describe: 'Send a test token transfer on a warp route',
   builder: {
     ...messageOptions,
-    warp: warpCoreConfigCommandOption,
-    wei: {
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    amount: {
       type: 'string',
-      description: 'Amount in wei to send',
+      description: 'Amount to send (in smallest unit)',
       default: 1,
     },
     recipient: {
@@ -220,13 +213,24 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
+    symbol,
     warp,
     wei,
     recipient,
   }) => {
+    let warpCoreConfig: WarpCoreConfig;
+    if (symbol) {
+      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
+    } else if (warp) {
+      warpCoreConfig = readWarpCoreConfig(warp);
+    } else {
+      logRed(`Please specify either a symbol or warp config`);
+      process.exit(0);
+    }
+
     await sendTestTransfer({
       context,
-      warpConfigPath: warp,
+      warpCoreConfig,
       origin,
       destination,
       wei,

@@ -10,7 +10,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { timeout } from '@hyperlane-xyz/utils';
 
-import { readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
@@ -20,7 +19,7 @@ import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export async function sendTestTransfer({
   context,
-  warpConfigPath,
+  warpCoreConfig,
   origin,
   destination,
   wei,
@@ -30,7 +29,7 @@ export async function sendTestTransfer({
   selfRelay,
 }: {
   context: WriteCommandContext;
-  warpConfigPath: string;
+  warpCoreConfig: WarpCoreConfig;
   origin?: ChainName;
   destination?: ChainName;
   wei: string;
@@ -40,8 +39,6 @@ export async function sendTestTransfer({
   selfRelay?: boolean;
 }) {
   const { chainMetadata } = context;
-
-  const warpCoreConfig = readWarpRouteConfig(warpConfigPath);
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(

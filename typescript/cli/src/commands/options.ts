@@ -91,8 +91,6 @@ export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
   alias: 'w',
-  // TODO make this optional and have the commands get it from the registry
-  demandOption: true,
 };
 
 export const agentConfigCommandOption = (
@@ -148,6 +146,11 @@ export const dryRunCommandOption: Options = {
 export const chainCommandOption: Options = {
   type: 'string',
   description: 'The specific chain to perform operations with.',
+};
+
+export const symbolCommandOption: Options = {
+  type: 'string',
+  description: 'Token symbol (e.g. ETH, USDC)',
 };
 
 export const addressCommandOption = (

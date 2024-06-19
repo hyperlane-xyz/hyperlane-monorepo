@@ -195,7 +195,7 @@ export async function createWarpRouteDeployConfig({
 
 // Note, this is different than the function above which reads a config
 // for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
-export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
+export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
   const config = readYamlOrJson(filePath);
   if (!config) throw new Error(`No warp route config found at ${filePath}`);
   return WarpCoreConfigSchema.parse(config);
