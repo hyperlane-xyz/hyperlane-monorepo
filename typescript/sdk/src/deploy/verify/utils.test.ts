@@ -1,17 +1,21 @@
-import { describe, expect } from '@jest/globals';
+import { expect } from 'chai';
 
+import { TestChainName } from '../../consts/testChains.js';
+import { randomAddress } from '../../test/testUtils.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 import { ContractVerificationInput } from './types.js';
 import { shouldAddVerificationInput } from './utils.js';
 
 describe('shouldAddVerificationInput', () => {
+  const addressA = randomAddress();
+  const addressB = randomAddress();
   it('should return true if the artifact does not exist in the verification inputs', () => {
     const verificationInputs: ChainMap<ContractVerificationInput[]> = {
-      Ethereum: [
+      [TestChainName.test1]: [
         {
           name: 'ContractA',
-          address: '0x123',
+          address: addressA,
           constructorArguments: 'args',
           isProxy: false,
         },
@@ -19,22 +23,22 @@ describe('shouldAddVerificationInput', () => {
     };
     const newArtifact: ContractVerificationInput = {
       name: 'ContractB',
-      address: '0x456',
+      address: addressB,
       constructorArguments: 'argsB',
       isProxy: true,
     };
-    const chain: ChainName = 'Ethereum';
+    const chain: ChainName = TestChainName.test1;
     expect(
       shouldAddVerificationInput(verificationInputs, chain, newArtifact),
-    ).toBe(true);
+    ).to.equal(true);
   });
 
   it('should return false if the artifact already exists in the verification inputs', () => {
     const verificationInputs: ChainMap<ContractVerificationInput[]> = {
-      Ethereum: [
+      [TestChainName.test2]: [
         {
           name: 'ContractA',
-          address: '0x123',
+          address: addressA,
           constructorArguments: 'args',
           isProxy: false,
         },
@@ -42,13 +46,13 @@ describe('shouldAddVerificationInput', () => {
     };
     const existingArtifact: ContractVerificationInput = {
       name: 'ContractA',
-      address: '0x123',
+      address: addressA,
       constructorArguments: 'args',
       isProxy: false,
     };
-    const chain: ChainName = 'Ethereum';
+    const chain: ChainName = TestChainName.test2;
     expect(
       shouldAddVerificationInput(verificationInputs, chain, existingArtifact),
-    ).toBe(false);
+    ).to.equal(false);
   });
 });
