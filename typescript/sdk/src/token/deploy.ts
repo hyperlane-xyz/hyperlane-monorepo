@@ -5,7 +5,9 @@ import {
   ERC20__factory,
   ERC721Enumerable__factory,
   GasRouter,
+  IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
+import { TokenType } from '@hyperlane-xyz/sdk';
 import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
@@ -64,11 +66,16 @@ abstract class TokenDeployer<
     }
   }
 
-  async initializeArgs(_: ChainName, config: TokenRouterConfig): Promise<any> {
+  async initializeArgs(
+    chain: ChainName,
+    config: TokenRouterConfig,
+  ): Promise<any> {
+    const signer = await this.multiProvider.getSigner(chain).getAddress();
     const defaultArgs = [
       config.hook ?? constants.AddressZero,
       config.interchainSecurityModule ?? constants.AddressZero,
-      config.owner,
+      // TransferOwnership will happen later in RouterDeployer
+      signer,
     ];
     if (isCollateralConfig(config) || isNativeConfig(config)) {
       return defaultArgs;
@@ -115,7 +122,15 @@ abstract class TokenDeployer<
           };
         }
 
-        const erc20 = ERC20__factory.connect(config.token, provider);
+        const token =
+          config.type === TokenType.XERC20Lockbox
+            ? await IXERC20Lockbox__factory.connect(
+                config.token,
+                provider,
+              ).callStatic.ERC20()
+            : config.token;
+
+        const erc20 = ERC20__factory.connect(token, provider);
         const [name, symbol, totalSupply, decimals] = await Promise.all([
           erc20.name(),
           erc20.symbol(),

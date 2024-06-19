@@ -40,18 +40,16 @@ export async function gasBalancesAreSufficient(
   minGas: string,
 ): Promise<boolean> {
   let sufficient = true;
-  await Promise.all(
-    chains.map(async (chain) => {
-      const provider = multiProvider.getProvider(chain);
-      const gasPrice = await provider.getGasPrice();
-      const minBalanceWei = gasPrice.mul(minGas).toString();
-      sufficient = await nativeBalancesAreSufficient(
-        multiProvider,
-        signer,
-        [chain],
-        minBalanceWei,
-      );
-    }),
-  );
+  for (const chain of chains) {
+    const provider = multiProvider.getProvider(chain);
+    const gasPrice = await provider.getGasPrice();
+    const minBalanceWei = gasPrice.mul(minGas).toString();
+    sufficient = await nativeBalancesAreSufficient(
+      multiProvider,
+      signer,
+      [chain],
+      minBalanceWei,
+    );
+  }
   return sufficient;
 }

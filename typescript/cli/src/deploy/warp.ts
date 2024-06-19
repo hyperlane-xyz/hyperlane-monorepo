@@ -105,7 +105,7 @@ async function runDeployPlanStep({ context, configMap }: DeployParams) {
   log(`Using token standard ${configMap.isNft ? 'ERC721' : 'ERC20'}`);
   logTable(configMap);
 
-  if (skipConfirmation) return;
+  if (skipConfirmation || context.isDryRun) return;
 
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
