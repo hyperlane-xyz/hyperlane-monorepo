@@ -18,7 +18,7 @@ impl AddressBlacklist {
     pub fn find_blacklisted_address(&self, message: &HyperlaneMessage) -> Option<Vec<u8>> {
         self.blacklist.iter().find_map(|address| {
             if is_subsequence(message.sender.as_bytes(), address)
-                || is_subsequence(&message.recipient.as_bytes(), address)
+                || is_subsequence(message.recipient.as_bytes(), address)
                 || is_subsequence(&message.body, address)
             {
                 // Return the blocked address that was found.
@@ -32,7 +32,7 @@ impl AddressBlacklist {
 
 /// Returns true if `needle` is a subsequence of `haystack`.
 fn is_subsequence<T: PartialEq>(mut haystack: &[T], needle: &[T]) -> bool {
-    if needle.len() == 0 {
+    if needle.is_empty() {
         return true;
     }
 

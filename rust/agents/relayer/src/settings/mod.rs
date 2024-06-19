@@ -201,7 +201,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .get_opt_key("addressBlacklist")
             .parse_string()
             .end()
-            .map(|str| parse_address_list(&str, &mut err, || &p.cwp + "address_blacklist"))
+            .map(|str| parse_address_list(str, &mut err, || &p.cwp + "address_blacklist"))
             .unwrap_or_default();
 
         let transaction_gas_limit = p

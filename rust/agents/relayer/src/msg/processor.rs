@@ -307,6 +307,7 @@ impl ProcessorExt for MessageProcessor {
 }
 
 impl MessageProcessor {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: HyperlaneRocksDB,
         message_whitelist: Arc<MatchingList>,
