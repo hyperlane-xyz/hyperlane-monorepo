@@ -226,8 +226,8 @@ export class EvmERC20WarpRouteReader {
    * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
    */
   protected setSmartProviderLogLevel(level: string) {
-    if ('setLogLevel' in this.provider) {
-      (this.provider as HyperlaneSmartProvider).setLogLevel(level);
+    if (this.provider instanceof HyperlaneSmartProvider) {
+      this.provider.setLogLevel(level);
     }
   }
 }
