@@ -1,7 +1,7 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::{PendingOperation, QueueOperation};
+use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
@@ -22,7 +22,7 @@ pub struct OpQueue {
 impl OpQueue {
     /// Push an element onto the queue and update metrics
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
-    pub async fn push(&self, op: QueueOperation) {
+    pub async fn push(&self, op: QueueOperation, new_status: PendingOperationStatus) {
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(op.as_ref()).inc();
 
@@ -141,6 +141,10 @@ mod test {
             self.id
         }
 
+        fn status(&self) -> PendingOperationStatus {
+            PendingOperationStatus::FirstPrepareAttempt
+        }
+
         fn reset_attempts(&mut self) {
             self.seconds_to_next_attempt = 0;
         }
@@ -256,12 +260,22 @@ mod test {
 
         // push to queue 1
         for _ in 0..=2 {
-            op_queue_1.push(ops.pop_front().unwrap()).await;
+            op_queue_1
+                .push(
+                    ops.pop_front().unwrap(),
+                    PendingOperationStatus::FirstPrepareAttempt,
+                )
+                .await;
         }
 
         // push to queue 2
         for _ in 3..messages_to_send {
-            op_queue_2.push(ops.pop_front().unwrap()).await;
+            op_queue_2
+                .push(
+                    ops.pop_front().unwrap(),
+                    PendingOperationStatus::FirstPrepareAttempt,
+                )
+                .await;
         }
 
         // Retry by message ids
@@ -320,7 +334,9 @@ mod test {
 
         // push to queue
         for op in ops {
-            op_queue.push(op).await;
+            op_queue
+                .push(op, PendingOperationStatus::FirstPrepareAttempt)
+                .await;
         }
 
         // Retry by domain

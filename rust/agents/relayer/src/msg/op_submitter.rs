@@ -5,6 +5,7 @@ use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use hyperlane_core::total_estimated_cost;
+use hyperlane_core::PendingOperationStatus;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
@@ -184,7 +185,9 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.destination_domain(), domain);
-        prepare_queue.push(op).await;
+        prepare_queue
+            .push(op, PendingOperationStatus::FirstPrepareAttempt)
+            .await;
     }
 }
 
@@ -231,13 +234,17 @@ async fn prepare_task(
                     debug!(?op, "Operation prepared");
                     metrics.ops_prepared.inc();
                     // TODO: push multiple messages at once
-                    submit_queue.push(op).await;
+                    op.set_status(PendingOperationStatus::ReadyToSubmit);
+                    submit_queue
+                        .push(op, PendingOperationStatus::ReadyToSubmit)
+                        .await;
                 }
                 PendingOperationResult::NotReady => {
                     prepare_queue.push(op).await;
                 }
-                PendingOperationResult::Reprepare => {
+                PendingOperationResult::Reprepare(reason) => {
                     metrics.ops_failed.inc();
+                    op.set_status(PendingOperationStatus::Retry(reason));
                     prepare_queue.push(op).await;
                 }
                 PendingOperationResult::Drop => {
@@ -245,6 +252,7 @@ async fn prepare_task(
                 }
                 PendingOperationResult::Confirm => {
                     debug!(?op, "Pushing operation to confirm queue");
+                    op.set_status(PendingOperationStatus::AlreadySubmitted);
                     confirm_queue.push(op).await;
                 }
             }

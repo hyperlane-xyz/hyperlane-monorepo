@@ -10,6 +10,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
+use strum::Display;
 use tracing::warn;
 
 /// Boxed operation that can be stored in an operation queue
@@ -54,6 +55,12 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
+
+    /// The status of the operation, which should explain why it is in the
+    /// queue.
+    fn status(&self) -> PendingOperationStatus;
+
+    fn set_status(&mut self, status: PendingOperationStatus);
 
     /// Get tuple of labels for metrics.
     fn get_operation_labels(&self) -> (String, String) {
@@ -104,6 +111,15 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the number of times this operation has been retried.
     #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
+}
+
+#[derive(Debug, Display, Clone)]
+pub enum PendingOperationStatus {
+    FirstPrepareAttempt,
+    Retry(String),
+    ReadyToSubmit,
+    SubmittedBySelf,
+    AlreadySubmitted,
 }
 
 /// Utility fn to calculate the total estimated cost of an operation batch
@@ -192,7 +208,7 @@ pub enum PendingOperationResult {
     /// This operation is not ready to be attempted again yet
     NotReady,
     /// Operation needs to be started from scratch again
-    Reprepare,
+    Reprepare(String),
     /// Do not attempt to run the operation again, forget about it
     Drop,
     /// Send this message straight to the confirm queue

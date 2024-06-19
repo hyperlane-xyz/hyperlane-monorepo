@@ -11,7 +11,8 @@ use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
     gas_used_by_operation, make_op_try, BatchItem, ChainCommunicationError, ChainResult,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
+    PendingOperation, PendingOperationResult, PendingOperationStatus, TryBatchAs, TxOutcome, H256,
+    U256,
 };
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -53,6 +54,7 @@ pub struct MessageContext {
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
     ctx: Arc<MessageContext>,
+    status: PendingOperationStatus,
     app_context: Option<String>,
     #[new(default)]
     submitted: bool,
@@ -120,6 +122,14 @@ impl PendingOperation for PendingMessage {
         self.message.id()
     }
 
+    fn status(&self) -> PendingOperationStatus {
+        self.status.clone()
+    }
+
+    fn set_status(&mut self, status: PendingOperationStatus) {
+        self.status = status;
+    }
+
     fn priority(&self) -> u32 {
         self.message.nonce
     }
@@ -138,8 +148,6 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), ret, fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
-        make_op_try!(|| self.on_reprepare());
-
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
             return PendingOperationResult::NotReady;
@@ -148,13 +156,19 @@ impl PendingOperation for PendingMessage {
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
-        let is_already_delivered = op_try!(
-            self.ctx
-                .destination_mailbox
-                .delivered(self.message.id())
-                .await,
-            "checking message delivery status"
-        );
+        let is_already_delivered = match self
+            .ctx
+            .destination_mailbox
+            .delivered(self.message.id())
+            .await
+        {
+            Ok(is_delivered) => is_delivered,
+            Err(err) => {
+                let message = "Error checking message delivery status";
+                warn!(error = ?err, "{}", message.clone());
+                return self.on_reprepare(message.to_string());
+            }
+        };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
             self.submitted = true;
@@ -165,10 +179,14 @@ impl PendingOperation for PendingMessage {
         let provider = self.ctx.destination_mailbox.provider();
 
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
-        let is_contract = op_try!(
-            provider.is_contract(&self.message.recipient).await,
-            "checking if message recipient is a contract"
-        );
+        let is_contract = match provider.is_contract(&self.message.recipient).await {
+            Ok(is_contract) => is_contract,
+            Err(err) => {
+                let message = "Error checking if message recipient is a contract";
+                warn!(error = ?err, "{}", message.clone());
+                return self.on_reprepare(message.to_string());
+            }
+        };
         if !is_contract {
             info!(
                 recipient=?self.message.recipient,
@@ -184,6 +202,20 @@ impl PendingOperation for PendingMessage {
                 .await,
             "fetching ISM address. Potentially malformed recipient ISM address."
         );
+        let ism_address = match self
+            .ctx
+            .destination_mailbox
+            .recipient_ism(self.message.recipient)
+            .await
+        {
+            Ok(is_contract) => is_contract,
+            Err(err) => {
+                let message =
+                    "Error fetching ISM address. Potentially malformed recipient ISM address.";
+                warn!(error = ?err, "{}", message.clone());
+                return self.on_reprepare(message.to_string());
+            }
+        };
 
         let message_metadata_builder = op_try!(
             MessageMetadataBuilder::new(
@@ -395,7 +427,13 @@ impl PendingMessage {
         ctx: Arc<MessageContext>,
         app_context: Option<String>,
     ) -> Self {
-        let mut pm = Self::new(message, ctx, app_context);
+        let mut pm = Self::new(
+            message,
+            ctx,
+            // Since we don't persist the message status for now, assume it's the first attempt
+            PendingOperationStatus::FirstPrepareAttempt,
+            app_context,
+        );
         match pm
             .ctx
             .origin_db
@@ -414,10 +452,10 @@ impl PendingMessage {
         pm
     }
 
-    fn on_reprepare(&mut self) -> PendingOperationResult {
+    fn on_reprepare(&mut self, reason: String) -> PendingOperationResult {
         self.inc_attempts();
         self.submitted = false;
-        PendingOperationResult::Reprepare
+        PendingOperationResult::Reprepare(reason)
     }
 
     fn is_ready(&self) -> bool {
