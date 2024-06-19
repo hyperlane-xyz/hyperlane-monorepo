@@ -16,8 +16,6 @@ import {
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
-  StaticAddressSetFactory,
-  StaticThresholdAddressSetFactory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -39,11 +37,12 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -73,6 +72,7 @@ export class EvmIsmModule extends HyperlaneModule<
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmModule' });
   protected readonly reader: EvmIsmReader;
+  protected readonly deployer: EvmModuleDeployer<any>;
   protected readonly factories: HyperlaneContracts<ProxyFactoryFactories>;
 
   // Adding these to reduce how often we need to grab from MultiProvider.
@@ -83,18 +83,34 @@ export class EvmIsmModule extends HyperlaneModule<
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly deployer: HyperlaneDeployer<any, any>,
     params: HyperlaneModuleParams<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
+    contractVerifier?: ContractVerifier,
   ) {
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
-    const { mailbox: _, deployedIsm: __, ...addresses } = params.addresses;
+    this.deployer = new EvmModuleDeployer(
+      this.multiProvider,
+      {},
+      this.logger,
+      contractVerifier,
+    );
+
     this.factories = attachAndConnectContracts(
-      addresses,
+      {
+        staticMerkleRootMultisigIsmFactory:
+          params.addresses.staticMerkleRootMultisigIsmFactory,
+        staticMessageIdMultisigIsmFactory:
+          params.addresses.staticMessageIdMultisigIsmFactory,
+        staticAggregationIsmFactory:
+          params.addresses.staticAggregationIsmFactory,
+        staticAggregationHookFactory:
+          params.addresses.staticAggregationHookFactory,
+        domainRoutingIsmFactory: params.addresses.domainRoutingIsmFactory,
+      },
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
     );
@@ -140,9 +156,9 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // Else, we have to figure out what an update for this ISM entails
 
-    // If target config is a custom ISM, just update the address
-    // if config -> custom ISM, update address
-    // if custom ISM -> custom ISM, update address
+    // If target config is an address ISM, just update the address
+    // if config -> address ISM, update address
+    // if address ISM -> address ISM, update address
     if (typeof targetConfig === 'string') {
       // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
       this.args.addresses.deployedIsm = targetConfig;
@@ -151,7 +167,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // Check if we need to deploy a new ISM
     if (
-      // if custom ISM -> config, do a new deploy
+      // if address ISM -> config, do a new deploy
       typeof currentConfig === 'string' ||
       // if config -> config, AND types are different, do a new deploy
       currentConfig.type !== targetConfig.type ||
@@ -242,21 +258,23 @@ export class EvmIsmModule extends HyperlaneModule<
   }
 
   // manually write static create function
-  public static async create(params: {
+  public static async create({
+    chain,
+    config,
+    proxyFactoryFactories,
+    mailbox,
+    multiProvider,
+  }: {
     chain: ChainNameOrId;
     config: IsmConfig;
-    deployer: HyperlaneDeployer<any, any>;
-    factories: HyperlaneAddresses<ProxyFactoryFactories>;
+    proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;
     multiProvider: MultiProvider;
   }): Promise<EvmIsmModule> {
-    const { chain, config, deployer, factories, mailbox, multiProvider } =
-      params;
-
     // instantiate new EvmIsmModule
-    const module = new EvmIsmModule(multiProvider, deployer, {
+    const module = new EvmIsmModule(multiProvider, {
       addresses: {
-        ...factories,
+        ...proxyFactoryFactories,
         mailbox,
         deployedIsm: ethers.constants.AddressZero,
       },
@@ -330,10 +348,10 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     config: C;
   }): Promise<DeployedIsm> {
-    // If it's a custom ISM, just return a base ISM
+    // If it's an address ISM, just return a base ISM
     if (typeof config === 'string') {
       // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
-      // we can remove the ts-ignore once we have a proper type for custom ISMs
+      // we can remove the ts-ignore once we have a proper type for address ISMs
       // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
         config,
@@ -368,40 +386,40 @@ export class EvmIsmModule extends HyperlaneModule<
         });
 
       case IsmType.OP_STACK:
-        return this.deployer.deployContractFromFactory(
-          this.chain,
-          new OPStackIsm__factory(),
-          IsmType.OP_STACK,
-          [config.nativeBridge],
-        );
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new OPStackIsm__factory(),
+          contractName: IsmType.OP_STACK,
+          constructorArgs: [config.nativeBridge],
+        });
 
       case IsmType.PAUSABLE:
-        return this.deployer.deployContractFromFactory(
-          this.chain,
-          new PausableIsm__factory(),
-          IsmType.PAUSABLE,
-          [config.owner],
-        );
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new PausableIsm__factory(),
+          contractName: IsmType.PAUSABLE,
+          constructorArgs: [config.owner],
+        });
 
       case IsmType.TRUSTED_RELAYER:
         assert(
           this.args.addresses.mailbox,
           `Mailbox address is required for deploying ${ismType}`,
         );
-        return this.deployer.deployContractFromFactory(
-          this.chain,
-          new TrustedRelayerIsm__factory(),
-          IsmType.TRUSTED_RELAYER,
-          [this.args.addresses.mailbox, config.relayer],
-        );
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new TrustedRelayerIsm__factory(),
+          contractName: IsmType.TRUSTED_RELAYER,
+          constructorArgs: [this.args.addresses.mailbox, config.relayer],
+        });
 
       case IsmType.TEST_ISM:
-        return this.deployer.deployContractFromFactory(
-          this.chain,
-          new TestIsm__factory(),
-          IsmType.TEST_ISM,
-          [],
-        );
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new TestIsm__factory(),
+          contractName: IsmType.TEST_ISM,
+          constructorArgs: [],
+        });
 
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
@@ -421,7 +439,7 @@ export class EvmIsmModule extends HyperlaneModule<
         ? 'staticMerkleRootMultisigIsmFactory'
         : 'staticMessageIdMultisigIsmFactory';
 
-    const address = await EvmIsmModule.deployStaticAddressSet({
+    const address = await EvmModuleDeployer.deployStaticAddressSet({
       chain: this.chain,
       factory: this.factories[factoryName],
       values: config.validators,
@@ -545,7 +563,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     const factoryName = 'staticAggregationIsmFactory';
-    const address = await EvmIsmModule.deployStaticAddressSet({
+    const address = await EvmModuleDeployer.deployStaticAddressSet({
       chain: this.chain,
       factory: this.factories[factoryName],
       values: addresses,
@@ -576,61 +594,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // Update the mailbox address in the arguments
     this.args.addresses.mailbox = newMailboxAddress;
-  }
-
-  // Public so it can be reused by the hook module.
-  // Caller of this function is responsible for verifying the contract
-  // because they know exactly which factory is being called.
-  public static async deployStaticAddressSet({
-    chain,
-    factory,
-    values,
-    logger,
-    threshold = values.length,
-    multiProvider,
-  }: {
-    chain: ChainName;
-    factory: StaticThresholdAddressSetFactory | StaticAddressSetFactory;
-    values: Address[];
-    logger: Logger;
-    threshold?: number;
-    multiProvider: MultiProvider;
-  }): Promise<Address> {
-    const address = await factory['getAddress(address[],uint8)'](
-      values,
-      threshold,
-    );
-    const code = await multiProvider.getProvider(chain).getCode(address);
-    if (code === '0x') {
-      logger.debug(
-        `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
-      );
-      const overrides = multiProvider.getTransactionOverrides(chain);
-      const hash = await factory['deploy(address[],uint8)'](
-        values,
-        threshold,
-        overrides,
-      );
-      await multiProvider.handleTx(chain, hash);
-    } else {
-      logger.debug(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
-      );
-    }
-
-    // TODO: figure out how to get the constructor arguments for manual deploy TXs
-    // const verificationInput = buildVerificationInput(
-    //   NAME,
-    //   ADDRESS,
-    //   CONSTRUCTOR_ARGS,
-    // );
-    // await this.deployer.verifyContract(
-    //   this.chainName,
-    //   verificationInput,
-    //   logger,
-    // );
-
-    return address;
   }
 
   // filtering out domains which are not part of the multiprovider
