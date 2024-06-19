@@ -15,11 +15,17 @@ impl AddressBlacklist {
     /// Returns true if the message is blocked by the blacklist.
     /// At the moment, this only checks if the sender, recipient, or body of the
     /// message contains any of the blocked addresses.
-    pub fn is_blocked(&self, message: &HyperlaneMessage) -> bool {
-        self.blacklist.iter().any(|address| {
-            is_subsequence(message.sender.as_bytes(), address)
+    pub fn find_blacklisted_address(&self, message: &HyperlaneMessage) -> Option<Vec<u8>> {
+        self.blacklist.iter().find_map(|address| {
+            if is_subsequence(message.sender.as_bytes(), address)
                 || is_subsequence(&message.recipient.as_bytes(), address)
                 || is_subsequence(&message.body, address)
+            {
+                // Return the blocked address that was found.
+                Some(address.clone())
+            } else {
+                None
+            }
         })
     }
 }
@@ -77,31 +83,41 @@ mod test {
             H256::from_slice(&bytes)
         };
 
-        // Blocked
+        // Blocked - sender includes the blocked address
         let message = HyperlaneMessage {
             sender: h256_with_subsequence(blocked, 0),
             ..Default::default()
         };
-        assert!(blocklist.is_blocked(&message));
+        assert_eq!(
+            blocklist.find_blacklisted_address(&message),
+            Some(blocked.to_vec())
+        );
 
+        // Blocked - recipient includes the blocked address
         let message = HyperlaneMessage {
             recipient: h256_with_subsequence(blocked, 20),
             ..Default::default()
         };
-        assert!(blocklist.is_blocked(&message));
+        assert_eq!(
+            blocklist.find_blacklisted_address(&message),
+            Some(blocked.to_vec())
+        );
 
+        // Blocked - body includes the blocked address
         let message = HyperlaneMessage {
             body: bytes_with_subsequence(blocked, 100 - blocked.len(), 100),
             ..Default::default()
         };
-        assert!(blocklist.is_blocked(&message));
+        assert_eq!(
+            blocklist.find_blacklisted_address(&message),
+            Some(blocked.to_vec())
+        );
 
-        // Not blocked
-
+        // Not blocked - sender, recipient, and body do not include the blocked address
         let message = HyperlaneMessage {
             body: vec![1; 100],
             ..Default::default()
         };
-        assert!(!blocklist.is_blocked(&message));
+        assert!(blocklist.find_blacklisted_address(&message).is_none());
     }
 }

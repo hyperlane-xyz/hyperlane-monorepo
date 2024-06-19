@@ -48,6 +48,8 @@ pub struct RelayerSettings {
     /// Filter for what messages to block.
     pub blacklist: MatchingList,
     /// Filter for what addresses to block interactions with.
+    /// This is intentionally not an H256 to allow for addresses of any length without
+    /// adding any padding.
     pub address_blacklist: Vec<Vec<u8>>,
     /// This is optional. If not specified, any amount of gas will be valid, otherwise this
     /// is the max allowed gas in wei to relay a transaction.

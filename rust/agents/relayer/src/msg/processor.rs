@@ -8,6 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
+use ethers::utils::hex;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, ProcessMessage},
@@ -263,8 +264,13 @@ impl ProcessorExt for MessageProcessor {
             }
 
             // Skip if the message involves a blacklisted address
-            if self.address_blacklist.is_blocked(&msg) {
-                debug!(?msg, "Message involves blacklisted address, skipping");
+            if let Some(blacklisted_address) = self.address_blacklist.find_blacklisted_address(&msg)
+            {
+                debug!(
+                    ?msg,
+                    blacklisted_address = hex::encode(blacklisted_address),
+                    "Message involves blacklisted address, skipping"
+                );
                 return Ok(());
             }
 
