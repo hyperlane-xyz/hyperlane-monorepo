@@ -57,8 +57,8 @@ import {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
-  IMMUTABLE_HOOK_TYPE,
   IgpHookConfig,
+  MUTABLE_HOOK_TYPE,
   OpStackHookConfig,
   PausableHookConfig,
   ProtocolFeeHookConfig,
@@ -153,8 +153,8 @@ export class EvmHookModule extends HyperlaneModule<
       typeof currentConfig === 'string' ||
       // if config -> config, AND types are different, do a new deploy
       currentConfig.type !== targetConfig.type ||
-      // if it is an immutable Hook, do a new deploy
-      IMMUTABLE_HOOK_TYPE.includes(targetConfig.type)
+      // if it is not a mutable immutable Hook, do a new deploy
+      !MUTABLE_HOOK_TYPE.includes(targetConfig.type)
     ) {
       const contract = await this.deploy({
         config: targetConfig,

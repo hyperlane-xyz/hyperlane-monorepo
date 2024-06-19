@@ -28,8 +28,8 @@ import {
   FallbackRoutingHookConfig,
   HookConfig,
   HookType,
-  IMMUTABLE_HOOK_TYPE,
   IgpHookConfig,
+  MUTABLE_HOOK_TYPE,
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
@@ -727,7 +727,7 @@ describe('EvmHookModule', async () => {
 
     // generate a random config for each ownable hook type
     const ownableHooks = hookTypes
-      .filter((hookType) => !IMMUTABLE_HOOK_TYPE.includes(hookType))
+      .filter((hookType) => MUTABLE_HOOK_TYPE.includes(hookType))
       .map((hookType) => {
         return randomHookConfig(0, 1, hookType);
       });

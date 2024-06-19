@@ -62,9 +62,11 @@ export type FallbackRoutingHookConfig = RoutingHookConfig & {
 
 export type HookConfig = z.infer<typeof HookConfigSchema>;
 
-// Hook types that can't be modified in-place
-export const IMMUTABLE_HOOK_TYPE = [
-  HookType.MERKLE_TREE,
-  HookType.AGGREGATION,
-  HookType.OP_STACK,
+// Hook types that can be updated in-place
+export const MUTABLE_HOOK_TYPE = [
+  HookType.INTERCHAIN_GAS_PAYMASTER,
+  HookType.PROTOCOL_FEE,
+  HookType.ROUTING,
+  HookType.FALLBACK_ROUTING,
+  HookType.PAUSABLE,
 ];
