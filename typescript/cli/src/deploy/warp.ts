@@ -8,7 +8,6 @@ import {
   HypERC721Deployer,
   HyperlaneAddresses,
   HyperlaneContractsMap,
-  HyperlaneDeployer,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TOKEN_TYPE_TO_STANDARD,
@@ -196,7 +195,6 @@ async function deployAndResolveWarpIsm(
         chain,
         warpConfig,
         multiProvider,
-        ismFactoryDeployer,
         {
           domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
           staticAggregationHookFactory:
@@ -227,7 +225,6 @@ async function createWarpIsm(
   chain: string,
   warpConfig: WarpRouteDeployConfig,
   multiProvider: MultiProvider,
-  ismFactoryDeployer: HyperlaneDeployer<any, any>,
   factoryAddresses: HyperlaneAddresses<any>,
 ): Promise<string> {
   const {
@@ -240,9 +237,8 @@ async function createWarpIsm(
   const evmIsmModule = await EvmIsmModule.create({
     chain,
     multiProvider,
-    deployer: ismFactoryDeployer,
     mailbox: warpConfig[chain].mailbox,
-    factories: {
+    proxyFactoryFactories: {
       domainRoutingIsmFactory,
       staticAggregationHookFactory,
       staticAggregationIsmFactory,
