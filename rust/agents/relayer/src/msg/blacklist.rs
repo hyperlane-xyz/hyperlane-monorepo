@@ -4,19 +4,19 @@ use hyperlane_core::HyperlaneMessage;
 pub struct AddressBlacklist {
     // A list of addresses that are blocked from being relayed.
     // Addresses are any length to support different address types.
-    pub blocklist: Vec<Vec<u8>>,
+    pub blacklist: Vec<Vec<u8>>,
 }
 
 impl AddressBlacklist {
-    pub fn new(blocklist: Vec<Vec<u8>>) -> Self {
-        Self { blocklist }
+    pub fn new(blacklist: Vec<Vec<u8>>) -> Self {
+        Self { blacklist }
     }
 
-    /// Returns true if the message is blocked by the blocklist.
+    /// Returns true if the message is blocked by the blacklist.
     /// At the moment, this only checks if the sender, recipient, or body of the
     /// message contains any of the blocked addresses.
     pub fn is_blocked(&self, message: &HyperlaneMessage) -> bool {
-        self.blocklist.iter().any(|address| {
+        self.blacklist.iter().any(|address| {
             is_subsequence(message.sender.as_bytes(), address)
                 || is_subsequence(&message.recipient.as_bytes(), address)
                 || is_subsequence(&message.body, address)
