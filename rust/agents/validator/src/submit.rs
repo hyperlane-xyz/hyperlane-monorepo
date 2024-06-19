@@ -161,10 +161,11 @@ impl ValidatorSubmitter {
             if let Some(insertion) = self
                 .message_db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))
-                .unwrap_or_else(|_| {
+                .unwrap_or_else(|err| {
                     panic!(
-                        "Database is missing merkle insertion for index {}",
-                        tree.count()
+                        "Error fetching merkle tree insertion for leaf index {}: {}",
+                        tree.count(),
+                        err
                     )
                 })
             {
