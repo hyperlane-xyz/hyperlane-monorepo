@@ -180,7 +180,7 @@ const send: CommandModuleWithWriteContext<
     warp?: string;
     symbol?: string;
     router?: string;
-    wei: string;
+    amount: string;
     recipient?: string;
   }
 > = {
@@ -215,7 +215,7 @@ const send: CommandModuleWithWriteContext<
     relay,
     symbol,
     warp,
-    wei,
+    amount,
     recipient,
   }) => {
     let warpCoreConfig: WarpCoreConfig;
@@ -233,7 +233,7 @@ const send: CommandModuleWithWriteContext<
       warpCoreConfig,
       origin,
       destination,
-      wei,
+      amount,
       recipient,
       timeoutSec: timeout,
       skipWaitForDelivery: quick,

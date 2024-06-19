@@ -22,7 +22,7 @@ export async function sendTestTransfer({
   warpCoreConfig,
   origin,
   destination,
-  wei,
+  amount,
   recipient,
   timeoutSec,
   skipWaitForDelivery,
@@ -32,7 +32,7 @@ export async function sendTestTransfer({
   warpCoreConfig: WarpCoreConfig;
   origin?: ChainName;
   destination?: ChainName;
-  wei: string;
+  amount: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
@@ -67,7 +67,7 @@ export async function sendTestTransfer({
       origin,
       destination,
       warpCoreConfig,
-      wei,
+      amount,
       recipient,
       skipWaitForDelivery,
       selfRelay,
@@ -82,7 +82,7 @@ async function executeDelivery({
   origin,
   destination,
   warpCoreConfig,
-  wei,
+  amount,
   recipient,
   skipWaitForDelivery,
   selfRelay,
@@ -91,7 +91,7 @@ async function executeDelivery({
   origin: ChainName;
   destination: ChainName;
   warpCoreConfig: WarpCoreConfig;
-  wei: string;
+  amount: string;
   recipient?: string;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
@@ -128,7 +128,7 @@ async function executeDelivery({
 
   const senderAddress = await signer.getAddress();
   const errors = await warpCore.validateTransfer({
-    originTokenAmount: token.amount(wei),
+    originTokenAmount: token.amount(amount),
     destination,
     recipient: recipient ?? senderAddress,
     sender: senderAddress,
@@ -139,7 +139,7 @@ async function executeDelivery({
   }
 
   const transferTxs = await warpCore.getTransferRemoteTxs({
-    originTokenAmount: new TokenAmount(wei, token),
+    originTokenAmount: new TokenAmount(amount, token),
     destination,
     sender: senderAddress,
     recipient: recipient ?? senderAddress,
