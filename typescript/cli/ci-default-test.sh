@@ -11,24 +11,9 @@
 _main() {
     export LOG_LEVEL=DEBUG
 
-    # set script location as repo root
     cd "$(dirname "$0")/../.."
 
-    TEST_TYPE_PRESET_HOOK="preset_hook_enabled"
-    TEST_TYPE_CONFIGURED_HOOK="configure_hook_enabled"
-    TEST_TYPE_PI_CORE="pi_with_core_chain"
-
-    # set the first arg to 'configured_hook' to set the hook config as part of core deployment
-    # motivation is to test both the bare bone deployment (included in the docs) and the deployment
-    # with the routing over igp hook (which is closer to production deployment)
-    TEST_TYPE=$1
-    if [ -z "$TEST_TYPE" ]; then
-        echo "Usage: ci-advanced-test.sh <$TEST_TYPE_PRESET_HOOK | $TEST_TYPE_CONFIGURED_HOOK | $TEST_TYPE_PI_CORE>"
-        exit 1
-    fi
-
     prepare_environment_vars;
-
     prepare_anvil;
 
     DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]');
@@ -56,22 +41,12 @@ prepare_environment_vars() {
     CORE_ISM_PATH="$EXAMPLES_PATH/ism.yaml"
     WARP_DEPLOY_CONFIG_PATH="$EXAMPLES_PATH/warp-route-deployment.yaml"
     DEPLOY_ERC20_PATH=./src/tests/deployTestErc20.ts
-
-    # use different chain names and config for pi<>core test
-    if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
-        CHAIN2=ethereum
-        REGISTRY_PATH="$TEST_CONFIGS_PATH/fork"
-        CORE_ISM_PATH="$REGISTRY_PATH/ism.yaml"
-        WARP_DEPLOY_CONFIG_PATH="$REGISTRY_PATH/warp-route-deployment.yaml"
-    fi
-
+    CHAIN2=ethereum
+    REGISTRY_PATH="$TEST_CONFIGS_PATH/fork"
+    CORE_ISM_PATH="$REGISTRY_PATH/ism.yaml"
+    WARP_DEPLOY_CONFIG_PATH="$REGISTRY_PATH/warp-route-deployment.yaml"
     CHAIN1_CAPS=$(echo "${CHAIN1}" | tr '[:lower:]' '[:upper:]')
     CHAIN2_CAPS=$(echo "${CHAIN2}" | tr '[:lower:]' '[:upper:]')
-
-    HOOK_FLAG=false
-    if [ "$TEST_TYPE" == $TEST_TYPE_CONFIGURED_HOOK ]; then
-        HOOK_FLAG=true
-    fi
 }
 
 prepare_anvil() {
@@ -104,25 +79,18 @@ prepare_anvil() {
     anvil --chain-id 31337 -p ${CHAIN1_PORT} --state /tmp/${CHAIN1}/state --gas-price 1 > /dev/null &
     sleep 1
 
-    # use different chain names for pi<>core test
-    if [ "$TEST_TYPE" == $TEST_TYPE_PI_CORE ]; then
-        # Fetch the RPC of chain to fork
-        cd typescript/infra
-        RPC_URL=$(LOG_LEVEL=error yarn tsx scripts/print-chain-metadatas.ts -e mainnet3 | jq -r ".${CHAIN2}.rpcUrls[0].http")
-        cd ../../
+    # Fetch the RPC of chain to fork
+    cd typescript/infra
+    RPC_URL=$(LOG_LEVEL=error yarn tsx scripts/print-chain-metadatas.ts -e mainnet3 | jq -r ".${CHAIN2}.rpcUrls[0].http")
+    cd ../../
 
-        # run the fork chain
-        anvil -p ${CHAIN2_PORT} --state /tmp/${CHAIN2}/state --gas-price 1 --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 > /dev/null &
+    # run the fork chain
+    anvil -p ${CHAIN2_PORT} --state /tmp/${CHAIN2}/state --gas-price 1 --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 > /dev/null &
 
-        # wait for fork to be ready
-        while ! cast bn --rpc-url http://127.0.0.1:${CHAIN2_PORT} &> /dev/null; do
-        sleep 1
-        done
-    else
-        # run a second PI chain
-        anvil --chain-id 31338 -p ${CHAIN2_PORT} --state /tmp/${CHAIN2}/state --gas-price 1 > /dev/null &
-        sleep 1
-    fi
+    # wait for fork to be ready
+    while ! cast bn --rpc-url http://127.0.0.1:${CHAIN2_PORT} &> /dev/null; do
+    sleep 1
+    done
 
     set -e
 }

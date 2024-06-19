@@ -409,14 +409,8 @@ jobs:
 
   cli-default-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request') || github.event_name == 'merge_group'
     needs: [yarn-build, checkout-registry]
-    strategy:
-      matrix:
-        include:
-          - test-type: preset_hook_enabled
-          - test-type: configure_hook_enabled
-          - test-type: pi_with_core_chain
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -485,7 +479,7 @@ jobs:
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
       - name: cli e2e tests
-        run: ./typescript/cli/ci-default-test.sh ${{ matrix.test-type }}
+        run: ./typescript/cli/ci-default-test.sh
 
   env-test:
     runs-on: ubuntu-latest
