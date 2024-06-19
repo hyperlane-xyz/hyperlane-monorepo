@@ -1,5 +1,7 @@
 import { ethers, utils } from 'ethers';
 
+import { eqAddress } from '@hyperlane-xyz/utils';
+
 import { ChainMap, ChainName } from '../../types.js';
 
 import { ContractVerificationInput } from './types.js';
@@ -62,7 +64,7 @@ export function shouldAddVerificationInput(
   return !verificationInputs[chain].some(
     (existingArtifact) =>
       existingArtifact.name === artifact.name &&
-      existingArtifact.address === artifact.address &&
+      eqAddress(existingArtifact.address, artifact.address) &&
       existingArtifact.constructorArguments === artifact.constructorArguments &&
       existingArtifact.isProxy === artifact.isProxy,
   );
