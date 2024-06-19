@@ -20,8 +20,8 @@ export const registryCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(addressesCommand)
-      .command(configureCommand)
       .command(createAgentConfigCommand)
+      .command(initCommand)
       .command(listCommand)
       .version(false)
       .demandCommand(),
@@ -143,8 +143,8 @@ const createAgentConfigCommand: CommandModuleWithContext<{
   },
 };
 
-const configureCommand: CommandModuleWithContext<{}> = {
-  command: 'configure',
+const initCommand: CommandModuleWithContext<{}> = {
+  command: 'init',
   describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
   handler: async ({ context }) => {
     await createChainConfig({ context });
