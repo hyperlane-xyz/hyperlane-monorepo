@@ -194,24 +194,6 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .and_then(parse_matching_list)
             .unwrap_or_default();
 
-        // let address_blacklist = p
-        //     .chain(&mut err)
-        //     .get_opt_key("addressBlacklist")
-        //     .parse_string()
-        //     .end()
-        //     .map(|str| {
-        //         str.split(',')
-        //             .filter_map(|s| {
-        //                 let trimmed = s.trim().to_owned();
-        //                 // Ignore whether this was actually 0x prefixed
-        //                 let _ = trimmed.strip_prefix("0x");
-        //                 let a = || &p.cwp + "addressBlacklist";
-        //                 hex::decode(trimmed).take_err(&mut err, a)
-        //             })
-        //             .collect_vec()
-        //     })
-        //     .unwrap_or_default();
-
         let address_blacklist = p
             .chain(&mut err)
             .get_opt_key("addressBlacklist")
