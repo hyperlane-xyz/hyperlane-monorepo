@@ -88,64 +88,10 @@ export async function createChainConfig({
     rpcUrls: [{ http: rpcUrl }],
   };
 
-  const wantAdvancedConfig = await confirm({
-    default: false,
-    message:
-      'Do you want to set block or gas properties for this chain config?',
-  });
-  if (wantAdvancedConfig) {
-    const wantBlockConfig = await confirm({
-      message: 'Do you want to add block config for this chain?',
-    });
-    if (wantBlockConfig) {
-      const blockConfirmation = await input({
-        message:
-          'Enter no. of blocks to wait before considering a transaction confirmed(0-500)',
-        validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 500,
-      });
-      const blockReorgPeriod = await input({
-        message:
-          'Enter no. of blocks before a transaction has a near-zero chance of reverting(0-500)',
-        validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 500,
-      });
-      const blockTimeEstimate = await input({
-        message: 'Enter the rough estimate of time per block in seconds(0-20)',
-        validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 20,
-      });
-      metadata.blocks = {
-        confirmations: parseInt(blockConfirmation, 10),
-        reorgPeriod: parseInt(blockReorgPeriod, 10),
-        estimateBlockTime: parseInt(blockTimeEstimate, 10),
-      };
-    }
-    const wantGasConfig = await confirm({
-      message: 'Do you want to add gas config for this chain?',
-    });
-    if (wantGasConfig) {
-      const isEIP1559 = await confirm({
-        message: 'Is your chain an EIP1559 enabled?',
-      });
-      if (isEIP1559) {
-        const maxFeePerGas = await input({
-          message: 'Enter the max fee per gas in gwei',
-        });
-        const maxPriorityFeePerGas = await input({
-          message: 'Enter the max priority fee per gas in gwei',
-        });
-        metadata.transactionOverrides = {
-          maxFeePerGas: BigInt(maxFeePerGas) * BigInt(10 ** 9),
-          maxPriorityFeePerGas: BigInt(maxPriorityFeePerGas) * BigInt(10 ** 9),
-        };
-      } else {
-        const gasPrice = await input({
-          message: 'Enter the gas price in gwei',
-        });
-        metadata.transactionOverrides = {
-          gasPrice: BigInt(gasPrice) * BigInt(10 ** 9),
-        };
-      }
-    }
-  }
+  await addBlockOrGasConfig(metadata);
+
+  await addNativeTokenConfig(metadata);
+
   const parseResult = ChainMetadataSchema.safeParse(metadata);
   if (parseResult.success) {
     logGreen(`Chain config is valid, writing to registry`);
@@ -157,4 +103,98 @@ export async function createChainConfig({
     errorRed(JSON.stringify(parseResult.error.errors));
     throw new Error('Invalid chain config');
   }
+}
+
+async function addBlockOrGasConfig(metadata: ChainMetadata): Promise<void> {
+  const wantBlockOrGasConfig = await confirm({
+    default: false,
+    message: 'Do you want to set block or gas properties for this chain config',
+  });
+  if (wantBlockOrGasConfig) {
+    await addBlockConfig(metadata);
+    await addGasConfig(metadata);
+  }
+}
+
+async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
+  const wantBlockConfig = await confirm({
+    message: 'Do you want to add block config for this chain',
+  });
+  if (wantBlockConfig) {
+    const blockConfirmation = await input({
+      message:
+        'Enter no. of blocks to wait before considering a transaction confirmed (0-500):',
+      validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 500,
+    });
+    const blockReorgPeriod = await input({
+      message:
+        'Enter no. of blocks before a transaction has a near-zero chance of reverting (0-500):',
+      validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 500,
+    });
+    const blockTimeEstimate = await input({
+      message: 'Enter the rough estimate of time per block in seconds (0-20):',
+      validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 20,
+    });
+    metadata.blocks = {
+      confirmations: parseInt(blockConfirmation, 10),
+      reorgPeriod: parseInt(blockReorgPeriod, 10),
+      estimateBlockTime: parseInt(blockTimeEstimate, 10),
+    };
+  }
+}
+
+async function addGasConfig(metadata: ChainMetadata): Promise<void> {
+  const wantGasConfig = await confirm({
+    message: 'Do you want to add gas config for this chain',
+  });
+  if (wantGasConfig) {
+    const isEIP1559 = await confirm({
+      message: 'Is your chain an EIP1559 enabled',
+    });
+    if (isEIP1559) {
+      const maxFeePerGas = await input({
+        message: 'Enter the max fee per gas (gwei):',
+      });
+      const maxPriorityFeePerGas = await input({
+        message: 'Enter the max priority fee per gas (gwei):',
+      });
+      metadata.transactionOverrides = {
+        maxFeePerGas: BigInt(maxFeePerGas) * BigInt(10 ** 9),
+        maxPriorityFeePerGas: BigInt(maxPriorityFeePerGas) * BigInt(10 ** 9),
+      };
+    } else {
+      const gasPrice = await input({
+        message: 'Enter the gas price (gwei):',
+      });
+      metadata.transactionOverrides = {
+        gasPrice: BigInt(gasPrice) * BigInt(10 ** 9),
+      };
+    }
+  }
+}
+
+async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
+  const wantNativeConfig = await confirm({
+    default: false,
+    message:
+      'Do you want to set native token properties for this chain config (defaults to ETH)',
+  });
+  let symbol, name, decimals;
+  if (wantNativeConfig) {
+    symbol = await input({
+      message: "Enter the native token's symbol:",
+    });
+    name = await input({
+      message: `Enter the native token's name:`,
+    });
+    decimals = await input({
+      message: "Enter the native token's decimals:",
+    });
+  }
+
+  metadata.nativeToken = {
+    symbol: symbol ?? 'ETH',
+    name: name ?? 'Ether',
+    decimals: decimals ? parseInt(decimals, 10) : 18,
+  };
 }
