@@ -52,6 +52,7 @@ import {
 import {
   buildVerificationInput,
   getContractVerificationInput,
+  shouldAddVerificationInput,
 } from './verify/utils.js';
 
 export interface DeployerOptions {
@@ -184,18 +185,10 @@ export abstract class HyperlaneDeployer<
     artifacts: ContractVerificationInput[],
   ): void {
     this.verificationInputs[chain] = this.verificationInputs[chain] || [];
+
     artifacts.forEach((artifact) => {
-      // Check existed before push into arrays
-      // All type is primitive values, use shadow compare here.
       if (
-        !this.verificationInputs[chain].some(
-          (existingArtifact) =>
-            existingArtifact.name === artifact.name &&
-            existingArtifact.address === artifact.address &&
-            existingArtifact.constructorArguments ===
-              artifact.constructorArguments &&
-            existingArtifact.isProxy === artifact.isProxy,
-        )
+        shouldAddVerificationInput(this.verificationInputs, chain, artifact)
       ) {
         this.verificationInputs[chain].push(artifact);
       }
