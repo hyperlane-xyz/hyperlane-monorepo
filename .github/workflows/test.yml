@@ -327,7 +327,7 @@ jobs:
           echo "All e2e-matrix jobs have completed."
           # You can add additional commands here to report the result as needed
 
-  cli-e2e:
+  cli-advanced-e2e:
     runs-on: larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build, checkout-registry]
@@ -405,7 +405,7 @@ jobs:
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
       - name: cli e2e tests
-        run: ./typescript/cli/ci-test.sh ${{ matrix.test-type }}
+        run: ./typescript/cli/ci-advanced-test.sh ${{ matrix.test-type }}
 
   env-test:
     runs-on: ubuntu-latest
