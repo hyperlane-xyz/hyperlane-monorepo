@@ -25,6 +25,7 @@
 //!   - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
 //!   switch everyone to new one)
 
+pub(crate) mod blacklist;
 pub(crate) mod gas_payment;
 pub(crate) mod metadata;
 pub(crate) mod op_queue;
