@@ -22,11 +22,11 @@ export abstract class HyperlaneModule<
   protected abstract readonly logger: Logger;
 
   protected constructor(
-    protected readonly args: HyperlaneModuleParams<TConfig, TAddressMap>,
+    protected readonly params: HyperlaneModuleParams<TConfig, TAddressMap>,
   ) {}
 
   public serialize(): TAddressMap {
-    return this.args.addresses;
+    return this.params.addresses;
   }
 
   public abstract read(): Promise<TConfig>;

@@ -47,8 +47,8 @@ export class EvmCoreModule extends HyperlaneModule<
     args: HyperlaneModuleParams<CoreConfig, DeployedCoreAdresses>,
   ) {
     super(args);
-    this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
-    this.chainName = this.multiProvider.getChainName(this.args.chain);
+    this.coreReader = new EvmCoreReader(multiProvider, this.params.chain);
+    this.chainName = this.multiProvider.getChainName(this.params.chain);
   }
 
   /**
@@ -56,7 +56,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns The core config.
    */
   public async read(): Promise<CoreConfig> {
-    return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
+    return this.coreReader.deriveCoreConfig(this.params.addresses.mailbox);
   }
 
   public async update(_config: CoreConfig): Promise<AnnotatedEV5Transaction[]> {
