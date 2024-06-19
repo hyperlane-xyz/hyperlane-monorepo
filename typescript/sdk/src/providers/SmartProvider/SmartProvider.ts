@@ -97,7 +97,7 @@ export class HyperlaneSmartProvider
     this.supportedMethods = [...supportedMethods.values()];
   }
 
-  async getPriorityFee() {
+  async getPriorityFee(): Promise<BigNumber> {
     try {
       return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
     } catch (error) {

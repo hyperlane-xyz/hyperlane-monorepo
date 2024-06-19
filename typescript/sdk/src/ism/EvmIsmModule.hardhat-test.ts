@@ -50,43 +50,47 @@ function randomModuleType(): ModuleType {
 const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
   const moduleType =
     depth == maxDepth ? ModuleType.MERKLE_ROOT_MULTISIG : randomModuleType();
-  if (moduleType === ModuleType.MERKLE_ROOT_MULTISIG) {
-    const n = randomInt(5, 1);
-    return randomMultisigIsmConfig(randomInt(n, 1), n);
-  } else if (moduleType === ModuleType.ROUTING) {
-    const config: RoutingIsmConfig = {
-      type: IsmType.ROUTING,
-      owner: randomAddress(),
-      domains: Object.fromEntries(
-        testChains.map((c) => [c, randomIsmConfig(depth + 1)]),
-      ),
-    };
-    return config;
-  } else if (moduleType === ModuleType.AGGREGATION) {
-    const n = randomInt(5, 1);
-    const modules = new Array<number>(n)
-      .fill(0)
-      .map(() => randomIsmConfig(depth + 1));
-    const config: AggregationIsmConfig = {
-      type: IsmType.AGGREGATION,
-      threshold: randomInt(n, 1),
-      modules,
-    };
-    return config;
-  } else if (moduleType === ModuleType.NULL) {
-    const config: TrustedRelayerIsmConfig = {
-      type: IsmType.TRUSTED_RELAYER,
-      relayer: randomAddress(),
-    };
-    return config;
-  } else {
-    throw new Error(`Unsupported ISM type: ${moduleType}`);
+  switch (moduleType) {
+    case ModuleType.MERKLE_ROOT_MULTISIG: {
+      const n = randomInt(5, 1);
+      return randomMultisigIsmConfig(randomInt(n, 1), n);
+    }
+    case ModuleType.ROUTING: {
+      const config: RoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner: randomAddress(),
+        domains: Object.fromEntries(
+          testChains.map((c) => [c, randomIsmConfig(depth + 1)]),
+        ),
+      };
+      return config;
+    }
+    case ModuleType.AGGREGATION: {
+      const n = randomInt(5, 1);
+      const modules = new Array<number>(n)
+        .fill(0)
+        .map(() => randomIsmConfig(depth + 1));
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        threshold: randomInt(n, 1),
+        modules,
+      };
+      return config;
+    }
+    case ModuleType.NULL: {
+      const config: TrustedRelayerIsmConfig = {
+        type: IsmType.TRUSTED_RELAYER,
+        relayer: randomAddress(),
+      };
+      return config;
+    }
+    default:
+      throw new Error(`Unsupported ISM type: ${moduleType}`);
   }
 };
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
-  let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address;
   let newMailboxAddress: Address;
@@ -101,10 +105,9 @@ describe('EvmIsmModule', async () => {
     fundingAccount = funder;
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
-    ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    const contractsMap = await ismFactoryDeployer.deploy(
-      multiProvider.mapKnownChains(() => ({})),
-    );
+    const contractsMap = await new HyperlaneProxyFactoryDeployer(
+      multiProvider,
+    ).deploy(multiProvider.mapKnownChains(() => ({})));
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
@@ -186,8 +189,7 @@ describe('EvmIsmModule', async () => {
     const ism = await EvmIsmModule.create({
       chain,
       config,
-      deployer: ismFactoryDeployer,
-      factories: factoryAddresses,
+      proxyFactoryFactories: factoryAddresses,
       mailbox: mailboxAddress,
       multiProvider,
     });

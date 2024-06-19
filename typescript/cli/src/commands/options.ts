@@ -8,6 +8,11 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const demandOption = (option: Options): Options => ({
+  ...option,
+  demandOption: true,
+});
+
 export const logFormatCommandOption: Options = {
   type: 'string',
   description: 'Log output format',
@@ -151,6 +156,12 @@ export const chainCommandOption: Options = {
 export const symbolCommandOption: Options = {
   type: 'string',
   description: 'Token symbol (e.g. ETH, USDC)',
+};
+
+export const validatorCommandOption: Options = {
+  type: 'string',
+  description: 'Comma separated list of validator addresses',
+  demandOption: true,
 };
 
 export const addressCommandOption = (

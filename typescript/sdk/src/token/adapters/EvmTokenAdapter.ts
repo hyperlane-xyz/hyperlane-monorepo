@@ -305,7 +305,7 @@ export class EvmHypXERC20LockboxAdapter
     );
   }
 
-  async getMintLimit() {
+  async getMintLimit(): Promise<bigint> {
     const xERC20 = await this.hypXERC20Lockbox.xERC20();
 
     const limit = await IXERC20__factory.connect(
@@ -316,7 +316,7 @@ export class EvmHypXERC20LockboxAdapter
     return BigInt(limit.toString());
   }
 
-  async getBurnLimit() {
+  async getBurnLimit(): Promise<bigint> {
     const xERC20 = await this.hypXERC20Lockbox.xERC20();
 
     const limit = await IXERC20__factory.connect(
@@ -348,7 +348,7 @@ export class EvmHypXERC20Adapter
     );
   }
 
-  async getMintLimit() {
+  async getMintLimit(): Promise<bigint> {
     const xERC20 = await this.hypXERC20.wrappedToken();
 
     const limit = await IXERC20__factory.connect(
@@ -359,7 +359,7 @@ export class EvmHypXERC20Adapter
     return BigInt(limit.toString());
   }
 
-  async getBurnLimit() {
+  async getBurnLimit(): Promise<bigint> {
     const xERC20 = await this.hypXERC20.wrappedToken();
 
     const limit = await IXERC20__factory.connect(

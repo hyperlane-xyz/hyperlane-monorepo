@@ -10,7 +10,7 @@ import {
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { logBlue, logGreen, logRed } from '../logger.js';
+import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 export async function createAgentConfig({
@@ -61,7 +61,7 @@ export async function createAgentConfig({
   try {
     AgentConfigSchema.parse(agentConfig);
   } catch (e) {
-    logRed(
+    errorRed(
       `Agent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${fromError(
         e,
       ).toString()}`,
