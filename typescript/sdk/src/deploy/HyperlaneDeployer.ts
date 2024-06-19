@@ -185,10 +185,21 @@ export abstract class HyperlaneDeployer<
   ): void {
     this.verificationInputs[chain] = this.verificationInputs[chain] || [];
     artifacts.forEach((artifact) => {
-      this.verificationInputs[chain].push(artifact);
+      // Check existed before push into arrays
+      // All type is primitive values, use shadow compare here.
+      if (
+        !this.verificationInputs[chain].some(
+          (existingArtifact) =>
+            existingArtifact.name === artifact.name &&
+            existingArtifact.address === artifact.address &&
+            existingArtifact.constructorArguments ===
+              artifact.constructorArguments &&
+            existingArtifact.isProxy === artifact.isProxy,
+        )
+      ) {
+        this.verificationInputs[chain].push(artifact);
+      }
     });
-
-    // TODO: deduplicate
   }
 
   protected async runIf<T>(
