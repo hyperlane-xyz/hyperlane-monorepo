@@ -460,6 +460,26 @@ export class EvmIsmCreator {
     return routingIsm;
   }
 
+  private parseEventLogs<T extends ethers.ContractFactory>(
+    receipt: ethers.ContractReceipt,
+    factory: T,
+    eventName: string,
+  ): ethers.utils.LogDescription[] {
+    return receipt.logs
+      .map((log) => {
+        try {
+          return factory.interface.parseLog(log);
+        } catch (e) {
+          // Optionally log the error or handle it differently
+          return undefined;
+        }
+      })
+      .filter(
+        (log): log is ethers.utils.LogDescription =>
+          !!log && log.name === eventName,
+      );
+  }
+
   protected async deployDomainRoutingIsm(params: {
     destination: ChainName;
     owner: string;
@@ -485,19 +505,12 @@ export class EvmIsmCreator {
 
     const receipt = await this.multiProvider.handleTx(destination, tx);
 
-    // TODO: Break this out into a generalized function
-    const dispatchLogs = receipt.logs
-      .map((log) => {
-        try {
-          return this.factories.domainRoutingIsmFactory.interface.parseLog(log);
-        } catch (e) {
-          return undefined;
-        }
-      })
-      .filter(
-        (log): log is ethers.utils.LogDescription =>
-          !!log && log.name === 'ModuleDeployed',
-      );
+    const dispatchLogs = this.parseEventLogs(
+      receipt,
+      this.factories.domainRoutingIsmFactory,
+      'ModuleDeployed',
+    );
+
     if (dispatchLogs.length === 0) {
       throw new Error('No ModuleDeployed event found');
     }
