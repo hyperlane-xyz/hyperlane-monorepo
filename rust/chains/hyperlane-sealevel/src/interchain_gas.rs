@@ -246,7 +246,7 @@ impl SealevelInterchainGasPaymasterIndexer {
 #[async_trait]
 impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {

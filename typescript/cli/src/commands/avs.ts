@@ -40,7 +40,7 @@ export const registrationOptions: { [k: string]: Options } = {
     description: 'Path to the operator key file',
     demandOption: true,
   },
-  avsSigningKey: {
+  avsSigningKeyAddress: {
     type: 'string',
     description: 'Address of the AVS signing key',
     demandOption: true,
@@ -50,17 +50,22 @@ export const registrationOptions: { [k: string]: Options } = {
 const registerCommand: CommandModuleWithWriteContext<{
   chain: ChainName;
   operatorKeyPath: string;
-  avsSigningKey: Address;
+  avsSigningKeyAddress: Address;
 }> = {
   command: 'register',
   describe: 'Register operator with the AVS',
   builder: registrationOptions,
-  handler: async ({ context, chain, operatorKeyPath, avsSigningKey }) => {
+  handler: async ({
+    context,
+    chain,
+    operatorKeyPath,
+    avsSigningKeyAddress,
+  }) => {
     await registerOperatorWithSignature({
       context,
       chain,
       operatorKeyPath,
-      avsSigningKey,
+      avsSigningKeyAddress,
     });
     process.exit(0);
   },

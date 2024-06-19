@@ -1,28 +1,22 @@
 # @hyperlane-xyz/core
 
-## 4.0.0-alpha.2
+## 3.15.0
+
+### Minor Changes
+
+- 51bfff683: Mint/burn limit checking for xERC20 bridging
+  Corrects CLI output for HypXERC20 and HypXERC20Lockbox deployments
 
 ### Patch Changes
 
-- @hyperlane-xyz/utils@4.0.0-alpha.2
+- @hyperlane-xyz/utils@3.15.0
 
-## 4.0.0-alpha.0
-
-### Patch Changes
-
-- @hyperlane-xyz/utils@4.0.0-alpha.0
-
-## 4.0.0
-
-### Major Changes
-
-- 74c879fa1: Merge branch 'cli-2.0' into main.
+## 3.14.0
 
 ### Patch Changes
 
-- Updated dependencies [341b8affd]
-- Updated dependencies [74c879fa1]
-  - @hyperlane-xyz/utils@4.0.0-alpha
+- a8a68f6f6: fix: make XERC20 and XERC20 Lockbox proxy-able
+  - @hyperlane-xyz/utils@3.14.0
 
 ## 3.13.0
 

@@ -1,63 +1,28 @@
 # @hyperlane-xyz/cli
 
-## 4.0.0-alpha.2
+## 3.15.0
 
 ### Minor Changes
 
-- 4040db723: Fix createDefaultWarpIsmConfig to default to trusted relayer and fallback routing without prompts
+- 51bfff683: Mint/burn limit checking for xERC20 bridging
+  Corrects CLI output for HypXERC20 and HypXERC20Lockbox deployments
 
 ### Patch Changes
 
-- 3283eefd6: Removes default pattern for chain name when creating a new chain.
-- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
-- Updated dependencies [6b63c5d82]
-  - @hyperlane-xyz/sdk@4.0.0-alpha.2
-  - @hyperlane-xyz/utils@4.0.0-alpha.2
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/sdk@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
 
-## 4.0.0-alpha.0
+## 3.14.0
 
 ### Minor Changes
 
-- 6db9fa9ad: Implement hyperlane warp deploy
+- f4bbfcf08: AVS deployment on mainnet
 
 ### Patch Changes
 
-- Updated dependencies [bdcbe1d16]
-- Updated dependencies [6db9fa9ad]
-  - @hyperlane-xyz/sdk@4.0.0-alpha.0
-  - @hyperlane-xyz/utils@4.0.0-alpha.0
-
-## 4.0.0-alpha
-
-### Major Changes
-
-- 74c879fa1: Merge branch 'cli-2.0' into main.
-
-### Minor Changes
-
-- 1ec61debd: Support hook config objects in warp config
-- 4663018fc: Implement hyperlane core config to return CoreConfig
-- 84bc0bd7f: Adds 'hyperlane warp config'.
-- b560bfc26: Adds 'hyperlane core config'.
-- 642bc686d: Rename chain and config commands. Update hl core configure to prompt user for owner.
-- ba4c9a7da: Add warp send in favor of send transfer.
-- 7089c910f: Adds 'hyperlane warp read'.
-- 1d0d1bb36: Implements `hyperlane core deploy`
-- 44a2ffa1b: Adds 'hyperlane core read'.
-
-### Patch Changes
-
-- Updated dependencies [eb23e7729]
-- Updated dependencies [1ec61debd]
-- Updated dependencies [4663018fc]
-- Updated dependencies [5e5886f2c]
-- Updated dependencies [341b8affd]
-- Updated dependencies [3dabcbdca]
-- Updated dependencies [1d0d1bb36]
-- Updated dependencies [74c879fa1]
-- Updated dependencies [4bf7301ea]
-  - @hyperlane-xyz/sdk@4.0.0
-  - @hyperlane-xyz/utils@4.0.0-alpha
+- @hyperlane-xyz/sdk@3.14.0
+- @hyperlane-xyz/utils@3.14.0
 
 ## 3.13.0
 

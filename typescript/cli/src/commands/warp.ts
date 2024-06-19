@@ -1,18 +1,27 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { EvmERC20WarpRouteReader } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  EvmERC20WarpRouteReader,
+  WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { createWarpRouteDeployConfig } from '../config/warp.js';
+import {
+  createWarpRouteDeployConfig,
+  readWarpCoreConfig,
+} from '../config/warp.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logGray, logGreen } from '../logger.js';
+import { log, logGray, logGreen, logRed } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
   addressCommandOption,
@@ -20,6 +29,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
+  symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
@@ -100,51 +110,77 @@ export const init: CommandModuleWithContext<{
 };
 
 export const read: CommandModuleWithContext<{
-  chain: string;
-  address: string;
-  out: string;
+  chain?: string;
+  address?: string;
+  out?: string;
+  symbol?: string;
 }> = {
   command: 'read',
-  describe: 'Reads the warp route config at the given path.',
+  describe: 'Derive the warp route config from onchain artifacts',
   builder: {
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
     chain: {
       ...chainCommandOption,
-      demandOption: true,
+      demandOption: false,
     },
     address: addressCommandOption(
       'Address of the router contract to read.',
-      true,
+      false,
     ),
     out: outputFileCommandOption(),
   },
-  handler: async ({ context, chain, address, out }) => {
+  handler: async ({ context, chain, address, out, symbol }) => {
     logGray('Hyperlane Warp Reader');
     logGray('---------------------');
 
     const { multiProvider } = context;
-    const evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
-      multiProvider,
-      chain,
+
+    let addresses: ChainMap<string>;
+    if (symbol) {
+      const warpCoreConfig = await selectRegistryWarpRoute(
+        context.registry,
+        symbol,
+      );
+      addresses = Object.fromEntries(
+        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+      );
+    } else if (chain && address) {
+      addresses = {
+        [chain]: address,
+      };
+    } else {
+      logGreen(`Please specify either a symbol or chain and address`);
+      process.exit(0);
+    }
+
+    const config = await promiseObjAll(
+      objMap(addresses, async (chain, address) =>
+        new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
+          address,
+        ),
+      ),
     );
-    const warpRouteConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      address,
-    );
+
     if (out) {
-      writeYamlOrJson(out, warpRouteConfig, 'yaml');
+      writeYamlOrJson(out, config, 'yaml');
       logGreen(`✅ Warp route config written successfully to ${out}:\n`);
     } else {
       logGreen(`✅ Warp route config read successfully:\n`);
     }
-    log(indentYamlOrJson(yamlStringify(warpRouteConfig, null, 2), 4));
+    log(indentYamlOrJson(yamlStringify(config, null, 2), 4));
     process.exit(0);
   },
 };
 
 const send: CommandModuleWithWriteContext<
   MessageOptionsArgTypes & {
-    warp: string;
+    warp?: string;
+    symbol?: string;
     router?: string;
-    wei: string;
+    amount: string;
     recipient?: string;
   }
 > = {
@@ -152,10 +188,17 @@ const send: CommandModuleWithWriteContext<
   describe: 'Send a test token transfer on a warp route',
   builder: {
     ...messageOptions,
-    warp: warpCoreConfigCommandOption,
-    wei: {
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    amount: {
       type: 'string',
-      description: 'Amount in wei to send',
+      description: 'Amount to send (in smallest unit)',
       default: 1,
     },
     recipient: {
@@ -170,16 +213,27 @@ const send: CommandModuleWithWriteContext<
     timeout,
     quick,
     relay,
+    symbol,
     warp,
-    wei,
+    amount,
     recipient,
   }) => {
+    let warpCoreConfig: WarpCoreConfig;
+    if (symbol) {
+      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
+    } else if (warp) {
+      warpCoreConfig = readWarpCoreConfig(warp);
+    } else {
+      logRed(`Please specify either a symbol or warp config`);
+      process.exit(0);
+    }
+
     await sendTestTransfer({
       context,
-      warpConfigPath: warp,
+      warpCoreConfig,
       origin,
       destination,
-      wei,
+      amount,
       recipient,
       timeoutSec: timeout,
       skipWaitForDelivery: quick,

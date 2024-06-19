@@ -10,9 +10,13 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
     SequenceAwareIndexer,
 };
+use hyperlane_core::{Indexed, LogMeta, H512};
 pub use metrics::ContractSyncMetrics;
+use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
+use tokio::sync::broadcast::error::TryRecvError;
+use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use crate::settings::IndexSettings;
 
@@ -27,17 +31,33 @@ const SLEEP_DURATION: Duration = Duration::from_secs(5);
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data.
-#[derive(Debug, new, Clone)]
-pub struct ContractSync<T, D: HyperlaneLogStore<T>, I: Indexer<T>> {
+#[derive(Debug)]
+pub struct ContractSync<T: Indexable, D: HyperlaneLogStore<T>, I: Indexer<T>> {
     domain: HyperlaneDomain,
     db: D,
     indexer: I,
     metrics: ContractSyncMetrics,
+    broadcast_sender: Option<BroadcastSender<H512>>,
     _phantom: PhantomData<T>,
+}
+
+impl<T: Indexable, D: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, D, I> {
+    /// Create a new ContractSync
+    pub fn new(domain: HyperlaneDomain, db: D, indexer: I, metrics: ContractSyncMetrics) -> Self {
+        Self {
+            domain,
+            db,
+            indexer,
+            metrics,
+            broadcast_sender: T::broadcast_channel_size().map(BroadcastSender::new),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<T, D, I> ContractSync<T, D, I>
 where
+    T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
     D: HyperlaneLogStore<T>,
     I: Indexer<T> + 'static,
 {
@@ -45,82 +65,161 @@ where
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
-}
 
-impl<T, D, I> ContractSync<T, D, I>
-where
-    T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
-    D: HyperlaneLogStore<T>,
-    I: Indexer<T> + 'static,
-{
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+        self.broadcast_sender.clone()
+    }
+
     /// Sync logs and write them to the LogStore
-    #[tracing::instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, cursor))]
-    pub async fn sync(&self, label: &'static str, mut cursor: Box<dyn ContractSyncCursor<T>>) {
+    #[instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, opts))]
+    pub async fn sync(&self, label: &'static str, mut opts: SyncOptions<T>) {
         let chain_name = self.domain.as_ref();
-        let indexed_height = self
+        let indexed_height_metric = self
             .metrics
             .indexed_height
             .with_label_values(&[label, chain_name]);
-        let stored_logs = self
+        let stored_logs_metric = self
             .metrics
             .stored_events
             .with_label_values(&[label, chain_name]);
 
         loop {
-            indexed_height.set(cursor.latest_queried_block() as i64);
+            if let Some(rx) = opts.tx_id_receiver.as_mut() {
+                self.fetch_logs_from_receiver(rx, &stored_logs_metric).await;
+            }
+            if let Some(cursor) = opts.cursor.as_mut() {
+                self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
+                    .await;
+            }
+        }
+    }
 
-            let (action, eta) = match cursor.next_action().await {
-                Ok((action, eta)) => (action, eta),
-                Err(err) => {
-                    warn!(?err, "Error getting next action");
-                    sleep(SLEEP_DURATION).await;
-                    continue;
-                }
-            };
-            let sleep_duration = match action {
-                // Use `loop` but always break - this allows for returning a value
-                // from the loop (the sleep duration)
-                #[allow(clippy::never_loop)]
-                CursorAction::Query(range) => loop {
-                    debug!(?range, "Looking for events in index range");
-
-                    let logs = match self.indexer.fetch_logs(range.clone()).await {
+    #[instrument(fields(domain=self.domain().name()), skip(self, recv, stored_logs_metric))]
+    async fn fetch_logs_from_receiver(
+        &self,
+        recv: &mut BroadcastReceiver<H512>,
+        stored_logs_metric: &GenericCounter<AtomicU64>,
+    ) {
+        loop {
+            match recv.try_recv() {
+                Ok(tx_id) => {
+                    let logs = match self.indexer.fetch_logs_by_tx_hash(tx_id).await {
                         Ok(logs) => logs,
                         Err(err) => {
-                            warn!(?err, "Error fetching logs");
-                            break SLEEP_DURATION;
+                            warn!(?err, ?tx_id, "Error fetching logs for tx id");
+                            continue;
                         }
                     };
-                    let deduped_logs = HashSet::<_>::from_iter(logs);
-                    let logs = Vec::from_iter(deduped_logs);
-
+                    let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
+                    let num_logs = logs.len() as u64;
                     info!(
-                        ?range,
-                        num_logs = logs.len(),
-                        estimated_time_to_sync = fmt_sync_time(eta),
-                        "Found log(s) in index range"
+                        num_logs,
+                        ?tx_id,
+                        sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                        "Found log(s) for tx id"
                     );
-                    // Store deliveries
-                    let stored = match self.db.store_logs(&logs).await {
-                        Ok(stored) => stored,
-                        Err(err) => {
-                            warn!(?err, "Error storing logs in db");
-                            break SLEEP_DURATION;
-                        }
-                    };
-                    // Report amount of deliveries stored into db
-                    stored_logs.inc_by(stored as u64);
-                    // Update cursor
-                    if let Err(err) = cursor.update(logs, range).await {
-                        warn!(?err, "Error updating cursor");
-                        break SLEEP_DURATION;
-                    };
-                    break Default::default();
-                },
-                CursorAction::Sleep(duration) => duration,
-            };
-            sleep(sleep_duration).await;
+                }
+                Err(TryRecvError::Empty) => {
+                    trace!("No txid received");
+                    break;
+                }
+                Err(err) => {
+                    warn!(?err, "Error receiving txid from channel");
+                    break;
+                }
+            }
         }
+    }
+
+    #[instrument(fields(domain=self.domain().name()), skip(self, stored_logs_metric, indexed_height_metric))]
+    async fn fetch_logs_with_cursor(
+        &self,
+        cursor: &mut Box<dyn ContractSyncCursor<T>>,
+        stored_logs_metric: &GenericCounter<AtomicU64>,
+        indexed_height_metric: &GenericGauge<AtomicI64>,
+    ) {
+        indexed_height_metric.set(cursor.latest_queried_block() as i64);
+        let (action, eta) = match cursor.next_action().await {
+            Ok((action, eta)) => (action, eta),
+            Err(err) => {
+                warn!(?err, "Error getting next action");
+                sleep(SLEEP_DURATION).await;
+                return;
+            }
+        };
+        let sleep_duration = match action {
+            // Use `loop` but always break - this allows for returning a value
+            // from the loop (the sleep duration)
+            #[allow(clippy::never_loop)]
+            CursorAction::Query(range) => loop {
+                debug!(?range, "Looking for events in index range");
+
+                let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
+                    Ok(logs) => logs,
+                    Err(err) => {
+                        warn!(?err, ?range, "Error fetching logs in range");
+                        break SLEEP_DURATION;
+                    }
+                };
+
+                let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
+                let logs_found = logs.len() as u64;
+                info!(
+                    ?range,
+                    num_logs = logs_found,
+                    estimated_time_to_sync = fmt_sync_time(eta),
+                    sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                    cursor = ?cursor,
+                    "Found log(s) in index range"
+                );
+
+                if let Some(tx) = self.broadcast_sender.as_ref() {
+                    logs.iter().for_each(|(_, meta)| {
+                        if let Err(err) = tx.send(meta.transaction_id) {
+                            trace!(?err, "Error sending txid to receiver");
+                        }
+                    });
+                }
+
+                // Update cursor
+                if let Err(err) = cursor.update(logs, range).await {
+                    warn!(?err, "Error updating cursor");
+                    break SLEEP_DURATION;
+                };
+                break Default::default();
+            },
+            CursorAction::Sleep(duration) => duration,
+        };
+        sleep(sleep_duration).await
+    }
+
+    async fn dedupe_and_store_logs(
+        &self,
+        logs: Vec<(Indexed<T>, LogMeta)>,
+        stored_logs_metric: &GenericCounter<AtomicU64>,
+    ) -> Vec<(Indexed<T>, LogMeta)> {
+        let deduped_logs = HashSet::<_>::from_iter(logs);
+        let logs = Vec::from_iter(deduped_logs);
+
+        // Store deliveries
+        let stored = match self.db.store_logs(&logs).await {
+            Ok(stored) => stored,
+            Err(err) => {
+                warn!(?err, "Error storing logs in db");
+                Default::default()
+            }
+        };
+        if stored > 0 {
+            debug!(
+                domain = self.domain.as_ref(),
+                count = stored,
+                sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                "Stored logs in db",
+            );
+        }
+        // Report amount of deliveries stored into db
+        stored_logs_metric.inc_by(stored as u64);
+        logs
     }
 }
 
@@ -141,16 +240,38 @@ pub trait ContractSyncer<T>: Send + Sync {
     async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>>;
 
     /// Syncs events from the indexer using the provided cursor
-    async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>);
+    async fn sync(&self, label: &'static str, opts: SyncOptions<T>);
 
     /// The domain of this syncer
     fn domain(&self) -> &HyperlaneDomain;
+
+    /// If this syncer is also a broadcaster, return the channel to receive txids
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>>;
+}
+
+#[derive(new)]
+/// Options for syncing events
+pub struct SyncOptions<T> {
+    // Keep as optional fields for now to run them simultaneously.
+    // Might want to refactor into an enum later, where we either index with a cursor or rely on receiving
+    // txids from a channel to other indexing tasks
+    cursor: Option<Box<dyn ContractSyncCursor<T>>>,
+    tx_id_receiver: Option<BroadcastReceiver<H512>>,
+}
+
+impl<T> From<Box<dyn ContractSyncCursor<T>>> for SyncOptions<T> {
+    fn from(cursor: Box<dyn ContractSyncCursor<T>>) -> Self {
+        Self {
+            cursor: Some(cursor),
+            tx_id_receiver: None,
+        }
+    }
 }
 
 #[async_trait]
 impl<T> ContractSyncer<T> for WatermarkContractSync<T>
 where
-    T: Debug + Send + Sync + Clone + Eq + Hash + 'static,
+    T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing events from the indexer based on time
     async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
@@ -172,12 +293,16 @@ where
         )
     }
 
-    async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>) {
-        ContractSync::sync(self, label, cursor).await;
+    async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
+        ContractSync::sync(self, label, opts).await
     }
 
     fn domain(&self) -> &HyperlaneDomain {
         ContractSync::domain(self)
+    }
+
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+        ContractSync::get_broadcaster(self)
     }
 }
 
@@ -191,7 +316,7 @@ pub type SequencedDataContractSync<T> =
 #[async_trait]
 impl<T> ContractSyncer<T> for SequencedDataContractSync<T>
 where
-    T: Send + Sync + Debug + Clone + Eq + Hash + 'static,
+    T: Indexable + Send + Sync + Debug + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
     async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
@@ -207,11 +332,15 @@ where
         )
     }
 
-    async fn sync(&self, label: &'static str, cursor: Box<dyn ContractSyncCursor<T>>) {
-        ContractSync::sync(self, label, cursor).await;
+    async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
+        ContractSync::sync(self, label, opts).await;
     }
 
     fn domain(&self) -> &HyperlaneDomain {
         ContractSync::domain(self)
+    }
+
+    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+        ContractSync::get_broadcaster(self)
     }
 }

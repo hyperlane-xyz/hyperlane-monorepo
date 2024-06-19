@@ -126,7 +126,7 @@ pub struct FuelMailboxIndexer {}
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
@@ -140,7 +140,7 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for FuelMailboxIndexer {
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {

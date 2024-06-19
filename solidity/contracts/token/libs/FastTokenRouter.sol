@@ -109,9 +109,11 @@ abstract contract FastTokenRouter is TokenRouter {
             _fastTransferId
         );
 
-        messageId = _dispatch(
+        messageId = _GasRouter_dispatch(
             _destination,
-            TokenMessage.format(_recipient, _amountOrId, metadata)
+            msg.value,
+            TokenMessage.format(_recipient, _amountOrId, metadata),
+            address(hook)
         );
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }

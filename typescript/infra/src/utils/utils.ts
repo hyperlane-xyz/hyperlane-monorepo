@@ -269,3 +269,7 @@ export function isEthereumProtocolChain(chainName: ChainName) {
 export function getInfraPath() {
   return join(dirname(fileURLToPath(import.meta.url)), '../../');
 }
+
+export function inCIMode() {
+  return process.env.CI === 'true';
+}

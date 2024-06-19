@@ -202,7 +202,7 @@ pub fn start_solana_test_validator(
             concat_path(&solana_programs_path, lib).to_str().unwrap(),
         );
     }
-    let validator = args.spawn("SOL");
+    let validator = args.spawn("SOL", None);
     sleep(Duration::from_secs(5));
 
     log!("Deploying the hyperlane programs to solana");

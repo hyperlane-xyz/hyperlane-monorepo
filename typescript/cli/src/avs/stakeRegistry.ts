@@ -24,12 +24,12 @@ export async function registerOperatorWithSignature({
   context,
   chain,
   operatorKeyPath,
-  avsSigningKey,
+  avsSigningKeyAddress,
 }: {
   context: WriteCommandContext;
   chain: ChainName;
   operatorKeyPath: string;
-  avsSigningKey: Address;
+  avsSigningKeyAddress: Address;
 }) {
   const { multiProvider } = context;
 
@@ -67,13 +67,13 @@ export async function registerOperatorWithSignature({
   }
 
   log(
-    `Registering operator ${operatorAsSigner.address} attesting ${avsSigningKey} with signature on ${chain}...`,
+    `Registering operator ${operatorAsSigner.address} attesting ${avsSigningKeyAddress} with signature on ${chain}...`,
   );
   await multiProvider.handleTx(
     chain,
     ecdsaStakeRegistry.registerOperatorWithSignature(
       operatorSignature,
-      avsSigningKey,
+      avsSigningKeyAddress,
     ),
   );
   logBlue(`Operator ${operatorAsSigner.address} registered to Hyperlane AVS`);

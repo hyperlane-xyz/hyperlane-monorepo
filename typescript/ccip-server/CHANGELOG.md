@@ -1,10 +1,8 @@
 # @hyperlane-xyz/ccip-server
 
-## 4.0.0-alpha.2
+## 3.15.0
 
-## 4.0.0-alpha.0
-
-## 4.0.0-alpha
+## 3.14.0
 
 ## 3.13.0
 

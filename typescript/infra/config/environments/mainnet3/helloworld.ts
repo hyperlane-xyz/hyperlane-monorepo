@@ -1,5 +1,3 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
-
 import {
   HelloWorldConfig,
   HelloWorldKathyRunMode,
@@ -26,7 +24,6 @@ export const hyperlane: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Fallback,
     cyclesBetweenEthereumMessages: 1, // Skip 1 cycle of Ethereum, i.e. send/receive Ethereum messages every 5 days (not great since we still send like 12 in that cycle)
   },
 };
@@ -46,7 +43,6 @@ export const releaseCandidate: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Fallback,
   },
 };
 

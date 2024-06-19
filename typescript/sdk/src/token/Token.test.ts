@@ -55,6 +55,22 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmHypXERC20]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypXERC20,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypXERC20Lockbox]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypXERC20Lockbox,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {

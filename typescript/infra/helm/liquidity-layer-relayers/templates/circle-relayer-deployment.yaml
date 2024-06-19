@@ -21,10 +21,6 @@ spec:
         - ./typescript/infra/scripts/middleware/circle-relayer.ts
         - -e
         - {{ .Values.hyperlane.runEnv }}
-{{- if .Values.hyperlane.connectionType }}
-        - --connection-type
-        - {{ .Values.hyperlane.connectionType }}
-{{- end }}
         envFrom:
         - secretRef:
             name: liquidity-layer-env-var-secret

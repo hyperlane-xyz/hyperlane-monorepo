@@ -1,45 +1,21 @@
 # @hyperlane-xyz/infra
 
-## 4.0.0-alpha.2
+## 3.15.0
 
 ### Patch Changes
 
-- Updated dependencies [6b63c5d82]
-  - @hyperlane-xyz/sdk@4.0.0-alpha.2
-  - @hyperlane-xyz/helloworld@4.0.0-alpha.2
-  - @hyperlane-xyz/utils@4.0.0-alpha.2
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/sdk@3.15.0
+  - @hyperlane-xyz/helloworld@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
 
-## 4.0.0-alpha.0
-
-### Patch Changes
-
-- Updated dependencies [bdcbe1d16]
-- Updated dependencies [6db9fa9ad]
-  - @hyperlane-xyz/sdk@4.0.0-alpha.0
-  - @hyperlane-xyz/helloworld@4.0.0-alpha.0
-  - @hyperlane-xyz/utils@4.0.0-alpha.0
-
-## 4.0.0-alpha
-
-### Minor Changes
-
-- 1ec61debd: Support hook config objects in warp config
-- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
+## 3.14.0
 
 ### Patch Changes
 
-- Updated dependencies [eb23e7729]
-- Updated dependencies [1ec61debd]
-- Updated dependencies [4663018fc]
-- Updated dependencies [5e5886f2c]
-- Updated dependencies [341b8affd]
-- Updated dependencies [3dabcbdca]
-- Updated dependencies [1d0d1bb36]
-- Updated dependencies [74c879fa1]
-- Updated dependencies [4bf7301ea]
-  - @hyperlane-xyz/sdk@4.0.0-alpha
-  - @hyperlane-xyz/utils@4.0.0-alpha
-  - @hyperlane-xyz/helloworld@4.0.0-alpha
+- @hyperlane-xyz/helloworld@3.14.0
+- @hyperlane-xyz/sdk@3.14.0
+- @hyperlane-xyz/utils@3.14.0
 
 ## 3.13.0
 

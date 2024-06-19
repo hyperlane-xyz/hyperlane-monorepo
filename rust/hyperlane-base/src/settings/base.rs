@@ -160,7 +160,7 @@ impl Settings {
         db: Arc<D>,
     ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
     where
-        T: Debug,
+        T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
         D: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + 'static,
     {
@@ -184,7 +184,7 @@ impl Settings {
         db: Arc<D>,
     ) -> eyre::Result<Arc<WatermarkContractSync<T>>>
     where
-        T: Debug,
+        T: Indexable + Debug,
         SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
         D: HyperlaneLogStore<T> + HyperlaneWatermarkedLogStore<T> + 'static,
     {
