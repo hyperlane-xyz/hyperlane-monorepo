@@ -24,6 +24,7 @@ import { ChainNameOrId } from '../types.js';
 
 import {
   AggregationIsmConfig,
+  ArbL2ToL1IsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -44,6 +45,9 @@ export interface IsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>>;
   deriveNullConfig(address: Address): Promise<WithAddress<NullIsmConfig>>;
+  deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1IsmConfig>>;
 }
 
 export class EvmIsmReader implements IsmReader {
@@ -90,7 +94,7 @@ export class EvmIsmReader implements IsmReader {
       case ModuleType.CCIP_READ:
         throw new Error('CCIP_READ does not have a corresponding IsmType');
       case ModuleType.ARB_L2_TO_L1:
-        throw new Error('ARB_L2_TO_L1 does not have a corresponding IsmType');
+        return this.deriveArbL2ToL1Config(address);
       default:
         this.logger.warn(`Unknown module type ${moduleType}`, {
           moduleType,
@@ -265,6 +269,15 @@ export class EvmIsmReader implements IsmReader {
     return {
       address,
       type: IsmType.TEST_ISM,
+    };
+  }
+
+  async deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1IsmConfig>> {
+    return {
+      address,
+      type: IsmType.ARB_L2_TO_L1,
     };
   }
 }

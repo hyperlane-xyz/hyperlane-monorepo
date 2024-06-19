@@ -53,6 +53,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@arbitrum/sdk@npm:^3.5.1":
+  version: 3.5.1
+  resolution: "@arbitrum/sdk@npm:3.5.1"
+  dependencies:
+    "@ethersproject/address": "npm:^5.0.8"
+    "@ethersproject/bignumber": "npm:^5.1.1"
+    "@ethersproject/bytes": "npm:^5.0.8"
+    async-mutex: "npm:^0.4.0"
+    ethers: "npm:^5.1.0"
+  checksum: 43d3a779f5ec68e10a6363335e17c3d7065d1fc23fda5df6246a0337f016a93fa0de9a8f913a84f3d37cf28f6a46810dae521ef5d40f6148e44abf2345f68aac
+  languageName: node
+  linkType: hard
+
 "@aws-crypto/crc32@npm:2.0.0":
   version: 2.0.0
   resolution: "@aws-crypto/crc32@npm:2.0.0"
@@ -5902,6 +5915,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
+    "@arbitrum/sdk": "npm:^3.5.1"
     "@aws-sdk/client-s3": "npm:^3.74.0"
     "@cosmjs/cosmwasm-stargate": "npm:^0.31.3"
     "@cosmjs/stargate": "npm:^0.31.3"
@@ -11498,6 +11512,15 @@ __metadata:
   dependencies:
     tslib: "npm:^2.0.0"
   checksum: 3cf676fc48b4686abf534cc02d4784bab3f35d7836a0a7476c96e57c3f6607dd3d94cc0989b29d33ce5ae5cde8be8e1a96f3e769ba3b0e1ba4a244f873aa5623
+  languageName: node
+  linkType: hard
+
+"async-mutex@npm:^0.4.0":
+  version: 0.4.1
+  resolution: "async-mutex@npm:0.4.1"
+  dependencies:
+    tslib: "npm:^2.4.0"
+  checksum: 7e9f77b112b8545beb6612493fae4a8d9d1d6c3f24fc22f4d6d05ce96d1e8d326ac3e743a804cc6d7bf24e7ef0267afb65bb127f99b2e433609684b38933ff1c
   languageName: node
   linkType: hard
 

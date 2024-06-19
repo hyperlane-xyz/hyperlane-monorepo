@@ -30,6 +30,11 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
+export const ArbL2ToL1HookSchema = z.object({
+  type: z.literal(HookType.ARB_L2_TO_L1),
+  arbSys: z.string(),
+});
+
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   beneficiary: z.string(),
@@ -73,4 +78,5 @@ export const HookConfigSchema = z.union([
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfigSchema,
   AggregationHookConfigSchema,
+  ArbL2ToL1HookSchema,
 ]);

@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -186,6 +187,19 @@ export class EvmIsmCreator {
           [mailbox, config.relayer],
         );
         break;
+      case IsmType.ARB_L2_TO_L1:
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
+          destination,
+          new ArbL2ToL1Ism__factory(),
+          IsmType.ARB_L2_TO_L1,
+          [config.bridge, config.outbox],
+        );
+        break;
+
       case IsmType.TEST_ISM:
         if (!this.deployer) {
           throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);

@@ -194,11 +194,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
-    if (typeof config === 'string') {
-      return Object.values(hooks)[0];
-    } else {
-      return hooks[config.type];
-    }
+    return hooks[config.type];
   }
 
   async deployIsm(
