@@ -15,7 +15,7 @@ _main() {
     # with the routing over igp hook (which is closer to production deployment)
     TEST_TYPE=$1
     if [ -z "$TEST_TYPE" ]; then
-        echo "Usage: ci-test.sh <$TEST_TYPE_PRESET_HOOK | $TEST_TYPE_CONFIGURED_HOOK | $TEST_TYPE_PI_CORE>"
+        echo "Usage: ci-advanced-test.sh <$TEST_TYPE_PRESET_HOOK | $TEST_TYPE_CONFIGURED_HOOK | $TEST_TYPE_PI_CORE>"
         exit 1
     fi
 

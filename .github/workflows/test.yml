@@ -405,7 +405,7 @@ jobs:
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
       - name: cli e2e tests
-        run: ./typescript/cli/ci-test.sh ${{ matrix.test-type }}
+        run: ./typescript/cli/ci-advanced-test.sh ${{ matrix.test-type }}
 
   env-test:
     runs-on: ubuntu-latest
