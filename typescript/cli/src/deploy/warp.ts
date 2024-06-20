@@ -133,7 +133,7 @@ async function executeDeploy(params: DeployParams) {
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
 
   // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
-  // Then return a modified config with the ism address as a string
+  // Then return a modified config with the ism address as a string.
   const modifiedConfig = await deployAndResolveWarpIsm(
     config,
     multiProvider,
