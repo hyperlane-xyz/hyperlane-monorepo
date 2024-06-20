@@ -1,6 +1,12 @@
+import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
+import {
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+  IXERC20__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainMap,
   EvmERC20WarpRouteReader,
@@ -133,8 +139,8 @@ export const read: CommandModuleWithContext<{
     out: outputFileCommandOption(),
   },
   handler: async ({ context, chain, address, out, symbol }) => {
-    logGray('Hyperlane Warp Reader');
-    logGray('---------------------');
+    // logGray('Hyperlane Warp Reader');
+    // logGray('---------------------');
 
     const { multiProvider } = context;
 
@@ -144,6 +150,51 @@ export const read: CommandModuleWithContext<{
         context.registry,
         symbol,
       );
+
+      const limits = Object.fromEntries(
+        await Promise.all(
+          warpCoreConfig.tokens.map(async (t) => {
+            let xerc20Address: string;
+            switch (t.standard) {
+              case 'EvmHypXERC20Lockbox':
+                xerc20Address = await HypXERC20Lockbox__factory.connect(
+                  t.addressOrDenom!,
+                  multiProvider.getProvider(t.chainName),
+                ).xERC20();
+                break;
+              case 'EvmHypXERC20':
+                xerc20Address = await HypXERC20__factory.connect(
+                  t.addressOrDenom!,
+                  multiProvider.getProvider(t.chainName),
+                ).wrappedToken();
+                break;
+              default:
+                throw new Error('not xerc20');
+            }
+            const xerc20 = IXERC20__factory.connect(
+              xerc20Address,
+              multiProvider.getProvider(t.chainName),
+            );
+            const mintLimit = await xerc20.mintingCurrentLimitOf(
+              t.addressOrDenom!,
+            );
+            const burnLimit = await xerc20.burningCurrentLimitOf(
+              t.addressOrDenom!,
+            );
+
+            return [
+              t.chainName,
+              {
+                mintLimit: ethers.utils.formatEther(mintLimit),
+                burnLimit: ethers.utils.formatEther(burnLimit),
+              },
+            ];
+          }),
+        ),
+      );
+      console.log(JSON.stringify(limits));
+      return;
+
       addresses = Object.fromEntries(
         warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
       );
