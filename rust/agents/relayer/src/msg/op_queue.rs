@@ -108,8 +108,8 @@ impl OpQueue {
         self.metrics.with_label_values(&[
             &destination,
             &self.queue_metrics_label,
-            &app_context,
             &operation.status().to_string(),
+            &app_context,
         ])
     }
 }
