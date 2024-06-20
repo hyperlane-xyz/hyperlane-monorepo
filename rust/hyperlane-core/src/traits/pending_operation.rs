@@ -113,9 +113,10 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn set_retries(&mut self, retries: u32);
 }
 
-#[derive(Debug, Display, Clone)]
+#[derive(Debug, strum::Display, Clone)]
 pub enum PendingOperationStatus {
     FirstPrepareAttempt,
+    #[strum(to_string = "Retry({0})")]
     Retry(String),
     ReadyToSubmit,
     SubmittedBySelf,
@@ -213,6 +214,23 @@ pub enum PendingOperationResult {
     Drop,
     /// Send this message straight to the confirm queue
     Confirm,
+}
+
+#[derive(Display, Debug)]
+pub enum ReprepareReason {
+    // all the options will replace the strings that `.on_reprepare(...)` is currently called with,
+    // from pending_message.rs
+    ErrorCheckingMessageDeliveryStatus,
+    ErrorCheckingIfMessageRecipientIsContract,
+    ErrorFetchingIsmAddress,
+    ErrorGettingMessageMetadataBuilder,
+    ErrorBuildingMessageMetadata,
+    CouldNotFetchMessageMetadata,
+    ErrorEstimatingGasForProcessingMessage,
+    ErrorCheckingIfMessageMeetsIgpRequirement,
+    GasPaymentRequirementNotMet,
+    EstimatedGasExceedsMaxGasLimit,
+    MessageRevertedOrReorged,
 }
 
 /// create a `op_try!` macro for the `on_retry` handler.
