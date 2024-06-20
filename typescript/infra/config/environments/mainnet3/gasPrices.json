@@ -1,6 +1,6 @@
 {
   "arbitrum": {
-    "amount": "20",
+    "amount": "2",
     "decimals": 9
   },
   "ancient8": {
@@ -16,7 +16,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.01649352",
+    "amount": "0.5",
     "decimals": 9
   },
   "bsc": {
@@ -68,7 +68,7 @@
     "decimals": 1
   },
   "optimism": {
-    "amount": "0.061126811",
+    "amount": "0.25",
     "decimals": 9
   },
   "osmosis": {
