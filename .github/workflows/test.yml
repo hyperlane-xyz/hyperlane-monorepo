@@ -46,6 +46,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-cache-
 
       - name: yarn-install
         run: |
@@ -74,6 +75,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-cache-
 
       - name: build-cache
         uses: actions/cache@v4
@@ -128,6 +130,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-cache-
 
       - name: lint
         run: yarn lint
@@ -197,6 +200,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-cache-
 
       - name: build-cache
         uses: actions/cache@v4
@@ -275,6 +279,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-cache-
 
       - name: build-cache
         uses: actions/cache@v4
@@ -302,6 +307,7 @@ jobs:
           path: |
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-cache-
 
       - name: rust-target-cache
         uses: actions/cache@v4
@@ -309,6 +315,7 @@ jobs:
           path: |
             ./rust/target
           key: ${{ runner.os }}-rust-target-cache-e2e-${{matrix.e2e-type}}-${{ hashFiles('./rust') }}
+          restore-keys: ${{ runner.os }}-rust-target-cache-e2e-${{matrix.e2e-type}}-
 
       - name: agent tests with CosmWasm
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
@@ -373,6 +380,7 @@ jobs:
           path: |
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-cache-
 
       - name: rust-target-cache
         uses: actions/cache@v4
@@ -380,6 +388,7 @@ jobs:
           path: |
             ./rust/target
           key: ${{ runner.os }}-rust-target-cache-cli-e2e-${{ hashFiles('./rust') }}
+          restore-keys: ${{ runner.os }}-rust-target-cache-cli-e2e-
 
       - name: Build validator
         run: cargo build --bin validator
@@ -443,6 +452,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-cache-
 
       - name: build-cache
         uses: actions/cache@v4
@@ -470,6 +480,7 @@ jobs:
           path: |
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-cache-
 
       - name: rust-target-cache
         uses: actions/cache@v4
@@ -477,6 +488,7 @@ jobs:
           path: |
             ./rust/target
           key: ${{ runner.os }}-rust-target-cache-cli-e2e-${{ hashFiles('./rust') }}
+          fail-on-cache-miss: true
 
       - name: cli e2e tests
         run: ./typescript/cli/ci-test.sh ${{ matrix.test-type }}
@@ -543,6 +555,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-cache-
 
       - name: build-cache
         uses: actions/cache@v4
