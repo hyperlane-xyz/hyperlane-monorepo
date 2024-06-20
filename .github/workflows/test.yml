@@ -305,14 +305,14 @@ jobs:
           fail-on-cache-miss: true
 
       - name: agent tests with CosmWasm
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests excluding CosmWasm
-        run: cargo run --release --bin run-locally
+        run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
         env:
@@ -370,13 +370,13 @@ jobs:
           make-default: true
 
       - name: Build validator
-        run: cargo build --bin validator
+        run: cargo build --bin validator --features test-utils
         working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'
 
       - name: Build relayer
-        run: cargo build --bin relayer
+        run: cargo build --bin relayer --features test-utils
         working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'
