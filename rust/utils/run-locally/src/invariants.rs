@@ -69,7 +69,7 @@ pub fn termination_invariants_met(
             .len();
 
     // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
-    // TODO: Sometime we find more logs than expected. This may either mean that gas is deducted twice for the same message due to a bug,
+    // TODO: Sometimes we find more logs than expected. This may either mean that gas is deducted twice for the same message due to a bug,
     // or that submitting the message transaction fails for some messages. Figure out which is the case and convert this check to
     // strict equality.
     // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
