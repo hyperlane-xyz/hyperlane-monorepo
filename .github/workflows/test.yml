@@ -303,6 +303,13 @@ jobs:
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
 
+      - name: rust-target-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./rust/target
+          key: ${{ runner.os }}-rust-target-cache-e2e-${{matrix.e2e-type}}-${{ hashFiles('./rust') }}
+
       - name: agent tests with CosmWasm
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
@@ -407,6 +414,13 @@ jobs:
           path: |
             ~/.cargo
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+
+      - name: rust-target-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./rust/target
+          key: ${{ runner.os }}-rust-target-cache-cli-e2e-${{ hashFiles('./rust') }}
 
       - name: cli e2e tests
         run: ./typescript/cli/ci-test.sh ${{ matrix.test-type }}
