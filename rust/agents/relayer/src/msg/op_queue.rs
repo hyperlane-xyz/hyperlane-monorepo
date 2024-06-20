@@ -21,8 +21,15 @@ pub struct OpQueue {
 
 impl OpQueue {
     /// Push an element onto the queue and update metrics
+    /// Arguments:
+    /// - `op`: the operation to push onto the queue
+    /// - `new_status`: optional new status to set for the operation. When an operation is added to a queue,
+    /// it's very likely that its status has just changed, so this forces the caller to consider the new status
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
-    pub async fn push(&self, op: QueueOperation, new_status: PendingOperationStatus) {
+    pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
+        if let Some(new_status) = new_status {
+            op.set_status(new_status);
+        }
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(op.as_ref()).inc();
 
@@ -98,8 +105,12 @@ impl OpQueue {
     /// Get the metric associated with this operation
     fn get_operation_metric(&self, operation: &dyn PendingOperation) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
-        self.metrics
-            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
+        self.metrics.with_label_values(&[
+            &destination,
+            &self.queue_metrics_label,
+            &app_context,
+            &operation.status().to_string(),
+        ])
     }
 }
 
@@ -143,6 +154,10 @@ mod test {
 
         fn status(&self) -> PendingOperationStatus {
             PendingOperationStatus::FirstPrepareAttempt
+        }
+
+        fn set_status(&mut self, _status: PendingOperationStatus) {
+            todo!()
         }
 
         fn reset_attempts(&mut self) {
@@ -263,7 +278,7 @@ mod test {
             op_queue_1
                 .push(
                     ops.pop_front().unwrap(),
-                    PendingOperationStatus::FirstPrepareAttempt,
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
                 )
                 .await;
         }
@@ -273,7 +288,7 @@ mod test {
             op_queue_2
                 .push(
                     ops.pop_front().unwrap(),
-                    PendingOperationStatus::FirstPrepareAttempt,
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
                 )
                 .await;
         }
@@ -335,7 +350,7 @@ mod test {
         // push to queue
         for op in ops {
             op_queue
-                .push(op, PendingOperationStatus::FirstPrepareAttempt)
+                .push(op, Some(PendingOperationStatus::FirstPrepareAttempt))
                 .await;
         }
 

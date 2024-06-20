@@ -15,7 +15,7 @@ use hyperlane_core::{
     U256,
 };
 use prometheus::{IntCounter, IntGauge};
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use super::{
     gas_payment::GasPaymentEnforcer,
@@ -164,9 +164,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
-                let message = "Error checking message delivery status";
-                warn!(error = ?err, "{}", message.clone());
-                return self.on_reprepare(message.to_string());
+                return self.on_reprepare(err, "Error checking message delivery status");
             }
         };
         if is_already_delivered {
@@ -182,9 +180,7 @@ impl PendingOperation for PendingMessage {
         let is_contract = match provider.is_contract(&self.message.recipient).await {
             Ok(is_contract) => is_contract,
             Err(err) => {
-                let message = "Error checking if message recipient is a contract";
-                warn!(error = ?err, "{}", message.clone());
-                return self.on_reprepare(message.to_string());
+                return self.on_reprepare(err, "Error checking if message recipient is a contract");
             }
         };
         if !is_contract {
@@ -195,70 +191,80 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Drop;
         }
 
-        let ism_address = op_try!(
-            self.ctx
-                .destination_mailbox
-                .recipient_ism(self.message.recipient)
-                .await,
-            "fetching ISM address. Potentially malformed recipient ISM address."
-        );
         let ism_address = match self
             .ctx
             .destination_mailbox
             .recipient_ism(self.message.recipient)
             .await
         {
-            Ok(is_contract) => is_contract,
+            Ok(ism_address) => ism_address,
             Err(err) => {
-                let message =
-                    "Error fetching ISM address. Potentially malformed recipient ISM address.";
-                warn!(error = ?err, "{}", message.clone());
-                return self.on_reprepare(message.to_string());
+                return self.on_reprepare(
+                    err,
+                    "Error fetching ISM address. Potentially malformed recipient ISM address.",
+                );
             }
         };
 
-        let message_metadata_builder = op_try!(
-            MessageMetadataBuilder::new(
-                ism_address,
-                &self.message,
-                self.ctx.metadata_builder.clone()
-            )
-            .await,
-            "getting the message metadata builder"
-        );
+        let message_metadata_builder = match MessageMetadataBuilder::new(
+            ism_address,
+            &self.message,
+            self.ctx.metadata_builder.clone(),
+        )
+        .await
+        {
+            Ok(message_metadata_builder) => message_metadata_builder,
+            Err(err) => {
+                return self.on_reprepare(err, "Error getting the message metadata builder");
+            }
+        };
 
-        let Some(metadata) = op_try!(
-            message_metadata_builder
-                .build(ism_address, &self.message)
-                .await,
-            "building metadata"
-        ) else {
-            info!("Could not fetch metadata");
-            return self.on_reprepare();
+        let metadata = match message_metadata_builder
+            .build(ism_address, &self.message)
+            .await
+        {
+            Ok(metadata) => metadata,
+            Err(err) => {
+                return self.on_reprepare(err, "Error building metadata");
+            }
+        };
+
+        let Some(metadata) = metadata else {
+            return self.on_reprepare("", "Could not fetch metadata");
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
         // likely that gas estimation has failed because the message is
         // reverting. This is defined behavior, so we just log the error and
         // move onto the next tick.
-        let tx_cost_estimate = op_try!(
-            self.ctx
-                .destination_mailbox
-                .process_estimate_costs(&self.message, &metadata)
-                .await,
-            "estimating costs for process call"
-        );
+        let tx_cost_estimate = match self
+            .ctx
+            .destination_mailbox
+            .process_estimate_costs(&self.message, &metadata)
+            .await
+        {
+            Ok(metadata) => metadata,
+            Err(err) => {
+                return self.on_reprepare(err, "Error estimating costs for process call");
+            }
+        };
 
         // If the gas payment requirement hasn't been met, move to the next tick.
-        let Some(gas_limit) = op_try!(
-            self.ctx
-                .origin_gas_payment_enforcer
-                .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
-                .await,
-            "checking if message meets gas payment requirement"
-        ) else {
-            warn!(?tx_cost_estimate, "Gas payment requirement not met yet");
-            return self.on_reprepare();
+        let gas_limit = match self
+            .ctx
+            .origin_gas_payment_enforcer
+            .message_meets_gas_payment_requirement(&self.message, &tx_cost_estimate)
+            .await
+        {
+            Ok(gas_limit) => gas_limit,
+            Err(e) => {
+                return self
+                    .on_reprepare(e, "Error checking if message meets gas payment requirement");
+            }
+        };
+
+        let Some(gas_limit) = gas_limit else {
+            return self.on_reprepare("", "Gas payment requirement not met");
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -270,8 +276,8 @@ impl PendingOperation for PendingMessage {
 
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
-                info!("Message delivery estimated gas exceeds max gas limit");
-                return self.on_reprepare();
+                return self
+                    .on_reprepare("", "Message delivery estimated gas exceeds max gas limit");
             }
         }
 
@@ -354,7 +360,14 @@ impl PendingOperation for PendingMessage {
                 message_id=?self.message.id(),
                 "Transaction attempting to process message either reverted or was reorged"
             );
-            self.on_reprepare()
+            let span = info_span!(
+                "Reprepare reverted or reorged message",
+                tx_outcome=?self.submission_outcome,
+                message_id=?self.message.id()
+            );
+            self.on_reprepare("", "Reprepare reverted or reorged message")
+                .instrument(span)
+                .into_inner()
         }
     }
 
@@ -452,10 +465,11 @@ impl PendingMessage {
         pm
     }
 
-    fn on_reprepare(&mut self, reason: String) -> PendingOperationResult {
+    fn on_reprepare<E: Debug>(&mut self, err: E, reason: &str) -> PendingOperationResult {
         self.inc_attempts();
         self.submitted = false;
-        PendingOperationResult::Reprepare(reason)
+        warn!(error = ?err, "{}", reason.clone());
+        PendingOperationResult::Reprepare(reason.to_string())
     }
 
     fn is_ready(&self) -> bool {
