@@ -253,6 +253,9 @@ run_hyperlane_send_message() {
 }
 
 run_validator() {
+    echo -e "\nPre-building validator with cargo"
+    cargo build --bin validator
+
     # set some default agent env vars, used by both validators and relayer
     export HYP_CHAINS_${CHAIN1_CAPS}_BLOCKS_REORGPERIOD=0
     export HYP_CHAINS_${CHAIN1_CAPS}_CUSTOMRPCURLS="http://127.0.0.1:${CHAIN1_PORT}"
@@ -287,7 +290,7 @@ run_validator() {
 
     echo "Validator running, sleeping to let it sync"
     # This needs to be long to allow time for the cargo build to finish
-    sleep 20
+    sleep 15
     echo "Done sleeping"
 
     for CHAIN in ${CHAIN1} ${CHAIN2}
@@ -304,6 +307,9 @@ run_validator() {
 }
 
 run_relayer() {
+    echo -e "\nPre-building relayer with cargo"
+    cargo build --bin relayer
+
     echo "Running relayer"
     export CONFIG_FILES=/tmp/agent-config.json
     export HYP_RELAYCHAINS=${CHAIN1},${CHAIN2}

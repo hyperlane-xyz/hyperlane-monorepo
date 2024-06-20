@@ -258,6 +258,14 @@ jobs:
           toolchain: stable
           profile: minimal
 
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "${{ runner.os }}-rust-cache"
+          shared-key: ${{ matrix.e2e-type }}
+          workspaces: |
+            ./rust
+
       - name: Free disk space
         run: |
           # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
@@ -300,22 +308,6 @@ jobs:
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
           fail-on-cache-miss: true
-
-      - name: cargo-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-cache-
-
-      - name: rust-target-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./rust/target
-          key: ${{ runner.os }}-rust-target-cache-e2e-${{matrix.e2e-type}}-${{ hashFiles('./rust') }}
-          restore-keys: ${{ runner.os }}-rust-target-cache-e2e-${{matrix.e2e-type}}-
 
       - name: agent tests with CosmWasm
         run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
@@ -360,6 +352,14 @@ jobs:
           toolchain: stable
           profile: minimal
 
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "${{ runner.os }}-rust-cache"
+          shared-key: "cli-e2e"
+          workspaces: |
+            ./rust
+
       - name: Free disk space
         run: |
           # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
@@ -373,22 +373,6 @@ jobs:
         with:
           mold-version: 2.0.0
           make-default: true
-
-      - name: cargo-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-cache-
-
-      - name: rust-target-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./rust/target
-          key: ${{ runner.os }}-rust-target-cache-cli-e2e-${{ hashFiles('./rust') }}
-          restore-keys: ${{ runner.os }}-rust-target-cache-cli-e2e-
 
       - name: Build validator
         run: cargo build --bin validator
@@ -431,6 +415,14 @@ jobs:
           toolchain: stable
           profile: minimal
 
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "${{ runner.os }}-rust-cache"
+          shared-key: "cli-e2e"
+          workspaces: |
+            ./rust
+
       - name: Free disk space
         run: |
           # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
@@ -472,22 +464,6 @@ jobs:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
           key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
-          fail-on-cache-miss: true
-
-      - name: cargo-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-cache-
-
-      - name: rust-target-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./rust/target
-          key: ${{ runner.os }}-rust-target-cache-cli-e2e-${{ hashFiles('./rust') }}
           fail-on-cache-miss: true
 
       - name: cli e2e tests
