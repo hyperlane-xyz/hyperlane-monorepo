@@ -77,7 +77,11 @@ export class AgentCli {
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains').argv;
 
-    if (argv.chains?.length === 0 && !argv.role.includes(Role.Validator)) {
+    if (
+      argv.chains &&
+      argv.chains.length > 0 &&
+      !argv.role.includes(Role.Validator)
+    ) {
       console.warn('Chain argument applies to validator role only. Ignoring.');
     }
 
