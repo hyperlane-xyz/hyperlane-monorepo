@@ -16,7 +16,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.1",
+    "amount": "0.01649352",
     "decimals": 9
   },
   "bsc": {
@@ -31,8 +31,28 @@
     "amount": "20",
     "decimals": 9
   },
+  "fraxtal": {
+    "amount": "0.001000253",
+    "decimals": 9
+  },
+  "gnosis": {
+    "amount": "5.877696928",
+    "decimals": 9
+  },
+  "inevm": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "injective": {
+    "amount": "700000000",
+    "decimals": 1
+  },
+  "linea": {
+    "amount": "0.110844655",
+    "decimals": 9
+  },
   "mantapacific": {
-    "amount": "0.100163166",
+    "amount": "0.101967574",
     "decimals": 9
   },
   "mode": {
@@ -43,20 +63,20 @@
     "amount": "125.0",
     "decimals": 9
   },
+  "neutron": {
+    "amount": "0.0053",
+    "decimals": 1
+  },
   "optimism": {
     "amount": "0.061126811",
     "decimals": 9
   },
+  "osmosis": {
+    "amount": "0.025",
+    "decimals": 1
+  },
   "polygon": {
     "amount": "101.76455238",
-    "decimals": 9
-  },
-  "gnosis": {
-    "amount": "3.236596353",
-    "decimals": 9
-  },
-  "scroll": {
-    "amount": "1.3231",
     "decimals": 9
   },
   "polygonzkevm": {
@@ -67,24 +87,20 @@
     "amount": "0.0003",
     "decimals": 9
   },
-  "inevm": {
-    "amount": "0.1",
+  "scroll": {
+    "amount": "1.3231",
+    "decimals": 9
+  },
+  "sei": {
+    "amount": "1.0",
     "decimals": 9
   },
   "viction": {
     "amount": "0.25",
     "decimals": 9
   },
-  "neutron": {
-    "amount": "0.0053",
-    "decimals": 1
-  },
-  "injective": {
-    "amount": "700000000",
-    "decimals": 1
-  },
   "zetachain": {
-    "amount": "0.0001",
+    "amount": "10.1",
     "decimals": 9
   }
 }

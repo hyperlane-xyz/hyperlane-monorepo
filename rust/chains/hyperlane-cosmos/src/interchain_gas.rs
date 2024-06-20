@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use futures::future;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
@@ -9,12 +8,15 @@ use hyperlane_core::{
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     signers::Signer,
-    utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
+    utils::{
+        execute_and_parse_log_futures, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
+        CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+    },
     ConnectionConf, CosmosProvider, HyperlaneCosmosError,
 };
 
@@ -223,26 +225,7 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
             })
             .collect();
 
-        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
-        let result = future::join_all(logs_futures)
-            .await
-            .into_iter()
-            .flatten()
-            .map(|(logs, block_number)| {
-                if let Err(err) = &logs {
-                    warn!(?err, ?block_number, "Failed to fetch logs for block");
-                }
-                logs
-            })
-            // Propagate errors from any of the queries. This will cause the entire range to be retried,
-            // including successful ones, but we don't have a way to handle partial failures in a range for now.
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .map(|(log, meta)| (Indexed::new(log), meta))
-            .collect();
-
-        Ok(result)
+        execute_and_parse_log_futures(logs_futures).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {

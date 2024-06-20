@@ -53,18 +53,22 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsc: true,
     celo: true,
     ethereum: true,
+    fraxtal: true,
     gnosis: true,
     injective: true,
     inevm: true,
+    linea: true,
     mantapacific: true,
     mode: true,
     moonbeam: true,
     neutron: true,
     optimism: true,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
     scroll: true,
+    sei: true,
     viction: true,
     zetachain: true,
   },
@@ -77,19 +81,23 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsc: true,
     celo: true,
     ethereum: true,
+    fraxtal: true,
     gnosis: true,
     injective: true,
     inevm: true,
+    linea: true,
     mantapacific: true,
     mode: true,
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
     optimism: true,
+    osmosis: false,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
     scroll: true,
+    sei: true,
     viction: true,
     zetachain: true,
   },
@@ -102,19 +110,25 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsc: true,
     celo: true,
     ethereum: true,
+    fraxtal: true,
     gnosis: true,
     // Cannot scrape non-EVM chains
     injective: false,
     inevm: true,
+    linea: true,
     mantapacific: true,
     mode: true,
     moonbeam: true,
     // Cannot scrape non-EVM chains
     neutron: false,
     optimism: true,
+    osmosis: false,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
+    // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
+    // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
+    sei: false,
     scroll: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
@@ -209,7 +223,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '939fa81-20240607-194607',
+      tag: '3bb9d0a-20240619-130157',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -217,7 +231,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'de8c2a7-20240515-135254',
+      tag: '3bb9d0a-20240619-130157',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -226,7 +240,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '939fa81-20240607-194607',
+      tag: '59451d6-20240612-171611',
     },
   },
 };
@@ -240,7 +254,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '939fa81-20240607-194607',
+      tag: '3bb9d0a-20240619-130157',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -251,7 +265,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '3bb9d0a-20240619-130157',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

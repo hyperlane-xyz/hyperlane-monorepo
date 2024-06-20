@@ -4,7 +4,6 @@ import yargs, { Argv } from 'yargs';
 import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
-  ChainMetadata,
   ChainName,
   CoreConfig,
   MultiProtocolProvider,
@@ -37,10 +36,6 @@ import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';
 import { RootAgentConfig } from '../src/config/agent/agent.js';
 import {
-  fetchProvider,
-  getSecretMetadataOverrides,
-} from '../src/config/chain.js';
-import {
   AgentEnvironment,
   DeployEnvironment,
   EnvironmentConfig,
@@ -50,6 +45,7 @@ import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
+  filterRemoteDomainMetadata,
   getInfraPath,
   inCIMode,
   readJSONAtPath,
@@ -424,6 +420,8 @@ export function writeAddresses(
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
 ) {
+  addressesMap = filterRemoteDomainMetadata(addressesMap);
+
   if (isRegistryModule(environment, module)) {
     for (const [chainName, addresses] of Object.entries(addressesMap)) {
       getRegistry().updateChain({ chainName, addresses });

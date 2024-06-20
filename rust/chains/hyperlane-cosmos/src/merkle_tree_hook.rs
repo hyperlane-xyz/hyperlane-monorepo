@@ -2,7 +2,6 @@ use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use futures::future;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
@@ -10,17 +9,14 @@ use hyperlane_core::{
 };
 use once_cell::sync::Lazy;
 use tendermint::abci::EventAttribute;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use crate::{
     grpc::WasmProvider,
-    payloads::{
-        general::{self},
-        merkle_tree_hook,
-    },
+    payloads::{general, merkle_tree_hook},
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     utils::{
-        get_block_height_for_lag, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
+        execute_and_parse_log_futures, get_block_height_for_lag, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
         CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
     },
     ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer,
@@ -304,23 +300,7 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
             })
             .collect();
 
-        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
-        let result = future::join_all(logs_futures)
-            .await
-            .into_iter()
-            .flatten()
-            .filter_map(|(logs_res, block_number)| match logs_res {
-                Ok(logs) => Some(logs),
-                Err(err) => {
-                    warn!(?err, ?block_number, "Failed to fetch logs for block");
-                    None
-                }
-            })
-            .flatten()
-            .map(|(log, meta)| (log.into(), meta))
-            .collect();
-
-        Ok(result)
+        execute_and_parse_log_futures(logs_futures).await
     }
 
     /// Get the chain's latest block number that has reached finality

@@ -452,7 +452,6 @@ mod test {
             false,
             Arc::new(core_metrics),
             db.clone(),
-            5,
             IsmAwareAppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
         )
     }

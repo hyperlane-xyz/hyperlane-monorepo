@@ -15,6 +15,8 @@ export enum TokenStandard {
   EvmHypNative = 'EvmHypNative',
   EvmHypCollateral = 'EvmHypCollateral',
   EvmHypSynthetic = 'EvmHypSynthetic',
+  EvmHypXERC20 = 'EvmHypXERC20',
+  EvmHypXERC20Lockbox = 'EvmHypXERC20Lockbox',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -48,6 +50,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypNative: ProtocolType.Ethereum,
   EvmHypCollateral: ProtocolType.Ethereum,
   EvmHypSynthetic: ProtocolType.Ethereum,
+  EvmHypXERC20: ProtocolType.Ethereum,
+  EvmHypXERC20Lockbox: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -96,10 +100,17 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.CwHypNative,
 ];
 
+export const MINT_LIMITED_STANDARDS = [
+  TokenStandard.EvmHypXERC20,
+  TokenStandard.EvmHypXERC20Lockbox,
+];
+
 export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypNative,
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypSynthetic,
+  TokenStandard.EvmHypXERC20,
+  TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
@@ -128,8 +139,8 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralFiat]: TokenStandard.EvmHypCollateral,
-  [TokenType.XERC20]: TokenStandard.EvmHypCollateral,
-  [TokenType.XERC20Lockbox]: TokenStandard.EvmHypCollateral,
+  [TokenType.XERC20]: TokenStandard.EvmHypXERC20,
+  [TokenType.XERC20Lockbox]: TokenStandard.EvmHypXERC20Lockbox,
   [TokenType.collateralVault]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
   [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,

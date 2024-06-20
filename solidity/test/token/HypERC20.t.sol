@@ -23,6 +23,7 @@ import {XERC20LockboxTest, XERC20Test, FiatTokenTest, ERC20Test} from "../../con
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
+import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
@@ -198,38 +199,38 @@ abstract contract HypTokenTest is Test {
 
     function _performRemoteTransferWithHook(
         uint256 _msgValue,
-        uint256 _amount
+        uint256 _amount,
+        address _hook,
+        bytes memory _hookMetadata
     ) internal returns (bytes32 messageId) {
         vm.prank(ALICE);
         messageId = localToken.transferRemote{value: _msgValue}(
             DESTINATION,
             BOB.addressToBytes32(),
             _amount,
-            bytes(""),
-            address(noopHook)
+            _hookMetadata,
+            address(_hook)
         );
         _processTransfers(BOB, _amount);
         assertEq(remoteToken.balanceOf(BOB), _amount);
     }
 
-    function testTransfer_withHookSpecified() public {
+    function testTransfer_withHookSpecified(
+        uint256 fee,
+        bytes calldata metadata
+    ) public {
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        hook.setFee(fee);
+
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
         bytes32 messageId = _performRemoteTransferWithHook(
             REQUIRED_VALUE,
-            TRANSFER_AMT
+            TRANSFER_AMT,
+            address(hook),
+            metadata
         );
-        assertTrue(noopHook.messageDispatched(messageId));
-        /// @dev Using this test would be ideal, but vm.expectCall with nested functions more than 1 level deep is broken
-        /// In other words, the call graph of Route.transferRemote() -> Mailbox.dispatch() -> Hook.postDispatch() does not work with expectCall
-        // vm.expectCall(
-        //     address(noopHook),
-        //     abi.encodeCall(
-        //         IPostDispatchHook.postDispatch,
-        //         (bytes(""), outboundMessage)
-        //     )
-        // );
-        /// @dev Also, using expectedCall with Mailbox.dispatch() won't work either because overloaded function selection is broken, see https://github.com/ethereum/solidity/issues/13815
+        assertTrue(hook.messageDispatched(messageId));
     }
 
     function testBenchmark_overheadGasUsage() public virtual {

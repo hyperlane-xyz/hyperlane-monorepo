@@ -26,6 +26,7 @@ import {
   Modules,
   getAddresses,
   getArgs as getRootArgs,
+  withChain,
   withContext,
   withModuleAndFork,
 } from './agent-utils.js';
@@ -33,14 +34,14 @@ import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 import { getHelloWorldApp } from './helloworld/utils.js';
 
 function getArgs() {
-  return withModuleAndFork(withContext(getRootArgs()))
+  return withChain(withModuleAndFork(withContext(getRootArgs())))
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
 }
 
 async function check() {
-  const { fork, govern, module, environment, context } = await getArgs();
+  const { fork, govern, module, environment, context, chain } = await getArgs();
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -64,7 +65,10 @@ async function check() {
     }
   }
 
-  const { core, chainAddresses } = await getHyperlaneCore(environment);
+  const { core, chainAddresses } = await getHyperlaneCore(
+    environment,
+    multiProvider,
+  );
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
     chainAddresses,
     multiProvider,
@@ -145,6 +149,11 @@ async function check() {
     await governor.checker.checkChain(fork);
     if (govern) {
       await governor.govern(false, fork);
+    }
+  } else if (chain) {
+    await governor.checker.checkChain(chain);
+    if (govern) {
+      await governor.govern(true, chain);
     }
   } else {
     await governor.checker.check();

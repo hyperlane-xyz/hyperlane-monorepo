@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import path from 'path';
 import prompts from 'prompts';
 
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
@@ -35,6 +36,7 @@ import {
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
+import { inCIMode } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -84,20 +86,16 @@ async function main() {
     multiProvider.setSharedSigner(signer);
   }
 
-  let contractVerifier;
-  if (buildArtifactPath) {
-    // fetch explorer API keys from GCP
-    const apiKeys = await fetchExplorerApiKeys();
-    // extract build artifact contents
-    const buildArtifact = extractBuildArtifact(buildArtifactPath);
-    // instantiate verifier
-    contractVerifier = new ContractVerifier(
-      multiProvider,
-      apiKeys,
-      buildArtifact,
-      ExplorerLicenseType.MIT,
-    );
-  }
+  // if none provided, instantiate a default verifier with the default core contract build artifact
+  // fetch explorer API keys from GCP
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    inCIMode() ? {} : await fetchExplorerApiKeys(),
+    buildArtifactPath
+      ? extractBuildArtifact(buildArtifactPath)
+      : coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;

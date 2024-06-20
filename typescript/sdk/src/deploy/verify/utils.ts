@@ -1,5 +1,9 @@
 import { ethers, utils } from 'ethers';
 
+import { eqAddress } from '@hyperlane-xyz/utils';
+
+import { ChainMap, ChainName } from '../../types.js';
+
 import { ContractVerificationInput } from './types.js';
 
 export function formatFunctionArguments(
@@ -43,4 +47,25 @@ export function getContractVerificationInput(
 ): ContractVerificationInput {
   const args = getConstructorArguments(contract, bytecode);
   return buildVerificationInput(name, contract.address, args, isProxy);
+}
+
+/**
+ * Check if the artifact should be added to the verification inputs.
+ * @param verificationInputs - The verification inputs for the chain.
+ * @param chain - The chain to check.
+ * @param artifact - The artifact to check.
+ * @returns
+ */
+export function shouldAddVerificationInput(
+  verificationInputs: ChainMap<ContractVerificationInput[]>,
+  chain: ChainName,
+  artifact: ContractVerificationInput,
+): boolean {
+  return !verificationInputs[chain].some(
+    (existingArtifact) =>
+      existingArtifact.name === artifact.name &&
+      eqAddress(existingArtifact.address, artifact.address) &&
+      existingArtifact.constructorArguments === artifact.constructorArguments &&
+      existingArtifact.isProxy === artifact.isProxy,
+  );
 }
