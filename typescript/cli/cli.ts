@@ -1,4 +1,5 @@
 #! /usr/bin/env node
+import chalk from 'chalk';
 import yargs from 'yargs';
 
 import type { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
@@ -29,7 +30,7 @@ import { VERSION } from './src/version.js';
 // From yargs code:
 const MISSING_PARAMS_ERROR = 'Not enough non-option arguments';
 
-// console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
+console.log(chalk.blue('Hyperlane'), chalk.magentaBright('CLI'));
 
 await checkVersion();
 

@@ -10,6 +10,7 @@ import {
 import {
   ChainMap,
   EvmERC20WarpRouteReader,
+  TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -24,7 +25,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logGray, logGreen, logRed } from '../logger.js';
+import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
@@ -139,8 +140,8 @@ export const read: CommandModuleWithContext<{
     out: outputFileCommandOption(),
   },
   handler: async ({ context, chain, address, out, symbol }) => {
-    // logGray('Hyperlane Warp Reader');
-    // logGray('---------------------');
+    logGray('Hyperlane Warp Reader');
+    logGray('---------------------');
 
     const { multiProvider } = context;
 
@@ -151,49 +152,43 @@ export const read: CommandModuleWithContext<{
         symbol,
       );
 
-      const limits = Object.fromEntries(
-        await Promise.all(
-          warpCoreConfig.tokens.map(async (t) => {
-            let xerc20Address: string;
-            switch (t.standard) {
-              case 'EvmHypXERC20Lockbox':
-                xerc20Address = await HypXERC20Lockbox__factory.connect(
-                  t.addressOrDenom!,
-                  multiProvider.getProvider(t.chainName),
-                ).xERC20();
-                break;
-              case 'EvmHypXERC20':
-                xerc20Address = await HypXERC20__factory.connect(
-                  t.addressOrDenom!,
-                  multiProvider.getProvider(t.chainName),
-                ).wrappedToken();
-                break;
-              default:
-                throw new Error('not xerc20');
-            }
-            const xerc20 = IXERC20__factory.connect(
-              xerc20Address,
-              multiProvider.getProvider(t.chainName),
-            );
-            const mintLimit = await xerc20.mintingCurrentLimitOf(
-              t.addressOrDenom!,
-            );
-            const burnLimit = await xerc20.burningCurrentLimitOf(
-              t.addressOrDenom!,
+      // TODO: merge with XERC20TokenAdapter and WarpRouteReader
+      const xerc20Limits = await Promise.all(
+        warpCoreConfig.tokens
+          .filter(
+            (t) =>
+              t.standard === TokenStandard.EvmHypXERC20 ||
+              t.standard === TokenStandard.EvmHypXERC20Lockbox,
+          )
+          .map(async (t) => {
+            const provider = multiProvider.getProvider(t.chainName);
+            const router = t.addressOrDenom!;
+            const xerc20Address =
+              t.standard === TokenStandard.EvmHypXERC20Lockbox
+                ? await HypXERC20Lockbox__factory.connect(
+                    router,
+                    provider,
+                  ).xERC20()
+                : await HypXERC20__factory.connect(
+                    router,
+                    provider,
+                  ).wrappedToken();
+
+            const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+            const mint = await xerc20.mintingCurrentLimitOf(router);
+            const burn = await xerc20.burningCurrentLimitOf(router);
+
+            const formattedLimits = objMap({ mint, burn }, (_, v) =>
+              ethers.utils.formatUnits(v, t.decimals),
             );
 
-            return [
-              t.chainName,
-              {
-                mintLimit: ethers.utils.formatEther(mintLimit),
-                burnLimit: ethers.utils.formatEther(burnLimit),
-              },
-            ];
+            return [t.chainName, formattedLimits];
           }),
-        ),
       );
-      console.log(JSON.stringify(limits));
-      return;
+      if (xerc20Limits.length > 0) {
+        logGray('xERC20 Limits:');
+        logTable(Object.fromEntries(xerc20Limits));
+      }
 
       addresses = Object.fromEntries(
         warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
