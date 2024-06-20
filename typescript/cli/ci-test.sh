@@ -290,7 +290,7 @@ run_validator() {
 
     echo "Validator running, sleeping to let it sync"
     # This needs to be long to allow time for the cargo build to finish
-    sleep 2
+    sleep 20
     echo "Done sleeping"
 
     for CHAIN in ${CHAIN1} ${CHAIN2}
@@ -326,7 +326,7 @@ run_relayer() {
 
     # This needs to be long to allow time for the cargo build to finish
     echo "Waiting for relayer..."
-    sleep 2
+    sleep 20
     echo "Done running relayer, checking message delivery statuses"
 }
 
