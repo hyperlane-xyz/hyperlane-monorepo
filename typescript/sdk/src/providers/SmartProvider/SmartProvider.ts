@@ -276,7 +276,7 @@ export class HyperlaneSmartProvider
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
-          this.logger.warn(
+          this.logger.debug(
             `Error from provider #${pIndex}: ${result.error} - ${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,
