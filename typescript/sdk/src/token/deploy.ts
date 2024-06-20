@@ -87,6 +87,9 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadata | undefined> {
+    // this is used for synthetic token metadata and should always be 0
+    const DERIVED_TOKEN_SUPPLY = 0;
+
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
         return config;
@@ -95,7 +98,7 @@ abstract class TokenDeployer<
       if (isNativeConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          return { totalSupply: 0, ...nativeToken };
+          return { totalSupply: DERIVED_TOKEN_SUPPLY, ...nativeToken };
         }
       }
 
@@ -107,27 +110,25 @@ abstract class TokenDeployer<
             config.token,
             provider,
           );
-          const [name, symbol, totalSupply] = await Promise.all([
+          const [name, symbol] = await Promise.all([
             erc721.name(),
             erc721.symbol(),
-            erc721.totalSupply(),
           ]);
           return {
             name,
             symbol,
-            totalSupply: totalSupply.toString(),
+            totalSupply: DERIVED_TOKEN_SUPPLY,
           };
         }
 
         const erc20 = ERC20__factory.connect(config.token, provider);
-        const [name, symbol, totalSupply, decimals] = await Promise.all([
+        const [name, symbol, decimals] = await Promise.all([
           erc20.name(),
           erc20.symbol(),
-          erc20.totalSupply(),
           erc20.decimals(),
         ]);
 
-        return { name, symbol, totalSupply: totalSupply.toString(), decimals };
+        return { name, symbol, decimals, totalSupply: DERIVED_TOKEN_SUPPLY };
       }
     }
 
