@@ -287,7 +287,7 @@ run_validator() {
 
     echo "Validator running, sleeping to let it sync"
     # This needs to be long to allow time for the cargo build to finish
-    sleep 15
+    sleep 20
     echo "Done sleeping"
 
     for CHAIN in ${CHAIN1} ${CHAIN2}

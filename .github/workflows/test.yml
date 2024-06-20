@@ -367,6 +367,13 @@ jobs:
           mold-version: 2.0.0
           make-default: true
 
+      - name: cargo-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+
       - name: rust-target-cache
         uses: actions/cache@v4
         with:
