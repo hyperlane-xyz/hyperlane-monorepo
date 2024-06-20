@@ -359,7 +359,7 @@ mod test {
             hex::encode(&valid_address2)
         );
         let mut err = ConfigParsingError::default();
-        let res = parse_address_list(&input, &mut err, || ConfigPath::default());
+        let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1.clone(), valid_address2.clone()]);
         assert!(err.is_ok());
 
@@ -370,7 +370,7 @@ mod test {
             hex::encode(&valid_address2)
         );
         let mut err = ConfigParsingError::default();
-        let res = parse_address_list(&input, &mut err, || ConfigPath::default());
+        let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
     }

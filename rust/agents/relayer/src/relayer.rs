@@ -189,7 +189,7 @@ impl BaseAgent for Relayer {
         info!(
             %message_whitelist,
             %message_blacklist,
-            %address_blacklist,
+            ?address_blacklist,
             ?transaction_gas_limit,
             ?skip_transaction_gas_limit_for,
             "Whitelist configuration"
