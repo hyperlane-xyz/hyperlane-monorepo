@@ -1,9 +1,10 @@
 name: test
 
 on:
-  # Triggers the workflow on push or pull request against main
+  # Triggers the workflow on pushes to main & cli-2.0 branches
   push:
-    branches: [main]
+    branches: [main, cli-2.0]
+  # Triggers on pull requests ignoring md files
   pull_request:
     branches:
       - '*' # run against all branches
