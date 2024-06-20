@@ -21,6 +21,7 @@ import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
 import {
   detectAndConfirmOrPrompt,
+  inputWithInfo,
   runMultiChainSelectionStep,
 } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
@@ -153,15 +154,17 @@ export const createProtocolFeeConfig = callWithConfigCreationLogs(
     // TODO: input in gwei, wei, etc
     const maxProtocolFee = advanced
       ? toWei(
-          await input({
-            message: `Enter max protocol fee for protocol fee hook (in wei):`,
+          await inputWithInfo({
+            message: `Enter max protocol fee for protocol fee hook (wei):`,
+            info: `The max protocol fee (ProtocolFee.MAX_PROTOCOL_FEE) is the maximum value the protocol fee on the ProtocolFee hook contract can ever be set to.\nDefault is set to ${MAX_PROTOCOL_FEE_DEFAULT} wei; between 0.001 and 0.1 wei is recommended.`,
           }),
         )
       : MAX_PROTOCOL_FEE_DEFAULT;
     const protocolFee = advanced
       ? toWei(
-          await input({
-            message: `Enter protocol fee for protocol fee hook (in wei):`,
+          await inputWithInfo({
+            message: `Enter protocol fee for protocol fee hook (wei):`,
+            info: `The protocol fee is the fee collected by the beneficiary of the ProtocolFee hook for every transaction executed with this hook.\nDefault is set to 0 wei; must be less than max protocol fee of ${maxProtocolFee}.`,
           }),
         )
       : PROTOCOL_FEE_DEFAULT;
@@ -169,7 +172,7 @@ export const createProtocolFeeConfig = callWithConfigCreationLogs(
       errorRed(
         `Protocol fee (${protocolFee}) cannot be greater than max protocol fee (${maxProtocolFee}).`,
       );
-      throw new Error('Invalid protocol fee.');
+      throw new Error(`Invalid protocol fee (${protocolFee}).`);
     }
     return {
       type: HookType.PROTOCOL_FEE,
