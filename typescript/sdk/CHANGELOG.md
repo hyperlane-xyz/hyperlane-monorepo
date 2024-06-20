@@ -1,5 +1,18 @@
 # @hyperlane-xyz/sdk
 
+## 3.16.0
+
+### Minor Changes
+
+- 5cc64eb09: Add validator addresses for linea, fraxtal, sei.
+  Estimate gas and add 10% buffer inside HyperlaneIsmFactory as well.
+
+### Patch Changes
+
+- f9bbdde76: Fix initial total supply of synthetic token deployments to 0
+  - @hyperlane-xyz/core@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
 ## 3.15.1
 
 ### Patch Changes

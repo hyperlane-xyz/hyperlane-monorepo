@@ -1,5 +1,4 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use futures::future;
 use std::{
     fmt::{Debug, Formatter},
     io::Cursor,
@@ -8,14 +7,15 @@ use std::{
     str::FromStr,
 };
 
-use crate::payloads::mailbox::{
-    GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
-};
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
 use crate::{address::CosmosAddress, types::tx_response_to_outcome};
 use crate::{grpc::WasmProvider, HyperlaneCosmosError};
+use crate::{
+    payloads::mailbox::{GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner},
+    utils::execute_and_parse_log_futures,
+};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
@@ -371,23 +371,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
             })
             .collect();
 
-        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
-        let result = future::join_all(logs_futures)
-            .await
-            .into_iter()
-            .flatten()
-            .filter_map(|(logs_res, block_number)| match logs_res {
-                Ok(logs) => Some(logs),
-                Err(err) => {
-                    warn!(?err, ?block_number, "Failed to fetch logs for block");
-                    None
-                }
-            })
-            .flatten()
-            .map(|(log, meta)| (log.into(), meta))
-            .collect();
-
-        Ok(result)
+        execute_and_parse_log_futures(logs_futures).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {

@@ -8,6 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_new::new;
+use ethers::utils::hex;
 use eyre::Result;
 use hyperlane_base::{
     db::{HyperlaneRocksDB, ProcessMessage},
@@ -18,15 +19,19 @@ use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, instrument, trace};
 
-use super::{metadata::AppContextClassifier, pending_message::*};
+use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
 
 /// Finds unprocessed messages from an origin and submits then through a channel
 /// for to the appropriate destination.
 #[allow(clippy::too_many_arguments)]
 pub struct MessageProcessor {
-    whitelist: Arc<MatchingList>,
-    blacklist: Arc<MatchingList>,
+    /// A matching list of messages that should be whitelisted.
+    message_whitelist: Arc<MatchingList>,
+    /// A matching list of messages that should be blacklisted.
+    message_blacklist: Arc<MatchingList>,
+    /// Addresses that messages may not interact with.
+    address_blacklist: Arc<AddressBlacklist>,
     metrics: MessageProcessorMetrics,
     /// channel for each destination chain to send operations (i.e. message
     /// submissions) to
@@ -217,8 +222,8 @@ impl Debug for MessageProcessor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MessageProcessor {{ whitelist: {:?}, blacklist: {:?}, nonce_iterator: {:?}}}",
-            self.whitelist, self.blacklist, self.nonce_iterator
+            "MessageProcessor {{ message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, nonce_iterator: {:?}}}",
+            self.message_whitelist, self.message_blacklist, self.address_blacklist, self.nonce_iterator
         )
     }
 }
@@ -247,14 +252,25 @@ impl ProcessorExt for MessageProcessor {
             let destination = msg.destination;
 
             // Skip if not whitelisted.
-            if !self.whitelist.msg_matches(&msg, true) {
-                debug!(?msg, whitelist=?self.whitelist, "Message not whitelisted, skipping");
+            if !self.message_whitelist.msg_matches(&msg, true) {
+                debug!(?msg, whitelist=?self.message_whitelist, "Message not whitelisted, skipping");
                 return Ok(());
             }
 
             // Skip if the message is blacklisted
-            if self.blacklist.msg_matches(&msg, false) {
-                debug!(?msg, blacklist=?self.blacklist, "Message blacklisted, skipping");
+            if self.message_whitelist.msg_matches(&msg, false) {
+                debug!(?msg, blacklist=?self.message_whitelist, "Message blacklisted, skipping");
+                return Ok(());
+            }
+
+            // Skip if the message involves a blacklisted address
+            if let Some(blacklisted_address) = self.address_blacklist.find_blacklisted_address(&msg)
+            {
+                debug!(
+                    ?msg,
+                    blacklisted_address = hex::encode(blacklisted_address),
+                    "Message involves blacklisted address, skipping"
+                );
                 return Ok(());
             }
 
@@ -291,18 +307,21 @@ impl ProcessorExt for MessageProcessor {
 }
 
 impl MessageProcessor {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: HyperlaneRocksDB,
-        whitelist: Arc<MatchingList>,
-        blacklist: Arc<MatchingList>,
+        message_whitelist: Arc<MatchingList>,
+        message_blacklist: Arc<MatchingList>,
+        address_blacklist: Arc<AddressBlacklist>,
         metrics: MessageProcessorMetrics,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
         metric_app_contexts: Vec<(MatchingList, String)>,
     ) -> Self {
         Self {
-            whitelist,
-            blacklist,
+            message_whitelist,
+            message_blacklist,
+            address_blacklist,
             metrics,
             send_channels,
             destination_ctxs,
@@ -452,7 +471,6 @@ mod test {
             false,
             Arc::new(core_metrics),
             db.clone(),
-            5,
             IsmAwareAppContextClassifier::new(Arc::new(MockMailboxContract::default()), vec![]),
         )
     }
@@ -476,6 +494,7 @@ mod test {
         (
             MessageProcessor::new(
                 db.clone(),
+                Default::default(),
                 Default::default(),
                 Default::default(),
                 dummy_processor_metrics(origin_domain.id()),
