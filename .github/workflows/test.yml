@@ -258,7 +258,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "${{ runner.os }}-rust-cache"
-          shared-key: ${{ matrix.e2e-type }}
+          shared-key: "${{ matrix.e2e-type }}-v1"
           workspaces: |
             ./rust
 
@@ -351,7 +351,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
+          shared-key: "cli-e2e-v1"
           workspaces: |
             ./rust
 
@@ -414,7 +414,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
+          shared-key: "cli-e2e-v1"
           workspaces: |
             ./rust
 
