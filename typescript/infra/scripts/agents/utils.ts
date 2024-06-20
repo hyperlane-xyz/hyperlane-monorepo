@@ -31,18 +31,19 @@ export class AgentCli {
     // make all the managers first to ensure config validity
     for (const role of this.roles) {
       switch (role) {
-        case Role.Validator:
-          for (const chain of this.agentConfig.contextChainNames[role]) {
-            // check if current chain is in provided set of chains
-            if (!this.chains?.includes(chain)) {
-              console.log(`Skipping chain ${chain}`);
-              continue;
-            }
-
+        case Role.Validator: {
+          const contextChainNames = this.agentConfig.contextChainNames[role];
+          const validatorChains = !this.chains
+            ? contextChainNames
+            : contextChainNames.filter((chain: string) =>
+                this.chains!.includes(chain),
+              );
+          for (const chain of validatorChains) {
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }
           break;
+        }
         case Role.Relayer:
           managers[role] = new RelayerHelmManager(this.agentConfig);
           break;
