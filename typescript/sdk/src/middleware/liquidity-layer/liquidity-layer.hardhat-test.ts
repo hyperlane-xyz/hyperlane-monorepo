@@ -16,8 +16,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { addressToBytes32, objMap } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata.js';
-import { Chains } from '../../consts/chains.js';
+import { TestChainName, test1, test2 } from '../../consts/testChains.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -34,11 +33,12 @@ import {
   PortalAdapterConfig,
 } from './LiquidityLayerRouterDeployer.js';
 
+// eslint-disable-next-line jest/no-disabled-tests
 describe.skip('LiquidityLayerRouter', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
-  const localDomain = chainMetadata[localChain].chainId;
-  const remoteDomain = chainMetadata[remoteChain].chainId;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
+  const localDomain = test1.domainId!;
+  const remoteDomain = test2.domainId!;
 
   let signer: SignerWithAddress;
   let local: LiquidityLayerRouter;

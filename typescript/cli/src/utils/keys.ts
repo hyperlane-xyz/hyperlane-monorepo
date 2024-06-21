@@ -1,48 +1,48 @@
 import { input } from '@inquirer/prompts';
 import { ethers, providers } from 'ethers';
 
+import { impersonateAccount } from '@hyperlane-xyz/sdk';
 import { Address, ensure0x } from '@hyperlane-xyz/utils';
 
-import { ContextSettings, KeyConfig } from '../context.js';
-
-import { impersonateAccount } from './fork.js';
-
 const ETHEREUM_ADDRESS_LENGTH = 42;
-const DEFAULT_KEY_TYPE = 'private key';
-const IMPERSONATED_KEY_TYPE = 'address';
 
 /**
  * Retrieves a signer for the current command-context.
  * @returns the signer
  */
-export async function getSigner<P extends ContextSettings>({
-  keyConfig,
+export async function getSigner({
+  key,
   skipConfirmation,
-}: P): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
-  if (!keyConfig) return undefined;
-
-  const key = await retrieveKey(DEFAULT_KEY_TYPE, keyConfig, skipConfirmation);
-
-  return privateKeyToSigner(key);
+}: {
+  key?: string;
+  skipConfirmation?: boolean;
+}) {
+  key ||= await retrieveKey(skipConfirmation);
+  const signer = privateKeyToSigner(key);
+  return { key, signer };
 }
 
 /**
  * Retrieves an impersonated signer for the current command-context.
  * @returns the impersonated signer
  */
-export async function getImpersonatedSigner<P extends ContextSettings>({
-  keyConfig,
+export async function getImpersonatedSigner({
+  fromAddress,
+  key,
   skipConfirmation,
-}: P): Promise<providers.JsonRpcSigner | ethers.Wallet | undefined> {
-  if (!keyConfig) return undefined;
-
-  const key = await retrieveKey(
-    IMPERSONATED_KEY_TYPE,
-    keyConfig,
-    skipConfirmation,
-  );
-
-  return await addressToImpersonatedSigner(key);
+}: {
+  fromAddress?: Address;
+  key?: string;
+  skipConfirmation?: boolean;
+}) {
+  if (!fromAddress) {
+    const { signer } = await getSigner({ key, skipConfirmation });
+    fromAddress = signer.address;
+  }
+  return {
+    impersonatedKey: fromAddress,
+    impersonatedSigner: await addressToImpersonatedSigner(fromAddress),
+  };
 }
 
 /**
@@ -66,9 +66,7 @@ async function addressToImpersonatedSigner(
 
   const formattedKey = address.trim().toLowerCase();
   if (address.length != ETHEREUM_ADDRESS_LENGTH)
-    throw new Error(
-      'Invalid address length. Please ensure you are passing an address and not a private key.',
-    );
+    throw new Error('Invalid address length.');
   else if (ethers.utils.isHexString(ensure0x(formattedKey)))
     return await impersonateAccount(address);
   else throw new Error('Invalid address format');
@@ -91,16 +89,11 @@ function privateKeyToSigner(key: string): ethers.Wallet {
 }
 
 async function retrieveKey(
-  keyType: string,
-  keyConfig: KeyConfig,
   skipConfirmation: boolean | undefined,
 ): Promise<string> {
-  if (keyConfig.key) return keyConfig.key;
-  else if (skipConfirmation) throw new Error(`No ${keyType} provided`);
+  if (skipConfirmation) throw new Error(`No private key provided`);
   else
     return await input({
-      message:
-        keyConfig.promptMessage ||
-        `Please enter ${keyType} or use the HYP_KEY environment variable.`,
+      message: `Please enter private key or use the HYP_KEY environment variable.`,
     });
 }

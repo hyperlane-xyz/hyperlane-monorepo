@@ -1,5 +1,116 @@
 # @hyperlane-xyz/sdk
 
+## 3.16.0
+
+### Minor Changes
+
+- 5cc64eb09: Add validator addresses for linea, fraxtal, sei.
+  Estimate gas and add 10% buffer inside HyperlaneIsmFactory as well.
+
+### Patch Changes
+
+- f9bbdde76: Fix initial total supply of synthetic token deployments to 0
+  - @hyperlane-xyz/core@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- acaa22cd9: Do not consider xERC20 a collateral standard to fix fungibility checking logic while maintaining mint limit checking
+- 921e449b4: Support priorityFee fetching from RPC and some better logging
+- Updated dependencies [6620fe636]
+  - @hyperlane-xyz/core@3.15.1
+  - @hyperlane-xyz/utils@3.15.1
+
+## 3.15.0
+
+### Minor Changes
+
+- 51bfff683: Mint/burn limit checking for xERC20 bridging
+  Corrects CLI output for HypXERC20 and HypXERC20Lockbox deployments
+
+### Patch Changes
+
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/core@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
+
+## 3.14.0
+
+### Patch Changes
+
+- Updated dependencies [a8a68f6f6]
+  - @hyperlane-xyz/core@3.14.0
+  - @hyperlane-xyz/utils@3.14.0
+
+## 3.13.0
+
+### Minor Changes
+
+- 39ea7cdef: Implement multi collateral warp routes
+- babe816f8: Support xERC20 and xERC20 Lockbox in SDK and CLI
+- 0cf692e73: Implement metadata builder fetching from message
+
+### Patch Changes
+
+- Updated dependencies [babe816f8]
+- Updated dependencies [b440d98be]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/core@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
+## 3.12.0
+
+### Minor Changes
+
+- 69de68a66: Implement aggregation and multisig ISM metadata encoding
+
+### Patch Changes
+
+- eba393680: Exports submitter and transformer props types.
+- Updated dependencies [69de68a66]
+  - @hyperlane-xyz/utils@3.12.0
+  - @hyperlane-xyz/core@3.12.0
+
+## 3.11.1
+
+### Patch Changes
+
+- c900da187: Workaround TS bug in Safe protocol-lib
+  - @hyperlane-xyz/core@3.11.1
+  - @hyperlane-xyz/utils@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- 811ecfbba: Add EvmCoreReader, minor updates.
+- f8b6ea467: Update the warp-route-deployment.yaml to a more sensible schema. This schema sets us up to allow multi-chain collateral deployments. Removes intermediary config objects by using zod instead.
+- d37cbab72: Adds modular transaction submission support for SDK clients, e.g. CLI.
+- b6fdf2f7f: Implement XERC20 and FiatToken collateral warp routes
+- 2db77f177: Added RPC `concurrency` property to `ChainMetadata`.
+  Added `CrudModule` abstraction and related types.
+  Removed `Fuel` ProtocolType.
+- 3a08e31b6: Add EvmERC20WarpRouterReader to derive WarpConfig from TokenRouter address
+- 917266dce: Add --self-relay to CLI commands
+- aab63d466: Adding ICA for governance
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+- 3528b281e: Remove consts such as chainMetadata from SDK
+- 450e8e0d5: Migrate fork util from CLI to SDK. Anvil IP & Port are now optionally passed into fork util by client.
+- af2634207: Moved Hook/ISM config stringify into a general object stringify utility.
+
+### Patch Changes
+
+- a86a8296b: Removes Gnosis safe util from infra in favor of SDK
+- 2e439423e: Allow gasLimit overrides in the SDK/CLI for deploy txs
+- Updated dependencies [b6fdf2f7f]
+- Updated dependencies [b63714ede]
+- Updated dependencies [2b3f75836]
+- Updated dependencies [af2634207]
+  - @hyperlane-xyz/core@3.11.0
+  - @hyperlane-xyz/utils@3.11.0
+
 ## 3.10.0
 
 ### Minor Changes

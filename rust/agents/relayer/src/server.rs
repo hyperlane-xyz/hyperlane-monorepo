@@ -3,12 +3,10 @@ use axum::{
     routing, Router,
 };
 use derive_new::new;
-use hyperlane_core::{ChainCommunicationError, H256};
+use hyperlane_core::{ChainCommunicationError, QueueOperation, H256};
 use serde::Deserialize;
 use std::str::FromStr;
 use tokio::sync::broadcast::Sender;
-
-use crate::msg::op_queue::QueueOperation;
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 1_000;
@@ -109,12 +107,12 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use ethers::utils::hex::ToHex;
-    use hyperlane_core::{MpmcChannel, MpmcReceiver};
     use std::net::SocketAddr;
+    use tokio::sync::broadcast::{Receiver, Sender};
 
-    fn setup_test_server() -> (SocketAddr, MpmcReceiver<MessageRetryRequest>) {
-        let mpmc_channel = MpmcChannel::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let message_retry_api = MessageRetryApi::new(mpmc_channel.sender());
+    fn setup_test_server() -> (SocketAddr, Receiver<MessageRetryRequest>) {
+        let broadcast_tx = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let message_retry_api = MessageRetryApi::new(broadcast_tx.clone());
         let (path, retry_router) = message_retry_api.get_route();
         let app = Router::new().nest(path, retry_router);
 
@@ -124,7 +122,7 @@ mod tests {
         let addr = server.local_addr();
         tokio::spawn(server);
 
-        (addr, mpmc_channel.receiver())
+        (addr, broadcast_tx.subscribe())
     }
 
     #[tokio::test]
@@ -148,7 +146,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         assert_eq!(
-            rx.receiver.try_recv().unwrap(),
+            rx.try_recv().unwrap(),
             MessageRetryRequest::MessageId(message_id)
         );
     }
@@ -172,7 +170,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         assert_eq!(
-            rx.receiver.try_recv().unwrap(),
+            rx.try_recv().unwrap(),
             MessageRetryRequest::DestinationDomain(destination_domain)
         );
     }

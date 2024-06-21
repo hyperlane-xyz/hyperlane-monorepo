@@ -7,14 +7,13 @@ import { format } from 'util';
 import {
   ChainMap,
   ChainName,
-  Chains,
   HyperlaneIgp,
   MultiProvider,
-  RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { getEnvAddresses } from '../../config/registry.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
@@ -25,10 +24,7 @@ import {
   LocalAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys.js';
-import {
-  DeployEnvironment,
-  deployEnvToSdkEnv,
-} from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
 import {
   ContextAndRoles,
   ContextAndRolesMap,
@@ -59,9 +55,7 @@ const nativeBridges = {
   },
 };
 
-type L2Chain = Chains.optimism | Chains.arbitrum | Chains.base;
-
-const L2Chains: ChainName[] = [Chains.optimism, Chains.arbitrum, Chains.base];
+const L2Chains: ChainName[] = ['optimism', 'arbitrum', 'base'];
 
 const L2ToL1: ChainMap<ChainName> = {
   optimism: 'ethereum',
@@ -107,6 +101,7 @@ const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 const igpClaimThresholdPerChain: ChainMap<string> = {
   celo: '5',
   alfajores: '1',
+  ancient8: '0.1',
   avalanche: '2',
   fuji: '1',
   ethereum: '0.4',
@@ -123,6 +118,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   scroll: '0.1',
   polygonzkevm: '0.1',
   plumetestnet: '0.1',
+  inevm: '20',
   // unused
   test1: '0',
   test2: '0',
@@ -180,11 +176,6 @@ async function main() {
     )
     .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
 
-    .string('connection-type')
-    .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', RpcConsensusType.Single)
-    .demandOption('connection-type')
-
     .boolean('skip-igp-claim')
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
     .default('skip-igp-claim', false).argv;
@@ -194,7 +185,6 @@ async function main() {
   const multiProvider = await config.getMultiProvider(
     Contexts.Hyperlane, // Always fund from the hyperlane context
     Role.Deployer, // Always fund from the deployer
-    argv.connectionType,
   );
 
   let contextFunders: ContextFunder[];
@@ -276,8 +266,8 @@ class ContextFunder {
       },
     );
 
-    this.igp = HyperlaneIgp.fromEnvironment(
-      deployEnvToSdkEnv[this.environment],
+    this.igp = HyperlaneIgp.fromAddressesMap(
+      getEnvAddresses(this.environment),
       multiProvider,
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
@@ -384,7 +374,7 @@ class ContextFunder {
       [Role.Kathy]: '',
     };
     const roleKeysPerChain: ChainMap<Record<FundableRole, BaseAgentKey[]>> = {};
-    const chains = getEnvironmentConfig(environment).chainMetadataConfigs;
+    const { supportedChainNames } = getEnvironmentConfig(environment);
     for (const role of rolesToFund) {
       assertFundableRole(role); // only the relayer and kathy are fundable keys
       const roleAddress = fetchLocalKeyAddresses(role)[environment][context];
@@ -395,7 +385,7 @@ class ContextFunder {
       }
       fundableRoleKeys[role] = roleAddress;
 
-      for (const chain of Object.keys(chains)) {
+      for (const chain of supportedChainNames) {
         if (!roleKeysPerChain[chain as ChainName]) {
           roleKeysPerChain[chain as ChainName] = {
             [Role.Relayer]: [],
@@ -524,7 +514,7 @@ class ContextFunder {
         desiredBalanceEther.mul(5),
       );
       if (bridgeAmount.gt(0)) {
-        await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);
+        await this.bridgeToL2(chain, funderAddress, bridgeAmount);
       }
     }
   }
@@ -578,10 +568,18 @@ class ContextFunder {
   }
 
   private getDesiredBalanceForRole(chain: ChainName, role: Role): BigNumber {
-    const desiredBalanceEther =
-      role === Role.Kathy && this.desiredKathyBalancePerChain[chain]
-        ? this.desiredKathyBalancePerChain[chain]
-        : this.desiredBalancePerChain[chain];
+    let desiredBalanceEther: string | undefined;
+    if (role === Role.Kathy) {
+      const desiredKathyBalance = this.desiredKathyBalancePerChain[chain];
+      if (desiredKathyBalance === undefined) {
+        logger.warn({ chain }, 'No desired balance for Kathy, not funding');
+        desiredBalanceEther = '0';
+      } else {
+        desiredBalanceEther = this.desiredKathyBalancePerChain[chain];
+      }
+    } else {
+      desiredBalanceEther = this.desiredBalancePerChain[chain];
+    }
     let desiredBalance = ethers.utils.parseEther(desiredBalanceEther ?? '0');
     if (this.context === Contexts.ReleaseCandidate) {
       desiredBalance = desiredBalance
@@ -652,7 +650,7 @@ class ContextFunder {
     });
   }
 
-  private async bridgeToL2(l2Chain: L2Chain, to: string, amount: BigNumber) {
+  private async bridgeToL2(l2Chain: ChainName, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
     logger.info('Bridging ETH to L2', {
       amount: ethers.utils.formatEther(amount),
@@ -681,7 +679,7 @@ class ContextFunder {
   }
 
   private async bridgeToOptimism(
-    l2Chain: L2Chain,
+    l2Chain: ChainName,
     amount: BigNumber,
     to: string,
   ) {
@@ -698,7 +696,7 @@ class ContextFunder {
     });
   }
 
-  private async bridgeToArbitrum(l2Chain: L2Chain, amount: BigNumber) {
+  private async bridgeToArbitrum(l2Chain: ChainName, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
     const l2Network = await getL2Network(
       this.multiProvider.getDomainId(l2Chain),
@@ -712,7 +710,7 @@ class ContextFunder {
   }
 
   private async bridgeToScroll(
-    l2Chain: L2Chain,
+    l2Chain: ChainName,
     amount: BigNumber,
     to: Address,
   ) {

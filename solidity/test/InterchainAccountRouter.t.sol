@@ -479,6 +479,7 @@ contract InterchainAccountRouterTest is Test {
         uint64 payment,
         bytes32 data
     ) public {
+        CallLib.Call[] memory calls = getCalls(data);
         vm.assume(payment < gasLimit * igp.gasPrice());
         // arrange
         bytes memory metadata = StandardHookMetadata.formatMetadata(
@@ -495,11 +496,7 @@ contract InterchainAccountRouterTest is Test {
 
         // act
         vm.expectRevert("IGP: insufficient interchain gas payment");
-        originRouter.callRemote{value: payment}(
-            destination,
-            getCalls(data),
-            metadata
-        );
+        originRouter.callRemote{value: payment}(destination, calls, metadata);
     }
 
     function testFuzz_callRemoteWithOverrides_default(bytes32 data) public {

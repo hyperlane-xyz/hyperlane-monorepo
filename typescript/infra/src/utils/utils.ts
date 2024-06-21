@@ -8,15 +8,17 @@ import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
+import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import {
-  AllChains,
-  ChainName,
-  CoreChainName,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+  Address,
+  ProtocolType,
+  objFilter,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
+import { testChainNames } from '../../config/environments/test/chains.js';
+import { getChain, getChains } from '../../config/registry.js';
 import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {
@@ -195,9 +197,8 @@ export function assertFundableRole(roleStr: string): FundableRole {
   return role;
 }
 
-export function assertChain(chainStr: string) {
-  const chain = chainStr as ChainName;
-  if (!AllChains.includes(chain as CoreChainName)) {
+export function assertChain(chain: ChainName) {
+  if (!getChains().includes(chain) && !testChainNames.includes(chain)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
@@ -253,19 +254,45 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
   return diagonalized;
 }
 
-export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
-  const metadata = chainMetadata[chain];
+export function mustGetChainNativeToken(chain: ChainName): NativeToken {
+  const metadata = getChain(chain);
   if (!metadata.nativeToken) {
     throw new Error(`No native token for chain ${chain}`);
   }
-  return metadata.nativeToken.decimals;
+  return metadata.nativeToken;
+}
+
+export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
+  if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
+  return getChain(chainName).protocol === protocol;
 }
 
 export function isEthereumProtocolChain(chainName: ChainName) {
-  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol === ProtocolType.Ethereum;
+  return chainIsProtocol(chainName, ProtocolType.Ethereum);
 }
 
 export function getInfraPath() {
   return join(dirname(fileURLToPath(import.meta.url)), '../../');
+}
+
+export function inCIMode() {
+  return process.env.CI === 'true';
+}
+
+// Filter out chains that are not supported by the multiProvider
+// Filter out any value that is not a string e.g. remote domain metadata
+export function filterRemoteDomainMetadata(
+  addressesMap: ChainMap<Record<string, Address>>,
+): ChainMap<Record<string, Address>> {
+  return Object.fromEntries(
+    Object.entries(addressesMap).map(([chain, addresses]) => [
+      chain,
+      // Filter out any non-string writes
+      // e.g. remote domain metadata that might be present
+      objFilter(
+        addresses,
+        (_, value): value is string => typeof value === 'string',
+      ),
+    ]),
+  );
 }

@@ -34,14 +34,6 @@ pub async fn call_and_retry_n_times<T>(
     ))
 }
 
-/// Retry calling a fallible async function a predefined number of times
-#[instrument(err, skip(f))]
-pub async fn call_with_retry<T>(
-    f: impl FnMut() -> Pin<Box<dyn Future<Output = ChainResult<T>> + Send>>,
-) -> ChainResult<T> {
-    call_and_retry_n_times(f, DEFAULT_MAX_RPC_RETRIES).await
-}
-
 /// Retry calling a fallible async function indefinitely, until it succeeds
 pub async fn call_and_retry_indefinitely<T>(
     f: impl FnMut() -> Pin<Box<dyn Future<Output = ChainResult<T>> + Send>>,

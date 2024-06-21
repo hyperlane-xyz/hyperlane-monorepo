@@ -63,6 +63,7 @@ impl BaseAgent for Validator {
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        _tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -209,7 +210,10 @@ impl Validator {
         let contract_sync = self.merkle_tree_hook_sync.clone();
         let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move {
-            contract_sync.clone().sync("merkle_tree_hook", cursor).await;
+            contract_sync
+                .clone()
+                .sync("merkle_tree_hook", cursor.into())
+                .await;
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }

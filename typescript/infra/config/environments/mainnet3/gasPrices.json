@@ -1,20 +1,106 @@
 {
-  "ancient8": "1",
-  "arbitrum": "0.1",
-  "avalanche": "43.212830197",
-  "bsc": "1.350070319",
-  "celo": "10.0",
-  "ethereum": "26.346912847",
-  "mantapacific": "0.100000057",
-  "moonbeam": "125.0",
-  "optimism": "0.003225814",
-  "polygon": "61.601287856",
-  "gnosis": "1.852997796",
-  "base": "0.0010003",
-  "scroll": "0.46",
-  "polygonzkevm": "3.95",
-  "inevm": "0.1",
-  "viction": "0.25",
-  "neutron": "0.1",
-  "injective": "0.1"
+  "arbitrum": {
+    "amount": "0.01",
+    "decimals": 9
+  },
+  "ancient8": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "avalanche": {
+    "amount": "43.212830197",
+    "decimals": 9
+  },
+  "base": {
+    "amount": "0.116871685",
+    "decimals": 9
+  },
+  "blast": {
+    "amount": "0.01649352",
+    "decimals": 9
+  },
+  "bsc": {
+    "amount": "5.0",
+    "decimals": 9
+  },
+  "celo": {
+    "amount": "10.0",
+    "decimals": 9
+  },
+  "ethereum": {
+    "amount": "20",
+    "decimals": 9
+  },
+  "fraxtal": {
+    "amount": "0.001000253",
+    "decimals": 9
+  },
+  "gnosis": {
+    "amount": "5.877696928",
+    "decimals": 9
+  },
+  "inevm": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "injective": {
+    "amount": "700000000",
+    "decimals": 1
+  },
+  "linea": {
+    "amount": "0.110844655",
+    "decimals": 9
+  },
+  "mantapacific": {
+    "amount": "0.101967574",
+    "decimals": 9
+  },
+  "mode": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "moonbeam": {
+    "amount": "125.0",
+    "decimals": 9
+  },
+  "neutron": {
+    "amount": "0.0053",
+    "decimals": 1
+  },
+  "optimism": {
+    "amount": "0.061126811",
+    "decimals": 9
+  },
+  "osmosis": {
+    "amount": "0.025",
+    "decimals": 1
+  },
+  "polygon": {
+    "amount": "101.76455238",
+    "decimals": 9
+  },
+  "polygonzkevm": {
+    "amount": "3.95",
+    "decimals": 9
+  },
+  "redstone": {
+    "amount": "0.0003",
+    "decimals": 9
+  },
+  "scroll": {
+    "amount": "1.3231",
+    "decimals": 9
+  },
+  "sei": {
+    "amount": "1.0",
+    "decimals": 9
+  },
+  "viction": {
+    "amount": "0.25",
+    "decimals": 9
+  },
+  "zetachain": {
+    "amount": "10.1",
+    "decimals": 9
+  }
 }

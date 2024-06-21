@@ -1,4 +1,6 @@
 import { BigNumberish } from 'ethers';
+import { Logger } from 'pino';
+import { z } from 'zod';
 
 import {
   AgentConfig,
@@ -9,11 +11,16 @@ import {
   HyperlaneFactories,
   MatchingList,
   RelayerConfig as RelayerAgentConfig,
-  chainMetadata,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  addressToBytes32,
+  isValidAddressEvm,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
+import { getChain, getDomainId } from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
@@ -35,6 +42,7 @@ export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
+  addressBlacklist?: string;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContexts?: MetricAppContext[];
@@ -59,12 +67,15 @@ export interface HelmRelayerChainValues {
 
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   readonly #relayerConfig: BaseRelayerConfig;
+  readonly logger: Logger<never>;
 
   constructor(agentConfig: RootAgentConfig) {
     if (!agentConfig.relayer)
       throw Error('Relayer is not defined for this context');
     super(agentConfig, agentConfig.relayer);
+
     this.#relayerConfig = agentConfig.relayer;
+    this.logger = rootLogger.child({ module: 'RelayerConfigHelper' });
   }
 
   async buildConfig(): Promise<RelayerConfig> {
@@ -81,6 +92,11 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     if (baseConfig.blacklist) {
       relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
     }
+
+    relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
+      ',',
+    );
+
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =
         baseConfig.transactionGasLimit.toString();
@@ -114,7 +130,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
       // AWS keys only work for Ethereum chains
       for (const chainName of this.relayChains) {
-        if (chainMetadata[chainName].protocol === ProtocolType.Ethereum) {
+        if (getChain(chainName).protocol === ProtocolType.Ethereum) {
           chainSigners[chainName] = awsKey;
         }
       }
@@ -129,6 +145,40 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     }
 
     return chainSigners;
+  }
+
+  async getSanctionedAddresses() {
+    // All Ethereum-style addresses from https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
+    const currencies = ['ARB', 'ETC', 'ETH', 'USDC', 'USDT'];
+
+    const schema = z.array(z.string());
+
+    const allSanctionedAddresses = await Promise.all(
+      currencies.map(async (currency) => {
+        const rawUrl = `https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_${currency}.json`;
+        this.logger.debug(
+          {
+            currency,
+            rawUrl,
+          },
+          'Fetching sanctioned addresses',
+        );
+        const json = await fetch(rawUrl);
+        const sanctionedAddresses = schema.parse(await json.json());
+        return sanctionedAddresses;
+      }),
+    );
+
+    return allSanctionedAddresses.flat().filter((address) => {
+      if (!isValidAddressEvm(address)) {
+        this.logger.debug(
+          { address },
+          'Invalid sanctioned address, throwing out',
+        );
+        return false;
+      }
+      return true;
+    });
   }
 
   // Returns whether the relayer requires AWS credentials
@@ -180,9 +230,9 @@ export function matchingList<F extends HyperlaneFactories>(
         );
 
       matchingList.push({
-        originDomain: getDomainId(chainMetadata[source]),
+        originDomain: getDomainId(source),
         senderAddress: uniqueAddresses(addressesMap[source]),
-        destinationDomain: getDomainId(chainMetadata[destination]),
+        destinationDomain: getDomainId(destination),
         recipientAddress: uniqueAddresses(addressesMap[destination]),
       });
     }

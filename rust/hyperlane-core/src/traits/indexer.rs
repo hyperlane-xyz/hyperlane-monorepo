@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, LogMeta};
+use crate::{ChainResult, Indexed, LogMeta, H512};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -29,10 +29,21 @@ pub enum IndexMode {
 #[auto_impl(&, Box, Arc,)]
 pub trait Indexer<T: Sized>: Send + Sync + Debug {
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(T, LogMeta)>>;
+    async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>>;
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32>;
+
+    /// Fetch list of logs emitted in a transaction with the given hash.
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        _tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        Ok(vec![])
+    }
 }
 
 /// Interface for indexing data in sequence.

@@ -1,5 +1,115 @@
 # @hyperlane-xyz/infra
 
+## 3.16.0
+
+### Minor Changes
+
+- 5cc64eb09: Add support for new chains: linea, fraxtal, sei.
+  Support osmosis remote.
+  Drive-by fix to always fetch explorer API keys when running deploy script.
+
+### Patch Changes
+
+- 5cc64eb09: Allow selecting a specific chain to govern in check-deploy script
+- Updated dependencies [f9bbdde76]
+- Updated dependencies [5cc64eb09]
+  - @hyperlane-xyz/sdk@3.16.0
+  - @hyperlane-xyz/helloworld@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- Updated dependencies [6620fe636]
+- Updated dependencies [acaa22cd9]
+- Updated dependencies [921e449b4]
+  - @hyperlane-xyz/helloworld@3.15.1
+  - @hyperlane-xyz/sdk@3.15.1
+  - @hyperlane-xyz/utils@3.15.1
+
+## 3.15.0
+
+### Patch Changes
+
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/sdk@3.15.0
+  - @hyperlane-xyz/helloworld@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
+
+## 3.14.0
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@3.14.0
+- @hyperlane-xyz/sdk@3.14.0
+- @hyperlane-xyz/utils@3.14.0
+
+## 3.13.0
+
+### Minor Changes
+
+- 39ea7cdef: Implement multi collateral warp routes
+- 0cf692e73: Implement metadata builder fetching from message
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [b6b26e2bb]
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/helloworld@3.13.0
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
+## 3.12.0
+
+### Patch Changes
+
+- Updated dependencies [eba393680]
+- Updated dependencies [69de68a66]
+  - @hyperlane-xyz/sdk@3.12.0
+  - @hyperlane-xyz/utils@3.12.0
+  - @hyperlane-xyz/helloworld@3.12.0
+
+## 3.11.1
+
+### Patch Changes
+
+- Updated dependencies [c900da187]
+  - @hyperlane-xyz/sdk@3.11.1
+  - @hyperlane-xyz/helloworld@3.11.1
+  - @hyperlane-xyz/utils@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- af2634207: Moved Hook/ISM reading into CLI.
+
+### Patch Changes
+
+- a86a8296b: Removes Gnosis safe util from infra in favor of SDK
+- Updated dependencies [811ecfbba]
+- Updated dependencies [f8b6ea467]
+- Updated dependencies [d37cbab72]
+- Updated dependencies [b6fdf2f7f]
+- Updated dependencies [a86a8296b]
+- Updated dependencies [2db77f177]
+- Updated dependencies [3a08e31b6]
+- Updated dependencies [917266dce]
+- Updated dependencies [aab63d466]
+- Updated dependencies [2e439423e]
+- Updated dependencies [b63714ede]
+- Updated dependencies [3528b281e]
+- Updated dependencies [450e8e0d5]
+- Updated dependencies [2b3f75836]
+- Updated dependencies [af2634207]
+  - @hyperlane-xyz/sdk@3.11.0
+  - @hyperlane-xyz/helloworld@3.11.0
+  - @hyperlane-xyz/utils@3.11.0
+
 ## 3.10.0
 
 ### Minor Changes

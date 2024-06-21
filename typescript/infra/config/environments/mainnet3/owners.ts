@@ -1,10 +1,7 @@
-import {
-  AddressesMap,
-  ChainMap,
-  OwnableConfig,
-  hyperlaneEnvironments,
-} from '@hyperlane-xyz/sdk';
+import { AddressesMap, ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
+
+import { getMainnetAddresses } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 
@@ -13,8 +10,7 @@ export const timelocks: ChainMap<Address | undefined> = {
 };
 
 export function localAccountRouters(): ChainMap<Address> {
-  const coreAddresses: ChainMap<AddressesMap> =
-    hyperlaneEnvironments['mainnet'];
+  const coreAddresses: ChainMap<AddressesMap> = getMainnetAddresses();
   const filteredAddresses = objFilter(
     coreAddresses,
     (local, addressMap): addressMap is AddressesMap =>
@@ -43,6 +39,9 @@ export const safes: ChainMap<Address | undefined> = {
   polygonzkevm: '0x1610f578D4d77Fc4ae7ce2DD9AA0b98A5Cd0a9b2',
   // injective: 'inj1632x8j35kenryam3mkrsez064sqg2y2fr0frzt',
   // solana: 'EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3',
+  blast: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
+  linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
+  mode: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
 };
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
@@ -59,6 +58,7 @@ export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
         proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
         validatorAnnounce: DEPLOYER, // unused
         testRecipient: DEPLOYER,
+        fallbackRoutingHook: DEPLOYER,
       },
     },
   ]),

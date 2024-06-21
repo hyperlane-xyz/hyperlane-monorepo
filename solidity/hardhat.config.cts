@@ -2,6 +2,7 @@ import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';
+import 'hardhat-ignore-warnings';
 import 'solidity-coverage';
 
 /**
@@ -29,5 +30,11 @@ module.exports = {
   mocha: {
     bail: true,
     import: 'tsx',
+  },
+  warnings: {
+    // turn off all warnings for libs:
+    'fx-portal/**/*': {
+      default: 'off',
+    },
   },
 };

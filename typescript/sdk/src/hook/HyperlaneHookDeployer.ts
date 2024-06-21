@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/core';
 import { Address, addressToBytes32, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -116,7 +115,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config.maxProtocolFee,
       config.protocolFee,
       config.beneficiary,
-      await this.resolveInterchainAccountAsOwner(chain, config.owner),
+      config.owner,
     ]);
   }
 
@@ -294,8 +293,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
     for (const [dest, hookConfig] of Object.entries(config.domains)) {
-      const destDomain =
-        chainMetadata[dest]?.domainId ?? this.multiProvider.getDomainId(dest);
+      const destDomain = this.multiProvider.getDomainId(dest);
       if (typeof hookConfig === 'string') {
         routingConfigs.push({
           destination: destDomain,
@@ -315,12 +313,20 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
-    await this.runIfOwner(chain, routingHook, async () =>
-      this.multiProvider.handleTx(
+    await this.runIfOwner(chain, routingHook, async () => {
+      this.logger.debug(
+        {
+          chain,
+          routingHookAddress: routingHook.address,
+          routingConfigs,
+        },
+        'Setting routing hooks',
+      );
+      return this.multiProvider.handleTx(
         chain,
         routingHook.setHooks(routingConfigs, overrides),
-      ),
-    );
+      );
+    });
 
     await this.transferOwnershipOfContracts(chain, config, {
       [config.type]: routingHook,

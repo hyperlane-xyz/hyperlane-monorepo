@@ -29,11 +29,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
-import { chainMetadata } from '../consts/chainMetadata.js';
-import {
-  HyperlaneEnvironment,
-  hyperlaneEnvironments,
-} from '../consts/environments/index.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -66,18 +61,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   protected deployer?: HyperlaneDeployer<any, any>;
   setDeployer(deployer: HyperlaneDeployer<any, any>): void {
     this.deployer = deployer;
-  }
-
-  static fromEnvironment<Env extends HyperlaneEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider,
-  ): HyperlaneIsmFactory {
-    const envAddresses = hyperlaneEnvironments[env];
-    if (!envAddresses) {
-      throw new Error(`No addresses found for ${env}`);
-    }
-    /// @ts-ignore
-    return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
   }
 
   static fromAddressesMap(
@@ -265,9 +248,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config.domains = objFilter(
       config.domains,
       (domain, config): config is IsmConfig => {
-        const domainId =
-          chainMetadata[domain]?.domainId ??
-          this.multiProvider.tryGetDomainId(domain);
+        const domainId = this.multiProvider.tryGetDomainId(domain);
         if (domainId === null) {
           logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
@@ -276,10 +257,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         return domainId !== null;
       },
     );
-    const safeConfigDomains = Object.keys(config.domains).map(
-      (domain) =>
-        chainMetadata[domain]?.domainId ??
-        this.multiProvider.getDomainId(domain),
+    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
+      this.multiProvider.getDomainId(domain),
     );
     const delta: RoutingIsmDelta = existingIsmAddress
       ? await routingModuleDelta(
@@ -394,11 +373,22 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           config.owner,
         );
-        const tx = await domainRoutingIsmFactory.deploy(
+        // estimate gas
+        const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
           owner,
           safeConfigDomains,
           submoduleAddresses,
           overrides,
+        );
+        // add 10% buffer
+        const tx = await domainRoutingIsmFactory.deploy(
+          owner,
+          safeConfigDomains,
+          submoduleAddresses,
+          {
+            ...overrides,
+            gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+          },
         );
         receipt = await this.multiProvider.handleTx(destination, tx);
 
@@ -478,11 +468,19 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const hash = await factory['deploy(address[],uint8)'](
+
+      // estimate gas
+      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
         sorted,
         threshold,
         overrides,
       );
+      // add 10% buffer
+      const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+        ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+      });
+
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
     } else {

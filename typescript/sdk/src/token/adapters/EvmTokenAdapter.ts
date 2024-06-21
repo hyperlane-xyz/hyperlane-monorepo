@@ -7,6 +7,11 @@ import {
   HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
+  HypXERC20,
+  HypXERC20Lockbox,
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+  IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -21,10 +26,11 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { MinimalTokenMetadata } from '../config.js';
+import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
+  IHypXERC20Adapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
@@ -45,7 +51,7 @@ export class EvmNativeTokenAdapter
     return BigInt(balance.toString());
   }
 
-  async getMetadata(): Promise<MinimalTokenMetadata> {
+  async getMetadata(): Promise<TokenMetadata> {
     // TODO get metadata from chainMetadata config
     throw new Error('Metadata not available to native tokens');
   }
@@ -98,13 +104,14 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     return BigInt(balance.toString());
   }
 
-  override async getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
-    const [decimals, symbol, name] = await Promise.all([
+  override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
+    const [decimals, symbol, name, totalSupply] = await Promise.all([
       isNft ? 0 : this.contract.decimals(),
       this.contract.symbol(),
       this.contract.name(),
+      this.contract.totalSupply(),
     ]);
-    return { decimals, symbol, name };
+    return { decimals, symbol, name, totalSupply: totalSupply.toString() };
   }
 
   override async isApproveRequired(
@@ -247,7 +254,7 @@ export class EvmHypCollateralAdapter
     });
   }
 
-  override getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
+  override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
     return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
   }
 
@@ -275,6 +282,92 @@ export class EvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) =>
       t.populateTransferTx(params),
     );
+  }
+}
+
+// Interacts with HypXERC20Lockbox contracts
+export class EvmHypXERC20LockboxAdapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
+{
+  hypXERC20Lockbox: HypXERC20Lockbox;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async getMintLimit() {
+    const xERC20 = await this.hypXERC20Lockbox.xERC20();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).mintingCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
+  }
+
+  async getBurnLimit() {
+    const xERC20 = await this.hypXERC20Lockbox.xERC20();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).mintingCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
+  }
+}
+
+// Interacts with HypXERC20 contracts
+export class EvmHypXERC20Adapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
+{
+  hypXERC20: HypXERC20;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.hypXERC20 = HypXERC20__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async getMintLimit() {
+    const xERC20 = await this.hypXERC20.wrappedToken();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).mintingCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
+  }
+
+  async getBurnLimit() {
+    const xERC20 = await this.hypXERC20.wrappedToken();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).burningCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
   }
 }
 

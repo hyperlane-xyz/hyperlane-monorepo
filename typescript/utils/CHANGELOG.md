@@ -1,5 +1,38 @@
 # @hyperlane-xyz/utils
 
+## 3.16.0
+
+## 3.15.1
+
+## 3.15.0
+
+## 3.14.0
+
+## 3.13.0
+
+### Minor Changes
+
+- 0cf692e73: Implement metadata builder fetching from message
+
+## 3.12.0
+
+### Minor Changes
+
+- 69de68a66: Implement aggregation and multisig ISM metadata encoding
+
+## 3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- b63714ede: Convert all public hyperlane npm packages from CJS to pure ESM
+- af2634207: Moved Hook/ISM config stringify into a general object stringify utility.
+
+### Patch Changes
+
+- 2b3f75836: Add objLength and isObjEmpty utils
+
 ## 3.10.0
 
 ### Minor Changes

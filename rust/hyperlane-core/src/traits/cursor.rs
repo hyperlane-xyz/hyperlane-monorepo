@@ -1,15 +1,19 @@
-use std::{fmt, ops::RangeInclusive, time::Duration};
+use std::{
+    fmt::{self, Debug},
+    ops::RangeInclusive,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::LogMeta;
+use crate::{Indexed, LogMeta};
 
 /// A cursor governs event indexing for a contract.
 #[async_trait]
 #[auto_impl(Box)]
-pub trait ContractSyncCursor<T>: Send + Sync + 'static {
+pub trait ContractSyncCursor<T>: Debug + Send + Sync + 'static {
     /// The next block range that should be queried.
     /// This method should be tolerant to being called multiple times in a row
     /// without any updates in between.
@@ -24,7 +28,11 @@ pub trait ContractSyncCursor<T>: Send + Sync + 'static {
     /// This is called after the logs have been written to the store,
     /// however may require logs to meet certain criteria (e.g. no gaps), that if
     /// not met, should result in internal state changes (e.g. rewinding) and not an Err.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()>;
+    async fn update(
+        &mut self,
+        logs: Vec<(Indexed<T>, LogMeta)>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()>;
 }
 
 /// The action that should be taken by the contract sync loop

@@ -1,24 +1,22 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
+import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
   CoreConfig,
-  DeployedIsm,
   GasOracleContractType,
   HooksConfig,
   HyperlaneAddressesMap,
   HyperlaneContractsMap,
   HyperlaneCore,
   HyperlaneCoreDeployer,
-  HyperlaneDeploymentArtifacts,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   IgpConfig,
   IsmConfig,
   IsmType,
-  MultiProvider,
   MultisigConfig,
   RoutingIsmConfig,
   buildAgentConfig,
@@ -27,20 +25,13 @@ import {
   multisigIsmVerificationCost,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
-import { Address, objFilter, objMerge } from '@hyperlane-xyz/utils';
+import { Address, objFilter, objMap, objMerge } from '@hyperlane-xyz/utils';
 
-import { Command } from '../commands/deploy.js';
-import { runDeploymentArtifactStep } from '../config/artifacts.js';
 import { presetHookConfigs, readHooksConfigMap } from '../config/hooks.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
-import {
-  getContext,
-  getDryRunContext,
-  getMergedContractAddresses,
-  sdkContractAddressesMap,
-} from '../context.js';
+import { WriteCommandContext } from '../context/types.js';
 import {
   log,
   logBlue,
@@ -50,12 +41,7 @@ import {
   logRed,
 } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
-import {
-  getArtifactsFiles,
-  prepNewArtifactsFiles,
-  runFileSelectionStep,
-  writeJson,
-} from '../utils/files.js';
+import { runFileSelectionStep, writeJson } from '../utils/files.js';
 
 import {
   completeDeploy,
@@ -65,62 +51,36 @@ import {
   runPreflightChecksForChains,
 } from './utils.js';
 
+const CONTRACT_CACHE_EXCLUSIONS = ['interchainGasPaymaster'];
+
 /**
  * Executes the core deploy command.
  */
 export async function runCoreDeploy({
-  key,
-  chainConfigPath,
+  context,
   chains,
   ismConfigPath,
   hookConfigPath,
-  artifactsPath,
-  outPath,
-  skipConfirmation,
-  dryRun,
+  agentOutPath,
 }: {
-  key?: string;
-  chainConfigPath: string;
+  context: WriteCommandContext;
   chains?: ChainName[];
   ismConfigPath?: string;
   hookConfigPath?: string;
-  artifactsPath?: string;
-  outPath: string;
-  skipConfirmation: boolean;
-  dryRun: boolean;
+  agentOutPath: string;
 }) {
-  const context = dryRun
-    ? await getDryRunContext({
-        chainConfigPath,
-        chains,
-        keyConfig: { key },
-        skipConfirmation,
-      })
-    : await getContext({
-        chainConfigPath,
-        keyConfig: { key },
-        skipConfirmation,
-      });
+  const { chainMetadata, signer, dryRunChain, skipConfirmation } = context;
 
-  const customChains = context.customChains;
-  const multiProvider = context.multiProvider;
-  const signer = context.signer;
-
-  if (dryRun) chains = context.chains;
+  if (dryRunChain) chains = [dryRunChain];
   else if (!chains?.length) {
     if (skipConfirmation) throw new Error('No chains provided');
     chains = await runMultiChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select chains to connect:',
       true,
     );
   }
 
-  const artifacts = await runArtifactStep(
-    chains,
-    skipConfirmation,
-    artifactsPath,
-  );
   const result = await runIsmStep(chains, skipConfirmation, ismConfigPath);
   // we can either specify the full ISM config or just the multisig config
   const isIsmConfig = isISMConfig(result);
@@ -131,16 +91,12 @@ export async function runCoreDeploy({
   const hooksConfig = await runHookStep(chains, hookConfigPath);
 
   const deploymentParams: DeployParams = {
+    context,
     chains,
-    signer,
-    multiProvider,
-    artifacts,
     ismConfigs,
     multisigConfigs,
     hooksConfig,
-    outPath,
-    skipConfirmation,
-    dryRun,
+    agentOutPath,
   };
 
   await runDeployPlanStep(deploymentParams);
@@ -149,41 +105,13 @@ export async function runCoreDeploy({
     minGas: MINIMUM_CORE_DEPLOY_GAS,
   });
 
-  const userAddress = dryRun ? key! : await signer.getAddress();
+  const userAddress = await signer.getAddress();
 
-  const initialBalances = await prepareDeploy(
-    multiProvider,
-    userAddress,
-    chains,
-  );
+  const initialBalances = await prepareDeploy(context, userAddress, chains);
 
   await executeDeploy(deploymentParams);
 
-  await completeDeploy(
-    Command.CORE,
-    initialBalances,
-    multiProvider,
-    userAddress,
-    chains,
-    dryRun,
-  );
-}
-
-function runArtifactStep(
-  selectedChains: ChainName[],
-  skipConfirmation: boolean,
-  artifactsPath?: string,
-  dryRun?: boolean,
-) {
-  logBlue(
-    '\nDeployments can be totally new or can use some existing contract addresses.',
-  );
-  return runDeploymentArtifactStep({
-    artifactsPath,
-    selectedChains,
-    skipConfirmation,
-    dryRun,
-  });
+  await completeDeploy(context, 'core', initialBalances, userAddress, chains);
 }
 
 async function runIsmStep(
@@ -271,24 +199,16 @@ async function runHookStep(
 }
 
 interface DeployParams {
+  context: WriteCommandContext;
   chains: ChainName[];
-  signer: ethers.Signer;
-  multiProvider: MultiProvider;
-  artifacts?: HyperlaneAddressesMap<any>;
   ismConfigs?: ChainMap<IsmConfig>;
   multisigConfigs?: ChainMap<MultisigConfig>;
   hooksConfig?: ChainMap<HooksConfig>;
-  outPath: string;
-  skipConfirmation: boolean;
-  dryRun: boolean;
+  agentOutPath: string;
 }
 
-async function runDeployPlanStep({
-  chains,
-  signer,
-  artifacts,
-  skipConfirmation,
-}: DeployParams) {
+async function runDeployPlanStep({ context, chains }: DeployParams) {
+  const { signer, skipConfirmation } = context;
   const address = await signer.getAddress();
 
   logBlue('\nDeployment plan');
@@ -296,9 +216,7 @@ async function runDeployPlanStep({
   log(`Transaction signer and owner of new contracts will be ${address}`);
   log(`Deploying to ${chains.join(', ')}`);
   log(
-    `There are several contracts required for each chain but contracts in the Hyperlane SDK ${
-      artifacts ? 'or your artifacts ' : ''
-    }will be skipped`,
+    `There are several contracts required for each chain but contracts in your provided registries will be skipped`,
   );
 
   if (skipConfirmation) return;
@@ -309,36 +227,26 @@ async function runDeployPlanStep({
 }
 
 async function executeDeploy({
+  context,
   chains,
-  signer,
-  multiProvider,
-  outPath,
-  artifacts = {},
   ismConfigs = {},
   multisigConfigs = {},
   hooksConfig = {},
-  dryRun,
+  agentOutPath,
 }: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
+  const { signer, multiProvider, registry } = context;
 
-  const [contractsFilePath, agentFilePath] = prepNewArtifactsFiles(
-    outPath,
-    getArtifactsFiles(
-      [
-        { filename: 'core-deployment', description: 'Contract addresses' },
-        { filename: 'agent-config', description: 'Agent configs' },
-      ],
-      dryRun,
-    ),
-  );
+  let chainAddresses = await registry.getAddresses();
+  chainAddresses = filterAddressesToCache(chainAddresses);
 
   const owner = await signer.getAddress();
-  const mergedContractAddrs = getMergedContractAddresses(artifacts, chains);
+  let artifacts: HyperlaneAddressesMap<any> = {};
 
   // 1. Deploy ISM factories to all deployable chains that don't have them.
   logBlue('Deploying ISM factory contracts');
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-  ismFactoryDeployer.cacheAddressesMap(mergedContractAddrs);
+  ismFactoryDeployer.cacheAddressesMap(chainAddresses);
 
   const ismFactoryConfig = chains.reduce((chainMap, curr) => {
     chainMap[curr] = {};
@@ -346,33 +254,33 @@ async function executeDeploy({
   }, {} as ChainMap<{}>);
   const ismFactoryContracts = await ismFactoryDeployer.deploy(ismFactoryConfig);
 
-  artifacts = writeMergedAddresses(
-    contractsFilePath,
-    artifacts,
+  artifacts = await updateChainAddresses(
+    registry,
     ismFactoryContracts,
+    artifacts,
+    context.isDryRun,
   );
+
   logGreen('ISM factory contracts deployed');
 
   // Build an IsmFactory that covers all chains so that we can
   // use it to deploy ISMs to remote chains.
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    mergedContractAddrs,
+    chainAddresses,
     multiProvider,
   );
   // 3. Construct ISM configs for all deployable chains
-  const ismContracts: ChainMap<{ interchainSecurityModule: DeployedIsm }> = {};
   const defaultIsms: ChainMap<IsmConfig> = {};
   for (const ismOrigin of chains) {
     defaultIsms[ismOrigin] =
       ismConfigs[ismOrigin] ??
       buildIsmConfig(owner, ismOrigin, chains, multisigConfigs);
   }
-  artifacts = writeMergedAddresses(contractsFilePath, artifacts, ismContracts);
 
   // 4. Deploy core contracts to chains
   logBlue(`Deploying core contracts to ${chains.join(', ')}`);
   const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
-  coreDeployer.cacheAddressesMap(mergedContractAddrs as any);
+  coreDeployer.cacheAddressesMap(chainAddresses as any);
   const coreConfigs = buildCoreConfigMap(
     owner,
     chains,
@@ -390,16 +298,32 @@ async function executeDeploy({
     };
   }
   artifacts = objMerge(artifacts, isms);
-  artifacts = writeMergedAddresses(contractsFilePath, artifacts, coreContracts);
+  artifacts = await updateChainAddresses(
+    registry,
+    coreContracts,
+    artifacts,
+    context.isDryRun,
+  );
   logGreen('✅ Core contracts deployed');
+  log(JSON.stringify(artifacts, null, 2));
 
-  log('Writing agent configs');
-  await writeAgentConfig(agentFilePath, artifacts, chains, multiProvider);
-  logGreen('Agent configs written');
+  await writeAgentConfig(context, artifacts, chains, agentOutPath);
 
   logBlue('Deployment is complete!');
-  logBlue(`Contract address artifacts are in ${contractsFilePath}`);
-  logBlue(`Agent configs are in ${agentFilePath}`);
+}
+
+function filterAddressesToCache(addressesMap: ChainMap<ChainAddresses>) {
+  // Filter out the certain addresses that must always be
+  // deployed when deploying to a PI chain.
+  // See https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/2983
+  // And https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3183
+  return objMap(addressesMap, (_chain, addresses) =>
+    objFilter(
+      addresses,
+      (contract, _address): _address is string =>
+        !CONTRACT_CACHE_EXCLUSIONS.includes(contract),
+    ),
+  );
 }
 
 function buildIsmConfig(
@@ -473,23 +397,44 @@ export function buildIgpConfigMap(
   return configMap;
 }
 
-function writeMergedAddresses(
-  filePath: string,
-  aAddresses: HyperlaneAddressesMap<any>,
-  bContracts: HyperlaneContractsMap<any>,
-): HyperlaneAddressesMap<any> {
-  const bAddresses = serializeContractsMap(bContracts);
-  const mergedAddresses = objMerge(aAddresses, bAddresses);
-  writeJson(filePath, mergedAddresses);
+async function updateChainAddresses(
+  registry: IRegistry,
+  newContracts: HyperlaneContractsMap<any>,
+  otherAddresses: HyperlaneAddressesMap<any>,
+  isDryRun?: boolean,
+) {
+  let newAddresses = serializeContractsMap(newContracts);
+  // The HyperlaneCoreDeployer is returning a nested object with ISM addresses
+  // from other chains, which don't need to be in the artifacts atm.
+  newAddresses = objMap(newAddresses, (_, newChainAddresses) => {
+    // For each chain in the addresses chainmap, filter the values to those that are just strings
+    return objFilter(
+      newChainAddresses,
+      (_, value): value is string => typeof value === 'string',
+    );
+  });
+  const mergedAddresses = objMerge(otherAddresses, newAddresses);
+
+  if (isDryRun) return mergedAddresses;
+
+  for (const chainName of Object.keys(newContracts)) {
+    await registry.updateChain({
+      chainName,
+      addresses: mergedAddresses[chainName],
+    });
+  }
   return mergedAddresses;
 }
 
 async function writeAgentConfig(
-  filePath: string,
+  context: WriteCommandContext,
   artifacts: HyperlaneAddressesMap<any>,
   chains: ChainName[],
-  multiProvider: MultiProvider,
+  outPath: string,
 ) {
+  if (context.isDryRun) return;
+  log('Writing agent configs');
+  const { multiProvider, registry } = context;
   const startBlocks: ChainMap<number> = {};
   const core = HyperlaneCore.fromAddressesMap(artifacts, multiProvider);
 
@@ -498,22 +443,19 @@ async function writeAgentConfig(
     startBlocks[chain] = (await mailbox.deployedBlock()).toNumber();
   }
 
-  const mergedAddressesMap = objMerge(
-    sdkContractAddressesMap,
-    artifacts,
-  ) as ChainMap<HyperlaneDeploymentArtifacts>;
-
+  const chainAddresses = await registry.getAddresses();
   for (const chain of chains) {
-    if (!mergedAddressesMap[chain].interchainGasPaymaster) {
-      mergedAddressesMap[chain].interchainGasPaymaster =
+    if (!chainAddresses[chain].interchainGasPaymaster) {
+      chainAddresses[chain].interchainGasPaymaster =
         ethers.constants.AddressZero;
     }
   }
   const agentConfig = buildAgentConfig(
     chains, // Use only the chains that were deployed to
     multiProvider,
-    mergedAddressesMap,
+    chainAddresses as any,
     startBlocks,
   );
-  writeJson(filePath, agentConfig);
+  writeJson(outPath, agentConfig);
+  logGreen('Agent configs written');
 }

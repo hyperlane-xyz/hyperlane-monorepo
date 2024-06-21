@@ -3,11 +3,11 @@ import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
-import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { S3Validator } from '../src/agents/aws/validator.js';
+import { getChains } from '../config/registry.js';
+import { InfraS3Validator } from '../src/agents/aws/validator.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
-import { deployEnvToSdkEnv } from '../src/config/environment.js';
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
 import {
@@ -15,38 +15,28 @@ import {
   getArgs as getRootArgs,
   withContext,
 } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
+import { getHyperlaneCore } from './core-utils.js';
 
 function getArgs() {
   return withContext(getRootArgs())
     .describe('chain', 'chain on which to register')
-    .choices('chain', AllChains)
+    .choices('chain', getChains())
     .describe(
       'location',
       'location, e.g. s3://hyperlane-testnet4-sepolia-validator-0/us-east-1',
     )
     .string('location')
-    .check(({ context, chain, location }) => {
-      const isSet = [!!context, !!chain, !!location];
-      if (isSet[1] == isSet[2]) {
-        return true;
-      } else {
-        throw new Error(
-          'Must set either both or neither of chain and location',
-        );
+    .check(({ chain, location }) => {
+      if (!!location && !chain) {
+        throw new Error('Must set chain when setting location');
       }
+      return true;
     }).argv;
 }
 
 async function main() {
   const { environment, context, chain, location } = await getArgs();
-  const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
-  // environments union doesn't work well with typescript
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
+  const { core, multiProvider } = await getHyperlaneCore(environment);
 
   const announcements: {
     storageLocation: string;
@@ -57,10 +47,10 @@ async function main() {
     chains.push(chain!);
 
     if (location.startsWith('s3://')) {
-      const validator = await S3Validator.fromStorageLocation(location);
+      const validator = await InfraS3Validator.fromStorageLocation(location);
       announcements.push({
         storageLocation: validator.storageLocation(),
-        announcement: await validator.getAnnouncement(),
+        announcement: await validator.getSignedAnnouncement(),
       });
     } else if (location.startsWith('file://')) {
       const announcementFilepath = path.join(
@@ -82,28 +72,34 @@ async function main() {
     }
     await Promise.all(
       Object.entries(agentConfig.validators.chains)
-        .filter(([chain, _]) => isEthereumProtocolChain(chain))
-        .map(async ([chain, validatorChainConfig]) => {
+        .filter(([validatorChain, _]) => {
+          // If a chain arg was specified, filter to only that chain
+          if (!!chain && chain !== validatorChain) {
+            return false;
+          }
+          return isEthereumProtocolChain(validatorChain);
+        })
+        .map(async ([validatorChain, validatorChainConfig]) => {
           for (const validatorBaseConfig of validatorChainConfig.validators) {
             if (
               validatorBaseConfig.checkpointSyncer.type ==
               CheckpointSyncerType.S3
             ) {
-              const contracts = core.getContracts(chain);
-              const localDomain = multiProvider.getDomainId(chain);
-              const validator = new S3Validator(
-                validatorBaseConfig.address,
-                localDomain,
-                contracts.mailbox.address,
-                validatorBaseConfig.checkpointSyncer.bucket,
-                validatorBaseConfig.checkpointSyncer.region,
-                undefined,
+              const contracts = core.getContracts(validatorChain);
+              const localDomain = multiProvider.getDomainId(validatorChain);
+              const validator = new InfraS3Validator(
+                {
+                  localDomain,
+                  address: validatorBaseConfig.address,
+                  mailbox: contracts.mailbox.address,
+                },
+                validatorBaseConfig.checkpointSyncer,
               );
               announcements.push({
                 storageLocation: validator.storageLocation(),
-                announcement: await validator.getAnnouncement(),
+                announcement: await validator.getSignedAnnouncement(),
               });
-              chains.push(chain);
+              chains.push(validatorChain);
             }
           }
         }),

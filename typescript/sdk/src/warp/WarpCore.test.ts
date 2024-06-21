@@ -3,8 +3,12 @@ import fs from 'fs';
 import sinon from 'sinon';
 import { parse as yamlParse } from 'yaml';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
-import { Chains } from '../consts/chains.js';
+import {
+  test1,
+  test2,
+  testCosmosChain,
+  testSealevelChain,
+} from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import { Token } from '../token/Token.js';
@@ -23,7 +27,7 @@ const MOCK_BALANCE = BigInt('10000000000000000000'); // 10 units @ 18 decimals
 const MOCK_ADDRESS = '0x0000000000000000000000000000000000000001';
 
 describe('WarpCore', () => {
-  const multiProvider = new MultiProtocolProvider();
+  const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
   let warpCore: WarpCore;
   let evmHypNative: Token;
   let evmHypSynthetic: Token;
@@ -39,10 +43,10 @@ describe('WarpCore', () => {
 
   it('Constructs', () => {
     const fromArgs = new WarpCore(multiProvider, [
-      Token.FromChainMetadataNativeToken(chainMetadata[Chains.ethereum]),
+      Token.FromChainMetadataNativeToken(test1),
     ]);
     const exampleConfig = yamlParse(
-      fs.readFileSync('./src/warp/example-warp-core-config.yaml', 'utf-8'),
+      fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
     );
     const fromConfig = WarpCore.FromConfig(multiProvider, exampleConfig);
     expect(fromArgs).to.be.instanceOf(WarpCore);
@@ -62,14 +66,19 @@ describe('WarpCore', () => {
 
   it('Finds tokens', () => {
     expect(
-      warpCore.findToken(Chains.ethereum, evmHypNative.addressOrDenom),
+      warpCore.findToken(test1.name, evmHypNative.addressOrDenom),
     ).to.be.instanceOf(Token);
     expect(
-      warpCore.findToken(Chains.ethereum, sealevelHypSynthetic.addressOrDenom),
-    ).to.be.null;
-    expect(
-      warpCore.findToken(Chains.neutron, cw20.addressOrDenom),
+      warpCore.findToken(
+        testSealevelChain.name,
+        sealevelHypSynthetic.addressOrDenom,
+      ),
     ).to.be.instanceOf(Token);
+    expect(
+      warpCore.findToken(testCosmosChain.name, cw20.addressOrDenom),
+    ).to.be.instanceOf(Token);
+    expect(warpCore.findToken(test1.name, sealevelHypSynthetic.addressOrDenom))
+      .to.be.null;
   });
 
   it('Gets transfer gas quote', async () => {
@@ -110,26 +119,29 @@ describe('WarpCore', () => {
       ).to.equal(interchainQuote.amount);
     };
 
-    await testQuote(evmHypNative, Chains.arbitrum, TokenStandard.EvmNative);
-    await testQuote(evmHypNative, Chains.neutron, TokenStandard.EvmNative);
-    await testQuote(evmHypNative, Chains.solana, TokenStandard.EvmNative);
-    await testQuote(evmHypSynthetic, Chains.ethereum, TokenStandard.EvmNative);
+    await testQuote(evmHypNative, test1.name, TokenStandard.EvmNative);
+    await testQuote(
+      evmHypNative,
+      testCosmosChain.name,
+      TokenStandard.EvmNative,
+    );
+    await testQuote(
+      evmHypNative,
+      testSealevelChain.name,
+      TokenStandard.EvmNative,
+    );
+    await testQuote(evmHypSynthetic, test2.name, TokenStandard.EvmNative);
     await testQuote(
       sealevelHypSynthetic,
-      Chains.ethereum,
+      test2.name,
       TokenStandard.SealevelNative,
     );
-    await testQuote(cosmosIbc, Chains.arbitrum, TokenStandard.CosmosNative);
+    await testQuote(cosmosIbc, test1.name, TokenStandard.CosmosNative);
     // Note, this route uses an igp quote const config
-    await testQuote(
-      cwHypCollateral,
-      Chains.arbitrum,
-      TokenStandard.CosmosNative,
-      {
-        amount: 1n,
-        addressOrDenom: 'untrn',
-      },
-    );
+    await testQuote(cwHypCollateral, test2.name, TokenStandard.CosmosNative, {
+      amount: 1n,
+      addressOrDenom: 'atom',
+    });
 
     stubs.forEach((s) => s.restore());
   });
@@ -144,7 +156,7 @@ describe('WarpCore', () => {
     const testCollateral = async (
       token: Token,
       destination: ChainName,
-      expectedBigResult = true,
+      expectedBigResult: boolean,
     ) => {
       const smallResult = await warpCore.isDestinationCollateralSufficient({
         originTokenAmount: token.amount(TRANSFER_AMOUNT),
@@ -164,19 +176,17 @@ describe('WarpCore', () => {
       ).to.equal(expectedBigResult);
     };
 
-    await testCollateral(evmHypNative, Chains.arbitrum);
-    await testCollateral(evmHypNative, Chains.neutron, false);
-    await testCollateral(evmHypNative, Chains.solana);
-    await testCollateral(cwHypCollateral, Chains.arbitrum);
+    await testCollateral(evmHypNative, test2.name, true);
+    await testCollateral(evmHypNative, testCosmosChain.name, false);
+    await testCollateral(evmHypNative, testSealevelChain.name, true);
+    await testCollateral(cwHypCollateral, test1.name, false);
 
     stubs.forEach((s) => s.restore());
   });
 
   it('Validates transfers', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
-      sinon
-        .stub(t, 'getBalance')
-        .returns(Promise.resolve({ amount: MOCK_BALANCE } as any)),
+      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
     );
     const quoteStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
@@ -188,7 +198,7 @@ describe('WarpCore', () => {
 
     const validResult = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
-      destination: Chains.arbitrum,
+      destination: test2.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
@@ -204,7 +214,7 @@ describe('WarpCore', () => {
 
     const invalidRecipient = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
-      destination: Chains.neutron,
+      destination: testCosmosChain.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
@@ -212,7 +222,7 @@ describe('WarpCore', () => {
 
     const invalidAmount = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(-10),
-      destination: Chains.arbitrum,
+      destination: test2.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
@@ -220,7 +230,7 @@ describe('WarpCore', () => {
 
     const insufficientBalance = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),
-      destination: Chains.arbitrum,
+      destination: test2.name,
       recipient: MOCK_ADDRESS,
       sender: MOCK_ADDRESS,
     });
@@ -264,17 +274,13 @@ describe('WarpCore', () => {
       });
     };
 
-    await testGetTxs(evmHypNative, Chains.arbitrum);
-    await testGetTxs(evmHypNative, Chains.neutron);
-    await testGetTxs(evmHypNative, Chains.solana);
-    await testGetTxs(evmHypSynthetic, Chains.ethereum);
-    await testGetTxs(
-      sealevelHypSynthetic,
-      Chains.ethereum,
-      ProviderType.SolanaWeb3,
-    );
-    await testGetTxs(cwHypCollateral, Chains.arbitrum, ProviderType.CosmJsWasm);
-    await testGetTxs(cosmosIbc, Chains.arbitrum, ProviderType.CosmJs);
+    await testGetTxs(evmHypNative, test1.name);
+    await testGetTxs(evmHypNative, testCosmosChain.name);
+    await testGetTxs(evmHypNative, testSealevelChain.name);
+    await testGetTxs(evmHypSynthetic, test2.name);
+    await testGetTxs(sealevelHypSynthetic, test2.name, ProviderType.SolanaWeb3);
+    await testGetTxs(cwHypCollateral, test1.name, ProviderType.CosmJsWasm);
+    await testGetTxs(cosmosIbc, test1.name, ProviderType.CosmJs);
 
     coreStub.restore();
     adapterStubs.forEach((s) => s.restore());

@@ -4,69 +4,35 @@ import {
   ChainMap,
   ChainName,
   IsmConfig,
-  MultiProvider,
   MultisigConfig,
+  getLocalProvider,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Command } from '../commands/deploy.js';
 import { parseIsmConfig } from '../config/ism.js';
+import { WriteCommandContext } from '../context/types.js';
 import { log, logGreen, logPink } from '../logger.js';
-import { assertGasBalances } from '../utils/balances.js';
-import { getLocalProvider } from '../utils/fork.js';
+import { gasBalancesAreSufficient } from '../utils/balances.js';
+import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
 import { completeDryRun } from './dry-run.js';
 
-export async function runPreflightChecks({
-  origin,
-  remotes,
-  signer,
-  multiProvider,
-  minGas,
-  chainsToGasCheck,
-}: {
-  origin: ChainName;
-  remotes: ChainName[];
-  signer: ethers.Signer;
-  multiProvider: MultiProvider;
-  minGas: string;
-  chainsToGasCheck?: ChainName[];
-}) {
-  log('Running pre-flight checks...');
-
-  if (!origin || !remotes?.length) throw new Error('Invalid chain selection');
-  logGreen('✅ Chain selections are valid');
-
-  if (remotes.includes(origin))
-    throw new Error('Origin and remotes must be distinct');
-  logGreen('✅ Origin and remote are distinct');
-
-  return runPreflightChecksForChains({
-    chains: [origin, ...remotes],
-    signer,
-    multiProvider,
-    minGas,
-    chainsToGasCheck,
-  });
-}
-
 export async function runPreflightChecksForChains({
+  context,
   chains,
-  signer,
-  multiProvider,
   minGas,
   chainsToGasCheck,
 }: {
+  context: WriteCommandContext;
   chains: ChainName[];
-  signer: ethers.Signer;
-  multiProvider: MultiProvider;
   minGas: string;
   // Chains for which to assert a native balance
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
+  const { signer, multiProvider } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -80,13 +46,13 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  await assertGasBalances(
+  const sufficient = await gasBalancesAreSufficient(
     multiProvider,
     signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
-  logGreen('✅ Balances are sufficient');
+  if (sufficient) logGreen('✅ Balances are sufficient');
 }
 
 // from parsed types
@@ -102,16 +68,16 @@ export function isZODISMConfig(filepath: string): boolean {
 }
 
 export async function prepareDeploy(
-  multiProvider: MultiProvider,
+  context: WriteCommandContext,
   userAddress: Address,
   chains: ChainName[],
-  dryRun: boolean = false,
 ): Promise<Record<string, BigNumber>> {
+  const { multiProvider, isDryRun } = context;
   const initialBalances: Record<string, BigNumber> = {};
   await Promise.all(
     chains.map(async (chain: ChainName) => {
-      const provider = dryRun
-        ? getLocalProvider()
+      const provider = isDryRun
+        ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
         : multiProvider.getProvider(chain);
       const currentBalance = await provider.getBalance(userAddress);
       initialBalances[chain] = currentBalance;
@@ -121,31 +87,31 @@ export async function prepareDeploy(
 }
 
 export async function completeDeploy(
-  command: Command,
+  context: WriteCommandContext,
+  command: string,
   initialBalances: Record<string, BigNumber>,
-  multiProvider: MultiProvider,
   userAddress: Address,
   chains: ChainName[],
-  dryRun: boolean = false,
 ) {
+  const { multiProvider, isDryRun } = context;
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
-    const provider = dryRun
-      ? getLocalProvider()
+    const provider = isDryRun
+      ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
       : multiProvider.getProvider(chain);
     const currentBalance = await provider.getBalance(userAddress);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (dryRun && balanceDelta.lt(0)) break;
+    if (isDryRun && balanceDelta.lt(0)) break;
     logPink(
       `\t- Gas required for ${command} ${
-        dryRun ? 'dry-run' : 'deploy'
+        isDryRun ? 'dry-run' : 'deploy'
       } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
         multiProvider.getChainMetadata(chain).nativeToken?.symbol
       }`,
     );
   }
 
-  if (dryRun) await completeDryRun(command);
+  if (isDryRun) await completeDryRun(command);
 }
 
 export function toUpperCamelCase(string: string) {

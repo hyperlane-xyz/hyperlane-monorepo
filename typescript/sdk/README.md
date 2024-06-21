@@ -18,12 +18,6 @@ Note, this package uses [ESM Modules](https://gist.github.com/sindresorhus/a3978
 
 ## Contents
 
-### Constants
-
-The names and relevant metadata for all Hyperlane-supported chains are included in this SDK, including public RPC and Explorer urls. It also includes the addresses for all Hyperlane core contracts and middleware.
-
-### Classes for development, deployment, and testing
-
 The SDK includes various classes for building, deploying, and testing multi-chain applications. Different abstractions serve different use cases. A few common utilities include:
 
 - `MultiProvider` / `MultiProtocolProvider`: A utility for managing chain metadata, and RPC providers.
@@ -31,15 +25,6 @@ The SDK includes various classes for building, deploying, and testing multi-chai
 - `HyperlaneCore` / `MultiProtocolCore`: A class for common interactions with Hyperlane core deployments.
 - `HyperlaneDeployer`: The base class for executing multi-chain contract deployments.
 - `Token` & `WarpCore`: Utilities for interacting with Warp Route deployments.
-
-### Chain Logos
-
-The SDK contains SVG files for all Hyperlane-supported chains. They can be imported from the `/logos` folder.
-
-```js
-import ArbitrumBlack from '@hyperlane-xyz/sdk/logos/black/arbitrum.svg';
-import ArbitrumColor from '@hyperlane-xyz/sdk/logos/color/arbitrum.svg';
-```
 
 ## License
 

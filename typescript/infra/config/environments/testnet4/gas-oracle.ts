@@ -1,20 +1,25 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+} from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
-  TOKEN_EXCHANGE_RATE_DECIMALS,
   getAllStorageGasOracleConfigs,
   getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
 
-import { supportedChainNames } from './chains.js';
+import { ethereumChainNames } from './chains.js';
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
+  holesky: ethers.utils.parseUnits('10', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
@@ -44,6 +49,7 @@ const chainTokenRarity: ChainMap<Rarity> = {
   alfajores: Rarity.Common,
   fuji: Rarity.Rare,
   bsctestnet: Rarity.Rare,
+  holesky: Rarity.Common,
   sepolia: Rarity.Mythic,
   scrollsepolia: Rarity.Rare,
   chiado: Rarity.Common,
@@ -68,7 +74,10 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
-    supportedChainNames,
-    gasPrices,
+    ethereumChainNames,
+    objMap(gasPrices, (_, gasPrice) => ({
+      amount: gasPrice.toString(),
+      decimals: 1,
+    })),
     getTokenExchangeRate,
   );
