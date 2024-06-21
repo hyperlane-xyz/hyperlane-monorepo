@@ -157,7 +157,21 @@ const setValidatorInfo = async (
 
   for (const chain of chains) {
     const chainAddresses = addresses[chain];
+
+    // skip if no contract addresses are found for this chain
     if (chainAddresses === undefined) continue;
+
+    if (!chainAddresses.validatorAnnounce) {
+      topLevelErrors.push(`❗️ ValidatorAnnounce is not deployed on ${chain}`);
+    }
+
+    if (!chainAddresses.merkleTreeHook) {
+      topLevelErrors.push(`❗️ MerkleTreeHook is not deployed on ${chain}`);
+    }
+
+    if (!chainAddresses.validatorAnnounce || !chainAddresses.merkleTreeHook) {
+      continue;
+    }
 
     const validatorAnnounce = ValidatorAnnounce__factory.connect(
       chainAddresses.validatorAnnounce,
