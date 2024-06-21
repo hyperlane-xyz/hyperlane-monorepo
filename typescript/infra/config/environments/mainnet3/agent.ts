@@ -224,7 +224,7 @@ const relayerResources = {
 
 const validatorResources = {
   requests: {
-    cpu: '256m',
+    cpu: '250m',
     memory: '256Mi',
   },
 };
