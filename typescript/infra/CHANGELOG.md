@@ -1,5 +1,22 @@
 # @hyperlane-xyz/infra
 
+## 3.16.0
+
+### Minor Changes
+
+- 5cc64eb09: Add support for new chains: linea, fraxtal, sei.
+  Support osmosis remote.
+  Drive-by fix to always fetch explorer API keys when running deploy script.
+
+### Patch Changes
+
+- 5cc64eb09: Allow selecting a specific chain to govern in check-deploy script
+- Updated dependencies [f9bbdde76]
+- Updated dependencies [5cc64eb09]
+  - @hyperlane-xyz/sdk@3.16.0
+  - @hyperlane-xyz/helloworld@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
 ## 3.15.1
 
 ### Patch Changes
