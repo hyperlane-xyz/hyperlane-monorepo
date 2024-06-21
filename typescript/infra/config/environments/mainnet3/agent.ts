@@ -219,6 +219,28 @@ const metricAppContexts = [
   },
 ];
 
+// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+const relayerResources = {
+  requests: {
+    cpu: '3000m',
+    memory: '8Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '250m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '4Gi',
+  },
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -232,21 +254,24 @@ const hyperlane: RootAgentConfig = {
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '3bb9d0a-20240619-130157',
+      tag: '0d12ff3-20240620-173353',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '59451d6-20240612-171611',
+      tag: '0d12ff3-20240620-173353',
     },
+    resources: scraperResources,
   },
 };
 
@@ -259,21 +284,23 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3bb9d0a-20240619-130157',
+      tag: '0d12ff3-20240620-173353',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '3bb9d0a-20240619-130157',
+      tag: '0d12ff3-20240620-173353',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 
@@ -290,7 +317,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     gasPaymentEnforcement: [
       {
@@ -317,6 +344,7 @@ const neutron: RootAgentConfig = {
         matchingList: routerMatchingList(arbitrumNeutronEclipAddresses),
       },
     ],
+    resources: relayerResources,
   },
 };
 
