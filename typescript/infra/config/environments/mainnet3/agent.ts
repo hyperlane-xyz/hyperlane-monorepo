@@ -214,6 +214,27 @@ const metricAppContexts = [
   },
 ];
 
+const relayerResources = {
+  requests: {
+    cpu: '3000m',
+    memory: '8Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '256m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '4Gi',
+  },
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   context: Contexts.Hyperlane,
@@ -227,6 +248,7 @@ const hyperlane: RootAgentConfig = {
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
@@ -235,6 +257,7 @@ const hyperlane: RootAgentConfig = {
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
@@ -242,6 +265,7 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: '59451d6-20240612-171611',
     },
+    resources: scraperResources,
   },
 };
 
@@ -261,6 +285,7 @@ const releaseCandidate: RootAgentConfig = {
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
@@ -269,6 +294,7 @@ const releaseCandidate: RootAgentConfig = {
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 
@@ -312,6 +338,7 @@ const neutron: RootAgentConfig = {
         matchingList: routerMatchingList(arbitrumNeutronEclipAddresses),
       },
     ],
+    resources: relayerResources,
   },
 };
 

@@ -89,6 +89,27 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
 ];
 
+const relayerResources = {
+  requests: {
+    cpu: '1000m',
+    memory: '4Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '256m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '1Gi',
+  },
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   contextChainNames: hyperlaneContextAgentChainNames,
@@ -122,6 +143,7 @@ const hyperlane: RootAgentConfig = {
         matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
       },
     ],
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
@@ -130,6 +152,7 @@ const hyperlane: RootAgentConfig = {
       tag: '3bb9d0a-20240619-130157',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
@@ -137,6 +160,7 @@ const hyperlane: RootAgentConfig = {
       repo,
       tag: 'c9c5d37-20240510-014327',
     },
+    resources: scraperResources,
   },
 };
 
@@ -154,6 +178,7 @@ const releaseCandidate: RootAgentConfig = {
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
@@ -162,6 +187,7 @@ const releaseCandidate: RootAgentConfig = {
       tag: '3bb9d0a-20240619-130157',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 
