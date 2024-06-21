@@ -8,7 +8,6 @@ export const getLatestMerkleTreeCheckpointIndex = async (
     const [_, latestCheckpointIndex] = await merkleTreeHook.latestCheckpoint();
     return latestCheckpointIndex;
   } catch (err) {
-    // TODO: log debug
     return undefined;
   }
 };
@@ -20,7 +19,6 @@ export const getValidatorStorageLocations = async (
   try {
     return await validatorAnnounce.getAnnouncedStorageLocations(validators);
   } catch (err) {
-    // TODO: log debug
     return undefined;
   }
 };
@@ -33,7 +31,6 @@ export const getLatestValidatorCheckpointIndex = async (
     s3Validator = await S3Validator.fromStorageLocation(s3StorageLocation);
     return await s3Validator.getLatestCheckpointIndex();
   } catch (err) {
-    // TODO: log debug
     return undefined;
   }
 };

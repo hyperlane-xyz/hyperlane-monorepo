@@ -10,7 +10,6 @@ import {
 import { CommandModuleWithContext } from '../context/types.js';
 import { errorRed, log } from '../logger.js';
 import { getValidatorAddress } from '../validator/address.js';
-import { checkValidatorAVSSetup } from '../validator/check-avs.js';
 import { checkValidatorSetup } from '../validator/preFlightCheck.js';
 
 import {
@@ -29,11 +28,7 @@ export const validatorCommand: CommandModule = {
   command: 'validator',
   describe: 'Configure and manage Hyperlane validators',
   builder: (yargs) =>
-    yargs
-      .command(addressCommand)
-      .command(checkCommand)
-      .command(checkAVSCommand)
-      .demandCommand(),
+    yargs.command(addressCommand).command(checkCommand).demandCommand(),
   handler: () => log('Command required'),
 };
 
@@ -118,38 +113,6 @@ const checkCommand: CommandModuleWithContext<{
     }
 
     await checkValidatorSetup(context, chain, validAddresses);
-    process.exit(0);
-  },
-};
-
-const checkAVSCommand: CommandModuleWithContext<{
-  chain: string;
-}> = {
-  command: 'check-avs',
-  describe: 'Check the validator has announced correctly for the AVS',
-  builder: {
-    chain: demandOption(chainCommandOption),
-  },
-  handler: async ({ context, chain }) => {
-    const { multiProvider } = context;
-
-    // validate chain
-    if (!multiProvider.hasChain(chain)) {
-      errorRed(
-        `❌ No metadata found for ${chain}. Ensure it is included in your configured registry.`,
-      );
-      process.exit(1);
-    }
-
-    const chainMetadata = multiProvider.getChainMetadata(chain);
-
-    if (chainMetadata.protocol !== ProtocolType.Ethereum) {
-      errorRed(`\n❌ Validator AVS check only supports EVM chains. Exiting.`);
-      process.exit(1);
-    }
-
-    await checkValidatorAVSSetup(context, chain);
-
     process.exit(0);
   },
 };
