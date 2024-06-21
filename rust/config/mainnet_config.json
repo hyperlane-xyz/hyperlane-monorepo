@@ -692,8 +692,7 @@
     },
     "injective": {
       "bech32Prefix": "inj",
-      "blockExplorers": [
-      ],
+      "blockExplorers": [],
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
@@ -1155,6 +1154,11 @@
           "http": "https://osmosis-rpc.publicnode.com"
         }
       ],
+      "signer": {
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "osmo",
+        "type": "cosmosKey"
+      },
       "slip44": 118,
       "validatorAnnounce": "0xaf867da5b09a20ee49161d57f99477c0c42d100f34eb53da0d2eb7fc6c257235"
     },
