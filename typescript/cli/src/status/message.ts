@@ -1,9 +1,10 @@
 import { input } from '@inquirer/prompts';
 
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { parseTokenMessage } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { log, logBlue, logGreen } from '../logger.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
 export async function checkMessageStatus({
@@ -57,7 +58,15 @@ export async function checkMessageStatus({
 
     const receipt = await core.getDispatchTx(origin, messageId);
     const messages = core.getDispatchedMessages(receipt);
-    await core.relayMessage(messages[0]);
+    const messageToRelay = messages[0];
+    try {
+      const { amount, recipient } = parseTokenMessage(
+        messageToRelay.parsed.body,
+      );
+      logGray(`Warping ${amount} to ${recipient}`);
+    } catch {}
+
+    await core.relayMessage(messageToRelay);
     logGreen(`Message ${messageId} was self-relayed!`);
   }
 }
