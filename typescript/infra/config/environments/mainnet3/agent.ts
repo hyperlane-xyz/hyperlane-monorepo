@@ -93,7 +93,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
     optimism: true,
-    osmosis: false,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
@@ -123,6 +123,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // Cannot scrape non-EVM chains
     neutron: false,
     optimism: true,
+    // Cannot scrape non-EVM chains
     osmosis: false,
     polygon: true,
     polygonzkevm: true,
