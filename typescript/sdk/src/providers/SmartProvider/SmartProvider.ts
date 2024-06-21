@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { BigNumber, providers, utils } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -95,6 +95,40 @@ export class HyperlaneSmartProvider
     }
 
     this.supportedMethods = [...supportedMethods.values()];
+  }
+
+  async getPriorityFee() {
+    try {
+      return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
+    } catch (error) {
+      return BigNumber.from('1500000000');
+    }
+  }
+
+  async getFeeData(): Promise<providers.FeeData> {
+    // override hardcoded getFeedata
+    // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
+    const { block, gasPrice } = await utils.resolveProperties({
+      block: this.getBlock('latest'),
+      gasPrice: this.getGasPrice().catch(() => {
+        return null;
+      }),
+    });
+
+    let lastBaseFeePerGas: BigNumber | null = null,
+      maxFeePerGas: BigNumber | null = null,
+      maxPriorityFeePerGas: BigNumber | null = null;
+
+    if (block?.baseFeePerGas) {
+      // We may want to compute this more accurately in the future,
+      // using the formula "check if the base fee is correct".
+      // See: https://eips.ethereum.org/EIPS/eip-1559
+      lastBaseFeePerGas = block.baseFeePerGas;
+      maxPriorityFeePerGas = await this.getPriorityFee();
+      maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
+    }
+
+    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
   }
 
   static fromChainMetadata(

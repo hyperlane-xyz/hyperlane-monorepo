@@ -1,5 +1,8 @@
+use std::fs::File;
+use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::process::Child;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use nix::libc::pid_t;
@@ -54,6 +57,8 @@ pub type AgentHandles = (
     Box<dyn TaskHandle<Output = ()>>,
     // data to drop once program exits
     Box<dyn ArbitraryData>,
+    // file with stdout logs
+    Option<Arc<Mutex<File>>>,
 );
 pub type LogFilter = fn(&str) -> bool;
 
@@ -111,4 +116,17 @@ pub fn stop_child(child: &mut Child) {
             log!("{}", e);
         }
     };
+}
+
+pub fn get_matching_lines(file: &File, search_string: &str) -> io::Result<Vec<String>> {
+    let reader = io::BufReader::new(file);
+
+    // Read lines and collect those that contain the search string
+    let matching_lines: Vec<String> = reader
+        .lines()
+        .map_while(Result::ok)
+        .filter(|line| line.contains(search_string))
+        .collect();
+
+    Ok(matching_lines)
 }

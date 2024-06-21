@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import path from 'path';
 import prompts from 'prompts';
 
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
@@ -35,6 +36,7 @@ import {
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
+import { inCIMode } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -42,9 +44,10 @@ import {
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
+  withChain,
+  withConcurrentDeploy,
   withContext,
   withModuleAndFork,
-  withNetwork,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
@@ -54,10 +57,13 @@ async function main() {
     module,
     fork,
     environment,
-    network,
+    chain,
     buildArtifactPath,
+    concurrentDeploy,
   } = await withContext(
-    withNetwork(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    withConcurrentDeploy(
+      withChain(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+    ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
@@ -80,20 +86,16 @@ async function main() {
     multiProvider.setSharedSigner(signer);
   }
 
-  let contractVerifier;
-  if (buildArtifactPath) {
-    // fetch explorer API keys from GCP
-    const apiKeys = await fetchExplorerApiKeys();
-    // extract build artifact contents
-    const buildArtifact = extractBuildArtifact(buildArtifactPath);
-    // instantiate verifier
-    contractVerifier = new ContractVerifier(
-      multiProvider,
-      apiKeys,
-      buildArtifact,
-      ExplorerLicenseType.MIT,
-    );
-  }
+  // if none provided, instantiate a default verifier with the default core contract build artifact
+  // fetch explorer API keys from GCP
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    inCIMode() ? {} : await fetchExplorerApiKeys(),
+    buildArtifactPath
+      ? extractBuildArtifact(buildArtifactPath)
+      : coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
@@ -113,6 +115,7 @@ async function main() {
       multiProvider,
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   } else if (module === Modules.WARP) {
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
@@ -228,7 +231,7 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
-    const confirmConfig = network ? config[network] : config;
+    const confirmConfig = chain ? config[chain] : config;
     console.log(JSON.stringify(confirmConfig, null, 2));
     const { value: confirmed } = await prompts({
       type: 'confirm',
@@ -245,7 +248,7 @@ async function main() {
     config,
     deployer,
     cache,
-    network ?? fork,
+    chain ?? fork,
     agentConfig,
   );
 }

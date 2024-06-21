@@ -1,6 +1,6 @@
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
-import { MinimalTokenMetadata } from '../config.js';
+import { TokenMetadata } from '../types.js';
 
 export interface TransferParams {
   weiAmountOrId: Numberish;
@@ -23,7 +23,7 @@ export interface InterchainGasQuote {
 
 export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
-  getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata>;
+  getMetadata(isNft?: boolean): Promise<TokenMetadata>;
   isApproveRequired(
     owner: Address,
     spender: Address,
@@ -39,4 +39,9 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
   quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
+}
+
+export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
+  getMintLimit(): Promise<bigint>;
+  getBurnLimit(): Promise<bigint>;
 }

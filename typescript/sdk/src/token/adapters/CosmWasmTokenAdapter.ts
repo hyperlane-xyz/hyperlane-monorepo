@@ -30,7 +30,7 @@ import {
 } from '../../cw-types/WarpCw20.types.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { ERC20Metadata } from '../config.js';
+import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
@@ -92,7 +92,7 @@ export class CwNativeTokenAdapter
   }
 }
 
-export type CW20Metadata = ERC20Metadata;
+export type CW20Metadata = TokenMetadata;
 type CW20Response = TokenInfoResponse | BalanceResponse;
 
 // Interacts with CW20/721 contracts

@@ -100,15 +100,18 @@ export type TrustedRelayerIsmConfig = {
   relayer: Address;
 };
 
+export type NullIsmConfig =
+  | PausableIsmConfig
+  | TestIsmConfig
+  | OpStackIsmConfig
+  | TrustedRelayerIsmConfig;
+
 export type IsmConfig =
   | Address
+  | NullIsmConfig
   | RoutingIsmConfig
   | MultisigIsmConfig
-  | AggregationIsmConfig
-  | OpStackIsmConfig
-  | TestIsmConfig
-  | PausableIsmConfig
-  | TrustedRelayerIsmConfig;
+  | AggregationIsmConfig;
 
 export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;

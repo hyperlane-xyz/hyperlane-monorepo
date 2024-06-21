@@ -36,6 +36,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsctestnet: true,
     eclipsetestnet: false,
     fuji: true,
+    holesky: true,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
@@ -46,6 +47,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     bsctestnet: true,
     eclipsetestnet: false,
     fuji: true,
+    holesky: true,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
@@ -57,6 +59,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     fuji: true,
+    holesky: true,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
@@ -95,7 +98,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '3bb9d0a-20240619-130157',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -124,7 +127,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '3bb9d0a-20240619-130157',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
   },
@@ -146,7 +149,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '3bb9d0a-20240619-130157',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
@@ -156,7 +159,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '3bb9d0a-20240619-130157',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
   },

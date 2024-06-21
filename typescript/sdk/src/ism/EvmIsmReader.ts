@@ -28,25 +28,14 @@ import {
   IsmType,
   ModuleType,
   MultisigIsmConfig,
-  OpStackIsmConfig,
-  PausableIsmConfig,
+  NullIsmConfig,
   RoutingIsmConfig,
-  TestIsmConfig,
-  TrustedRelayerIsmConfig,
 } from './types.js';
 
-type NullIsmConfig =
-  | PausableIsmConfig
-  | TestIsmConfig
-  | OpStackIsmConfig
-  | TrustedRelayerIsmConfig;
-
-export type DerivedIsmConfigWithAddress = WithAddress<
-  Exclude<IsmConfig, Address>
->;
+export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
 export interface IsmReader {
-  deriveIsmConfig(address: Address): Promise<DerivedIsmConfigWithAddress>;
+  deriveIsmConfig(address: Address): Promise<DerivedIsmConfig>;
   deriveRoutingConfig(address: Address): Promise<WithAddress<RoutingIsmConfig>>;
   deriveAggregationConfig(
     address: Address,
@@ -71,14 +60,13 @@ export class EvmIsmReader implements IsmReader {
     this.provider = multiProvider.getProvider(chain);
   }
 
-  async deriveIsmConfig(
-    address: Address,
-  ): Promise<DerivedIsmConfigWithAddress> {
+  async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
     const ism = IInterchainSecurityModule__factory.connect(
       address,
       this.provider,
     );
     const moduleType: ModuleType = await ism.moduleType();
+    this.logger.debug('Deriving ISM config', { address, moduleType });
 
     switch (moduleType) {
       case ModuleType.UNUSED:
@@ -116,12 +104,18 @@ export class EvmIsmReader implements IsmReader {
     const domainIds = await ism.domains();
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
-      const chainName = this.multiProvider.getChainName(domainId.toNumber());
+      const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
+      if (!chainName) {
+        this.logger.warn(
+          `Unknown domain ID ${domainId}, skipping domain configuration`,
+        );
+        return;
+      }
       const module = await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
     });
 
-    // Fallback routing ISM extends from MailboxClient, default routign
+    // Fallback routing ISM extends from MailboxClient, default routing
     let ismType = IsmType.FALLBACK_ROUTING;
     try {
       await ism.mailbox();

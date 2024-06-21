@@ -1,27 +1,30 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use hyperlane_core::total_estimated_cost;
 use prometheus::{IntCounter, IntGaugeVec};
-use tokio::spawn;
+use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tokio_metrics::TaskMonitor;
 use tracing::{debug, info_span, instrument, instrument::Instrumented, trace, Instrument};
 use tracing::{info, warn};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneMessage, MpmcReceiver, TxOutcome,
+    HyperlaneMessage, PendingOperationResult, QueueOperation, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
 
-use super::op_queue::{OpQueue, QueueOperation};
-use super::pending_operation::*;
+use super::op_queue::OpQueue;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -77,17 +80,23 @@ pub struct SerialSubmitter {
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<QueueOperation>,
     /// Receiver for retry requests.
-    retry_rx: MpmcReceiver<MessageRetryRequest>,
+    retry_tx: Sender<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
     max_batch_size: u32,
+    /// tokio task monitor
+    task_monitor: TaskMonitor,
 }
 
 impl SerialSubmitter {
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%self.domain);
-        spawn(async move { self.run().await }).instrument(span)
+        let task_monitor = self.task_monitor.clone();
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            self.run().await
+        }))
+        .instrument(span)
     }
 
     async fn run(self) {
@@ -95,52 +104,61 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
-            retry_rx,
+            retry_tx,
             max_batch_size,
+            task_monitor,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
-            retry_rx.clone(),
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
         let submit_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "submit_queue".to_string(),
-            retry_rx.clone(),
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
-            retry_rx,
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
 
         let tasks = [
-            spawn(receive_task(
-                domain.clone(),
-                rx_prepare,
-                prepare_queue.clone(),
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                receive_task(domain.clone(), rx_prepare, prepare_queue.clone()),
             )),
-            spawn(prepare_task(
-                domain.clone(),
-                prepare_queue.clone(),
-                submit_queue.clone(),
-                confirm_queue.clone(),
-                max_batch_size,
-                metrics.clone(),
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                prepare_task(
+                    domain.clone(),
+                    prepare_queue.clone(),
+                    submit_queue.clone(),
+                    confirm_queue.clone(),
+                    max_batch_size,
+                    metrics.clone(),
+                ),
             )),
-            spawn(submit_task(
-                domain.clone(),
-                submit_queue,
-                confirm_queue.clone(),
-                max_batch_size,
-                metrics.clone(),
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                submit_task(
+                    domain.clone(),
+                    submit_queue,
+                    confirm_queue.clone(),
+                    max_batch_size,
+                    metrics.clone(),
+                ),
             )),
-            spawn(confirm_task(
-                domain.clone(),
-                prepare_queue,
-                confirm_queue,
-                max_batch_size,
-                metrics,
+            tokio::spawn(TaskMonitor::instrument(
+                &task_monitor,
+                confirm_task(
+                    domain.clone(),
+                    prepare_queue,
+                    confirm_queue,
+                    max_batch_size,
+                    metrics,
+                ),
             )),
         ];
 
@@ -226,6 +244,7 @@ async fn prepare_task(
                     metrics.ops_dropped.inc();
                 }
                 PendingOperationResult::Confirm => {
+                    debug!(?op, "Pushing operation to confirm queue");
                     confirm_queue.push(op).await;
                 }
             }
@@ -410,11 +429,10 @@ impl OperationBatch {
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         match self.try_submit_as_batch(metrics).await {
             Ok(outcome) => {
-                // TODO: use the `tx_outcome` with the total gas expenditure
-                // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
-                // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
+                let total_estimated_cost = total_estimated_cost(&self.operations);
                 for mut op in self.operations {
+                    op.set_operation_outcome(outcome.clone(), total_estimated_cost);
                     op.set_next_attempt_after(CONFIRM_DELAY);
                     confirm_queue.push(op).await;
                 }
@@ -444,8 +462,6 @@ impl OperationBatch {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
 
-        // We use the estimated gas limit from the prior call to
-        // `process_estimate_costs` to avoid a second gas estimation.
         let outcome = first_item.mailbox.process_batch(&batch).await?;
         metrics.ops_submitted.inc_by(self.operations.len() as u64);
         Ok(outcome)

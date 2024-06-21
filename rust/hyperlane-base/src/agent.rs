@@ -44,6 +44,7 @@ pub trait BaseAgent: Send + Sync + Debug {
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
         Self: Sized;
@@ -75,10 +76,17 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
-    core_settings.tracing.start_tracing(&metrics)?;
+    let tokio_server = core_settings.tracing.start_tracing(&metrics)?;
     let agent_metrics = create_agent_metrics(&metrics)?;
     let chain_metrics = create_chain_metrics(&metrics)?;
-    let agent = A::from_settings(settings, metrics.clone(), agent_metrics, chain_metrics).await?;
+    let agent = A::from_settings(
+        settings,
+        metrics.clone(),
+        agent_metrics,
+        chain_metrics,
+        tokio_server,
+    )
+    .await?;
 
     // This await will only end if a panic happens. We won't crash, but instead gracefully shut down
     agent.run().await;

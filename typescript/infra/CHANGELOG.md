@@ -1,5 +1,78 @@
 # @hyperlane-xyz/infra
 
+## 3.16.0
+
+### Minor Changes
+
+- 5cc64eb09: Add support for new chains: linea, fraxtal, sei.
+  Support osmosis remote.
+  Drive-by fix to always fetch explorer API keys when running deploy script.
+
+### Patch Changes
+
+- 5cc64eb09: Allow selecting a specific chain to govern in check-deploy script
+- Updated dependencies [f9bbdde76]
+- Updated dependencies [5cc64eb09]
+  - @hyperlane-xyz/sdk@3.16.0
+  - @hyperlane-xyz/helloworld@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- Updated dependencies [6620fe636]
+- Updated dependencies [acaa22cd9]
+- Updated dependencies [921e449b4]
+  - @hyperlane-xyz/helloworld@3.15.1
+  - @hyperlane-xyz/sdk@3.15.1
+  - @hyperlane-xyz/utils@3.15.1
+
+## 3.15.0
+
+### Patch Changes
+
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/sdk@3.15.0
+  - @hyperlane-xyz/helloworld@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
+
+## 3.14.0
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@3.14.0
+- @hyperlane-xyz/sdk@3.14.0
+- @hyperlane-xyz/utils@3.14.0
+
+## 3.13.0
+
+### Minor Changes
+
+- 39ea7cdef: Implement multi collateral warp routes
+- 0cf692e73: Implement metadata builder fetching from message
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [b6b26e2bb]
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/helloworld@3.13.0
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/utils@3.13.0
+
+## 3.12.0
+
+### Patch Changes
+
+- Updated dependencies [eba393680]
+- Updated dependencies [69de68a66]
+  - @hyperlane-xyz/sdk@3.12.0
+  - @hyperlane-xyz/utils@3.12.0
+  - @hyperlane-xyz/helloworld@3.12.0
+
 ## 3.11.1
 
 ### Patch Changes

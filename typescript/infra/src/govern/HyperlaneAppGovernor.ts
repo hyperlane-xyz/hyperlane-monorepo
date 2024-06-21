@@ -3,7 +3,6 @@ import prompts from 'prompts';
 
 import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
-  AccountConfig,
   ChainMap,
   ChainName,
   HyperlaneApp,
@@ -63,7 +62,6 @@ export abstract class HyperlaneAppGovernor<
 
   async govern(confirm = true, chain?: ChainName) {
     if (this.checker.violations.length === 0) return;
-
     // 1. Produce calls from checker violations.
     await this.mapViolationsToCalls();
 
@@ -78,7 +76,7 @@ export abstract class HyperlaneAppGovernor<
     }
   }
 
-  protected async sendCalls(chain: ChainName, confirm: boolean) {
+  protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
     const calls = this.calls[chain];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
@@ -94,15 +92,16 @@ export abstract class HyperlaneAppGovernor<
         calls.map((c) =>
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
         );
-        const response =
-          !confirm ||
-          (await prompts({
-            type: 'confirm',
-            name: 'value',
-            message: 'Can you confirm?',
-            initial: false,
-          }));
-        return !!response;
+        if (!requestConfirmation) return true;
+
+        const { value: confirmed } = await prompts({
+          type: 'confirm',
+          name: 'value',
+          message: 'Can you confirm?',
+          initial: false,
+        });
+
+        return !!confirmed;
       }
       return false;
     };
@@ -115,7 +114,9 @@ export abstract class HyperlaneAppGovernor<
       if (calls.length > 0) {
         const confirmed = await summarizeCalls(submissionType, calls);
         if (confirmed) {
-          console.log(`Submitting calls on ${chain} via ${submissionType}`);
+          console.log(
+            `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+          );
           await multiSend.sendTransactions(
             calls.map((call) => ({
               to: call.to,
@@ -125,7 +126,7 @@ export abstract class HyperlaneAppGovernor<
           );
         } else {
           console.log(
-            `Skipping submission of calls on ${chain} via ${submissionType}`,
+            `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
         }
       }
@@ -135,12 +136,7 @@ export abstract class HyperlaneAppGovernor<
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
-    let safeOwner: Address;
-    if (typeof this.checker.configMap[chain].owner === 'string') {
-      safeOwner = this.checker.configMap[chain].owner as Address;
-    } else {
-      safeOwner = (this.checker.configMap[chain].owner as AccountConfig).owner;
-    }
+    const safeOwner = this.checker.configMap[chain].owner;
     await sendCallsForType(
       SubmissionType.SAFE,
       new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
@@ -161,15 +157,21 @@ export abstract class HyperlaneAppGovernor<
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {
-      for (const call of this.calls[chain]) {
-        let submissionType = await this.inferCallSubmissionType(chain, call);
-        if (submissionType === SubmissionType.MANUAL) {
-          submissionType = await this.inferICAEncodedSubmissionType(
-            chain,
-            call,
-          );
+      try {
+        for (const call of this.calls[chain]) {
+          let submissionType = await this.inferCallSubmissionType(chain, call);
+          if (submissionType === SubmissionType.MANUAL) {
+            submissionType = await this.inferICAEncodedSubmissionType(
+              chain,
+              call,
+            );
+          }
+          call.submissionType = submissionType;
         }
-        call.submissionType = submissionType;
+      } catch (error) {
+        console.error(
+          `Error inferring call submission types for chain ${chain}: ${error}`,
+        );
       }
     }
   }
@@ -257,16 +259,34 @@ export abstract class HyperlaneAppGovernor<
       // This should implicitly check whether or not the owner is a gnosis
       // safe.
       if (!this.canPropose[chain].has(safeAddress)) {
-        this.canPropose[chain].set(
-          safeAddress,
-          await canProposeSafeTransactions(
+        try {
+          const canPropose = await canProposeSafeTransactions(
             signerAddress,
             chain,
             multiProvider,
             safeAddress,
-          ),
-        );
+          );
+          this.canPropose[chain].set(safeAddress, canPropose);
+        } catch (error) {
+          // if we hit this error, it's likely a custom safe chain
+          // so let's fallback to a manual submission
+          if (
+            error instanceof Error &&
+            (error.message.includes('Invalid MultiSend contract address') ||
+              error.message.includes(
+                'Invalid MultiSendCallOnly contract address',
+              ))
+          ) {
+            console.warn(`${error.message}: Setting submission type to MANUAL`);
+            return SubmissionType.MANUAL;
+          } else {
+            console.error(
+              `Failed to determine if signer can propose safe transactions: ${error}`,
+            );
+          }
+        }
       }
+
       // 2b. Check if calling from the owner/safeAddress will succeed.
       if (
         this.canPropose[chain].get(safeAddress) &&
@@ -275,6 +295,7 @@ export abstract class HyperlaneAppGovernor<
         return SubmissionType.SAFE;
       }
     }
+
     return SubmissionType.MANUAL;
   }
 
