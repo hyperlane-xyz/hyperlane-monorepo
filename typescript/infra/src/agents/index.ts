@@ -10,6 +10,7 @@ import {
   AgentContextConfig,
   DockerConfig,
   HelmRootAgentValues,
+  KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
 import { RelayerConfigHelper } from '../config/agent/relayer.js';
@@ -151,7 +152,7 @@ export abstract class AgentHelmManager {
       return RpcConsensusType.Single;
     }
 
-    return this.config.rpcConsensusType;
+    return this.config.agentRoleConfig.rpcConsensusType;
   }
 
   async doesAgentReleaseExist() {
@@ -169,7 +170,11 @@ export abstract class AgentHelmManager {
   }
 
   dockerImage(): DockerConfig {
-    return this.config.docker;
+    return this.config.agentRoleConfig.docker;
+  }
+
+  kubernetesResources(): KubernetesResources | undefined {
+    return this.config.agentRoleConfig.resources;
   }
 }
 
@@ -216,6 +221,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
 
     const signers = await this.config.signers();
@@ -244,6 +250,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
@@ -279,6 +286,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         originChainName: cfg.originChainName,
         interval: cfg.interval,
       })),
+      resources: this.kubernetesResources(),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.
