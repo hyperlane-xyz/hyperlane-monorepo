@@ -27,6 +27,7 @@ env:
   RUST_BACKTRACE: full
   # Alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
   REGISTRY_URI: ${{ github.workspace }}/../hyperlane-registry
+  REGISTRY_VERSION: d7c26d062a7b1d9736a7f56981db879186193909
 
 jobs:
   yarn-install:
@@ -91,27 +92,31 @@ jobs:
   checkout-registry:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # A workaround for relative paths not being supported by actions/cache.
+      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
+      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
+
+      - name: registry-cache
+        id: registry-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.REGISTRY_URI_ABSOLUTE }}
+          key: hyperlane-registry-${{ env.REGISTRY_VERSION }}
+
+      - name: Checkout registry if cache is empty
+        if: steps.registry-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
         with:
           repository: hyperlane-xyz/hyperlane-registry
-          ref: main
+          ref: ${{ env.REGISTRY_VERSION }}
           path: ./hyperlane-registry
 
       # Put alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
       # actions/checkout doesn't allow you to checkout a repository outside of the workspace.
       # See https://github.com/actions/checkout/issues/197.
       - run: mv ./hyperlane-registry ../
-
-      # A workaround for relative paths not being supported by actions/cache.
-      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
-      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
-
-      - name: registry-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+        if: steps.registry-cache.outputs.cache-hit != 'true'
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -173,7 +178,7 @@ jobs:
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          key: hyperlane-registry-${{ env.REGISTRY_VERSION }}
           fail-on-cache-miss: true
 
       - name: Unit Tests
@@ -217,7 +222,7 @@ jobs:
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          key: hyperlane-registry-${{ env.REGISTRY_VERSION }}
           fail-on-cache-miss: true
 
       - name: Generate ${{ matrix.environment }} agent config
@@ -303,7 +308,7 @@ jobs:
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          key: hyperlane-registry-${{ env.REGISTRY_VERSION }}
           fail-on-cache-miss: true
 
       - name: agent tests with CosmWasm
@@ -459,7 +464,7 @@ jobs:
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          key: hyperlane-registry-${{ env.REGISTRY_VERSION }}
           fail-on-cache-miss: true
 
       - name: cli e2e tests
@@ -504,7 +509,7 @@ jobs:
         with:
           path: |
             ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+          key: hyperlane-registry-${{ env.REGISTRY_VERSION }}
           fail-on-cache-miss: true
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
