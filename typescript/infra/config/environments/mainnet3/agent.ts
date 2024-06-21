@@ -228,7 +228,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '2e10408-20240618-183333',
+      tag: '0d12ff3-20240620-173353',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -236,7 +236,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '59451d6-20240612-171611',
+      tag: '3bb9d0a-20240619-130157',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -259,7 +259,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '939fa81-20240607-194607',
+      tag: '3bb9d0a-20240619-130157',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -270,7 +270,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '3bb9d0a-20240619-130157',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
