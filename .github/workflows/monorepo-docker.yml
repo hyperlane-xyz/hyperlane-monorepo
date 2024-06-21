@@ -10,9 +10,11 @@ on:
       - 'typescript/infra/**'
       - 'Dockerfile'
       - '.dockerignore'
+
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   check-env:
     runs-on: ubuntu-latest
@@ -66,6 +68,12 @@ jobs:
           registry: gcr.io
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
+
+      - name: Read .registryrc
+        run: |
+          REGISTRY_VERSION=$(cat .registryrc)
+          echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -76,6 +84,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # To always fetch the latest registry, we use the date as the cache key
           build-args: |
-            REGISTRY_CACHE=${{ steps.taggen.outputs.TAG_DATE }}
+            REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}
