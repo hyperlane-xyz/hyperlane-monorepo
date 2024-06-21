@@ -4,6 +4,8 @@ on:
   # Triggers the workflow on push or pull request against main
   push:
     branches: [main]
+    paths-ignore:
+      - '*.md'
   pull_request:
     branches:
       - '*' # run against all branches
