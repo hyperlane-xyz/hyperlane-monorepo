@@ -692,7 +692,8 @@
     },
     "injective": {
       "bech32Prefix": "inj",
-      "blockExplorers": [],
+      "blockExplorers": [
+      ],
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
