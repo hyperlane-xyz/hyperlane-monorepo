@@ -156,9 +156,7 @@ mod test {
             PendingOperationStatus::FirstPrepareAttempt
         }
 
-        fn set_status(&mut self, _status: PendingOperationStatus) {
-            todo!()
-        }
+        fn set_status(&mut self, _status: PendingOperationStatus) {}
 
         fn reset_attempts(&mut self) {
             self.seconds_to_next_attempt = 0;
@@ -238,7 +236,12 @@ mod test {
         (
             IntGaugeVec::new(
                 prometheus::Opts::new("op_queue", "OpQueue metrics"),
-                &["destination", "queue_metrics_label", "app_context"],
+                &[
+                    "destination",
+                    "queue_metrics_label",
+                    "operation_status",
+                    "app_context",
+                ],
             )
             .unwrap(),
             "queue_metrics_label".to_string(),
