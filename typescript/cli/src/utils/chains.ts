@@ -1,4 +1,4 @@
-import { Separator, checkbox, confirm, input } from '@inquirer/prompts';
+import { Separator, checkbox } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
@@ -74,28 +74,4 @@ function handleNewChain(chainNames: string[]) {
     );
     process.exit(0);
   }
-}
-
-export async function detectAndConfirmOrPrompt(
-  detect: () => Promise<string | undefined>,
-  prompt: string,
-  label: string,
-  source?: string,
-): Promise<string> {
-  let detectedValue: string | undefined;
-  try {
-    detectedValue = await detect();
-    if (detectedValue) {
-      const confirmed = await confirm({
-        message: `Detected ${label} as ${detectedValue}${
-          source ? ` from ${source}` : ''
-        }, is this correct?`,
-      });
-      if (confirmed) {
-        return detectedValue;
-      }
-    }
-    // eslint-disable-next-line no-empty
-  } catch (e) {}
-  return input({ message: `${prompt} ${label}:`, default: detectedValue });
 }

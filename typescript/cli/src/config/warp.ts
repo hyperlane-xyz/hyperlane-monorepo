@@ -16,15 +16,13 @@ import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import {
-  detectAndConfirmOrPrompt,
-  runMultiChainSelectionStep,
-} from '../utils/chains.js';
+import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
