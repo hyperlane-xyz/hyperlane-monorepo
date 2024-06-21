@@ -1,9 +1,12 @@
+import { stringify as yamlStringify } from 'yaml';
+
 import { ChainName, CoreConfig, EvmCoreModule } from '@hyperlane-xyz/sdk';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
-import { logBlue } from '../logger.js';
+import { log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { indentYamlOrJson } from '../utils/files.js';
 
 import {
   completeDeploy,
@@ -83,5 +86,7 @@ export async function runCoreDeploy({
 
     // @TODO implement writeAgentConfig
   }
-  logBlue('Deployment is complete!');
+
+  logGreen('✅ Core contract deployments complete:\n');
+  log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));
 }
