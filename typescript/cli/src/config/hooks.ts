@@ -19,12 +19,9 @@ import {
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
-import {
-  detectAndConfirmOrPrompt,
-  inputWithInfo,
-  runMultiChainSelectionStep,
-} from '../utils/chains.js';
+import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
+import { detectAndConfirmOrPrompt, inputWithInfo } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';
 

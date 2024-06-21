@@ -10,8 +10,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import { detectAndConfirmOrPrompt } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);

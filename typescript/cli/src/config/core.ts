@@ -4,8 +4,8 @@ import { CoreConfigSchema, HookConfig, IsmConfig } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import { detectAndConfirmOrPrompt } from '../utils/chains.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import {
   createHookConfig,
