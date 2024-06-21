@@ -6,7 +6,6 @@ import {
   HypERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
-  HyperlaneSmartProvider,
   MailboxClientConfig,
   TokenRouterConfig,
   TokenType,
