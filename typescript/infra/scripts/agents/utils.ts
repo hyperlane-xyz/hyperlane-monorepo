@@ -22,6 +22,7 @@ export class AgentCli {
   agentConfig!: RootAgentConfig;
   initialized = false;
   dryRun = false;
+  chains?: string[];
 
   public async runHelmCommand(command: HelmCommand) {
     await this.init();
@@ -30,12 +31,19 @@ export class AgentCli {
     // make all the managers first to ensure config validity
     for (const role of this.roles) {
       switch (role) {
-        case Role.Validator:
-          for (const chain of this.agentConfig.contextChainNames[role]) {
+        case Role.Validator: {
+          const contextChainNames = this.agentConfig.contextChainNames[role];
+          const validatorChains = !this.chains
+            ? contextChainNames
+            : contextChainNames.filter((chain: string) =>
+                this.chains!.includes(chain),
+              );
+          for (const chain of validatorChains) {
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }
           break;
+        }
         case Role.Relayer:
           managers[role] = new RelayerHelmManager(this.agentConfig);
           break;
@@ -63,7 +71,20 @@ export class AgentCli {
     if (this.initialized) return;
     const argv = await withAgentRole(withContext(getArgs()))
       .describe('dry-run', 'Run through the steps without making any changes')
-      .boolean('dry-run').argv;
+      .boolean('dry-run')
+      .describe('chains', 'Specific chains to perform validator actions on.')
+      .array('chains')
+      // Ensure chains are unique
+      .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
+      .alias('c', 'chains').argv;
+
+    if (
+      argv.chains &&
+      argv.chains.length > 0 &&
+      !argv.role.includes(Role.Validator)
+    ) {
+      console.warn('Chain argument applies to validator role only. Ignoring.');
+    }
 
     const { envConfig, agentConfig } = await getConfigsBasedOnArgs(argv);
     await assertCorrectKubeContext(envConfig);
@@ -72,5 +93,6 @@ export class AgentCli {
     this.agentConfig = agentConfig;
     this.dryRun = argv.dryRun || false;
     this.initialized = true;
+    this.chains = argv.chains;
   }
 }
