@@ -12,7 +12,6 @@ import {
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
-  MailboxClient__factory,
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
@@ -148,39 +147,15 @@ export class EvmIsmModule extends HyperlaneModule<
     this.params.config = targetConfig;
 
     // if it's a fallback routing ISM, do a mailbox diff check
-    // Note: we have to do this before the configDeepEquals check
-    // because the mailbox address is not part of the config
-    let mailboxDiff = false;
-    const provider = this.multiProvider.getProvider(this.chain);
-    if (
-      typeof targetConfig !== 'string' &&
-      targetConfig.type === currentConfig.type &&
-      targetConfig.type === IsmType.FALLBACK_ROUTING
-    ) {
-      // can only retreive mailbox address if current ISM type is also Fallback Routing
-      const mailboxAddress =
-        currentConfig.type === IsmType.FALLBACK_ROUTING
-          ? await MailboxClient__factory.connect(
-              this.params.addresses.deployedIsm,
-              provider,
-            ).mailbox()
-          : ''; // empty string to force a mailbox diff
-
-      // if mailbox delta, deploy new ISM
-      // this will always be the case if the current ISM is not a fallback routing ISM
-      mailboxDiff = !eqAddress(mailboxAddress, this.params.addresses.mailbox);
-    }
 
     // If configs match, no updates needed
-    if (!mailboxDiff && configDeepEquals(currentConfig, targetConfig)) {
+    if (configDeepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
     // Else, we have to figure out what an update for this ISM entails
     // Check if we need to deploy a new ISM
     if (
-      // if mailbox needs to be updated on fallback routing ISM, do a new deploy
-      mailboxDiff ||
       // if updating from an address/custom config to a proper ISM config, do a new deploy
       typeof currentConfig === 'string' ||
       // if updating a proper ISM config whose types are different, do a new deploy
@@ -225,6 +200,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // Lastly, check if the resolved owner is different from the current owner
+    const provider = this.multiProvider.getProvider(this.chain);
     const owner = await Ownable__factory.connect(
       this.params.addresses.deployedIsm,
       provider,
@@ -581,26 +557,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
     const signer = this.multiProvider.getSigner(this.params.chain);
     return IAggregationIsm__factory.connect(address, signer);
-  }
-
-  // Updates the mailbox address if it is different from the current one.
-  // Logs changes and updates the internal state of the module.
-  public setNewMailbox(newMailboxAddress: Address): void {
-    const currentMailboxAddress = this.params.addresses.mailbox;
-
-    if (eqAddress(currentMailboxAddress, newMailboxAddress)) {
-      this.logger.debug(
-        `Mailbox address is already set to ${newMailboxAddress}`,
-      );
-      return;
-    }
-
-    this.logger.debug(
-      `Setting new mailbox address from ${currentMailboxAddress} to ${newMailboxAddress}`,
-    );
-
-    // Update the mailbox address in the arguments
-    this.params.addresses.mailbox = newMailboxAddress;
   }
 
   // filtering out domains which are not part of the multiprovider
