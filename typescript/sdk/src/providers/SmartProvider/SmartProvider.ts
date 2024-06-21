@@ -1,5 +1,5 @@
 import { BigNumber, providers, utils } from 'ethers';
-import { Logger } from 'pino';
+import pino, { Logger } from 'pino';
 
 import {
   raceWithContext,
@@ -95,6 +95,10 @@ export class HyperlaneSmartProvider
     }
 
     this.supportedMethods = [...supportedMethods.values()];
+  }
+
+  setLogLevel(level: pino.LevelWithSilentOrString) {
+    this.logger.level = level;
   }
 
   async getPriorityFee(): Promise<BigNumber> {
@@ -271,7 +275,7 @@ export class HyperlaneSmartProvider
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
-          this.logger.warn(
+          this.logger.debug(
             `Error from provider #${pIndex}: ${result.error} - ${
               !isLastProvider ? ' Triggering next provider.' : ''
             }`,
