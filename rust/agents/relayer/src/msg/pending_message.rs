@@ -9,10 +9,10 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
 use hyperlane_core::{
-    gas_used_by_operation, make_op_try, BatchItem, ChainCommunicationError, ChainResult,
+    gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
-    PendingOperation, PendingOperationResult, PendingOperationStatus, TryBatchAs, TxOutcome, H256,
-    U256,
+    PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
+    TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
@@ -164,14 +164,14 @@ impl PendingOperation for PendingMessage {
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
-                return self.on_reprepare(err, "Error checking message delivery status");
+                return self.on_reprepare(err, ReprepareReason::ErrorCheckingDeliveryStatus);
             }
         };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
-            return PendingOperationResult::Confirm;
+            return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
         }
 
         let provider = self.ctx.destination_mailbox.provider();
@@ -180,7 +180,7 @@ impl PendingOperation for PendingMessage {
         let is_contract = match provider.is_contract(&self.message.recipient).await {
             Ok(is_contract) => is_contract,
             Err(err) => {
-                return self.on_reprepare(err, "Error checking if message recipient is a contract");
+                return self.on_reprepare(err, ReprepareReason::ErrorCheckingIfRecipientIsContract);
             }
         };
         if !is_contract {
@@ -199,10 +199,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(ism_address) => ism_address,
             Err(err) => {
-                return self.on_reprepare(
-                    err,
-                    "Error fetching ISM address. Potentially malformed recipient ISM address.",
-                );
+                return self.on_reprepare(err, ReprepareReason::ErrorFetchingIsmAddress);
             }
         };
 
@@ -215,7 +212,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(message_metadata_builder) => message_metadata_builder,
             Err(err) => {
-                return self.on_reprepare(err, "Error getting the message metadata builder");
+                return self.on_reprepare(err, ReprepareReason::ErrorGettingMetadataBuilder);
             }
         };
 
@@ -225,12 +222,12 @@ impl PendingOperation for PendingMessage {
         {
             Ok(metadata) => metadata,
             Err(err) => {
-                return self.on_reprepare(err, "Error building metadata");
+                return self.on_reprepare(err, ReprepareReason::ErrorBuildingMetadata);
             }
         };
 
         let Some(metadata) = metadata else {
-            return self.on_reprepare("", "Could not fetch metadata");
+            return self.on_reprepare("", ReprepareReason::CouldNotFetchMetadata);
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -245,7 +242,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(metadata) => metadata,
             Err(err) => {
-                return self.on_reprepare(err, "Error estimating costs for process call");
+                return self.on_reprepare(err, ReprepareReason::ErrorEstimatingGas);
             }
         };
 
@@ -258,13 +255,12 @@ impl PendingOperation for PendingMessage {
         {
             Ok(gas_limit) => gas_limit,
             Err(e) => {
-                return self
-                    .on_reprepare(e, "Error checking if message meets gas payment requirement");
+                return self.on_reprepare(e, ReprepareReason::ErrorCheckingGasRequirement);
             }
         };
 
         let Some(gas_limit) = gas_limit else {
-            return self.on_reprepare("", "Gas payment requirement not met");
+            return self.on_reprepare("", ReprepareReason::GasPaymentRequirementNotMet);
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -276,8 +272,8 @@ impl PendingOperation for PendingMessage {
 
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
-                return self
-                    .on_reprepare("", "Message delivery estimated gas exceeds max gas limit");
+                // TODO: consider dropping instead of repreparing in this case
+                return self.on_reprepare("", ReprepareReason::ExceedsMaxGasLimit);
             }
         }
 
@@ -326,29 +322,26 @@ impl PendingOperation for PendingMessage {
     }
 
     async fn confirm(&mut self) -> PendingOperationResult {
-        make_op_try!(|| {
-            // Provider error; just try again later
-            // Note: this means that we are using `NotReady` for a retryable error case
-            self.inc_attempts();
-            PendingOperationResult::NotReady
-        });
-
         if !self.is_ready() {
             return PendingOperationResult::NotReady;
         }
 
-        let is_delivered = op_try!(
-            self.ctx
-                .destination_mailbox
-                .delivered(self.message.id())
-                .await,
-            "Confirming message delivery"
-        );
+        let is_delivered = match self
+            .ctx
+            .destination_mailbox
+            .delivered(self.message.id())
+            .await
+        {
+            Ok(is_delivered) => is_delivered,
+            Err(err) => {
+                return self.on_reconfirm(err, "Error confirming message delivery");
+            }
+        };
+
         if is_delivered {
-            op_try!(
-                critical: self.record_message_process_success(),
-                "recording message process success"
-            );
+            if let Err(err) = self.record_message_process_success() {
+                return self.on_reconfirm(err, "Error when recording message process success");
+            }
             info!(
                 submission=?self.submission_outcome,
                 "Message successfully processed"
@@ -365,7 +358,7 @@ impl PendingOperation for PendingMessage {
                 tx_outcome=?self.submission_outcome,
                 message_id=?self.message.id()
             );
-            self.on_reprepare("", "Reprepare reverted or reorged message")
+            self.on_reprepare("", ReprepareReason::RevertedOrReorged)
                 .instrument(span)
                 .into_inner()
         }
@@ -465,11 +458,21 @@ impl PendingMessage {
         pm
     }
 
-    fn on_reprepare<E: Debug>(&mut self, err: E, reason: &str) -> PendingOperationResult {
+    fn on_reprepare<E: Debug>(
+        &mut self,
+        err: E,
+        reason: ReprepareReason,
+    ) -> PendingOperationResult {
         self.inc_attempts();
         self.submitted = false;
         warn!(error = ?err, "{}", reason.clone());
-        PendingOperationResult::Reprepare(reason.to_string())
+        PendingOperationResult::Reprepare(reason)
+    }
+
+    fn on_reconfirm<E: Debug>(&mut self, err: E, reason: &str) -> PendingOperationResult {
+        self.inc_attempts();
+        warn!(error = ?err, "{}", reason.clone());
+        PendingOperationResult::NotReady
     }
 
     fn is_ready(&self) -> bool {
