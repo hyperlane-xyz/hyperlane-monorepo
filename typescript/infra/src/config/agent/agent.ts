@@ -171,7 +171,6 @@ export class RootAgentConfigHelper implements AgentContextConfig {
 export abstract class AgentConfigHelper<
   R = unknown,
 > extends RootAgentConfigHelper {
-  // implements AgentRoleConfig
   protected constructor(
     root: RootAgentConfig,
     readonly agentRoleConfig: AgentRoleConfig,
