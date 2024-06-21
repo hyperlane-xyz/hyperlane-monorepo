@@ -89,6 +89,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
 ];
 
+// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
     cpu: '1000m',
