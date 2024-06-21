@@ -133,6 +133,13 @@ export class EvmIsmModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     targetConfig = IsmConfigSchema.parse(targetConfig);
 
+    // Do not support updating to a custom ISM address
+    if (typeof targetConfig === 'string') {
+      throw new Error(
+        'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
+      );
+    }
+
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
@@ -170,14 +177,6 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // Else, we have to figure out what an update for this ISM entails
-
-    // If target config is an address ISM, just update the address
-    if (typeof targetConfig === 'string') {
-      // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
-      this.params.addresses.deployedIsm = targetConfig;
-      return [];
-    }
-
     // Check if we need to deploy a new ISM
     if (
       // if mailbox needs to be updated on fallback routing ISM, do a new deploy

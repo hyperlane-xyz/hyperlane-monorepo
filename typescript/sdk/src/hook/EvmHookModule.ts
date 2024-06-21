@@ -128,6 +128,13 @@ export class EvmHookModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     targetConfig = HookConfigSchema.parse(targetConfig);
 
+    // Do not support updating to a custom Hook address
+    if (typeof targetConfig === 'string') {
+      throw new Error(
+        'Invalid targetConfig: Updating to a custom Hook address is not supported. Please provide a valid Hook configuration.',
+      );
+    }
+
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
@@ -141,14 +148,6 @@ export class EvmHookModule extends HyperlaneModule<
     }
 
     // Else, we have to figure out what an update for this Hook entails
-
-    // If target config is an address Hook, just update the address
-    if (typeof targetConfig === 'string') {
-      // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
-      this.params.addresses.deployedHook = targetConfig;
-      return [];
-    }
-
     // Check if we need to deploy a new Hook
     if (
       // if updating from an address/custom config to a proper hook config, do a new deploy
