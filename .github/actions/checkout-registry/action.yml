@@ -7,6 +7,7 @@ runs:
   using: 'composite'
   steps:
     - name: Read .registryrc if registry_version not provided
+      shell: bash
       run: |
         if [ -z "${{ inputs.registry_version }}" ]; then
           REGISTRY_VERSION=$(cat .registryrc)
@@ -23,4 +24,5 @@ runs:
         path: ./hyperlane-registry
 
     - name: Move hyperlane-registry to parent directory
+      shell: bash
       run: mv ./hyperlane-registry ../

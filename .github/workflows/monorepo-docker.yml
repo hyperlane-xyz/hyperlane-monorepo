@@ -70,6 +70,7 @@ jobs:
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
 
       - name: Read .registryrc
+        shell: bash
         run: |
           REGISTRY_VERSION=$(cat .registryrc)
           echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
