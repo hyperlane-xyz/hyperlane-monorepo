@@ -4,8 +4,6 @@ on:
     branches: [main]
     tags:
       - '**'
-    paths:
-      - 'rust/**'
   pull_request:
     paths:
       - 'rust/**'
