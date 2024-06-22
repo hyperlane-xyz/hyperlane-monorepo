@@ -1,0 +1,19 @@
+{
+  "ui": "stream",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "test:ci": {
+      "dependsOn": ["build", "^test:ci"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "clean": {},
+    "prettier": {},
+    "lint": {}
+  }
+}

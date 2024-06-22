@@ -25,6 +25,7 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  TURBO_TELEMETRY_DISABLED: 1
   # Alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
   REGISTRY_URI: ${{ github.workspace }}/../hyperlane-registry
 
