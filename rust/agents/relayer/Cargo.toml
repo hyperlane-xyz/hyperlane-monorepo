@@ -26,6 +26,7 @@ itertools.workspace = true
 num-derive.workspace = true
 num-traits.workspace = true
 prometheus.workspace = true
+rand.worksapce = true
 regex.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 serde.workspace = true

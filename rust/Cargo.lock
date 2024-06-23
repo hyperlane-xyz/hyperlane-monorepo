@@ -7037,6 +7037,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "prometheus",
+ "rand 0.5.6",
  "regex",
  "reqwest",
  "serde",
