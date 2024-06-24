@@ -61,6 +61,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  bob: {
+    threshold: 1,
+    validators: ['0x20f283be1eb0e81e22f51705dcb79883cfdd34aa'],
+  },
+
   bsc: {
     threshold: 2,
     validators: [
@@ -186,6 +191,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
       '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
     ],
+  },
+
+  mantle: {
+    threshold: 1,
+    validators: ['0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52'],
   },
 
   mode: {
@@ -315,6 +325,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   solanatestnet: {
     threshold: 1,
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+  },
+
+  taiko: {
+    threshold: 1,
+    validators: ['0xa930073c8f2d0b2f7423ea32293e0d1362e65d79'],
   },
 
   viction: {

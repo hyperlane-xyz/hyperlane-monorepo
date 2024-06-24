@@ -105,6 +105,12 @@ pub enum KnownHyperlaneDomain {
 
     Sei = 1329,
 
+    Bob = 60808,
+
+    Mantle = 5000,
+
+    Taiko = 167000,
+
     // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
@@ -237,7 +243,8 @@ impl KnownHyperlaneDomain {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
                 Moonbeam, Gnosis, MantaPacific, Neutron, Injective, InEvm, Ancient8, Blast,
-                Mode, Redstone, Viction, Zetachain, Fraxtal, Linea, Sei, Osmosis
+                Mode, Redstone, Viction, Zetachain, Fraxtal, Linea, Sei, Osmosis,
+                Bob, Mantle, Taiko
             ],
             Testnet: [
                 Alfajores, MoonbaseAlpha, Sepolia, ScrollSepolia, Chiado, PlumeTestnet, Fuji, BinanceSmartChainTestnet, Holesky
@@ -255,7 +262,7 @@ impl KnownHyperlaneDomain {
                 Optimism, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, InEvm, Ancient8, Blast, Mode, Redstone, Viction,
                 Zetachain, MoonbaseAlpha, ScrollSepolia, Chiado, MantaPacific, PlumeTestnet,
-                Fraxtal, Linea, Sei,
+                Fraxtal, Linea, Sei, Bob, Mantle, Taiko,
                 Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
@@ -273,7 +280,7 @@ impl KnownHyperlaneDomain {
                 Ethereum, Sepolia, Holesky, Polygon, Avalanche, Fuji, Optimism,
                 BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
                 ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm, Ancient8, Blast, Mode, Redstone,
-                Viction, Zetachain, Fraxtal, Linea, Sei, Osmosis,
+                Viction, Zetachain, Fraxtal, Linea, Sei, Osmosis, Bob, Mantle, Taiko
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991
             ],
         })

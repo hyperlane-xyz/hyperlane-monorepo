@@ -309,6 +309,46 @@
       "testRecipient": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",
       "validatorAnnounce": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72"
     },
+    "bob": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.gobob.xyz/api",
+          "family": "blockscout",
+          "name": "BOB Explorer",
+          "url": "https://explorer.gobob.xyz"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 2,
+        "reorgPeriod": 1
+      },
+      "chainId": 60808,
+      "displayName": "BOB",
+      "domainId": 60808,
+      "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "gasCurrencyCoinGeckoId": "ethereum",
+      "index": {
+        "from": 0
+      },
+      "name": "bob",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.gobob.xyz"
+        }
+      ],
+      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "technicalStack": "other"
+    },
     "bsc": {
       "aggregationHook": "0x402Fc106576462a892355d69ACF03D46A888ae88",
       "blockExplorers": [
@@ -857,6 +897,47 @@
       "testTokenRecipient": "0x5060eCD5dFAD300A90592C04e504600A7cdcF70b",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
+    },
+    "mantle": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.mantle.xyz/api",
+          "family": "blockscout",
+          "name": "Mantle Mainnet Explorer",
+          "url": "https://explorer.mantle.xyz/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 2,
+        "reorgPeriod": 1
+      },
+      "chainId": 5000,
+      "displayName": "Mantle",
+      "domainId": 5000,
+      "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "gasCurrencyCoinGeckoId": "mantle",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.mantle.xyz",
+      "index": {
+        "from": 0
+      },
+      "name": "mantle",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Mantle",
+        "symbol": "MNT"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.mantle.xyz"
+        }
+      ],
+      "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "technicalStack": "other"
     },
     "mode": {
       "aggregationHook": "0x80D80cfBa98dD2d456ECd43Dcc1f852D5C4EeD7a",
@@ -1469,6 +1550,47 @@
         "gasPrice": 2000000000
       },
       "validatorAnnounce": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
+    },
+    "taiko": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://api.taikoscan.io/api",
+          "family": "etherscan",
+          "name": "Taikoscan",
+          "url": "https://taikoscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 12,
+        "reorgPeriod": 1
+      },
+      "chainId": 167000,
+      "displayName": "Taiko",
+      "domainId": 167000,
+      "domainRoutingIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "gasCurrencyCoinGeckoId": "ethereum",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.taiko.xyz",
+      "index": {
+        "from": 0
+      },
+      "name": "taiko",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.mainnet.taiko.xyz"
+        }
+      ],
+      "staticAggregationHookFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "staticAggregationIsmFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticMerkleRootMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "staticMessageIdMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "technicalStack": "other"
     },
     "viction": {
       "aggregationHook": "0x5c7890FAf9c99dC55926F00d624D7Bc6D7ac6834",
