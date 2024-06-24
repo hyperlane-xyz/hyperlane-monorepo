@@ -638,7 +638,8 @@
     },
     "injective": {
       "bech32Prefix": "inj",
-      "blockExplorers": [],
+      "blockExplorers": [
+      ],
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
@@ -1377,9 +1378,6 @@
         },
         {
           "http": "https://zetachain-athens-evm.blockpi.network/v1/rpc/public"
-        },
-        {
-          "http": "https://zetachain-mainnet-archive.allthatnode.com:8545"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
