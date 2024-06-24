@@ -1,6 +1,7 @@
 import { ethers, providers } from 'ethers';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
@@ -275,9 +276,13 @@ export class EvmIsmReader implements IsmReader {
   async deriveArbL2ToL1Config(
     address: Address,
   ): Promise<WithAddress<ArbL2ToL1IsmConfig>> {
+    const ism = ArbL2ToL1Ism__factory.connect(address, this.provider);
+
+    const outbox = await ism.arbOutbox();
     return {
       address,
       type: IsmType.ARB_L2_TO_L1,
+      outbox,
     };
   }
 }

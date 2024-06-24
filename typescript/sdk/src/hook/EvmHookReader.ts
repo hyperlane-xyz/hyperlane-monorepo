@@ -1,6 +1,7 @@
 import { ethers, providers } from 'ethers';
 
 import {
+  ArbL2ToL1Hook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -263,6 +264,20 @@ export class EvmHookReader implements HookReader {
       type: HookType.OP_STACK,
       nativeBridge: messengerContract,
       destinationChain: destinationChainName,
+    };
+  }
+
+  async deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
+    const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
+    const arbSys = await hook.arbSys();
+
+    console.log('ELLISH arbSys', arbSys);
+    return {
+      address,
+      type: HookType.ARB_L2_TO_L1,
+      arbSys,
     };
   }
 

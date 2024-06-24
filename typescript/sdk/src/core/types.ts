@@ -51,4 +51,5 @@ export type DispatchedMessage = {
   id: string;
   message: string;
   parsed: ParsedMessage;
+  customHook?: Address;
 };

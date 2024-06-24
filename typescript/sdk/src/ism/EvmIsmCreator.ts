@@ -12,6 +12,7 @@ import {
   IInterchainSecurityModule__factory,
   IMultisigIsm,
   IMultisigIsm__factory,
+  IOutbox__factory,
   IRoutingIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
@@ -187,18 +188,25 @@ export class EvmIsmCreator {
           [mailbox, config.relayer],
         );
         break;
-      case IsmType.ARB_L2_TO_L1:
+      case IsmType.ARB_L2_TO_L1: {
         assert(
           this.deployer,
           `HyperlaneDeployer must be set to deploy ${ismType}`,
         );
+        const arbOutBox = IOutbox__factory.connect(
+          config.outbox,
+          this.multiProvider.getSigner(destination),
+        );
+        const bridge = await arbOutBox.bridge();
+
         contract = await this.deployer.deployContractFromFactory(
           destination,
           new ArbL2ToL1Ism__factory(),
           IsmType.ARB_L2_TO_L1,
-          [config.bridge, config.outbox],
+          [bridge, config.outbox],
         );
         break;
+      }
 
       case IsmType.TEST_ISM:
         if (!this.deployer) {

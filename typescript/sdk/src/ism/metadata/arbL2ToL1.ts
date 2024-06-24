@@ -1,3 +1,5 @@
+import { L2ToL1MessageReader } from '@arbitrum/sdk';
+import { L2ToL1TransactionEvent } from '@arbitrum/sdk/dist/lib/message/L2ToL1Message.js';
 import { assert } from 'console';
 
 import { ArbSys__factory } from '@hyperlane-xyz/core';
@@ -32,8 +34,8 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       .filter((log) => eqAddressEvm(log.address, context.hook.arbSys))
       .map((log) => ArbSys.parseLog(log))
       .find((log) => {
-        const calldata: string = log.args.calldata;
-        const messageIdHex = '0x' + context.message.id.replace(/-/g, '');
+        const calldata: string = log.args.data;
+        const messageIdHex = context.message.id.slice(2);
         return calldata.includes(messageIdHex);
       });
 
@@ -41,23 +43,31 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     this.logger.debug({ matchingL2Tx }, 'Found matching L2ToL1Tx event');
 
     if (matchingL2Tx) {
-      console.log(JSON.stringify(matchingL2Tx.args, null, 4));
-      // const l2ToL1TxEvent: L2ToL1TransactionEvent = {
-      //   caller: matchingL2Tx.args.caller,
-      //   destination: matchingL2Tx.args.destination,
-      //   hash: matchingL2Tx.args.hash,
-      //   position: BigNumber.from(matchingL2Tx.args.position),
-      //   arbBlockNum: BigNumber.from(matchingL2Tx.args.arbBlockNum),
-      //   ethBlockNum: BigNumber.from(matchingL2Tx.args.ethBlockNum),
-      //   timestamp: BigNumber.from(matchingL2Tx.args.timestamp),
-      //   callvalue: BigNumber.from(matchingL2Tx.args.callvalue),
-      //   data: matchingL2Tx.args.data,
-      // };
+      const l2ToL1TxEvent: L2ToL1TransactionEvent = {
+        ...matchingL2Tx.args,
+        caller: matchingL2Tx.args.caller,
+        destination: matchingL2Tx.args.destination,
+        hash: matchingL2Tx.args.hash,
+        position: matchingL2Tx.args.position,
+        arbBlockNum: matchingL2Tx.args.arbBlockNum,
+        ethBlockNum: matchingL2Tx.args.ethBlockNum,
+        timestamp: matchingL2Tx.args.timestamp,
+        callvalue: matchingL2Tx.args.callvalue,
+        data: matchingL2Tx.args.data,
+      };
 
-      // const reader = new L2ToL1MessageReader(
+      const reader = new L2ToL1MessageReader(
+        this.core.multiProvider.getProvider('sepolia'),
+        l2ToL1TxEvent,
+      );
+      const status = await reader.status(
+        this.core.multiProvider.getProvider('arbitrumsepolia'),
+      );
+      console.log('ELLISH status: ', status);
+      // const proof = await reader.getOutboxProof(
       //   this.core.multiProvider.getProvider('arbitrumsepolia'),
-      //   l2ToL1TxEvent,
       // );
+      // console.log('ELLISH proof: ', JSON.stringify(proof, null, 4));
     }
 
     return 'ArbL2ToL1MetadataBuilder';

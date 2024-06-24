@@ -25,6 +25,7 @@ export enum OnchainHookType {
   PAUSABLE,
   PROTOCOL_FEE,
   LAYER_ZERO_V1,
+  RATE_LIMITED,
   ARB_L2_TO_L1,
 }
 

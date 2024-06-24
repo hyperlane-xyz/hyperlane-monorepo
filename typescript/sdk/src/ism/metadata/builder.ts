@@ -7,7 +7,11 @@ import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedHookConfig } from '../../hook/EvmHookReader.js';
-import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
+import {
+  ArbL2ToL1HookConfig,
+  HookType,
+  MerkleTreeHookConfig,
+} from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { DerivedIsmConfig } from '../EvmIsmReader.js';
 import { IsmType } from '../types.js';
@@ -105,8 +109,14 @@ export class BaseMetadataBuilder implements MetadataBuilder {
           maxDepth,
         );
 
-      case IsmType.ARB_L2_TO_L1:
-        return this.arbL2ToL1MetadataBuilder.build({ ...context, ism, hook });
+      case IsmType.ARB_L2_TO_L1: {
+        const hookConfig = hook as WithAddress<ArbL2ToL1HookConfig>;
+        return this.arbL2ToL1MetadataBuilder.build({
+          ...context,
+          ism,
+          hook: hookConfig,
+        });
+      }
 
       default:
         throw new Error(`Unsupported ISM type: ${ism.type}`);

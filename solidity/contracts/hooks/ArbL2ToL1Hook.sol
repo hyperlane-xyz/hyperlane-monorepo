@@ -52,7 +52,10 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         arbSys = ArbSys(_arbSys);
     }
 
-    // ============ Internal functions ============
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.ARB_L2_TO_L1);
+    }
+
     function _quoteDispatch(
         bytes calldata,
         bytes calldata

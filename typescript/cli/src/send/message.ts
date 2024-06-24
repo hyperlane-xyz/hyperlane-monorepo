@@ -83,7 +83,9 @@ async function executeDelivery({
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const mailbox = core.getContracts(origin).mailbox;
 
-  let hook = chainAddresses[origin]?.customHook;
+  const customHook = '0xe036768e48Cb0D42811d2bF0748806FCcBfCd670';
+  let hook = customHook;
+  // let hook = chainAddresses[origin]?.customHook;
   if (hook) {
     logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
   } else {
@@ -95,7 +97,7 @@ async function executeDelivery({
   let txReceipt: ethers.ContractReceipt;
   try {
     // const recipient = chainAddresses[destination].testRecipient;
-    const recipient = '0x17B49047111c19301FC7503edE306E1739D31bcD';
+    const recipient = '0xB8D70C9352AA59f5EB138e045117841910c107a3';
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
@@ -137,7 +139,7 @@ async function executeDelivery({
     if (selfRelay == selfRelay) {
       const relayer = new HyperlaneRelayer(core);
       log('Attempting self-relay of message');
-      await relayer.relayMessage(txReceipt);
+      await relayer.relayMessage(txReceipt, 0, message, customHook);
       logGreen('Message was self-relayed!');
       return;
     }

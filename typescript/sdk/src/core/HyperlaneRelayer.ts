@@ -70,6 +70,7 @@ export class HyperlaneRelayer {
       (await new EvmHookReader(this.multiProvider, chain).deriveHookConfig(
         hook,
       ));
+    console.log('ELLISH: config', config);
 
     if (this.cache) {
       this.cache.hook[chain] ??= {};
@@ -97,9 +98,10 @@ export class HyperlaneRelayer {
 
   async getSenderHookConfig(
     message: DispatchedMessage,
+    customHook?: Address,
   ): Promise<DerivedHookConfig> {
     const originChain = this.core.getOrigin(message);
-    const hook = await this.core.getSenderHookAddress(message);
+    const hook = customHook ?? (await this.core.getSenderHookAddress(message));
     return this.getHookConfig(originChain, hook);
   }
 
@@ -115,6 +117,7 @@ export class HyperlaneRelayer {
     dispatchTx: TransactionReceipt,
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
+    customHook?: Address,
   ): Promise<ethers.ContractReceipt> {
     this.logger.info(`Preparing to relay message ${message.id}`);
 
@@ -130,7 +133,7 @@ export class HyperlaneRelayer {
     // parallelizable because configs are on different chains
     const [ism, hook] = await Promise.all([
       this.getRecipientIsmConfig(message),
-      this.getSenderHookConfig(message),
+      this.getSenderHookConfig(message, customHook),
     ]);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
