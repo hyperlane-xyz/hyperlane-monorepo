@@ -139,6 +139,7 @@ impl Encode for PendingOperationStatus {
     where
         W: Write,
     {
+        // Serialize to JSON and write to the writer, to avoid having to implement the encoding manually
         let serialized = serde_json::to_vec(self)
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
         writer.write(&serialized)
@@ -151,6 +152,7 @@ impl Decode for PendingOperationStatus {
         R: std::io::Read,
         Self: Sized,
     {
+        // Deserialize from JSON and read from the reader, to avoid having to implement the encoding / decoding manually
         serde_json::from_reader(reader).map_err(|_| {
             HyperlaneProtocolError::IoError(std::io::Error::new(
                 std::io::ErrorKind::Other,
