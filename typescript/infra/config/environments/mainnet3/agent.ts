@@ -287,6 +287,8 @@ const releaseCandidate: RootAgentConfig = {
       repo,
       tag: '9535087-20240623-174819',
     },
+    // We're temporarily (ab)using the RC relayer as a way to increase
+    // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContexts,
