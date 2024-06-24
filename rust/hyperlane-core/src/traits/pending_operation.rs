@@ -171,10 +171,10 @@ pub enum ReprepareReason {
 /// Reasons for repreparing an operation
 pub enum ConfirmReason {
     #[strum(to_string = "Submitted by this relayer")]
-    /// Error checking message delivery status
+    /// Operation was submitted by this relayer
     SubmittedBySelf,
     #[strum(to_string = "Already submitted, awaiting confirmation")]
-    /// Error checking message delivery status
+    /// Operation was already submitted (either by another relayer, or by a previous run of this relayer), awaiting confirmation
     AlreadySubmitted,
     /// Error checking message delivery status
     ErrorConfirmingDelivery,
