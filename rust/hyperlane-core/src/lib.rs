@@ -8,6 +8,7 @@
 extern crate core;
 
 pub use chain::*;
+pub use db::*;
 pub use error::*;
 pub use error::{ChainCommunicationError, ChainResult, HyperlaneProtocolError};
 pub use identifiers::HyperlaneIdentifier;
@@ -21,6 +22,9 @@ pub mod accumulator;
 mod traits;
 /// Utilities to match contract values
 pub mod utils;
+
+/// The local database used by agents
+pub mod db;
 
 /// Testing utilities
 #[cfg(any(test, feature = "test-utils"))]

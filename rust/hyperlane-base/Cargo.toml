@@ -28,14 +28,12 @@ futures-util.workspace = true
 itertools.workspace = true
 maplit.workspace = true
 mockall.worksapce = true
-paste.workspace = true
+
 prometheus.workspace = true
-rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-sdk.worksapce = true
 static_assertions.workspace = true
-tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-error.workspace = true
@@ -76,4 +74,3 @@ walkdir.workspace = true
 default = ["oneline-errors", "color-eyre"]
 oneline-eyre = ["backtrace-oneline", "backtrace"]
 oneline-errors = ["oneline-eyre"]
-test-utils = ["dep:tempfile"]

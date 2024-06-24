@@ -37,8 +37,8 @@ tokio-metrics.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async"] }
-hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "test-utils"] }
+hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 
 [dev-dependencies]
@@ -46,10 +46,10 @@ once_cell.workspace = true
 mockall.worksapce = true
 tokio-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
-hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
+hyperlane-base = { path = "../../hyperlane-base"}
 
 [features]
 default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
 color-eyre = ["hyperlane-base/color-eyre"]
-test-utils = ["hyperlane-base/test-utils"]
+test-utils = ["hyperlane-core/test-utils"]

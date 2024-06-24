@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_core::db::HyperlaneRocksDB;
 use hyperlane_core::{
     FixedPointNumber, GasPaymentKey, HyperlaneMessage, InterchainGasExpenditure,
     InterchainGasPayment, TxCostEstimate, TxOutcome, U256,
@@ -155,7 +155,7 @@ impl GasPaymentEnforcer {
 mod test {
     use std::str::FromStr;
 
-    use hyperlane_base::db::{test_utils, HyperlaneRocksDB};
+    use hyperlane_core::db::{test_utils, HyperlaneRocksDB};
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, LogMeta, TxCostEstimate, H160,
         H256, U256,
