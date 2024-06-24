@@ -6,18 +6,18 @@ import {
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, isObjEmpty } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {
   errorRed,
-  indent,
   logBlue,
   logBlueKeyValue,
   logBoldBlue,
   logGreen,
   warnYellow,
 } from '../logger.js';
+import { indentYamlOrJson } from '../utils/files.js';
 import {
   getLatestMerkleTreeCheckpointIndex,
   getLatestValidatorCheckpointIndex,
@@ -41,7 +41,7 @@ interface ValidatorInfo {
   chains: ChainMap<ChainInfo>;
 }
 
-export const checkValidatorAVSSetup = async (
+export const checkValidatorAvsSetup = async (
   chain: string,
   context: CommandContext,
   operatorKeyPath?: string,
@@ -147,7 +147,7 @@ const setValidatorInfo = async (
   avsOperatorRecord: Record<Address, ValidatorInfo>,
   topLevelErrors: string[],
 ) => {
-  const { multiProvider, registry } = context;
+  const { multiProvider, registry, chainMetadata } = context;
   const failedToReadChains: string[] = [];
 
   const validatorAddresses = Object.keys(avsOperatorRecord);
@@ -156,6 +156,9 @@ const setValidatorInfo = async (
   const addresses = await registry.getAddresses();
 
   for (const chain of chains) {
+    // skip if chain is not an Ethereum chain
+    if (chainMetadata[chain].protocol !== ProtocolType.Ethereum) continue;
+
     const chainAddresses = addresses[chain];
 
     // skip if no contract addresses are found for this chain
@@ -185,6 +188,7 @@ const setValidatorInfo = async (
 
     const latestMerkleTreeCheckpointIndex =
       await getLatestMerkleTreeCheckpointIndex(merkleTreeHook);
+
     const validatorStorageLocations = await getValidatorStorageLocations(
       validatorAnnounce,
       validatorAddresses,
@@ -265,43 +269,57 @@ const logOutput = (
     logBlueKeyValue('Operator address', data.operatorAddress);
 
     if (!isObjEmpty(data.chains)) {
-      logBoldBlue(indent('Validating on...'));
+      logBoldBlue(indentYamlOrJson('Validating on...', 2));
       for (const [chain, chainInfo] of Object.entries(data.chains)) {
-        logBoldBlue(indent(chain));
+        logBoldBlue(indentYamlOrJson(chain, 2));
 
         if (chainInfo.storageLocation) {
           logBlueKeyValue(
-            indent('Storage location'),
+            indentYamlOrJson('Storage location', 2),
             chainInfo.storageLocation,
           );
         }
 
         if (chainInfo.latestMerkleTreeCheckpointIndex) {
           logBlueKeyValue(
-            indent('Latest merkle tree checkpoint index'),
+            indentYamlOrJson('Latest merkle tree checkpoint index', 2),
             String(chainInfo.latestMerkleTreeCheckpointIndex),
           );
         }
 
         if (chainInfo.latestValidatorCheckpointIndex) {
           logBlueKeyValue(
-            indent('Latest validator checkpoint index'),
+            indentYamlOrJson('Latest validator checkpoint index', 2),
             String(chainInfo.latestValidatorCheckpointIndex),
           );
 
           if (chainInfo.validatorSynced) {
-            logGreen(indent('✅ Validator is signing latest checkpoint'));
+            logGreen(
+              indentYamlOrJson('✅ Validator is signing latest checkpoint', 2),
+            );
           } else {
-            errorRed(indent('❌ Validator is not signing latest checkpoint'));
+            errorRed(
+              indentYamlOrJson(
+                '❌ Validator is not signing latest checkpoint',
+                2,
+              ),
+            );
           }
         } else {
-          errorRed(indent('❌ Failed to fetch latest signed checkpoint index'));
+          errorRed(
+            indentYamlOrJson(
+              '❌ Failed to fetch latest signed checkpoint index',
+              2,
+            ),
+          );
         }
 
         if (chainInfo.warnings && chainInfo.warnings.length > 0) {
-          warnYellow(indent('The following warnings were encountered:'));
+          warnYellow(
+            indentYamlOrJson('The following warnings were encountered:', 2),
+          );
           for (const warning of chainInfo.warnings) {
-            warnYellow(indent(warning, 3));
+            warnYellow(indentYamlOrJson(warning, 3));
           }
         }
       }

@@ -3,7 +3,7 @@ import { CommandModule, Options } from 'yargs';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { checkValidatorAVSSetup } from '../avs/check.js';
+import { checkValidatorAvsSetup } from '../avs/check.js';
 import {
   deregisterOperator,
   registerOperatorWithSignature,
@@ -115,7 +115,7 @@ const checkCommand: CommandModuleWithWriteContext<{
       process.exit(1);
     }
 
-    await checkValidatorAVSSetup(chain, context, operatorKeyPath);
+    await checkValidatorAvsSetup(chain, context, operatorKeyPath);
 
     process.exit(0);
   },

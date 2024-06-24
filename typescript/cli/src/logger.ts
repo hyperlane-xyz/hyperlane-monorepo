@@ -56,6 +56,3 @@ export const errorRed = (...args: any) => logColor('error', chalk.red, ...args);
 
 // No support for table in pino so print directly to console
 export const logTable = (...args: any) => console.table(...args);
-
-export const indent = (msg: string, indentLevel = 2) =>
-  ' '.repeat(indentLevel) + msg;
