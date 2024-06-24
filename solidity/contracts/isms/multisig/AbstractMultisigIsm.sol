@@ -26,6 +26,7 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
      * @notice Returns the set of validators responsible for verifying _message
      * and the number of signatures required
      * @dev Can change based on the content of _message
+     * @dev Signatures provided to `verify` must be consistent with validator ordering
      * @param _message Hyperlane formatted interchain message
      * @return validators The array of validator addresses
      * @return threshold The number of validator signatures needed
@@ -60,7 +61,9 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
 
     /**
      * @notice Requires that m-of-n validators verify a merkle root,
-     * and verifies a me∑rkle proof of `_message` against that root.
+     * and verifies a merkle proof of `_message` against that root.
+     * @dev Optimization relies on the caller sorting signatures in the same order as validators.
+     * @dev Employs https://www.geeksforgeeks.org/two-pointers-technique/ to minimize gas usage.
      * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
