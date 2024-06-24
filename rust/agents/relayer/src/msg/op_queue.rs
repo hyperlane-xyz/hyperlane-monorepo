@@ -118,8 +118,8 @@ impl OpQueue {
 mod test {
     use super::*;
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
-        TryBatchAs, TxOutcome, H256, U256,
+        HyperlaneDomain, HyperlaneMessage, HyperlaneRocksDB, KnownHyperlaneDomain,
+        PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
     };
     use std::{
         collections::VecDeque,
@@ -163,6 +163,10 @@ mod test {
         }
 
         fn priority(&self) -> u32 {
+            todo!()
+        }
+
+        fn origin_db(&self) -> &HyperlaneRocksDB {
             todo!()
         }
 

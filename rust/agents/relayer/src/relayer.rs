@@ -538,6 +538,7 @@ impl Relayer {
         let serial_submitter = SerialSubmitter::new(
             destination.clone(),
             receiver,
+            Arc::new(self.dbs),
             retry_receiver_channel,
             SerialSubmitterMetrics::new(&self.core.metrics, destination),
             batch_size,

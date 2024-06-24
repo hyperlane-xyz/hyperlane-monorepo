@@ -1,12 +1,14 @@
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
+    io::Write,
     time::{Duration, Instant},
 };
 
 use crate::{
-    ChainResult, FixedPointNumber, HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256,
-    U256,
+    ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, HyperlaneRocksDB, TryBatchAs, TxOutcome, H256, U256,
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
@@ -49,6 +51,9 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
     /// The domain this originates from.
     fn origin_domain_id(&self) -> u32;
+
+    /// Get the database for the origin domain of this operation.
+    fn origin_db(&self) -> &HyperlaneRocksDB;
 
     /// The domain this operation will take place on.
     fn destination_domain(&self) -> &HyperlaneDomain;
@@ -114,7 +119,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     fn set_retries(&mut self, retries: u32);
 }
 
-#[derive(Debug, Display, Clone)]
+#[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
 /// Status of a pending operation
 pub enum PendingOperationStatus {
     /// The operation is ready to be prepared for the first time, or has just been loaded from storage
@@ -129,7 +134,33 @@ pub enum PendingOperationStatus {
     Confirm(ConfirmReason),
 }
 
-#[derive(Display, Debug, Clone)]
+impl Encode for PendingOperationStatus {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: Write,
+    {
+        let serialized = serde_json::to_vec(self)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
+        writer.write(&serialized)
+    }
+}
+
+impl Decode for PendingOperationStatus {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        serde_json::from_reader(reader).map_err(|_| {
+            HyperlaneProtocolError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to deserialize",
+            ))
+        })
+    }
+}
+
+#[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Reasons for repreparing an operation
 pub enum ReprepareReason {
     #[strum(to_string = "Error checking message delivery status")]
@@ -167,7 +198,7 @@ pub enum ReprepareReason {
     RevertedOrReorged,
 }
 
-#[derive(Display, Debug, Clone)]
+#[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Reasons for repreparing an operation
 pub enum ConfirmReason {
     #[strum(to_string = "Submitted by this relayer")]
@@ -273,4 +304,17 @@ pub enum PendingOperationResult {
     Drop,
     /// Send this message straight to the confirm queue
     Confirm(ConfirmReason),
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_encoding_pending_operation_status() {
+        let status = PendingOperationStatus::Retry(ReprepareReason::CouldNotFetchMetadata);
+        let encoded = status.to_vec();
+        let decoded = PendingOperationStatus::read_from(&mut &encoded[..]).unwrap();
+        assert_eq!(status, decoded);
+    }
 }

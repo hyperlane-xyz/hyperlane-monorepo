@@ -127,6 +127,13 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_status(&mut self, status: PendingOperationStatus) {
+        if let Err(e) = self
+            .ctx
+            .origin_db
+            .store_status_by_message_id(&self.message.id(), &self.status)
+        {
+            warn!(message_id = ?self.message.id(), err = %e, "Persisting `status` failed for message");
+        }
         self.status = status;
     }
 
@@ -140,6 +147,10 @@ impl PendingOperation for PendingMessage {
 
     fn destination_domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
+    }
+
+    fn origin_db(&self) -> &HyperlaneRocksDB {
+        &self.ctx.origin_db
     }
 
     fn app_context(&self) -> Option<String> {
