@@ -5683,7 +5683,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:^2.1.0"
+    "@hyperlane-xyz/registry": "npm:^2.1.1"
     "@hyperlane-xyz/sdk": "npm:3.15.0"
     "@hyperlane-xyz/utils": "npm:3.15.0"
     "@inquirer/prompts": "npm:^3.0.0"
@@ -5775,7 +5775,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/core": "npm:3.15.0"
-    "@hyperlane-xyz/registry": "npm:^2.1.0"
+    "@hyperlane-xyz/registry": "npm:^2.1.1"
     "@hyperlane-xyz/sdk": "npm:3.15.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -5824,7 +5824,7 @@ __metadata:
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:3.15.0"
-    "@hyperlane-xyz/registry": "npm:^2.1.0"
+    "@hyperlane-xyz/registry": "npm:^2.1.1"
     "@hyperlane-xyz/sdk": "npm:3.15.0"
     "@hyperlane-xyz/utils": "npm:3.15.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -5877,13 +5877,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:^2.1.0":
-  version: 2.1.0
-  resolution: "@hyperlane-xyz/registry@npm:2.1.0"
+"@hyperlane-xyz/registry@npm:^2.1.1":
+  version: 2.1.1
+  resolution: "@hyperlane-xyz/registry@npm:2.1.1"
   dependencies:
     yaml: "npm:^2"
     zod: "npm:^3.21.2"
-  checksum: cfcd441dcbb4886a4ecd90dffaeb7a0fd81c0a126423b23cf100cd554470fe88ceb35b41271d779f0390c42293fd2c799742eeff6dd42ca42f3c799a8e88b96b
+  checksum: e0e1f36b9bc43dfb1e4f7c512091b31c6f1b4046687d076fc16c91fd9204af1bdbe7898c8c29ada3c6830f6961bb5aa0933357b73d500595689171f99b992922
   languageName: node
   linkType: hard
 

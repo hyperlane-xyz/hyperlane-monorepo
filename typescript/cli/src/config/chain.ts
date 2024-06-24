@@ -1,5 +1,6 @@
 import { confirm, input } from '@inquirer/prompts';
 import { ethers } from 'ethers';
+import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMetadata,
@@ -10,8 +11,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import { detectAndConfirmOrPrompt } from '../utils/chains.js';
-import { readYamlOrJson } from '../utils/files.js';
+import { indentYamlOrJson, readYamlOrJson } from '../utils/files.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 export function readChainConfigs(filePath: string) {
   log(`Reading file configs in ${filePath}`);
@@ -94,7 +95,9 @@ export async function createChainConfig({
 
   const parseResult = ChainMetadataSchema.safeParse(metadata);
   if (parseResult.success) {
-    logGreen(`Chain config is valid, writing to registry`);
+    logGreen(`Chain config is valid, writing to registry:`);
+    const metadataYaml = yamlStringify(metadata, null, 2);
+    log(indentYamlOrJson(metadataYaml, 4));
     await context.registry.updateChain({ chainName: metadata.name, metadata });
   } else {
     errorRed(
