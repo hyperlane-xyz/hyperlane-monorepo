@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.0;
 
 import {TokenMessage} from "@hyperlane-xyz/core/contracts/token/libs/TokenMessage.sol";
 
