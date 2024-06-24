@@ -139,7 +139,7 @@ export abstract class AgentHelmManager {
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
-            maxBatchSize: 4,
+            maxBatchSize: 32,
           };
         }),
       },

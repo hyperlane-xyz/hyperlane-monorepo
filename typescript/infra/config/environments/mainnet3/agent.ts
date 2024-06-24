@@ -223,8 +223,8 @@ const metricAppContexts = [
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
-    cpu: '3000m',
-    memory: '8Gi',
+    cpu: '14000m',
+    memory: '12Gi',
   },
 };
 
@@ -251,7 +251,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '9535087-20240623-174819',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -285,9 +285,11 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '9535087-20240623-174819',
     },
-    whitelist: releaseCandidateHelloworldMatchingList,
+    // We're temporarily (ab)using the RC relayer as a way to increase
+    // message throughput.
+    // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContexts,
     resources: relayerResources,
