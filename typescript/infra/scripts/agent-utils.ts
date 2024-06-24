@@ -121,6 +121,7 @@ export function withChains<T>(args: Argv<T>) {
     args
       .describe('chains', 'Set of chains to perform actions on.')
       .array('chains')
+      .choices('chains', getChains())
       // Ensure chains are unique
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
