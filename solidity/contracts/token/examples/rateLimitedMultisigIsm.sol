@@ -16,7 +16,7 @@ contract rateLimitedMultisigIsm {
 
 	constructor (
 		address[] memory _default,
-		// must be stricly ordered in this example: from small to high
+		// must be strictly ordered in this example: from small to high
 		ThresholdValidatorsSet[] memory _rules
 	) {
 		for (uint256 rule = 0; rule < _rules.length; rule++) {
