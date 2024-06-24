@@ -31,12 +31,6 @@ jobs:
       - name: Instant pass
         run: echo "yarn-build job passed"
 
-  checkout-registry:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Instant pass
-        run: echo "checkout-registry job passed"
-
   lint-prettier:
     runs-on: ubuntu-latest
     steps:
