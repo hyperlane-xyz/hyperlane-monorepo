@@ -164,7 +164,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
-                return self.on_reprepare(err, ReprepareReason::ErrorCheckingDeliveryStatus);
+                return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
             }
         };
         if is_already_delivered {
@@ -180,7 +180,10 @@ impl PendingOperation for PendingMessage {
         let is_contract = match provider.is_contract(&self.message.recipient).await {
             Ok(is_contract) => is_contract,
             Err(err) => {
-                return self.on_reprepare(err, ReprepareReason::ErrorCheckingIfRecipientIsContract);
+                return self.on_reprepare(
+                    Some(err),
+                    ReprepareReason::ErrorCheckingIfRecipientIsContract,
+                );
             }
         };
         if !is_contract {
@@ -199,7 +202,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(ism_address) => ism_address,
             Err(err) => {
-                return self.on_reprepare(err, ReprepareReason::ErrorFetchingIsmAddress);
+                return self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress);
             }
         };
 
@@ -212,7 +215,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(message_metadata_builder) => message_metadata_builder,
             Err(err) => {
-                return self.on_reprepare(err, ReprepareReason::ErrorGettingMetadataBuilder);
+                return self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder);
             }
         };
 
@@ -222,12 +225,12 @@ impl PendingOperation for PendingMessage {
         {
             Ok(metadata) => metadata,
             Err(err) => {
-                return self.on_reprepare(err, ReprepareReason::ErrorBuildingMetadata);
+                return self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
             }
         };
 
         let Some(metadata) = metadata else {
-            return self.on_reprepare("", ReprepareReason::CouldNotFetchMetadata);
+            return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -242,7 +245,7 @@ impl PendingOperation for PendingMessage {
         {
             Ok(metadata) => metadata,
             Err(err) => {
-                return self.on_reprepare(err, ReprepareReason::ErrorEstimatingGas);
+                return self.on_reprepare(Some(err), ReprepareReason::ErrorEstimatingGas);
             }
         };
 
@@ -254,13 +257,13 @@ impl PendingOperation for PendingMessage {
             .await
         {
             Ok(gas_limit) => gas_limit,
-            Err(e) => {
-                return self.on_reprepare(e, ReprepareReason::ErrorCheckingGasRequirement);
+            Err(err) => {
+                return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingGasRequirement);
             }
         };
 
         let Some(gas_limit) = gas_limit else {
-            return self.on_reprepare("", ReprepareReason::GasPaymentRequirementNotMet);
+            return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -273,7 +276,7 @@ impl PendingOperation for PendingMessage {
         if let Some(max_limit) = self.ctx.transaction_gas_limit {
             if gas_limit > max_limit {
                 // TODO: consider dropping instead of repreparing in this case
-                return self.on_reprepare("", ReprepareReason::ExceedsMaxGasLimit);
+                return self.on_reprepare::<String>(None, ReprepareReason::ExceedsMaxGasLimit);
             }
         }
 
@@ -334,13 +337,14 @@ impl PendingOperation for PendingMessage {
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
-                return self.on_reconfirm(err, "Error confirming message delivery");
+                return self.on_reconfirm(Some(err), "Error confirming message delivery");
             }
         };
 
         if is_delivered {
             if let Err(err) = self.record_message_process_success() {
-                return self.on_reconfirm(err, "Error when recording message process success");
+                return self
+                    .on_reconfirm(Some(err), "Error when recording message process success");
             }
             info!(
                 submission=?self.submission_outcome,
@@ -353,7 +357,7 @@ impl PendingOperation for PendingMessage {
                 tx_outcome=?self.submission_outcome,
                 message_id=?self.message.id()
             );
-            self.on_reprepare("", ReprepareReason::RevertedOrReorged)
+            self.on_reprepare::<String>(None, ReprepareReason::RevertedOrReorged)
                 .instrument(span)
                 .into_inner()
         }
@@ -455,18 +459,26 @@ impl PendingMessage {
 
     fn on_reprepare<E: Debug>(
         &mut self,
-        err: E,
+        err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
         self.inc_attempts();
         self.submitted = false;
-        warn!(error = ?err, "{}", reason.clone());
+        if let Some(e) = err {
+            warn!(error = ?e, "Repreparing message: {}", reason.clone());
+        } else {
+            warn!("Repreparing message: {}", reason.clone());
+        }
         PendingOperationResult::Reprepare(reason)
     }
 
-    fn on_reconfirm<E: Debug>(&mut self, err: E, reason: &str) -> PendingOperationResult {
+    fn on_reconfirm<E: Debug>(&mut self, err: Option<E>, reason: &str) -> PendingOperationResult {
         self.inc_attempts();
-        warn!(error = ?err, "{}", reason.clone());
+        if let Some(e) = err {
+            warn!(error = ?e, id = ?self.id(), "Reconfirming message: {}", reason.clone());
+        } else {
+            warn!(id = ?self.id(), "Reconfirming message: {}", reason.clone());
+        }
         PendingOperationResult::NotReady
     }
 
