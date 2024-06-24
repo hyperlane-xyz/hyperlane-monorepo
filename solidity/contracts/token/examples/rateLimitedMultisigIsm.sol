@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 // import {TokenMessage} from "@hyperlane-xyz/core/contracts/token/libs/TokenMessage.sol";
-import {TokenMessage} from "./token/libs/TokenMessage.sol";
+import {TokenMessage} from "../libs/TokenMessage.sol";
 
 struct ThresholdValidatorsSet {
 	uint startAmount;
