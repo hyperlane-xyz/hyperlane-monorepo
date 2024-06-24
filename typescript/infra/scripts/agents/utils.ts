@@ -12,6 +12,7 @@ import {
   assertCorrectKubeContext,
   getArgs,
   withAgentRole,
+  withChains,
   withContext,
 } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
@@ -69,14 +70,9 @@ export class AgentCli {
 
   protected async init() {
     if (this.initialized) return;
-    const argv = await withAgentRole(withContext(getArgs()))
+    const argv = await withChains(withAgentRole(withContext(getArgs())))
       .describe('dry-run', 'Run through the steps without making any changes')
-      .boolean('dry-run')
-      .describe('chains', 'Specific chains to perform validator actions on.')
-      .array('chains')
-      // Ensure chains are unique
-      .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
-      .alias('c', 'chains').argv;
+      .boolean('dry-run').argv;
 
     if (
       argv.chains &&
