@@ -28,7 +28,6 @@ futures-util.workspace = true
 itertools.workspace = true
 maplit.workspace = true
 mockall.worksapce = true
-
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -43,7 +42,6 @@ tracing.workspace = true
 url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
-
 
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
