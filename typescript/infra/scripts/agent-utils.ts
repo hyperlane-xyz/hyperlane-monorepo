@@ -116,6 +116,18 @@ export function withChain<T>(args: Argv<T>) {
     .alias('c', 'chain');
 }
 
+export function withChains<T>(args: Argv<T>) {
+  return (
+    args
+      .describe('chains', 'Set of chains to perform actions on.')
+      .array('chains')
+      .choices('chains', getChains())
+      // Ensure chains are unique
+      .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
+      .alias('c', 'chains')
+  );
+}
+
 export function withProtocol<T>(args: Argv<T>) {
   return args
     .describe('protocol', 'protocol type')
