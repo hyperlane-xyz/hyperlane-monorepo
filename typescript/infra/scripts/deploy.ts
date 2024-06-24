@@ -22,7 +22,7 @@ import {
   LiquidityLayerDeployer,
   TestRecipientDeployer,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
@@ -44,7 +44,7 @@ import {
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
-  withChain,
+  withChains,
   withConcurrentDeploy,
   withContext,
   withModuleAndFork,
@@ -57,12 +57,12 @@ async function main() {
     module,
     fork,
     environment,
-    chain,
     buildArtifactPath,
+    chains,
     concurrentDeploy,
   } = await withContext(
     withConcurrentDeploy(
-      withChain(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+      withChains(withModuleAndFork(withBuildArtifactPath(getArgs()))),
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
@@ -231,7 +231,12 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
-    const confirmConfig = chain ? config[chain] : config;
+    const confirmConfig =
+      chains && chains.length > 0
+        ? objFilter(config, (chain, _): _ is unknown =>
+            (chains ?? []).includes(chain),
+          )
+        : config;
     console.log(JSON.stringify(confirmConfig, null, 2));
     const { value: confirmed } = await prompts({
       type: 'confirm',
@@ -244,13 +249,15 @@ async function main() {
     }
   }
 
-  await deployWithArtifacts(
-    config,
+  await deployWithArtifacts({
+    configMap: config as ChainMap<unknown>, // TODO: fix this typing
     deployer,
     cache,
-    chain ?? fork,
+    // Use chains if provided, otherwise deploy to all chains
+    // If fork is provided, deploy to fork only
+    targetNetworks: chains ?? !fork ? [] : [fork],
     agentConfig,
-  );
+  });
 }
 
 main()
