@@ -443,7 +443,6 @@ impl PendingMessage {
     }
 
     fn reset_attempts(&mut self) {
-        self.set_retries(0);
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
     }
