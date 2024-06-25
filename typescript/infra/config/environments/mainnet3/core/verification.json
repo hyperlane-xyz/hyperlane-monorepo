@@ -1989,6 +1989,20 @@
       "name": "PausableIsm"
     }
   ],
+  "bob": [
+    {
+      "address": "0x2E4B42D3d0FC105E7A729e0Ca757761A61258d14",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
+    },
+    {
+      "address": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503",
+      "constructorArguments": "0000000000000000000000008358d8291e3bedb04804975eea0fe9fe0fafb147",
+      "isProxy": false,
+      "name": "ValidatorAnnounce"
+    }
+  ],
   "bsc": [
     {
       "address": "0xBFA300164A04437D64Afda390736e6DC45096da1",
@@ -4418,6 +4432,14 @@
     },
     {
       "address": "0x6119B76720CcfeB3D256EC1b91218EEfFD6756E1",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    }
+  ],
+  "mantle": [
+    {
+      "address": "0x83c2DB237e93Ce52565AB110124f78fdf159E3f4",
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"

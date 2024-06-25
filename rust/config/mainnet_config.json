@@ -310,6 +310,7 @@
       "validatorAnnounce": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72"
     },
     "bob": {
+      "aggregationHook": "0x87893ae9DF41fF6e41a7c982AA884edDd8770840",
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.gobob.xyz/api",
@@ -326,28 +327,43 @@
       "chainId": 60808,
       "displayName": "BOB",
       "domainId": 60808,
+      "domainRoutingIsm": "0x93e62F2c9a89f8b1e62A3c726Bbf6BD1A7b7FA3e",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "fallbackRoutingHook": "0xF5165f115ba4E1Adc09f0EB392232D65F219806a",
       "gasCurrencyCoinGeckoId": "ethereum",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.gobob.xyz",
       "index": {
-        "from": 0
+        "from": 3225119
       },
+      "interchainGasPaymaster": "0x62B7592C1B6D1E43f4630B8e37f4377097840C05",
+      "interchainSecurityModule": "0xEFEfa7082e98599D08A6250f3263a4262F1777C5",
+      "mailbox": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147",
+      "merkleTreeHook": "0x781bE492F1232E66990d83a9D3AC3Ec26f56DAfB",
       "name": "bob",
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",
         "symbol": "ETH"
       },
+      "pausableHook": "0xc22B646edf6c9A43d83fDBc8D5E1B3c6DAfACb83",
+      "pausableIsm": "0x4E1c88DD261BEe2941e6c1814597e30F53330428",
       "protocol": "ethereum",
+      "protocolFee": "0x2E4B42D3d0FC105E7A729e0Ca757761A61258d14",
+      "proxyAdmin": "0x95878Fd41bC26f7045C0b98e381c22f010745A75",
       "rpcUrls": [
         {
           "http": "https://rpc.gobob.xyz"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsm": "0x132280A4110A22Cf2D7279AD33d875b445793948",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
-      "technicalStack": "other"
+      "storageGasOracle": "0x2Fca7f6eC3d4A0408900f2BB30004d4616eE985E",
+      "technicalStack": "other",
+      "testRecipient": "0xe03dad16074BC5EEA9A9311257BF02Eb0B6AAA2b",
+      "validatorAnnounce": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503"
     },
     "bsc": {
       "aggregationHook": "0x402Fc106576462a892355d69ACF03D46A888ae88",
@@ -908,35 +924,46 @@
         }
       ],
       "blocks": {
-        "confirmations": 1,
+        "confirmations": 3,
         "estimateBlockTime": 2,
         "reorgPeriod": 1
       },
       "chainId": 5000,
       "displayName": "Mantle",
       "domainId": 5000,
+      "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+      "fallbackRoutingHook": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54",
       "gasCurrencyCoinGeckoId": "mantle",
       "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.mantle.xyz",
       "index": {
-        "from": 0
+        "from": 65590958
       },
+      "interchainGasPaymaster": "0xA805695C20ED9F4ce9905cd1aFaE7877A81ec0d7",
+      "interchainSecurityModule": "0xeacA9Ff0Cc6dBFc541c567deD2Fc46bA2012b4a9",
+      "mailbox": "0x398633D19f4371e1DB5a8EFE90468eB70B1176AA",
+      "merkleTreeHook": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
       "name": "mantle",
       "nativeToken": {
         "decimals": 18,
         "name": "Mantle",
         "symbol": "MNT"
       },
+      "pausableHook": "0x9fA986ACB22953c504Fcf5985DFA476d481C3b1B",
+      "pausableIsm": "0x83c2DB237e93Ce52565AB110124f78fdf159E3f4",
       "protocol": "ethereum",
+      "proxyAdmin": "0x14c3CEee8F431aE947364f43429a98EA89800238",
       "rpcUrls": [
         {
           "http": "https://rpc.mantle.xyz"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
+      "staticAggregationIsm": "0xeacA9Ff0Cc6dBFc541c567deD2Fc46bA2012b4a9",
       "staticAggregationIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "storageGasOracle": "0xf9DbC8776Bc2812c4DBEc45383A1783Ac758Fb55",
       "technicalStack": "other"
     },
     "mode": {
@@ -1569,18 +1596,25 @@
       "displayName": "Taiko",
       "domainId": 167000,
       "domainRoutingIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "fallbackRoutingHook": "0x79B1257BDBCaeF98Da685A7c225b6e61a119Cb7a",
       "gasCurrencyCoinGeckoId": "ethereum",
       "gnosisSafeTransactionServiceUrl": "https://transaction.safe.taiko.xyz",
       "index": {
-        "from": 0
+        "from": 98997
       },
+      "interchainGasPaymaster": "0x273Bc6b01D9E88c064b6E5e409BdF998246AEF42",
+      "interchainSecurityModule": "0xf428466Be5f1f48DE7ca2896aE1FA3300651fa50",
+      "mailbox": "0x28EFBCadA00A7ed6772b3666F3898d276e88CAe3",
+      "merkleTreeHook": "0x6A55822cf11f9fcBc4c75BC2638AfE8Eb942cAdd",
       "name": "taiko",
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",
         "symbol": "ETH"
       },
+      "pausableHook": "0xD1E267d2d7876e97E217BfE61c34AB50FEF52807",
       "protocol": "ethereum",
+      "proxyAdmin": "0x398633D19f4371e1DB5a8EFE90468eB70B1176AA",
       "rpcUrls": [
         {
           "http": "https://rpc.mainnet.taiko.xyz"
@@ -1590,6 +1624,7 @@
       "staticAggregationIsmFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "staticMerkleRootMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "staticMessageIdMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "storageGasOracle": "0x7556a0E61d577D921Cba8Fca0d7D6299d36E607E",
       "technicalStack": "other"
     },
     "viction": {
