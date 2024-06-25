@@ -5,6 +5,8 @@ use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use hyperlane_core::total_estimated_cost;
+use hyperlane_core::ConfirmReason::*;
+use hyperlane_core::PendingOperationStatus;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
@@ -184,7 +186,9 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.destination_domain(), domain);
-        prepare_queue.push(op).await;
+        prepare_queue
+            .push(op, Some(PendingOperationStatus::FirstPrepareAttempt))
+            .await;
     }
 }
 
@@ -220,7 +224,7 @@ async fn prepare_task(
             .filter(|r| {
                 matches!(
                     r,
-                    PendingOperationResult::NotReady | PendingOperationResult::Reprepare
+                    PendingOperationResult::NotReady | PendingOperationResult::Reprepare(_)
                 )
             })
             .count();
@@ -231,21 +235,27 @@ async fn prepare_task(
                     debug!(?op, "Operation prepared");
                     metrics.ops_prepared.inc();
                     // TODO: push multiple messages at once
-                    submit_queue.push(op).await;
+                    submit_queue
+                        .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                        .await;
                 }
                 PendingOperationResult::NotReady => {
-                    prepare_queue.push(op).await;
+                    prepare_queue.push(op, None).await;
                 }
-                PendingOperationResult::Reprepare => {
+                PendingOperationResult::Reprepare(reason) => {
                     metrics.ops_failed.inc();
-                    prepare_queue.push(op).await;
+                    prepare_queue
+                        .push(op, Some(PendingOperationStatus::Retry(reason)))
+                        .await;
                 }
                 PendingOperationResult::Drop => {
                     metrics.ops_dropped.inc();
                 }
-                PendingOperationResult::Confirm => {
+                PendingOperationResult::Confirm(reason) => {
                     debug!(?op, "Pushing operation to confirm queue");
-                    confirm_queue.push(op).await;
+                    confirm_queue
+                        .push(op, Some(PendingOperationStatus::Confirm(reason)))
+                        .await;
                 }
             }
         }
@@ -297,7 +307,9 @@ async fn submit_single_operation(
     op.submit().await;
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);
-    confirm_queue.push(op).await;
+    confirm_queue
+        .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
+        .await;
     metrics.ops_submitted.inc();
 
     if matches!(
@@ -343,7 +355,7 @@ async fn confirm_task(
         if op_results.iter().all(|op| {
             matches!(
                 op,
-                PendingOperationResult::NotReady | PendingOperationResult::Confirm
+                PendingOperationResult::NotReady | PendingOperationResult::Confirm(_)
             )
         }) {
             // None of the operations are ready, so wait for a little bit
@@ -364,18 +376,25 @@ async fn confirm_operation(
     debug_assert_eq!(*op.destination_domain(), domain);
 
     let operation_result = op.confirm().await;
-    match operation_result {
+    match &operation_result {
         PendingOperationResult::Success => {
             debug!(?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
         }
-        PendingOperationResult::NotReady | PendingOperationResult::Confirm => {
-            // TODO: push multiple messages at once
-            confirm_queue.push(op).await;
+        PendingOperationResult::NotReady => {
+            confirm_queue.push(op, None).await;
         }
-        PendingOperationResult::Reprepare => {
+        PendingOperationResult::Confirm(reason) => {
+            // TODO: push multiple messages at once
+            confirm_queue
+                .push(op, Some(PendingOperationStatus::Confirm(reason.clone())))
+                .await;
+        }
+        PendingOperationResult::Reprepare(reason) => {
             metrics.ops_failed.inc();
-            prepare_queue.push(op).await;
+            prepare_queue
+                .push(op, Some(PendingOperationStatus::Retry(reason.clone())))
+                .await;
         }
         PendingOperationResult::Drop => {
             metrics.ops_dropped.inc();
@@ -434,7 +453,9 @@ impl OperationBatch {
                 for mut op in self.operations {
                     op.set_operation_outcome(outcome.clone(), total_estimated_cost);
                     op.set_next_attempt_after(CONFIRM_DELAY);
-                    confirm_queue.push(op).await;
+                    confirm_queue
+                        .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
+                        .await;
                 }
                 return;
             }
