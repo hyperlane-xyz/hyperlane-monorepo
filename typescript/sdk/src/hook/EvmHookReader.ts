@@ -88,13 +88,12 @@ export class EvmHookReader implements HookReader {
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
     try {
       const hook = IPostDispatchHook__factory.connect(address, this.provider);
-
-      const onchainHookType = await hook.hookType();
-      this.logger.debug('Deriving HookConfig', { address, onchainHookType });
+      this.logger.debug('Deriving HookConfig', { address });
 
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
       this.setSmartProviderLogLevel('silent');
+      const onchainHookType = await hook.hookType();
 
       switch (onchainHookType) {
         case OnchainHookType.ROUTING:
