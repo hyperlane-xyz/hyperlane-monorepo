@@ -83,8 +83,6 @@ export async function runCoreDeploy({
       chainName: chain,
       addresses: deployedAddresses,
     });
-
-    // @TODO implement writeAgentConfig
   }
 
   logGreen('✅ Core contract deployments complete:\n');
