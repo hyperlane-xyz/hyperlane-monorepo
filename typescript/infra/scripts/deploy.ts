@@ -51,6 +51,8 @@ import {
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
+type Config = object;
+
 async function main() {
   const {
     context = Contexts.Hyperlane,
@@ -250,7 +252,7 @@ async function main() {
   }
 
   await deployWithArtifacts({
-    configMap: config as ChainMap<unknown>, // TODO: fix this typing
+    configMap: config as ChainMap<Config>,
     deployer,
     cache,
     // Use chains if provided, otherwise deploy to all chains
