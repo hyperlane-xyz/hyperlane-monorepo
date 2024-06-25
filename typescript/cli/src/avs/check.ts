@@ -6,7 +6,7 @@ import {
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, isObjEmpty, sleep } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {
@@ -46,7 +46,9 @@ export const checkValidatorAvsSetup = async (
   context: CommandContext,
   operatorKeyPath?: string,
 ) => {
-  logBlue(`Checking AVS setup for ${chain}...`);
+  logBlue(
+    `Checking AVS validator status  for ${chain}, this may take up to a minute to run...`,
+  );
 
   const { multiProvider } = context;
 
@@ -188,6 +190,8 @@ const setValidatorInfo = async (
 
     const latestMerkleTreeCheckpointIndex =
       await getLatestMerkleTreeCheckpointIndex(merkleTreeHook);
+
+    await sleep(1000);
 
     const validatorStorageLocations = await getValidatorStorageLocations(
       validatorAnnounce,
