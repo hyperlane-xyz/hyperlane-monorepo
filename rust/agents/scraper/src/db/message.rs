@@ -118,12 +118,22 @@ impl ScraperDb {
         Ok(tx_id)
     }
 
-    async fn deliveries_count(&self, domain: u32, destination_mailbox: Vec<u8>) -> Result<u64> {
-        Ok(delivered_message::Entity::find()
+    async fn latest_deliveries_id(&self, domain: u32, destination_mailbox: Vec<u8>) -> Result<i64> {
+        let result = delivered_message::Entity::find()
+            .select_only()
+            .column_as(delivered_message::Column::Id.max(), "max_id")
             .filter(delivered_message::Column::Domain.eq(domain))
-            .filter(delivered_message::Column::DestinationMailbox.eq(destination_mailbox.clone()))
-            .count(&self.0)
-            .await?)
+            .filter(delivered_message::Column::DestinationMailbox.eq(destination_mailbox))
+            .into_tuple::<Option<i64>>()
+            .one(&self.0)
+            .await?;
+
+        Ok(result
+            // Top level Option indicates some kind of error
+            .ok_or_else(|| eyre::eyre!("Error getting latest delivery id"))?
+            // Inner Option indicates whether there was any data in the filter -
+            // just default to 0 if there was no data
+            .unwrap_or(0))
     }
 
     /// Store deliveries from a mailbox into the database (or update an existing
@@ -136,9 +146,10 @@ impl ScraperDb {
         deliveries: impl Iterator<Item = StorableDelivery<'_>>,
     ) -> Result<u64> {
         let destination_mailbox = address_to_bytes(&destination_mailbox);
-        let deliveries_count_before = self
-            .deliveries_count(domain, destination_mailbox.clone())
-            .await?;
+        let latest_id_before: u64 = self
+            .latest_deliveries_id(domain, destination_mailbox.clone())
+            .await?
+            .try_into()?;
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
@@ -156,7 +167,7 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing delivered messages to database");
 
-        Insert::many(models)
+        let insert_result = Insert::many(models)
             .on_conflict(
                 OnConflict::columns([delivered_message::Column::MsgId])
                     .update_columns([
@@ -167,8 +178,12 @@ impl ScraperDb {
             )
             .exec(&self.0)
             .await?;
-        let deliveries_count_after = self.deliveries_count(domain, destination_mailbox).await?;
-        let difference = deliveries_count_after.saturating_sub(deliveries_count_before);
+
+        // `last_insert_id` from the insert result is the id of the last row inserted, meaning
+        // that if no new rows were inserted, it will be the same as the latest id before.
+        let last_insert_id: u64 = insert_result.last_insert_id.try_into()?;
+        let difference = last_insert_id.saturating_sub(latest_id_before);
+
         if difference > 0 {
             debug!(
                 messages = difference,
@@ -178,12 +193,22 @@ impl ScraperDb {
         Ok(difference)
     }
 
-    async fn dispatched_messages_count(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<u64> {
-        Ok(message::Entity::find()
+    async fn latest_dispatched_id(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<i64> {
+        let result = message::Entity::find()
+            .select_only()
+            .column_as(message::Column::Id.max(), "max_id")
             .filter(message::Column::Origin.eq(domain))
             .filter(message::Column::OriginMailbox.eq(origin_mailbox))
-            .count(&self.0)
-            .await?)
+            .into_tuple::<Option<i64>>()
+            .one(&self.0)
+            .await?;
+
+        Ok(result
+            // Top level Option indicates some kind of error
+            .ok_or_else(|| eyre::eyre!("Error getting latest dispatched id"))?
+            // Inner Option indicates whether there was any data in the filter -
+            // just default to 0 if there was no data
+            .unwrap_or(0))
     }
 
     /// Store messages from a mailbox into the database (or update an existing
@@ -196,9 +221,10 @@ impl ScraperDb {
         messages: impl Iterator<Item = StorableMessage<'_>>,
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
-        let messages_count_before = self
-            .dispatched_messages_count(domain, origin_mailbox.clone())
-            .await?;
+        let latest_id_before: u64 = self
+            .latest_dispatched_id(domain, origin_mailbox.clone())
+            .await?
+            .try_into()?;
         // we have a race condition where a message may not have been scraped yet even
         let models = messages
             .map(|storable| message::ActiveModel {
@@ -223,7 +249,7 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing messages to database");
 
-        Insert::many(models)
+        let insert_result = Insert::many(models)
             .on_conflict(
                 OnConflict::columns([
                     message::Column::OriginMailbox,
@@ -242,10 +268,12 @@ impl ScraperDb {
             )
             .exec(&self.0)
             .await?;
-        let messages_count_after = self
-            .dispatched_messages_count(domain, origin_mailbox)
-            .await?;
-        let difference = messages_count_after.saturating_sub(messages_count_before);
+
+        // `last_insert_id` from the insert result is the id of the last row inserted, meaning
+        // that if no new rows were inserted, it will be the same as the latest id before.
+        let last_insert_id: u64 = insert_result.last_insert_id.try_into()?;
+        let difference = last_insert_id.saturating_sub(latest_id_before);
+
         if difference > 0 {
             debug!(messages = difference, "Wrote new messages to database");
         }

@@ -1,6 +1,6 @@
-use eyre::Result;
+use eyre::{eyre, Result};
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, Insert};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{InterchainGasPayment, LogMeta};
@@ -26,7 +26,7 @@ impl ScraperDb {
         domain: u32,
         payments: impl Iterator<Item = StorablePayment<'_>>,
     ) -> Result<u64> {
-        let payment_count_before = self.payments_count(domain).await?;
+        let latest_id_before: u64 = self.latest_payment_id(domain).await?.try_into()?;
         // we have a race condition where a message may not have been scraped yet even
         let models = payments
             .map(|storable| gas_payment::ActiveModel {
@@ -44,7 +44,7 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing gas payments to database");
 
-        Insert::many(models)
+        let insert_result = Insert::many(models)
             .on_conflict(
                 OnConflict::columns([
                     // don't need domain because TxId includes it
@@ -61,18 +61,32 @@ impl ScraperDb {
             )
             .exec(&self.0)
             .await?;
-        let payment_count_after = self.payments_count(domain).await?;
-        let difference = payment_count_after.saturating_sub(payment_count_before);
+
+        // `last_insert_id` from the insert result is the id of the last row inserted, meaning
+        // that if no new rows were inserted, it will be the same as the latest id before.
+        let last_insert_id: u64 = insert_result.last_insert_id.try_into()?;
+        let difference = last_insert_id.saturating_sub(latest_id_before);
+
         if difference > 0 {
             debug!(payments = difference, "Wrote new gas payments to database");
         }
         Ok(difference)
     }
 
-    async fn payments_count(&self, domain: u32) -> Result<u64> {
-        Ok(gas_payment::Entity::find()
+    async fn latest_payment_id(&self, domain: u32) -> Result<i64> {
+        let result = gas_payment::Entity::find()
+            .select_only()
+            .column_as(gas_payment::Column::Id.max(), "max_id")
             .filter(gas_payment::Column::Domain.eq(domain))
-            .count(&self.0)
-            .await?)
+            .into_tuple::<Option<i64>>()
+            .one(&self.0)
+            .await?;
+
+        Ok(result
+            // Top level Option indicates some kind of error
+            .ok_or_else(|| eyre!("Error getting latest payment id"))?
+            // Inner Option indicates whether there was any data in the filter -
+            // just default to 0 if there was no data
+            .unwrap_or(0))
     }
 }
