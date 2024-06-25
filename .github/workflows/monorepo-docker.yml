@@ -10,6 +10,7 @@ on:
       - 'typescript/infra/**'
       - 'Dockerfile'
       - '.dockerignore'
+      - '.github/workflows/monorepo-docker.yml'
 
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
