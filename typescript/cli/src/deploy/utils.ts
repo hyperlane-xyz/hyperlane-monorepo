@@ -157,7 +157,7 @@ export function toUpperCamelCase(string: string) {
 }
 
 function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
-  const transformedChainMetadata = {
+  return {
     Name: chainMetadata.name,
     'Display Name': chainMetadata.displayName,
     'Chain ID': chainMetadata.chainId,
@@ -168,6 +168,4 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
     'Native Token: Name': chainMetadata.nativeToken?.name,
     'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
   };
-
-  return transformedChainMetadata;
 }
