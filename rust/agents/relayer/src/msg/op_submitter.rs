@@ -194,7 +194,7 @@ async fn receive_task(
             }
         };
         let status = status.unwrap_or_else(|| {
-            debug!(
+            trace!(
                 ?op,
                 "No status found for message, defaulting to FirstPrepareAttempt"
             );

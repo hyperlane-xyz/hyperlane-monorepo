@@ -121,6 +121,8 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
 /// Status of a pending operation
+/// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
+/// Adding new variants is fine.
 pub enum PendingOperationStatus {
     /// The operation is ready to be prepared for the first time, or has just been loaded from storage
     FirstPrepareAttempt,
@@ -153,10 +155,10 @@ impl Decode for PendingOperationStatus {
         Self: Sized,
     {
         // Deserialize from JSON and read from the reader, to avoid having to implement the encoding / decoding manually
-        serde_json::from_reader(reader).map_err(|_| {
+        serde_json::from_reader(reader).map_err(|err| {
             HyperlaneProtocolError::IoError(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "Failed to deserialize",
+                format!("Failed to deserialize. Error: {}", err),
             ))
         })
     }
@@ -164,6 +166,8 @@ impl Decode for PendingOperationStatus {
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Reasons for repreparing an operation
+/// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
+/// Adding new variants is fine.
 pub enum ReprepareReason {
     #[strum(to_string = "Error checking message delivery status")]
     /// Error checking message delivery status
@@ -202,6 +206,8 @@ pub enum ReprepareReason {
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
 /// Reasons for repreparing an operation
+/// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
+/// Adding new variants is fine.
 pub enum ConfirmReason {
     #[strum(to_string = "Submitted by this relayer")]
     /// Operation was submitted by this relayer

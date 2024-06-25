@@ -133,7 +133,7 @@ impl PendingOperation for PendingMessage {
             .origin_db
             .store_status_by_message_id(&self.message.id(), &self.status)
         {
-            warn!(message_id = ?self.message.id(), err = %e, "Persisting `status` failed for message");
+            warn!(message_id = ?self.message.id(), err = %e, status = %self.status, "Persisting `status` failed for message");
         }
         self.status = status;
     }
