@@ -505,7 +505,6 @@ impl PendingMessage {
     }
 
     fn reset_attempts(&mut self) {
-        self.set_retries(0);
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
     }
@@ -546,8 +545,17 @@ impl PendingMessage {
             i if (24..36).contains(&i) => 60 * 30,
             // wait 60min for the next 12 attempts
             i if (36..48).contains(&i) => 60 * 60,
-            // wait 3h for the next 12 attempts,
-            _ => 60 * 60 * 3,
+            // linearly increase the backoff time after 48 attempts,
+            // adding 1h for each additional attempt
+            _ => {
+                let hour: u64 = 60 * 60;
+                // To be extra safe, `max` to make sure it's at least 1 hour.
+                let target = hour.max((num_retries - 47) as u64 * hour);
+                // Schedule it at some random point in the next hour to
+                // avoid scheduling messages with the same # of retries
+                // at the exact same time.
+                target + (rand::random::<u64>() % hour)
+            }
         }))
     }
 }
