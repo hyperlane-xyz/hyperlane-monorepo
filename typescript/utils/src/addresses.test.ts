@@ -3,7 +3,6 @@ import { expect } from 'chai';
 import {
   addressToBytes,
   bytesToProtocolAddress,
-  ensure0x,
   isZeroishAddress,
 } from './addresses.js';
 import { ProtocolType } from './types.js';
@@ -59,13 +58,6 @@ describe('Address utilities', () => {
           ProtocolType.Ethereum,
         ),
       ).to.throw(Error);
-    });
-  });
-
-  describe('ensure0x', () => {
-    it('Make sure any string has startWith 0x', () => {
-      expect(ensure0x('0x123')).to.equal('0x123');
-      expect(ensure0x('123')).to.equal('0x123');
     });
   });
 });
