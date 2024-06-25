@@ -130,7 +130,11 @@ async function main() {
     );
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
-    deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
+    deployer = new HyperlaneIgpDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
