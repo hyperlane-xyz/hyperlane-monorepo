@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/infra': major
+'@hyperlane-xyz/infra': patch
 ---
 
 fix type typo ChainMap<unknown>
