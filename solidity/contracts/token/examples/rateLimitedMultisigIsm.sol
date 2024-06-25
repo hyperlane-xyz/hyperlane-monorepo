@@ -17,7 +17,7 @@ contract rateLimitedMultisigIsm {
 
     constructor(
         address[] memory _default,
-        // must be strictly ordered in this example: from small to high
+        // in this example must be strictly ordered: from small to high amount threshold
         ThresholdValidatorsSet[] memory _rules
     ) {
         for (uint256 rule = 0; rule < _rules.length; rule++) {
@@ -32,11 +32,12 @@ contract rateLimitedMultisigIsm {
     }
 
     function validatorsAndThreshold(
-        bytes calldata _message // this is for a better example, probably you will parse this already and bring `amount` as a number
+        bytes calldata _message
     ) public view returns (address[] memory, uint) {
         uint256 tokenAmount = _message.amount();
 
-        // mind that for the sake of example sets aren't united and you should repeat addresses when setting up if they to appear on different thresholds
+        /* mind that for the sake of example sets are fully separate, 
+        and you should repeat an address while setting up if it's to be shared by different thresholds */
         for (
             uint256 thresholdInd = rules.length - 1;
             thresholdInd == 0;
