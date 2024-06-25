@@ -62,12 +62,15 @@ pub fn termination_invariants_met(
     .sum::<u32>();
 
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
+    const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
+    const LOOKING_FOR_EVENTS_LOG_MESSAGE: &str = "Looking for events in index range";
     let relayer_logfile = File::open(log_file_path)?;
-    let gas_expenditure_log_count =
-        get_matching_lines(&relayer_logfile, GAS_EXPENDITURE_LOG_MESSAGE)
-            .unwrap()
-            .len();
-
+    let invariant_logs = &[
+        STORING_NEW_MESSAGE_LOG_MESSAGE,
+        LOOKING_FOR_EVENTS_LOG_MESSAGE,
+        GAS_EXPENDITURE_LOG_MESSAGE,
+    ];
+    let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
     // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
     // TODO: Sometimes we find more logs than expected. This may either mean that gas is deducted twice for the same message due to a bug,
     // or that submitting the message transaction fails for some messages. Figure out which is the case and convert this check to
@@ -76,8 +79,17 @@ pub fn termination_invariants_met(
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
     assert!(
-        gas_expenditure_log_count as u32 >= total_messages_expected,
+        log_counts.get(GAS_EXPENDITURE_LOG_MESSAGE).unwrap() >= &total_messages_expected,
         "Didn't record gas payment for all delivered messages"
+    );
+    // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
+    assert!(
+        log_counts.get(STORING_NEW_MESSAGE_LOG_MESSAGE).unwrap() > &0,
+        "Didn't find any logs about storing messages in db"
+    );
+    assert!(
+        log_counts.get(LOOKING_FOR_EVENTS_LOG_MESSAGE).unwrap() > &0,
+        "Didn't find any logs about looking for events in index range"
     );
 
     let gas_payment_sealevel_events_count = fetch_metric(
