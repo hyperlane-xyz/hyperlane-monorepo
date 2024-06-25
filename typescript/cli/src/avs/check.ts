@@ -6,7 +6,7 @@ import {
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, isObjEmpty, sleep } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import {
@@ -92,7 +92,7 @@ const getAvsOperators = async (
 
   const ecdsaStakeRegistry = ECDSAStakeRegistry__factory.connect(
     ecdsaStakeRegistryAddress,
-    multiProvider.getSigner(chain),
+    multiProvider.getProvider(chain),
   );
 
   if (operatorKey) {
@@ -180,22 +180,21 @@ const setValidatorInfo = async (
 
     const validatorAnnounce = ValidatorAnnounce__factory.connect(
       chainAddresses.validatorAnnounce,
-      multiProvider.getSigner(chain),
+      multiProvider.getProvider(chain),
     );
 
     const merkleTreeHook = MerkleTreeHook__factory.connect(
       chainAddresses.merkleTreeHook,
-      multiProvider.getSigner(chain),
+      multiProvider.getProvider(chain),
     );
 
     const latestMerkleTreeCheckpointIndex =
-      await getLatestMerkleTreeCheckpointIndex(merkleTreeHook);
-
-    await sleep(1000);
+      await getLatestMerkleTreeCheckpointIndex(merkleTreeHook, chain);
 
     const validatorStorageLocations = await getValidatorStorageLocations(
       validatorAnnounce,
       validatorAddresses,
+      chain,
     );
 
     if (!validatorStorageLocations) {
@@ -208,8 +207,13 @@ const setValidatorInfo = async (
       const storageLocation = validatorStorageLocations[i];
       const warnings: string[] = [];
 
-      // Skip if no storage location is found, address is not validating on this chain
-      if (storageLocation.length === 0) continue;
+      // Skip if no storage location is found, address is not validating on this chain or if storage location string doesn't not start with s3://
+      if (
+        storageLocation.length === 0 ||
+        !storageLocation[0].startsWith('s3://')
+      ) {
+        continue;
+      }
 
       const latestValidatorCheckpointIndex =
         await getLatestValidatorCheckpointIndex(storageLocation[0]);
