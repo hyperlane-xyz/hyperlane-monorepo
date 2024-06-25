@@ -280,7 +280,7 @@ impl KnownHyperlaneDomain {
                 Ethereum, Sepolia, Holesky, Polygon, Avalanche, Fuji, Optimism,
                 BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis, Alfajores, Moonbeam, MoonbaseAlpha,
                 ScrollSepolia, Chiado, MantaPacific, Neutron, Injective, InEvm, Ancient8, Blast, Mode, Redstone,
-                Viction, Zetachain, Fraxtal, Linea, Sei, Osmosis, Bob, Mantle, Taiko
+                Viction, Zetachain, Fraxtal, Linea, Sei, Osmosis, Bob, Mantle, Taiko,
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990, CosmosTest99991
             ],
         })
