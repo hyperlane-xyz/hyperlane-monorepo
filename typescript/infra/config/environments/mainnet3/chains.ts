@@ -18,6 +18,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
+  mantle: {
+    blocks: {
+      confirmations: 3,
+    },
+  },
   polygon: {
     blocks: {
       confirmations: 3,
