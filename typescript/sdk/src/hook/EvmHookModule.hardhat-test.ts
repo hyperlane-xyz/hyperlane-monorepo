@@ -240,7 +240,6 @@ describe('EvmHookModule', async () => {
   async function createHook(
     config: HookConfig,
   ): Promise<{ hook: EvmHookModule; initialHookAddress: Address }> {
-    console.log('Creating hook with config: ', stringifyObject(config));
     const hook = await EvmHookModule.create({
       chain,
       config,

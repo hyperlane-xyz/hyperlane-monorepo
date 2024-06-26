@@ -1,6 +1,7 @@
 import { CommandModule } from 'yargs';
 
 import { createAgentConfig } from '../config/agent.js';
+import { createChainConfig } from '../config/chain.js';
 import { CommandContext, CommandModuleWithContext } from '../context/types.js';
 import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
 
@@ -15,12 +16,13 @@ import { ChainType, ChainTypes } from './types.js';
  */
 export const registryCommand: CommandModule = {
   command: 'registry',
-  describe: 'View information about Hyperlane chains in a registry',
+  describe: 'Manage Hyperlane chains in a registry',
   builder: (yargs) =>
     yargs
-      .command(listCommand)
       .command(addressesCommand)
       .command(createAgentConfigCommand)
+      .command(initCommand)
+      .command(listCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -137,6 +139,15 @@ const createAgentConfigCommand: CommandModuleWithContext<{
     }
 
     await createAgentConfig({ context, chains: chainNames, out });
+    process.exit(0);
+  },
+};
+
+const initCommand: CommandModuleWithContext<{}> = {
+  command: 'init',
+  describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
+  handler: async ({ context }) => {
+    await createChainConfig({ context });
     process.exit(0);
   },
 };

@@ -32,8 +32,8 @@ export const coreCommand: CommandModule = {
   describe: 'Manage core Hyperlane contracts & configs',
   builder: (yargs) =>
     yargs
-      .command(configure)
       .command(deploy)
+      .command(init)
       .command(read)
       .version(false)
       .demandCommand(),
@@ -82,11 +82,11 @@ export const deploy: CommandModuleWithWriteContext<{
   },
 };
 
-export const configure: CommandModuleWithContext<{
+export const init: CommandModuleWithContext<{
   advanced: boolean;
   config: string;
 }> = {
-  command: 'configure',
+  command: 'init',
   describe: 'Create a core configuration, including ISMs and hooks.',
   builder: {
     advanced: {

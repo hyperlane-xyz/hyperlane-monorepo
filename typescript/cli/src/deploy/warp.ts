@@ -143,15 +143,14 @@ async function executeDeploy(params: DeployParams) {
 
   const deployedContracts = await deployer.deploy(modifiedConfig);
 
+  const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
   logGreen('✅ Warp contract deployments complete');
 
-  const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
   if (!isDryRun) {
-    log('Writing deployment artifacts');
+    log('Writing deployment artifacts...');
     await registry.addWarpRoute(warpCoreConfig);
   }
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
-  logBlue('Deployment is complete!');
 }
 
 async function deployAndResolveWarpIsm(

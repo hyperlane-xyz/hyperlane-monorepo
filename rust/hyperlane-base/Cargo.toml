@@ -23,17 +23,17 @@ ed25519-dalek.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 fuels.workspace = true
-futures.worksapce = true
+futures.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
 maplit.workspace = true
-mockall.worksapce = true
+mockall.workspace = true
 paste.workspace = true
 prometheus.workspace = true
 rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-solana-sdk.worksapce = true
+solana-sdk.workspace = true
 static_assertions.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
@@ -46,7 +46,6 @@ url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
 
-
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
@@ -57,7 +56,6 @@ hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos"}
 hyperlane-test = { path = "../hyperlane-test" }
-
 
 # dependency version is determined by etheres
 rusoto_core = "*"

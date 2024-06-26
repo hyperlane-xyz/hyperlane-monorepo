@@ -546,10 +546,10 @@ pub(crate) mod test {
         pub sequence: u32,
     }
 
-    impl Into<Indexed<MockSequencedData>> for MockSequencedData {
-        fn into(self) -> Indexed<MockSequencedData> {
-            let sequence = self.sequence;
-            Indexed::new(self).with_sequence(sequence)
+    impl From<MockSequencedData> for Indexed<MockSequencedData> {
+        fn from(val: MockSequencedData) -> Self {
+            let sequence = val.sequence;
+            Indexed::new(val).with_sequence(sequence)
         }
     }
 

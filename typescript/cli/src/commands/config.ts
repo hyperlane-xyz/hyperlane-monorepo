@@ -1,6 +1,6 @@
 import { CommandModule } from 'yargs';
 
-import { createChainConfig, readChainConfigs } from '../config/chain.js';
+import { readChainConfigs } from '../config/chain.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { readWarpRouteDeployConfig } from '../config/warp.js';
@@ -16,32 +16,8 @@ export const configCommand: CommandModule = {
   command: 'config',
   describe: 'Create or validate Hyperlane configs',
   builder: (yargs) =>
-    yargs
-      .command(createCommand)
-      .command(validateCommand)
-      .version(false)
-      .demandCommand(),
+    yargs.command(validateCommand).version(false).demandCommand(),
   handler: () => log('Command required'),
-};
-
-/**
- * Create commands
- */
-const createCommand: CommandModule = {
-  command: 'create',
-  describe: 'Create a new Hyperlane config',
-  builder: (yargs) =>
-    yargs.command(createChainConfigCommand).version(false).demandCommand(),
-  handler: () => log('Command required'),
-};
-
-const createChainConfigCommand: CommandModuleWithContext<{}> = {
-  command: 'chain',
-  describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
-  handler: async ({ context }) => {
-    await createChainConfig({ context });
-    process.exit(0);
-  },
 };
 
 /**

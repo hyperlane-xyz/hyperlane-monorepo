@@ -19,11 +19,9 @@ import {
   logBoldUnderlinedRed,
   logRed,
 } from '../logger.js';
-import {
-  detectAndConfirmOrPrompt,
-  runMultiChainSelectionStep,
-} from '../utils/chains.js';
+import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import { callWithConfigCreationLogs } from './utils.js';
 

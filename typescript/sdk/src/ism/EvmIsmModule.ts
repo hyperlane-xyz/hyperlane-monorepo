@@ -201,7 +201,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // if it's a fallback routing ISM, do a mailbox diff check and deploy a new ISM if needed
     if (targetConfig.type === IsmType.FALLBACK_ROUTING) {
-      // can only retreive mailbox address if current ISM type is also Fallback Routing
+      // can only retrieve mailbox address if current ISM type is also Fallback Routing
       const mailboxAddress =
         currentConfig.type === IsmType.FALLBACK_ROUTING
           ? await MailboxClient__factory.connect(
@@ -525,12 +525,23 @@ export class EvmIsmModule extends HyperlaneModule<
       signer,
     );
 
-    // deploying new domain routing ISM
-    const tx = await domainRoutingIsmFactory.deploy(
+    // estimate gas
+    const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
       owner,
       domainIds,
       submoduleAddresses,
       overrides,
+    );
+
+    // deploying new domain routing ISM, add 10% buffer
+    const tx = await domainRoutingIsmFactory.deploy(
+      owner,
+      domainIds,
+      submoduleAddresses,
+      {
+        ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+      },
     );
 
     const receipt = await this.multiProvider.handleTx(this.args.chain, tx);

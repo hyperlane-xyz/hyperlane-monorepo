@@ -204,3 +204,15 @@ export const awsKeyIdCommandOption: Options = {
   type: 'string',
   describe: 'Key ID from AWS KMS',
 };
+
+export const operatorKeyPathCommandOption: Options = {
+  type: 'string',
+  description: 'Path to the operator key file',
+};
+
+export const avsChainCommandOption: Options = {
+  type: 'string',
+  description: 'Chain to interact with the AVS on',
+  demandOption: true,
+  choices: ['holesky', 'ethereum'],
+};

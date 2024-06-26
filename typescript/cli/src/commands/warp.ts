@@ -1,9 +1,16 @@
+import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+  IXERC20__factory,
+} from '@hyperlane-xyz/core';
+import {
   ChainMap,
   EvmERC20WarpRouteReader,
+  TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
@@ -18,7 +25,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logGray, logGreen, logRed } from '../logger.js';
+import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
@@ -43,8 +50,8 @@ export const warpCommand: CommandModule = {
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
     yargs
-      .command(configure)
       .command(deploy)
+      .command(init)
       .command(read)
       .command(send)
       .version(false)
@@ -82,11 +89,11 @@ export const deploy: CommandModuleWithWriteContext<{
   },
 };
 
-export const configure: CommandModuleWithContext<{
+export const init: CommandModuleWithContext<{
   advanced: boolean;
   out: string;
 }> = {
-  command: 'configure',
+  command: 'init',
   describe: 'Create a warp route configuration.',
   builder: {
     advanced: {
@@ -144,6 +151,45 @@ export const read: CommandModuleWithContext<{
         context.registry,
         symbol,
       );
+
+      // TODO: merge with XERC20TokenAdapter and WarpRouteReader
+      const xerc20Limits = await Promise.all(
+        warpCoreConfig.tokens
+          .filter(
+            (t) =>
+              t.standard === TokenStandard.EvmHypXERC20 ||
+              t.standard === TokenStandard.EvmHypXERC20Lockbox,
+          )
+          .map(async (t) => {
+            const provider = multiProvider.getProvider(t.chainName);
+            const router = t.addressOrDenom!;
+            const xerc20Address =
+              t.standard === TokenStandard.EvmHypXERC20Lockbox
+                ? await HypXERC20Lockbox__factory.connect(
+                    router,
+                    provider,
+                  ).xERC20()
+                : await HypXERC20__factory.connect(
+                    router,
+                    provider,
+                  ).wrappedToken();
+
+            const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+            const mint = await xerc20.mintingCurrentLimitOf(router);
+            const burn = await xerc20.burningCurrentLimitOf(router);
+
+            const formattedLimits = objMap({ mint, burn }, (_, v) =>
+              ethers.utils.formatUnits(v, t.decimals),
+            );
+
+            return [t.chainName, formattedLimits];
+          }),
+      );
+      if (xerc20Limits.length > 0) {
+        logGray('xERC20 Limits:');
+        logTable(Object.fromEntries(xerc20Limits));
+      }
+
       addresses = Object.fromEntries(
         warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
       );

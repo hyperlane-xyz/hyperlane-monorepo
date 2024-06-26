@@ -8,6 +8,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use convert_case::Case;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
+use ethers::utils::hex;
 use eyre::{eyre, Context};
 use hyperlane_base::{
     impl_loadable_from_settings,
@@ -46,6 +47,10 @@ pub struct RelayerSettings {
     pub whitelist: MatchingList,
     /// Filter for what messages to block.
     pub blacklist: MatchingList,
+    /// Filter for what addresses to block interactions with.
+    /// This is intentionally not an H256 to allow for addresses of any length without
+    /// adding any padding.
+    pub address_blacklist: Vec<Vec<u8>>,
     /// This is optional. If not specified, any amount of gas will be valid, otherwise this
     /// is the max allowed gas in wei to relay a transaction.
     pub transaction_gas_limit: Option<U256>,
@@ -191,6 +196,14 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .and_then(parse_matching_list)
             .unwrap_or_default();
 
+        let address_blacklist = p
+            .chain(&mut err)
+            .get_opt_key("addressBlacklist")
+            .parse_string()
+            .end()
+            .map(|str| parse_address_list(str, &mut err, || &p.cwp + "address_blacklist"))
+            .unwrap_or_default();
+
         let transaction_gas_limit = p
             .chain(&mut err)
             .get_opt_key("transactionGasLimit")
@@ -268,6 +281,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             gas_payment_enforcement,
             whitelist,
             blacklist,
+            address_blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
@@ -310,4 +324,54 @@ fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
         .unwrap_or_default();
 
     err.into_result(ml)
+}
+
+fn parse_address_list(
+    str: &str,
+    err: &mut ConfigParsingError,
+    err_path: impl Fn() -> ConfigPath,
+) -> Vec<Vec<u8>> {
+    str.split(',')
+        .filter_map(|s| {
+            let mut s = s.trim().to_owned();
+            if let Some(stripped) = s.strip_prefix("0x") {
+                s = stripped.to_owned();
+            }
+            hex::decode(s).take_err(err, &err_path)
+        })
+        .collect_vec()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use hyperlane_core::H160;
+
+    #[test]
+    fn test_parse_address_blacklist() {
+        let valid_address1 = b"valid".to_vec();
+        let valid_address2 = H160::random().as_bytes().to_vec();
+
+        // Successful parsing
+        let input = format!(
+            "0x{}, {}",
+            hex::encode(&valid_address1),
+            hex::encode(&valid_address2)
+        );
+        let mut err = ConfigParsingError::default();
+        let res = parse_address_list(&input, &mut err, ConfigPath::default);
+        assert_eq!(res, vec![valid_address1.clone(), valid_address2.clone()]);
+        assert!(err.is_ok());
+
+        // An error in the final address provided
+        let input = format!(
+            "0x{}, {}, 0xaazz",
+            hex::encode(&valid_address1),
+            hex::encode(&valid_address2)
+        );
+        let mut err = ConfigParsingError::default();
+        let res = parse_address_list(&input, &mut err, ConfigPath::default);
+        assert_eq!(res, vec![valid_address1, valid_address2]);
+        assert!(!err.is_ok());
+    }
 }
