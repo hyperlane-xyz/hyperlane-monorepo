@@ -141,6 +141,8 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     ancient8: 0.5,
     base: 0.5,
     blast: 0.5,
+    fraxtal: 0.5,
+    linea: 0.5,
     mantapacific: 0.5,
     mode: 0.5,
     optimism: 0.5,

@@ -1,5 +1,24 @@
 # @hyperlane-xyz/cli
 
+## 3.16.0
+
+### Patch Changes
+
+- Updated dependencies [f9bbdde76]
+- Updated dependencies [5cc64eb09]
+  - @hyperlane-xyz/sdk@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- 921e449b4: Support priorityFee fetching from RPC and some better logging
+- Updated dependencies [acaa22cd9]
+- Updated dependencies [921e449b4]
+  - @hyperlane-xyz/sdk@3.15.1
+  - @hyperlane-xyz/utils@3.15.1
+
 ## 3.15.0
 
 ### Minor Changes

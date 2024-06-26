@@ -8,8 +8,13 @@ import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
 
-import { ChainName, NativeToken } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
+import {
+  Address,
+  ProtocolType,
+  objFilter,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { testChainNames } from '../../config/environments/test/chains.js';
@@ -272,4 +277,22 @@ export function getInfraPath() {
 
 export function inCIMode() {
   return process.env.CI === 'true';
+}
+
+// Filter out chains that are not supported by the multiProvider
+// Filter out any value that is not a string e.g. remote domain metadata
+export function filterRemoteDomainMetadata(
+  addressesMap: ChainMap<Record<string, Address>>,
+): ChainMap<Record<string, Address>> {
+  return Object.fromEntries(
+    Object.entries(addressesMap).map(([chain, addresses]) => [
+      chain,
+      // Filter out any non-string writes
+      // e.g. remote domain metadata that might be present
+      objFilter(
+        addresses,
+        (_, value): value is string => typeof value === 'string',
+      ),
+    ]),
+  );
 }
