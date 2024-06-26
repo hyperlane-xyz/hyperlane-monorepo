@@ -22,7 +22,7 @@ import {
   logRed,
   logTable,
 } from '../logger.js';
-import { gasBalancesAreSufficient } from '../utils/balances.js';
+import { nativeBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
@@ -57,7 +57,7 @@ export async function runPreflightChecksForChains({
   logGreen('✅ Signer is valid');
 
   const allSufficient = (
-    await gasBalancesAreSufficient(
+    await nativeBalancesAreSufficient(
       multiProvider,
       signer,
       chainsToGasCheck ?? chains,
