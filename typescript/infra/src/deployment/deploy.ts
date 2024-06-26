@@ -25,31 +25,39 @@ import {
   getAgentConfigJsonPath,
   writeAddresses,
 } from '../../scripts/agent-utils.js';
+import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { DeployEnvironment, envNameToAgentEnv } from '../config/environment.js';
 import { getCosmosChainGasPrice } from '../config/gas-oracle.js';
 import {
   chainIsProtocol,
+  filterRemoteDomainMetadata,
   readJSONAtPath,
   writeJsonAtPath,
   writeMergedJSONAtPath,
 } from '../utils/utils.js';
 
-export async function deployWithArtifacts<Config extends object>(
-  configMap: ChainMap<Config>,
-  deployer: HyperlaneDeployer<Config, any>,
+export async function deployWithArtifacts<Config extends object>({
+  configMap,
+  deployer,
+  cache,
+  targetNetworks,
+  agentConfig,
+}: {
+  configMap: ChainMap<Config>;
+  deployer: HyperlaneDeployer<Config, any>;
   cache: {
     verification: string;
     read: boolean;
     write: boolean;
     environment: DeployEnvironment;
     module: Modules;
-  },
-  targetNetwork?: ChainName,
+  };
+  targetNetworks: ChainName[];
   agentConfig?: {
     multiProvider: MultiProvider;
     environment: DeployEnvironment;
-  },
-) {
+  };
+}) {
   if (cache.read) {
     const addressesMap = getAddresses(cache.environment, cache.module);
     deployer.cacheAddressesMap(addressesMap);
@@ -63,13 +71,17 @@ export async function deployWithArtifacts<Config extends object>(
     process.exit(0); // Exit the process
   });
 
+  // Filter the config map to only deploy the target networks
+  let targetConfigMap = configMap;
+  if (targetNetworks.length > 0) {
+    targetConfigMap = objFilter(configMap, (chain, _): _ is Config =>
+      targetNetworks.includes(chain),
+    );
+  }
+
+  // Deploy the contracts
   try {
-    if (targetNetwork) {
-      deployer.deployedContracts[targetNetwork] =
-        await deployer.deployContracts(targetNetwork, configMap[targetNetwork]);
-    } else {
-      await deployer.deploy(configMap);
-    }
+    await deployer.deploy(targetConfigMap);
   } catch (e) {
     console.error('Failed to deploy contracts', e);
   }
@@ -121,16 +133,18 @@ export async function writeAgentConfig(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ) {
-  const addresses = getAddresses(environment, Modules.CORE);
-  const addressesForEnv = objFilter(
-    addresses,
-    (chain, _): _ is ChainAddresses => multiProvider.hasChain(chain),
-  );
+  // Get the addresses for the environment
+  const addressesMap = getAddresses(
+    environment,
+    Modules.CORE,
+  ) as ChainMap<ChainAddresses>;
 
+  const addressesForEnv = filterRemoteDomainMetadata(addressesMap);
   const core = HyperlaneCore.fromAddressesMap(addressesForEnv, multiProvider);
+
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
   const startBlocks = await promiseObjAll(
-    objMap(addressesForEnv, async (chain, _) => {
+    objMap(addressesForEnv, async (chain: string, _) => {
       // If the index.from is specified in the chain metadata, use that.
       const indexFrom = multiProvider.getChainMetadata(chain).index?.from;
       if (indexFrom !== undefined) {
@@ -173,11 +187,17 @@ export async function writeAgentConfig(
 
   const agentConfig = buildAgentConfig(
     environmentChains,
-    multiProvider,
+    await getEnvironmentConfig(environment).getMultiProvider(
+      undefined,
+      undefined,
+      // Don't use secrets
+      false,
+    ),
     addressesForEnv as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
     additionalConfig,
   );
+
   writeMergedJSONAtPath(
     getAgentConfigJsonPath(envNameToAgentEnv[environment]),
     agentConfig,

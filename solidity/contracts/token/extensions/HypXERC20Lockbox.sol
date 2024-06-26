@@ -18,6 +18,7 @@ contract HypXERC20Lockbox is HypERC20Collateral {
         lockbox = IXERC20Lockbox(_lockbox);
         xERC20 = lockbox.XERC20();
         approveLockbox();
+        _disableInitializers();
     }
 
     /**

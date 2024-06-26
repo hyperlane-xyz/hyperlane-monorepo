@@ -32,6 +32,13 @@ export class HyperlaneJsonRpcProvider
     super(rpcConfig.connection ?? rpcConfig.http, network);
   }
 
+  prepareRequest(method: string, params: any): [string, any[]] {
+    if (method === ProviderMethod.MaxPriorityFeePerGas) {
+      return ['eth_maxPriorityFeePerGas', []];
+    }
+    return super.prepareRequest(method, params);
+  }
+
   async perform(method: string, params: any, reqId?: number): Promise<any> {
     if (this.options?.debug)
       this.logger.debug(

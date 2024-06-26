@@ -50,7 +50,7 @@ async function main() {
       const validator = await InfraS3Validator.fromStorageLocation(location);
       announcements.push({
         storageLocation: validator.storageLocation(),
-        announcement: await validator.getAnnouncement(),
+        announcement: await validator.getSignedAnnouncement(),
       });
     } else if (location.startsWith('file://')) {
       const announcementFilepath = path.join(
@@ -97,7 +97,7 @@ async function main() {
               );
               announcements.push({
                 storageLocation: validator.storageLocation(),
-                announcement: await validator.getAnnouncement(),
+                announcement: await validator.getSignedAnnouncement(),
               });
               chains.push(validatorChain);
             }

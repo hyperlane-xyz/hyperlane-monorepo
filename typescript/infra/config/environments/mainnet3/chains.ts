@@ -1,5 +1,7 @@
+import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
+import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 
 import { supportedChainNames } from './supportedChainNames.js';
@@ -44,6 +46,13 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 2 * 10 ** 9, // 2 gwei
     },
   },
+  sei: {
+    // Sei's `eth_feeHistory` is not to spec and incompatible with ethers-rs,
+    // so we force legacy transactions by setting a gas price.
+    transactionOverrides: {
+      gasPrice: 2 * 10 ** 9, // 2 gwei
+    },
+  },
   moonbeam: {
     transactionOverrides: {
       maxFeePerGas: 350 * 10 ** 9, // 350 gwei
@@ -51,3 +60,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
     },
   },
 };
+
+export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+  getRegistryForEnvironment(
+    environment,
+    supportedChainNames,
+    chainMetadataOverrides,
+    useSecrets,
+  );

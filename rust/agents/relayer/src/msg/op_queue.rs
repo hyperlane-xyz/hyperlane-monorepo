@@ -1,7 +1,7 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::{PendingOperation, QueueOperation};
+use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
@@ -21,8 +21,15 @@ pub struct OpQueue {
 
 impl OpQueue {
     /// Push an element onto the queue and update metrics
+    /// Arguments:
+    /// - `op`: the operation to push onto the queue
+    /// - `new_status`: optional new status to set for the operation. When an operation is added to a queue,
+    /// it's very likely that its status has just changed, so this forces the caller to consider the new status
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
-    pub async fn push(&self, op: QueueOperation) {
+    pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
+        if let Some(new_status) = new_status {
+            op.set_status(new_status);
+        }
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(op.as_ref()).inc();
 
@@ -98,8 +105,12 @@ impl OpQueue {
     /// Get the metric associated with this operation
     fn get_operation_metric(&self, operation: &dyn PendingOperation) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
-        self.metrics
-            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
+        self.metrics.with_label_values(&[
+            &destination,
+            &self.queue_metrics_label,
+            &operation.status().to_string(),
+            &app_context,
+        ])
     }
 }
 
@@ -141,11 +152,21 @@ mod test {
             self.id
         }
 
+        fn status(&self) -> PendingOperationStatus {
+            PendingOperationStatus::FirstPrepareAttempt
+        }
+
+        fn set_status(&mut self, _status: PendingOperationStatus) {}
+
         fn reset_attempts(&mut self) {
             self.seconds_to_next_attempt = 0;
         }
 
         fn priority(&self) -> u32 {
+            todo!()
+        }
+
+        fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
             todo!()
         }
 
@@ -219,7 +240,12 @@ mod test {
         (
             IntGaugeVec::new(
                 prometheus::Opts::new("op_queue", "OpQueue metrics"),
-                &["destination", "queue_metrics_label", "app_context"],
+                &[
+                    "destination",
+                    "queue_metrics_label",
+                    "operation_status",
+                    "app_context",
+                ],
             )
             .unwrap(),
             "queue_metrics_label".to_string(),
@@ -256,12 +282,22 @@ mod test {
 
         // push to queue 1
         for _ in 0..=2 {
-            op_queue_1.push(ops.pop_front().unwrap()).await;
+            op_queue_1
+                .push(
+                    ops.pop_front().unwrap(),
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
         }
 
         // push to queue 2
         for _ in 3..messages_to_send {
-            op_queue_2.push(ops.pop_front().unwrap()).await;
+            op_queue_2
+                .push(
+                    ops.pop_front().unwrap(),
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
         }
 
         // Retry by message ids
@@ -320,7 +356,9 @@ mod test {
 
         // push to queue
         for op in ops {
-            op_queue.push(op).await;
+            op_queue
+                .push(op, Some(PendingOperationStatus::FirstPrepareAttempt))
+                .await;
         }
 
         // Retry by domain
