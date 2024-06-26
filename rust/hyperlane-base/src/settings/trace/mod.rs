@@ -63,7 +63,7 @@ impl TracingConfig {
     pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<console_subscriber::Server> {
         let mut target_layer = Targets::new().with_default(self.level);
 
-        if self.level == Level::Trace {
+        if self.level < Level::DependencyTrace {
             // Reduce log noise from trusted libraries that we can reasonably assume are working correctly
             target_layer = target_layer
                 .with_target("hyper", Level::Info)

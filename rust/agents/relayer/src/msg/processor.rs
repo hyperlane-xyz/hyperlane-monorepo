@@ -10,8 +10,10 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::utils::hex;
 use eyre::Result;
-use hyperlane_base::db::{HyperlaneRocksDB, ProcessMessage};
-use hyperlane_base::CoreMetrics;
+use hyperlane_base::{
+    db::{HyperlaneRocksDB, ProcessMessage},
+    CoreMetrics,
+};
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
@@ -391,8 +393,10 @@ mod test {
     };
 
     use super::*;
-    use hyperlane_base::db::{test_utils, DbResult, HyperlaneRocksDB};
-    use hyperlane_base::settings::{ChainConf, ChainConnectionConf, Settings};
+    use hyperlane_base::{
+        db::{test_utils, DbResult, HyperlaneRocksDB},
+        settings::{ChainConf, ChainConnectionConf, Settings},
+    };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
     use prometheus::{IntCounter, Registry};
     use tokio::{

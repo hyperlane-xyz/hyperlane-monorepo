@@ -56,17 +56,20 @@ hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos"}
 hyperlane-test = { path = "../hyperlane-test" }
+
 # dependency version is determined by etheres
 rusoto_core = "*"
 rusoto_kms = "*"
 rusoto_s3 = "*"
 rusoto_sts = "*"
+
 [dev-dependencies]
 color-eyre.workspace = true
 reqwest.workspace = true
 tempfile.workspace = true
 tracing-test.workspace = true
 walkdir.workspace = true
+
 [features]
 default = ["oneline-errors", "color-eyre"]
 oneline-eyre = ["backtrace-oneline", "backtrace"]
