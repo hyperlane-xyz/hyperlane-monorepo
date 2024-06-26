@@ -204,7 +204,7 @@ describe('EvmHookReader', () => {
 
     // top-level method infers hook type
     const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
-    expect(hookConfig).to.deep.equal({});
+    expect(hookConfig).to.be.undefined;
   });
 
   /*
