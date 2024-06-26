@@ -221,12 +221,11 @@ pub trait BuildableWithProvider {
             let signing_provider = wrap_with_signer(provider, signer.clone()).await;
             let gas_escalator_provider =
                 wrap_with_gas_escalator(signing_provider, &conn.transaction_overrides);
-            // let signing_provider = wrap_with_signer(provider, signer.clone()).await;
-            // let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
-            //     .await
-            //     .map_err(ChainCommunicationError::from_other)?;
+            let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
 
-            self.build_with_provider(gas_escalator_provider, conn, locator)
+            self.build_with_provider(nonce_manager_provider, conn, locator)
         } else {
             self.build_with_provider(provider, conn, locator)
         }
