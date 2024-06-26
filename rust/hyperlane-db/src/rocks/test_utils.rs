@@ -2,7 +2,7 @@ use futures_util::Future;
 use rocksdb::Options;
 use tempfile::TempDir;
 
-use crate::db::DB;
+use hyperlane_core::db::DB;
 
 /// Create a database from a path.
 pub fn setup_db(db_path: String) -> DB {
@@ -30,7 +30,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::{
+    use hyperlane_core::{
         HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta,
         RawHyperlaneMessage, H256, H512, U256,
     };

@@ -3,7 +3,7 @@ use eyre::{bail, Result};
 use paste::paste;
 use tracing::{debug, instrument, trace};
 
-use crate::{
+use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
     InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,

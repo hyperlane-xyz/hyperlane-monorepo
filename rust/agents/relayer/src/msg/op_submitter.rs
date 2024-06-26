@@ -186,14 +186,7 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.destination_domain(), domain);
-        let status = match op.origin_db().retrieve_status_by_message_id(&op.id()) {
-            Ok(status) => status,
-            Err(e) => {
-                warn!(error=?e, "Failed to retrieve status for message");
-                None
-            }
-        };
-        let status = status.unwrap_or_else(|| {
+        let status = op.retrieve_status_from_db().await.unwrap_or_else(|| {
             trace!(
                 ?op,
                 "No status found for message, defaulting to FirstPrepareAttempt"

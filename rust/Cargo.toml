@@ -10,6 +10,7 @@ members = [
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
+  "hyperlane-db",
   "hyperlane-test",
   "sealevel/client",
   "sealevel/libraries/access-control",

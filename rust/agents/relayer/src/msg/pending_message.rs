@@ -150,8 +150,14 @@ impl PendingOperation for PendingMessage {
         self.ctx.destination_mailbox.domain()
     }
 
-    fn origin_db(&self) -> &HyperlaneRocksDB {
-        &self.ctx.origin_db
+    fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
+        match self.origin_db().retrieve_status_by_message_id(&op.id()) {
+            Ok(status) => status,
+            Err(e) => {
+                warn!(error=?e, "Failed to retrieve status for message");
+                None
+            }
+        }
     }
 
     fn app_context(&self) -> Option<String> {

@@ -1,4 +1,4 @@
-use crate::{Decode, Encode, HyperlaneDomain};
+use hyperlane_core::{Decode, Encode, HyperlaneDomain};
 
 use crate::db::{DbError, DB};
 

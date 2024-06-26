@@ -4321,6 +4321,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-db"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "eyre",
+ "futures-util",
+ "hyperlane-core",
+ "paste",
+ "rocksdb",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "hyperlane-ethereum"
 version = "0.1.0"
 dependencies = [

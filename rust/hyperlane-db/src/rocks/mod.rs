@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{io, path::Path, sync::Arc};
 
-use crate::{ChainCommunicationError, HyperlaneProtocolError};
+use hyperlane_core::{ChainCommunicationError, HyperlaneProtocolError};
 use rocksdb::{Options, DB as Rocks};
 use tracing::info;
 

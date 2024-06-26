@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, HyperlaneRocksDB, TryBatchAs, TxOutcome, H256, U256,
+    HyperlaneProtocolError, TryBatchAs, TxOutcome, H256, U256,
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
@@ -52,8 +52,8 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// The domain this originates from.
     fn origin_domain_id(&self) -> u32;
 
-    /// Get the database for the origin domain of this operation.
-    fn origin_db(&self) -> &HyperlaneRocksDB;
+    /// Get the operation status from the local db, if there is one
+    fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus>;
 
     /// The domain this operation will take place on.
     fn destination_domain(&self) -> &HyperlaneDomain;
