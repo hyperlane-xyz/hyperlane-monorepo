@@ -132,7 +132,7 @@ abstract class TokenDeployer<
               ).callStatic.ERC20()
             : config.token;
 
-        const erc20 = ERC20__factory.connect(config.token, provider);
+        const erc20 = ERC20__factory.connect(token, provider);
         const [name, symbol, decimals] = await Promise.all([
           erc20.name(),
           erc20.symbol(),
