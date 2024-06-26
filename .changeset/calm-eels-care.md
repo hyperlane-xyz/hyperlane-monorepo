@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Fix deriving hook error that prevents warp and core test messages on the cli
+Gracefully handle RPC failures during warp send & fix deriving hook error that prevents warp and core test messages on the cli.

@@ -46,7 +46,9 @@ import {
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 export interface HookReader {
-  deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
+  deriveHookConfig(
+    address: Address,
+  ): Promise<WithAddress<HookConfig> | undefined>;
   deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>>;
@@ -85,7 +87,10 @@ export class EvmHookReader implements HookReader {
     this.provider = multiProvider.getProvider(chain);
   }
 
-  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
+  async deriveHookConfig(
+    address: Address,
+  ): Promise<DerivedHookConfig | undefined> {
+    let onchainHookType = undefined;
     try {
       const hook = IPostDispatchHook__factory.connect(address, this.provider);
       this.logger.debug('Deriving HookConfig', { address });
@@ -93,7 +98,7 @@ export class EvmHookReader implements HookReader {
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
       this.setSmartProviderLogLevel('silent');
-      const onchainHookType = await hook.hookType();
+      onchainHookType = await hook.hookType();
 
       switch (onchainHookType) {
         case OnchainHookType.ROUTING:
@@ -121,12 +126,12 @@ export class EvmHookReader implements HookReader {
       }
     } catch (e) {
       this.logger.debug(
-        `Hook deriving failed for hook: ${address} with error ${e}`,
+        `Failed to derive ${onchainHookType} hook (${address}): ${e}`,
       );
-      return {} as DerivedHookConfig;
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
+    return undefined;
   }
 
   async deriveMerkleTreeConfig(
@@ -148,10 +153,14 @@ export class EvmHookReader implements HookReader {
     assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
-    const hookConfigs = await concurrentMap(
+    const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
       hooks,
-      async (hook) => this.deriveHookConfig(hook),
+      async (hook) => {
+        const hookConfig = await this.deriveHookConfig(hook);
+        assert(hookConfig, `No hook config found for ${hook}.`);
+        return hookConfig;
+      },
     );
 
     return {
@@ -309,6 +318,10 @@ export class EvmHookReader implements HookReader {
 
     const fallbackHook = await hook.fallbackHook();
     const fallbackHookConfig = await this.deriveHookConfig(fallbackHook);
+    assert(
+      fallbackHookConfig,
+      `No fallback hook config found for ${fallbackHook}.`,
+    );
 
     return {
       owner,
@@ -330,7 +343,9 @@ export class EvmHookReader implements HookReader {
       try {
         const domainHook = await hook.hooks(domainId);
         if (domainHook !== ethers.constants.AddressZero) {
-          domainHooks[chainName] = await this.deriveHookConfig(domainHook);
+          const hookConfig = await this.deriveHookConfig(domainHook);
+          assert(hookConfig, `No hook config found for ${domainHook}.`);
+          domainHooks[chainName] = hookConfig;
         }
       } catch (error) {
         this.logger.debug(
