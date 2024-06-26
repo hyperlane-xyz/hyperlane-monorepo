@@ -15,7 +15,6 @@ import {
   ProtocolType,
   objFilter,
   objMap,
-  objMerge,
   promiseObjAll,
   rootLogger,
   symmetricDifference,
