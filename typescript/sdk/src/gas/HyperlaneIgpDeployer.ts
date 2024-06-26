@@ -28,10 +28,12 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
   ) {
     super(multiProvider, igpFactories, {
       logger: rootLogger.child({ module: 'IgpDeployer' }),
       contractVerifier,
+      concurrentDeploy,
     });
   }
 

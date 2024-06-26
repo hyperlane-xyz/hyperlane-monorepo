@@ -65,9 +65,6 @@
 pub use base::*;
 pub use chains::*;
 pub use checkpoint_syncer::*;
-/// Export this so they don't need to import paste.
-#[doc(hidden)]
-pub use paste;
 pub use signers::*;
 pub use trace::*;
 

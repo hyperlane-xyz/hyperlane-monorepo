@@ -4,6 +4,8 @@ on:
   # Triggers the workflow on pushes to main & cli-2.0 branches
   push:
     branches: [main, cli-2.0]
+    paths-ignore:
+      - '*.md'
   # Triggers on pull requests ignoring md files
   pull_request:
     branches:

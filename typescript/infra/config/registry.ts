@@ -50,7 +50,7 @@ export function setRegistry(reg: FileSystemRegistry) {
 export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
-    rootLogger.info({ registryUri }, 'Using registry URI');
+    rootLogger.debug({ registryUri }, 'Using registry URI');
     registry = new FileSystemRegistry({
       uri: registryUri,
       logger: rootLogger.child({ module: 'infra-registry' }),

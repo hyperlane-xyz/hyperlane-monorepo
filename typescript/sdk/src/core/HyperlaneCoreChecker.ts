@@ -39,7 +39,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       return;
     }
 
-    await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
@@ -47,6 +46,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     if (config.upgrade) {
       await this.checkUpgrade(chain, config.upgrade);
     }
+    await this.checkDomainOwnership(chain);
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
