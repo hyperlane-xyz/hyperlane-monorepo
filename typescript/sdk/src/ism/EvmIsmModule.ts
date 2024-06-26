@@ -201,7 +201,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // if it's a fallback routing ISM, do a mailbox diff check and deploy a new ISM if needed
     if (targetConfig.type === IsmType.FALLBACK_ROUTING) {
-      // can only retreive mailbox address if current ISM type is also Fallback Routing
+      // can only retrieve mailbox address if current ISM type is also Fallback Routing
       const mailboxAddress =
         currentConfig.type === IsmType.FALLBACK_ROUTING
           ? await MailboxClient__factory.connect(
