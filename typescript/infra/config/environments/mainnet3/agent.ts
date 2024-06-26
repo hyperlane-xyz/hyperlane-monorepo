@@ -15,6 +15,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
@@ -162,6 +163,11 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.Minimum,
+    payment: '1',
+    matchingList: [{ destinationDomain: getDomainId('mantle') }],
+  },
   // To cover ourselves against IGP indexing issues and to ensure Nexus
   // users have the best possible experience, we whitelist messages between
   // warp routes that we know are certainly paying for gas.
