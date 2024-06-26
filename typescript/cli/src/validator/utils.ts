@@ -35,16 +35,24 @@ export const getValidatorStorageLocations = async (
   }
 };
 
-export const getLatestValidatorCheckpointIndex = async (
+export const getLatestValidatorCheckpointIndexAndUrl = async (
   s3StorageLocation: string,
-): Promise<number | undefined> => {
+): Promise<[number, string] | undefined> => {
   let s3Validator: S3Validator;
   try {
     s3Validator = await S3Validator.fromStorageLocation(s3StorageLocation);
-    return await s3Validator.getLatestCheckpointIndex();
   } catch (err) {
     logDebug(
-      `Failed to get read s3 bucket at location ${s3StorageLocation}: ${err}`,
+      `Failed to instantiate S3Validator at location ${s3StorageLocation}: ${err}`,
+    );
+    return undefined;
+  }
+  try {
+    const latestCheckpointIndex = await s3Validator.getLatestCheckpointIndex();
+    return [latestCheckpointIndex, s3Validator.getLatestCheckpointUrl()];
+  } catch (err) {
+    logDebug(
+      `Failed to get latest checkpoint index from S3Validator at location ${s3StorageLocation}: ${err}`,
     );
     return undefined;
   }

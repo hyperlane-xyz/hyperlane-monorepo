@@ -23,7 +23,7 @@ import {
 import { indentYamlOrJson } from '../utils/files.js';
 import {
   getLatestMerkleTreeCheckpointIndex,
-  getLatestValidatorCheckpointIndex,
+  getLatestValidatorCheckpointIndexAndUrl,
   getValidatorStorageLocations,
   isValidatorSigningLatestCheckpoint,
 } from '../validator/utils.js';
@@ -49,6 +49,7 @@ export const checkValidatorAvsSetup = async (
   chain: string,
   context: CommandContext,
   operatorKeyPath?: string,
+  operatorAddress?: string,
 ) => {
   logBlue(
     `Checking AVS validator status for ${chain}, ${
@@ -60,16 +61,16 @@ export const checkValidatorAvsSetup = async (
 
   const topLevelErrors: string[] = [];
 
-  let operator: Wallet | undefined;
+  let operatorWallet: Wallet | undefined;
   if (operatorKeyPath) {
-    operator = await readOperatorFromEncryptedJson(operatorKeyPath);
+    operatorWallet = await readOperatorFromEncryptedJson(operatorKeyPath);
   }
 
   const avsOperatorRecord = await getAvsOperators(
     chain,
     multiProvider,
     topLevelErrors,
-    operator?.address,
+    operatorAddress ?? operatorWallet?.address,
   );
 
   await setOperatorName(
@@ -295,8 +296,11 @@ const setValidatorInfo = async (
         continue;
       }
 
-      const latestValidatorCheckpointIndex =
-        await getLatestValidatorCheckpointIndex(storageLocation[0]);
+      const [latestValidatorCheckpointIndex, latestCheckpointUrl] =
+        (await getLatestValidatorCheckpointIndexAndUrl(storageLocation[0])) ?? [
+          undefined,
+          undefined,
+        ];
 
       if (!latestMerkleTreeCheckpointIndex) {
         warnings.push(
@@ -319,7 +323,7 @@ const setValidatorInfo = async (
       }
 
       const chainInfo: ChainInfo = {
-        storageLocation: storageLocation[0],
+        storageLocation: latestCheckpointUrl,
         latestMerkleTreeCheckpointIndex,
         latestValidatorCheckpointIndex,
         validatorSynced,

@@ -90,14 +90,19 @@ const deregisterCommand: CommandModuleWithWriteContext<{
 const checkCommand: CommandModuleWithWriteContext<{
   chain: ChainName;
   operatorKeyPath?: string;
+  operatorAddress?: string;
 }> = {
   command: 'check',
   describe: 'Check AVS',
   builder: {
     chain: avsChainCommandOption,
     operatorKeyPath: operatorKeyPathCommandOption,
+    operatorAddress: {
+      type: 'string',
+      description: 'Address of the operator to check',
+    },
   },
-  handler: async ({ context, chain, operatorKeyPath }) => {
+  handler: async ({ context, chain, operatorKeyPath, operatorAddress }) => {
     const { multiProvider } = context;
 
     // validate chain
@@ -115,7 +120,12 @@ const checkCommand: CommandModuleWithWriteContext<{
       process.exit(1);
     }
 
-    await checkValidatorAvsSetup(chain, context, operatorKeyPath);
+    await checkValidatorAvsSetup(
+      chain,
+      context,
+      operatorKeyPath,
+      operatorAddress,
+    );
 
     process.exit(0);
   },
