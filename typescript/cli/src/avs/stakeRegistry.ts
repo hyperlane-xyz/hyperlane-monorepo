@@ -109,7 +109,7 @@ export async function deregisterOperator({
   );
 }
 
-async function readOperatorFromEncryptedJson(
+export async function readOperatorFromEncryptedJson(
   operatorKeyPath: string,
 ): Promise<Wallet> {
   const encryptedJson = readFileAtPath(resolvePath(operatorKeyPath));
