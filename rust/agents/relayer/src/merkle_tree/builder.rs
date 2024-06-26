@@ -3,7 +3,7 @@ use std::fmt::Display;
 use eyre::{Context, Result};
 use tracing::{debug, error, instrument};
 
-use hyperlane_core::db::DbError;
+use hyperlane_base::db::DbError;
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     ChainCommunicationError, H256,

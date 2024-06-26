@@ -12,6 +12,9 @@ pub mod settings;
 mod agent;
 pub use agent::*;
 
+/// The local database used by agents
+pub mod db;
+
 pub mod metrics;
 pub use metrics::*;
 

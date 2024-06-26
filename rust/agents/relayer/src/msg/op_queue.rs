@@ -118,8 +118,8 @@ impl OpQueue {
 mod test {
     use super::*;
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, HyperlaneRocksDB, KnownHyperlaneDomain,
-        PendingOperationResult, TryBatchAs, TxOutcome, H256, U256,
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
+        TryBatchAs, TxOutcome, H256, U256,
     };
     use std::{
         collections::VecDeque,
@@ -166,7 +166,7 @@ mod test {
             todo!()
         }
 
-        fn origin_db(&self) -> &HyperlaneRocksDB {
+        fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
             todo!()
         }
 

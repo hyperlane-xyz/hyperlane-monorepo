@@ -10,13 +10,14 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
-    metrics::AgentMetrics, settings::ChainConf, BaseAgent, ChainMetrics, CheckpointSyncer,
-    ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetricsUpdater,
-    SequencedDataContractSync,
+    db::{HyperlaneRocksDB, DB},
+    metrics::AgentMetrics,
+    settings::ChainConf,
+    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer, CoreMetrics,
+    HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
 use hyperlane_core::{
-    db::{HyperlaneRocksDB, DB},
     Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
     HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce,
     H256, U256,

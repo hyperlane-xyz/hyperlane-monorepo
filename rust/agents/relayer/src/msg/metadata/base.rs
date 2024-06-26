@@ -19,11 +19,11 @@ use crate::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
 };
-use hyperlane_core::db::HyperlaneRocksDB;
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, MultisigIsm, RoutingIsm,

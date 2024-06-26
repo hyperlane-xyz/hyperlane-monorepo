@@ -4192,8 +4192,10 @@ dependencies = [
  "itertools 0.12.0",
  "maplit",
  "mockall",
+ "paste",
  "prometheus",
  "reqwest",
+ "rocksdb",
  "rusoto_core",
  "rusoto_kms",
  "rusoto_s3",
@@ -4237,23 +4239,19 @@ dependencies = [
  "eyre",
  "fixed-hash 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures",
- "futures-util",
  "getrandom 0.2.12",
  "hex 0.4.3",
  "itertools 0.12.0",
  "num 0.4.1",
  "num-derive 0.4.1",
  "num-traits",
- "paste",
  "primitive-types",
- "rocksdb",
  "serde",
  "serde_json",
  "sha3 0.10.8",
  "solana-sdk",
  "strum 0.26.3",
  "strum_macros 0.26.4",
- "tempfile",
  "thiserror",
  "tiny-keccak 2.0.2",
  "tokio",
@@ -4318,21 +4316,6 @@ dependencies = [
  "sha2 0.10.8",
  "sha3 0.10.8",
  "thiserror",
-]
-
-[[package]]
-name = "hyperlane-db"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "eyre",
- "futures-util",
- "hyperlane-core",
- "paste",
- "rocksdb",
- "tempfile",
- "tokio",
- "tracing",
 ]
 
 [[package]]

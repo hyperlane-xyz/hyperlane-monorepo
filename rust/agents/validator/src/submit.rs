@@ -9,8 +9,8 @@ use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::{CheckpointSyncer, CoreMetrics};
-use hyperlane_core::db::HyperlaneRocksDB;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,

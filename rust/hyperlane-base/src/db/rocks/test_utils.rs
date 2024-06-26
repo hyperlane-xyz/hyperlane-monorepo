@@ -2,7 +2,7 @@ use futures_util::Future;
 use rocksdb::Options;
 use tempfile::TempDir;
 
-use hyperlane_core::db::DB;
+use crate::db::DB;
 
 /// Create a database from a path.
 pub fn setup_db(db_path: String) -> DB {

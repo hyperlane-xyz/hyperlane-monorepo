@@ -7,8 +7,8 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::db::HyperlaneRocksDB;
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
@@ -151,7 +151,7 @@ impl PendingOperation for PendingMessage {
     }
 
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
-        match self.origin_db().retrieve_status_by_message_id(&op.id()) {
+        match self.ctx.origin_db.retrieve_status_by_message_id(&self.id()) {
             Ok(status) => status,
             Err(e) => {
                 warn!(error=?e, "Failed to retrieve status for message");
