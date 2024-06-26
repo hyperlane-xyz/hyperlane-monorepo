@@ -38,6 +38,9 @@ contract StorageGasOracle is IGasOracle, Ownable {
         uint128 gasPrice;
     }
 
+    // ============ Constructor ============
+    constructor(address initialOwner) Ownable(initialOwner) {}
+
     // ============ External Functions ============
 
     /**
