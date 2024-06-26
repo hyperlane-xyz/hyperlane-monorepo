@@ -77,7 +77,9 @@ pub fn termination_invariants_met(
     // in which case more gas expenditure logs than messages are expected.
     assert!(
         gas_expenditure_log_count as u32 >= total_messages_expected,
-        "Didn't record gas payment for all delivered messages"
+        "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
+        gas_expenditure_log_count,
+        total_messages_expected
     );
 
     let gas_payment_sealevel_events_count = fetch_metric(

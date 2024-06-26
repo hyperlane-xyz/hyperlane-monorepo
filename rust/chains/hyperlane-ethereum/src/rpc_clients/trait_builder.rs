@@ -221,6 +221,7 @@ pub trait BuildableWithProvider {
             let signing_provider = wrap_with_signer(provider, signer.clone()).await;
             let gas_escalator_provider =
                 wrap_with_gas_escalator(signing_provider, &conn.transaction_overrides);
+            // let signing_provider = wrap_with_signer(provider, signer.clone()).await;
             // let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
             //     .await
             //     .map_err(ChainCommunicationError::from_other)?;
@@ -298,7 +299,7 @@ where
 fn wrap_with_gas_escalator<M>(
     provider: M,
     tx_overrides: &TransactionOverrides,
-) -> GasEscalatorMiddleware<M, GeometricGasPrice>
+) -> GasEscalatorMiddleware<M>
 where
     M: Middleware + 'static,
 {
