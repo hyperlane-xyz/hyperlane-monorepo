@@ -186,6 +186,27 @@ describe('EvmHookReader', () => {
     expect(config).to.deep.equal(hookConfig);
   });
 
+  it('should return an empty config if deriving fails', async () => {
+    const mockAddress = generateRandomAddress();
+    const mockOwner = generateRandomAddress();
+
+    // Mocking the connect method + returned what we need from contract object
+    const mockContract = {
+      // No type
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(MerkleTreeHook__factory, 'connect')
+      .returns(mockContract as unknown as MerkleTreeHook);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockContract as unknown as IPostDispatchHook);
+
+    // top-level method infers hook type
+    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
+    expect(hookConfig).to.be.undefined;
+  });
+
   /*
     Testing for more nested hook types can be done manually by reading from existing contracts onchain.
     Examples of nested hook types include:
