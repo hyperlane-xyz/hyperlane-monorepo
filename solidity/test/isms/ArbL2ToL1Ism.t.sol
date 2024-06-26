@@ -251,7 +251,6 @@ contract ArbL2ToL1IsmTest is Test {
                 MOCK_L1_BLOCK,
                 block.timestamp,
                 uint256(0),
-                0,
                 encodedHookData
             );
     }

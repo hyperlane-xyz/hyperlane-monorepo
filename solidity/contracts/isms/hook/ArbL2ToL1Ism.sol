@@ -99,7 +99,6 @@ contract ArbL2ToL1Ism is
             uint256 l1Block,
             uint256 l2Timestamp,
             uint256 value,
-            uint256 unused,
             bytes memory data
         ) = abi.decode(
                 _metadata,
@@ -108,7 +107,6 @@ contract ArbL2ToL1Ism is
                     uint256,
                     address,
                     address,
-                    uint256,
                     uint256,
                     uint256,
                     uint256,
@@ -144,6 +142,8 @@ contract ArbL2ToL1Ism is
             value,
             data
         );
+
+        return true;
     }
 
     // ============ Internal function ============
