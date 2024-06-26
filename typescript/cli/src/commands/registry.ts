@@ -113,17 +113,11 @@ const createAgentConfigCommand: CommandModuleWithContext<{
       false,
       'The path to output an agent config JSON file.',
     ),
-    skipPrompts: {
-      type: 'boolean',
-      description: 'Skip user prompts',
-      default: false,
-    },
   },
   handler: async ({
     context,
     chains,
     out,
-    skipPrompts,
   }: {
     context: CommandContext;
     chains?: string;
@@ -152,7 +146,6 @@ const createAgentConfigCommand: CommandModuleWithContext<{
       context,
       chains: chainNames,
       out,
-      skipPrompts,
     });
     process.exit(0);
   },

@@ -1,8 +1,10 @@
 import { confirm } from '@inquirer/prompts';
+import { ethers } from 'ethers';
 import { fromError } from 'zod-validation-error';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  AgentConfig,
   AgentConfigSchema,
   ChainMap,
   HyperlaneCore,
@@ -19,20 +21,47 @@ export async function createAgentConfig({
   context,
   chains,
   out,
-  skipPrompts = false,
 }: {
   context: CommandContext;
   chains?: string[];
   out: string;
-  skipPrompts?: boolean;
 }) {
   logBlue('\nCreating agent config...');
 
-  const { registry, multiProvider, chainMetadata } = context;
+  const { registry, multiProvider, chainMetadata, skipConfirmation } = context;
   const addresses = await registry.getAddresses();
 
-  if (!chains) {
-    if (skipPrompts) {
+  await handleNoChainsProvided(skipConfirmation, chains);
+
+  const chainAddresses = filterChainAddresses(addresses, chains);
+
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
+  const startBlocks = await getStartBlocks(chainAddresses, core, chainMetadata);
+
+  if (!skipConfirmation) {
+    await handleMissingInterchainGasPaymaster(chainAddresses);
+  }
+
+  const agentConfig: AgentConfig = buildAgentConfig(
+    chains ?? Object.keys(chainAddresses),
+    multiProvider,
+    chainAddresses as ChainMap<HyperlaneDeploymentArtifacts>,
+    startBlocks,
+  );
+
+  await validateAgentConfig(agentConfig, skipConfirmation);
+
+  logBlue(`\nWriting agent config to file ${out}`);
+  writeYamlOrJson(out, agentConfig, 'json');
+  logGreen(`✅ Agent config successfully written to ${out}`);
+}
+
+async function handleNoChainsProvided(
+  skipConfirmation: boolean,
+  chains?: string[],
+) {
+  if (!chains || chains.length === 0) {
+    if (skipConfirmation) {
       logBlue(
         '\nNo chains provided, generating agent config for all supported chains',
       );
@@ -47,19 +76,27 @@ export async function createAgentConfig({
       }
     }
   }
+}
 
-  let chainAddresses = addresses;
-  if (chains) {
-    // Filter out only the chains that are provided
-    chainAddresses = objFilter(addresses, (chain, _): _ is ChainAddresses => {
-      return chains.includes(chain);
-    });
+function filterChainAddresses(
+  addresses: ChainMap<ChainAddresses>,
+  chains?: string[],
+) {
+  if (!chains) {
+    return addresses;
   }
+  return objFilter(addresses, (chain, _): _ is ChainAddresses => {
+    return chains.includes(chain);
+  });
+}
 
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-  const startBlocks = await promiseObjAll(
+async function getStartBlocks(
+  chainAddresses: ChainMap<ChainAddresses>,
+  core: HyperlaneCore,
+  chainMetadata: any,
+) {
+  return promiseObjAll(
     objMap(chainAddresses, async (chain, _) => {
-      // If the index.from is specified in the chain metadata, use that.
       const indexFrom = chainMetadata[chain].index?.from;
       if (indexFrom !== undefined) {
         return indexFrom;
@@ -77,32 +114,30 @@ export async function createAgentConfig({
       }
     }),
   );
+}
 
-  if (!skipPrompts) {
-    // set interchainGasPaymaster to 0x0 if it is missing
-    for (const [chain, addressesRecord] of Object.entries(chainAddresses)) {
-      if (!addressesRecord.interchainGasPaymaster) {
-        warnYellow(`interchainGasPaymaster address is missing for ${chain}`);
-        const zeroIGPAddress = await confirm({
-          message: `Would you like to set the interchainGasPaymaster address to 0x0 for ${chain}?`,
-        });
+async function handleMissingInterchainGasPaymaster(
+  chainAddresses: ChainMap<ChainAddresses>,
+) {
+  for (const [chain, addressesRecord] of Object.entries(chainAddresses)) {
+    if (!addressesRecord.interchainGasPaymaster) {
+      warnYellow(`interchainGasPaymaster address is missing for ${chain}`);
+      const zeroIGPAddress = await confirm({
+        message: `Would you like to set the interchainGasPaymaster address to 0x0 for ${chain}?`,
+      });
 
-        if (zeroIGPAddress) {
-          chainAddresses[chain].interchainGasPaymaster =
-            '0x0000000000000000000000000000000000000000';
-        }
+      if (zeroIGPAddress) {
+        chainAddresses[chain].interchainGasPaymaster =
+          ethers.constants.AddressZero;
       }
     }
   }
+}
 
-  // @TODO: consider adding additional config used to pass in gas prices for Cosmos chains
-  const agentConfig = buildAgentConfig(
-    chains ?? Object.keys(chainAddresses),
-    multiProvider,
-    chainAddresses as ChainMap<HyperlaneDeploymentArtifacts>,
-    startBlocks,
-  );
-
+async function validateAgentConfig(
+  agentConfig: AgentConfig,
+  skipConfirmation: boolean,
+) {
   const result = AgentConfigSchema.safeParse(agentConfig);
   if (!result.success) {
     const errorMessage = fromError(result.error).toString();
@@ -110,7 +145,7 @@ export async function createAgentConfig({
       `\nAgent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${errorMessage}`,
     );
 
-    if (skipPrompts) {
+    if (skipConfirmation) {
       logBlue('Creating agent config anyway...');
     } else {
       const continueAnyway = await confirm({
@@ -125,8 +160,4 @@ export async function createAgentConfig({
   } else {
     logGreen('✅ Agent config successfully created');
   }
-
-  logBlue(`\nWriting agent config to file ${out}`);
-  writeYamlOrJson(out, agentConfig, 'json');
-  logGreen(`✅ Agent config successfully written to ${out}`);
 }
