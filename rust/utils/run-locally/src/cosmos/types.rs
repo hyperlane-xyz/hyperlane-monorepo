@@ -177,10 +177,7 @@ impl AgentConfig {
                 amount: "0.05".to_string(),
             },
             contract_address_bytes: 32,
-            index: AgentConfigIndex {
-                from: 1,
-                chunk: 100,
-            },
+            index: AgentConfigIndex { from: 1, chunk: 5 },
         }
     }
 }

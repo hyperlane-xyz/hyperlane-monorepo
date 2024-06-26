@@ -89,6 +89,28 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
 ];
 
+// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+const relayerResources = {
+  requests: {
+    cpu: '1000m',
+    memory: '4Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '250m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '1Gi',
+  },
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   contextChainNames: hyperlaneContextAgentChainNames,
@@ -98,7 +120,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -122,21 +144,24 @@ const hyperlane: RootAgentConfig = {
         matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
       },
     ],
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e09a360-20240520-090014',
+      tag: '0d12ff3-20240620-173353',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
+    resources: scraperResources,
   },
 };
 
@@ -149,19 +174,21 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 

@@ -27,6 +27,7 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
@@ -92,7 +93,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
     optimism: true,
-    osmosis: false,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
     redstone: true,
@@ -122,6 +123,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // Cannot scrape non-EVM chains
     neutron: false,
     optimism: true,
+    // Cannot scrape non-EVM chains
     osmosis: false,
     polygon: true,
     polygonzkevm: true,
@@ -212,7 +214,33 @@ const metricAppContexts = [
     name: 'ancient8_ethereum_usdc',
     matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
   },
+  {
+    name: 'renzo_ezeth',
+    matchingList: routerMatchingList(renzoEzEthAddresses),
+  },
 ];
+
+// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+const relayerResources = {
+  requests: {
+    cpu: '14000m',
+    memory: '12Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '250m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '4Gi',
+  },
+};
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -223,25 +251,28 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '59451d6-20240612-171611',
+      tag: '9535087-20240623-174819',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: '59451d6-20240612-171611',
+      tag: '0d12ff3-20240620-173353',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '59451d6-20240612-171611',
+      tag: '0d12ff3-20240620-173353',
     },
+    resources: scraperResources,
   },
 };
 
@@ -254,21 +285,23 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '939fa81-20240607-194607',
+      tag: '9535087-20240623-174819',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 
@@ -285,7 +318,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     gasPaymentEnforcement: [
       {
@@ -312,6 +345,7 @@ const neutron: RootAgentConfig = {
         matchingList: routerMatchingList(arbitrumNeutronEclipAddresses),
       },
     ],
+    resources: relayerResources,
   },
 };
 

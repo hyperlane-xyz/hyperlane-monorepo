@@ -62,7 +62,6 @@ export abstract class HyperlaneAppGovernor<
 
   async govern(confirm = true, chain?: ChainName) {
     if (this.checker.violations.length === 0) return;
-
     // 1. Produce calls from checker violations.
     await this.mapViolationsToCalls();
 
@@ -93,7 +92,6 @@ export abstract class HyperlaneAppGovernor<
         calls.map((c) =>
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
         );
-
         if (!requestConfirmation) return true;
 
         const { value: confirmed } = await prompts({
@@ -102,6 +100,7 @@ export abstract class HyperlaneAppGovernor<
           message: 'Can you confirm?',
           initial: false,
         });
+
         return !!confirmed;
       }
       return false;

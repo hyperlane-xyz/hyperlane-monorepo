@@ -10,9 +10,12 @@ on:
       - 'typescript/infra/**'
       - 'Dockerfile'
       - '.dockerignore'
+      - '.github/workflows/monorepo-docker.yml'
+
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   check-env:
     runs-on: ubuntu-latest
@@ -45,7 +48,7 @@ jobs:
         id: taggen
         run: |
           echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-          echo "TAG_SHA=$(echo '${{ github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -66,6 +69,13 @@ jobs:
           registry: gcr.io
           username: _json_key
           password: ${{ secrets.GCLOUD_SERVICE_KEY }}
+
+      - name: Read .registryrc
+        shell: bash
+        run: |
+          REGISTRY_VERSION=$(cat .registryrc)
+          echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -76,6 +86,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # To always fetch the latest registry, we use the date as the cache key
           build-args: |
-            REGISTRY_CACHE=${{ steps.taggen.outputs.TAG_DATE }}
+            REGISTRY_COMMIT=${{ env.REGISTRY_VERSION }}

@@ -715,7 +715,7 @@
         }
       ],
       "index": {
-        "chunk": 25,
+        "chunk": 5,
         "from": 58419500
       },
       "interchainGasPaymaster": "0x27ae52298e5b53b34b7ae0ca63e05845c31e1f59",
@@ -1007,7 +1007,7 @@
         }
       ],
       "index": {
-        "chunk": 50,
+        "chunk": 5,
         "from": 4000000
       },
       "interchainGasPaymaster": "0x504ee9ac43ec5814e00c7d21869a90ec52becb489636bdf893b7df9d606b5d67",
@@ -1155,6 +1155,11 @@
           "http": "https://osmosis-rpc.publicnode.com"
         }
       ],
+      "signer": {
+        "key": "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26",
+        "prefix": "osmo",
+        "type": "cosmosKey"
+      },
       "slip44": 118,
       "validatorAnnounce": "0xaf867da5b09a20ee49161d57f99477c0c42d100f34eb53da0d2eb7fc6c257235"
     },
@@ -1573,9 +1578,6 @@
         },
         {
           "http": "https://zetachain-athens-evm.blockpi.network/v1/rpc/public"
-        },
-        {
-          "http": "https://zetachain-mainnet-archive.allthatnode.com:8545"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",

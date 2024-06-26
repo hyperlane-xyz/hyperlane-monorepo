@@ -1,6 +1,12 @@
 name: rust
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'rust/**'
+      - .github/workflows/rust.yml
+      - '!*.md'
   pull_request:
     branches: [main]
     paths:
@@ -39,8 +45,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v2-rust"
-          shared-key: "test"
+          prefix-key: "v3-rust"
           workspaces: |
             ./rust
       - name: Free disk space
@@ -69,8 +74,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v2-rust"
-          shared-key: "lint"
+          prefix-key: "v3-rust"
           workspaces: |
             ./rust
       - name: Free disk space

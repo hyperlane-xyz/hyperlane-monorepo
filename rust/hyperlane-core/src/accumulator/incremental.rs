@@ -7,7 +7,7 @@ use crate::accumulator::{
     H256, TREE_DEPTH, ZERO_HASHES,
 };
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, Copy, new, PartialEq, Eq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, new, PartialEq, Eq)]
 /// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     /// The branch of the tree
