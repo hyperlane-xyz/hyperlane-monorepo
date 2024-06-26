@@ -19,6 +19,7 @@ import {
   logGray,
   logGreen,
   logPink,
+  logRed,
   logTable,
 } from '../logger.js';
 import { gasBalancesAreSufficient } from '../utils/balances.js';
@@ -55,13 +56,20 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  const sufficient = await gasBalancesAreSufficient(
-    multiProvider,
-    signer,
-    chainsToGasCheck ?? chains,
-    minGas,
-  );
-  if (sufficient) logGreen('✅ Balances are sufficient');
+  const allSufficient = (
+    await gasBalancesAreSufficient(
+      multiProvider,
+      signer,
+      chainsToGasCheck ?? chains,
+      minGas,
+    )
+  ).every((sufficient) => sufficient);
+
+  if (allSufficient) logGreen('✅ Balances are sufficient');
+  else
+    logRed(
+      '❌ Some balances are insufficient. Partial deployment may fail. Please see warning above.',
+    );
 }
 
 export async function runDeployPlanStep({

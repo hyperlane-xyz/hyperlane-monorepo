@@ -38,18 +38,20 @@ export async function gasBalancesAreSufficient(
   signer: ethers.Signer,
   chains: ChainName[],
   minGas: string,
-): Promise<boolean> {
-  let sufficient = true;
+): Promise<boolean[]> {
+  const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
     const provider = multiProvider.getProvider(chain);
     const gasPrice = await provider.getGasPrice();
     const minBalanceWei = gasPrice.mul(minGas).toString();
-    sufficient = await nativeBalancesAreSufficient(
-      multiProvider,
-      signer,
-      [chain],
-      minBalanceWei,
+    sufficientBalances.push(
+      await nativeBalancesAreSufficient(
+        multiProvider,
+        signer,
+        [chain],
+        minBalanceWei,
+      ),
     );
   }
-  return sufficient;
+  return sufficientBalances;
 }
