@@ -34,6 +34,9 @@ export async function sendTestMessage({
       'Select the origin chain',
     );
   }
+  if (destination) {
+    console.log('ELLISH: send signer:', context.signer);
+  }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
@@ -83,9 +86,8 @@ async function executeDelivery({
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const mailbox = core.getContracts(origin).mailbox;
 
-  const customHook = '0xe036768e48Cb0D42811d2bF0748806FCcBfCd670';
-  let hook = customHook;
   // let hook = chainAddresses[origin]?.customHook;
+  let hook = '0x740bEd6E4eEc7c57a2818177Fba3f9E896D5DE1c';
   if (hook) {
     logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
   } else {
@@ -97,7 +99,7 @@ async function executeDelivery({
   let txReceipt: ethers.ContractReceipt;
   try {
     // const recipient = chainAddresses[destination].testRecipient;
-    const recipient = '0xB8D70C9352AA59f5EB138e045117841910c107a3';
+    const recipient = '0x9c63ce44d595cfd97215fcb97d58cfd07a9d6bd7';
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
@@ -136,10 +138,10 @@ async function executeDelivery({
     log(`Message: ${JSON.stringify(message)}`);
 
     console.log('Selfrelay option: ', selfRelay);
-    if (selfRelay == selfRelay) {
+    if (selfRelay) {
       const relayer = new HyperlaneRelayer(core);
       log('Attempting self-relay of message');
-      await relayer.relayMessage(txReceipt, 0, message, customHook);
+      await relayer.relayMessage(txReceipt, 0, message);
       logGreen('Message was self-relayed!');
       return;
     }

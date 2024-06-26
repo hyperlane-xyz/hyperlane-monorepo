@@ -1,15 +1,33 @@
-import { L2ToL1MessageReader } from '@arbitrum/sdk';
+import { ArbitrumProvider, L2ToL1MessageReader } from '@arbitrum/sdk';
 import { L2ToL1TransactionEvent } from '@arbitrum/sdk/dist/lib/message/L2ToL1Message.js';
 import { assert } from 'console';
+import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
 import { ArbSys__factory } from '@hyperlane-xyz/core';
-import { WithAddress, eqAddressEvm, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  WithAddress,
+  eqAddressEvm,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { ArbL2ToL1HookConfig } from '../../hook/types.js';
 import { ArbL2ToL1IsmConfig, IsmType } from '../types.js';
 
 import { MetadataBuilder, MetadataContext } from './builder.js';
+
+interface ArbL2ToL1Metadata {
+  proof: BytesLike[];
+  index: BigNumber;
+  l2Sender: Address;
+  to: Address;
+  l2Block: BigNumber;
+  l1Block: BigNumber;
+  l2Timestamp: BigNumber;
+  value: BigNumber;
+  data: BytesLike;
+}
 
 const ArbSys = ArbSys__factory.createInterface();
 
@@ -29,6 +47,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   ): Promise<string> {
     assert(context.ism.type === IsmType.ARB_L2_TO_L1, 'Invalid ISM type');
     this.logger.debug({ context }, 'Building ArbL2ToL1 metadata');
+    console.log('arbhook address:', context.hook.address);
 
     const matchingL2Tx = context.dispatchTx.logs
       .filter((log) => eqAddressEvm(log.address, context.hook.arbSys))
@@ -36,7 +55,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       .find((log) => {
         const calldata: string = log.args.data;
         const messageIdHex = context.message.id.slice(2);
-        return calldata.includes(messageIdHex);
+        return calldata && calldata.includes(messageIdHex);
       });
 
     assert(matchingL2Tx, 'No matching L2ToL1Tx event found');
@@ -60,16 +79,93 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         this.core.multiProvider.getProvider('sepolia'),
         l2ToL1TxEvent,
       );
-      const status = await reader.status(
-        this.core.multiProvider.getProvider('arbitrumsepolia'),
+
+      const baseProvider = new providers.JsonRpcProvider(
+        this.core.multiProvider.getChainMetadata(
+          'arbitrumsepolia',
+        ).rpcUrls[0].http,
       );
-      console.log('ELLISH status: ', status);
-      // const proof = await reader.getOutboxProof(
-      //   this.core.multiProvider.getProvider('arbitrumsepolia'),
-      // );
-      // console.log('ELLISH proof: ', JSON.stringify(proof, null, 4));
+      const arbProvider = new ArbitrumProvider(baseProvider, {
+        name: 'arbitrum-sepolia',
+        chainId: 421614,
+      });
+
+      const status = await reader.status(arbProvider);
+      if (!status) {
+        const currentBlock = await this.core.multiProvider
+          .getProvider('sepolia')
+          .getBlockNumber();
+        const executableBlock = (
+          await reader.getFirstExecutableBlock(arbProvider)
+        )?.toNumber();
+
+        if (executableBlock) {
+          throw new Error(
+            `Arbitrum L2ToL1 message isn't ready for relay. Wait until the challenge period is over in ${
+              executableBlock - currentBlock
+            } blocks before relaying again.`,
+          );
+        } else {
+          throw new Error(
+            `Arbitrum L2ToL1 message isn't ready for relay. Wait until the challenge period before relaying again.`,
+          );
+        }
+      }
+
+      const outboxProofResult =
+        (await reader.getOutboxProof(arbProvider)) ?? [];
+
+      // extract the proof key from MessageBatchProofInfo
+      const outboxProof: string[] =
+        'proof' in outboxProofResult
+          ? outboxProofResult.proof
+          : outboxProofResult ?? [];
+
+      const metadata: ArbL2ToL1Metadata = {
+        proof: outboxProof,
+        index: l2ToL1TxEvent.position,
+        l2Sender: l2ToL1TxEvent.caller,
+        to: l2ToL1TxEvent.destination,
+        l2Block: l2ToL1TxEvent.arbBlockNum,
+        l1Block: l2ToL1TxEvent.ethBlockNum,
+        l2Timestamp: l2ToL1TxEvent.timestamp,
+        value: l2ToL1TxEvent.callvalue,
+        data: l2ToL1TxEvent.data,
+      };
+
+      const encodedMetadata =
+        ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(metadata);
+      return encodedMetadata;
     }
 
-    return 'ArbL2ToL1MetadataBuilder';
+    return '0x';
+  }
+
+  static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
+    const abiCoder = new utils.AbiCoder();
+    return abiCoder.encode(
+      [
+        'bytes32[]',
+        'uint256',
+        'address',
+        'address',
+        'uint256',
+        'uint256',
+        'uint256',
+        'uint256',
+        'bytes',
+      ],
+      [
+        metadata.proof,
+        metadata.index,
+        metadata.l2Sender,
+        metadata.to,
+        metadata.l2Block,
+        metadata.l1Block,
+        metadata.l2Timestamp,
+        metadata.value,
+        metadata.data,
+      ],
+    );
   }
 }

@@ -142,6 +142,8 @@ contract ArbL2ToL1Ism is
             value,
             data
         );
+
+        return true;
     }
 
     // ============ Internal function ============

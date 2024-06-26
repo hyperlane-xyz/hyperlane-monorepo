@@ -272,8 +272,6 @@ export class EvmHookReader implements HookReader {
   ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
     const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
     const arbSys = await hook.arbSys();
-
-    console.log('ELLISH arbSys', arbSys);
     return {
       address,
       type: HookType.ARB_L2_TO_L1,
