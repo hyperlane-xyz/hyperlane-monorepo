@@ -4,6 +4,9 @@ name: rust
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'rust/**'
+      - .github/workflows/rust.yml
   pull_request:
     branches: [main]
     paths-ignore:

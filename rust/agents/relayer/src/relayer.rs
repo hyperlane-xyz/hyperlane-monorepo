@@ -33,6 +33,7 @@ use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
+        blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
         metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
@@ -70,8 +71,9 @@ pub struct Relayer {
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
     merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
-    whitelist: Arc<MatchingList>,
-    blacklist: Arc<MatchingList>,
+    message_whitelist: Arc<MatchingList>,
+    message_blacklist: Arc<MatchingList>,
+    address_blacklist: Arc<AddressBlacklist>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
@@ -89,11 +91,12 @@ impl Debug for Relayer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Relayer {{ origin_chains: {:?}, destination_chains: {:?}, whitelist: {:?}, blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
+            "Relayer {{ origin_chains: {:?}, destination_chains: {:?}, message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
             self.origin_chains,
             self.destination_chains,
-            self.whitelist,
-            self.blacklist,
+            self.message_whitelist,
+            self.message_blacklist,
+            self.address_blacklist,
             self.transaction_gas_limit,
             self.skip_transaction_gas_limit_for,
             self.allow_local_checkpoint_syncers
@@ -177,14 +180,16 @@ impl BaseAgent for Relayer {
             .map(|(k, v)| (k, v as _))
             .collect();
 
-        let whitelist = Arc::new(settings.whitelist);
-        let blacklist = Arc::new(settings.blacklist);
+        let message_whitelist = Arc::new(settings.whitelist);
+        let message_blacklist = Arc::new(settings.blacklist);
+        let address_blacklist = Arc::new(AddressBlacklist::new(settings.address_blacklist));
         let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
         let transaction_gas_limit = settings.transaction_gas_limit;
 
         info!(
-            %whitelist,
-            %blacklist,
+            %message_whitelist,
+            %message_blacklist,
+            ?address_blacklist,
             ?transaction_gas_limit,
             ?skip_transaction_gas_limit_for,
             "Whitelist configuration"
@@ -242,7 +247,6 @@ impl BaseAgent for Relayer {
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     db,
-                    5,
                     IsmAwareAppContextClassifier::new(
                         mailboxes[destination].clone(),
                         settings.metric_app_contexts.clone(),
@@ -276,8 +280,9 @@ impl BaseAgent for Relayer {
             interchain_gas_payment_syncs,
             prover_syncs,
             merkle_tree_hook_syncs,
-            whitelist,
-            blacklist,
+            message_whitelist,
+            message_blacklist,
+            address_blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
@@ -488,8 +493,9 @@ impl Relayer {
 
         let message_processor = MessageProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
-            self.whitelist.clone(),
-            self.blacklist.clone(),
+            self.message_whitelist.clone(),
+            self.message_blacklist.clone(),
+            self.address_blacklist.clone(),
             metrics,
             send_channels,
             destination_ctxs,

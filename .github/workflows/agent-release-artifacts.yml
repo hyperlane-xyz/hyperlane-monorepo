@@ -43,7 +43,7 @@ jobs:
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: ubuntu setup
         if: ${{ matrix.OS == 'larger-runner' }}
         run: |
@@ -74,7 +74,7 @@ jobs:
         run: chmod ug+x,-w relayer scraper validator
         working-directory: rust/target/${{ matrix.TARGET }}/release
       - name: upload binaries
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_sha }}-${{ needs.prepare.outputs.tag_date }}
           path: |

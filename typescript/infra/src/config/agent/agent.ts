@@ -89,8 +89,12 @@ export interface AgentContextConfig extends AgentEnvConfig {
 
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
+  // K8s-specific
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
+  resources?: KubernetesResources;
+
+  // Agent-specific
   rpcConsensusType: RpcConsensusType;
   index?: IndexingConfig;
 }
@@ -117,6 +121,16 @@ export interface AwsConfig {
 export interface DockerConfig {
   repo: string;
   tag: string;
+}
+
+export interface KubernetesResources {
+  requests?: KubernetesComputeResources;
+  limits?: KubernetesComputeResources;
+}
+
+export interface KubernetesComputeResources {
+  cpu: string;
+  memory: string;
 }
 
 export class RootAgentConfigHelper implements AgentContextConfig {
@@ -154,21 +168,14 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   }
 }
 
-export abstract class AgentConfigHelper<R = unknown>
-  extends RootAgentConfigHelper
-  implements AgentRoleConfig
-{
-  rpcConsensusType: RpcConsensusType;
-  docker: DockerConfig;
-  chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
-  index?: IndexingConfig;
-
-  protected constructor(root: RootAgentConfig, agent: AgentRoleConfig) {
+export abstract class AgentConfigHelper<
+  R = unknown,
+> extends RootAgentConfigHelper {
+  protected constructor(
+    root: RootAgentConfig,
+    readonly agentRoleConfig: AgentRoleConfig,
+  ) {
     super(root);
-    this.rpcConsensusType = agent.rpcConsensusType;
-    this.docker = agent.docker;
-    this.chainDockerOverrides = agent.chainDockerOverrides;
-    this.index = agent.index;
   }
 
   // role this config is for
@@ -178,13 +185,13 @@ export abstract class AgentConfigHelper<R = unknown>
 
   // If the provided chain has an override, return the override, otherwise return the default.
   dockerImageForChain(chainName: ChainName): DockerConfig {
-    if (this.chainDockerOverrides?.[chainName]) {
+    if (this.agentRoleConfig.chainDockerOverrides?.[chainName]) {
       return {
-        ...this.docker,
-        ...this.chainDockerOverrides[chainName],
+        ...this.agentRoleConfig.docker,
+        ...this.agentRoleConfig.chainDockerOverrides[chainName],
       };
     }
-    return this.docker;
+    return this.agentRoleConfig.docker;
   }
 }
 
