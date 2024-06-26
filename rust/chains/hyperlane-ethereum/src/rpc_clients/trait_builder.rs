@@ -221,11 +221,11 @@ pub trait BuildableWithProvider {
             let signing_provider = wrap_with_signer(provider, signer.clone()).await;
             let gas_escalator_provider =
                 wrap_with_gas_escalator(signing_provider, &conn.transaction_overrides);
-            let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
-                .await
-                .map_err(ChainCommunicationError::from_other)?;
+            // let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
+            //     .await
+            //     .map_err(ChainCommunicationError::from_other)?;
 
-            self.build_with_provider(nonce_manager_provider, conn, locator)
+            self.build_with_provider(gas_escalator_provider, conn, locator)
         } else {
             self.build_with_provider(provider, conn, locator)
         }
@@ -247,6 +247,9 @@ async fn wrap_with_signer<M: Middleware>(
     provider: M,
     signer: Signers,
 ) -> SignerMiddleware<M, Signers> {
+    let provider_chain_id = provider.get_chainid().await.unwrap();
+    let signer = ethers::signers::Signer::with_chain_id(signer, provider_chain_id.as_u64());
+
     SignerMiddleware::new(provider, signer)
 }
 
