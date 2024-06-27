@@ -123,6 +123,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   test1: '0',
   test2: '0',
   test3: '0',
+  test4: '0',
 };
 
 // Funds key addresses for multiple contexts from the deployer key of the context
