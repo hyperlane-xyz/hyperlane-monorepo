@@ -25,7 +25,6 @@ import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.s
 import {IOutbox} from "@arbitrum/nitro-contracts/src/bridge/IOutbox.sol";
 import {CrossChainEnabledArbitrumL1} from "@openzeppelin/contracts/crosschain/arbitrum/CrossChainEnabledArbitrumL1.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title ArbL2ToL1Ism
@@ -33,30 +32,16 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  */
 contract ArbL2ToL1Ism is
     CrossChainEnabledArbitrumL1,
-    IInterchainSecurityModule,
-    Initializable
+    AbstractMessageIdAuthorizedIsm
 {
+    using Message for bytes;
     // ============ Constants ============
 
+    // module type for the ISM
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.ARB_L2_TO_L1);
-
-    uint256 private constant _LOCKED = 1;
-    uint256 private constant _UNLOCKED = 2;
-    uint256 private _lock = _LOCKED;
-
-    // ============ Public Storage ============
-
-    /// @notice address for the authorized hook
-    bytes32 public authorizedHook;
-
+    // arbitrum nitro contract on L1 to forward verification
     IOutbox public arbOutbox;
-
-    modifier unlocked() {
-        require(_lock == _UNLOCKED, "ArbL2ToL1Ism: locked");
-        _;
-        _lock = _LOCKED;
-    }
 
     // ============ Constructor ============
 
@@ -71,25 +56,29 @@ contract ArbL2ToL1Ism is
         arbOutbox = IOutbox(_outbox);
     }
 
-    // ============ Initializer ============
-
-    function setAuthorizedHook(bytes32 _hook) external initializer {
-        require(_hook != bytes32(0), "ArbL2ToL1Ism: invalid authorized hook");
-        authorizedHook = _hook;
-    }
-
     // ============ External Functions ============
 
-    function verifyMessageId(bytes32 messageId) external unlocked {
-        require(_isAuthorized(), "ArbL2ToL1Ism: unauthorized hook");
+    /// @inheritdoc IInterchainSecurityModule
+    function verify(
+        bytes calldata metadata,
+        bytes calldata message
+    ) external override returns (bool) {
+        return
+            _statefulVerify(metadata, message) ||
+            _verifyWithOutboxCall(metadata, message);
     }
 
-    function verify(
-        bytes calldata _metadata,
-        bytes calldata message
-    ) external returns (bool) {
-        _unlock();
+    // ============ Internal function ============
 
+    /**
+     * @notice Verify message directly using the arbOutbox.executeTransaction function.
+     * @dev This is a fallback in case the message is not verified by the stateful verify function first.
+     * @dev This function doesn't support msg.value as the ism.verify call doesn't support it either.
+     */
+    function _verifyWithOutboxCall(
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal returns (bool) {
         (
             bytes32[] memory proof,
             uint256 index,
@@ -98,10 +87,9 @@ contract ArbL2ToL1Ism is
             uint256 l2Block,
             uint256 l1Block,
             uint256 l2Timestamp,
-            uint256 value,
             bytes memory data
         ) = abi.decode(
-                _metadata,
+                metadata,
                 (
                     bytes32[],
                     uint256,
@@ -110,27 +98,29 @@ contract ArbL2ToL1Ism is
                     uint256,
                     uint256,
                     uint256,
-                    uint256,
                     bytes
                 )
             );
 
+        // check if the sender of the l2 message is the authorized hook
         require(
             l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
             "ArbL2ToL1Ism: l2Sender != authorizedHook"
         );
 
-        bytes32 messageId = Message.id(message);
-
-        bytes32 convertedBytes;
-        assembly {
-            convertedBytes := mload(add(data, 36))
+        bytes32 messageId = message.id();
+        {
+            // for parsing the message id from the verifyMessageId calldata
+            bytes32 convertedBytes;
+            assembly {
+                convertedBytes := mload(add(data, 36))
+            }
+            require(
+                convertedBytes == messageId,
+                "ArbL2ToL1Ism: invalid message id"
+            );
         }
-        require(
-            convertedBytes == messageId,
-            "ArbL2ToL1Ism: invalid message id"
-        );
-
+        // value send to 0
         arbOutbox.executeTransaction(
             proof,
             index,
@@ -139,24 +129,16 @@ contract ArbL2ToL1Ism is
             l2Block,
             l1Block,
             l2Timestamp,
-            value,
+            0,
             data
         );
-
+        // the above bridge call will revert if the verifyMessageId call fails
         return true;
     }
 
-    // ============ Internal function ============
-
-    /**
-     * @notice Check if sender is authorized to message `verifyMessageId`.
-     */
-    function _isAuthorized() internal view returns (bool) {
+    /// @inheritdoc AbstractMessageIdAuthorizedIsm
+    function _isAuthorized() internal view override returns (bool) {
         return
             _crossChainSender() == TypeCasts.bytes32ToAddress(authorizedHook);
-    }
-
-    function _unlock() internal {
-        _lock = _UNLOCKED;
     }
 }
