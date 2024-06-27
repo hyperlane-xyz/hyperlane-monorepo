@@ -78,6 +78,7 @@ const ETH_VALIDATOR_KEYS: &[&str] = &[
     "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
     "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+    "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
 ];
 
 const SEALEVEL_VALIDATOR_KEYS: &[&str] = &[
@@ -147,7 +148,7 @@ fn main() -> ExitCode {
     .unwrap();
 
     let config = Config::load();
-    let mut validator_origin_chains = ["test1", "test2", "test3"].to_vec();
+    let mut validator_origin_chains = ["test1", "test2", "test3", "test4"].to_vec();
     let mut validator_keys = ETH_VALIDATOR_KEYS.to_vec();
     let mut validator_count: usize = validator_keys.len();
     let mut checkpoints_dirs: Vec<DynPath> = (0..validator_count)
@@ -176,7 +177,8 @@ fn main() -> ExitCode {
         .hyp_env("LOG_LEVEL", "debug")
         .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
         .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
-        .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
+        .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1")
+        .hyp_env("CHAINS_TEST4_INDEX_CHUNK", "1");
 
     let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
 
@@ -207,6 +209,12 @@ fn main() -> ExitCode {
             multicall_address_string,
         )
         .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
+        .hyp_env("CHAINS_TEST4_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env(
+            "CHAINS_TEST4_BATCHCONTRACTADDRESS",
+            multicall_address_string,
+        )
+        .hyp_env("CHAINS_TEST4_MAXBATCHSIZE", "5")
         .hyp_env("METRICSPORT", "9092")
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
@@ -226,15 +234,15 @@ fn main() -> ExitCode {
             "chains.test1.customRpcUrls",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
-        // default is used for TEST3
+        // default is used for TEST3, TEST4
         .arg("defaultSigner.key", RELAYER_KEYS[2]);
     let relayer_env = if config.sealevel_enabled {
         relayer_env.arg(
             "relayChains",
-            "test1,test2,test3,sealeveltest1,sealeveltest2",
+            "test1,test2,test3,test4,sealeveltest1,sealeveltest2",
         )
     } else {
-        relayer_env.arg("relayChains", "test1,test2,test3")
+        relayer_env.arg("relayChains", "test1,test2,test3,test4")
     };
 
     let base_validator_env = common_agent_env
@@ -251,9 +259,11 @@ fn main() -> ExitCode {
         )
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "fallback")
         .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env("CHAINS_TEST4_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST1_BLOCKS_REORGPERIOD", "0")
         .hyp_env("CHAINS_TEST2_BLOCKS_REORGPERIOD", "0")
         .hyp_env("CHAINS_TEST3_BLOCKS_REORGPERIOD", "0")
+        .hyp_env("CHAINS_TEST4_BLOCKS_REORGPERIOD", "0")
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
@@ -280,7 +290,9 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
         .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
-        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+        .hyp_env("CHAINS_TEST4_RPCCONSENSUSTYPE", "quorum")
+        .hyp_env("CHAINS_TEST4_CUSTOMRPCURLS", "http://127.0.0.1:8545")
+        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3,test4")
         .hyp_env("METRICSPORT", "9093")
         .hyp_env(
             "DB",
