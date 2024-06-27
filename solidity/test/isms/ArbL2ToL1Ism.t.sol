@@ -29,12 +29,12 @@ contract MockArbBridge {
 
     function executeTransaction(
         bytes32[] calldata /*proof*/,
-        uint256 index,
-        address l2Sender,
+        uint256 /*index*/,
+        address /*l2Sender*/,
         address to,
-        uint256 l2Block,
-        uint256 l1Block,
-        uint256 l2Timestamp,
+        uint256 /*l2Block*/,
+        uint256 /*l1Block*/,
+        uint256 /*timestamp*/,
         uint256 value,
         bytes calldata data
     ) external payable {
@@ -94,6 +94,10 @@ contract ArbL2ToL1IsmTest is Test {
         encodedMessage = _encodeTestMessage();
         messageId = Message.id(encodedMessage);
     }
+
+    ///////////////////////////////////////////////////////////////////
+    ///                            SETUP                            ///
+    ///////////////////////////////////////////////////////////////////
 
     function deployHook() public {
         l2Mailbox = new TestMailbox(ARBITRUM_DOMAIN);

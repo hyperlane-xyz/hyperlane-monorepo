@@ -25,7 +25,6 @@ import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.s
 import {IOutbox} from "@arbitrum/nitro-contracts/src/bridge/IOutbox.sol";
 import {CrossChainEnabledArbitrumL1} from "@openzeppelin/contracts/crosschain/arbitrum/CrossChainEnabledArbitrumL1.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title ArbL2ToL1Ism
@@ -35,13 +34,13 @@ contract ArbL2ToL1Ism is
     CrossChainEnabledArbitrumL1,
     AbstractMessageIdAuthorizedIsm
 {
-    using Address for address payable;
     using Message for bytes;
     // ============ Constants ============
 
+    // module type for the ISM
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.ARB_L2_TO_L1);
-
+    // arbitrum nitro contract on L1 to forward verification
     IOutbox public arbOutbox;
 
     // ============ Constructor ============
@@ -59,6 +58,7 @@ contract ArbL2ToL1Ism is
 
     // ============ External Functions ============
 
+    /// @inheritdoc IInterchainSecurityModule
     function verify(
         bytes calldata metadata,
         bytes calldata message
@@ -70,6 +70,11 @@ contract ArbL2ToL1Ism is
 
     // ============ Internal function ============
 
+    /**
+     * @notice Verify message directly using the arbOutbox.executeTransaction function.
+     * @dev This is a fallback in case the message is not verified by the stateful verify function first.
+     * @dev This function doesn't support msg.value as the ism.verify call doesn't support it either.
+     */
     function _verifyWithOutboxCall(
         bytes calldata metadata,
         bytes calldata message
@@ -97,6 +102,7 @@ contract ArbL2ToL1Ism is
                 )
             );
 
+        // check if the sender of the l2 message is the authorized hook
         require(
             l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
             "ArbL2ToL1Ism: l2Sender != authorizedHook"
@@ -104,6 +110,7 @@ contract ArbL2ToL1Ism is
 
         bytes32 messageId = message.id();
         {
+            // for parsing the message id from the verifyMessageId calldata
             bytes32 convertedBytes;
             assembly {
                 convertedBytes := mload(add(data, 36))
@@ -113,7 +120,7 @@ contract ArbL2ToL1Ism is
                 "ArbL2ToL1Ism: invalid message id"
             );
         }
-
+        // value send to 0
         arbOutbox.executeTransaction(
             proof,
             index,
@@ -125,13 +132,11 @@ contract ArbL2ToL1Ism is
             0,
             data
         );
-
+        // the above bridge call will revert if the verifyMessageId call fails
         return true;
     }
 
-    /**
-     * @notice Check if sender is authorized to message `verifyMessageId`.
-     */
+    /// @inheritdoc AbstractMessageIdAuthorizedIsm
     function _isAuthorized() internal view override returns (bool) {
         return
             _crossChainSender() == TypeCasts.bytes32ToAddress(authorizedHook);

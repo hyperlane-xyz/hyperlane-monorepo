@@ -60,7 +60,7 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes calldata,
         bytes calldata
     ) internal pure override returns (uint256) {
-        return 0; // TODO: non-zero value
+        return 120_000; // estimate based on on-chain gas usage
     }
 
     // ============ Internal functions ============
