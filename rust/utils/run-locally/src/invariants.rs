@@ -64,11 +64,13 @@ pub fn termination_invariants_met(
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
     const LOOKING_FOR_EVENTS_LOG_MESSAGE: &str = "Looking for events in index range";
+    const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
     let relayer_logfile = File::open(log_file_path)?;
     let invariant_logs = &[
         STORING_NEW_MESSAGE_LOG_MESSAGE,
         LOOKING_FOR_EVENTS_LOG_MESSAGE,
         GAS_EXPENDITURE_LOG_MESSAGE,
+        HYPER_INCOMING_BODY_LOG_MESSAGE,
     ];
     let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
     // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
@@ -90,6 +92,10 @@ pub fn termination_invariants_met(
     assert!(
         log_counts.get(LOOKING_FOR_EVENTS_LOG_MESSAGE).unwrap() > &0,
         "Didn't find any logs about looking for events in index range"
+    );
+    assert!(
+        log_counts.get(HYPER_INCOMING_BODY_LOG_MESSAGE).is_none(),
+        "Verbose logs not expected at the log level set in e2e"
     );
 
     let gas_payment_sealevel_events_count = fetch_metric(
