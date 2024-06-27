@@ -5,13 +5,11 @@ import yargs from 'yargs';
 
 import { Mailbox, TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
   ChainName,
   HookType,
   HyperlaneCore,
   MultiProvider,
   TestChainName,
-  testChainMetadata,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
 
@@ -110,19 +108,10 @@ async function main() {
     TestChainName.test2,
     TestChainName.test3,
   ];
-  const kathyTestChainMetadata = {
-    test1: testChainMetadata.test1,
-    test2: testChainMetadata.test2,
-    test3: testChainMetadata.test3,
-  };
 
-  // Manually set up multiprovider for kathy test with our subset of test chains
+  // Create a multi-provider with a signer
   const signer = new Wallet(ANVIL_KEY);
-  const multiProvider = new MultiProvider(kathyTestChainMetadata);
-  multiProvider.setSharedSigner(signer);
-  const providerMap: ChainMap<Provider> = {};
-  kathyTestChains.forEach((t) => (providerMap[t] = signer.provider));
-  multiProvider.setProviders(providerMap);
+  const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
   // Get the provider for the first chain
   const provider = multiProvider.getProvider(TestChainName.test1);
@@ -146,9 +135,11 @@ async function main() {
   const run_forever = messages === 0;
   while (run_forever || messages-- > 0) {
     // Round robin origin chain
-    const local = core.chains()[messages % core.chains().length];
+    const local = kathyTestChains[messages % kathyTestChains.length];
     // Random remote chain
-    const remote: ChainName = randomElement(await core.remoteChains(local));
+    const remote: ChainName = randomElement(
+      kathyTestChains.filter((c) => c !== local),
+    );
     const remoteId = multiProvider.getDomainId(remote);
     const contracts = core.getContracts(local);
     const mailbox = contracts.mailbox;
