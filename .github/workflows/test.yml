@@ -188,7 +188,7 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
       matrix:
@@ -215,7 +215,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v2-${{ runner.os }}-rust-cache"
+          prefix-key: "v1-${{ runner.os }}-rust-cache"
           shared-key: ${{ matrix.e2e-type }}
           workspaces: |
             ./rust
@@ -266,7 +266,7 @@ jobs:
         working-directory: ./rust
         env:
           E2E_CI_MODE: 'true'
-          E2E_CI_TIMEOUT_SEC: '3600'
+          E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
 
@@ -282,7 +282,7 @@ jobs:
 
   prebuild-cli-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -331,7 +331,7 @@ jobs:
 
   cli-advanced-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build, prebuild-cli-e2e]
     strategy:
       matrix:
