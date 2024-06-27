@@ -102,6 +102,7 @@ async function main() {
 
   const signer = new Wallet(ANVIL_KEY);
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
+  delete multiProvider.metadata['test4'];
   const provider = multiProvider.getProvider(TestChainName.test1);
 
   const addresses = JSON.parse(
