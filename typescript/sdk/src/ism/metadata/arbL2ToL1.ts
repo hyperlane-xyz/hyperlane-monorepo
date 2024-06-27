@@ -3,7 +3,10 @@ import { L2ToL1TransactionEvent } from '@arbitrum/sdk/dist/lib/message/L2ToL1Mes
 import { assert } from 'console';
 import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
-import { ArbSys__factory } from '@hyperlane-xyz/core';
+import {
+  AbstractMessageIdAuthorizedIsm__factory,
+  ArbSys__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   WithAddress,
@@ -25,7 +28,6 @@ interface ArbL2ToL1Metadata {
   l2Block: BigNumber;
   l1Block: BigNumber;
   l2Timestamp: BigNumber;
-  value: BigNumber;
   data: BytesLike;
 }
 
@@ -47,8 +49,18 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   ): Promise<string> {
     assert(context.ism.type === IsmType.ARB_L2_TO_L1, 'Invalid ISM type');
     this.logger.debug({ context }, 'Building ArbL2ToL1 metadata');
-    console.log('arbhook address:', context.hook.address);
 
+    // if the executeTransaction call is already successful, we can call with null metadata
+    const ism = AbstractMessageIdAuthorizedIsm__factory.connect(
+      context.ism.address,
+      this.core.multiProvider.getSigner(context.message.parsed.destination),
+    );
+    const verified = await ism.verifiedMessages(context.message.id);
+    if (!verified.isZero()) {
+      return '0x';
+    }
+
+    // else build the metadata for outbox.executeTransaction call
     const matchingL2Tx = context.dispatchTx.logs
       .filter((log) => eqAddressEvm(log.address, context.hook.arbSys))
       .map((log) => ArbSys.parseLog(log))
@@ -91,25 +103,11 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       });
 
       const status = await reader.status(arbProvider);
+      // need to wait for the challenge period to pass before relaying
       if (!status) {
-        const currentBlock = await this.core.multiProvider
-          .getProvider('sepolia')
-          .getBlockNumber();
-        const executableBlock = (
-          await reader.getFirstExecutableBlock(arbProvider)
-        )?.toNumber();
-
-        if (executableBlock) {
-          throw new Error(
-            `Arbitrum L2ToL1 message isn't ready for relay. Wait until the challenge period is over in ${
-              executableBlock - currentBlock
-            } blocks before relaying again.`,
-          );
-        } else {
-          throw new Error(
-            `Arbitrum L2ToL1 message isn't ready for relay. Wait until the challenge period before relaying again.`,
-          );
-        }
+        throw new Error(
+          `Arbitrum L2ToL1 message isn't ready for relay. Wait until the challenge period before relaying again.`,
+        );
       }
 
       const outboxProofResult =
@@ -129,7 +127,6 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         l2Block: l2ToL1TxEvent.arbBlockNum,
         l1Block: l2ToL1TxEvent.ethBlockNum,
         l2Timestamp: l2ToL1TxEvent.timestamp,
-        value: l2ToL1TxEvent.callvalue,
         data: l2ToL1TxEvent.data,
       };
 
@@ -152,7 +149,6 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         'uint256',
         'uint256',
         'uint256',
-        'uint256',
         'bytes',
       ],
       [
@@ -163,7 +159,6 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         metadata.l2Block,
         metadata.l1Block,
         metadata.l2Timestamp,
-        metadata.value,
         metadata.data,
       ],
     );
