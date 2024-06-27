@@ -215,7 +215,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v2-${{ runner.os }}-rust-cache"
+          prefix-key: "v1-${{ runner.os }}-rust-cache"
           shared-key: ${{ matrix.e2e-type }}
           workspaces: |
             ./rust
