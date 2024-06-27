@@ -68,11 +68,6 @@ export const test3: ChainMetadata = {
 
 export const test4: ChainMetadata = {
   ...test1,
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 2,
-  },
   chainId: 31337,
   displayName: 'Test 4',
   domainId: 31337,
