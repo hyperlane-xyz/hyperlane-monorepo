@@ -14,7 +14,7 @@ export const validators: ValidatorBaseChainConfigMap = {
     reorgPeriod: 0,
     validators: [
       {
-        address: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+        address: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
         name: 'local-validator-test1',
         checkpointSyncer: {
           type: CheckpointSyncerType.LocalStorage,
@@ -28,7 +28,7 @@ export const validators: ValidatorBaseChainConfigMap = {
     reorgPeriod: 0,
     validators: [
       {
-        address: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
+        address: '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
         name: 'local-validator-test2',
         checkpointSyncer: {
           type: CheckpointSyncerType.LocalStorage,
@@ -42,25 +42,11 @@ export const validators: ValidatorBaseChainConfigMap = {
     reorgPeriod: 0,
     validators: [
       {
-        address: '0x976EA74026E726554dB657fA54763abd0C3a0aa9',
+        address: '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
         name: 'local-validator-test3',
         checkpointSyncer: {
           type: CheckpointSyncerType.LocalStorage,
           path: localStoragePath('test3'),
-        },
-      },
-    ],
-  },
-  test4: {
-    interval: 5,
-    reorgPeriod: 0,
-    validators: [
-      {
-        address: '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955',
-        name: 'local-validator-test4',
-        checkpointSyncer: {
-          type: CheckpointSyncerType.LocalStorage,
-          path: localStoragePath('test4'),
         },
       },
     ],

@@ -224,7 +224,7 @@ pub fn start_solana_test_validator(
         .arg("local-domain", SOLANA_LOCAL_CHAIN_ID)
         .arg(
             "remote-domains",
-            [SOLANA_REMOTE_CHAIN_ID, "13371", "13372", "13373", "31337"].join(","),
+            [SOLANA_REMOTE_CHAIN_ID, "13371", "13372", "13373"].join(","),
         )
         .arg("chain", "sealeveltest1")
         .run()

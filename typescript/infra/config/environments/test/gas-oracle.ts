@@ -27,7 +27,6 @@ const gasPrices: ChainMap<GasPriceConfig> = {
   test1: TEST_GAS_PRICE_CONFIG,
   test2: TEST_GAS_PRICE_CONFIG,
   test3: TEST_GAS_PRICE_CONFIG,
-  test4: TEST_GAS_PRICE_CONFIG,
 };
 
 function getTokenExchangeRate(
