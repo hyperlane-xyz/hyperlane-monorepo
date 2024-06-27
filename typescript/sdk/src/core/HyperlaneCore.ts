@@ -8,6 +8,7 @@ import {
   AddressBytes32,
   ProtocolType,
   addressToBytes32,
+  assert,
   bytes32ToAddress,
   messageId,
   objFilter,
@@ -116,7 +117,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const originChain = this.getOrigin(message);
     const hookReader = new EvmHookReader(this.multiProvider, originChain);
     const address = await this.getHookAddress(message);
-    return hookReader.deriveHookConfig(address);
+    const hookConfig = await hookReader.deriveHookConfig(address);
+    assert(hookConfig, `No hook config found for ${address}.`);
+    return hookConfig;
   }
 
   async buildMetadata(

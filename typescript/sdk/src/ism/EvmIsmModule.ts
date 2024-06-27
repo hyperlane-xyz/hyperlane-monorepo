@@ -508,12 +508,23 @@ export class EvmIsmModule extends HyperlaneModule<
       signer,
     );
 
-    // deploying new domain routing ISM
-    const tx = await domainRoutingIsmFactory.deploy(
+    // estimate gas
+    const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
       owner,
       domainIds,
       submoduleAddresses,
       overrides,
+    );
+
+    // deploying new domain routing ISM, add 10% buffer
+    const tx = await domainRoutingIsmFactory.deploy(
+      owner,
+      domainIds,
+      submoduleAddresses,
+      {
+        ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+      },
     );
 
     const receipt = await this.multiProvider.handleTx(this.params.chain, tx);

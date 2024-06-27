@@ -14,6 +14,7 @@ import { agents } from './agent.js';
 import {
   chainMetadataOverrides,
   environment as environmentName,
+  getRegistry,
 } from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
@@ -23,14 +24,6 @@ import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-
-const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
-  getRegistryForEnvironment(
-    environmentName,
-    supportedChainNames,
-    chainMetadataOverrides,
-    useSecrets,
-  );
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,

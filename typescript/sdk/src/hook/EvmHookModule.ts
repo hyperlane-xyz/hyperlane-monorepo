@@ -25,6 +25,7 @@ import {
   Address,
   ProtocolType,
   addressToBytes32,
+  assert,
   configDeepEquals,
   eqAddress,
   normalizeConfig,

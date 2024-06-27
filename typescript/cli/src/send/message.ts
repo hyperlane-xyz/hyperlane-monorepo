@@ -1,3 +1,5 @@
+import { stringify as yamlStringify } from 'yaml';
+
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
@@ -6,6 +8,7 @@ import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { indentYamlOrJson } from '../utils/files.js';
 
 export async function sendTestMessage({
   context,
@@ -103,7 +106,7 @@ async function executeDelivery({
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
-    log(`Message: ${JSON.stringify(message)}`);
+    log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
     if (selfRelay) {
       log('Attempting self-relay of message');
