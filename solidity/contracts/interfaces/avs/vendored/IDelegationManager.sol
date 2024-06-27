@@ -20,6 +20,11 @@ interface IDelegationManager {
         uint32 stakerOptOutWindowBlocks;
     }
 
+    event OperatorMetadataURIUpdated(
+        address indexed operator,
+        string metadataURI
+    );
+
     function registerAsOperator(
         OperatorDetails calldata registeringOperatorDetails,
         string calldata metadataURI

@@ -210,3 +210,11 @@ export async function runFileSelectionStep(
   if (filename) return filename;
   else throw new Error(`No filepath entered ${description}`);
 }
+
+export function indentYamlOrJson(str: string, indentLevel: number): string {
+  const indent = ' '.repeat(indentLevel);
+  return str
+    .split('\n')
+    .map((line) => indent + line)
+    .join('\n');
+}

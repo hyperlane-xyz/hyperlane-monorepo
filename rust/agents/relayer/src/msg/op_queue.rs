@@ -166,6 +166,10 @@ mod test {
             todo!()
         }
 
+        fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
+            todo!()
+        }
+
         fn get_operation_labels(&self) -> (String, String) {
             Default::default()
         }
