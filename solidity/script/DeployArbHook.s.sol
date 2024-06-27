@@ -20,13 +20,13 @@ contract DeployArbHook is Script {
     address constant L1_MAILBOX = 0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766;
     address constant L1_BRIDGE = 0x38f918D0E9F1b721EDaA41302E399fa1B79333a9;
     address constant L1_OUTBOX = 0x65f07C7D521164a4d5DaC6eB8Fac8DA067A3B78F;
-    address constant L1_ISM = 0x386ddAbD471D6db786C29893132e4EbA2faF5536;
+    address constant L1_ISM = 0x096A1c034c7Ad113B6dB786b7BA852cB67025458;
     bytes32 TEST_RECIPIENT =
-        0x0000000000000000000000009c63ce44d595cfd97215fcb97d58cfd07a9d6bd7;
+        0x000000000000000000000000155b1cd2f7cbc58d403b9be341fab6cd77425175;
 
     address constant ARBSYS = 0x0000000000000000000000000000000000000064;
     address constant L2_MAILBOX = 0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8;
-    address constant L2_HOOK = 0x740bEd6E4eEc7c57a2818177Fba3f9E896D5DE1c;
+    address constant L2_HOOK = 0xd9d99AC1C645563576b8Df22cBebFC23FB60Ec73;
 
     function deployIsm() external {
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

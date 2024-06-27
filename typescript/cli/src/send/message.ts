@@ -87,7 +87,7 @@ async function executeDelivery({
   const mailbox = core.getContracts(origin).mailbox;
 
   // let hook = chainAddresses[origin]?.customHook;
-  let hook = '0x740bEd6E4eEc7c57a2818177Fba3f9E896D5DE1c';
+  let hook = '0xd9d99AC1C645563576b8Df22cBebFC23FB60Ec73';
   if (hook) {
     logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
   } else {
@@ -99,7 +99,7 @@ async function executeDelivery({
   let txReceipt: ethers.ContractReceipt;
   try {
     // const recipient = chainAddresses[destination].testRecipient;
-    const recipient = '0x9c63ce44d595cfd97215fcb97d58cfd07a9d6bd7';
+    const recipient = '0x155b1cd2f7cbc58d403b9be341fab6cd77425175';
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
