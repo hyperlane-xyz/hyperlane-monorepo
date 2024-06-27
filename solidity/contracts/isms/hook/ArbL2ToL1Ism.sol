@@ -64,7 +64,7 @@ contract ArbL2ToL1Ism is
         bytes calldata message
     ) external override returns (bool) {
         return
-            _statefulVerify(metadata, message) ||
+            releaseValueToRecipient(message) ||
             _verifyWithOutboxCall(metadata, message);
     }
 
@@ -120,6 +120,7 @@ contract ArbL2ToL1Ism is
                 "ArbL2ToL1Ism: invalid message id"
             );
         }
+
         // value send to 0
         arbOutbox.executeTransaction(
             proof,
