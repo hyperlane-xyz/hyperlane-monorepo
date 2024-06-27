@@ -206,7 +206,7 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
         .hyp_env(
             "CHAINS_TEST3_BATCHCONTRACTADDRESS",
-            multicall_address_string,
+            multicall_address_string.clone(),
         )
         .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
         .hyp_env("CHAINS_TEST4_CONNECTION_URL", "http://127.0.0.1:8545")
