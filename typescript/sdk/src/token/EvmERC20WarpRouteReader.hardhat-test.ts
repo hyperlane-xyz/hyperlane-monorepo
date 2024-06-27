@@ -13,10 +13,10 @@ import {
 import {
   HyperlaneContractsMap,
   RouterConfig,
-  TestChainName,
   TokenRouterConfig,
 } from '@hyperlane-xyz/sdk';
 
+import { test4 } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -34,7 +34,7 @@ describe('ERC20WarpRouterReader', async () => {
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
   const GAS = 65_000;
-  const chain = TestChainName.test4;
+  const chain = 'test4';
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
@@ -51,6 +51,8 @@ describe('ERC20WarpRouterReader', async () => {
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    multiProvider.addChain(test4);
+
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),

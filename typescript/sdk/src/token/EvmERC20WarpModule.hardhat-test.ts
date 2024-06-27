@@ -14,12 +14,9 @@ import {
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import {
-  HyperlaneContractsMap,
-  RouterConfig,
-  TestChainName,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneContractsMap, RouterConfig } from '@hyperlane-xyz/sdk';
 
+import { test4 } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -36,7 +33,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
-  const chain = TestChainName.test4;
+  const chain = 'test4';
   let mailbox: Mailbox;
   let hookAddress: string;
   let ismFactory: HyperlaneIsmFactory;
@@ -61,6 +58,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    multiProvider.addChain(test4);
+
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),

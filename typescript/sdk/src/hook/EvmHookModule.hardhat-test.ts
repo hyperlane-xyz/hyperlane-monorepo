@@ -9,7 +9,7 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { TestChainName, testChains } from '../consts/testChains.js';
+import { test4, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { CoreAddresses } from '../core/contracts.js';
@@ -159,13 +159,14 @@ describe('EvmHookModule', async () => {
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
 
-  const chain = TestChainName.test4;
+  const chain = 'test4';
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    multiProvider.addChain(test4);
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const contractsMap = await ismFactoryDeployer.deploy(
@@ -305,14 +306,12 @@ describe('EvmHookModule', async () => {
         owner: randomAddress(),
         type: HookType.ROUTING,
         domains: Object.fromEntries(
-          testChains
-            .filter((c) => c !== TestChainName.test4)
-            .map((c) => [
-              c,
-              {
-                type: HookType.MERKLE_TREE,
-              },
-            ]),
+          testChains.map((c) => [
+            c,
+            {
+              type: HookType.MERKLE_TREE,
+            },
+          ]),
         ),
       };
       await createHook(config);
@@ -324,14 +323,12 @@ describe('EvmHookModule', async () => {
         type: HookType.FALLBACK_ROUTING,
         fallback: { type: HookType.MERKLE_TREE },
         domains: Object.fromEntries(
-          testChains
-            .filter((c) => c !== TestChainName.test4)
-            .map((c) => [
-              c,
-              {
-                type: HookType.MERKLE_TREE,
-              },
-            ]),
+          testChains.map((c) => [
+            c,
+            {
+              type: HookType.MERKLE_TREE,
+            },
+          ]),
         ),
       };
       await createHook(config);

@@ -2,7 +2,6 @@ import {
   ChainMap,
   HookType,
   IgpConfig,
-  TestChainName,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
@@ -15,15 +14,13 @@ export const igp: ChainMap<IgpConfig> = objMap(
   owners,
   (chain, ownerConfig): IgpConfig => {
     const overhead = Object.fromEntries(
-      exclude(chain, testChainNames)
-        .filter((chain) => chain !== TestChainName.test4)
-        .map((remote) => [
-          remote,
-          multisigIsmVerificationCost(
-            multisigIsm[remote].threshold,
-            multisigIsm[remote].validators.length,
-          ),
-        ]),
+      exclude(chain, testChainNames).map((remote) => [
+        remote,
+        multisigIsmVerificationCost(
+          multisigIsm[remote].threshold,
+          multisigIsm[remote].validators.length,
+        ),
+      ]),
     );
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,

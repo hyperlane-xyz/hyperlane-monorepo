@@ -7,7 +7,7 @@ import hre from 'hardhat';
 import { FallbackDomainRoutingHook__factory } from '@hyperlane-xyz/core';
 import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
-import { TestChainName, testChains } from '../consts/testChains.js';
+import { TestChainName, test4, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -96,7 +96,7 @@ describe('EvmIsmModule', async () => {
   let newMailboxAddress: Address;
   let fundingAccount: Signer;
 
-  const chain = TestChainName.test4;
+  const chain = 'test4';
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
@@ -104,6 +104,7 @@ describe('EvmIsmModule', async () => {
     const [signer, funder] = await hre.ethers.getSigners();
     fundingAccount = funder;
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    multiProvider.addChain(test4);
 
     const contractsMap = await new HyperlaneProxyFactoryDeployer(
       multiProvider,
@@ -138,9 +139,7 @@ describe('EvmIsmModule', async () => {
       type: IsmType.ROUTING,
       owner: await multiProvider.getSignerAddress(chain),
       domains: Object.fromEntries(
-        testChains
-          .filter((c) => c !== TestChainName.test4)
-          .map((c) => [c, randomMultisigIsmConfig(3, 5)]),
+        testChains.map((c) => [c, randomMultisigIsmConfig(3, 5)]),
       ),
     };
   });
@@ -152,9 +151,11 @@ describe('EvmIsmModule', async () => {
       to: account,
       value: hre.ethers.utils.parseEther('1.0'),
     });
-    return MultiProvider.createTestMultiProvider({
+    const multiProvider = MultiProvider.createTestMultiProvider({
       signer: hre.ethers.provider.getSigner(account),
     });
+    multiProvider.addChain(test4);
+    return multiProvider;
   }
 
   // Helper method to expect exactly N updates to be applied

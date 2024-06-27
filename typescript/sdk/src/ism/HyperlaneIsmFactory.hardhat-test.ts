@@ -5,7 +5,7 @@ import hre from 'hardhat';
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
 import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
 
-import { TestChainName, testChains } from '../consts/testChains.js';
+import { TestChainName, test4, testChains } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -108,6 +108,8 @@ describe('HyperlaneIsmFactory', async () => {
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    multiProvider.addChain(test4);
+
     ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
@@ -126,7 +128,7 @@ describe('HyperlaneIsmFactory', async () => {
       owner: await multiProvider.getSignerAddress(chain),
       domains: Object.fromEntries(
         testChains
-          .filter((c) => c !== TestChainName.test1 && c !== TestChainName.test4)
+          .filter((c) => c !== TestChainName.test1)
           .map((c) => [c, randomMultisigIsmConfig(3, 5)]),
       ),
     };
@@ -359,7 +361,7 @@ describe('HyperlaneIsmFactory', async () => {
       multiProvider = multiProvider.intersect([
         TestChainName.test1,
         TestChainName.test2,
-        TestChainName.test4,
+        'test4',
       ]).result;
       ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
       ismFactory = new HyperlaneIsmFactory(
