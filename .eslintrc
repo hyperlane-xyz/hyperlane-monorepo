@@ -23,6 +23,7 @@
     "no-extra-boolean-cast": ["error"],
     "no-ex-assign": ["error"],
     "no-constant-condition": ["off"],
+    "no-return-await": ["error"],
     "guard-for-in": ["error"],
     "@typescript-eslint/ban-ts-comment": ["off"],
     "@typescript-eslint/explicit-module-boundary-types": ["off"],

@@ -2,7 +2,7 @@ import { CommandModule } from 'yargs';
 
 import { CommandModuleWithContext } from '../context/types.js';
 import { readHookConfig } from '../hook/read.js';
-import { log } from '../logger.js';
+import { log, logGray } from '../logger.js';
 
 import {
   addressCommandOption,
@@ -41,6 +41,8 @@ export const read: CommandModuleWithContext<{
     out: outputFileCommandOption(),
   },
   handler: async (args) => {
+    logGray('Hyperlane Hook Read');
+    logGray('------------------');
     await readHookConfig(args);
     process.exit(0);
   },

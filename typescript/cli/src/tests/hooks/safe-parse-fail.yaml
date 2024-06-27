@@ -19,8 +19,6 @@ anvil1:
             oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
             overhead:
               anvil2: 50000
-            gasOracleType:
-              anvil2: StorageGasOracle
 anvil2:
   required:
     type: protocolFee
@@ -40,5 +38,3 @@ anvil2:
             beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
             owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
             oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
-            gasOracleType:
-              anvil1: StorageGasOracle

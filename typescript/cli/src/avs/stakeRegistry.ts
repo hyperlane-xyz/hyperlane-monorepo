@@ -119,7 +119,7 @@ export async function readOperatorFromEncryptedJson(
     message: 'Enter the password for the operator key file: ',
   });
 
-  return await Wallet.fromEncryptedJson(encryptedJson, keyFilePassword);
+  return Wallet.fromEncryptedJson(encryptedJson, keyFilePassword);
 }
 
 async function getOperatorSignature(

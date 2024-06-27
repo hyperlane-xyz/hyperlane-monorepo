@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { OwnableConfigSchema } from '../deploy/schemas.js';
 import { ZHash } from '../metadata/customZodTypes.js';
+import { OwnableSchema, PausableSchema } from '../schemas.js';
 
-import { AggregationIsmConfig, IsmConfig, IsmType } from './types.js';
+import { AggregationIsmConfig, IsmType, RoutingIsmConfig } from './types.js';
 
 export const TestIsmConfigSchema = z.object({
   type: z.literal(IsmType.TEST_ISM),
@@ -25,10 +25,9 @@ export const OpStackIsmConfigSchema = z.object({
   nativeBridge: z.string(),
 });
 
-export const PausableIsmConfigSchema = OwnableConfigSchema.and(
+export const PausableIsmConfigSchema = PausableSchema.and(
   z.object({
     type: z.literal(IsmType.PAUSABLE),
-    paused: z.boolean().optional(),
   }),
 );
 
@@ -41,40 +40,36 @@ export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   }),
 );
 
-export const RoutingIsmConfigSchema = OwnableConfigSchema.and(
-  z.object({
-    type: z.union([
-      z.literal(IsmType.ROUTING),
-      z.literal(IsmType.FALLBACK_ROUTING),
-    ]),
-    domains: z.record(z.string(), z.nativeEnum(IsmType)),
-  }),
+export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
+  () =>
+    OwnableSchema.extend({
+      type: z.union([
+        z.literal(IsmType.ROUTING),
+        z.literal(IsmType.FALLBACK_ROUTING),
+      ]),
+      domains: z.record(IsmConfigSchema),
+    }),
 );
 
-export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> =
-  z.lazy(() =>
-    z
-      .object({
-        type: z.literal(IsmType.AGGREGATION),
-        modules: z.array(IsmConfigSchema),
-        threshold: z.number(),
-      })
-      .refine((data) => {
-        if (data.threshold > data.modules.length) return false;
+export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
+  .lazy(() =>
+    z.object({
+      type: z.literal(IsmType.AGGREGATION),
+      modules: z.array(IsmConfigSchema),
+      threshold: z.number(),
+    }),
+  )
+  .refine((data) => data.threshold <= data.modules.length, {
+    message: 'Threshold must be less than or equal to the number of modules',
+  });
 
-        return true;
-      }),
-  );
-
-export const IsmConfigSchema: z.ZodSchema<IsmConfig> = z.lazy(() =>
-  z.union([
-    z.string(),
-    TestIsmConfigSchema,
-    OpStackIsmConfigSchema,
-    PausableIsmConfigSchema,
-    TrustedRelayerIsmConfigSchema,
-    MultisigIsmConfigSchema,
-    RoutingIsmConfigSchema,
-    AggregationIsmConfigSchema,
-  ]),
-);
+export const IsmConfigSchema = z.union([
+  ZHash,
+  TestIsmConfigSchema,
+  OpStackIsmConfigSchema,
+  PausableIsmConfigSchema,
+  TrustedRelayerIsmConfigSchema,
+  MultisigIsmConfigSchema,
+  RoutingIsmConfigSchema,
+  AggregationIsmConfigSchema,
+]);
