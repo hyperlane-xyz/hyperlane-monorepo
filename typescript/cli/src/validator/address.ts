@@ -24,7 +24,7 @@ export async function getValidatorAddress({
   region?: string;
   bucket?: string;
   keyId?: string;
-}) {
+}): Promise<void> {
   if (!bucket && !keyId) {
     throw new Error('Must provide either an S3 bucket or a KMS Key ID.');
   }
@@ -38,7 +38,7 @@ export async function getValidatorAddress({
   assert(secretKey, 'No secret access key set.');
   assert(region, 'No AWS region set.');
 
-  let validatorAddress;
+  let validatorAddress: string;
   if (bucket) {
     validatorAddress = await getAddressFromBucket(
       bucket,
@@ -68,7 +68,7 @@ async function getAddressFromBucket(
   accessKeyId: string,
   secretAccessKey: string,
   region: string,
-) {
+): Promise<string> {
   const s3Client = new S3Client({
     region: region,
     credentials: {
@@ -101,7 +101,7 @@ async function getAddressFromKey(
   accessKeyId: string,
   secretAccessKey: string,
   region: string,
-) {
+): Promise<string> {
   const client = new KMSClient({
     region: region,
     credentials: {
@@ -138,28 +138,28 @@ function getEthereumAddress(publicKey: Buffer): string {
   return `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
 }
 
-async function getAccessKeyId(skipConfirmation: boolean) {
+async function getAccessKeyId(skipConfirmation: boolean): Promise<string> {
   if (skipConfirmation) throw new Error('No AWS access key ID set.');
   else
-    return await input({
+    return input({
       message:
         'Please enter AWS access key ID or use the AWS_ACCESS_KEY_ID environment variable.',
     });
 }
 
-async function getSecretAccessKey(skipConfirmation: boolean) {
+async function getSecretAccessKey(skipConfirmation: boolean): Promise<string> {
   if (skipConfirmation) throw new Error('No AWS secret access key set.');
   else
-    return await input({
+    return input({
       message:
         'Please enter AWS secret access key or use the AWS_SECRET_ACCESS_KEY environment variable.',
     });
 }
 
-async function getRegion(skipConfirmation: boolean) {
+async function getRegion(skipConfirmation: boolean): Promise<string> {
   if (skipConfirmation) throw new Error('No AWS region set.');
   else
-    return await input({
+    return input({
       message:
         'Please enter AWS region or use the AWS_REGION environment variable.',
     });

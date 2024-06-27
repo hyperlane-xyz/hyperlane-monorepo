@@ -1,8 +1,4 @@
-import { ethers } from 'ethers';
-import { zeroAddress } from 'viem';
-
-import { IMailbox__factory } from '@hyperlane-xyz/core';
-import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -15,7 +11,6 @@ import { RouterApp } from './RouterApps.js';
 import {
   ClientViolation,
   ClientViolationType,
-  MailboxClientConfig,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
@@ -38,103 +33,76 @@ export class HyperlaneRouterChecker<
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkMailboxClient(chain);
     await this.checkEnrolledRouters(chain);
-    await super.checkOwnership(chain, this.configMap[chain].owner);
+    await super.checkOwnership(
+      chain,
+      this.configMap[chain].owner,
+      this.configMap[chain].ownerOverrides,
+    );
   }
 
   async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
 
-    const checkMailboxClientProperty = async (
-      property: keyof MailboxClientConfig,
-      actual: string,
-      violationType: ClientViolationType,
-    ) => {
-      const value = this.configMap[chain][property];
-
-      // If the value is an object, it's an ISM config
-      // and we should make sure it matches the actual ISM config
-      if (value && typeof value === 'object') {
-        if (!this.ismFactory) {
-          throw Error(
-            'ISM factory not provided to HyperlaneRouterChecker, cannot check object-based ISM config',
-          );
-        }
-
-        const matches = await moduleMatchesConfig(
-          chain,
-          actual,
-          value,
-          this.multiProvider,
-          this.ismFactory!.chainMap[chain],
-        );
-
-        if (!matches) {
-          const violation: ClientViolation = {
-            chain,
-            type: violationType,
-            contract: router,
-            actual,
-            expected: value,
-            description: `ISM config does not match deployed ISM`,
-          };
-          this.addViolation(violation);
-        }
-        return;
-      }
-      const expected =
-        value && typeof value === 'string'
-          ? value
-          : ethers.constants.AddressZero;
-      if (!eqAddress(actual, expected)) {
-        const violation: ClientViolation = {
-          chain,
-          type: violationType,
-          contract: router,
-          actual,
-          expected,
-        };
-        this.addViolation(violation);
-      }
-    };
+    const config = this.configMap[chain];
 
     const mailboxAddr = await router.mailbox();
-    await checkMailboxClientProperty(
-      'mailbox',
-      mailboxAddr,
-      ClientViolationType.Mailbox,
-    );
-    await checkMailboxClientProperty(
-      'hook',
-      await router.hook(),
-      ClientViolationType.Hook,
-    );
+    if (!eqAddress(mailboxAddr, config.mailbox)) {
+      this.addViolation({
+        chain,
+        type: ClientViolationType.Mailbox,
+        contract: router,
+        actual: mailboxAddr,
+        expected: config.mailbox,
+      });
+    }
 
-    const mailbox = IMailbox__factory.connect(
-      mailboxAddr,
-      this.multiProvider.getProvider(chain),
-    );
-    const ism = await mailbox.recipientIsm(router.address);
-
-    if (
-      !this.configMap[chain].interchainSecurityModule ||
-      this.configMap[chain].interchainSecurityModule === zeroAddress
-    ) {
-      const defaultIsm = await mailbox.defaultIsm();
-      if (!eqAddress(defaultIsm, ism)) {
+    if (config.hook) {
+      assert(
+        typeof config.hook === 'string',
+        'Hook objects not supported in router checker',
+      );
+      const hook = await router.hook();
+      if (!eqAddress(hook, config.hook as string)) {
         this.addViolation({
+          chain,
+          type: ClientViolationType.Hook,
+          contract: router,
+          actual: hook,
+          expected: config.hook,
+        });
+      }
+    }
+
+    if (config.interchainSecurityModule) {
+      const actual = await router.interchainSecurityModule();
+      if (
+        typeof config.interchainSecurityModule !== 'string' &&
+        !this.ismFactory
+      ) {
+        throw Error(
+          'ISM factory not provided to HyperlaneRouterChecker, cannot check object-based ISM config',
+        );
+      }
+
+      const matches = await moduleMatchesConfig(
+        chain,
+        actual,
+        config.interchainSecurityModule,
+        this.multiProvider,
+        this.ismFactory?.chainMap[chain] ?? ({} as any),
+      );
+
+      if (!matches) {
+        const violation: ClientViolation = {
           chain,
           type: ClientViolationType.InterchainSecurityModule,
           contract: router,
-          actual: ism,
-          expected: zeroAddress,
-        });
+          actual,
+          expected: config.interchainSecurityModule,
+          description: `ISM config does not match deployed ISM`,
+        };
+        this.addViolation(violation);
       }
-    } else {
-      await checkMailboxClientProperty(
-        'interchainSecurityModule',
-        ism,
-        ClientViolationType.InterchainSecurityModule,
-      );
     }
   }
 

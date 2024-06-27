@@ -5708,6 +5708,7 @@ __metadata:
     yaml: "npm:^2.4.1"
     yargs: "npm:^17.7.2"
     zod: "npm:^3.21.2"
+    zod-validation-error: "npm:^3.3.0"
   bin:
     hyperlane: ./dist/cli.js
   languageName: unknown
@@ -5851,6 +5852,7 @@ __metadata:
     prompts: "npm:^2.4.2"
     tsx: "npm:^4.7.1"
     typescript: "npm:5.3.3"
+    yaml: "npm:^2.4.5"
     yargs: "npm:^17.7.2"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -26221,6 +26223,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"yaml@npm:^2.4.5":
+  version: 2.4.5
+  resolution: "yaml@npm:2.4.5"
+  bin:
+    yaml: bin.mjs
+  checksum: b09bf5a615a65276d433d76b8e34ad6b4c0320b85eb3f1a39da132c61ae6e2ff34eff4624e6458d96d49566c93cf43408ba5e568218293a8c6541a2006883f64
+  languageName: node
+  linkType: hard
+
 "yargs-parser@npm:13.1.2, yargs-parser@npm:^13.1.2":
   version: 13.1.2
   resolution: "yargs-parser@npm:13.1.2"
@@ -26372,6 +26383,15 @@ __metadata:
   peerDependencies:
     ethers: ^5.7.0
   checksum: a1566a2a2ba34a3026680f3b4000ffa02593e02d9c73a4dd143bde929b5e39b09544d429bccad0479070670cfdad5f6836cb686c4b8d7954b4d930826be91c92
+  languageName: node
+  linkType: hard
+
+"zod-validation-error@npm:^3.3.0":
+  version: 3.3.0
+  resolution: "zod-validation-error@npm:3.3.0"
+  peerDependencies:
+    zod: ^3.18.0
+  checksum: 19574cbc453c7a41105de572546e95191958f459dd93440f541a42c0ff209b56f1cd54e8f8ab1899430dd7c183e11cd16e8cace0bd4fc5d356ef772645210792
   languageName: node
   linkType: hard
 
