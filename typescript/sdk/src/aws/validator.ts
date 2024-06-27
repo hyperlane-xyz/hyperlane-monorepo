@@ -103,4 +103,8 @@ export class S3Validator extends BaseValidator {
   storageLocation(): string {
     return `${LOCATION_PREFIX}/${this.s3Bucket.config.bucket}/${this.s3Bucket.config.region}`;
   }
+
+  getLatestCheckpointUrl(): string {
+    return this.s3Bucket.url(LATEST_KEY);
+  }
 }

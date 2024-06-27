@@ -127,6 +127,13 @@ impl PendingOperation for PendingMessage {
     }
 
     fn set_status(&mut self, status: PendingOperationStatus) {
+        if let Err(e) = self
+            .ctx
+            .origin_db
+            .store_status_by_message_id(&self.message.id(), &self.status)
+        {
+            warn!(message_id = ?self.message.id(), err = %e, status = %self.status, "Persisting `status` failed for message");
+        }
         self.status = status;
     }
 
@@ -140,6 +147,16 @@ impl PendingOperation for PendingMessage {
 
     fn destination_domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
+    }
+
+    fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
+        match self.ctx.origin_db.retrieve_status_by_message_id(&self.id()) {
+            Ok(status) => status,
+            Err(e) => {
+                warn!(error=?e, "Failed to retrieve status for message");
+                None
+            }
+        }
     }
 
     fn app_context(&self) -> Option<String> {
