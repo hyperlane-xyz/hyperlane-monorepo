@@ -25,10 +25,7 @@ use hyperlane_core::{
 };
 
 use crate::signer::Signers;
-use crate::{
-    ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf,
-    TransactionOverrides,
-};
+use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
 
 // This should be whatever the prometheus scrape interval is
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -218,9 +215,10 @@ pub trait BuildableWithProvider {
             // gas pricing issues. So we first wrap the provider in a gas escalator middleware.
             // - When txs reach the gas escalator, they will already have been signed by the signer middleware,
             // so they are ready to be retried
-            let signing_provider = wrap_with_signer(provider, signer.clone()).await;
-            let gas_escalator_provider =
-                wrap_with_gas_escalator(signing_provider, &conn.transaction_overrides);
+            let signing_provider = wrap_with_signer(provider, signer.clone())
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
+            let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
             let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
@@ -246,11 +244,11 @@ pub trait BuildableWithProvider {
 async fn wrap_with_signer<M: Middleware>(
     provider: M,
     signer: Signers,
-) -> SignerMiddleware<M, Signers> {
-    let provider_chain_id = provider.get_chainid().await.unwrap();
+) -> Result<SignerMiddleware<M, Signers>, M::Error> {
+    let provider_chain_id = provider.get_chainid().await?;
     let signer = ethers::signers::Signer::with_chain_id(signer, provider_chain_id.as_u64());
 
-    SignerMiddleware::new(provider, signer)
+    Ok(SignerMiddleware::new(provider, signer))
 }
 
 async fn wrap_with_nonce_manager<M: Middleware>(
@@ -295,10 +293,7 @@ where
     Ok(GasOracleMiddleware::new(provider, gas_oracle))
 }
 
-fn wrap_with_gas_escalator<M>(
-    provider: M,
-    tx_overrides: &TransactionOverrides,
-) -> GasEscalatorMiddleware<M>
+fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M>
 where
     M: Middleware + 'static,
 {
@@ -306,7 +301,9 @@ where
     // (These are the default values from ethers doc comments)
     const COEFFICIENT: f64 = 1.125;
     const EVERY_SECS: u64 = 60u64;
-    let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, tx_overrides.max_fee_per_gas);
+    // 550 gwei is the limit we also use for polygon, so we reuse for consistency
+    const MAX_GAS_PRICE: u128 = 550 * 10u128.pow(9);
+    let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, MAX_GAS_PRICE.into());
     // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
     // which adds unnecessary load on the provider.
     const FREQUENCY: Frequency = Frequency::Duration(Duration::from_secs(12).as_millis() as _);
