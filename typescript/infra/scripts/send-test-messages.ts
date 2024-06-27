@@ -103,13 +103,18 @@ async function main() {
   const { timeout, defaultHook, requiredHook, mineforever } = args;
   let messages = args.messages;
 
-  // Do not include test4 when creating the kathy multiprovider
+  // Limit the test chains to a subset of the known chains
+  // E2E in Rust only knows about test1, test2 and test3
   const kathyTestChains = [
     TestChainName.test1,
     TestChainName.test2,
     TestChainName.test3,
   ];
-  const { test4: _, ...kathyTestChainMetadata } = testChainMetadata;
+  const kathyTestChainMetadata = {
+    test1: testChainMetadata.test1,
+    test2: testChainMetadata.test2,
+    test3: testChainMetadata.test3,
+  };
 
   // Manually set up multiprovider for kathy test with our subset of test chains
   const signer = new Wallet(ANVIL_KEY);
