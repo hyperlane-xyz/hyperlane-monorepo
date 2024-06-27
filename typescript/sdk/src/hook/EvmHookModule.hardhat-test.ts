@@ -4,12 +4,7 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import {
-  Address,
-  eqAddress,
-  normalizeConfig,
-  stringifyObject,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
