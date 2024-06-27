@@ -1,14 +1,17 @@
+import { Provider } from '@ethersproject/providers';
 import { Wallet } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
 import { Mailbox, TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
+  ChainMap,
   ChainName,
   HookType,
   HyperlaneCore,
   MultiProvider,
   TestChainName,
+  testChainMetadata,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
 
@@ -100,16 +103,32 @@ async function main() {
   const { timeout, defaultHook, requiredHook, mineforever } = args;
   let messages = args.messages;
 
+  // Do not include test4 when creating the kathy multiprovider
+  const kathyTestChains = [
+    TestChainName.test1,
+    TestChainName.test2,
+    TestChainName.test3,
+  ];
+  const { test4: _, ...kathyTestChainMetadata } = testChainMetadata;
+
+  // Manually set up multiprovider for kathy test with our subset of test chains
   const signer = new Wallet(ANVIL_KEY);
-  const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-  delete multiProvider.metadata['test4'];
+  const multiProvider = new MultiProvider(kathyTestChainMetadata);
+  multiProvider.setSharedSigner(signer);
+  const providerMap: ChainMap<Provider> = {};
+  kathyTestChains.forEach((t) => (providerMap[t] = signer.provider));
+  multiProvider.setProviders(providerMap);
+
+  // Get the provider for the first chain
   const provider = multiProvider.getProvider(TestChainName.test1);
 
+  // Create core from addresses
   const addresses = JSON.parse(
     fs.readFileSync('./config/environments/test/core/addresses.json', 'utf8'),
   );
   const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
+  // helper function to get a random element from a list
   const randomElement = <T>(list: T[]) =>
     list[Math.floor(Math.random() * list.length)];
 
