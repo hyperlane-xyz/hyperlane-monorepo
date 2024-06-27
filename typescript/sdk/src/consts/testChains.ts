@@ -77,6 +77,7 @@ export const testChainMetadata: ChainMap<ChainMetadata> = {
   test1,
   test2,
   test3,
+  test4,
 };
 
 export const testCosmosChain: ChainMetadata = {

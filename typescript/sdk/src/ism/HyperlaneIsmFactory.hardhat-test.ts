@@ -5,7 +5,7 @@ import hre from 'hardhat';
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
 import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
 
-import { TestChainName, test4, testChains } from '../consts/testChains.js';
+import { TestChainName, testChains } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -107,8 +107,10 @@ describe('HyperlaneIsmFactory', async () => {
 
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
+    if (!testChains.includes(chain)) {
+      testChains.push(chain);
+    }
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    multiProvider.addChain(test4);
 
     ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     ismFactory = new HyperlaneIsmFactory(

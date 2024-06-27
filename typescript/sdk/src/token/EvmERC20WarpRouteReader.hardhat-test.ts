@@ -16,7 +16,7 @@ import {
   TokenRouterConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { test4 } from '../consts/testChains.js';
+import { testChains } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -50,8 +50,11 @@ describe('ERC20WarpRouterReader', async () => {
   let vault: ERC4626;
   before(async () => {
     [signer] = await hre.ethers.getSigners();
+
+    if (!testChains.includes(chain)) {
+      testChains.push(chain);
+    }
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    multiProvider.addChain(test4);
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(

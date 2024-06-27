@@ -7,7 +7,7 @@ import hre from 'hardhat';
 import { FallbackDomainRoutingHook__factory } from '@hyperlane-xyz/core';
 import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
-import { TestChainName, test4, testChains } from '../consts/testChains.js';
+import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -103,8 +103,11 @@ describe('EvmIsmModule', async () => {
   beforeEach(async () => {
     const [signer, funder] = await hre.ethers.getSigners();
     fundingAccount = funder;
+
+    if (!testChains.includes(chain)) {
+      testChains.push(chain);
+    }
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    multiProvider.addChain(test4);
 
     const contractsMap = await new HyperlaneProxyFactoryDeployer(
       multiProvider,
@@ -151,11 +154,9 @@ describe('EvmIsmModule', async () => {
       to: account,
       value: hre.ethers.utils.parseEther('1.0'),
     });
-    const multiProvider = MultiProvider.createTestMultiProvider({
+    return MultiProvider.createTestMultiProvider({
       signer: hre.ethers.provider.getSigner(account),
     });
-    multiProvider.addChain(test4);
-    return multiProvider;
   }
 
   // Helper method to expect exactly N updates to be applied

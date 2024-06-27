@@ -9,7 +9,7 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { test4, testChains } from '../consts/testChains.js';
+import { testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { CoreAddresses } from '../core/contracts.js';
@@ -165,8 +165,10 @@ describe('EvmHookModule', async () => {
 
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
+    if (!testChains.includes(chain)) {
+      testChains.push(chain);
+    }
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    multiProvider.addChain(test4);
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const contractsMap = await ismFactoryDeployer.deploy(
