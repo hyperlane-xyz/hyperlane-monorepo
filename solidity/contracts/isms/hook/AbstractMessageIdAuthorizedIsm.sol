@@ -71,27 +71,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @param message Message to verify.
      */
     function verify(
-        bytes calldata,
-        /*_metadata*/
+        bytes calldata metadata,
         bytes calldata message
-    ) external returns (bool) {
-        bytes32 messageId = message.id();
-
-        // check for the first bit (used for verification)
-        bool verified = verifiedMessages[messageId].isBitSet(
-            VERIFIED_MASK_INDEX
-        );
-        // rest 255 bits contains the msg.value passed from the hook
-        if (verified) {
-            uint256 _msgValue = verifiedMessages[messageId].clearBit(
-                VERIFIED_MASK_INDEX
-            );
-            if (_msgValue > 0) {
-                verifiedMessages[messageId] -= _msgValue;
-                payable(message.recipientAddress()).sendValue(_msgValue);
-            }
-        }
-        return verified;
+    ) external virtual returns (bool) {
+        return _statefulVerify(metadata, message);
     }
 
     /**
@@ -111,6 +94,30 @@ abstract contract AbstractMessageIdAuthorizedIsm is
 
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId);
+    }
+
+    function _statefulVerify(
+        bytes calldata,
+        /*_metadata*/
+        bytes calldata message
+    ) internal returns (bool) {
+        bytes32 messageId = message.id();
+
+        // check for the first bit (used for verification)
+        bool verified = verifiedMessages[messageId].isBitSet(
+            VERIFIED_MASK_INDEX
+        );
+        // rest 255 bits contains the msg.value passed from the hook
+        if (verified) {
+            uint256 _msgValue = verifiedMessages[messageId].clearBit(
+                VERIFIED_MASK_INDEX
+            );
+            if (_msgValue > 0) {
+                verifiedMessages[messageId] -= _msgValue;
+                payable(message.recipientAddress()).sendValue(_msgValue);
+            }
+        }
+        return verified;
     }
 
     function _isAuthorized() internal view virtual returns (bool);
