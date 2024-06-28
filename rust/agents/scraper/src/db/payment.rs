@@ -1,6 +1,6 @@
 use eyre::{eyre, Result};
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, TransactionTrait};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{InterchainGasPayment, LogMeta};
