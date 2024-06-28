@@ -8,8 +8,13 @@ import { getHyperlaneCore } from './core-utils.js';
 const CACHE_PATH = process.env.RELAYER_CACHE ?? './relayer-cache.json';
 
 async function main() {
-  const { environment } = await getArgs().argv;
+  const { environment, chain, txHash } = await getArgs()
+    .describe('txHash', 'origin transaction hash')
+    .string('txHash')
+    .describe('chain', 'origin chain').argv;
+
   const { core } = await getHyperlaneCore(environment);
+
   const relayer = new HyperlaneRelayer(core);
 
   // target subset of chains
@@ -24,6 +29,11 @@ async function main() {
     console.log(`Relayer cache loaded from ${CACHE_PATH}`);
   } catch (e) {
     console.error(`Failed to load cache from ${CACHE_PATH}`);
+  }
+
+  if (txHash) {
+    await relayer.relayMessagesFromDispatchTx(chain, txHash);
+    return;
   }
 
   relayer.start(chains);
