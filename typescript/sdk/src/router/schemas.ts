@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
-import { OwnableConfigSchema } from '../deploy/schemas.js';
+import { HookConfigSchema } from '../hook/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { ZHash } from '../metadata/customZodTypes.js';
+import { OwnableSchema } from '../schemas.js';
 
-export const MailboxClientConfigSchema = OwnableConfigSchema.extend({
+export const MailboxClientConfigSchema = OwnableSchema.extend({
   mailbox: ZHash,
-  hook: ZHash.optional(),
+  hook: HookConfigSchema.optional(),
   interchainSecurityModule: IsmConfigSchema.optional(),
 });
 

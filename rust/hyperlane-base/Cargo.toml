@@ -46,7 +46,6 @@ url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
 
-
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
@@ -57,7 +56,6 @@ hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos"}
 hyperlane-test = { path = "../hyperlane-test" }
-
 
 # dependency version is determined by etheres
 rusoto_core = "*"

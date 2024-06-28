@@ -65,10 +65,6 @@ abstract class TokenDeployer<
   }
 
   async initializeArgs(_: ChainName, config: TokenRouterConfig): Promise<any> {
-    // ISM config can be an object, but is not supported right now.
-    if (typeof config.interchainSecurityModule === 'object') {
-      throw new Error('Token deployer does not support ISM objects currently');
-    }
     const defaultArgs = [
       config.hook ?? constants.AddressZero,
       config.interchainSecurityModule ?? constants.AddressZero,

@@ -3,6 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
+  HookType,
   IgpConfig,
   TOKEN_EXCHANGE_RATE_DECIMALS,
   defaultMultisigConfigs,
@@ -57,20 +58,24 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     (local) => remoteOverhead(local),
   );
 
-export const igp: ChainMap<IgpConfig> = objMap(owners, (local, owner) => ({
-  ...owner,
-  ownerOverrides: {
-    ...owner.ownerOverrides,
-    interchainGasPaymaster: DEPLOYER,
-    storageGasOracle: DEPLOYER,
-  },
-  oracleKey: DEPLOYER,
-  beneficiary: DEPLOYER,
-  overhead: Object.fromEntries(
-    exclude(local, supportedChainNames).map((remote) => [
-      remote,
-      remoteOverhead(remote),
-    ]),
-  ),
-  oracleConfig: storageGasOracleConfig[local],
-}));
+export const igp: ChainMap<IgpConfig> = objMap(
+  owners,
+  (local, owner): IgpConfig => ({
+    type: HookType.INTERCHAIN_GAS_PAYMASTER,
+    ...owner,
+    ownerOverrides: {
+      ...owner.ownerOverrides,
+      interchainGasPaymaster: DEPLOYER,
+      storageGasOracle: DEPLOYER,
+    },
+    oracleKey: DEPLOYER,
+    beneficiary: DEPLOYER,
+    overhead: Object.fromEntries(
+      exclude(local, supportedChainNames).map((remote) => [
+        remote,
+        remoteOverhead(remote),
+      ]),
+    ),
+    oracleConfig: storageGasOracleConfig[local],
+  }),
+);

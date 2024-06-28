@@ -7,7 +7,6 @@ import {
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
-  IgpHookConfig,
   IsmType,
   MerkleTreeHookConfig,
   MultisigConfig,
@@ -59,6 +58,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
 
   const pausableIsm: PausableIsmConfig = {
     type: IsmType.PAUSABLE,
+    paused: false,
     owner: DEPLOYER, // keep pausable hot
   };
 
@@ -72,13 +72,11 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     type: HookType.MERKLE_TREE,
   };
 
-  const igpHook: IgpHookConfig = {
-    type: HookType.INTERCHAIN_GAS_PAYMASTER,
-    ...igp[local],
-  };
+  const igpHook = igp[local];
 
   const pausableHook: PausableHookConfig = {
     type: HookType.PAUSABLE,
+    paused: false,
     owner: DEPLOYER, // keep pausable hot
   };
   const aggregationHooks = objMap(

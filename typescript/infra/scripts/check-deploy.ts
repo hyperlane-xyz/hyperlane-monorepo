@@ -10,7 +10,6 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
-  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
@@ -36,15 +35,15 @@ import { getHelloWorldApp } from './helloworld/utils.js';
 
 function getArgs() {
   return withChain(withModuleAndFork(withContext(getRootArgs())))
-    .boolean('asdeployer')
-    .default('asdeployer', false)
+    .boolean('asDeployer')
+    .default('asDeployer', false)
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
 }
 
 async function check() {
-  const { fork, govern, module, environment, context, chain, asdeployer } =
+  const { fork, govern, module, environment, context, chain, asDeployer } =
     await getArgs();
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
@@ -58,13 +57,7 @@ async function check() {
         [fork]: { blocks: { confirmations: 0 } },
       });
 
-      const owner = asdeployer
-        ? DEPLOYER
-        : await resolveOrDeployAccountOwner(
-            multiProvider,
-            fork,
-            envConfig.core[fork].owner,
-          );
+      const owner = asDeployer ? DEPLOYER : envConfig.core[fork].owner;
       const signer = await impersonateAccount(owner, 1e18);
 
       multiProvider.setSigner(fork, signer);
