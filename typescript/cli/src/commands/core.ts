@@ -10,7 +10,7 @@ import {
 } from '../context/types.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { log, logGray, logGreen } from '../logger.js';
+import { errorRed, log, logGray, logGreen } from '../logger.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -142,13 +142,20 @@ export const read: CommandModuleWithContext<{
     logGray('-------------------');
 
     const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
-    const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
-
-    writeYamlOrJson(configFilePath, coreConfig, 'yaml');
-    logGreen(
-      `✅ Warp route config written successfully to ${configFilePath}:\n`,
-    );
-    log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
+    try {
+      const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
+      writeYamlOrJson(configFilePath, coreConfig, 'yaml');
+      logGreen(
+        `✅ Warp route config written successfully to ${configFilePath}:\n`,
+      );
+      log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
+    } catch (e: any) {
+      errorRed(
+        `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
+        e,
+      );
+      process.exit(1);
+    }
 
     process.exit(0);
   },
