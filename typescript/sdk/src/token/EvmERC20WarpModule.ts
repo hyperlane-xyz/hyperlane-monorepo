@@ -75,17 +75,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     TokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedEV5Transaction[] = [];
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
     const updateIsmTx = await this.updateIsm(actualConfig, expectedConfig);
     if (updateIsmTx) {
-      transactions.push(updateIsmTx);
+      updateTransactions.push(updateIsmTx);
     }
 
     const updateHookTx = await this.updateHook(actualConfig, expectedConfig);
     if (updateHookTx) {
-      transactions.push(updateHookTx);
+      updateTransactions.push(updateHookTx);
     }
-    return transactions;
+    return updateTransactions;
   }
 
   /**
@@ -106,7 +106,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       actualConfig.interchainSecurityModule,
     );
 
-    let transaction;
+    let updateTransaction;
     if (!configDeepEquals(expectedIsmConfig, actualIsmConfig)) {
       const deployedIsm = await this.deployIsm(
         expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
@@ -117,7 +117,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         this.args.addresses.deployedTokenRoute,
         this.multiProvider.getProvider(this.args.chain),
       );
-      transaction = {
+      updateTransaction = {
         annotation: `Setting ISM for Warp Route to ${deployedIsm}`,
         chainId: Number(this.multiProvider.getChainId(this.args.chain)),
         to: contractToUpdate.address,
@@ -127,7 +127,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         ),
       };
     }
-    return transaction;
+    return updateTransaction;
   }
 
   /**
