@@ -1,6 +1,6 @@
 use eyre::{eyre, Result};
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, TransactionTrait};
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{InterchainGasPayment, LogMeta};
@@ -26,7 +26,8 @@ impl ScraperDb {
         domain: u32,
         payments: impl Iterator<Item = StorablePayment<'_>>,
     ) -> Result<u64> {
-        let latest_id_before: u64 = self.latest_payment_id(domain).await?.try_into()?;
+        let latest_id_before = self.latest_payment_id(domain).await?;
+
         // we have a race condition where a message may not have been scraped yet even
         let models = payments
             .map(|storable| gas_payment::ActiveModel {
@@ -44,7 +45,7 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing gas payments to database");
 
-        let insert_result = Insert::many(models)
+        Insert::many(models)
             .on_conflict(
                 OnConflict::columns([
                     // don't need domain because TxId includes it
@@ -62,15 +63,17 @@ impl ScraperDb {
             .exec(&self.0)
             .await?;
 
-        // `last_insert_id` from the insert result is the id of the last row inserted, meaning
-        // that if no new rows were inserted, it will be the same as the latest id before.
-        let last_insert_id: u64 = insert_result.last_insert_id.try_into()?;
-        let difference = last_insert_id.saturating_sub(latest_id_before);
+        let new_payments_count = self
+            .payments_count_since_id(domain, latest_id_before)
+            .await?;
 
-        if difference > 0 {
-            debug!(payments = difference, "Wrote new gas payments to database");
+        if new_payments_count > 0 {
+            debug!(
+                payments = new_payments_count,
+                "Wrote new gas payments to database"
+            );
         }
-        Ok(difference)
+        Ok(new_payments_count)
     }
 
     async fn latest_payment_id(&self, domain: u32) -> Result<i64> {
@@ -88,5 +91,13 @@ impl ScraperDb {
             // Inner Option indicates whether there was any data in the filter -
             // just default to 0 if there was no data
             .unwrap_or(0))
+    }
+
+    async fn payments_count_since_id(&self, domain: u32, prev_id: i64) -> Result<u64> {
+        Ok(gas_payment::Entity::find()
+            .filter(gas_payment::Column::Domain.eq(domain))
+            .filter(gas_payment::Column::Id.gt(prev_id))
+            .count(&self.0)
+            .await?)
     }
 }

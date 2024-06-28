@@ -136,6 +136,20 @@ impl ScraperDb {
             .unwrap_or(0))
     }
 
+    async fn deliveries_count_since_id(
+        &self,
+        domain: u32,
+        destination_mailbox: Vec<u8>,
+        prev_id: i64,
+    ) -> Result<u64> {
+        Ok(delivered_message::Entity::find()
+            .filter(delivered_message::Column::Domain.eq(domain))
+            .filter(delivered_message::Column::DestinationMailbox.eq(destination_mailbox))
+            .filter(delivered_message::Column::Id.gt(prev_id))
+            .count(&self.0)
+            .await?)
+    }
+
     /// Store deliveries from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
@@ -146,10 +160,9 @@ impl ScraperDb {
         deliveries: impl Iterator<Item = StorableDelivery<'_>>,
     ) -> Result<u64> {
         let destination_mailbox = address_to_bytes(&destination_mailbox);
-        let latest_id_before: u64 = self
+        let latest_id_before = self
             .latest_deliveries_id(domain, destination_mailbox.clone())
-            .await?
-            .try_into()?;
+            .await?;
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
@@ -167,7 +180,7 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing delivered messages to database");
 
-        let insert_result = Insert::many(models)
+        Insert::many(models)
             .on_conflict(
                 OnConflict::columns([delivered_message::Column::MsgId])
                     .update_columns([
@@ -179,18 +192,17 @@ impl ScraperDb {
             .exec(&self.0)
             .await?;
 
-        // `last_insert_id` from the insert result is the id of the last row inserted, meaning
-        // that if no new rows were inserted, it will be the same as the latest id before.
-        let last_insert_id: u64 = insert_result.last_insert_id.try_into()?;
-        let difference = last_insert_id.saturating_sub(latest_id_before);
+        let new_deliveries_count = self
+            .deliveries_count_since_id(domain, destination_mailbox, latest_id_before)
+            .await?;
 
-        if difference > 0 {
+        if new_deliveries_count > 0 {
             debug!(
-                messages = difference,
+                messages = new_deliveries_count,
                 "Wrote new delivered messages to database"
             );
         }
-        Ok(difference)
+        Ok(new_deliveries_count)
     }
 
     async fn latest_dispatched_id(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<i64> {
@@ -211,6 +223,20 @@ impl ScraperDb {
             .unwrap_or(0))
     }
 
+    async fn dispatch_count_since_id(
+        &self,
+        domain: u32,
+        origin_mailbox: Vec<u8>,
+        prev_id: i64,
+    ) -> Result<u64> {
+        Ok(message::Entity::find()
+            .filter(message::Column::Origin.eq(domain))
+            .filter(message::Column::OriginMailbox.eq(origin_mailbox))
+            .filter(message::Column::Id.gt(prev_id))
+            .count(&self.0)
+            .await?)
+    }
+
     /// Store messages from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
@@ -221,10 +247,9 @@ impl ScraperDb {
         messages: impl Iterator<Item = StorableMessage<'_>>,
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
-        let latest_id_before: u64 = self
+        let latest_id_before = self
             .latest_dispatched_id(domain, origin_mailbox.clone())
-            .await?
-            .try_into()?;
+            .await?;
         // we have a race condition where a message may not have been scraped yet even
         let models = messages
             .map(|storable| message::ActiveModel {
@@ -249,7 +274,7 @@ impl ScraperDb {
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing messages to database");
 
-        let insert_result = Insert::many(models)
+        Insert::many(models)
             .on_conflict(
                 OnConflict::columns([
                     message::Column::OriginMailbox,
@@ -269,14 +294,16 @@ impl ScraperDb {
             .exec(&self.0)
             .await?;
 
-        // `last_insert_id` from the insert result is the id of the last row inserted, meaning
-        // that if no new rows were inserted, it will be the same as the latest id before.
-        let last_insert_id: u64 = insert_result.last_insert_id.try_into()?;
-        let difference = last_insert_id.saturating_sub(latest_id_before);
+        let new_dispatch_count = self
+            .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
+            .await?;
 
-        if difference > 0 {
-            debug!(messages = difference, "Wrote new messages to database");
+        if new_dispatch_count > 0 {
+            debug!(
+                messages = new_dispatch_count,
+                "Wrote new messages to database"
+            );
         }
-        Ok(difference)
+        Ok(new_dispatch_count)
     }
 }
