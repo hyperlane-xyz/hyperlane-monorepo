@@ -42,10 +42,6 @@ contract ArbL2ToL1Ism is
         uint8(IInterchainSecurityModule.Types.ARB_L2_TO_L1);
     // arbitrum nitro contract on L1 to forward verification
     IOutbox public arbOutbox;
-    // offset from the end of the metadata to account for right padding while slicing directly
-    uint256 public constant MESSAGE_ID_START_OFFSET = 60;
-    uint256 public constant MESSAGE_ID_END_OFFSET =
-        MESSAGE_ID_START_OFFSET - 32;
 
     // ============ Constructor ============
 
@@ -111,14 +107,15 @@ contract ArbL2ToL1Ism is
             l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
             "ArbL2ToL1Ism: l2Sender != authorizedHook"
         );
-        uint256 metadataLength = metadata.length;
+        require(data.length == 36, "ArbL2ToL1Ism: invalid data length"); // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
+        bytes32 messageId = message.id();
+        bytes32 convertedBytes;
+        assembly {
+            convertedBytes := mload(add(data, 36))
+        }
         // check if the parsed message id matches the message id of the message
         require(
-            bytes32(
-                metadata[metadataLength -
-                    MESSAGE_ID_START_OFFSET:metadataLength -
-                    MESSAGE_ID_END_OFFSET]
-            ) == message.id(),
+            convertedBytes == messageId,
             "ArbL2ToL1Ism: invalid message id"
         );
 
