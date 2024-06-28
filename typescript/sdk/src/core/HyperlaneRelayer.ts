@@ -16,7 +16,7 @@ import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { HookConfigSchema } from '../hook/schemas.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
-import { IsmConfigObjectSchema } from '../ism/schemas.js';
+import { IsmConfigSchema } from '../ism/schemas.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -30,7 +30,7 @@ const WithAddressSchema = z.object({
 const DerivedHookConfigWithAddressSchema =
   HookConfigSchema.and(WithAddressSchema);
 const DerivedIsmConfigWithAddressSchema =
-  IsmConfigObjectSchema.and(WithAddressSchema);
+  IsmConfigSchema.and(WithAddressSchema);
 
 export const RelayerCacheSchema = z.object({
   hook: z.record(z.record(DerivedHookConfigWithAddressSchema)),
@@ -65,12 +65,14 @@ export class HyperlaneRelayer {
     chain: ChainName,
     hook: Address,
   ): Promise<DerivedHookConfig> {
-    const config =
-      this.cache?.hook[chain]?.[hook] ??
+    const config = (this.cache?.hook[chain]?.[hook] ??
       (await new EvmHookReader(this.multiProvider, chain).deriveHookConfig(
         hook,
-      ));
+      ))) as DerivedHookConfig | undefined;
 
+    if (!config) {
+      throw new Error(`Hook config not found for ${hook}`);
+    }
     if (this.cache) {
       this.cache.hook[chain] ??= {};
       this.cache.hook[chain][hook] = config;
@@ -83,9 +85,14 @@ export class HyperlaneRelayer {
     chain: ChainName,
     ism: Address,
   ): Promise<DerivedIsmConfig> {
-    const config =
-      this.cache?.ism[chain]?.[ism] ??
-      (await new EvmIsmReader(this.multiProvider, chain).deriveIsmConfig(ism));
+    const config = (this.cache?.ism[chain]?.[ism] ??
+      (await new EvmIsmReader(this.multiProvider, chain).deriveIsmConfig(
+        ism,
+      ))) as DerivedIsmConfig | undefined;
+
+    if (!config) {
+      throw new Error(`ISM config not found for ${ism}`);
+    }
 
     if (this.cache) {
       this.cache.ism[chain] ??= {};

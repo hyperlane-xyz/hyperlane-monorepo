@@ -13,8 +13,8 @@ import {
   AddressBytes32,
   ProtocolType,
   addressToBytes32,
-  assert,
   bytes32ToAddress,
+  eqAddress,
   messageId,
   objFilter,
   objMap,
@@ -27,9 +27,6 @@ import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
-import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -90,61 +87,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       hook || ethers.constants.AddressZero,
     );
   };
-
-  protected getDestination(message: DispatchedMessage): ChainName {
-    return this.multiProvider.getChainName(message.parsed.destination);
-  }
-
-  protected getOrigin(message: DispatchedMessage): ChainName {
-    return this.multiProvider.getChainName(message.parsed.origin);
-  }
-
-  async getRecipientIsmAddress(message: DispatchedMessage): Promise<Address> {
-    const destinationMailbox = this.contractsMap[this.getDestination(message)];
-    const ethAddress = bytes32ToAddress(message.parsed.recipient);
-    return destinationMailbox.mailbox.recipientIsm(ethAddress);
-  }
-
-  async getHookAddress(message: DispatchedMessage): Promise<Address> {
-    const destinationMailbox = this.contractsMap[this.getOrigin(message)];
-    /* TODO: requiredHook() account for here: https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3693 */
-    return destinationMailbox.mailbox.defaultHook();
-  }
-
-  async getRecipientIsmConfig(
-    message: DispatchedMessage,
-  ): Promise<DerivedIsmConfig> {
-    const destinationChain = this.getDestination(message);
-    const ismReader = new EvmIsmReader(this.multiProvider, destinationChain);
-    const address = await this.getRecipientIsmAddress(message);
-    return ismReader.deriveIsmConfig(address);
-  }
-
-  async getHookConfig(message: DispatchedMessage): Promise<DerivedHookConfig> {
-    const originChain = this.getOrigin(message);
-    const hookReader = new EvmHookReader(this.multiProvider, originChain);
-    const address = await this.getHookAddress(message);
-    const hookConfig = await hookReader.deriveHookConfig(address);
-    assert(hookConfig, `No hook config found for ${address}.`);
-    return hookConfig;
-  }
-
-  async buildMetadata(
-    message: DispatchedMessage,
-    dispatchTx: TransactionReceipt,
-  ): Promise<string> {
-    const ismConfig = await this.getRecipientIsmConfig(message);
-    const hookConfig = await this.getHookConfig(message);
-
-    const baseMetadataBuilder = new BaseMetadataBuilder(this);
-
-    return baseMetadataBuilder.build({
-      ism: ismConfig,
-      hook: hookConfig,
-      message,
-      dispatchTx,
-    });
-  }
 
   async sendMessage(
     origin: ChainName,
@@ -234,7 +176,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return destinationMailbox.mailbox.recipientIsm(recipientAddress);
   }
 
-  getRecipientIsmAddress(message: DispatchedMessage): Promise<Address> {
+  async getRecipientIsmAddress(message: DispatchedMessage): Promise<Address> {
     const destinationChain = this.getDestination(message);
     const ethAddress = bytes32ToAddress(message.parsed.recipient);
     return this.getIsm(destinationChain, ethAddress);
@@ -307,10 +249,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async getProcessedReceipt(
     message: DispatchedMessage,
-    dispatchTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt> {
-    const metadata = await this.buildMetadata(message, dispatchTx);
-
     const destinationChain = this.getDestination(message);
     const mailbox = this.contractsMap[destinationChain].mailbox;
 
@@ -414,7 +353,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   async getDispatchTx(
     originChain: ChainName,
     messageId: string,
-  ): Promise<ethers.ContractReceipt> {
+    blockNumber?: number,
+  ): Promise<TransactionReceipt> {
     const mailbox = this.contractsMap[originChain].mailbox;
     const filter = mailbox.filters.DispatchId(messageId);
 
