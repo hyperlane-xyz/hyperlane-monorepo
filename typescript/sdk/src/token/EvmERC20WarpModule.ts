@@ -14,8 +14,6 @@ import {
 } from '../core/AbstractHyperlaneModule.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { EvmHookModule } from '../hook/EvmHookModule.js';
-import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -81,10 +79,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       updateTransactions.push(updateIsmTx);
     }
 
-    const updateHookTx = await this.updateHook(actualConfig, expectedConfig);
-    if (updateHookTx) {
-      updateTransactions.push(updateHookTx);
-    }
     return updateTransactions;
   }
 
@@ -152,33 +146,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     // Attach the deployedIsm address
     return ism.serialize().deployedIsm;
-  }
-
-  /**
-   * Updates an existing Warp route Hook with a given configuration.
-   *
-   * @param actualConfig - The on-chain router configuration, including the hook configuration to update.
-   * @param expectedConfig - The token router configuration, including the hook configuration to update.
-   * @returns An array of Ethereum transactions that can be executed to update the hook.
-   */
-  async updateHook(
-    _actualConfig: TokenRouterConfig,
-    _expectedConfig: TokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction | undefined> {
-    return;
-  }
-
-  /**
-   * Deploys the Hook using the provided configuration.
-   *
-   * @param config - The configuration for the Hook to be deployed.
-   * @returns The config used to deploy the Hook with address attached
-   */
-  public async deployHook(hook: HookConfig): Promise<HookConfig> {
-    const ism = await EvmHookModule.create(hook);
-
-    (hook as any).address = ism.serialize().deployedHook; // @todo Remove 'any' after https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773 is implemented,
-    return hook;
   }
 
   /**
