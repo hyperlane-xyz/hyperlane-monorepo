@@ -30,7 +30,6 @@ import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -128,23 +127,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const hookConfig = await hookReader.deriveHookConfig(address);
     assert(hookConfig, `No hook config found for ${address}.`);
     return hookConfig;
-  }
-
-  async buildMetadata(
-    message: DispatchedMessage,
-    dispatchTx: TransactionReceipt,
-  ): Promise<string> {
-    const ismConfig = await this.getRecipientIsmConfig(message);
-    const hookConfig = await this.getHookConfig(message);
-
-    const baseMetadataBuilder = new BaseMetadataBuilder(this);
-
-    return baseMetadataBuilder.build({
-      ism: ismConfig,
-      hook: hookConfig,
-      message,
-      dispatchTx,
-    });
   }
 
   async sendMessage(
