@@ -66,21 +66,26 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   /**
    * Updates the Warp Route contract with the provided configuration.
    *
-   * @remark Currently only supports updating ISM or hook.
-   *
    * @param expectedConfig - The configuration for the token router to be updated.
    * @returns An array of Ethereum transactions that were executed to update the contract, or an error if the update failed.
    */
   public async update(
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    const actualConfig = await this.read();
     TokenRouterConfigSchema.parse(expectedConfig);
+    const actualConfig = await this.read();
 
-    return [
-      ...(await this.updateIsm(actualConfig, expectedConfig)),
-      ...(await this.updateHook(actualConfig, expectedConfig)),
-    ];
+    const transactions: AnnotatedEV5Transaction[] = [];
+    const updateIsmTx = await this.updateIsm(actualConfig, expectedConfig);
+    if (updateIsmTx) {
+      transactions.push(updateIsmTx);
+    }
+
+    const updateHookTx = await this.updateHook(actualConfig, expectedConfig);
+    if (updateHookTx) {
+      transactions.push(updateHookTx);
+    }
+    return transactions;
   }
 
   /**
@@ -88,42 +93,41 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    *
    * @param actualConfig - The on-chain router configuration, including the ISM configuration.
    * @param expectedconfig - The expected token router configuration, including the ISM configuration.
-   * @returns An array of Ethereum transactions that need to be executed to update the ISM configuration.
+   * @returns Ethereum transaction that need to be executed to update the ISM configuration.
    */
   async updateIsm(
     actualConfig: TokenRouterConfig,
     expectedconfig: TokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const transactions: AnnotatedEV5Transaction[] = [];
+  ): Promise<AnnotatedEV5Transaction | undefined> {
     const expectedIsmConfig = normalizeConfig(
       expectedconfig.interchainSecurityModule,
     );
     const actualIsmConfig = normalizeConfig(
       actualConfig.interchainSecurityModule,
     );
-    if (expectedIsmConfig) {
-      if (!configDeepEquals(expectedIsmConfig, actualIsmConfig)) {
-        const deployedIsm = await this.deployIsm(
-          expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
-          expectedIsmConfig,
-          expectedconfig.mailbox,
-        );
-        const contractToUpdate = MailboxClient__factory.connect(
-          this.args.addresses.deployedTokenRoute,
-          this.multiProvider.getProvider(this.args.chain),
-        );
-        transactions.push({
-          annotation: `Setting ISM for Warp Route to ${deployedIsm}`,
-          chainId: Number(this.multiProvider.getChainId(this.args.chain)),
-          to: contractToUpdate.address,
-          data: contractToUpdate.interface.encodeFunctionData(
-            'setInterchainSecurityModule',
-            [deployedIsm],
-          ),
-        });
-      }
+
+    let transaction;
+    if (!configDeepEquals(expectedIsmConfig, actualIsmConfig)) {
+      const deployedIsm = await this.deployIsm(
+        expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
+        expectedIsmConfig,
+        expectedconfig.mailbox,
+      );
+      const contractToUpdate = MailboxClient__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.args.chain),
+      );
+      transaction = {
+        annotation: `Setting ISM for Warp Route to ${deployedIsm}`,
+        chainId: Number(this.multiProvider.getChainId(this.args.chain)),
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'setInterchainSecurityModule',
+          [deployedIsm],
+        ),
+      };
     }
-    return transactions;
+    return transaction;
   }
 
   /**
@@ -159,13 +163,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    */
   async updateHook(
     _actualConfig: TokenRouterConfig,
-    expectedConfig: TokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const transactions: AnnotatedEV5Transaction[] = [];
-    if (expectedConfig.hook) {
-      // @todo Implement after https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3861 is merged,
-    }
-    return transactions;
+    _expectedConfig: TokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction | undefined> {
+    return;
   }
 
   /**
