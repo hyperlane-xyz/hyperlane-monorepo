@@ -62,8 +62,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   bob: {
-    threshold: 1,
-    validators: ['0x20f283be1eb0e81e22f51705dcb79883cfdd34aa'],
+    threshold: 2,
+    validators: [
+      '0x20f283be1eb0e81e22f51705dcb79883cfdd34aa',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   bsc: {
@@ -194,8 +197,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mantle: {
-    threshold: 1,
-    validators: ['0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52'],
+    threshold: 2,
+    validators: [
+      '0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   mode: {
@@ -328,8 +334,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   taiko: {
-    threshold: 1,
-    validators: ['0xa930073c8f2d0b2f7423ea32293e0d1362e65d79'],
+    threshold: 2,
+    validators: [
+      '0xa930073c8f2d0b2f7423ea32293e0d1362e65d79',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   viction: {
