@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Add EvmWarpModule with update()
+Add EvmWarpModule with update() for ISM
