@@ -3,12 +3,14 @@ import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
+import { logGreen, logRed } from '../logger.js';
+
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
   signer: ethers.Signer,
   chains: ChainName[],
   minGas: string,
-): Promise<boolean[]> {
+) {
   const address = await signer.getAddress();
 
   const sufficientBalances: boolean[] = [];
@@ -16,22 +18,29 @@ export async function nativeBalancesAreSufficient(
     const provider = multiProvider.getProvider(chain);
     const gasPrice = await provider.getGasPrice();
     const minBalanceWei = gasPrice.mul(minGas).toString();
+    const minBalance = ethers.utils.formatEther(minBalanceWei.toString());
 
     const balanceWei = await multiProvider
       .getProvider(chain)
       .getBalance(address);
-    const balance = ethers.utils.formatEther(balanceWei);
+    const balance = ethers.utils.formatEther(balanceWei.toString());
     if (balanceWei.lt(minBalanceWei)) {
       const symbol =
         multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
-      const error = `${address} has low balance on ${chain}. At least ${minBalanceWei} recommended but found ${balance.toString()} ${symbol}`;
-      const isResume = await confirm({
-        message: `WARNING: ${error} Continue?`,
-      });
-      if (!isResume) throw new Error(error);
+      logRed(
+        `WARNING: ${address} has low balance on ${chain}. At least ${minBalance} recommended but found ${balance} ${symbol}`,
+      );
       sufficientBalances.push(false);
     }
   }
+  const allSufficient = sufficientBalances.every((sufficient) => sufficient);
 
-  return sufficientBalances;
+  if (allSufficient) {
+    logGreen('✅ Balances are sufficient');
+  } else {
+    const isResume = await confirm({
+      message: 'Deployment may fail due to insufficient balance(s). Continue?',
+    });
+    if (!isResume) throw new Error('Canceled deployment due to low balance');
+  }
 }
