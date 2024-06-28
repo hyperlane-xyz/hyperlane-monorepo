@@ -3,6 +3,11 @@ import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import yargs from 'yargs';
 
+import {
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+  IXERC20__factory,
+} from '@hyperlane-xyz/core';
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
@@ -10,8 +15,11 @@ import {
   CosmNativeTokenAdapter,
   CwNativeTokenAdapter,
   MultiProtocolProvider,
+  MultiProvider,
   SealevelHypCollateralAdapter,
+  TokenStandard,
   TokenType,
+  WarpCoreConfig,
   WarpRouteConfig,
   WarpRouteConfigSchema,
 } from '@hyperlane-xyz/sdk';
@@ -22,7 +30,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChainMetadata } from '../../config/registry.js';
+import { getChainMetadata, getRegistry } from '../../config/registry.js';
 import { startMetricsServer } from '../../src/utils/metrics.js';
 import { readYaml } from '../../src/utils/utils.js';
 
@@ -40,6 +48,13 @@ const warpRouteTokenBalance = new Gauge({
     'wallet_address',
     'token_type',
   ],
+});
+
+const xERC20LimitsGauge = new Gauge({
+  name: 'hyperlane_xerc20_limits',
+  help: 'Current minting and burning limits of xERC20 tokens',
+  registers: [metricsRegister],
+  labelNames: ['chain_name', 'limit_type'],
 });
 
 export function readWarpRouteConfig(filePath: string) {
@@ -70,23 +85,19 @@ async function main(): Promise<boolean> {
     .string('filePath')
     .parse();
 
+  startMetricsServer(metricsRegister);
+
   const tokenConfig: WarpRouteConfig =
     readWarpRouteConfig(filePath).data.config;
 
-  startMetricsServer(metricsRegister);
+  // await checkTokenBalances(checkFrequency, tokenConfig);
 
-  logger.info('Starting Warp Route balance monitor');
-  const multiProtocolProvider = new MultiProtocolProvider(getChainMetadata());
+  if (
+    Object.values(tokenConfig).some((token) => token.type === TokenType.XERC20)
+  ) {
+    await checkXERC20Limits(checkFrequency);
+  }
 
-  setInterval(async () => {
-    try {
-      logger.debug('Checking balances');
-      const balances = await checkBalance(tokenConfig, multiProtocolProvider);
-      updateTokenBalanceMetrics(tokenConfig, balances);
-    } catch (e) {
-      logger.error('Error checking balances', e);
-    }
-  }, checkFrequency);
   return true;
 }
 
@@ -215,7 +226,7 @@ async function checkBalance(
     },
   );
 
-  return await promiseObjAll(output);
+  return promiseObjAll(output);
 }
 
 export function updateTokenBalanceMetrics(
@@ -238,6 +249,149 @@ export function updateTokenBalanceMetrics(
       balance: balances[chain],
     });
   });
+}
+
+export function updateXERC20LimitsMetrics(
+  xERC20Limits: {
+    chain: string;
+    mint: number;
+    burn: number;
+    mintMax: number;
+    burnMax: number;
+  }[],
+) {
+  xERC20Limits.forEach((limit) => {
+    xERC20LimitsGauge
+      .labels({
+        chain_name: limit.chain,
+        limit_type: 'mint',
+      })
+      .set(limit.mint);
+    xERC20LimitsGauge
+      .labels({
+        chain_name: limit.chain,
+        limit_type: 'burn',
+      })
+      .set(limit.burn);
+    xERC20LimitsGauge
+      .labels({
+        chain_name: limit.chain,
+        limit_type: 'mintMax',
+      })
+      .set(limit.mintMax);
+    xERC20LimitsGauge
+      .labels({
+        chain_name: limit.chain,
+        limit_type: 'burnMax',
+      })
+      .set(limit.burnMax);
+    logger.info('xERC20 limits updated for chain', {
+      chain: limit.chain,
+      mint: limit.mint,
+      burn: limit.burn,
+      mintMax: limit.mintMax,
+      burnMax: limit.burnMax,
+    });
+  });
+}
+
+function getXerc20Limits(
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): Promise<
+  {
+    chain: string;
+    mint: number;
+    mintMax: number;
+    burn: number;
+    burnMax: number;
+  }[]
+> {
+  const result = Promise.all(
+    warpCoreConfig.tokens
+      .filter(
+        (t) =>
+          t.standard === TokenStandard.EvmHypXERC20 ||
+          t.standard === TokenStandard.EvmHypXERC20Lockbox,
+      )
+      .map(async (t) => {
+        const provider = multiProvider.getProvider(t.chainName);
+        const router = t.addressOrDenom!;
+        const xerc20Address =
+          t.standard === TokenStandard.EvmHypXERC20Lockbox
+            ? await HypXERC20Lockbox__factory.connect(router, provider).xERC20()
+            : await HypXERC20__factory.connect(router, provider).wrappedToken();
+
+        const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+        const mintCurrent = await xerc20.mintingCurrentLimitOf(router);
+        const mintMax = await xerc20.mintingMaxLimitOf(router);
+        const burnCurrent = await xerc20.burningCurrentLimitOf(router);
+        const burnMax = await xerc20.burningMaxLimitOf(router);
+
+        return {
+          chain: t.chainName,
+          mint: parseFloat(ethers.utils.formatUnits(mintCurrent)),
+          mintMax: parseFloat(ethers.utils.formatUnits(mintMax)),
+          burn: parseFloat(ethers.utils.formatUnits(burnCurrent)),
+          burnMax: parseFloat(ethers.utils.formatUnits(burnMax)),
+        };
+      }),
+  );
+
+  return result;
+}
+
+async function checkXERC20Limits(checkFrequency: number) {
+  const registry = await getRegistry();
+  const symbol = 'EZETH';
+  const matching = await registry.getWarpRoutes({
+    symbol,
+  });
+
+  const routes = Object.entries(matching);
+
+  let warpCoreConfig: WarpCoreConfig;
+  if (routes.length === 0) {
+    logger.error(`No warp routes found for symbol ${symbol}. Exiting.`);
+    process.exit(0);
+  } else if (routes.length === 1) {
+    warpCoreConfig = routes[0][1];
+  } else {
+    logger.error(`Multiple warp routes found for symbol ${symbol}. Exiting.`);
+    process.exit(0);
+  }
+
+  const chainMetadata = await registry.getMetadata();
+  const multiProvider = new MultiProvider(chainMetadata);
+
+  setInterval(async () => {
+    try {
+      logger.info('Checking xERC20 limits');
+      const xERC20Limits = await getXerc20Limits(warpCoreConfig, multiProvider);
+      logger.info('xERC20 Limits:', xERC20Limits);
+      updateXERC20LimitsMetrics(xERC20Limits);
+    } catch (e) {
+      logger.error('Error checking balances', e);
+    }
+  }, checkFrequency);
+}
+
+export async function checkTokenBalances(
+  checkFrequency: number,
+  tokenConfig: WarpRouteConfig,
+) {
+  logger.info('Starting Warp Route balance monitor');
+  const multiProtocolProvider = new MultiProtocolProvider(getChainMetadata());
+
+  setInterval(async () => {
+    try {
+      logger.debug('Checking balances');
+      const balances = await checkBalance(tokenConfig, multiProtocolProvider);
+      updateTokenBalanceMetrics(tokenConfig, balances);
+    } catch (e) {
+      logger.error('Error checking balances', e);
+    }
+  }, checkFrequency);
 }
 
 main().then(logger.info).catch(logger.error);

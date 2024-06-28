@@ -1,0 +1,12 @@
+description: Hyperlane Warp Route artifacts
+timestamp: '2024-04-15T16:00:00.000Z'
+deployer: Abacus Works (Hyperlane)
+data:
+  config:
+    bsc:
+      protocolType: ethereum
+      type: xERC20
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0x6266e803057fa68C35018C3FB0B59db7129C23BB'
+      decimals: 18
