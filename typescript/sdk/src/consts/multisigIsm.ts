@@ -121,6 +121,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0xce327111035dd38698c92c3778884dbbb0ca8103', // everstake
       '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked
+      '0xb683b742b378632a5f73a2a5a45801b3489bba44', // avs: luganodes
+      '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de', // avs: pier two
     ],
   },
 
