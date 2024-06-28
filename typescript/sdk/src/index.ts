@@ -6,6 +6,8 @@ export {
   BaseSealevelAdapter,
   MultiProtocolApp,
 } from './app/MultiProtocolApp.js';
+export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
+export { S3Validator } from './aws/validator.js';
 export {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
@@ -59,6 +61,10 @@ export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
+export {
+  HyperlaneRelayer,
+  RelayerCacheSchema,
+} from './core/HyperlaneRelayer.js';
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export { CoreConfigSchema } from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
@@ -467,6 +473,7 @@ export {
 } from './utils/fork.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 
+export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';
 export {
   SealevelAccountDataWrapper,
@@ -484,8 +491,6 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 
-export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
-export { S3Validator } from './aws/validator.js';
 export { AggregationIsmConfigSchema, IsmConfigSchema } from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
@@ -498,7 +503,6 @@ export {
   isSyntheticConfig,
   isTokenMetadata,
 } from './token/schemas.js';
-export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { isCompliant } from './utils/schemas.js';
 
 // prettier-ignore
