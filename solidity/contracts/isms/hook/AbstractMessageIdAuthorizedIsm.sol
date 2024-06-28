@@ -71,10 +71,43 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @param message Message to verify.
      */
     function verify(
-        bytes calldata metadata,
-        bytes calldata message
+        bytes calldata,
+        /*metadata*/ bytes calldata message
     ) external virtual returns (bool) {
-        return _statefulVerify(metadata, message);
+        return releaseValueToRecipient(message);
+    }
+
+    // ============ Public Functions ============
+
+    /**
+     * @notice Release the value to the recipient if the message is verified.
+     * @param message Message to release value for.
+     */
+    function releaseValueToRecipient(
+        bytes calldata message
+    ) public returns (bool) {
+        bool verified = isVerified(message);
+        if (verified) {
+            bytes32 messageId = message.id();
+            uint256 _msgValue = verifiedMessages[messageId].clearBit(
+                VERIFIED_MASK_INDEX
+            );
+            if (_msgValue > 0) {
+                verifiedMessages[messageId] -= _msgValue;
+                payable(message.recipientAddress()).sendValue(_msgValue);
+            }
+        }
+        return verified;
+    }
+
+    /**
+     * @notice Check if a message is verified through verifyMessageId first.
+     * @param message Message to check.
+     */
+    function isVerified(bytes calldata message) public view returns (bool) {
+        bytes32 messageId = message.id();
+        // check for the first bit (used for verification)
+        return verifiedMessages[messageId].isBitSet(VERIFIED_MASK_INDEX);
     }
 
     /**
@@ -96,29 +129,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         emit ReceivedMessage(messageId);
     }
 
-    function _statefulVerify(
-        bytes calldata,
-        /*_metadata*/
-        bytes calldata message
-    ) internal returns (bool) {
-        bytes32 messageId = message.id();
+    // ============ Internal Functions ============
 
-        // check for the first bit (used for verification)
-        bool verified = verifiedMessages[messageId].isBitSet(
-            VERIFIED_MASK_INDEX
-        );
-        // rest 255 bits contains the msg.value passed from the hook
-        if (verified) {
-            uint256 _msgValue = verifiedMessages[messageId].clearBit(
-                VERIFIED_MASK_INDEX
-            );
-            if (_msgValue > 0) {
-                verifiedMessages[messageId] -= _msgValue;
-                payable(message.recipientAddress()).sendValue(_msgValue);
-            }
-        }
-        return verified;
-    }
-
+    /**
+     * @notice Check if sender is authorized to message `verifyMessageId`.
+     */
     function _isAuthorized() internal view virtual returns (bool);
 }

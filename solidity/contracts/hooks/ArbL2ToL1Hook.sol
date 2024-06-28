@@ -40,6 +40,8 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
 
     // precompile contract on L2 for sending messages to L1
     ArbSys public immutable arbSys;
+    // Immutable quote amount
+    uint256 public immutable GAS_QUOTE;
 
     // ============ Constructor ============
 
@@ -47,9 +49,11 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         address _mailbox,
         uint32 _destinationDomain,
         bytes32 _ism,
-        address _arbSys
+        address _arbSys,
+        uint256 _gasQuote
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         arbSys = ArbSys(_arbSys);
+        GAS_QUOTE = _gasQuote;
     }
 
     function hookType() external pure override returns (uint8) {
@@ -59,8 +63,8 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     function _quoteDispatch(
         bytes calldata,
         bytes calldata
-    ) internal pure override returns (uint256) {
-        return 120_000; // estimate based on on-chain gas usage
+    ) internal view override returns (uint256) {
+        return GAS_QUOTE;
     }
 
     // ============ Internal functions ============
