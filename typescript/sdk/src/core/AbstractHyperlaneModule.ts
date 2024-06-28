@@ -5,7 +5,7 @@ import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
-export type HyperlaneModuleArgs<
+export type HyperlaneModuleParams<
   TConfig,
   TAddressMap extends Record<string, any>,
 > = {
@@ -22,7 +22,7 @@ export abstract class HyperlaneModule<
   protected abstract readonly logger: Logger;
 
   protected constructor(
-    protected readonly args: HyperlaneModuleArgs<TConfig, TAddressMap>,
+    protected readonly args: HyperlaneModuleParams<TConfig, TAddressMap>,
   ) {}
 
   public serialize(): TAddressMap {
@@ -32,7 +32,7 @@ export abstract class HyperlaneModule<
   public abstract read(): Promise<TConfig>;
   public abstract update(
     config: TConfig,
-  ): Promise<Annotated<ProtocolTypedTransaction<TProtocol>[]>>;
+  ): Promise<Annotated<ProtocolTypedTransaction<TProtocol>['transaction'][]>>;
 
   // /*
   //   Types and static methods can be challenging. Ensure each implementation includes a static create function.

@@ -75,6 +75,6 @@ export class S3Wrapper {
 
   url(key: string): string {
     const Key = this.formatKey(key);
-    return `https://${this.config.bucket}.${this.config.region}.s3.amazonaws.com/${Key}`;
+    return `https://${this.config.bucket}.s3.${this.config.region}.amazonaws.com/${Key}`;
   }
 }

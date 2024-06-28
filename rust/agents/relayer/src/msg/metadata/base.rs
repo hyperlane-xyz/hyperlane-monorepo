@@ -278,8 +278,9 @@ pub struct BaseMetadataBuilder {
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
-    max_depth: u32,
     app_context_classifier: IsmAwareAppContextClassifier,
+    #[new(value = "7")]
+    max_depth: u32,
 }
 
 impl Debug for BaseMetadataBuilder {

@@ -2,12 +2,12 @@ import { ethers } from 'ethers';
 import path from 'path';
 import prompts from 'prompts';
 
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   ContractVerifier,
   ExplorerLicenseType,
-  FallbackRoutingHookConfig,
   HypERC20Deployer,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
@@ -21,11 +21,10 @@ import {
   LiquidityLayerDeployer,
   TestRecipientDeployer,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
-import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
 import { deployWithArtifacts } from '../src/deployment/deploy.js';
@@ -35,6 +34,7 @@ import {
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
+import { inCIMode } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -42,7 +42,7 @@ import {
   getArgs,
   getModuleDirectory,
   withBuildArtifactPath,
-  withChain,
+  withChains,
   withConcurrentDeploy,
   withContext,
   withModuleAndFork,
@@ -55,12 +55,12 @@ async function main() {
     module,
     fork,
     environment,
-    chain,
     buildArtifactPath,
+    chains,
     concurrentDeploy,
   } = await withContext(
     withConcurrentDeploy(
-      withChain(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+      withChains(withModuleAndFork(withBuildArtifactPath(getArgs()))),
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
@@ -84,20 +84,16 @@ async function main() {
     multiProvider.setSharedSigner(signer);
   }
 
-  let contractVerifier;
-  if (buildArtifactPath) {
-    // fetch explorer API keys from GCP
-    const apiKeys = await fetchExplorerApiKeys();
-    // extract build artifact contents
-    const buildArtifact = extractBuildArtifact(buildArtifactPath);
-    // instantiate verifier
-    contractVerifier = new ContractVerifier(
-      multiProvider,
-      apiKeys,
-      buildArtifact,
-      ExplorerLicenseType.MIT,
-    );
-  }
+  // if none provided, instantiate a default verifier with the default core contract build artifact
+  // fetch explorer API keys from GCP
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    inCIMode() ? {} : await fetchExplorerApiKeys(),
+    buildArtifactPath
+      ? extractBuildArtifact(buildArtifactPath)
+      : coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
 
   let config: ChainMap<unknown> = {};
   let deployer: HyperlaneDeployer<any, any>;
@@ -132,7 +128,11 @@ async function main() {
     );
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
-    deployer = new HyperlaneIgpDeployer(multiProvider, contractVerifier);
+    deployer = new HyperlaneIgpDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
@@ -198,11 +198,7 @@ async function main() {
     );
     // Config is intended to be changed for ad-hoc use cases:
     config = {
-      ethereum: {
-        ...(coreConfig.ethereum.defaultHook as FallbackRoutingHookConfig)
-          .domains.ancient8,
-        owner: DEPLOYER,
-      },
+      ethereum: coreConfig.ethereum.defaultHook,
     };
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
@@ -233,7 +229,12 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
-    const confirmConfig = chain ? config[chain] : config;
+    const confirmConfig =
+      chains && chains.length > 0
+        ? objFilter(config, (chain, _): _ is unknown =>
+            (chains ?? []).includes(chain),
+          )
+        : config;
     console.log(JSON.stringify(confirmConfig, null, 2));
     const { value: confirmed } = await prompts({
       type: 'confirm',
@@ -246,13 +247,15 @@ async function main() {
     }
   }
 
-  await deployWithArtifacts(
-    config,
+  await deployWithArtifacts({
+    configMap: config as ChainMap<unknown>, // TODO: fix this typing
     deployer,
     cache,
-    chain ?? fork,
+    // Use chains if provided, otherwise deploy to all chains
+    // If fork is provided, deploy to fork only
+    targetNetworks: chains ?? !fork ? [] : [fork],
     agentConfig,
-  );
+  });
 }
 
 main()

@@ -9,7 +9,6 @@ import {
   ProtocolType,
   addressToBytes32,
   bytes32ToAddress,
-  eqAddress,
   messageId,
   objFilter,
   objMap,
@@ -21,11 +20,13 @@ import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
+import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
-import { IsmType, ModuleType, ismTypeToModuleType } from '../ism/types.js';
+import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
+import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { CoreFactories, coreFactories } from './contracts.js';
 import { DispatchedMessage } from './types.js';
@@ -86,10 +87,20 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return this.multiProvider.getChainName(message.parsed.destination);
   }
 
-  getRecipientIsmAddress(message: DispatchedMessage): Promise<Address> {
+  protected getOrigin(message: DispatchedMessage): ChainName {
+    return this.multiProvider.getChainName(message.parsed.origin);
+  }
+
+  async getRecipientIsmAddress(message: DispatchedMessage): Promise<Address> {
     const destinationMailbox = this.contractsMap[this.getDestination(message)];
     const ethAddress = bytes32ToAddress(message.parsed.recipient);
     return destinationMailbox.mailbox.recipientIsm(ethAddress);
+  }
+
+  async getHookAddress(message: DispatchedMessage): Promise<Address> {
+    const destinationMailbox = this.contractsMap[this.getOrigin(message)];
+    /* TODO: requiredHook() account for here: https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3693 */
+    return destinationMailbox.mailbox.defaultHook();
   }
 
   async getRecipientIsmConfig(
@@ -101,31 +112,28 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return ismReader.deriveIsmConfig(address);
   }
 
-  async buildMetadata(message: DispatchedMessage): Promise<string> {
+  async getHookConfig(message: DispatchedMessage): Promise<DerivedHookConfig> {
+    const originChain = this.getOrigin(message);
+    const hookReader = new EvmHookReader(this.multiProvider, originChain);
+    const address = await this.getHookAddress(message);
+    return hookReader.deriveHookConfig(address);
+  }
+
+  async buildMetadata(
+    message: DispatchedMessage,
+    dispatchTx: TransactionReceipt,
+  ): Promise<string> {
     const ismConfig = await this.getRecipientIsmConfig(message);
-    const destinationChain = this.getDestination(message);
+    const hookConfig = await this.getHookConfig(message);
 
-    switch (ismConfig.type) {
-      case IsmType.TRUSTED_RELAYER:
-        // eslint-disable-next-line no-case-declarations
-        const destinationSigner = await this.multiProvider.getSignerAddress(
-          destinationChain,
-        );
-        if (!eqAddress(destinationSigner, ismConfig.relayer)) {
-          this.logger.warn(
-            `${destinationChain} signer ${destinationSigner} does not match trusted relayer ${ismConfig.relayer}`,
-          );
-        }
-    }
+    const baseMetadataBuilder = new BaseMetadataBuilder(this);
 
-    // TODO: implement metadata builders for other module types
-    const moduleType = ismTypeToModuleType(ismConfig.type);
-    switch (moduleType) {
-      case ModuleType.NULL:
-        return '0x';
-      default:
-        throw new Error(`Unsupported module type ${moduleType}`);
-    }
+    return baseMetadataBuilder.build({
+      ism: ismConfig,
+      hook: hookConfig,
+      message,
+      dispatchTx,
+    });
   }
 
   async sendMessage(
@@ -166,8 +174,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   async relayMessage(
     message: DispatchedMessage,
+    dispatchTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt> {
-    const metadata = await this.buildMetadata(message);
+    const metadata = await this.buildMetadata(message, dispatchTx);
 
     const destinationChain = this.getDestination(message);
     const mailbox = this.contractsMap[destinationChain].mailbox;
@@ -268,7 +277,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   async getDispatchTx(
     originChain: ChainName,
     messageId: string,
-  ): Promise<ethers.ContractReceipt | ViemTxReceipt> {
+  ): Promise<ethers.ContractReceipt> {
     const mailbox = this.contractsMap[originChain].mailbox;
     const filter = mailbox.filters.DispatchId(messageId);
     const matchingEvents = await mailbox.queryFilter(filter);
@@ -283,18 +292,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     sourceTx: ethers.ContractReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
-    const dispatchLogs = sourceTx.logs
-      .map((log) => {
-        try {
-          return mailbox.parseLog(log);
-        } catch (e) {
-          return undefined;
-        }
-      })
-      .filter(
-        (log): log is ethers.utils.LogDescription =>
-          !!log && log.name === 'Dispatch',
-      );
+    const dispatchLogs = findMatchingLogEvents(
+      sourceTx.logs,
+      mailbox,
+      'Dispatch',
+    );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const parsed = parseMessage(message);

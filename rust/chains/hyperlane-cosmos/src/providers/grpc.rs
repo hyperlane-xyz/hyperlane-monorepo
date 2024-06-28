@@ -277,7 +277,7 @@ impl WasmGrpcProvider {
         let raw_tx = TxRaw {
             body_bytes: sign_doc.body_bytes,
             auth_info_bytes: sign_doc.auth_info_bytes,
-            // The poorly documented trick to simuluating a tx without a valid signature is to just pass
+            // The poorly documented trick to simulating a tx without a valid signature is to just pass
             // in a single empty signature. Taken from cosmjs:
             // https://github.com/cosmos/cosmjs/blob/44893af824f0712d1f406a8daa9fcae335422235/packages/stargate/src/modules/tx/queries.ts#L67
             signatures: vec![vec![]],
