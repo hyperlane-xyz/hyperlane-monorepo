@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { StorageGasOracleConfigSchema } from '../gas/oracle/types.js';
+import { ZHash } from '../metadata/customZodTypes.js';
 import { OwnableSchema, PausableSchema } from '../schemas.js';
 
 import {
@@ -35,8 +37,7 @@ export const IgpSchema = OwnableSchema.extend({
   beneficiary: z.string(),
   oracleKey: z.string(),
   overhead: z.record(z.number()),
-  // TODO: Fix this
-  // oracleConfig: z.record(StorageGasOracleConfigSchema),
+  oracleConfig: z.record(StorageGasOracleConfigSchema),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
@@ -65,6 +66,7 @@ export const AggregationHookConfigSchema: z.ZodSchema<AggregationHookConfig> =
   );
 
 export const HookConfigSchema = z.union([
+  ZHash,
   ProtocolFeeSchema,
   PausableHookSchema,
   OpStackHookSchema,

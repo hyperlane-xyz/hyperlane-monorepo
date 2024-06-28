@@ -1,5 +1,3 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
-
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
@@ -9,7 +7,7 @@ import { environment } from './chains.js';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'b22a0f4-20240523-140812',
+    tag: 'b134b04-20240605-133031',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -23,7 +21,6 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  connectionType: RpcConsensusType.Fallback,
   // desired balance config
   desiredBalancePerChain: {
     arbitrum: '0.5',
@@ -34,8 +31,10 @@ export const keyFunderConfig: KeyFunderConfig = {
     bsc: '5',
     celo: '3',
     ethereum: '0.5',
+    fraxtal: '0.2',
     gnosis: '5',
     inevm: '3',
+    linea: '0.2',
     mantapacific: '0.2',
     mode: '0.2',
     moonbeam: '5',
@@ -44,6 +43,7 @@ export const keyFunderConfig: KeyFunderConfig = {
     polygonzkevm: '0.5',
     redstone: '0.2',
     scroll: '0.5',
+    sei: '10',
     viction: '3',
     zetachain: '20',
   },
@@ -56,8 +56,10 @@ export const keyFunderConfig: KeyFunderConfig = {
     bsc: '0.35',
     celo: '150',
     ethereum: '0.4',
+    fraxtal: '0',
     gnosis: '100',
     inevm: '0.05',
+    linea: '0',
     mantapacific: '0',
     mode: '0',
     moonbeam: '250',
@@ -66,6 +68,7 @@ export const keyFunderConfig: KeyFunderConfig = {
     polygonzkevm: '0.05',
     redstone: '0',
     scroll: '0.05',
+    sei: '0',
     viction: '0.05',
     zetachain: '0',
   },

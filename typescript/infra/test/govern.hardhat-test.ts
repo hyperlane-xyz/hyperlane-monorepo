@@ -133,7 +133,7 @@ describe('ICA governance', async () => {
       localRouter: remote.address,
     };
 
-    const accountOwner = await icaApp.deployAccount(localChain, accountConfig);
+    accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
 
     const recipientF = new TestRecipient__factory(signer);
     recipient = await recipientF.deploy();

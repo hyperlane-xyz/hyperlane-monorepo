@@ -93,7 +93,7 @@ where
         Ok(Self::from(Self::fetch_data(buf)?.unwrap_or_default()))
     }
 
-    // Optimisically write then realloc on failure.
+    // Optimistically write then realloc on failure.
     // If we serialize and calculate len before realloc we will waste heap space as there is no
     // free(). Tradeoff between heap usage and compute budget.
     pub fn store(

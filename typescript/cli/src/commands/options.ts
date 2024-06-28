@@ -8,6 +8,11 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const demandOption = (option: Options): Options => ({
+  ...option,
+  demandOption: true,
+});
+
 export const logFormatCommandOption: Options = {
   type: 'string',
   description: 'Log output format',
@@ -91,8 +96,6 @@ export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
   alias: 'w',
-  // TODO make this optional and have the commands get it from the registry
-  demandOption: true,
 };
 
 export const agentConfigCommandOption = (
@@ -106,11 +109,23 @@ export const agentConfigCommandOption = (
   default: defaultPath,
 });
 
-export const outputFileCommandOption = (defaultPath?: string): Options => ({
+export const chainTargetsCommandOption: Options = {
   type: 'string',
-  description: 'Output file path',
+  description: 'Comma-separated list of chain names',
+  alias: 'c',
+  demandOption: true,
+};
+
+export const outputFileCommandOption = (
+  defaultPath?: string,
+  demandOption = false,
+  description = 'Output file path',
+): Options => ({
+  type: 'string',
+  description,
   default: defaultPath,
   alias: 'o',
+  demandOption,
 });
 
 export const inputFileCommandOption: Options = {
@@ -136,6 +151,17 @@ export const dryRunCommandOption: Options = {
 export const chainCommandOption: Options = {
   type: 'string',
   description: 'The specific chain to perform operations with.',
+};
+
+export const symbolCommandOption: Options = {
+  type: 'string',
+  description: 'Token symbol (e.g. ETH, USDC)',
+};
+
+export const validatorCommandOption: Options = {
+  type: 'string',
+  description: 'Comma separated list of validator addresses',
+  demandOption: true,
 };
 
 export const addressCommandOption = (
@@ -177,4 +203,16 @@ export const awsBucketCommandOption: Options = {
 export const awsKeyIdCommandOption: Options = {
   type: 'string',
   describe: 'Key ID from AWS KMS',
+};
+
+export const operatorKeyPathCommandOption: Options = {
+  type: 'string',
+  description: 'Path to the operator key file',
+};
+
+export const avsChainCommandOption: Options = {
+  type: 'string',
+  description: 'Chain to interact with the AVS on',
+  demandOption: true,
+  choices: ['holesky', 'ethereum'],
 };

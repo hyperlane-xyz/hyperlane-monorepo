@@ -220,7 +220,15 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     return toHexString(buf);
   }
 
-  static decodeSimplePrefix(metadata: string) {
+  static decodeSimplePrefix(metadata: string): {
+    signatureOffset: number;
+    type: IsmType;
+    checkpoint: {
+      root: string;
+      index: number;
+      merkle_tree_hook_address: string;
+    };
+  } {
     const buf = fromHexString(metadata);
     const merkleTree = toHexString(buf.subarray(0, 32));
     const root = toHexString(buf.subarray(32, 64));
@@ -251,7 +259,16 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     return toHexString(buf);
   }
 
-  static decodeProofPrefix(metadata: string) {
+  static decodeProofPrefix(metadata: string): {
+    signatureOffset: number;
+    type: IsmType;
+    checkpoint: {
+      root: string;
+      index: number;
+      merkle_tree_hook_address: string;
+    };
+    proof: MerkleProof;
+  } {
     const buf = fromHexString(metadata);
     const merkleTree = toHexString(buf.subarray(0, 32));
     const messageIndex = buf.readUint32BE(32);

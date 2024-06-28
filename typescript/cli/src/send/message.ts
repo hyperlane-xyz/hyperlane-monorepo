@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { stringify as yamlStringify } from 'yaml';
 
 import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
@@ -8,6 +8,7 @@ import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { indentYamlOrJson } from '../utils/files.js';
 
 export async function sendTestMessage({
   context,
@@ -81,18 +82,12 @@ async function executeDelivery({
   const { registry, multiProvider } = context;
   const chainAddresses = await registry.getAddresses();
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-  const mailbox = core.getContracts(origin).mailbox;
 
-  let hook = chainAddresses[origin]?.customHook;
+  const hook = chainAddresses[origin]?.customHook;
   if (hook) {
     logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
-  } else {
-    hook = await mailbox.defaultHook();
-    logBlue(`Using default hook ${hook} for ${origin} -> ${destination}`);
   }
 
-  const destinationDomain = multiProvider.getDomainId(destination);
-  let txReceipt: ethers.ContractReceipt;
   try {
     const recipient = chainAddresses[destination].testRecipient;
     if (!recipient) {
@@ -100,43 +95,33 @@ async function executeDelivery({
     }
     const formattedRecipient = addressToBytes32(recipient);
 
-    log('Getting gas quote');
-    const value = await mailbox[
-      'quoteDispatch(uint32,bytes32,bytes,bytes,address)'
-    ](
-      destinationDomain,
-      formattedRecipient,
-      messageBody,
-      ethers.utils.hexlify([]),
-      hook,
-    );
-    log(`Paying for gas with ${value} wei`);
-
     log('Dispatching message');
-    const messageTx = await mailbox[
-      'dispatch(uint32,bytes32,bytes,bytes,address)'
-    ](
-      destinationDomain,
+    const { dispatchTx, message } = await core.sendMessage(
+      origin,
+      destination,
       formattedRecipient,
       messageBody,
-      ethers.utils.hexlify([]),
       hook,
-      {
-        value,
-      },
+      undefined,
     );
-    txReceipt = await multiProvider.handleTx(origin, messageTx);
-    const message = core.getDispatchedMessages(txReceipt)[0];
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
-    log(`Message: ${JSON.stringify(message)}`);
+    log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
     if (selfRelay) {
       const relayer = new HyperlaneRelayer(core);
       log('Attempting self-relay of message');
-      await relayer.relayMessage(txReceipt);
+      await relayer.relayMessage(dispatchTx);
       logGreen('Message was self-relayed!');
-      return;
+    } else {
+      if (skipWaitForDelivery) {
+        return;
+      }
+
+      log('Waiting for message delivery on destination chain...');
+      // Max wait 10 minutes
+      await core.waitForMessageProcessed(dispatchTx, 10000, 60);
+      logGreen('Message was delivered!');
     }
   } catch (e) {
     errorRed(
@@ -144,11 +129,4 @@ async function executeDelivery({
     );
     throw e;
   }
-
-  if (skipWaitForDelivery) return;
-
-  log('Waiting for message delivery on destination chain...');
-  // Max wait 10 minutes
-  await core.waitForMessageProcessed(txReceipt, 10000, 60);
-  logGreen('Message was delivered!');
 }

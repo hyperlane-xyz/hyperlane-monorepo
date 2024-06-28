@@ -12,6 +12,9 @@ pub mod settings;
 mod agent;
 pub use agent::*;
 
+/// The local database used by agents
+pub mod db;
+
 pub mod metrics;
 pub use metrics::*;
 
@@ -27,9 +30,6 @@ pub use traits::*;
 
 mod types;
 pub use types::*;
-
-/// Hyperlane database utils
-pub mod db;
 
 #[cfg(feature = "oneline-eyre")]
 pub mod oneline_eyre;

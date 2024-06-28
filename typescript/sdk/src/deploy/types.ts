@@ -11,15 +11,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { OwnableSchema } from '../schemas.js';
 import type { ChainName } from '../types.js';
 
-/**
- * @remarks ownerOverrides is added outside of the Schema because zod handle generics in a weird way (uses functions)
- * @see https://stackoverflow.com/questions/74907523/creating-zod-schema-for-generic-interface
- */
-export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = z.infer<
-  typeof OwnableSchema
-> & {
-  ownerOverrides?: Partial<Record<Keys, Address>>;
-};
+export type OwnableConfig = z.infer<typeof OwnableSchema>;
 
 export interface CheckerViolation {
   chain: ChainName;

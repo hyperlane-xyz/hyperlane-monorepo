@@ -63,7 +63,8 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
     message: 'Threshold must be less than or equal to the number of modules',
   });
 
-export const IsmConfigObjectSchema = z.union([
+export const IsmConfigSchema = z.union([
+  ZHash,
   TestIsmConfigSchema,
   OpStackIsmConfigSchema,
   PausableIsmConfigSchema,
@@ -72,5 +73,3 @@ export const IsmConfigObjectSchema = z.union([
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
 ]);
-
-export const IsmConfigSchema = z.union([z.string(), IsmConfigObjectSchema]);

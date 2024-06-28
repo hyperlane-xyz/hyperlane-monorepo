@@ -1,5 +1,72 @@
 # @hyperlane-xyz/infra
 
+## 4.0.0
+
+### Minor Changes
+
+- 6398aab72: Upgrade registry to 2.1.1
+- bf7ad09da: feat(cli): add `warp --symbol` flag
+
+### Patch Changes
+
+- Updated dependencies [b05ae38ac]
+- Updated dependencies [9304fe241]
+- Updated dependencies [6398aab72]
+- Updated dependencies [bdcbe1d16]
+- Updated dependencies [6b63c5d82]
+- Updated dependencies [bf7ad09da]
+- Updated dependencies [e38d31685]
+- Updated dependencies [e0f226806]
+- Updated dependencies [6db9fa9ad]
+  - @hyperlane-xyz/sdk@4.0.0
+  - @hyperlane-xyz/helloworld@4.0.0
+  - @hyperlane-xyz/utils@4.0.0
+
+## 3.16.0
+
+### Minor Changes
+
+- 5cc64eb09: Add support for new chains: linea, fraxtal, sei.
+  Support osmosis remote.
+  Drive-by fix to always fetch explorer API keys when running deploy script.
+
+### Patch Changes
+
+- 5cc64eb09: Allow selecting a specific chain to govern in check-deploy script
+- Updated dependencies [f9bbdde76]
+- Updated dependencies [5cc64eb09]
+  - @hyperlane-xyz/sdk@3.16.0
+  - @hyperlane-xyz/helloworld@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- Updated dependencies [6620fe636]
+- Updated dependencies [acaa22cd9]
+- Updated dependencies [921e449b4]
+  - @hyperlane-xyz/helloworld@3.15.1
+  - @hyperlane-xyz/sdk@3.15.1
+  - @hyperlane-xyz/utils@3.15.1
+
+## 3.15.0
+
+### Patch Changes
+
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/sdk@3.15.0
+  - @hyperlane-xyz/helloworld@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
+
+## 3.14.0
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@3.14.0
+- @hyperlane-xyz/sdk@3.14.0
+- @hyperlane-xyz/utils@3.14.0
+
 ## 3.13.0
 
 ### Minor Changes
