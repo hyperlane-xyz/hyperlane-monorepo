@@ -35,9 +35,6 @@ export async function sendTestMessage({
       'Select the origin chain',
     );
   }
-  if (destination) {
-    console.log('ELLISH: send signer:', context.signer);
-  }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
@@ -92,13 +89,11 @@ async function executeDelivery({
   }
 
   try {
-    // const recipient = chainAddresses[destination].testRecipient;
-    const recipient = '0x155b1cd2f7cbc58d403b9be341fab6cd77425175';
+    const recipient = chainAddresses[destination].testRecipient;
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
     const formattedRecipient = addressToBytes32(recipient);
-    log('Formatted recipient: ', formattedRecipient);
 
     log('Dispatching message');
     const { dispatchTx, message } = await core.sendMessage(
@@ -113,7 +108,6 @@ async function executeDelivery({
     logBlue(`Message ID: ${message.id}`);
     log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
-    console.log('Selfrelay option: ', selfRelay);
     if (selfRelay) {
       const relayer = new HyperlaneRelayer(core);
       log('Attempting self-relay of message');

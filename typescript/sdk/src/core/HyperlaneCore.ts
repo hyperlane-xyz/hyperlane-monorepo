@@ -234,7 +234,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     ismMetadata: string,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
-    console.log('ELLISH metadata:', ismMetadata, 'message', message.message);
     return this.multiProvider.handleTx(
       destinationChain,
       this.getContracts(destinationChain).mailbox.process(

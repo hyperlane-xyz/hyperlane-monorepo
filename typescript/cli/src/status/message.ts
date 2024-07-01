@@ -29,9 +29,6 @@ export async function checkMessageStatus({
       'Select the origin chain',
     );
   }
-  if (origin) {
-    console.log('ELLISH: status signer:', context.signer);
-  }
 
   if (!messageId) {
     messageId = await input({

@@ -163,7 +163,7 @@ export class HyperlaneRelayer {
     const metadata = await pollAsync(
       () => this.metadataBuilder.build({ message, ism, hook, dispatchTx }),
       5 * 1000, // every 5 seconds
-      1, // 1 attempts
+      12, // 12 attempts
     );
 
     this.logger.info({ message, metadata }, `Relaying message ${message.id}`);
