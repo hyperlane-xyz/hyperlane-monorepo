@@ -12,7 +12,6 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { IsmConfig } from '../ism/types.js';
@@ -138,8 +137,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const ism = await EvmIsmModule.create({
       chain: this.args.chain,
       config: interchainSecurityModule,
-      deployer: new HyperlaneProxyFactoryDeployer(this.multiProvider),
-      factories: ismFactoryAddresses,
+      proxyFactoryFactories: ismFactoryAddresses,
       multiProvider: this.multiProvider,
       mailbox,
     });
