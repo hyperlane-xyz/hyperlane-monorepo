@@ -25,7 +25,6 @@ import {
   Address,
   ProtocolType,
   addressToBytes32,
-  assert,
   configDeepEquals,
   eqAddress,
   normalizeConfig,
@@ -119,18 +118,9 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<HookConfig> {
-    if (typeof this.params.config === 'string') {
-      return this.params.addresses.deployedHook;
-    } else {
-      const hookConfig = await this.reader.deriveHookConfig(
-        this.params.addresses.deployedHook,
-      );
-      assert(
-        hookConfig,
-        `No hook config found for ${this.params.addresses.deployedHook}`,
-      );
-      return hookConfig;
-    }
+    return typeof this.args.config === 'string'
+      ? this.args.addresses.deployedHook
+      : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
   public async update(
