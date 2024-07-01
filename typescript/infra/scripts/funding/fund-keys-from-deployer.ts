@@ -508,11 +508,16 @@ class ContextFunder {
     }
   }
 
+  // Attempts to claim from the IGP if the balance exceeds the claim threshold.
+  // If no threshold is set, infer it by reading the desired balance and dividing that by 5.
   private async attemptToClaimFromIgp(chain: ChainName) {
+    // Determine the IGP claim threshold in Ether for the given chain.
+    // If a specific threshold is not set, use the desired balance for the chain.
     const igpClaimThresholdEther =
       this.igpClaimThresholdPerChain[chain] ||
       this.desiredBalancePerChain[chain];
 
+    // If neither the IGP claim threshold nor the desired balance is set, log a warning and skip the claim attempt.
     if (!igpClaimThresholdEther) {
       logger.warn(
         { chain },
@@ -521,7 +526,10 @@ class ContextFunder {
       return;
     }
 
+    // Convert the IGP claim threshold from Ether to a BigNumber.
     let igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
+
+    // If the IGP claim threshold is not explicitly set, infer it from the desired balance by dividing it by 5.
     if (!this.igpClaimThresholdPerChain[chain]) {
       igpClaimThreshold = igpClaimThreshold.div(5);
       logger.info(
