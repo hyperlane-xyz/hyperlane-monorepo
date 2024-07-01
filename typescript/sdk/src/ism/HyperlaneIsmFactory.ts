@@ -368,11 +368,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       } else {
         // deploying new domain routing ISM
-        const owner = await resolveOrDeployAccountOwner(
-          this.multiProvider,
-          destination,
-          config.owner,
-        );
+        const owner = config.owner;
         // estimate gas
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
           owner,

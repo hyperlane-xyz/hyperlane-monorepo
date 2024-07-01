@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { timeout } from '@hyperlane-xyz/utils';
 
-import { readWarpRouteConfig } from '../config/warp.js';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
@@ -21,28 +20,26 @@ import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export async function sendTestTransfer({
   context,
-  warpConfigPath,
+  warpCoreConfig,
   origin,
   destination,
-  wei,
+  amount,
   recipient,
   timeoutSec,
   skipWaitForDelivery,
   selfRelay,
 }: {
   context: WriteCommandContext;
-  warpConfigPath: string;
+  warpCoreConfig: WarpCoreConfig;
   origin?: ChainName;
   destination?: ChainName;
-  wei: string;
+  amount: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
   const { chainMetadata } = context;
-
-  const warpCoreConfig = readWarpRouteConfig(warpConfigPath);
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
@@ -71,7 +68,7 @@ export async function sendTestTransfer({
       origin,
       destination,
       warpCoreConfig,
-      wei,
+      amount,
       recipient,
       skipWaitForDelivery,
       selfRelay,
@@ -86,7 +83,7 @@ async function executeDelivery({
   origin,
   destination,
   warpCoreConfig,
-  wei,
+  amount,
   recipient,
   skipWaitForDelivery,
   selfRelay,
@@ -95,7 +92,7 @@ async function executeDelivery({
   origin: ChainName;
   destination: ChainName;
   warpCoreConfig: WarpCoreConfig;
-  wei: string;
+  amount: string;
   recipient?: string;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
@@ -132,7 +129,7 @@ async function executeDelivery({
 
   const senderAddress = await signer.getAddress();
   const errors = await warpCore.validateTransfer({
-    originTokenAmount: token.amount(wei),
+    originTokenAmount: token.amount(amount),
     destination,
     recipient: recipient ?? senderAddress,
     sender: senderAddress,
@@ -143,7 +140,7 @@ async function executeDelivery({
   }
 
   const transferTxs = await warpCore.getTransferRemoteTxs({
-    originTokenAmount: new TokenAmount(wei, token),
+    originTokenAmount: new TokenAmount(amount, token),
     destination,
     sender: senderAddress,
     recipient: recipient ?? senderAddress,

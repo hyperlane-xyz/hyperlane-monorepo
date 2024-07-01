@@ -56,7 +56,7 @@ export async function getContext({
   const registry = getRegistry(registryUri, registryOverrideUri);
 
   let signer: ethers.Wallet | undefined = undefined;
-  if (requiresKey) {
+  if (key || requiresKey) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
   const multiProvider = await getMultiProvider(registry, signer);
@@ -99,9 +99,8 @@ export async function getDryRunContext(
   logBlue(`Dry-running against chain: ${chain}`);
   await verifyAnvil();
 
-  const multiProvider = await getMultiProvider(registry);
-  await forkNetworkToMultiProvider(multiProvider, chain);
-
+  let multiProvider = await getMultiProvider(registry);
+  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
     key,

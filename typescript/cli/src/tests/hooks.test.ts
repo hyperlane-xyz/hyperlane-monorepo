@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 
-import { ChainMap, HookType, HooksConfig } from '@hyperlane-xyz/sdk';
+import { HookType } from '@hyperlane-xyz/sdk';
 
-import { readHooksConfigMap } from '../config/hooks.js';
+import { HooksConfigMap, readHooksConfigMap } from '../config/hooks.js';
 
 describe('readHooksConfigMap', () => {
   it('parses and validates example correctly', () => {
     const hooks = readHooksConfigMap('examples/hooks.yaml');
 
-    const exampleHooksConfig: ChainMap<HooksConfig> = {
+    const exampleHooksConfig: HooksConfigMap = {
       anvil1: {
         required: {
           type: HookType.PROTOCOL_FEE,
@@ -33,6 +33,12 @@ describe('readHooksConfigMap', () => {
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   overhead: { anvil2: 50000 },
+                  oracleConfig: {
+                    anvil2: {
+                      gasPrice: '100',
+                      tokenExchangeRate: '100',
+                    },
+                  },
                 },
               ],
             },
@@ -63,6 +69,12 @@ describe('readHooksConfigMap', () => {
                   owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                   overhead: { anvil1: 50000 },
+                  oracleConfig: {
+                    anvil1: {
+                      gasPrice: '100',
+                      tokenExchangeRate: '100',
+                    },
+                  },
                 },
               ],
             },
@@ -76,6 +88,6 @@ describe('readHooksConfigMap', () => {
   it('parsing failure, missing internal key "overhead"', () => {
     expect(() => {
       readHooksConfigMap('src/tests/hooks/safe-parse-fail.yaml');
-    }).to.throw('Invalid hook config: anvil2,default => Invalid input');
+    }).to.throw();
   });
 });

@@ -3,11 +3,9 @@ import { z } from 'zod';
 
 import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../consts/igp.js';
 
-const BigNumberString = z.string().transform(ethers.BigNumber.from);
-
 export const StorageGasOracleConfigSchema = z.object({
-  gasPrice: BigNumberString,
-  tokenExchangeRate: BigNumberString,
+  gasPrice: z.string(),
+  tokenExchangeRate: z.string(),
 });
 
 // Gas data to configure on a single destination chain.
@@ -15,8 +13,13 @@ export type StorageGasOracleConfig = z.output<
   typeof StorageGasOracleConfigSchema
 >;
 
+export type OracleData = {
+  tokenExchangeRate: ethers.BigNumber;
+  gasPrice: ethers.BigNumber;
+};
+
 export const formatGasOracleConfig = (
-  config: StorageGasOracleConfig,
+  config: OracleData,
 ): {
   tokenExchangeRate: string;
   gasPrice: string;
@@ -44,9 +47,17 @@ const serializePercentDifference = (
   return diff.isNegative() ? `${diff.toString()}%` : `+${diff.toString()}%`;
 };
 
+// TODO: replace once #3771 is fixed
+export const oracleConfigToOracleData = (
+  config: StorageGasOracleConfig,
+): OracleData => ({
+  gasPrice: ethers.BigNumber.from(config.gasPrice),
+  tokenExchangeRate: ethers.BigNumber.from(config.tokenExchangeRate),
+});
+
 export const serializeDifference = (
-  actual: StorageGasOracleConfig,
-  expected: StorageGasOracleConfig,
+  actual: OracleData,
+  expected: OracleData,
 ): string => {
   const gasPriceDiff = serializePercentDifference(
     actual.gasPrice,

@@ -111,6 +111,8 @@ export {
   pick,
   promiseObjAll,
   stringifyObject,
+  normalizeConfig,
+  configDeepEquals,
 } from './objects.js';
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {
@@ -143,9 +145,9 @@ export {
   ProtocolSmallestUnit,
   ProtocolType,
   ProtocolTypeValue,
+  S3Announcement,
   S3Checkpoint,
   S3CheckpointWithId,
-  S3Announcement,
   SignatureLike,
   TokenCaip19Id,
   WithAddress,

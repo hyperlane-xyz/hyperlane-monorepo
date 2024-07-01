@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   ArbL2ToL1Ism,
   IAggregationIsm,
+  IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
@@ -42,6 +43,7 @@ export enum ModuleType {
 // this enum can be adjusted as per deployments necessary
 // meant for the deployer and checker
 export enum IsmType {
+  CUSTOM = 'custom',
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
@@ -53,6 +55,13 @@ export enum IsmType {
   TRUSTED_RELAYER = 'trustedRelayerIsm',
   ARB_L2_TO_L1 = 'arbL2ToL1Ism',
 }
+
+// ISM types that can be updated in-place
+export const MUTABLE_ISM_TYPE = [
+  IsmType.ROUTING,
+  IsmType.FALLBACK_ROUTING,
+  IsmType.PAUSABLE,
+];
 
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
@@ -70,6 +79,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.OP_STACK:
     case IsmType.TEST_ISM:
     case IsmType.PAUSABLE:
+    case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
@@ -108,9 +118,10 @@ export type AggregationIsmConfig = {
   threshold: number;
 };
 
-export type IsmConfig = Address | z.infer<typeof IsmConfigSchema>;
+export type IsmConfig = z.infer<typeof IsmConfigSchema>;
 
 export type DeployedIsmType = {
+  [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;

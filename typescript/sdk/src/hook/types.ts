@@ -30,6 +30,7 @@ export enum OnchainHookType {
 }
 
 export enum HookType {
+  CUSTOM = 'custom',
   MERKLE_TREE = 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
   AGGREGATION = 'aggregationHook',
@@ -64,10 +65,4 @@ export type FallbackRoutingHookConfig = RoutingHookConfig & {
   fallback: HookConfig;
 };
 
-// TODO: union with Address
 export type HookConfig = z.infer<typeof HookConfigSchema>;
-
-export type HooksConfig = {
-  required: HookConfig;
-  default: HookConfig;
-};
