@@ -90,7 +90,7 @@ async function main(): Promise<boolean> {
   const tokenConfig: WarpRouteConfig =
     readWarpRouteConfig(filePath).data.config;
 
-  // await checkTokenBalances(checkFrequency, tokenConfig);
+  await checkTokenBalances(checkFrequency, tokenConfig);
 
   if (
     Object.values(tokenConfig).some((token) => token.type === TokenType.XERC20)
@@ -366,7 +366,6 @@ async function checkXERC20Limits(checkFrequency: number) {
 
   setInterval(async () => {
     try {
-      logger.info('Checking xERC20 limits');
       const xERC20Limits = await getXerc20Limits(warpCoreConfig, multiProvider);
       logger.info('xERC20 Limits:', xERC20Limits);
       updateXERC20LimitsMetrics(xERC20Limits);
