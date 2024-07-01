@@ -88,6 +88,32 @@ contract OptimisticIsmTest is Test {
         ism.verify(metadata, "");
     }
 
+    function testMarkFraudulent(uint8 m, uint8 n, bytes32 seed) public {
+        vm.assume(2 < m && m <= n && n < 10);
+        _genOptimisticIsmWatchersSubmoduleAndMetadata(m, n, seed);
+        ism.initialize(address(this), address(submodule), fraudWindow);
+
+        for (uint256 i = 0; i < m - 1; i++) {
+            vm.prank(watchers[i]);
+            ism.markFraudulent(address(submodule));
+        }
+
+        assertEq(m - 1, ism.fraudulentCount(address(submodule)));
+    }
+
+    function testMarkFraudulentWithNonWatcherAccount(
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        _genOptimisticIsmWatchersSubmoduleAndMetadata(m, n, seed);
+        ism.initialize(address(this), address(submodule), fraudWindow);
+
+        vm.expectRevert(bytes("!watcher"));
+        ism.markFraudulent(address(submodule));
+    }
+
     // ========== Helper Functions ============
 
     function _genOptimisticIsmWatchersSubmoduleAndMetadata(
