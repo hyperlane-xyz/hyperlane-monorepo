@@ -283,7 +283,7 @@ impl PendingOperation for PendingMessage {
             return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
         };
 
-        // Go ahead and attempt processing of message to destination chain.
+        // Go ahead and attempt processing of message to the destination chain.
         debug!(
             ?gas_limit,
             ?tx_cost_estimate,
