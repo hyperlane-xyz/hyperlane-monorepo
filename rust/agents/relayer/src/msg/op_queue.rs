@@ -8,6 +8,8 @@ use tracing::{debug, info, instrument};
 
 use crate::server::MessageRetryRequest;
 
+pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
+
 /// Queue of generic operations that can be submitted to a destination chain.
 /// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
 #[derive(Debug, Clone, new)]
@@ -16,7 +18,7 @@ pub struct OpQueue {
     queue_metrics_label: String,
     retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
-    queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
+    pub queue: OperationPriorityQueue,
 }
 
 impl OpQueue {
