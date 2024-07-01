@@ -18,6 +18,7 @@ import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import {
   createWarpRouteDeployConfig,
   readWarpCoreConfig,
+  readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
   CommandModuleWithContext,
@@ -61,11 +62,45 @@ export const warpCommand: CommandModule = {
   handler: () => log('Command required'),
 };
 
-export const apply = {
+export const apply: CommandModuleWithWriteContext<{
+  config: string;
+  symbol?: string;
+  warp: string;
+}> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
-  builder: {},
-  handler: async () => {},
+  builder: {
+    config: warpDeploymentConfigCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: true,
+    },
+  },
+  handler: async ({ context, config, symbol, warp }) => {
+    let warpCoreConfig: WarpCoreConfig;
+    if (symbol) {
+      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
+    } else if (warp) {
+      warpCoreConfig = readWarpCoreConfig(warp);
+    } else {
+      logRed(`Please specify either a symbol or warp config`);
+      process.exit(0);
+    }
+    console.log('warp core', warpCoreConfig);
+    // Convert warpCoreConfig.tokens into a mapping of { [chainName]: Config } to allow O(1) reads
+
+    const warpDeployConfig = readWarpRouteDeployConfig(config);
+    objMap(warpDeployConfig, async (chain, config) => {
+      // const evmERC20WarpModule = new EvmERC20WarpModule(context.multiProvider, { deployedTokenRoute: });
+      // await evmERC20WarpModule.update(config)
+    });
+
+    process.exit(0);
+  },
 };
 
 export const deploy: CommandModuleWithWriteContext<{
