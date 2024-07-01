@@ -7701,6 +7701,12 @@
       "constructorArguments": "00000000000000000000000028efbcada00a7ed6772b3666f3898d276e88cae3",
       "isProxy": false,
       "name": "ValidatorAnnounce"
+    },
+    {
+      "address": "0xD670c00C0Cad3D32436d7cF270e739772314A8CE",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "viction": [
