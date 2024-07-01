@@ -1,48 +1,67 @@
 # @hyperlane-xyz/sdk
 
-## 4.0.0-alpha.2
-
-### Patch Changes
-
-- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
-  - @hyperlane-xyz/core@4.0.0-alpha.2
-  - @hyperlane-xyz/utils@4.0.0-alpha.2
-
-## 4.0.0-alpha.0
+## 4.0.0
 
 ### Minor Changes
 
+- b05ae38ac: Gracefully handle RPC failures during warp send & fix deriving hook error that prevents warp and core test messages on the cli.
+- 9304fe241: Use metadata builders in message relaying
 - bdcbe1d16: Add EvmWarpModule with create()
+- e38d31685: Add logic to set smart provider log level to disable provider logs during Warp TokenType derive
+- e0f226806: - Enables creation of new Hooks through the `EvmHookModule`.
+  - Introduces an `EvmModuleDeployer` to perform the barebones tasks of deploying contracts/proxies.
 - 6db9fa9ad: Implement hyperlane warp deploy
 
 ### Patch Changes
 
-- @hyperlane-xyz/core@4.0.0-alpha.0
-- @hyperlane-xyz/utils@4.0.0-alpha.0
+- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
+- Updated dependencies [44cc9bf6b]
+  - @hyperlane-xyz/core@4.0.0
+  - @hyperlane-xyz/utils@4.0.0
 
-## 4.0.0-alpha
-
-### Major Changes
-
-- 74c879fa1: Merge branch 'cli-2.0' into main.
+## 3.16.0
 
 ### Minor Changes
 
-- eb23e7729: Add create() with EvmCoreModule
-- 1ec61debd: Support hook config objects in warp config
-- 4663018fc: Implement hyperlane core config to return CoreConfig
-- 5e5886f2c: Add EvmIcaModule.create()
-- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
-- 3dabcbdca: Adds zod validation on tx submitter populated txs & re-uses ICA params for transformer.
-- 1d0d1bb36: Implements `hyperlane core deploy`
-- 4bf7301ea: Adds further zod schema validation support throughout the SDK, namely for /transactions.
+- 5cc64eb09: Add validator addresses for linea, fraxtal, sei.
+  Estimate gas and add 10% buffer inside HyperlaneIsmFactory as well.
 
 ### Patch Changes
 
-- Updated dependencies [341b8affd]
-- Updated dependencies [74c879fa1]
-  - @hyperlane-xyz/utils@4.0.0-alpha
-  - @hyperlane-xyz/core@4.0.0-alpha
+- f9bbdde76: Fix initial total supply of synthetic token deployments to 0
+  - @hyperlane-xyz/core@3.16.0
+  - @hyperlane-xyz/utils@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- acaa22cd9: Do not consider xERC20 a collateral standard to fix fungibility checking logic while maintaining mint limit checking
+- 921e449b4: Support priorityFee fetching from RPC and some better logging
+- Updated dependencies [6620fe636]
+  - @hyperlane-xyz/core@3.15.1
+  - @hyperlane-xyz/utils@3.15.1
+
+## 3.15.0
+
+### Minor Changes
+
+- 51bfff683: Mint/burn limit checking for xERC20 bridging
+  Corrects CLI output for HypXERC20 and HypXERC20Lockbox deployments
+
+### Patch Changes
+
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/core@3.15.0
+  - @hyperlane-xyz/utils@3.15.0
+
+## 3.14.0
+
+### Patch Changes
+
+- Updated dependencies [a8a68f6f6]
+  - @hyperlane-xyz/core@3.14.0
+  - @hyperlane-xyz/utils@3.14.0
 
 ## 3.13.0
 

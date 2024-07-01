@@ -15,7 +15,7 @@ _main() {
     # with the routing over igp hook (which is closer to production deployment)
     TEST_TYPE=$1
     if [ -z "$TEST_TYPE" ]; then
-        echo "Usage: ci-test.sh <$TEST_TYPE_PRESET_HOOK | $TEST_TYPE_CONFIGURED_HOOK | $TEST_TYPE_PI_CORE>"
+        echo "Usage: ci-advanced-test.sh <$TEST_TYPE_PRESET_HOOK | $TEST_TYPE_CONFIGURED_HOOK | $TEST_TYPE_PI_CORE>"
         exit 1
     fi
 
@@ -261,7 +261,7 @@ run_hyperlane_send_message() {
 
 run_validator() {
     echo -e "\nPre-building validator with cargo"
-    cargo build --bin validator
+    cargo build --bin validator --features test-utils
 
     # set some default agent env vars, used by both validators and relayer
     export HYP_CHAINS_${CHAIN1_CAPS}_BLOCKS_REORGPERIOD=0
@@ -297,7 +297,7 @@ run_validator() {
 
     echo "Validator running, sleeping to let it sync"
     # This needs to be long to allow time for the cargo build to finish
-    sleep 15
+    sleep 20
     echo "Done sleeping"
 
     for CHAIN in ${CHAIN1} ${CHAIN2}
@@ -315,7 +315,7 @@ run_validator() {
 
 run_relayer() {
     echo -e "\nPre-building relayer with cargo"
-    cargo build --bin relayer
+    cargo build --bin relayer --features test-utils
 
     echo "Running relayer"
     export CONFIG_FILES=/tmp/agent-config.json

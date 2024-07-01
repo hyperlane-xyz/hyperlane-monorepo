@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::process::Child;
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use nix::libc::pid_t;
@@ -54,6 +58,8 @@ pub type AgentHandles = (
     Box<dyn TaskHandle<Output = ()>>,
     // data to drop once program exits
     Box<dyn ArbitraryData>,
+    // file with stdout logs
+    Option<Arc<Mutex<File>>>,
 );
 pub type LogFilter = fn(&str) -> bool;
 
@@ -111,4 +117,20 @@ pub fn stop_child(child: &mut Child) {
             log!("{}", e);
         }
     };
+}
+
+pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<String, u32> {
+    let reader = io::BufReader::new(file);
+    let mut matches = HashMap::new();
+
+    let mut lines = reader.lines();
+    while let Some(Ok(line)) = lines.next() {
+        search_strings.iter().for_each(|search_string| {
+            if line.contains(search_string) {
+                let count = matches.entry(search_string.to_string()).or_insert(0);
+                *count += 1;
+            }
+        });
+    }
+    matches
 }

@@ -1,18 +1,14 @@
 # @hyperlane-xyz/utils
 
-## 4.0.0-alpha.2
+## 4.0.0
 
-## 4.0.0-alpha.0
+## 3.16.0
 
-## 4.0.0-alpha
+## 3.15.1
 
-### Major Changes
+## 3.15.0
 
-- 74c879fa1: Merge branch 'cli-2.0' into main.
-
-### Minor Changes
-
-- 341b8affd: Completes the EvmIsmModule for creating, reading and updating ISMs.
+## 3.14.0
 
 ## 3.13.0
 

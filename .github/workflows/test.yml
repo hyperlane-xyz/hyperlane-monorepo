@@ -1,12 +1,17 @@
 name: test
 
 on:
-  # Triggers the workflow on push or pull request against main
+  # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
+    paths-ignore:
+      - '*.md'
+  # Triggers on pull requests ignoring md files
   pull_request:
     branches:
       - '*' # run against all branches
+    paths-ignore:
+      - '*.md'
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab
@@ -21,24 +26,22 @@ env:
   LOG_FORMAT: PRETTY
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  # Alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
-  REGISTRY_URI: ${{ github.workspace }}/../hyperlane-registry
 
 jobs:
   yarn-install:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -59,14 +62,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [yarn-install]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -74,7 +77,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -84,43 +87,18 @@ jobs:
       - name: build
         run: yarn build
 
-  checkout-registry:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: hyperlane-xyz/hyperlane-registry
-          ref: main
-          path: ./hyperlane-registry
-
-      # Put alongside the monorepo in the directory above the $GITHUB_WORKSPACE.
-      # actions/checkout doesn't allow you to checkout a repository outside of the workspace.
-      # See https://github.com/actions/checkout/issues/197.
-      - run: mv ./hyperlane-registry ../
-
-      # A workaround for relative paths not being supported by actions/cache.
-      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
-      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
-
-      - name: registry-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
-
   lint-prettier:
     runs-on: ubuntu-latest
     needs: [yarn-install]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # check out full history
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -141,54 +119,46 @@ jobs:
 
   yarn-test:
     runs-on: ubuntu-latest
-    needs: [yarn-build, checkout-registry]
+    needs: [yarn-build]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      # A workaround for relative paths not being supported by actions/cache.
-      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
-      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
-
-      - name: registry-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
 
       - name: Unit Tests
         run: yarn test:ci
 
   agent-configs:
     runs-on: ubuntu-latest
-    needs: [yarn-build, checkout-registry]
+    needs: [yarn-build]
     strategy:
       fail-fast: false
       matrix:
         environment: [mainnet3, testnet4]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -196,23 +166,15 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      # A workaround for relative paths not being supported by actions/cache.
-      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
-      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
-
-      - name: registry-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
 
       - name: Generate ${{ matrix.environment }} agent config
         run: |
@@ -226,29 +188,37 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
-    needs: [yarn-build, checkout-registry]
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
+    needs: [yarn-build]
     strategy:
       matrix:
         e2e-type: [cosmwasm, non-cosmwasm]
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           profile: minimal
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v1-${{ runner.os }}-rust-cache"
+          shared-key: ${{ matrix.e2e-type }}
+          workspaces: |
+            ./rust
 
       - name: Free disk space
         run: |
@@ -265,7 +235,7 @@ jobs:
           make-default: true
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -273,40 +243,25 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      # A workaround for relative paths not being supported by actions/cache.
-      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
-      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
-
-      - name: registry-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: cargo-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
 
       - name: agent tests with CosmWasm
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests excluding CosmWasm
-        run: cargo run --release --bin run-locally
+        run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
         env:
@@ -325,10 +280,59 @@ jobs:
           echo "All e2e-matrix jobs have completed."
           # You can add additional commands here to report the result as needed
 
-  cli-e2e:
+  prebuild-cli-e2e:
     runs-on: larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-build, checkout-registry]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v1-${{ runner.os }}-rust-cache"
+          shared-key: "cli-e2e"
+          workspaces: |
+            ./rust
+
+      - name: Free disk space
+        run: |
+          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+        with:
+          mold-version: 2.0.0
+          make-default: true
+
+      - name: Build validator
+        run: cargo build --bin validator --features test-utils
+        working-directory: ./rust
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: Build relayer
+        run: cargo build --bin relayer --features test-utils
+        working-directory: ./rust
+        env:
+          RUST_BACKTRACE: 'full'
+
+  cli-advanced-e2e:
+    runs-on: larger-runner
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
+    needs: [yarn-build, prebuild-cli-e2e]
     strategy:
       matrix:
         include:
@@ -336,23 +340,31 @@ jobs:
           - test-type: configure_hook_enabled
           - test-type: pi_with_core_chain
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           profile: minimal
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v1-${{ runner.os }}-rust-cache"
+          shared-key: "cli-e2e"
+          workspaces: |
+            ./rust
 
       - name: Free disk space
         run: |
@@ -369,7 +381,7 @@ jobs:
           make-default: true
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -377,37 +389,22 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      # A workaround for relative paths not being supported by actions/cache.
-      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
-      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
-
-      - name: registry-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: cargo-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('./rust/Cargo.lock') }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
 
       - name: cli e2e tests
-        run: ./typescript/cli/ci-test.sh ${{ matrix.test-type }}
+        run: ./typescript/cli/ci-advanced-test.sh ${{ matrix.test-type }}
 
   env-test:
     runs-on: ubuntu-latest
-    needs: [yarn-build, checkout-registry]
+    needs: [yarn-build]
     strategy:
       fail-fast: false
       matrix:
@@ -420,31 +417,23 @@ jobs:
             module: core
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      # A workaround for relative paths not being supported by actions/cache.
-      # See https://github.com/actions/upload-artifact/issues/176#issuecomment-1367855630.
-      - run: echo "REGISTRY_URI_ABSOLUTE=$(realpath $REGISTRY_URI)" >> $GITHUB_ENV
-
-      - name: registry-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ env.REGISTRY_URI_ABSOLUTE }}
-          key: hyperlane-registry-${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
         run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
@@ -454,13 +443,13 @@ jobs:
     needs: [yarn-test]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             **/node_modules
@@ -468,7 +457,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./*
@@ -476,7 +465,7 @@ jobs:
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run tests with coverage
         run: yarn coverage
@@ -484,6 +473,6 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=4096
 
       - name: Upload coverage reports to Codecov with GitHub Action
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

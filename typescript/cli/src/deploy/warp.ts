@@ -8,7 +8,6 @@ import {
   HypERC721Deployer,
   HyperlaneAddresses,
   HyperlaneContractsMap,
-  HyperlaneDeployer,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TOKEN_TYPE_TO_STANDARD,
@@ -20,7 +19,12 @@ import {
   isTokenMetadata,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
@@ -144,15 +148,14 @@ async function executeDeploy(params: DeployParams) {
 
   const deployedContracts = await deployer.deploy(modifiedConfig);
 
-  logGreen('✅ Hyp token deployments complete');
-
   const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
+  logGreen('✅ Warp contract deployments complete');
+
   if (!isDryRun) {
-    log('Writing deployment artifacts');
+    log('Writing deployment artifacts...');
     await registry.addWarpRoute(warpCoreConfig);
   }
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
-  logBlue('Deployment is complete!');
 }
 
 async function deployAndResolveWarpIsm(
@@ -196,7 +199,6 @@ async function deployAndResolveWarpIsm(
         chain,
         warpConfig,
         multiProvider,
-        ismFactoryDeployer,
         {
           domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
           staticAggregationHookFactory:
@@ -227,7 +229,6 @@ async function createWarpIsm(
   chain: string,
   warpConfig: WarpRouteDeployConfig,
   multiProvider: MultiProvider,
-  ismFactoryDeployer: HyperlaneDeployer<any, any>,
   factoryAddresses: HyperlaneAddresses<any>,
 ): Promise<string> {
   const {
@@ -240,9 +241,8 @@ async function createWarpIsm(
   const evmIsmModule = await EvmIsmModule.create({
     chain,
     multiProvider,
-    deployer: ismFactoryDeployer,
     mailbox: warpConfig[chain].mailbox,
-    factories: {
+    proxyFactoryFactories: {
       domainRoutingIsmFactory,
       staticAggregationHookFactory,
       staticAggregationIsmFactory,
@@ -266,31 +266,24 @@ async function getWarpCoreConfig(
     context.multiProvider,
     configMap,
   );
+  assert(
+    tokenMetadata && isTokenMetadata(tokenMetadata),
+    'Missing required token metadata',
+  );
+  const { decimals, symbol, name } = tokenMetadata;
+  assert(decimals, 'Missing decimals on token metadata');
 
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = configMap[chainName];
-    const metadata = {
-      ...tokenMetadata,
-      ...config,
-    };
-
-    if (!isTokenMetadata(metadata)) {
-      throw new Error('Missing required token metadata');
-    }
-
-    const { decimals } = metadata;
-    if (!decimals) {
-      throw new Error('Missing decimals on token metadata');
-    }
-
     const collateralAddressOrDenom =
       config.type === TokenType.collateral ? config.token : undefined;
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
-      ...metadata,
       decimals,
+      symbol,
+      name,
       addressOrDenom:
         contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,

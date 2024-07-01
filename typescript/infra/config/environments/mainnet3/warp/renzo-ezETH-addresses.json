@@ -1,0 +1,26 @@
+{
+  "bsc": {
+    "router": "0x6266e803057fa68C35018C3FB0B59db7129C23BB"
+  },
+  "arbitrum": {
+    "router": "0xC8F280d3eC30746f77c28695827d309d16939BF1"
+  },
+  "optimism": {
+    "router": "0x1d1a210E71398c17FD7987eDF1dc347539bB541F"
+  },
+  "base": {
+    "router": "0x584BA77ec804f8B6A559D196661C0242C6844F49"
+  },
+  "blast": {
+    "router": "0x8C603c6BDf8a9d548fC5D2995750Cc25eF59183b"
+  },
+  "mode": {
+    "router": "0xcd95B8dF351400BF4cbAb340b6EfF2454aDB299E"
+  },
+  "linea": {
+    "router": "0xcd95B8dF351400BF4cbAb340b6EfF2454aDB299E"
+  },
+  "ethereum": {
+    "router": "0xdFf621F952c23972dFD3A9E5d7B9f6339e9c078B"
+  }
+}

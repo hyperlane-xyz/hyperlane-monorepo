@@ -1,8 +1,11 @@
 use std::num::NonZeroU64;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use hyperlane_core::ChainResult;
+use futures::future;
+use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta};
 use once_cell::sync::Lazy;
+use tokio::task::JoinHandle;
+use tracing::warn;
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 
@@ -29,6 +32,32 @@ pub(crate) async fn get_block_height_for_lag(
     };
 
     Ok(block_height)
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) async fn execute_and_parse_log_futures<T: Into<Indexed<T>>>(
+    logs_futures: Vec<JoinHandle<(Result<Vec<(T, LogMeta)>, ChainCommunicationError>, u32)>>,
+) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+    // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
+    let result = future::join_all(logs_futures)
+        .await
+        .into_iter()
+        .flatten()
+        .map(|(logs, block_number)| {
+            if let Err(err) = &logs {
+                warn!(?err, ?block_number, "Failed to fetch logs for block");
+            }
+            logs
+        })
+        // Propagate errors from any of the queries. This will cause the entire range to be retried,
+        // including successful ones, but we don't have a way to handle partial failures in a range for now.
+        // This is also why cosmos indexing should be run with small chunks (currently set to 5).
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .map(|(log, meta)| (log.into(), meta))
+        .collect();
+    Ok(result)
 }
 
 #[cfg(test)]

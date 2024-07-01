@@ -314,6 +314,10 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'If no blacklist is provided ALL will be considered to not be on the blacklist.',
     ),
+  addressBlacklist: z
+    .string()
+    .optional()
+    .describe('Comma separated list of addresses to blacklist.'),
   transactionGasLimit: ZUWei.optional().describe(
     'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
   ),
@@ -399,6 +403,16 @@ export function buildAgentConfig(
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
   for (const chain of [...chains].sort()) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
+    if (metadata?.protocol === ProtocolType.Cosmos) {
+      // Note: the gRPC URL format in the registry lacks a correct http:// or https:// prefix at the moment,
+      // which is expected by the agents. For now, we intentionally skip this.
+      delete metadata.grpcUrls;
+
+      // The agents expect gasPrice.amount and gasPrice.denom and ignore the transaction overrides.
+      // To reduce confusion when looking at the config, we remove the transaction overrides.
+      delete metadata.transactionOverrides;
+    }
+
     const chainConfig: AgentChainMetadata = {
       ...metadata,
       ...addresses[chain],

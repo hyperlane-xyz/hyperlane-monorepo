@@ -16,15 +16,13 @@ import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import {
-  detectAndConfirmOrPrompt,
-  runMultiChainSelectionStep,
-} from '../utils/chains.js';
+import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
@@ -195,7 +193,7 @@ export async function createWarpRouteDeployConfig({
 
 // Note, this is different than the function above which reads a config
 // for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
-export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
+export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
   const config = readYamlOrJson(filePath);
   if (!config) throw new Error(`No warp route config found at ${filePath}`);
   return WarpCoreConfigSchema.parse(config);

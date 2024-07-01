@@ -1,10 +1,16 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use hyperlane_core::total_estimated_cost;
+use hyperlane_core::ConfirmReason::*;
+use hyperlane_core::PendingOperationStatus;
 use prometheus::{IntCounter, IntGaugeVec};
+use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
@@ -14,14 +20,13 @@ use tracing::{info, warn};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneMessage, MpmcReceiver, TxOutcome,
+    HyperlaneMessage, PendingOperationResult, QueueOperation, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
 
-use super::op_queue::{OpQueue, QueueOperation};
-use super::pending_operation::*;
+use super::op_queue::OpQueue;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -77,7 +82,7 @@ pub struct SerialSubmitter {
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<QueueOperation>,
     /// Receiver for retry requests.
-    retry_rx: MpmcReceiver<MessageRetryRequest>,
+    retry_tx: Sender<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
@@ -101,24 +106,24 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
-            retry_rx,
+            retry_tx,
             max_batch_size,
             task_monitor,
         } = self;
         let prepare_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
-            retry_rx.clone(),
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
         let submit_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "submit_queue".to_string(),
-            retry_rx.clone(),
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
-            retry_rx,
+            Arc::new(Mutex::new(retry_tx.subscribe())),
         );
 
         let tasks = [
@@ -181,7 +186,14 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.destination_domain(), domain);
-        prepare_queue.push(op).await;
+        let status = op.retrieve_status_from_db().unwrap_or_else(|| {
+            trace!(
+                ?op,
+                "No status found for message, defaulting to FirstPrepareAttempt"
+            );
+            PendingOperationStatus::FirstPrepareAttempt
+        });
+        prepare_queue.push(op, Some(status)).await;
     }
 }
 
@@ -217,7 +229,7 @@ async fn prepare_task(
             .filter(|r| {
                 matches!(
                     r,
-                    PendingOperationResult::NotReady | PendingOperationResult::Reprepare
+                    PendingOperationResult::NotReady | PendingOperationResult::Reprepare(_)
                 )
             })
             .count();
@@ -228,20 +240,27 @@ async fn prepare_task(
                     debug!(?op, "Operation prepared");
                     metrics.ops_prepared.inc();
                     // TODO: push multiple messages at once
-                    submit_queue.push(op).await;
+                    submit_queue
+                        .push(op, Some(PendingOperationStatus::ReadyToSubmit))
+                        .await;
                 }
                 PendingOperationResult::NotReady => {
-                    prepare_queue.push(op).await;
+                    prepare_queue.push(op, None).await;
                 }
-                PendingOperationResult::Reprepare => {
+                PendingOperationResult::Reprepare(reason) => {
                     metrics.ops_failed.inc();
-                    prepare_queue.push(op).await;
+                    prepare_queue
+                        .push(op, Some(PendingOperationStatus::Retry(reason)))
+                        .await;
                 }
                 PendingOperationResult::Drop => {
                     metrics.ops_dropped.inc();
                 }
-                PendingOperationResult::Confirm => {
-                    confirm_queue.push(op).await;
+                PendingOperationResult::Confirm(reason) => {
+                    debug!(?op, "Pushing operation to confirm queue");
+                    confirm_queue
+                        .push(op, Some(PendingOperationStatus::Confirm(reason)))
+                        .await;
                 }
             }
         }
@@ -293,7 +312,9 @@ async fn submit_single_operation(
     op.submit().await;
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);
-    confirm_queue.push(op).await;
+    confirm_queue
+        .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
+        .await;
     metrics.ops_submitted.inc();
 
     if matches!(
@@ -339,7 +360,7 @@ async fn confirm_task(
         if op_results.iter().all(|op| {
             matches!(
                 op,
-                PendingOperationResult::NotReady | PendingOperationResult::Confirm
+                PendingOperationResult::NotReady | PendingOperationResult::Confirm(_)
             )
         }) {
             // None of the operations are ready, so wait for a little bit
@@ -360,18 +381,25 @@ async fn confirm_operation(
     debug_assert_eq!(*op.destination_domain(), domain);
 
     let operation_result = op.confirm().await;
-    match operation_result {
+    match &operation_result {
         PendingOperationResult::Success => {
             debug!(?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
         }
-        PendingOperationResult::NotReady | PendingOperationResult::Confirm => {
-            // TODO: push multiple messages at once
-            confirm_queue.push(op).await;
+        PendingOperationResult::NotReady => {
+            confirm_queue.push(op, None).await;
         }
-        PendingOperationResult::Reprepare => {
+        PendingOperationResult::Confirm(reason) => {
+            // TODO: push multiple messages at once
+            confirm_queue
+                .push(op, Some(PendingOperationStatus::Confirm(reason.clone())))
+                .await;
+        }
+        PendingOperationResult::Reprepare(reason) => {
             metrics.ops_failed.inc();
-            prepare_queue.push(op).await;
+            prepare_queue
+                .push(op, Some(PendingOperationStatus::Retry(reason.clone())))
+                .await;
         }
         PendingOperationResult::Drop => {
             metrics.ops_dropped.inc();
@@ -425,13 +453,14 @@ impl OperationBatch {
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         match self.try_submit_as_batch(metrics).await {
             Ok(outcome) => {
-                // TODO: use the `tx_outcome` with the total gas expenditure
-                // We'll need to proportionally set `used_gas` based on the tx_outcome, so it can be updated in the confirm step
-                // which means we need to add a `set_transaction_outcome` fn to `PendingOperation`
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
+                let total_estimated_cost = total_estimated_cost(&self.operations);
                 for mut op in self.operations {
+                    op.set_operation_outcome(outcome.clone(), total_estimated_cost);
                     op.set_next_attempt_after(CONFIRM_DELAY);
-                    confirm_queue.push(op).await;
+                    confirm_queue
+                        .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
+                        .await;
                 }
                 return;
             }
@@ -459,8 +488,6 @@ impl OperationBatch {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
 
-        // We use the estimated gas limit from the prior call to
-        // `process_estimate_costs` to avoid a second gas estimation.
         let outcome = first_item.mailbox.process_batch(&batch).await?;
         metrics.ops_submitted.inc_by(self.operations.len() as u64);
         Ok(outcome)

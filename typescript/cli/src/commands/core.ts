@@ -10,7 +10,7 @@ import {
 } from '../context/types.js';
 import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { log, logGray, logGreen } from '../logger.js';
+import { errorRed, log, logGray, logGreen } from '../logger.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -32,8 +32,8 @@ export const coreCommand: CommandModule = {
   describe: 'Manage core Hyperlane contracts & configs',
   builder: (yargs) =>
     yargs
-      .command(configure)
       .command(deploy)
+      .command(init)
       .command(read)
       .version(false)
       .demandCommand(),
@@ -82,11 +82,11 @@ export const deploy: CommandModuleWithWriteContext<{
   },
 };
 
-export const configure: CommandModuleWithContext<{
+export const init: CommandModuleWithContext<{
   advanced: boolean;
   config: string;
 }> = {
-  command: 'configure',
+  command: 'init',
   describe: 'Create a core configuration, including ISMs and hooks.',
   builder: {
     advanced: {
@@ -120,7 +120,7 @@ export const read: CommandModuleWithContext<{
   config: string;
 }> = {
   command: 'read',
-  describe: 'Reads onchain ISM & Hook configurations for given addresses',
+  describe: 'Reads onchain Core configuration for a given mailbox address',
   builder: {
     chain: {
       ...chainCommandOption,
@@ -142,13 +142,20 @@ export const read: CommandModuleWithContext<{
     logGray('-------------------');
 
     const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
-    const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
-
-    writeYamlOrJson(configFilePath, coreConfig, 'yaml');
-    logGreen(
-      `✅ Warp route config written successfully to ${configFilePath}:\n`,
-    );
-    log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
+    try {
+      const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
+      writeYamlOrJson(configFilePath, coreConfig, 'yaml');
+      logGreen(
+        `✅ Warp route config written successfully to ${configFilePath}:\n`,
+      );
+      log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
+    } catch (e: any) {
+      errorRed(
+        `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
+        e,
+      );
+      process.exit(1);
+    }
 
     process.exit(0);
   },

@@ -6,7 +6,7 @@ For instructions on deploying Warp Routes, see [the deployment documentation](ht
 
 ## Warp Route Architecture
 
-A Warp Route is a collection of [`TokenRouter`](./contracts/libs/TokenRouter.sol) contracts deployed across a set of Hyperlane chains. These contracts leverage the `Router` pattern to implement access control and routing logic for remote token transfers. These contracts send and receive [`Messages`](./contracts/libs/Message.sol) which encode payloads containing a transfer `amount` and `recipient` address.
+A Warp Route is a collection of [`TokenRouter`](./libs/TokenRouter.sol) contracts deployed across a set of Hyperlane chains. These contracts leverage the `Router` pattern to implement access control and routing logic for remote token transfers. These contracts send and receive [`Messages`](./libs/TokenMessage.sol) which encode payloads containing a transfer `amount` and `recipient` address.
 
 ```mermaid
 %%{ init: {
@@ -39,7 +39,7 @@ graph LR
         Mailbox_G[(Mailbox)]
     end
 
-    HYP_E -. "router" .- HYP_P -. "router" .- HYP_G
+    HYP_E -. "TokenMessage" .- HYP_P -. "TokenMessage" .- HYP_G
 
 ```
 

@@ -84,9 +84,21 @@ async function getPrometheusConfig(
           ],
         },
       ],
+      resources: {
+        requests: {
+          cpu: '200m',
+          memory: '3Gi',
+        },
+      },
     },
-    nodeExporter: {
+    'prometheus-node-exporter': {
       enabled: infraConfig.monitoring.prometheus.nodeExporterEnabled,
+      resources: {
+        requests: {
+          cpu: '50m',
+          memory: '100Mi',
+        },
+      },
     },
   };
 }

@@ -1,4 +1,4 @@
-import { ChainMap, RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
 import { FundableRole, Role } from '../roles.js';
@@ -20,7 +20,7 @@ export interface KeyFunderConfig {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  connectionType: RpcConsensusType;
   desiredBalancePerChain: ChainMap<string>;
   desiredKathyBalancePerChain: ChainMap<string>;
+  igpClaimThresholdPerChain: ChainMap<string>;
 }
