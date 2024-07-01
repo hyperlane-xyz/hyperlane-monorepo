@@ -1,9 +1,9 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main & cli-2.0 branches
+  # Triggers the workflow on pushes to main branch
   push:
-    branches: [main, cli-2.0]
+    branches: [main]
     paths-ignore:
       - '*.md'
   # Triggers on pull requests ignoring md files
@@ -188,7 +188,7 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
       matrix:

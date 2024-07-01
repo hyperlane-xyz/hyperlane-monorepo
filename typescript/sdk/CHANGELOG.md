@@ -1,5 +1,24 @@
 # @hyperlane-xyz/sdk
 
+## 4.0.0
+
+### Minor Changes
+
+- b05ae38ac: Gracefully handle RPC failures during warp send & fix deriving hook error that prevents warp and core test messages on the cli.
+- 9304fe241: Use metadata builders in message relaying
+- bdcbe1d16: Add EvmWarpModule with create()
+- e38d31685: Add logic to set smart provider log level to disable provider logs during Warp TokenType derive
+- e0f226806: - Enables creation of new Hooks through the `EvmHookModule`.
+  - Introduces an `EvmModuleDeployer` to perform the barebones tasks of deploying contracts/proxies.
+- 6db9fa9ad: Implement hyperlane warp deploy
+
+### Patch Changes
+
+- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
+- Updated dependencies [44cc9bf6b]
+  - @hyperlane-xyz/core@4.0.0
+  - @hyperlane-xyz/utils@4.0.0
+
 ## 3.16.0
 
 ### Minor Changes

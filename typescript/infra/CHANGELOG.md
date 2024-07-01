@@ -1,5 +1,27 @@
 # @hyperlane-xyz/infra
 
+## 4.0.0
+
+### Minor Changes
+
+- 6398aab72: Upgrade registry to 2.1.1
+- bf7ad09da: feat(cli): add `warp --symbol` flag
+
+### Patch Changes
+
+- Updated dependencies [b05ae38ac]
+- Updated dependencies [9304fe241]
+- Updated dependencies [6398aab72]
+- Updated dependencies [bdcbe1d16]
+- Updated dependencies [6b63c5d82]
+- Updated dependencies [bf7ad09da]
+- Updated dependencies [e38d31685]
+- Updated dependencies [e0f226806]
+- Updated dependencies [6db9fa9ad]
+  - @hyperlane-xyz/sdk@4.0.0
+  - @hyperlane-xyz/helloworld@4.0.0
+  - @hyperlane-xyz/utils@4.0.0
+
 ## 3.16.0
 
 ### Minor Changes

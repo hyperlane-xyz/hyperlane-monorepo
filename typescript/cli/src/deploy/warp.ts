@@ -19,7 +19,12 @@ import {
   isTokenMetadata,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
@@ -261,31 +266,24 @@ async function getWarpCoreConfig(
     context.multiProvider,
     configMap,
   );
+  assert(
+    tokenMetadata && isTokenMetadata(tokenMetadata),
+    'Missing required token metadata',
+  );
+  const { decimals, symbol, name } = tokenMetadata;
+  assert(decimals, 'Missing decimals on token metadata');
 
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = configMap[chainName];
-    const metadata = {
-      ...tokenMetadata,
-      ...config,
-    };
-
-    if (!isTokenMetadata(metadata)) {
-      throw new Error('Missing required token metadata');
-    }
-
-    const { decimals } = metadata;
-    if (!decimals) {
-      throw new Error('Missing decimals on token metadata');
-    }
-
     const collateralAddressOrDenom =
       config.type === TokenType.collateral ? config.token : undefined;
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
-      ...metadata,
       decimals,
+      symbol,
+      name,
       addressOrDenom:
         contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,
