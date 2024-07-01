@@ -21,6 +21,7 @@ import {
   assert,
   concurrentMap,
   eqAddress,
+  getLogLevel,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
