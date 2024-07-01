@@ -1,6 +1,7 @@
 import { ethers, providers } from 'ethers';
 
 import {
+  ArbL2ToL1Hook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -30,6 +31,7 @@ import { ChainNameOrId } from '../types.js';
 
 import {
   AggregationHookConfig,
+  ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -62,6 +64,9 @@ export interface HookReader {
   deriveOpStackConfig(
     address: Address,
   ): Promise<WithAddress<OpStackHookConfig>>;
+  deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1HookConfig>>;
   deriveDomainRoutingConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>>;
@@ -119,6 +124,8 @@ export class EvmHookReader implements HookReader {
         // For now assume it's OP_STACK
         case OnchainHookType.ID_AUTH_ISM:
           return this.deriveOpStackConfig(address);
+        case OnchainHookType.ARB_L2_TO_L1:
+          return this.deriveArbL2ToL1Config(address);
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
@@ -284,6 +291,18 @@ export class EvmHookReader implements HookReader {
       type: HookType.OP_STACK,
       nativeBridge: messengerContract,
       destinationChain: destinationChainName,
+    };
+  }
+
+  async deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
+    const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
+    const arbSys = await hook.arbSys();
+    return {
+      address,
+      type: HookType.ARB_L2_TO_L1,
+      arbSys,
     };
   }
 

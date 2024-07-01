@@ -4,7 +4,7 @@ import { input } from '@inquirer/prompts';
 import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 
@@ -16,7 +16,7 @@ export async function checkMessageStatus({
   selfRelay,
   dispatchTx,
 }: {
-  context: CommandContext;
+  context: WriteCommandContext;
   dispatchTx?: string;
   messageId?: string;
   destination?: ChainName;

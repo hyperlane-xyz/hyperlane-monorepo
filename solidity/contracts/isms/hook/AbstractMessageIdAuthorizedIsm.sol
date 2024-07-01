@@ -72,17 +72,23 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      */
     function verify(
         bytes calldata,
-        /*_metadata*/
-        bytes calldata message
-    ) external returns (bool) {
-        bytes32 messageId = message.id();
+        /*metadata*/ bytes calldata message
+    ) external virtual returns (bool) {
+        return releaseValueToRecipient(message);
+    }
 
-        // check for the first bit (used for verification)
-        bool verified = verifiedMessages[messageId].isBitSet(
-            VERIFIED_MASK_INDEX
-        );
-        // rest 255 bits contains the msg.value passed from the hook
+    // ============ Public Functions ============
+
+    /**
+     * @notice Release the value to the recipient if the message is verified.
+     * @param message Message to release value for.
+     */
+    function releaseValueToRecipient(
+        bytes calldata message
+    ) public returns (bool) {
+        bool verified = isVerified(message);
         if (verified) {
+            bytes32 messageId = message.id();
             uint256 _msgValue = verifiedMessages[messageId].clearBit(
                 VERIFIED_MASK_INDEX
             );
@@ -92,6 +98,16 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             }
         }
         return verified;
+    }
+
+    /**
+     * @notice Check if a message is verified through verifyMessageId first.
+     * @param message Message to check.
+     */
+    function isVerified(bytes calldata message) public view returns (bool) {
+        bytes32 messageId = message.id();
+        // check for the first bit (used for verification)
+        return verifiedMessages[messageId].isBitSet(VERIFIED_MASK_INDEX);
     }
 
     /**
@@ -113,5 +129,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         emit ReceivedMessage(messageId);
     }
 
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Check if sender is authorized to message `verifyMessageId`.
+     */
     function _isAuthorized() internal view virtual returns (bool);
 }

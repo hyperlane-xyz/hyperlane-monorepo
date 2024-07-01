@@ -3,9 +3,11 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
+import { AbstractMessageIdAuthorizedIsm__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   assert,
+  bytes32ToAddress,
   objMap,
   objMerge,
   pollAsync,
@@ -17,6 +19,7 @@ import { HookConfigSchema } from '../hook/schemas.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
+import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -104,18 +107,35 @@ export class HyperlaneRelayer {
 
   async getSenderHookConfig(
     message: DispatchedMessage,
+    customHook?: Address,
   ): Promise<DerivedHookConfig> {
     const originChain = this.core.getOrigin(message);
-    const hook = await this.core.getSenderHookAddress(message);
+    const hook = customHook ?? (await this.core.getSenderHookAddress(message));
     return this.getHookConfig(originChain, hook);
   }
 
   async getRecipientIsmConfig(
     message: DispatchedMessage,
-  ): Promise<DerivedIsmConfig> {
+  ): Promise<{ config: DerivedIsmConfig; authorizedHook?: Address }> {
     const destinationChain = this.core.getDestination(message);
     const ism = await this.core.getRecipientIsmAddress(message);
-    return this.getIsmConfig(destinationChain, ism);
+    const config = await this.getIsmConfig(destinationChain, ism);
+    let authorizedHook: Address | undefined;
+    if (config.type === IsmType.ARB_L2_TO_L1) {
+      authorizedHook = bytes32ToAddress(
+        await AbstractMessageIdAuthorizedIsm__factory.connect(
+          config.address,
+          this.multiProvider.getProvider(destinationChain),
+        ).authorizedHook(),
+      );
+      if (authorizedHook === ethers.constants.AddressZero) {
+        authorizedHook = undefined;
+      }
+    }
+    return {
+      config,
+      authorizedHook,
+    };
   }
 
   async relayMessage(
@@ -134,11 +154,10 @@ export class HyperlaneRelayer {
     this.logger.debug({ message }, `Simulating recipient message handling`);
     await this.core.estimateHandle(message);
 
-    // parallelizable because configs are on different chains
-    const [ism, hook] = await Promise.all([
-      this.getRecipientIsmConfig(message),
-      this.getSenderHookConfig(message),
-    ]);
+    const { config: ism, authorizedHook } = await this.getRecipientIsmConfig(
+      message,
+    );
+    const hook = await this.getSenderHookConfig(message, authorizedHook);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
     const metadata = await pollAsync(
