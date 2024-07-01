@@ -50,6 +50,7 @@ function getKeyFunderHelmValues(
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
       desiredBalancePerChain: keyFunderConfig.desiredBalancePerChain,
       desiredKathyBalancePerChain: keyFunderConfig.desiredKathyBalancePerChain,
+      igpClaimThresholdPerChain: keyFunderConfig.igpClaimThresholdPerChain,
     },
     image: {
       repository: keyFunderConfig.docker.repo,

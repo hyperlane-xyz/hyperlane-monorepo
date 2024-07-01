@@ -26,8 +26,8 @@ export const keyFunderConfig: KeyFunderConfig = {
     alfajores: '5',
     bsctestnet: '5',
     fuji: '5',
-    plumetestnet: '0.2',
     holesky: '5',
+    plumetestnet: '0.2',
     // Funder boosts itself upto 5x balance on L2 before dispersing funds
     scrollsepolia: '1',
     sepolia: '5',
@@ -38,6 +38,15 @@ export const keyFunderConfig: KeyFunderConfig = {
     fuji: '1',
     plumetestnet: '0.05',
     scrollsepolia: '1',
+    sepolia: '1',
+  },
+  igpClaimThresholdPerChain: {
+    alfajores: '1',
+    bsctestnet: '1',
+    fuji: '1',
+    holesky: '1',
+    plumetestnet: '0.1',
+    scrollsepolia: '0.1',
     sepolia: '1',
   },
 };

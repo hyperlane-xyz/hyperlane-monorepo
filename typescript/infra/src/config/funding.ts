@@ -22,4 +22,5 @@ export interface KeyFunderConfig {
   prometheusPushGateway: string;
   desiredBalancePerChain: ChainMap<string>;
   desiredKathyBalancePerChain: ChainMap<string>;
+  igpClaimThresholdPerChain: ChainMap<string>;
 }
