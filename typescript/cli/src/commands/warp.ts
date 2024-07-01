@@ -50,6 +50,7 @@ export const warpCommand: CommandModule = {
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
     yargs
+      .command(apply)
       .command(deploy)
       .command(init)
       .command(read)
@@ -58,6 +59,13 @@ export const warpCommand: CommandModule = {
       .demandCommand(),
 
   handler: () => log('Command required'),
+};
+
+export const apply = {
+  command: 'apply',
+  describe: 'Update Warp Route contracts',
+  builder: {},
+  handler: async () => {},
 };
 
 export const deploy: CommandModuleWithWriteContext<{
