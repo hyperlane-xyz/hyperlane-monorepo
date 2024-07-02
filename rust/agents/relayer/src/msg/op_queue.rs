@@ -117,7 +117,7 @@ impl OpQueue {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
@@ -130,14 +130,14 @@ mod test {
     use tokio::sync;
 
     #[derive(Debug, Clone)]
-    struct MockPendingOperation {
+    pub struct MockPendingOperation {
         id: H256,
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
     }
 
     impl MockPendingOperation {
-        fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
+        pub fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
             Self {
                 id: H256::random(),
                 seconds_to_next_attempt,
@@ -238,7 +238,7 @@ mod test {
         }
     }
 
-    fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
+    pub fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
         (
             IntGaugeVec::new(
                 prometheus::Opts::new("op_queue", "OpQueue metrics"),
