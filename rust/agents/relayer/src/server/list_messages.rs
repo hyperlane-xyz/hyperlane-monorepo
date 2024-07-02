@@ -64,6 +64,8 @@ impl ListOperationsApi {
     }
 }
 
+// TODO: there's some duplication between the setup for these tests and the one in `message_retry.rs`,
+// which should be refactored into a common test setup.
 #[cfg(test)]
 mod tests {
     use crate::msg::op_queue::{
