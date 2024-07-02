@@ -3,16 +3,24 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
+  AggregationIsmConfig,
+  ChainName,
   EvmIsmModule,
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneAddresses,
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
+  IsmType,
   MultiProvider,
+  MultisigIsmConfig,
+  OpStackIsmConfig,
+  PausableIsmConfig,
+  RoutingIsmConfig,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenType,
+  TrustedRelayerIsmConfig,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   getTokenConnectionId,
@@ -108,7 +116,7 @@ async function runDeployPlanStep({ context, configMap }: DeployParams) {
   logBlue('\nDeployment plan');
   logGray('===============');
   log(`Using token standard ${configMap.isNft ? 'ERC721' : 'ERC20'}`);
-  logTable(configMap);
+  displayWarpRouteDeployConfig(configMap);
 
   if (skipConfirmation || context.isDryRun) return;
 
@@ -312,4 +320,110 @@ async function getWarpCoreConfig(
   }
 
   return warpCoreConfig;
+}
+
+function displayWarpRouteDeployConfig(
+  warpRouteDeployConfig: WarpRouteDeployConfig,
+) {
+  const { transformWarpRouteDeployConfig, transformedIsms } =
+    transformWarpRouteDeployConfigForDisplay(warpRouteDeployConfig);
+  logTable(transformWarpRouteDeployConfig);
+  transformedIsms.forEach((ism: any) => {
+    logTable(ism);
+  });
+}
+
+type IsmConfig =
+  | RoutingIsmConfig // type, owner, ownerOverrides, domain
+  | AggregationIsmConfig // type, modules, threshold
+  | MultisigIsmConfig // type, validators, threshold
+  | OpStackIsmConfig // type, origin, nativeBridge
+  | PausableIsmConfig // type, owner, paused, ownerOverrides
+  | TrustedRelayerIsmConfig; // type, relayer
+
+function transformWarpRouteDeployConfigForDisplay(
+  warpRouteDeployConfig: WarpRouteDeployConfig,
+) {
+  const transformedIsms: any[] = [];
+  const transformWarpRouteDeployConfig = objMap(
+    warpRouteDeployConfig,
+    (chain, config) => {
+      if (config.interchainSecurityModule) {
+        const transformedIsm = transformIsmForDisplay(
+          chain,
+          config.interchainSecurityModule as IsmConfig,
+        );
+        transformedIsms.push(transformedIsm);
+      }
+      return {
+        'NFT?': config.isNft ?? false,
+        Type: config.type,
+        Owner: config.owner,
+        Mailbox: config.mailbox,
+        ISM: config.interchainSecurityModule
+          ? `See table(s) below.`
+          : 'No ISM config specified.',
+      };
+    },
+  );
+
+  return {
+    transformWarpRouteDeployConfig,
+    transformedIsms,
+  };
+}
+
+function transformIsmForDisplay(
+  chain: ChainName,
+  interchainSecurityModule: IsmConfig,
+): any[] {
+  const transformedIsmsForDisplay = [];
+  switch (interchainSecurityModule.type) {
+    case IsmType.AGGREGATION:
+      interchainSecurityModule.modules.forEach((module: any) => {
+        transformedIsmsForDisplay.push(transformIsmForDisplay(chain, module));
+      });
+      break;
+    case IsmType.ROUTING || IsmType.FALLBACK_ROUTING:
+      transformedIsmsForDisplay.push({
+        Type: interchainSecurityModule.type,
+        Owner: interchainSecurityModule.owner,
+        'Owner Overrides': interchainSecurityModule.ownerOverrides,
+        Domains: interchainSecurityModule.domains,
+      });
+      break;
+    case IsmType.MERKLE_ROOT_MULTISIG || IsmType.MESSAGE_ID_MULTISIG:
+      transformedIsmsForDisplay.push({
+        Type: interchainSecurityModule.type,
+        Validators: interchainSecurityModule.validators,
+        Threshold: interchainSecurityModule.threshold,
+      });
+      break;
+    case IsmType.OP_STACK:
+      transformedIsmsForDisplay.push({
+        Type: interchainSecurityModule.type,
+        Origin: interchainSecurityModule.origin,
+        'Native Bridge': interchainSecurityModule.nativeBridge,
+      });
+      break;
+    case IsmType.PAUSABLE:
+      transformedIsmsForDisplay.push({
+        Type: interchainSecurityModule.type,
+        Owner: interchainSecurityModule.owner,
+        'Paused ?': interchainSecurityModule.paused,
+        'Owner Overrides': interchainSecurityModule.ownerOverrides,
+      });
+      break;
+    case IsmType.TRUSTED_RELAYER:
+      transformedIsmsForDisplay.push({
+        Type: interchainSecurityModule.type,
+        Relayer: interchainSecurityModule.relayer,
+      });
+      break;
+    default:
+      transformedIsmsForDisplay.push(interchainSecurityModule);
+      break;
+  }
+
+  return transformedIsmsForDisplay;
 }
