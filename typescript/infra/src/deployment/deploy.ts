@@ -82,8 +82,12 @@ export async function deployWithArtifacts<Config extends object>({
   // Deploy the contracts
   try {
     await deployer.deploy(targetConfigMap);
-  } catch (e) {
-    console.warn('Contract deployment exceeding configured timeout', e);
+  } catch (e: any) {
+    if (e?.message.includes('Timed out')) {
+      console.warn('Contract deployment exceeding configured timeout', e);
+    } else {
+      console.error('Contract deployment failed', e);
+    }
   }
 
   await postDeploy(deployer, cache, agentConfig);
