@@ -466,14 +466,14 @@ export class EvmIsmModule extends HyperlaneModule<
     config.domains = availableDomains;
 
     // deploy the submodules first
-    const submoduleAddresses: Address[] = await Promise.all(
-      Object.keys(config.domains).map(async (origin) => {
-        const { address } = await this.deploy({
-          config: config.domains[origin],
-        });
-        return address;
-      }),
-    );
+    const submoduleAddresses: Address[] = [];
+
+    for (const origin of Object.keys(config.domains)) {
+      const { address } = await this.deploy({
+        config: config.domains[origin],
+      });
+      submoduleAddresses.push(address);
+    }
 
     if (config.type === IsmType.FALLBACK_ROUTING) {
       // deploy the fallback routing ISM
