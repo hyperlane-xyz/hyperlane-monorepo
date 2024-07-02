@@ -78,7 +78,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Deploys and updates an existing Warp route ISM with a given config.
+   * Updates an existing Warp route ISM with a given config.
    *
    * @param actualConfig - The on-chain router configuration, including the ISM configuration, and address.
    * @param expectedConfig - The expected token router configuration, including the ISM configuration.
@@ -97,7 +97,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const {
       deployedIsm: expectedDeployedIsm,
       updateTransactions: ismUpdateTransactions,
-    } = await this.updateOrDeployIsm(actualConfig, expectedConfig);
+    } = await this.deployOrUpdateIsm(actualConfig, expectedConfig);
 
     // If an ISM has been updated in place, push the update txs
     updateTransactions.push(...ismUpdateTransactions);
@@ -127,7 +127,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    *
    * @returns Object with deployedIsm address, and update Transactions
    */
-  public async updateOrDeployIsm(
+  public async deployOrUpdateIsm(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): Promise<{
