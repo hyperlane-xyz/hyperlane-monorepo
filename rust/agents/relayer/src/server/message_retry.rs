@@ -9,15 +9,6 @@ use std::str::FromStr;
 use tokio::sync::broadcast::Sender;
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
-pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 1_000;
-
-/// Returns a vector of agent-specific endpoint routes to be served.
-/// Can be extended with additional routes and feature flags to enable/disable individually.
-pub fn routes(tx: Sender<MessageRetryRequest>) -> Vec<(&'static str, Router)> {
-    let message_retry_api = MessageRetryApi::new(tx);
-
-    vec![message_retry_api.get_route()]
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MessageRetryRequest {
@@ -104,6 +95,8 @@ impl MessageRetryApi {
 
 #[cfg(test)]
 mod tests {
+    use crate::server::ENDPOINT_MESSAGES_QUEUE_SIZE;
+
     use super::*;
     use axum::http::StatusCode;
     use ethers::utils::hex::ToHex;
