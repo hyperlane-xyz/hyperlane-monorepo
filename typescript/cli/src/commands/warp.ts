@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
+  EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
@@ -90,14 +91,42 @@ export const apply: CommandModuleWithWriteContext<{
       logRed(`Please specify either a symbol or warp config`);
       process.exit(0);
     }
-    console.log('warp core', warpCoreConfig);
     // Convert warpCoreConfig.tokens into a mapping of { [chainName]: Config } to allow O(1) reads
+    const warpCoreReduced = warpCoreConfig.tokens.reduce<
+      Record<string, WarpCoreConfig['tokens'][number]>
+    >((o, config) => {
+      o[config.chainName] = config;
+      return o;
+    }, {});
 
-    const warpDeployConfig = readWarpRouteDeployConfig(config);
-    objMap(warpDeployConfig, async (chain, config) => {
-      // const evmERC20WarpModule = new EvmERC20WarpModule(context.multiProvider, { deployedTokenRoute: });
-      // await evmERC20WarpModule.update(config)
-    });
+    const warpDeployConfig = await readWarpRouteDeployConfig(config);
+
+    // Fetch the static Ism factories and attach to WarpDeploy
+    const addresses = await context.registry.getAddresses();
+    const updates = await promiseObjAll(
+      objMap(warpDeployConfig, async (chain, config) => {
+        config.ismFactoryAddresses = addresses[chain] as any;
+        const evmERC20WarpModule = new EvmERC20WarpModule(
+          context.multiProvider,
+          {
+            config,
+            chain,
+            addresses: {
+              deployedTokenRoute: warpCoreReduced[chain as any].addressOrDenom!,
+            },
+          },
+        );
+        return evmERC20WarpModule.update(config);
+      }),
+    );
+
+    // Loop through each chain, and then loop through each update. ugh.
+    // @TODO maybe use concurrency for each chain
+    for (const [chain, transactions] of Object.entries(updates)) {
+      for (const transaction of transactions) {
+        await context.multiProvider.sendTransaction(chain, transaction);
+      }
+    }
 
     process.exit(0);
   },
