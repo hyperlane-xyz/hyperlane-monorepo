@@ -13,12 +13,12 @@ export function localAccountRouters(): ChainMap<Address> {
   const coreAddresses: ChainMap<AddressesMap> = getMainnetAddresses();
   const filteredAddresses = objFilter(
     coreAddresses,
-    (local, addressMap): addressMap is AddressesMap =>
+    (_, addressMap): addressMap is AddressesMap =>
       addressMap.interchainAccountRouter !== undefined,
   );
   return objMap(
     filteredAddresses,
-    (local, addressMap) => addressMap.interchainAccountRouter,
+    (_, addressMap) => addressMap.interchainAccountRouter,
   );
 }
 
@@ -49,7 +49,7 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 // NOTE: if you wanna use ICA governance, you can do the following:
 // const localRouters = localAccountRouters();
 // owner: {origin: <HUB_CHAIN>, owner: <SAFE_ADDRESS>, localRouter: localRouters[chain]}
-export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
+export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => [
     local,
     {

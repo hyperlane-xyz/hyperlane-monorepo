@@ -19,7 +19,7 @@ import {
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
-import { DEPLOYER, owners } from './owners.js';
+import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json';
 
@@ -59,7 +59,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(
-  owners,
+  ethereumChainOwners,
   (local, owner): IgpConfig => ({
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
     ...owner,

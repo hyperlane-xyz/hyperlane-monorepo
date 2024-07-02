@@ -26,6 +26,9 @@
   "blast": {
     "validators": ["0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"]
   },
+  "bob": {
+    "validators": ["0x20f283be1eb0e81e22f51705dcb79883cfdd34aa"]
+  },
   "bsc": {
     "validators": [
       "0x570af9b7b36568c8877eebba6c6727aa9dab7268",
@@ -76,6 +79,9 @@
       "0x80afdde2a81f3fb056fd088a97f0af3722dbc4f3",
       "0x5dda0c4cf18de3b3ab637f8df82b24921082b54c"
     ]
+  },
+  "mantle": {
+    "validators": ["0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52"]
   },
   "mode": {
     "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
@@ -130,6 +136,9 @@
   },
   "sei": {
     "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
+  },
+  "taiko": {
+    "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]

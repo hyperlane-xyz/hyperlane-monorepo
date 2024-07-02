@@ -19,6 +19,10 @@
     "amount": "0.5",
     "decimals": 9
   },
+  "bob": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "bsc": {
     "amount": "5.0",
     "decimals": 9
@@ -52,7 +56,11 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.101967574",
+    "amount": "0.101416541",
+    "decimals": 9
+  },
+  "mantle": {
+    "amount": "0.02",
     "decimals": 9
   },
   "mode": {
@@ -93,6 +101,10 @@
   },
   "sei": {
     "amount": "1.0",
+    "decimals": 9
+  },
+  "taiko": {
+    "amount": "0.010000001",
     "decimals": 9
   },
   "viction": {

@@ -253,7 +253,7 @@ async function main() {
     cache,
     // Use chains if provided, otherwise deploy to all chains
     // If fork is provided, deploy to fork only
-    targetNetworks: chains ?? !fork ? [] : [fork],
+    targetNetworks: chains && chains.length > 0 ? chains : !fork ? [] : [fork],
     agentConfig,
   });
 }
