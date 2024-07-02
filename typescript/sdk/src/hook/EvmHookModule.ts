@@ -118,9 +118,9 @@ export class EvmHookModule extends HyperlaneModule<
   }
 
   public async read(): Promise<HookConfig> {
-    return typeof this.args.config === 'string'
-      ? this.args.addresses.deployedHook
-      : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
+    return typeof this.params.config === 'string'
+      ? this.params.addresses.deployedHook
+      : this.reader.deriveHookConfig(this.params.addresses.deployedHook);
   }
 
   public async update(
