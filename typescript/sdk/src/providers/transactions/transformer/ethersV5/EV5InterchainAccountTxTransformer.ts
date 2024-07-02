@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { assert, objKeys, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
@@ -57,17 +57,17 @@ export class EV5InterchainAccountTxTransformer
     );
 
     const transformedTxs: ethers.PopulatedTransaction[] = [];
-    for (const txChain of objKeys(txChainsToInnerCalls)) {
+    objMap(txChainsToInnerCalls, async (destination, innerCalls) => {
       transformedTxs.push(
         await interchainAccountApp.getCallRemote({
           chain: this.props.chain,
-          destination: txChain,
-          innerCalls: txChainsToInnerCalls[txChain],
+          destination,
+          innerCalls,
           config: this.props.config,
           hookMetadata: this.props.hookMetadata,
         }),
       );
-    }
+    });
 
     return transformedTxs;
   }

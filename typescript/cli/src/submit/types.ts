@@ -1,27 +1,14 @@
 import type {
-  EV5GnosisSafeTxSubmitterProps,
-  EV5ImpersonatedAccountTxSubmitterProps,
-  EV5InterchainAccountTxTransformerProps,
+  ChainName,
   MultiProvider,
-  TxSubmitterType,
-  TxTransformerType,
+  SubmitterMetadata,
+  TransformerMetadata,
 } from '@hyperlane-xyz/sdk';
 
 export interface SubmitterBuilderSettings {
   submitterMetadata: SubmitterMetadata;
   transformersMetadata: TransformerMetadata[];
   multiProvider: MultiProvider;
+  chain: ChainName;
+  isDryRun?: boolean;
 }
-export interface SubmitterMetadata {
-  type: TxSubmitterType;
-  props: SubmitterProps;
-}
-export interface TransformerMetadata {
-  type: TxTransformerType;
-  props: TransformerProps;
-}
-
-type SubmitterProps =
-  | EV5ImpersonatedAccountTxSubmitterProps
-  | EV5GnosisSafeTxSubmitterProps;
-type TransformerProps = EV5InterchainAccountTxTransformerProps;

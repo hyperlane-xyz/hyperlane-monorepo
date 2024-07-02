@@ -7,6 +7,7 @@
 /artifacts
 /chains
 /deployments
+/transactions
 
 # Test artifacts
 /test-configs/**/addresses.yaml
