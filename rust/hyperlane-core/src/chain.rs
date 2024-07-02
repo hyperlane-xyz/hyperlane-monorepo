@@ -49,63 +49,42 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
     strum(serialize_all = "lowercase", ascii_case_insensitive)
 )]
 pub enum KnownHyperlaneDomain {
-    Ethereum = 1,
-    Sepolia = 11155111,
-    Holesky = 17000,
-
-    Polygon = 137,
-
-    Avalanche = 43114,
-    Fuji = 43113,
-
+    Alfajores = 44787,
+    Ancient8 = 888888888,
     Arbitrum = 42161,
-
-    Optimism = 10,
-
+    Avalanche = 43114,
     #[cfg_attr(feature = "strum", strum(serialize = "bsc"))]
     BinanceSmartChain = 56,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
-
-    Celo = 42220,
-    Alfajores = 44787,
-
-    Moonbeam = 1284,
-    MoonbaseAlpha = 1287,
-
-    Gnosis = 100,
-    Chiado = 10200,
-
-    MantaPacific = 169,
-
-    Neutron = 1853125230,
-
-    Osmosis = 875,
-
-    Injective = 6909546,
-    InEvm = 2525,
-
-    Ancient8 = 888888888,
-
     Blast = 81457,
-
+    Celo = 42220,
+    Chiado = 10200,
+    Ethereum = 1,
+    Fraxtal = 252,
+    Fuji = 43113,
+    Gnosis = 100,
+    Holesky = 17000,
+    InEvm = 2525,
+    Injective = 6909546,
+    Linea = 59144,
+    MantaPacific = 169,
     Mode = 34443,
-
+    MoonbaseAlpha = 1287,
+    Moonbeam = 1284,
+    Neutron = 1853125230,
+    Optimism = 10,
+    Osmosis = 875,
+    PlumeTestnet = 161221135,
+    Polygon = 137,
     Redstone = 690,
-
+    Sei = 1329,
+    Sepolia = 11155111,
     Viction = 88,
-
     Zetachain = 7000,
 
-    PlumeTestnet = 161221135,
-
-    Fraxtal = 252,
-
-    Linea = 59144,
-
-    Sei = 1329,
-
     // -- Local test chains --
+    //
     /// Test1 local chain
     Test1 = 13371,
     /// Test2 local chain
@@ -116,17 +95,19 @@ pub enum KnownHyperlaneDomain {
     /// Fuel1 local chain
     FuelTest1 = 13374,
 
-    /// Sealevel local chain 1
+    /// Sealevel local chain
     SealevelTest1 = 13375,
-    /// Sealevel local chain 1
+    /// Sealevel local chain
     SealevelTest2 = 13376,
 
-    // -- v3 testnets --
-    ScrollSepolia = 534351,
-
-    /// Cosmos local chains
+    /// Cosmos local chain
     CosmosTest99990 = 99990,
+    /// Cosmos local chain
     CosmosTest99991 = 99991,
+
+    // -- Testnets --
+    //
+    ScrollSepolia = 534351,
 }
 
 #[derive(Clone)]
