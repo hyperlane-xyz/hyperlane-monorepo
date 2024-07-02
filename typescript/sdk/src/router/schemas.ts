@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
 import { HookConfigSchema } from '../hook/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { ZHash } from '../metadata/customZodTypes.js';
@@ -9,6 +10,7 @@ export const MailboxClientConfigSchema = OwnableSchema.extend({
   mailbox: ZHash,
   hook: HookConfigSchema.optional(),
   interchainSecurityModule: IsmConfigSchema.optional(),
+  ismFactoryAddresses: ProxyFactoryFactoriesSchema.optional(),
 });
 
 export const ForeignDeploymentConfigSchema = z.object({
