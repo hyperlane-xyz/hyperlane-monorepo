@@ -99,7 +99,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       updateTransactions: ismUpdateTransactions,
     } = await this.deployOrUpdateIsm(actualConfig, expectedConfig);
 
-    // If an ISM has been updated in place, push the update txs
+    // If an ISM is updated in-place, push the update txs
     updateTransactions.push(...ismUpdateTransactions);
 
     // If a new ISM is deployed, push the setInterchainSecurityModule tx
