@@ -81,7 +81,7 @@ export class EvmIsmModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
 
-  protected constructor(
+  constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
       IsmConfig,
