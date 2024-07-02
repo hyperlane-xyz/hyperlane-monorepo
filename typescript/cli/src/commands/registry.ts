@@ -3,7 +3,7 @@ import { CommandModule } from 'yargs';
 import { createAgentConfig } from '../config/agent.js';
 import { createChainConfig } from '../config/chain.js';
 import { CommandContext, CommandModuleWithContext } from '../context/types.js';
-import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
+import { errorRed, log, logBlue, logGray, logTable } from '../logger.js';
 
 import {
   chainTargetsCommandOption,
@@ -100,12 +100,12 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
  * agent-config command
  */
 const createAgentConfigCommand: CommandModuleWithContext<{
-  chains: string;
+  chains?: string;
   out: string;
+  skipPrompts: boolean;
 }> = {
   command: 'agent-config',
   describe: 'Create a new agent config',
-
   builder: {
     chains: chainTargetsCommandOption,
     out: outputFileCommandOption(
@@ -120,25 +120,33 @@ const createAgentConfigCommand: CommandModuleWithContext<{
     out,
   }: {
     context: CommandContext;
-    chains: string;
+    chains?: string;
     out: string;
+    skipPrompts: boolean;
   }) => {
     const { multiProvider } = context;
 
-    const chainNames = chains.split(',');
-    const invalidChainNames = chainNames.filter(
-      (chainName) => !multiProvider.hasChain(chainName),
-    );
-    if (invalidChainNames.length > 0) {
-      logRed(
-        `Invalid chain names: ${invalidChainNames
-          .join(', ')
-          .replace(/, $/, '')}`,
+    let chainNames: string[] | undefined;
+    if (chains) {
+      chainNames = chains.split(',');
+      const invalidChainNames = chainNames.filter(
+        (chainName) => !multiProvider.hasChain(chainName),
       );
-      process.exit(1);
+      if (invalidChainNames.length > 0) {
+        errorRed(
+          `❌ Invalid chain names: ${invalidChainNames
+            .join(', ')
+            .replace(/, $/, '')}`,
+        );
+        process.exit(1);
+      }
     }
 
-    await createAgentConfig({ context, chains: chainNames, out });
+    await createAgentConfig({
+      context,
+      chains: chainNames,
+      out,
+    });
     process.exit(0);
   },
 };

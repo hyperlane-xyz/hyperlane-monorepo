@@ -113,7 +113,6 @@ export const chainTargetsCommandOption: Options = {
   type: 'string',
   description: 'Comma-separated list of chain names',
   alias: 'c',
-  demandOption: true,
 };
 
 export const outputFileCommandOption = (
