@@ -4,7 +4,7 @@
         "gasOracle": {
             "type": "remoteGasData",
             "tokenExchangeRate": "100000000000000000000",
-            "gasPrice": "3000000000",
+            "gasPrice": "300000000000",
             "tokenDecimals": 18
         }
     },
@@ -12,8 +12,8 @@
         "domain": 22222,
         "gasOracle": {
             "type": "remoteGasData",
-            "tokenExchangeRate": "4700000000000000",
-            "gasPrice": "1000000000",
+            "tokenExchangeRate": "6010517751000000",
+            "gasPrice": "3000000000000",
             "tokenDecimals": 18
         }
     }
