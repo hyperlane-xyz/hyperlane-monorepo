@@ -70,10 +70,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const actualConfig = await this.read();
 
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-    const updateIsmTx = await this.updateIsm(actualConfig, expectedConfig);
-    if (updateIsmTx) {
-      updateTransactions.push(...updateIsmTx);
-    }
+    updateTransactions.push(
+      ...(await this.updateIsm(actualConfig, expectedConfig)),
+    );
 
     return updateTransactions;
   }
@@ -98,12 +97,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const {
       deployedIsm: expectedDeployedIsm,
       updateTransactions: ismUpdateTransactions,
-    } = await this.deployIsm(actualConfig, expectedConfig);
+    } = await this.updateOrDeployIsm(actualConfig, expectedConfig);
 
     // If an ISM has been updated in place, push the update txs
-    if (ismUpdateTransactions.length) {
-      updateTransactions.push(...ismUpdateTransactions);
-    }
+    updateTransactions.push(...ismUpdateTransactions);
 
     // If a new ISM is deployed, push the setInterchainSecurityModule tx
     if (actualDeployedIsm !== expectedDeployedIsm) {
@@ -126,12 +123,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Deploys the ISM using the provided configuration.
+   * Updates or deploys the ISM using the provided configuration.
    *
-   * @param config - The configuration for the ISM to be deployed.
    * @returns Object with deployedIsm address, and update Transactions
    */
-  public async deployIsm(
+  public async updateOrDeployIsm(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): Promise<{
