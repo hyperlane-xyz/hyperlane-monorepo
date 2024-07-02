@@ -90,12 +90,13 @@ async function main(): Promise<boolean> {
   const tokenConfig: WarpRouteConfig =
     readWarpRouteConfig(filePath).data.config;
 
-  await checkTokenBalances(checkFrequency, tokenConfig);
-
+  // TODO: eventually support token balance checks for xERC20 token type
   if (
     Object.values(tokenConfig).some((token) => token.type === TokenType.XERC20)
   ) {
     await checkXERC20Limits(checkFrequency);
+  } else {
+    await checkTokenBalances(checkFrequency, tokenConfig);
   }
 
   return true;
@@ -344,11 +345,11 @@ function getXerc20Limits(
 async function checkXERC20Limits(checkFrequency: number) {
   const registry = await getRegistry();
   const symbol = 'EZETH';
-  const matching = await registry.getWarpRoutes({
+  const EZETHWarpRouteConfigMap = await registry.getWarpRoutes({
     symbol,
   });
 
-  const routes = Object.entries(matching);
+  const routes = Object.entries(EZETHWarpRouteConfigMap);
 
   let warpCoreConfig: WarpCoreConfig;
   if (routes.length === 0) {
