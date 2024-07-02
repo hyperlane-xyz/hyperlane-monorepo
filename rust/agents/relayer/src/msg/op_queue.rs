@@ -123,13 +123,14 @@ pub mod test {
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
         TryBatchAs, TxOutcome, H256, U256,
     };
+    use serde::Serialize;
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
     };
     use tokio::sync;
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Serialize)]
     pub struct MockPendingOperation {
         id: H256,
         seconds_to_next_attempt: u64,
@@ -149,6 +150,7 @@ pub mod test {
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
 
     #[async_trait::async_trait]
+    #[typetag::serialize]
     impl PendingOperation for MockPendingOperation {
         fn id(&self) -> H256 {
             self.id

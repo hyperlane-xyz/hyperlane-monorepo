@@ -5,6 +5,7 @@ use axum::{
 use derive_new::new;
 use hyperlane_core::QueueOperation;
 use serde::Deserialize;
+use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::msg::op_queue::OperationPriorityQueue;
@@ -35,17 +36,20 @@ async fn list_operations(
     let Some(op_queue) = queues.get(&domain) else {
         return format!("No queue found for domain {}", domain);
     };
-    let formatted = format_queue(op_queue.clone()).await;
-    formatted.join("\n")
+    format_queue(op_queue.clone()).await
 }
 
-pub async fn format_queue(queue: OperationPriorityQueue) -> Vec<String> {
-    queue
+pub async fn format_queue(queue: OperationPriorityQueue) -> String {
+    let res: Result<Vec<Value>, _> = queue
         .lock()
         .await
         .iter()
-        .map(|reverse| format!("{:?}", reverse.0))
-        .collect()
+        .map(|reverse| serde_json::to_value(&reverse.0))
+        .collect();
+    match res.and_then(|v| serde_json::to_string_pretty(&v)) {
+        Ok(s) => s,
+        Err(e) => format!("Error formatting queue: {}", e),
+    }
 }
 
 impl ListOperationsApi {
@@ -106,7 +110,11 @@ mod tests {
             Box::new(MockPendingOperation::new(1, DUMMY_DOMAIN.into())) as QueueOperation;
         let dummy_operation_2 =
             Box::new(MockPendingOperation::new(2, DUMMY_DOMAIN.into())) as QueueOperation;
-        let expected_response = format!("{:?}\n{:?}", dummy_operation_1, dummy_operation_2);
+        let v = vec![
+            serde_json::to_value(&dummy_operation_1).unwrap(),
+            serde_json::to_value(&dummy_operation_2).unwrap(),
+        ];
+        let expected_response = serde_json::to_string_pretty(&v).unwrap();
         op_queue.lock().await.push(Reverse(dummy_operation_1));
         op_queue.lock().await.push(Reverse(dummy_operation_2));
 

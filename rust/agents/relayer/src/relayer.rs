@@ -22,7 +22,7 @@ use hyperlane_core::{
 use tokio::{
     sync::{
         broadcast::{Receiver, Sender},
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        mpsc::{self, UnboundedSender},
         RwLock,
     },
     task::JoinHandle,

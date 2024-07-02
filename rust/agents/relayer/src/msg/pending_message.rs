@@ -15,6 +15,7 @@ use hyperlane_core::{
     TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
+use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use super::{
@@ -50,23 +51,28 @@ pub struct MessageContext {
 }
 
 /// A message that the submitter can and should try to submit.
-#[derive(new)]
+#[derive(new, Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
+    #[serde(skip_serializing)]
     ctx: Arc<MessageContext>,
     status: PendingOperationStatus,
     app_context: Option<String>,
     #[new(default)]
     submitted: bool,
     #[new(default)]
+    #[serde(skip_serializing)]
     submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]
+    #[serde(skip_serializing)]
     last_attempted_at: Instant,
     #[new(default)]
+    #[serde(skip_serializing)]
     next_attempt_after: Option<Instant>,
     #[new(default)]
+    #[serde(skip_serializing)]
     submission_outcome: Option<TxOutcome>,
 }
 
@@ -117,6 +123,7 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
 }
 
 #[async_trait]
+#[typetag::serialize]
 impl PendingOperation for PendingMessage {
     fn id(&self) -> H256 {
         self.message.id()
