@@ -72,9 +72,14 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      */
     function verify(
         bytes calldata,
-        /*metadata*/ bytes calldata message
+        /*metadata*/
+        bytes calldata message
     ) external virtual returns (bool) {
-        return releaseValueToRecipient(message);
+        bool verified = isVerified(message);
+        if (verified) {
+            releaseValueToRecipient(message);
+        }
+        return verified;
     }
 
     // ============ Public Functions ============
@@ -83,21 +88,15 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @notice Release the value to the recipient if the message is verified.
      * @param message Message to release value for.
      */
-    function releaseValueToRecipient(
-        bytes calldata message
-    ) public returns (bool) {
-        bool verified = isVerified(message);
-        if (verified) {
-            bytes32 messageId = message.id();
-            uint256 _msgValue = verifiedMessages[messageId].clearBit(
-                VERIFIED_MASK_INDEX
-            );
-            if (_msgValue > 0) {
-                verifiedMessages[messageId] -= _msgValue;
-                payable(message.recipientAddress()).sendValue(_msgValue);
-            }
+    function releaseValueToRecipient(bytes calldata message) public {
+        bytes32 messageId = message.id();
+        uint256 _msgValue = verifiedMessages[messageId].clearBit(
+            VERIFIED_MASK_INDEX
+        );
+        if (_msgValue > 0) {
+            verifiedMessages[messageId] -= _msgValue;
+            payable(message.recipientAddress()).sendValue(_msgValue);
         }
-        return verified;
     }
 
     /**

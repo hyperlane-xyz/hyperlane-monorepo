@@ -50,7 +50,8 @@ contract DeployArbHook is Script {
             L2_MAILBOX,
             L1_DOMAIN,
             TypeCasts.addressToBytes32(L1_ISM),
-            ARBSYS
+            ARBSYS,
+            200_000 // estimated gas amount used for verify
         );
 
         vm.stopBroadcast();

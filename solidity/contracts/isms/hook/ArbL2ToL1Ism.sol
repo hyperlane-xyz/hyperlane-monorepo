@@ -63,9 +63,11 @@ contract ArbL2ToL1Ism is
         bytes calldata metadata,
         bytes calldata message
     ) external override returns (bool) {
-        return
-            releaseValueToRecipient(message) ||
-            _verifyWithOutboxCall(metadata, message);
+        bool verified = isVerified(message);
+        if (verified) {
+            releaseValueToRecipient(message);
+        }
+        return verified || _verifyWithOutboxCall(metadata, message);
     }
 
     // ============ Internal function ============
@@ -107,10 +109,12 @@ contract ArbL2ToL1Ism is
             l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
             "ArbL2ToL1Ism: l2Sender != authorizedHook"
         );
-        require(data.length == 36, "ArbL2ToL1Ism: invalid data length"); // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
+        // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
+        require(data.length == 36, "ArbL2ToL1Ism: invalid data length");
         bytes32 messageId = message.id();
         bytes32 convertedBytes;
         assembly {
+            // data = 0x[4 bytes function signature][32 bytes messageId]
             convertedBytes := mload(add(data, 36))
         }
         // check if the parsed message id matches the message id of the message
