@@ -2,19 +2,16 @@ import { MailboxClient__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
-  configDeepEquals,
-  normalizeConfig,
+  assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { IsmConfig } from '../ism/types.js';
+import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
@@ -75,7 +72,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     const updateIsmTx = await this.updateIsm(actualConfig, expectedConfig);
     if (updateIsmTx) {
-      updateTransactions.push(updateIsmTx);
+      updateTransactions.push(...updateIsmTx);
     }
 
     return updateTransactions;
@@ -84,66 +81,88 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   /**
    * Deploys and updates an existing Warp route ISM with a given config.
    *
-   * @param actualConfig - The on-chain router configuration, including the ISM configuration.
-   * @param expectedconfig - The expected token router configuration, including the ISM configuration.
+   * @param actualConfig - The on-chain router configuration, including the ISM configuration, and address.
+   * @param expectedConfig - The expected token router configuration, including the ISM configuration.
    * @returns Ethereum transaction that need to be executed to update the ISM configuration.
    */
   async updateIsm(
     actualConfig: TokenRouterConfig,
-    expectedconfig: TokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction | undefined> {
-    const expectedIsmConfig = normalizeConfig(
-      expectedconfig.interchainSecurityModule,
-    );
-    const actualIsmConfig = normalizeConfig(
-      actualConfig.interchainSecurityModule,
-    );
+    expectedConfig: TokenRouterConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    const actualDeployedIsm = (
+      actualConfig.interchainSecurityModule as DerivedIsmConfig
+    ).address;
 
-    let updateTransaction;
-    if (!configDeepEquals(expectedIsmConfig, actualIsmConfig)) {
-      const deployedIsm = await this.deployIsm(
-        expectedconfig.ismFactoryAddresses as HyperlaneAddresses<ProxyFactoryFactories>,
-        expectedIsmConfig,
-        expectedconfig.mailbox,
-      );
+    // Try to update (may also deploy) Ism with the expected config
+    const {
+      deployedIsm: expectedDeployedIsm,
+      updateTransactions: ismUpdateTransactions,
+    } = await this.deployIsm(actualConfig, expectedConfig);
+
+    // If an ISM has been updated in place, push the update txs
+    if (ismUpdateTransactions.length) {
+      updateTransactions.push(...ismUpdateTransactions);
+    }
+
+    // If a new ISM is deployed, push the setInterchainSecurityModule tx
+    if (actualDeployedIsm !== expectedDeployedIsm) {
       const contractToUpdate = MailboxClient__factory.connect(
         this.args.addresses.deployedTokenRoute,
         this.multiProvider.getProvider(this.args.chain),
       );
-      updateTransaction = {
-        annotation: `Setting ISM for Warp Route to ${deployedIsm}`,
+      updateTransactions.push({
+        annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
         chainId: Number(this.multiProvider.getChainId(this.args.chain)),
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData(
           'setInterchainSecurityModule',
-          [deployedIsm],
+          [expectedDeployedIsm],
         ),
-      };
+      });
     }
-    return updateTransaction;
+
+    return updateTransactions;
   }
 
   /**
    * Deploys the ISM using the provided configuration.
    *
    * @param config - The configuration for the ISM to be deployed.
-   * @returns The config used to deploy the Ism with address attached
+   * @returns Object with deployedIsm address, and update Transactions
    */
   public async deployIsm(
-    ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
-    interchainSecurityModule: IsmConfig,
-    mailbox: Address,
-  ): Promise<Address> {
-    const ism = await EvmIsmModule.create({
-      chain: this.args.chain,
-      config: interchainSecurityModule,
-      proxyFactoryFactories: ismFactoryAddresses,
-      multiProvider: this.multiProvider,
-      mailbox,
-    });
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): Promise<{
+    deployedIsm: Address;
+    updateTransactions: AnnotatedEV5Transaction[];
+  }> {
+    assert(
+      expectedConfig.interchainSecurityModule,
+      'Ism not derived correctly',
+    );
+    assert(
+      expectedConfig.ismFactoryAddresses,
+      'Ism Factories addresses not provided',
+    );
 
-    // Attach the deployedIsm address
-    return ism.serialize().deployedIsm;
+    const ismModule = new EvmIsmModule(this.multiProvider, {
+      chain: this.args.chain,
+      config: expectedConfig.interchainSecurityModule,
+      addresses: {
+        ...expectedConfig.ismFactoryAddresses,
+        mailbox: expectedConfig.mailbox,
+        deployedIsm: (actualConfig.interchainSecurityModule as DerivedIsmConfig)
+          .address,
+      },
+    });
+    const updateTransactions = await ismModule.update(
+      expectedConfig.interchainSecurityModule,
+    );
+    const { deployedIsm } = ismModule.serialize();
+
+    return { deployedIsm, updateTransactions };
   }
 
   /**

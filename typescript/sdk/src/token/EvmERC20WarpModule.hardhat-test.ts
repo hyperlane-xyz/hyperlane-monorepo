@@ -15,11 +15,14 @@ import {
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
+  EvmIsmModule,
+  HyperlaneAddresses,
   HyperlaneContractsMap,
   IsmConfig,
   IsmType,
   RouterConfig,
   TestChainName,
+  serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import { normalizeConfig } from '@hyperlane-xyz/utils';
 
@@ -44,8 +47,10 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const chain = TestChainName.test4;
   let mailbox: Mailbox;
   let hookAddress: string;
+  let ismAddress: string;
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
+  let ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
   let signer: SignerWithAddress;
@@ -76,6 +81,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
     );
+    ismFactoryAddresses = serializeContracts(factories[chain]);
     ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
     routerConfigMap = coreApp.getRouterConfig(signer.address);
@@ -92,6 +98,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     hookAddress = await mailbox.defaultHook();
+    ismAddress = await mailbox.defaultIsm();
   });
 
   it('should create with a collateral config', async () => {
@@ -237,15 +244,13 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         owner: randomAddress(),
         paused: false,
       },
-      {
-        type: IsmType.TEST_ISM,
-      },
     ];
     it('should deploy and set a new Ism', async () => {
       const config = {
+        ...baseConfig,
         type: TokenType.native,
         hook: hookAddress,
-        ...baseConfig,
+        interchainSecurityModule: ismAddress,
       } as TokenRouterConfig;
 
       // Deploy using WarpModule
@@ -259,11 +264,10 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       for (const interchainSecurityModule of ismConfigToUpdate) {
         const expectedConfig: TokenRouterConfig = {
           ...actualConfig,
+          ismFactoryAddresses,
           interchainSecurityModule,
         };
-
         await sendTxs(await evmERC20WarpModule.update(expectedConfig));
-
         const updatedConfig = normalizeConfig(
           (await evmERC20WarpModule.read()).interchainSecurityModule,
         );
@@ -272,11 +276,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       }
     });
 
-    it('should not deployset a new Ism if the config is the same', async () => {
+    it('should not deploy and set a new Ism if the config is the same', async () => {
       const config = {
+        ...baseConfig,
         type: TokenType.native,
         hook: hookAddress,
-        ...baseConfig,
+        interchainSecurityModule: ismAddress,
       } as TokenRouterConfig;
 
       // Deploy using WarpModule
@@ -295,11 +300,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
       const expectedConfig: TokenRouterConfig = {
         ...actualConfig,
-        interchainSecurityModule: {
-          type: IsmType.PAUSABLE,
-          owner,
-          paused: false,
-        },
+        ismFactoryAddresses,
+        interchainSecurityModule,
       };
 
       await sendTxs(await evmERC20WarpModule.update(expectedConfig));
@@ -314,6 +316,60 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const txs = await evmERC20WarpModule.update(expectedConfig);
 
       expect(txs.length).to.equal(0);
+    });
+
+    it('should update a mutable Ism', async () => {
+      const ismConfig: IsmConfig = {
+        type: IsmType.ROUTING,
+        owner: signer.address,
+        domains: {
+          '1': ismAddress,
+        },
+      };
+      const ism = await EvmIsmModule.create({
+        chain,
+        multiProvider,
+        config: ismConfig,
+        proxyFactoryFactories: ismFactoryAddresses,
+        mailbox: mailbox.address,
+      });
+
+      const { deployedIsm } = ism.serialize();
+      // Deploy using WarpModule
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        interchainSecurityModule: deployedIsm,
+      } as TokenRouterConfig;
+
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+      const expectedConfig: TokenRouterConfig = {
+        ...actualConfig,
+        ismFactoryAddresses,
+        interchainSecurityModule: {
+          type: IsmType.ROUTING,
+          owner: randomAddress(),
+          domains: {
+            '2': ismAddress,
+          },
+        },
+      };
+
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = normalizeConfig(
+        (await evmERC20WarpModule.read()).interchainSecurityModule,
+      );
+
+      expect(updatedConfig).to.deep.equal(
+        expectedConfig.interchainSecurityModule,
+      );
     });
   });
 });
