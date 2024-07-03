@@ -13,6 +13,7 @@ import {
   EvmERC20WarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
+  proxyFactoryFactoriesAddresses,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -91,43 +92,51 @@ export const apply: CommandModuleWithWriteContext<{
       logRed(`Please specify either a symbol or warp config`);
       process.exit(0);
     }
-    // Convert warpCoreConfig.tokens into a mapping of { [chainName]: Config } to allow O(1) reads
-    const warpCoreReduced = warpCoreConfig.tokens.reduce<
-      Record<string, WarpCoreConfig['tokens'][number]>
-    >((o, config) => {
-      o[config.chainName] = config;
-      return o;
-    }, {});
+
+    const addresses = await context.registry.getAddresses();
+
+    // Convert warpCoreConfig.tokens into a mapping of { [chainName]: Config }
+    // This allows O(1) reads within the loop
+    const warpCoreByChain = Object.fromEntries(
+      warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+    );
 
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
 
     // Fetch the static Ism factories and attach to WarpDeploy
-    const addresses = await context.registry.getAddresses();
-    const updates = await promiseObjAll(
+    logGray(`Comparing target and onchain Warp configs`);
+    await promiseObjAll(
       objMap(warpDeployConfig, async (chain, config) => {
-        config.ismFactoryAddresses = addresses[chain] as any;
+        // Update Warp
+        config.ismFactoryAddresses = addresses[
+          chain
+        ] as proxyFactoryFactoriesAddresses;
         const evmERC20WarpModule = new EvmERC20WarpModule(
           context.multiProvider,
           {
             config,
             chain,
             addresses: {
-              deployedTokenRoute: warpCoreReduced[chain as any].addressOrDenom!,
+              deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
             },
           },
         );
-        return evmERC20WarpModule.update(config);
+        const transactions = await evmERC20WarpModule.update(config);
+
+        // Send Txs
+        if (transactions.length) {
+          for (const transaction of transactions) {
+            await context.multiProvider.sendTransaction(chain, transaction);
+          }
+
+          logGreen(`Warp config updated on ${chain} chain.`);
+        } else {
+          logGreen(
+            `Warp config on ${chain} chain is the same as target. No updates needed.`,
+          );
+        }
       }),
     );
-
-    // Loop through each chain, and then loop through each update. ugh.
-    // @TODO maybe use concurrency for each chain
-    for (const [chain, transactions] of Object.entries(updates)) {
-      for (const transaction of transactions) {
-        await context.multiProvider.sendTransaction(chain, transaction);
-      }
-    }
-
     process.exit(0);
   },
 };

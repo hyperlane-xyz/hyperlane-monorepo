@@ -132,9 +132,9 @@ export class EvmIsmModule extends HyperlaneModule<
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
-
     // Update the config
     this.args.config = targetConfig;
+    targetConfig = normalizeConfig(targetConfig);
 
     // moduleMatchesConfig expects any domain filtering to have been done already
     if (

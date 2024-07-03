@@ -13,3 +13,7 @@ export const ProxyFactoryFactoriesSchema = z.object({
   staticAggregationHookFactory: z.string(),
   domainRoutingIsmFactory: z.string(),
 });
+
+export type proxyFactoryFactoriesAddresses = z.infer<
+  typeof ProxyFactoryFactoriesSchema
+>;

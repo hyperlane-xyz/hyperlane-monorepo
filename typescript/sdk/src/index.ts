@@ -508,3 +508,4 @@ export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService }
 export { EvmCoreModule, DeployedCoreAdresses } from './core/EvmCoreModule.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
+export { proxyFactoryFactoriesAddresses } from './deploy/schemas.js';

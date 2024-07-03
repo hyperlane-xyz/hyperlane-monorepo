@@ -153,6 +153,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           .address,
       },
     });
+    this.logger.info(
+      `Comparing target ISM config with ${this.args.chain} chain`,
+    );
     const updateTransactions = await ismModule.update(
       expectedConfig.interchainSecurityModule,
     );
