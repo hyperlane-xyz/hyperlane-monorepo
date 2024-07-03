@@ -11,6 +11,8 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
+use ethers::types::Address;
+use ethers_signers::Signer;
 use hyperlane_core::rpc_clients::FallbackProvider;
 use reqwest::{Client, Url};
 use thiserror::Error;
@@ -211,17 +213,17 @@ pub trait BuildableWithProvider {
         M: Middleware + 'static,
     {
         Ok(if let Some(signer) = signer {
-            // - The signing provider is used for sending txs, which may end up stuck in the mempool due to
-            // gas pricing issues. So we first wrap the provider in a gas escalator middleware.
-            // - When txs reach the gas escalator, they will already have been signed by the signer middleware,
-            // so they are ready to be retried
+            // The signing provider is used for sending txs, which may end up stuck in the mempool due to
+            // gas pricing issues. We first wrap the provider in a signer middleware, to sign any new txs sent by the gas escalator middleware.
+            // We keep nonce manager as the outermost middleware, so that every new tx with a higher gas price reuses the same nonce.
             let signing_provider = wrap_with_signer(provider, signer.clone())
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
             let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
-            let nonce_manager_provider = wrap_with_nonce_manager(gas_escalator_provider, signer)
-                .await
-                .map_err(ChainCommunicationError::from_other)?;
+            let nonce_manager_provider =
+                wrap_with_nonce_manager(gas_escalator_provider, signer.address())
+                    .await
+                    .map_err(ChainCommunicationError::from_other)?;
 
             self.build_with_provider(nonce_manager_provider, conn, locator)
         } else {
@@ -253,13 +255,9 @@ async fn wrap_with_signer<M: Middleware>(
 
 async fn wrap_with_nonce_manager<M: Middleware>(
     provider: M,
-    signer: Signers,
+    signer_address: Address,
 ) -> Result<NonceManagerMiddleware<M>, M::Error> {
-    let provider_chain_id = provider.get_chainid().await?;
-    let signer = ethers::signers::Signer::with_chain_id(signer, provider_chain_id.as_u64());
-
-    let address = ethers::prelude::Signer::address(&signer);
-    let nonce_manager_provider = NonceManagerMiddleware::new(provider, address);
+    let nonce_manager_provider = NonceManagerMiddleware::new(provider, signer_address);
     Ok(nonce_manager_provider)
 }
 
