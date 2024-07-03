@@ -25,7 +25,7 @@ impl OpQueue {
     /// - `op`: the operation to push onto the queue
     /// - `new_status`: optional new status to set for the operation. When an operation is added to a queue,
     /// it's very likely that its status has just changed, so this forces the caller to consider the new status
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
         if let Some(new_status) = new_status {
             op.set_status(new_status);
@@ -37,14 +37,14 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn pop(&mut self) -> Option<QueueOperation> {
         let pop_attempt = self.pop_many(1).await;
         pop_attempt.into_iter().next()
     }
 
     /// Pop multiple elements at once from the queue and update metrics
-    #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
