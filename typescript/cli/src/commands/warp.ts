@@ -77,7 +77,7 @@ export const apply: CommandModuleWithWriteContext<{
     },
     warp: {
       ...warpCoreConfigCommandOption,
-      demandOption: true,
+      demandOption: false,
     },
   },
   handler: async ({ context, config, symbol, warp }) => {
