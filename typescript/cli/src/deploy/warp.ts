@@ -1,13 +1,15 @@
 import { confirm } from '@inquirer/prompts';
+import { stringify as yamlStringify } from 'yaml';
 
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
-  HypXERC20Lockbox__factory,
-  HypXERC20__factory,
-} from '@hyperlane-xyz/core';
-import {
+  EvmIsmModule,
   HypERC20Deployer,
   HypERC721Deployer,
+  HyperlaneAddresses,
   HyperlaneContractsMap,
+  HyperlaneProxyFactoryDeployer,
+  MultiProvider,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenType,
@@ -15,14 +17,24 @@ import {
   WarpRouteDeployConfig,
   getTokenConnectionId,
   isTokenMetadata,
+  serializeContracts,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
-import { isFile, runFileSelectionStep } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  isFile,
+  runFileSelectionStep,
+} from '../utils/files.js';
 
 import {
   completeDeploy,
@@ -98,7 +110,7 @@ async function runDeployPlanStep({ context, configMap }: DeployParams) {
   log(`Using token standard ${configMap.isNft ? 'ERC721' : 'ERC20'}`);
   logTable(configMap);
 
-  if (skipConfirmation) return;
+  if (skipConfirmation || context.isDryRun) return;
 
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
@@ -123,17 +135,124 @@ async function executeDeploy(params: DeployParams) {
       ? { [dryRunChain]: configMap[dryRunChain] }
       : configMap;
 
-  const deployedContracts = await deployer.deploy(config);
+  const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
 
-  logGreen('✅ Warp contract deployments complete');
+  // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
+  // Then return a modified config with the ism address as a string
+  const modifiedConfig = await deployAndResolveWarpIsm(
+    config,
+    multiProvider,
+    registry,
+    ismFactoryDeployer,
+  );
+
+  const deployedContracts = await deployer.deploy(modifiedConfig);
 
   const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
+  logGreen('✅ Warp contract deployments complete');
+
   if (!isDryRun) {
-    log('Writing deployment artifacts');
+    log('Writing deployment artifacts...');
     await registry.addWarpRoute(warpCoreConfig);
   }
-  log(JSON.stringify(warpCoreConfig, null, 2));
-  logBlue('Deployment is complete!');
+  log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
+}
+
+async function deployAndResolveWarpIsm(
+  warpConfig: WarpRouteDeployConfig,
+  multiProvider: MultiProvider,
+  registry: IRegistry,
+  ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
+): Promise<WarpRouteDeployConfig> {
+  return promiseObjAll(
+    objMap(warpConfig, async (chain, config) => {
+      // Skip deployment if Ism is empty, or a string
+      if (
+        !config.interchainSecurityModule ||
+        typeof config.interchainSecurityModule === 'string'
+      ) {
+        logGray(
+          `Config Ism is ${
+            !config.interchainSecurityModule
+              ? 'empty'
+              : config.interchainSecurityModule
+          }, skipping deployment`,
+        );
+        return config;
+      }
+
+      logBlue('Loading Registry factory addresses');
+      let chainAddresses = await registry.getChainAddresses(chain); // Can includes other addresses
+
+      if (!chainAddresses) {
+        logGray('Registry factory addresses not found, deploying');
+        chainAddresses = serializeContracts(
+          await ismFactoryDeployer.deployContracts(chain),
+        ) as Record<string, string>;
+      }
+
+      logGray(
+        `Creating ${config.interchainSecurityModule.type} Ism for ${config.type} token on ${chain} chain`,
+      );
+
+      const deployedIsm = await createWarpIsm(
+        chain,
+        warpConfig,
+        multiProvider,
+        {
+          domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
+          staticAggregationHookFactory:
+            chainAddresses.staticAggregationHookFactory,
+          staticAggregationIsmFactory:
+            chainAddresses.staticAggregationIsmFactory,
+          staticMerkleRootMultisigIsmFactory:
+            chainAddresses.staticMerkleRootMultisigIsmFactory,
+          staticMessageIdMultisigIsmFactory:
+            chainAddresses.staticMessageIdMultisigIsmFactory,
+        },
+      );
+
+      logGreen(
+        `Finished creating ${config.interchainSecurityModule.type} Ism for ${config.type} token on ${chain} chain`,
+      );
+      return { ...warpConfig[chain], interchainSecurityModule: deployedIsm };
+    }),
+  );
+}
+
+/**
+ * Deploys the Warp ISM for a given config
+ *
+ * @returns The deployed ism address
+ */
+async function createWarpIsm(
+  chain: string,
+  warpConfig: WarpRouteDeployConfig,
+  multiProvider: MultiProvider,
+  factoryAddresses: HyperlaneAddresses<any>,
+): Promise<string> {
+  const {
+    domainRoutingIsmFactory,
+    staticAggregationHookFactory,
+    staticAggregationIsmFactory,
+    staticMerkleRootMultisigIsmFactory,
+    staticMessageIdMultisigIsmFactory,
+  } = factoryAddresses;
+  const evmIsmModule = await EvmIsmModule.create({
+    chain,
+    multiProvider,
+    mailbox: warpConfig[chain].mailbox,
+    proxyFactoryFactories: {
+      domainRoutingIsmFactory,
+      staticAggregationHookFactory,
+      staticAggregationIsmFactory,
+      staticMerkleRootMultisigIsmFactory,
+      staticMessageIdMultisigIsmFactory,
+    },
+    config: warpConfig[chain].interchainSecurityModule!,
+  });
+  const { deployedIsm } = evmIsmModule.serialize();
+  return deployedIsm;
 }
 
 async function getWarpCoreConfig(
@@ -147,53 +266,24 @@ async function getWarpCoreConfig(
     context.multiProvider,
     configMap,
   );
+  assert(
+    tokenMetadata && isTokenMetadata(tokenMetadata),
+    'Missing required token metadata',
+  );
+  const { decimals, symbol, name } = tokenMetadata;
+  assert(decimals, 'Missing decimals on token metadata');
 
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = configMap[chainName];
-    const metadata = {
-      ...tokenMetadata,
-      ...config,
-    };
-
-    if (!isTokenMetadata(metadata)) {
-      throw new Error('Missing required token metadata');
-    }
-
-    const { decimals } = metadata;
-    if (!decimals) {
-      throw new Error('Missing decimals on token metadata');
-    }
-
-    const collateralAddressOrDenom = await (async () => {
-      if (config.type === TokenType.XERC20Lockbox) {
-        const provider = context.multiProvider.tryGetProvider(chainName);
-        if (!provider) {
-          throw new Error(`Unable to pull provider for ${chainName}`);
-        }
-
-        const xERC20 = await HypXERC20Lockbox__factory.connect(
-          config.token,
-          provider,
-        ).xERC20();
-        const wrappedToken = await HypXERC20__factory.connect(
-          xERC20,
-          provider,
-        ).wrappedToken();
-        return wrappedToken;
-      }
-
-      if (config.type === TokenType.collateral) {
-        return config.token;
-      }
-
-      return undefined;
-    })();
+    const collateralAddressOrDenom =
+      config.type === TokenType.collateral ? config.token : undefined;
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
-      ...metadata,
       decimals,
+      symbol,
+      name,
       addressOrDenom:
         contract[configMap[chainName].type as keyof TokenFactories].address,
       collateralAddressOrDenom,

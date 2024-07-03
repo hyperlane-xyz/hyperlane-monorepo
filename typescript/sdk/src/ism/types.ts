@@ -1,5 +1,8 @@
+import { z } from 'zod';
+
 import {
   IAggregationIsm,
+  IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
   OPStackIsm,
@@ -11,6 +14,15 @@ import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
 import { OwnableConfig } from '../deploy/types.js';
 import { ChainMap } from '../types.js';
+
+import {
+  IsmConfigSchema,
+  MultisigIsmConfigSchema,
+  OpStackIsmConfigSchema,
+  PausableIsmConfigSchema,
+  TestIsmConfigSchema,
+  TrustedRelayerIsmConfigSchema,
+} from './schemas.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
@@ -28,6 +40,7 @@ export enum ModuleType {
 // this enum can be adjusted as per deployments necessary
 // meant for the deployer and checker
 export enum IsmType {
+  CUSTOM = 'custom',
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
@@ -38,6 +51,13 @@ export enum IsmType {
   PAUSABLE = 'pausableIsm',
   TRUSTED_RELAYER = 'trustedRelayerIsm',
 }
+
+// ISM types that can be updated in-place
+export const MUTABLE_ISM_TYPE = [
+  IsmType.ROUTING,
+  IsmType.FALLBACK_ROUTING,
+  IsmType.PAUSABLE,
+];
 
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
@@ -55,6 +75,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.OP_STACK:
     case IsmType.TEST_ISM:
     case IsmType.PAUSABLE:
+    case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
       return ModuleType.NULL;
   }
@@ -65,18 +86,19 @@ export type MultisigConfig = {
   threshold: number;
 };
 
-export type MultisigIsmConfig = MultisigConfig & {
-  type: IsmType.MERKLE_ROOT_MULTISIG | IsmType.MESSAGE_ID_MULTISIG;
-};
+export type MultisigIsmConfig = z.infer<typeof MultisigIsmConfigSchema>;
+export type TestIsmConfig = z.infer<typeof TestIsmConfigSchema>;
+export type PausableIsmConfig = z.infer<typeof PausableIsmConfigSchema>;
+export type OpStackIsmConfig = z.infer<typeof OpStackIsmConfigSchema>;
+export type TrustedRelayerIsmConfig = z.infer<
+  typeof TrustedRelayerIsmConfigSchema
+>;
 
-export type TestIsmConfig = {
-  type: IsmType.TEST_ISM;
-};
-
-export type PausableIsmConfig = OwnableConfig & {
-  type: IsmType.PAUSABLE;
-  paused?: boolean;
-};
+export type NullIsmConfig =
+  | TestIsmConfig
+  | PausableIsmConfig
+  | OpStackIsmConfig
+  | TrustedRelayerIsmConfig;
 
 export type RoutingIsmConfig = OwnableConfig & {
   type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
@@ -89,31 +111,10 @@ export type AggregationIsmConfig = {
   threshold: number;
 };
 
-export type OpStackIsmConfig = {
-  type: IsmType.OP_STACK;
-  origin: Address;
-  nativeBridge: Address;
-};
-
-export type TrustedRelayerIsmConfig = {
-  type: IsmType.TRUSTED_RELAYER;
-  relayer: Address;
-};
-
-export type NullIsmConfig =
-  | PausableIsmConfig
-  | TestIsmConfig
-  | OpStackIsmConfig
-  | TrustedRelayerIsmConfig;
-
-export type IsmConfig =
-  | Address
-  | NullIsmConfig
-  | RoutingIsmConfig
-  | MultisigIsmConfig
-  | AggregationIsmConfig;
+export type IsmConfig = z.infer<typeof IsmConfigSchema>;
 
 export type DeployedIsmType = {
+  [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;

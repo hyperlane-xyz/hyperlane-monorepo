@@ -1,4 +1,4 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
 import { FundableRole, Role } from '../roles.js';
@@ -12,7 +12,7 @@ export interface ContextAndRoles {
 
 export type ContextAndRolesMap = Partial<Record<Contexts, FundableRole[]>>;
 
-export interface KeyFunderConfig {
+export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]> {
   docker: DockerConfig;
   cronSchedule: string;
   namespace: string;
@@ -20,6 +20,7 @@ export interface KeyFunderConfig {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  desiredBalancePerChain: ChainMap<string>;
-  desiredKathyBalancePerChain: ChainMap<string>;
+  desiredBalancePerChain: Record<SupportedChains[number], string>;
+  desiredKathyBalancePerChain: Record<SupportedChains[number], string>;
+  igpClaimThresholdPerChain: Record<SupportedChains[number], string>;
 }

@@ -75,6 +75,9 @@ export class BaseMetadataBuilder implements MetadataBuilder {
 
       case IsmType.MERKLE_ROOT_MULTISIG:
       case IsmType.MESSAGE_ID_MULTISIG:
+        if (typeof hook === 'string') {
+          throw new Error('Hook context must be an object (for multisig ISM)');
+        }
         const merkleTreeHook = deepFind(
           hook,
           (v): v is WithAddress<MerkleTreeHookConfig> =>

@@ -26,7 +26,6 @@ import {
   TestChainName,
   TestCoreApp,
   TestCoreDeployer,
-  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -134,11 +133,7 @@ describe('ICA governance', async () => {
       localRouter: remote.address,
     };
 
-    accountOwner = await resolveOrDeployAccountOwner(
-      multiProvider,
-      remoteChain,
-      accountConfig,
-    );
+    accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
 
     const recipientF = new TestRecipient__factory(signer);
     recipient = await recipientF.deploy();

@@ -15,6 +15,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
@@ -51,6 +52,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     avalanche: true,
     base: true,
     blast: true,
+    bob: true,
     bsc: true,
     celo: true,
     ethereum: true,
@@ -60,6 +62,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     inevm: true,
     linea: true,
     mantapacific: true,
+    mantle: true,
     mode: true,
     moonbeam: true,
     neutron: true,
@@ -70,6 +73,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     redstone: true,
     scroll: true,
     sei: true,
+    taiko: true,
     viction: true,
     zetachain: true,
   },
@@ -79,6 +83,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     avalanche: true,
     base: true,
     blast: true,
+    bob: true,
     bsc: true,
     celo: true,
     ethereum: true,
@@ -88,6 +93,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     inevm: true,
     linea: true,
     mantapacific: true,
+    mantle: true,
     mode: true,
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
@@ -99,6 +105,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     redstone: true,
     scroll: true,
     sei: true,
+    taiko: true,
     viction: true,
     zetachain: true,
   },
@@ -108,6 +115,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     avalanche: true,
     base: true,
     blast: true,
+    bob: true,
     bsc: true,
     celo: true,
     ethereum: true,
@@ -118,6 +126,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     inevm: true,
     linea: true,
     mantapacific: true,
+    mantle: true,
     mode: true,
     moonbeam: true,
     // Cannot scrape non-EVM chains
@@ -132,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
     scroll: true,
+    taiko: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
     zetachain: true,
@@ -153,6 +163,11 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.Minimum,
+    payment: '1',
+    matchingList: [{ destinationDomain: getDomainId('mantle') }],
+  },
   // To cover ourselves against IGP indexing issues and to ensure Nexus
   // users have the best possible experience, we whitelist messages between
   // warp routes that we know are certainly paying for gas.
@@ -251,7 +266,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9535087-20240623-174819',
+      tag: '7a8478b-20240703-113821',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -260,7 +275,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '7a8478b-20240703-113821',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -270,7 +285,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '7a8478b-20240703-113821',
     },
     resources: scraperResources,
   },
@@ -285,7 +300,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9535087-20240623-174819',
+      tag: '4cc9327-20240701-214057',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -318,7 +333,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '9535087-20240623-174819',
     },
     gasPaymentEnforcement: [
       {

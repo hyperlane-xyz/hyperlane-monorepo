@@ -1,10 +1,12 @@
-import { Separator, checkbox, confirm, input } from '@inquirer/prompts';
+import { Separator, checkbox } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
 import { log, logRed, logTip } from '../logger.js';
+
+import { calculatePageSize } from './cli-options.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list
@@ -18,7 +20,7 @@ export async function runSingleChainSelectionStep(
   const chain = (await select({
     message,
     choices,
-    pageSize: 30,
+    pageSize: calculatePageSize(2),
   })) as string;
   handleNewChain([chain]);
   return chain;
@@ -35,7 +37,7 @@ export async function runMultiChainSelectionStep(
     const chains = (await checkbox({
       message,
       choices,
-      pageSize: 30,
+      pageSize: calculatePageSize(2),
     })) as string[];
     handleNewChain(chains);
     if (requireMultiple && chains?.length < 2) {
@@ -72,25 +74,4 @@ function handleNewChain(chainNames: string[]) {
     );
     process.exit(0);
   }
-}
-
-export async function detectAndConfirmOrPrompt(
-  detect: () => Promise<string | undefined>,
-  prompt: string,
-  label: string,
-): Promise<string> {
-  let detectedValue: string | undefined;
-  try {
-    detectedValue = await detect();
-    if (detectedValue) {
-      const confirmed = await confirm({
-        message: `Detected ${label} as ${detectedValue}, is this correct?`,
-      });
-      if (confirmed) {
-        return detectedValue;
-      }
-    }
-    // eslint-disable-next-line no-empty
-  } catch (e) {}
-  return input({ message: `${prompt} ${label}`, default: detectedValue });
 }
