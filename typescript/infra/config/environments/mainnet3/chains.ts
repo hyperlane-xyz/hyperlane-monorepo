@@ -18,11 +18,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
-  mantle: {
-    blocks: {
-      confirmations: 3,
-    },
-  },
   polygon: {
     blocks: {
       confirmations: 3,
@@ -36,7 +31,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   },
   polygonzkevm: {
     transactionOverrides: {
-      gasPrice: 2 * 10 ** 8, // 0.2 gwei
+      gasPrice: 1 * 10 ** 9, // 1 gwei
     },
   },
   ethereum: {
