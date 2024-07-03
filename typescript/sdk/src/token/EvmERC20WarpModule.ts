@@ -1,6 +1,7 @@
 import { MailboxClient__factory } from '@hyperlane-xyz/core';
 import {
   Address,
+  Domain,
   ProtocolType,
   assert,
   rootLogger,
@@ -31,6 +32,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     module: 'EvmERC20WarpModule',
   });
   reader: EvmERC20WarpRouteReader;
+  // We use domainId here because MultiProvider.getDomainId() will always
+  // return a number, and EVM the domainId and chainId are the same.
+  public readonly domainId: Domain;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -43,6 +47,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ) {
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
+    this.domainId = multiProvider.getDomainId(args.chain);
   }
 
   /**
@@ -69,12 +74,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     TokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-    updateTransactions.push(
-      ...(await this.updateIsm(actualConfig, expectedConfig)),
-    );
-
-    return updateTransactions;
+    return this.updateIsm(actualConfig, expectedConfig);
   }
 
   /**
@@ -110,7 +110,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       );
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        chainId: Number(this.multiProvider.getChainId(this.args.chain)),
+        chainId: this.domainId,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData(
           'setInterchainSecurityModule',
