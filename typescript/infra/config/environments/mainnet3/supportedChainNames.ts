@@ -1,6 +1,6 @@
 // These chains may be any protocol type.
 // Placing them here instead of adjacent chains file to avoid circular dep
-export const supportedChainNames = [
+export const mainnet3SupportedChainNames = [
   'arbitrum',
   'ancient8',
   'avalanche',
@@ -30,4 +30,6 @@ export const supportedChainNames = [
   'taiko',
   'viction',
   'zetachain',
-];
+] as const;
+
+export const supportedChainNames = [...mainnet3SupportedChainNames];

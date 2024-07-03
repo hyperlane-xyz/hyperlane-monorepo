@@ -3,8 +3,11 @@ import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
 import { environment } from './chains.js';
+import { testnet4SupportedChainNames } from './supportedChainNames.js';
 
-export const keyFunderConfig: KeyFunderConfig = {
+export const keyFunderConfig: KeyFunderConfig<
+  typeof testnet4SupportedChainNames
+> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
     tag: 'efa9025-20240605-091304',
@@ -31,14 +34,21 @@ export const keyFunderConfig: KeyFunderConfig = {
     // Funder boosts itself upto 5x balance on L2 before dispersing funds
     scrollsepolia: '1',
     sepolia: '5',
+    // no funding for solana
+    eclipsetestnet: '0',
+    solanatestnet: '0',
   },
   desiredKathyBalancePerChain: {
     alfajores: '1',
     bsctestnet: '1',
     fuji: '1',
+    holesky: '0',
     plumetestnet: '0.05',
     scrollsepolia: '1',
     sepolia: '1',
+    // no funding for solana
+    eclipsetestnet: '0',
+    solanatestnet: '0',
   },
   igpClaimThresholdPerChain: {
     alfajores: '1',
@@ -48,5 +58,8 @@ export const keyFunderConfig: KeyFunderConfig = {
     plumetestnet: '0.1',
     scrollsepolia: '0.1',
     sepolia: '1',
+    // no funding for solana
+    eclipsetestnet: '0',
+    solanatestnet: '0',
   },
 };
