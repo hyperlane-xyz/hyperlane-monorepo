@@ -31,7 +31,14 @@ import {
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logRed,
+  logTable,
+} from '../logger.js';
 import {
   indentYamlOrJson,
   isFile,
@@ -342,30 +349,34 @@ export async function runWarpRouteApply(params: ApplyParams) {
   logGray(`Comparing target and onchain Warp configs`);
   await promiseObjAll(
     objMap(configMap, async (chain, config) => {
-      // Update Warp
-      config.ismFactoryAddresses = addresses[
-        chain
-      ] as proxyFactoryFactoriesAddresses;
-      const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
-        config,
-        chain,
-        addresses: {
-          deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
-        },
-      });
-      const transactions = await evmERC20WarpModule.update(config);
+      try {
+        // Update Warp
+        config.ismFactoryAddresses = addresses[
+          chain
+        ] as proxyFactoryFactoriesAddresses;
+        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
+          config,
+          chain,
+          addresses: {
+            deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
+          },
+        });
+        const transactions = await evmERC20WarpModule.update(config);
 
-      // Send Txs
-      if (transactions.length) {
-        for (const transaction of transactions) {
-          await multiProvider.sendTransaction(chain, transaction);
+        // Send Txs
+        if (transactions.length) {
+          for (const transaction of transactions) {
+            await multiProvider.sendTransaction(chain, transaction);
+          }
+
+          logGreen(`Warp config updated on ${chain} chain.`);
+        } else {
+          logGreen(
+            `Warp config on ${chain} chain is the same as target. No updates needed.`,
+          );
         }
-
-        logGreen(`Warp config updated on ${chain} chain.`);
-      } else {
-        logGreen(
-          `Warp config on ${chain} chain is the same as target. No updates needed.`,
-        );
+      } catch (e) {
+        logRed(`Warp config on ${chain} chain failed to update.`, e);
       }
     }),
   );
