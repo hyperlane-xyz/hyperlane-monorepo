@@ -95,7 +95,7 @@ export async function createChainConfig({
 
   const parseResult = ChainMetadataSchema.safeParse(metadata);
   if (parseResult.success) {
-    logGreen(`Chain config is valid, writing sorted to registry:`);
+    logGreen(`Chain config is valid, writing unsorted to registry:`);
     const metadataYaml = yamlStringify(metadata, {
       indent: 2,
       sortMapEntries: true,
