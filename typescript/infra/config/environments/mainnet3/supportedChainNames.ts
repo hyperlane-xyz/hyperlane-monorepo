@@ -6,6 +6,7 @@ export const supportedChainNames = [
   'avalanche',
   'base',
   'blast',
+  'bob',
   'bsc',
   'celo',
   'ethereum',
@@ -15,6 +16,7 @@ export const supportedChainNames = [
   'injective',
   'linea',
   'mantapacific',
+  'mantle',
   'mode',
   'moonbeam',
   'neutron',
@@ -25,6 +27,7 @@ export const supportedChainNames = [
   'redstone',
   'scroll',
   'sei',
+  'taiko',
   'viction',
   'zetachain',
 ];
