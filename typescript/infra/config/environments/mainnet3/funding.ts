@@ -3,8 +3,11 @@ import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
 import { environment } from './chains.js';
+import { mainnet3SupportedChainNames } from './supportedChainNames.js';
 
-export const keyFunderConfig: KeyFunderConfig = {
+export const keyFunderConfig: KeyFunderConfig<
+  typeof mainnet3SupportedChainNames
+> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
     tag: '1b5e4d4-20240702-152903',
@@ -49,6 +52,10 @@ export const keyFunderConfig: KeyFunderConfig = {
     taiko: '0.2',
     viction: '3',
     zetachain: '20',
+    // ignore cosmos chains
+    injective: '0',
+    neutron: '0',
+    osmosis: '0',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
@@ -77,6 +84,10 @@ export const keyFunderConfig: KeyFunderConfig = {
     taiko: '0',
     viction: '0.05',
     zetachain: '0',
+    // ignore cosmos chains
+    injective: '0',
+    neutron: '0',
+    osmosis: '0',
   },
   igpClaimThresholdPerChain: {
     arbitrum: '0.1',
@@ -105,5 +116,9 @@ export const keyFunderConfig: KeyFunderConfig = {
     taiko: '0.1',
     viction: '2',
     zetachain: '20',
+    // ignore cosmos chains
+    injective: '0',
+    neutron: '0',
+    osmosis: '0',
   },
 };

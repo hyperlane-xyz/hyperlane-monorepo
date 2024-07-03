@@ -28,7 +28,7 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 
 const remoteOverhead = (remote: ChainName) =>
-  ethereumChainNames.includes(remote)
+  ethereumChainNames.includes(remote as any)
     ? multisigIsmVerificationCost(
         defaultMultisigConfigs[remote].threshold,
         defaultMultisigConfigs[remote].validators.length,
