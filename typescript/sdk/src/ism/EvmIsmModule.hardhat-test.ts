@@ -406,6 +406,34 @@ describe('EvmIsmModule', async () => {
         expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
           .true;
       });
+
+      it(`update threshold in an existing ${type} with Module creating using constructor`, async () => {
+        // create a an initial ISM
+        const { initialIsmAddress } = await createIsm(exampleRoutingConfig);
+
+        // update the threshold for a domain
+        (
+          exampleRoutingConfig.domains[TestChainName.test2] as MultisigIsmConfig
+        ).threshold = 2;
+
+        // create a new IsmModule using it's constructor. Set it's deployedIsm address to the initialIsmAddr
+        const ism = new EvmIsmModule(multiProvider, {
+          chain,
+          config: exampleRoutingConfig,
+          addresses: {
+            ...factoryAddresses,
+            mailbox: mailboxAddress,
+            deployedIsm: initialIsmAddress,
+          },
+        });
+
+        // expect 1 tx to update threshold for test2 domain
+        await expectTxsAndUpdate(ism, exampleRoutingConfig, 1);
+
+        // expect the ISM address to be the same
+        expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+          .true;
+      });
     }
 
     it(`redeploy same config if the mailbox address changes for defaultFallbackRoutingIsm`, async () => {
