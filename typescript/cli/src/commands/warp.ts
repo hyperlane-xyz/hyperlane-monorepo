@@ -9,11 +9,9 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
-  EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
-  proxyFactoryFactoriesAddresses,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
@@ -27,7 +25,7 @@ import {
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { runWarpRouteDeploy } from '../deploy/warp.js';
+import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
@@ -83,6 +81,8 @@ export const apply: CommandModuleWithWriteContext<{
     },
   },
   handler: async ({ context, config, symbol, warp }) => {
+    logGray(`Hyperlane Warp Apply`);
+    logGray('------------------------------------------------');
     let warpCoreConfig: WarpCoreConfig;
     if (symbol) {
       warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
@@ -92,51 +92,12 @@ export const apply: CommandModuleWithWriteContext<{
       logRed(`Please specify either a symbol or warp config`);
       process.exit(0);
     }
-
-    const addresses = await context.registry.getAddresses();
-
-    // Convert warpCoreConfig.tokens into a mapping of { [chainName]: Config }
-    // This allows O(1) reads within the loop
-    const warpCoreByChain = Object.fromEntries(
-      warpCoreConfig.tokens.map((token) => [token.chainName, token]),
-    );
-
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
-
-    // Fetch the static Ism factories and attach to WarpDeploy
-    logGray(`Comparing target and onchain Warp configs`);
-    await promiseObjAll(
-      objMap(warpDeployConfig, async (chain, config) => {
-        // Update Warp
-        config.ismFactoryAddresses = addresses[
-          chain
-        ] as proxyFactoryFactoriesAddresses;
-        const evmERC20WarpModule = new EvmERC20WarpModule(
-          context.multiProvider,
-          {
-            config,
-            chain,
-            addresses: {
-              deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
-            },
-          },
-        );
-        const transactions = await evmERC20WarpModule.update(config);
-
-        // Send Txs
-        if (transactions.length) {
-          for (const transaction of transactions) {
-            await context.multiProvider.sendTransaction(chain, transaction);
-          }
-
-          logGreen(`Warp config updated on ${chain} chain.`);
-        } else {
-          logGreen(
-            `Warp config on ${chain} chain is the same as target. No updates needed.`,
-          );
-        }
-      }),
-    );
+    await runWarpRouteApply({
+      context,
+      warpCoreConfig,
+      configMap: warpDeployConfig,
+    });
     process.exit(0);
   },
 };

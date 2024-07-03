@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
+  EvmERC20WarpModule,
   EvmIsmModule,
   HypERC20Deployer,
   HypERC721Deployer,
@@ -17,6 +18,7 @@ import {
   WarpRouteDeployConfig,
   getTokenConnectionId,
   isTokenMetadata,
+  proxyFactoryFactoriesAddresses,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -45,6 +47,11 @@ import {
 interface DeployParams {
   context: WriteCommandContext;
   configMap: WarpRouteDeployConfig;
+}
+
+interface ApplyParams extends DeployParams {
+  context: WriteCommandContext;
+  warpCoreConfig: WarpCoreConfig;
 }
 
 export async function runWarpRouteDeploy({
@@ -312,4 +319,52 @@ async function getWarpCoreConfig(
   }
 
   return warpCoreConfig;
+}
+
+export async function runWarpRouteApply(params: ApplyParams) {
+  const {
+    configMap,
+    warpCoreConfig,
+    context: { registry, multiProvider },
+  } = params;
+
+  const addresses = await registry.getAddresses();
+
+  // Convert warpCoreConfig.tokens into a mapping of { [chainName]: Config }
+  // This allows O(1) reads within the loop
+  const warpCoreByChain = Object.fromEntries(
+    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  );
+
+  // Fetch the static Ism factories and attach to WarpDeploy
+  logGray(`Comparing target and onchain Warp configs`);
+  await promiseObjAll(
+    objMap(configMap, async (chain, config) => {
+      // Update Warp
+      config.ismFactoryAddresses = addresses[
+        chain
+      ] as proxyFactoryFactoriesAddresses;
+      const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
+        config,
+        chain,
+        addresses: {
+          deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
+        },
+      });
+      const transactions = await evmERC20WarpModule.update(config);
+
+      // Send Txs
+      if (transactions.length) {
+        for (const transaction of transactions) {
+          await multiProvider.sendTransaction(chain, transaction);
+        }
+
+        logGreen(`Warp config updated on ${chain} chain.`);
+      } else {
+        logGreen(
+          `Warp config on ${chain} chain is the same as target. No updates needed.`,
+        );
+      }
+    }),
+  );
 }
