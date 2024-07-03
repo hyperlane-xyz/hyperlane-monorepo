@@ -1,21 +1,28 @@
 import { CommandModule } from 'yargs';
 
-import { CommandModuleWithContext } from '../context/types.js';
-import { log, logBlue, logGray, logTable } from '../logger.js';
+import { createAgentConfig } from '../config/agent.js';
+import { createChainConfig } from '../config/chain.js';
+import { CommandContext, CommandModuleWithContext } from '../context/types.js';
+import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
 
-const ChainTypes = ['mainnet', 'testnet'];
-type ChainType = (typeof ChainTypes)[number];
+import {
+  chainTargetsCommandOption,
+  outputFileCommandOption,
+} from './options.js';
+import { ChainType, ChainTypes } from './types.js';
 
 /**
  * Parent command
  */
-export const chainsCommand: CommandModule = {
-  command: 'chains',
-  describe: 'View information about Hyperlane chains in a registry',
+export const registryCommand: CommandModule = {
+  command: 'registry',
+  describe: 'Manage Hyperlane chains in a registry',
   builder: (yargs) =>
     yargs
-      .command(listCommand)
       .command(addressesCommand)
+      .command(createAgentConfigCommand)
+      .command(initCommand)
+      .command(listCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -86,5 +93,61 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
       logGray('----------------------------------');
       log(JSON.stringify(result, null, 2));
     }
+  },
+};
+
+/**
+ * agent-config command
+ */
+const createAgentConfigCommand: CommandModuleWithContext<{
+  chains: string;
+  out: string;
+}> = {
+  command: 'agent-config',
+  describe: 'Create a new agent config',
+
+  builder: {
+    chains: chainTargetsCommandOption,
+    out: outputFileCommandOption(
+      './configs/agent-config.json',
+      false,
+      'The path to output an agent config JSON file.',
+    ),
+  },
+  handler: async ({
+    context,
+    chains,
+    out,
+  }: {
+    context: CommandContext;
+    chains: string;
+    out: string;
+  }) => {
+    const { multiProvider } = context;
+
+    const chainNames = chains.split(',');
+    const invalidChainNames = chainNames.filter(
+      (chainName) => !multiProvider.hasChain(chainName),
+    );
+    if (invalidChainNames.length > 0) {
+      logRed(
+        `Invalid chain names: ${invalidChainNames
+          .join(', ')
+          .replace(/, $/, '')}`,
+      );
+      process.exit(1);
+    }
+
+    await createAgentConfig({ context, chains: chainNames, out });
+    process.exit(0);
+  },
+};
+
+const initCommand: CommandModuleWithContext<{}> = {
+  command: 'init',
+  describe: 'Create a new, minimal Hyperlane chain config (aka chain metadata)',
+  handler: async ({ context }) => {
+    await createChainConfig({ context });
+    process.exit(0);
   },
 };

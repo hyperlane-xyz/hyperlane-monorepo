@@ -44,8 +44,7 @@ where
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(?to, %data, "Dispatching transaction");
-    // We can set the gas higher here!
+    info!(?to, %data, tx=?tx.tx, "Dispatching transaction");
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut
         .await?

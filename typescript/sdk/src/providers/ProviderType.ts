@@ -15,7 +15,6 @@ import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
-// import type { Contract as Ev6Contract, Provider as Ev6Provider } from 'ethers6';
 import type {
   GetContractReturnType,
   PublicClient,
@@ -27,7 +26,6 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
-  // EthersV6 = 'ethers-v6', Disabled for now to simplify build tooling
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
@@ -103,11 +101,6 @@ export interface EthersV5Provider
   provider: EV5Providers.Provider;
 }
 
-// export interface EthersV6Provider extends TypedProviderBase<Ev6Provider> {
-//   type: ProviderType.EthersV6;
-//   provider: Ev6Provider;
-// }
-
 export interface ViemProvider extends TypedProviderBase<PublicClient> {
   type: ProviderType.Viem;
   provider: PublicClient;
@@ -151,11 +144,6 @@ export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   type: ProviderType.EthersV5;
   contract: EV5Contract;
 }
-
-// export interface EthersV6Contract extends TypedContractBase<Ev6Contract> {
-//   type: ProviderType.EthersV6;
-//   contract: Ev6Contract;
-// }
 
 export interface ViemContract extends TypedContractBase<GetContractReturnType> {
   type: ProviderType.Viem;
@@ -203,10 +191,9 @@ export interface EthersV5Transaction
   transaction: EV5Transaction;
 }
 
-// export interface EthersV6Transaction extends TypedTransactionBase<Ev6Transaction> {
-//   type: ProviderType.EthersV6;
-//   contract: Ev6Transaction;
-// }
+export interface AnnotatedEV5Transaction extends EV5Transaction {
+  annotation?: string;
+}
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
