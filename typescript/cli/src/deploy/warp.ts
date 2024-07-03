@@ -328,15 +328,17 @@ export async function runWarpRouteApply(params: ApplyParams) {
     context: { registry, multiProvider },
   } = params;
 
+  // Addresses used to get static Ism factories
   const addresses = await registry.getAddresses();
 
-  // Convert warpCoreConfig.tokens into a mapping of { [chainName]: Config }
+  // Convert warpCoreConfig.tokens[] into a mapping of { [chainName]: Config }
   // This allows O(1) reads within the loop
   const warpCoreByChain = Object.fromEntries(
     warpCoreConfig.tokens.map((token) => [token.chainName, token]),
   );
 
-  // Fetch the static Ism factories and attach to WarpDeploy
+  // Attempt to update Warp Routes
+  // Can update existing or deploy new contracts
   logGray(`Comparing target and onchain Warp configs`);
   await promiseObjAll(
     objMap(configMap, async (chain, config) => {
