@@ -108,8 +108,9 @@ export function getTestnets(): ChainName[] {
 export function getEnvAddresses(
   env: DeployEnvironment,
 ): ChainMap<ChainAddresses> {
+  const envChains = getEnvChains(env);
   return objFilter(getChainAddresses(), (chain, _): _ is ChainAddresses =>
-    getEnvChains(env).includes(chain),
+    envChains.includes(chain),
   );
 }
 

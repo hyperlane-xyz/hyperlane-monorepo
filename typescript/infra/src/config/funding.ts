@@ -12,7 +12,7 @@ export interface ContextAndRoles {
 
 export type ContextAndRolesMap = Partial<Record<Contexts, FundableRole[]>>;
 
-export interface KeyFunderConfig<SC extends readonly ChainName[]> {
+export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]> {
   docker: DockerConfig;
   cronSchedule: string;
   namespace: string;
@@ -20,7 +20,7 @@ export interface KeyFunderConfig<SC extends readonly ChainName[]> {
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
-  desiredBalancePerChain: Record<SC[number], string>;
-  desiredKathyBalancePerChain: Record<SC[number], string>;
-  igpClaimThresholdPerChain: Record<SC[number], string>;
+  desiredBalancePerChain: Record<SupportedChains[number], string>;
+  desiredKathyBalancePerChain: Record<SupportedChains[number], string>;
+  igpClaimThresholdPerChain: Record<SupportedChains[number], string>;
 }
