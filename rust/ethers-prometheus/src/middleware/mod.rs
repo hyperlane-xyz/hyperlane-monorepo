@@ -227,6 +227,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
     ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
         let start = Instant::now();
         let tx: TypedTransaction = tx.into();
+
         let chain = {
             let data = self.conf.read().await;
             chain_name(&data.chain).to_owned()
