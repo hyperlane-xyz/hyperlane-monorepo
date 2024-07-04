@@ -6,6 +6,7 @@ import yargs from 'yargs';
 import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  IXERC20,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import { ERC20__factory } from '@hyperlane-xyz/core';
@@ -15,11 +16,8 @@ import {
   CosmNativeTokenAdapter,
   CwNativeTokenAdapter,
   MultiProtocolProvider,
-  MultiProvider,
   SealevelHypCollateralAdapter,
-  TokenStandard,
   TokenType,
-  WarpCoreConfig,
   WarpRouteConfig,
   WarpRouteConfigSchema,
 } from '@hyperlane-xyz/sdk';
@@ -30,7 +28,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChainMetadata, getRegistry } from '../../config/registry.js';
+import { getChainMetadata } from '../../config/registry.js';
 import { startMetricsServer } from '../../src/utils/metrics.js';
 import { readYaml } from '../../src/utils/utils.js';
 
@@ -56,6 +54,13 @@ const xERC20LimitsGauge = new Gauge({
   registers: [metricsRegister],
   labelNames: ['chain_name', 'limit_type'],
 });
+
+interface xERC20Limit {
+  mint: number;
+  burn: number;
+  mintMax: number;
+  burnMax: number;
+}
 
 export function readWarpRouteConfig(filePath: string) {
   const config = readYaml(filePath);
@@ -90,11 +95,15 @@ async function main(): Promise<boolean> {
   const tokenConfig: WarpRouteConfig =
     readWarpRouteConfig(filePath).data.config;
 
-  // TODO: eventually support token balance checks for xERC20 token type
+  // TODO: eventually support token balance checks for xERC20 token type also
   if (
-    Object.values(tokenConfig).some((token) => token.type === TokenType.XERC20)
+    Object.values(tokenConfig).some(
+      (token) =>
+        token.type === TokenType.XERC20 ||
+        token.type === TokenType.XERC20Lockbox,
+    )
   ) {
-    await checkXERC20Limits(checkFrequency);
+    await checkXERC20Limits(checkFrequency, tokenConfig);
   } else {
     await checkTokenBalances(checkFrequency, tokenConfig);
   }
@@ -252,42 +261,34 @@ export function updateTokenBalanceMetrics(
   });
 }
 
-export function updateXERC20LimitsMetrics(
-  xERC20Limits: {
-    chain: string;
-    mint: number;
-    burn: number;
-    mintMax: number;
-    burnMax: number;
-  }[],
-) {
-  xERC20Limits.forEach((limit) => {
+export function updateXERC20LimitsMetrics(xERC20Limits: ChainMap<xERC20Limit>) {
+  objMap(xERC20Limits, (chain: ChainName, limit: xERC20Limit) => {
     xERC20LimitsGauge
       .labels({
-        chain_name: limit.chain,
+        chain_name: chain,
         limit_type: 'mint',
       })
       .set(limit.mint);
     xERC20LimitsGauge
       .labels({
-        chain_name: limit.chain,
+        chain_name: chain,
         limit_type: 'burn',
       })
       .set(limit.burn);
     xERC20LimitsGauge
       .labels({
-        chain_name: limit.chain,
+        chain_name: chain,
         limit_type: 'mintMax',
       })
       .set(limit.mintMax);
     xERC20LimitsGauge
       .labels({
-        chain_name: limit.chain,
+        chain_name: chain,
         limit_type: 'burnMax',
       })
       .set(limit.burnMax);
     logger.info('xERC20 limits updated for chain', {
-      chain: limit.chain,
+      chain,
       mint: limit.mint,
       burn: limit.burn,
       mintMax: limit.mintMax,
@@ -296,78 +297,80 @@ export function updateXERC20LimitsMetrics(
   });
 }
 
-function getXerc20Limits(
-  warpCoreConfig: WarpCoreConfig,
-  multiProvider: MultiProvider,
-): Promise<
-  {
-    chain: string;
-    mint: number;
-    mintMax: number;
-    burn: number;
-    burnMax: number;
-  }[]
-> {
-  const result = Promise.all(
-    warpCoreConfig.tokens
-      .filter(
-        (t) =>
-          t.standard === TokenStandard.EvmHypXERC20 ||
-          t.standard === TokenStandard.EvmHypXERC20Lockbox,
-      )
-      .map(async (t) => {
-        const provider = multiProvider.getProvider(t.chainName);
-        const router = t.addressOrDenom!;
-        const xerc20Address =
-          t.standard === TokenStandard.EvmHypXERC20Lockbox
-            ? await HypXERC20Lockbox__factory.connect(router, provider).xERC20()
-            : await HypXERC20__factory.connect(router, provider).wrappedToken();
+async function getXERC20Limits(
+  tokenConfig: WarpRouteConfig,
+): Promise<ChainMap<xERC20Limit>> {
+  const multiProtocolProvider = new MultiProtocolProvider(getChainMetadata());
 
-        const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
-        const mintCurrent = await xerc20.mintingCurrentLimitOf(router);
-        const mintMax = await xerc20.mintingMaxLimitOf(router);
-        const burnCurrent = await xerc20.burningCurrentLimitOf(router);
-        const burnMax = await xerc20.burningMaxLimitOf(router);
-
-        return {
-          chain: t.chainName,
-          mint: parseFloat(ethers.utils.formatUnits(mintCurrent)),
-          mintMax: parseFloat(ethers.utils.formatUnits(mintMax)),
-          burn: parseFloat(ethers.utils.formatUnits(burnCurrent)),
-          burnMax: parseFloat(ethers.utils.formatUnits(burnMax)),
-        };
-      }),
+  const output = objMap(
+    tokenConfig,
+    async (chain: ChainName, token: WarpRouteConfig[ChainName]) => {
+      switch (token.protocolType) {
+        case ProtocolType.Ethereum: {
+          switch (token.type) {
+            case TokenType.XERC20Lockbox: {
+              const provider = multiProtocolProvider.getEthersV5Provider(chain);
+              const routerAddress = token.hypAddress;
+              const lockbox = HypXERC20Lockbox__factory.connect(
+                token.hypAddress,
+                provider,
+              );
+              const xerc20Address = await lockbox.xERC20();
+              const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+              return getXERC20Limit(routerAddress, xerc20, token.decimals);
+            }
+            case TokenType.XERC20: {
+              const provider = multiProtocolProvider.getEthersV5Provider(chain);
+              const routerAddress = token.hypAddress;
+              const hypXERC20 = HypXERC20__factory.connect(
+                routerAddress,
+                provider,
+              );
+              const xerc20Address = await hypXERC20.wrappedToken();
+              const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+              return getXERC20Limit(routerAddress, xerc20, token.decimals);
+            }
+          }
+          break;
+        }
+      }
+      return {
+        chain: chain,
+        mint: 0,
+        mintMax: 0,
+        burn: 0,
+        burnMax: 0,
+      };
+    },
   );
 
-  return result;
+  return promiseObjAll(output);
 }
 
-async function checkXERC20Limits(checkFrequency: number) {
-  const registry = await getRegistry();
-  const symbol = 'EZETH';
-  const EZETHWarpRouteConfigMap = await registry.getWarpRoutes({
-    symbol,
-  });
+const getXERC20Limit = async (
+  routerAddress: string,
+  xerc20: IXERC20,
+  decimals: number,
+): Promise<xERC20Limit> => {
+  const mintCurrent = await xerc20.mintingCurrentLimitOf(routerAddress);
+  const mintMax = await xerc20.mintingMaxLimitOf(routerAddress);
+  const burnCurrent = await xerc20.burningCurrentLimitOf(routerAddress);
+  const burnMax = await xerc20.burningMaxLimitOf(routerAddress);
+  return {
+    mint: parseFloat(ethers.utils.formatUnits(mintCurrent, decimals)),
+    mintMax: parseFloat(ethers.utils.formatUnits(mintMax, decimals)),
+    burn: parseFloat(ethers.utils.formatUnits(burnCurrent, decimals)),
+    burnMax: parseFloat(ethers.utils.formatUnits(burnMax, decimals)),
+  };
+};
 
-  const routes = Object.entries(EZETHWarpRouteConfigMap);
-
-  let warpCoreConfig: WarpCoreConfig;
-  if (routes.length === 0) {
-    logger.error(`No warp routes found for symbol ${symbol}. Exiting.`);
-    process.exit(0);
-  } else if (routes.length === 1) {
-    warpCoreConfig = routes[0][1];
-  } else {
-    logger.error(`Multiple warp routes found for symbol ${symbol}. Exiting.`);
-    process.exit(0);
-  }
-
-  const chainMetadata = await registry.getMetadata();
-  const multiProvider = new MultiProvider(chainMetadata);
-
+async function checkXERC20Limits(
+  checkFrequency: number,
+  tokenConfig: WarpRouteConfig,
+) {
   setInterval(async () => {
     try {
-      const xERC20Limits = await getXerc20Limits(warpCoreConfig, multiProvider);
+      const xERC20Limits = await getXERC20Limits(tokenConfig);
       logger.info('xERC20 Limits:', xERC20Limits);
       updateXERC20LimitsMetrics(xERC20Limits);
     } catch (e) {
@@ -376,7 +379,7 @@ async function checkXERC20Limits(checkFrequency: number) {
   }, checkFrequency);
 }
 
-export async function checkTokenBalances(
+async function checkTokenBalances(
   checkFrequency: number,
   tokenConfig: WarpRouteConfig,
 ) {

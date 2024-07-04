@@ -1,12 +1,69 @@
 description: Hyperlane Warp Route artifacts
-timestamp: '2024-04-15T16:00:00.000Z'
+timestamp: '2024-06-04T16:00:00.000Z'
 deployer: Abacus Works (Hyperlane)
 data:
   config:
+    ethereum:
+      protocolType: ethereum
+      type: xERC20Lockbox
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0xdFf621F952c23972dFD3A9E5d7B9f6339e9c078B'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      decimals: 18
     bsc:
       protocolType: ethereum
       type: xERC20
       name: Renzo Restaked ETH
       symbol: ezETH
       hypAddress: '0x6266e803057fa68C35018C3FB0B59db7129C23BB'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      decimals: 18
+    arbitrum:
+      protocolType: ethereum
+      type: xERC20
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0xC8F280d3eC30746f77c28695827d309d16939BF1'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      decimals: 18
+    optimism:
+      protocolType: ethereum
+      type: xERC20
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0x1d1a210E71398c17FD7987eDF1dc347539bB541F'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      decimals: 18
+    base:
+      protocolType: ethereum
+      type: xERC20
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0x584BA77ec804f8B6A559D196661C0242C6844F49'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      decimals: 18
+    blast:
+      protocolType: ethereum
+      type: xERC20
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0x8C603c6BDf8a9d548fC5D2995750Cc25eF59183b'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      decimals: 18
+    mode:
+      protocolType: ethereum
+      type: xERC20
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0xcd95B8dF351400BF4cbAb340b6EfF2454aDB299E'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      decimals: 18
+    linea:
+      protocolType: ethereum
+      type: xERC20
+      name: Renzo Restaked ETH
+      symbol: ezETH
+      hypAddress: '0xcd95B8dF351400BF4cbAb340b6EfF2454aDB299E'
+      tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
       decimals: 18
