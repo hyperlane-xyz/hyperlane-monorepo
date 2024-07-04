@@ -37,6 +37,7 @@ tokio = { workspace = true, features = ["rt", "macros", "parking_lot", "rt-multi
 tokio-metrics.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
+typetag.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async"] }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }

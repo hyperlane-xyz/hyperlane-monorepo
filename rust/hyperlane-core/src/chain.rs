@@ -8,6 +8,7 @@ use std::{
 use derive_new::new;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use serde::Serialize;
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
@@ -39,7 +40,7 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
 }
 
 /// All domains supported by Hyperlane.
-#[derive(FromPrimitive, PartialEq, Eq, Debug, Clone, Copy, Hash)]
+#[derive(FromPrimitive, PartialEq, Eq, Debug, Clone, Copy, Hash, Serialize)]
 #[cfg_attr(
     feature = "strum",
     derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
@@ -135,7 +136,7 @@ pub enum KnownHyperlaneDomain {
     CosmosTest99991 = 99991,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub enum HyperlaneDomain {
     Known(KnownHyperlaneDomain),
     Unknown {
@@ -161,7 +162,7 @@ impl HyperlaneDomain {
 }
 
 /// Types of Hyperlane domains.
-#[derive(FromPrimitive, Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(FromPrimitive, Copy, Clone, Eq, PartialEq, Debug, Serialize)]
 #[cfg_attr(
     feature = "strum",
     derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
@@ -182,7 +183,7 @@ pub enum HyperlaneDomainType {
 }
 
 /// Hyperlane domain protocol types.
-#[derive(FromPrimitive, Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(FromPrimitive, Copy, Clone, Eq, PartialEq, Debug, Serialize)]
 #[cfg_attr(
     feature = "strum",
     derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
@@ -215,7 +216,7 @@ impl HyperlaneDomainProtocol {
 }
 
 /// Hyperlane domain technical stack types.
-#[derive(Default, FromPrimitive, Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Default, FromPrimitive, Copy, Clone, Eq, PartialEq, Debug, Serialize)]
 #[cfg_attr(
     feature = "strum",
     derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
