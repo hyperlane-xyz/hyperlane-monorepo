@@ -232,7 +232,7 @@
             "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
           },
           "editorMode": "code",
-          "expr": "increase(hyperlane_block_height{agent=\"validator\"}[30m])",
+          "expr": "max by (chain) (increase(hyperlane_block_height{agent=\"validator\"}[30m]))",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -446,6 +446,6 @@
   "timezone": "browser",
   "title": "Validator Dashboard (External Sharing Template)",
   "uid": "cdqntgxna4vswd",
-  "version": 5,
+  "version": 7,
   "weekStart": ""
 }
