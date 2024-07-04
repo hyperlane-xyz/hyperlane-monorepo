@@ -1,4 +1,3 @@
-import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { fromError } from 'zod-validation-error';
 
@@ -11,11 +10,13 @@ import {
   HyperlaneDeploymentArtifacts,
   buildAgentConfig,
 } from '@hyperlane-xyz/sdk';
-import { objFilter, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { objMap, pick, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
+
+import { autoConfirm } from './prompts.js';
 
 export async function createAgentConfig({
   context,
@@ -38,12 +39,10 @@ export async function createAgentConfig({
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const startBlocks = await getStartBlocks(chainAddresses, core, chainMetadata);
 
-  if (!skipConfirmation) {
-    await handleMissingInterchainGasPaymaster(chainAddresses);
-  }
+  await handleMissingInterchainGasPaymaster(chainAddresses, skipConfirmation);
 
-  const agentConfig: AgentConfig = buildAgentConfig(
-    chains ?? Object.keys(chainAddresses),
+  const agentConfig = buildAgentConfig(
+    Object.keys(chainAddresses),
     multiProvider,
     chainAddresses as ChainMap<HyperlaneDeploymentArtifacts>,
     startBlocks,
@@ -61,19 +60,14 @@ async function handleNoChainsProvided(
   chains?: string[],
 ) {
   if (!chains || chains.length === 0) {
-    if (skipConfirmation) {
-      logBlue(
-        '\nNo chains provided, generating agent config for all supported chains',
-      );
-    } else {
-      const proceedWithAllChains = await confirm({
-        message:
-          '\nNo chains provided, would you like to generate the agent config for all supported chains?',
-      });
-      if (!proceedWithAllChains) {
-        errorRed('❌ Agent config creation aborted');
-        process.exit(1);
-      }
+    const proceedWithAllChains = await autoConfirm(
+      '\nNo chains provided, would you like to generate the agent config for all supported chains?',
+      skipConfirmation,
+      () => logBlue('Generating agent config for all supported chains'),
+    );
+    if (!proceedWithAllChains) {
+      errorRed('❌ Agent config creation aborted');
+      process.exit(1);
     }
   }
 }
@@ -85,9 +79,8 @@ function filterChainAddresses(
   if (!chains) {
     return addresses;
   }
-  return objFilter(addresses, (chain, _): _ is ChainAddresses => {
-    return chains.includes(chain);
-  });
+
+  return pick(addresses, chains);
 }
 
 async function getStartBlocks(
@@ -118,15 +111,19 @@ async function getStartBlocks(
 
 async function handleMissingInterchainGasPaymaster(
   chainAddresses: ChainMap<ChainAddresses>,
+  skipConfirmation: boolean,
 ) {
   for (const [chain, addressesRecord] of Object.entries(chainAddresses)) {
     if (!addressesRecord.interchainGasPaymaster) {
       warnYellow(`interchainGasPaymaster address is missing for ${chain}`);
-      const zeroIGPAddress = await confirm({
-        message: `Would you like to set the interchainGasPaymaster address to 0x0 for ${chain}?`,
-      });
+      const useZeroIgpAddress = await autoConfirm(
+        `\nWould you like to set the interchainGasPaymaster address to 0x0 for ${chain}?`,
+        skipConfirmation,
+        () =>
+          logBlue(`Setting interchainGasPaymaster address to 0x0 for ${chain}`),
+      );
 
-      if (zeroIGPAddress) {
+      if (useZeroIgpAddress) {
         chainAddresses[chain].interchainGasPaymaster =
           ethers.constants.AddressZero;
       }
@@ -144,18 +141,15 @@ async function validateAgentConfig(
     warnYellow(
       `\nAgent config is invalid, this is possibly due to required contracts not being deployed. See details below:\n${errorMessage}`,
     );
+    const continueAnyway = await autoConfirm(
+      'Would you like to continue anyway?',
+      skipConfirmation,
+      () => logBlue('Creating agent config anyway...'),
+    );
 
-    if (skipConfirmation) {
-      logBlue('Creating agent config anyway...');
-    } else {
-      const continueAnyway = await confirm({
-        message: 'Would you like to continue anyway?',
-      });
-
-      if (!continueAnyway) {
-        errorRed('\n❌ Agent config creation aborted');
-        process.exit(1);
-      }
+    if (!continueAnyway) {
+      errorRed('\n❌ Agent config creation aborted');
+      process.exit(1);
     }
   } else {
     logGreen('✅ Agent config successfully created');
