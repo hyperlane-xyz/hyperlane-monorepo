@@ -82,8 +82,6 @@ pub struct SerialSubmitter {
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<QueueOperation>,
-    /// Receiver for retry requests.
-    retry_op_transmitter: Sender<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
@@ -123,7 +121,6 @@ impl SerialSubmitter {
         Self {
             domain,
             rx,
-            retry_op_transmitter,
             metrics,
             max_batch_size,
             task_monitor,
@@ -151,7 +148,6 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
-            retry_op_transmitter: _retry_tx,
             max_batch_size,
             task_monitor,
             prepare_queue,
