@@ -53,11 +53,10 @@ import {
 
 interface DeployParams {
   context: WriteCommandContext;
-  configMap: WarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfig;
 }
 
 interface ApplyParams extends DeployParams {
-  context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
 }
 
@@ -93,7 +92,7 @@ export async function runWarpRouteDeploy({
 
   const deploymentParams = {
     context,
-    configMap: warpRouteConfig,
+    warpDeployConfig: warpRouteConfig,
   };
 
   logBlue('Warp route deployment plan');
@@ -116,13 +115,13 @@ export async function runWarpRouteDeploy({
   await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
 }
 
-async function runDeployPlanStep({ context, configMap }: DeployParams) {
+async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   const { skipConfirmation } = context;
 
   logBlue('\nDeployment plan');
   logGray('===============');
-  log(`Using token standard ${configMap.isNft ? 'ERC721' : 'ERC20'}`);
-  logTable(configMap);
+  log(`Using token standard ${warpDeployConfig.isNft ? 'ERC721' : 'ERC20'}`);
+  logTable(warpDeployConfig);
 
   if (skipConfirmation || context.isDryRun) return;
 
@@ -136,18 +135,18 @@ async function executeDeploy(params: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
   const {
-    configMap,
+    warpDeployConfig,
     context: { registry, multiProvider, isDryRun, dryRunChain },
   } = params;
 
-  const deployer = configMap.isNft
+  const deployer = warpDeployConfig.isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
 
   const config: WarpRouteDeployConfig =
     isDryRun && dryRunChain
-      ? { [dryRunChain]: configMap[dryRunChain] }
-      : configMap;
+      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
+      : warpDeployConfig;
 
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
 
@@ -270,7 +269,7 @@ async function createWarpIsm(
 }
 
 async function getWarpCoreConfig(
-  { configMap, context }: DeployParams,
+  { warpDeployConfig, context }: DeployParams,
   contracts: HyperlaneContractsMap<TokenFactories>,
 ): Promise<WarpCoreConfig> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
@@ -278,7 +277,7 @@ async function getWarpCoreConfig(
   // TODO: replace with warp read
   const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     context.multiProvider,
-    configMap,
+    warpDeployConfig,
   );
   assert(
     tokenMetadata && isTokenMetadata(tokenMetadata),
@@ -289,7 +288,7 @@ async function getWarpCoreConfig(
 
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
-    const config = configMap[chainName];
+    const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
       config.type === TokenType.collateral ? config.token : undefined;
     warpCoreConfig.tokens.push({
@@ -299,7 +298,8 @@ async function getWarpCoreConfig(
       symbol,
       name,
       addressOrDenom:
-        contract[configMap[chainName].type as keyof TokenFactories].address,
+        contract[warpDeployConfig[chainName].type as keyof TokenFactories]
+          .address,
       collateralAddressOrDenom,
     });
   }
@@ -330,7 +330,7 @@ async function getWarpCoreConfig(
 
 export async function runWarpRouteApply(params: ApplyParams) {
   const {
-    configMap,
+    warpDeployConfig,
     warpCoreConfig,
     context: { registry, multiProvider },
   } = params;
@@ -348,7 +348,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
   // Can update existing or deploy new contracts
   logGray(`Comparing target and onchain Warp configs`);
   await promiseObjAll(
-    objMap(configMap, async (chain, config) => {
+    objMap(warpDeployConfig, async (chain, config) => {
       try {
         // Update Warp
         config.ismFactoryAddresses = addresses[

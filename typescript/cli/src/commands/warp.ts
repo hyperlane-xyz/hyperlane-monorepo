@@ -95,8 +95,8 @@ export const apply: CommandModuleWithWriteContext<{
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
     await runWarpRouteApply({
       context,
+      warpDeployConfig,
       warpCoreConfig,
-      configMap: warpDeployConfig,
     });
     process.exit(0);
   },
