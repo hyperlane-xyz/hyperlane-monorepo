@@ -89,13 +89,13 @@ export const warpDeploymentConfigCommandOption: Options = {
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
   default: './configs/warp-route-deployment.yaml',
-  alias: 'w',
+  alias: 'wd',
 };
 
 export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
-  alias: 'w',
+  alias: 'wc',
 };
 
 export const agentConfigCommandOption = (

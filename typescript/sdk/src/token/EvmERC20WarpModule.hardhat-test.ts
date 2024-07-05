@@ -356,7 +356,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           type: IsmType.ROUTING,
           owner: randomAddress(),
           domains: {
-            '2': ismAddress,
+            test2: { type: IsmType.TEST_ISM },
           },
         },
       };
