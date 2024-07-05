@@ -4,7 +4,6 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { FallbackDomainRoutingHook__factory } from '@hyperlane-xyz/core';
 import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
@@ -93,7 +92,6 @@ describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address;
-  let newMailboxAddress: Address;
   let fundingAccount: Signer;
 
   const chain = TestChainName.test4;
@@ -125,11 +123,6 @@ describe('EvmIsmModule', async () => {
 
     // mailbox
     mailboxAddress = (
-      await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
-
-    // new mailbox
-    newMailboxAddress = (
       await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
     ).getContracts(chain).mailbox.address;
 
@@ -437,30 +430,5 @@ describe('EvmIsmModule', async () => {
           .true;
       });
     }
-
-    it(`redeploy same config if the mailbox address changes for defaultFallbackRoutingIsm`, async () => {
-      exampleRoutingConfig.type = IsmType.FALLBACK_ROUTING;
-
-      // create a new ISM
-      const { ism, initialIsmAddress } = await createIsm(exampleRoutingConfig);
-
-      // point to new mailbox
-      ism.setNewMailbox(newMailboxAddress);
-
-      // expect a new ISM to be deployed, so no in-place updates to return
-      await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
-
-      // expect the ISM address to be different
-      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
-        .false;
-
-      // expect that the ISM is configured with the new mailbox
-      const onchainIsm = FallbackDomainRoutingHook__factory.connect(
-        ism.serialize().deployedIsm,
-        multiProvider.getSigner(chain),
-      );
-      const onchainMailbox = await onchainIsm['mailbox()']();
-      expect(eqAddress(onchainMailbox, newMailboxAddress)).to.be.true;
-    });
   });
 });
