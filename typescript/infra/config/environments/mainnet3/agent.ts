@@ -19,7 +19,10 @@ import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
-import { supportedChainNames } from './supportedChainNames.js';
+import {
+  mainnet3SupportedChainNames,
+  supportedChainNames,
+} from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
@@ -33,9 +36,9 @@ import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
 
-const releaseCandidateHelloworldMatchingList = routerMatchingList(
-  helloWorld[Contexts.ReleaseCandidate].addresses,
-);
+// const releaseCandidateHelloworldMatchingList = routerMatchingList(
+//   helloWorld[Contexts.ReleaseCandidate].addresses,
+// );
 
 const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
@@ -44,7 +47,9 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 //
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.
-export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+export const hyperlaneContextAgentChainConfig: AgentChainConfig<
+  typeof mainnet3SupportedChainNames
+> = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     arbitrum: true,
@@ -150,7 +155,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
-  supportedChainNames,
+  mainnet3SupportedChainNames,
 );
 
 const contextBase = {
