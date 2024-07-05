@@ -82,7 +82,7 @@ export const apply: CommandModuleWithWriteContext<{
   },
   handler: async ({ context, config, symbol, warp }) => {
     logGray(`Hyperlane Warp Apply`);
-    logGray('------------------------------------------------');
+    logGray('--------------------'); // @TODO consider creating a helper function for these dashes
     let warpCoreConfig: WarpCoreConfig;
     if (symbol) {
       warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
