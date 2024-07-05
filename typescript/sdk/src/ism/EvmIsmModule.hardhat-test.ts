@@ -242,15 +242,17 @@ describe('EvmIsmModule', async () => {
         // create a new ISM
         const { ism } = await createIsm(exampleRoutingConfig);
 
-        // add config for a domain the multiprovider doesn't have
-        exampleRoutingConfig.domains['test5'] = {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          threshold: 1,
-          validators: [randomAddress()],
+        // create an updated config with a domain the multiprovider doesn't have
+        const updatedRoutingConfig: IsmConfig = {
+          ...exampleRoutingConfig,
+          domains: {
+            ...exampleRoutingConfig.domains,
+            test5: randomMultisigIsmConfig(3, 5),
+          },
         };
 
         // expect 0 txs, as adding test5 domain is no-op
-        await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
+        await expectTxsAndUpdate(ism, updatedRoutingConfig, 0);
       });
 
       it(`update route in an existing ${type}`, async () => {
