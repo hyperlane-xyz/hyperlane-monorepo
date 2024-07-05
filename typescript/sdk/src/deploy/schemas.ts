@@ -14,6 +14,6 @@ export const ProxyFactoryFactoriesSchema = z.object({
   domainRoutingIsmFactory: z.string(),
 });
 
-export type proxyFactoryFactoriesAddresses = z.infer<
+export type ProxyFactoryFactoriesAddresses = z.infer<
   typeof ProxyFactoryFactoriesSchema
 >;

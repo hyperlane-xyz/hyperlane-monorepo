@@ -11,6 +11,7 @@ import {
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
+  ProxyFactoryFactoriesAddresses,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenType,
@@ -18,7 +19,6 @@ import {
   WarpRouteDeployConfig,
   getTokenConnectionId,
   isTokenMetadata,
-  proxyFactoryFactoriesAddresses,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -353,7 +353,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
         // Update Warp
         config.ismFactoryAddresses = addresses[
           chain
-        ] as proxyFactoryFactoriesAddresses;
+        ] as ProxyFactoryFactoriesAddresses;
         const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
           config,
           chain,
