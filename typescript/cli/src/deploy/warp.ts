@@ -369,14 +369,14 @@ export async function runWarpRouteApply(params: ApplyParams) {
             await multiProvider.sendTransaction(chain, transaction);
           }
 
-          logGreen(`Warp config updated on ${chain} chain.`);
+          logGreen(`Warp config updated on ${chain}.`);
         } else {
           logGreen(
-            `Warp config on ${chain} chain is the same as target. No updates needed.`,
+            `Warp config on ${chain} is the same as target. No updates needed.`,
           );
         }
       } catch (e) {
-        logRed(`Warp config on ${chain} chain failed to update.`, e);
+        logRed(`Warp config on ${chain} failed to update.`, e);
       }
     }),
   );
