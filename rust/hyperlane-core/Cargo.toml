@@ -17,7 +17,6 @@ bigdecimal.workspace = true
 borsh.workspace = true
 bs58.workspace = true
 bytes = { workspace = true, features = ["serde"] }
-config = { workspace = true, optional = true }
 convert_case.workspace = true
 derive-new.workspace = true
 derive_more.workspace = true
@@ -53,7 +52,7 @@ tokio = { workspace = true, features = ["rt", "time"] }
 [features]
 default = ["strum"]
 float = []
-test-utils = ["dep:config"]
+test-utils = []
 agent = ["ethers", "strum"]
 strum = ["dep:strum"]
 ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]

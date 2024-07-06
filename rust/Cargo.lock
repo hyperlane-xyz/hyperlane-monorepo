@@ -2922,7 +2922,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "tokio-tungstenite 0.17.2",
+ "tokio-tungstenite",
  "tracing",
  "tracing-futures",
  "url",
@@ -4198,7 +4198,6 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-fuel",
  "hyperlane-sealevel",
- "hyperlane-test",
  "itertools 0.12.0",
  "maplit",
  "mockall",
@@ -4224,7 +4223,6 @@ dependencies = [
  "tracing-test",
  "url",
  "walkdir",
- "warp",
  "ya-gcp",
 ]
 
@@ -4239,7 +4237,6 @@ dependencies = [
  "borsh 0.9.3",
  "bs58 0.5.0",
  "bytes",
- "config",
  "convert_case 0.6.0",
  "derive-new",
  "derive_more",
@@ -4585,7 +4582,6 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-test-utils",
  "multisig-ism",
@@ -4607,7 +4603,6 @@ dependencies = [
  "borsh 0.9.3",
  "hyperlane-core",
  "hyperlane-sealevel-interchain-security-module-interface",
- "hyperlane-sealevel-mailbox",
  "hyperlane-test-transaction-utils",
  "serializable-account-meta",
  "solana-program",
@@ -4742,9 +4737,7 @@ dependencies = [
  "ecdsa-signature",
  "hex 0.4.3",
  "hyperlane-core",
- "hyperlane-sealevel-mailbox",
  "hyperlane-test-utils",
- "serializable-account-meta",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -5476,16 +5469,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
-name = "mime_guess"
-version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4192263c238a5f0d0c6bfd21f336a313a4ce1c450542449ca191bb657b4642ef"
-dependencies = [
- "mime",
- "unicase",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5557,24 +5540,6 @@ dependencies = [
  "proc-macro2 1.0.76",
  "quote 1.0.35",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "multer"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01acbdc23469fd8fe07ab135923371d5f5a422fbf9c522158677c8eb15bc51c2"
-dependencies = [
- "bytes",
- "encoding_rs",
- "futures-util",
- "http",
- "httparse",
- "log",
- "memchr",
- "mime",
- "spin 0.9.8",
- "version_check",
 ]
 
 [[package]]
@@ -7296,7 +7261,6 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
- "jobserver",
  "k256 0.13.3",
  "macro_rules_attribute",
  "maplit",
@@ -7716,12 +7680,6 @@ dependencies = [
  "serde_derive_internals",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "scoped-tls"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294"
 
 [[package]]
 name = "scopeguard"
@@ -8639,8 +8597,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tokio-tungstenite 0.17.2",
- "tungstenite 0.17.3",
+ "tokio-tungstenite",
+ "tungstenite",
  "url",
 ]
 
@@ -10191,21 +10149,9 @@ dependencies = [
  "rustls 0.20.9",
  "tokio",
  "tokio-rustls 0.23.4",
- "tungstenite 0.17.3",
+ "tungstenite",
  "webpki 0.22.4",
  "webpki-roots 0.22.6",
-]
-
-[[package]]
-name = "tokio-tungstenite"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "212d5dcb2a1ce06d81107c3d0ffa3121fe974b73f068c8282cb1c32328113b6c"
-dependencies = [
- "futures-util",
- "log",
- "tokio",
- "tungstenite 0.20.1",
 ]
 
 [[package]]
@@ -10540,25 +10486,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tungstenite"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e3dac10fd62eaf6617d3a904ae222845979aec67c615d1c842b4002c7666fb9"
-dependencies = [
- "byteorder",
- "bytes",
- "data-encoding",
- "http",
- "httparse",
- "log",
- "rand 0.8.5",
- "sha1",
- "thiserror",
- "url",
- "utf-8",
-]
-
-[[package]]
 name = "typeid"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10622,15 +10549,6 @@ dependencies = [
  "crunchy",
  "hex 0.4.3",
  "static_assertions 1.1.0",
-]
-
-[[package]]
-name = "unicase"
-version = "2.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7d2d4dafb69621809a81864c9c1b864479e1235c0dd4e199924b9742439ed89"
-dependencies = [
- "version_check",
 ]
 
 [[package]]
@@ -10857,37 +10775,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfa7760aed19e106de2c7c0b581b509f2f25d3dacaf737cb82ac61bc6d760b0e"
 dependencies = [
  "try-lock",
-]
-
-[[package]]
-name = "warp"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1e92e22e03ff1230c03a1a8ee37d2f89cd489e2e541b7550d6afad96faed169"
-dependencies = [
- "bytes",
- "futures-channel",
- "futures-util",
- "headers",
- "http",
- "hyper",
- "log",
- "mime",
- "mime_guess",
- "multer",
- "percent-encoding",
- "pin-project",
- "rustls-pemfile 1.0.4",
- "scoped-tls",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "tokio",
- "tokio-stream",
- "tokio-tungstenite 0.20.1",
- "tokio-util 0.7.10",
- "tower-service",
- "tracing",
 ]
 
 [[package]]

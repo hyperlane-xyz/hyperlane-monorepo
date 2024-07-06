@@ -43,7 +43,6 @@ tracing-futures.workspace = true
 tracing-subscriber = { workspace = true, features = ["json", "ansi"] }
 tracing.workspace = true
 url.workspace = true
-warp.workspace = true
 ya-gcp.workspace = true
 
 backtrace = { workspace = true, optional = true }
@@ -55,7 +54,6 @@ hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos"}
-hyperlane-test = { path = "../hyperlane-test" }
 
 # dependency version is determined by etheres
 rusoto_core = "*"

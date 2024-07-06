@@ -20,7 +20,6 @@ account-utils = { path = "../../../libraries/account-utils" }
 ecdsa-signature = { path = "../../../libraries/ecdsa-signature" }
 hyperlane-core = { path = "../../../../hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
-hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 multisig-ism = { path = "../../../libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
 
