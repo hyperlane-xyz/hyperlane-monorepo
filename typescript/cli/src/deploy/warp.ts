@@ -23,7 +23,10 @@ import {
   TokenFactories,
   TrustedRelayerIsmConfig,
   WarpCoreConfig,
+  WarpCoreConfigSchema,
   WarpRouteDeployConfig,
+  WarpRouteDeployConfigSchema,
+  attachContractsMap,
   getTokenConnectionId,
   isCollateralConfig,
   isTokenMetadata,
@@ -116,7 +119,14 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await prepareDeploy(context, userAddress, chains);
 
-  await executeDeploy(deploymentParams);
+  const deployedContracts = await executeDeploy(deploymentParams);
+
+  const warpCoreConfig = await getWarpCoreConfig(
+    deploymentParams,
+    deployedContracts,
+  );
+
+  await writeDeploymentArtifacts(warpCoreConfig, context);
 
   await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
 }
@@ -134,7 +144,9 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
-async function executeDeploy(params: DeployParams) {
+async function executeDeploy(
+  params: DeployParams,
+): Promise<HyperlaneContractsMap<TokenFactories>> {
   logBlue('All systems ready, captain! Beginning deployment...');
 
   const {
@@ -164,12 +176,17 @@ async function executeDeploy(params: DeployParams) {
 
   const deployedContracts = await deployer.deploy(modifiedConfig);
 
-  const warpCoreConfig = await getWarpCoreConfig(params, deployedContracts);
   logGreen('✅ Warp contract deployments complete');
+  return deployedContracts;
+}
 
-  if (!isDryRun) {
+async function writeDeploymentArtifacts(
+  warpCoreConfig: WarpCoreConfig,
+  context: WriteCommandContext,
+) {
+  if (!context.isDryRun) {
     log('Writing deployment artifacts...');
-    await registry.addWarpRoute(warpCoreConfig);
+    await context.registry.addWarpRoute(warpCoreConfig);
   }
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
@@ -334,14 +351,12 @@ async function getWarpCoreConfig(
 }
 
 export async function runWarpRouteApply(params: ApplyParams) {
-  const {
-    warpDeployConfig,
-    warpCoreConfig,
-    context: { registry, multiProvider },
-  } = params;
+  const { warpDeployConfig, warpCoreConfig, context } = params;
+  WarpRouteDeployConfigSchema.parse(warpDeployConfig);
+  WarpCoreConfigSchema.parse(warpCoreConfig);
 
   // Addresses used to get static Ism factories
-  const addresses = await registry.getAddresses();
+  const addresses = await context.registry.getAddresses();
 
   // Convert warpCoreConfig.tokens[] into a mapping of { [chainName]: Config }
   // This allows O(1) reads within the loop
@@ -349,42 +364,93 @@ export async function runWarpRouteApply(params: ApplyParams) {
     warpCoreConfig.tokens.map((token) => [token.chainName, token]),
   );
 
-  // Attempt to update Warp Routes
-  // Can update existing or deploy new contracts
-  logGray(`Comparing target and onchain Warp configs`);
-  await promiseObjAll(
-    objMap(warpDeployConfig, async (chain, config) => {
-      try {
-        // Update Warp
-        config.ismFactoryAddresses = addresses[
-          chain
-        ] as ProxyFactoryFactoriesAddresses;
-        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
-          config,
-          chain,
-          addresses: {
-            deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
-          },
-        });
-        const transactions = await evmERC20WarpModule.update(config);
+  // get diff of both configs
+  const warpDeployChains = Object.keys(warpDeployConfig);
+  const warpCoreChains = Object.keys(warpCoreByChain);
+  if (warpDeployChains.length > warpCoreChains.length) {
+    logGray('Extending deployed Warp configs');
+    // Only chains that have not been deployed
+    const chainsToDeploy = warpDeployChains.filter(
+      (chain) => !warpCoreChains.includes(chain),
+    );
 
-        // Send Txs
-        if (transactions.length) {
-          for (const transaction of transactions) {
-            await multiProvider.sendTransaction(chain, transaction);
-          }
+    const newWarpDeployConfig = chainsToDeploy.reduce<WarpRouteDeployConfig>(
+      (result, chain) => {
+        result[chain] = warpDeployConfig[chain];
+        return result;
+      },
+      {},
+    );
 
-          logGreen(`Warp config updated on ${chain}.`);
-        } else {
-          logGreen(
-            `Warp config on ${chain} is the same as target. No updates needed.`,
+    // Deploys
+    const newDeployedContracts = await executeDeploy({
+      context,
+      warpDeployConfig: newWarpDeployConfig,
+    });
+
+    // TODO Enroll with existing chains
+
+    // Merge with existing artifacts
+    const mergedDeployParams = {
+      ...params,
+      warpDeployConfig: { ...warpDeployConfig, ...newWarpDeployConfig },
+    };
+
+    const mergedContracts = {
+      ...attachContractsMap(),
+      ...newDeployedContracts,
+    };
+    console.log('mergedDeployParams', mergedDeployParams);
+    const warpCoreConfig = await getWarpCoreConfig(
+      mergedDeployParams,
+      mergedContracts,
+    );
+    console.log('warpCoreConfig', warpCoreConfig);
+
+    // await writeDeploymentArtifacts(warpCoreConfig, context);
+  } else if (warpDeployChains.length === warpCoreChains.length) {
+    // Attempt to update Warp Routes
+    // Can update existing or deploy new contracts
+    logGray(`Comparing target and onchain Warp configs`);
+    await promiseObjAll(
+      objMap(warpDeployConfig, async (chain, config) => {
+        try {
+          // Update Warp
+          config.ismFactoryAddresses = addresses[
+            chain
+          ] as ProxyFactoryFactoriesAddresses;
+          const evmERC20WarpModule = new EvmERC20WarpModule(
+            context.multiProvider,
+            {
+              config,
+              chain,
+              addresses: {
+                deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
+              },
+            },
           );
+          const transactions = await evmERC20WarpModule.update(config);
+
+          // Send Txs
+          if (transactions.length) {
+            for (const transaction of transactions) {
+              await context.multiProvider.sendTransaction(chain, transaction);
+            }
+
+            logGreen(`Warp config updated on ${chain}.`);
+          } else {
+            logGreen(
+              `Warp config on ${chain} is the same as target. No updates needed.`,
+            );
+          }
+        } catch (e) {
+          logRed(`Warp config on ${chain} failed to update.`, e);
         }
-      } catch (e) {
-        logRed(`Warp config on ${chain} failed to update.`, e);
-      }
-    }),
-  );
+      }),
+    );
+  } else {
+    throw new Error('Unenrolling warp routes is currently not supported');
+  }
 }
 
 function displayWarpDeployPlan(deployConfig: WarpRouteDeployConfig) {
