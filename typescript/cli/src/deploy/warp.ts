@@ -29,12 +29,14 @@ import {
   attachContractsMap,
   getTokenConnectionId,
   isCollateralConfig,
+  hypERC20factories,
   isTokenMetadata,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   assert,
+  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -369,45 +371,41 @@ export async function runWarpRouteApply(params: ApplyParams) {
   const warpCoreChains = Object.keys(warpCoreByChain);
   if (warpDeployChains.length > warpCoreChains.length) {
     logGray('Extending deployed Warp configs');
-    // Only chains that have not been deployed
-    const chainsToDeploy = warpDeployChains.filter(
-      (chain) => !warpCoreChains.includes(chain),
+    // Deploy with the additional config
+    const additionalConfig = objFilter(
+      warpDeployConfig,
+      (chain, _config): _config is any => !warpCoreChains.includes(chain),
     );
 
-    const newWarpDeployConfig = chainsToDeploy.reduce<WarpRouteDeployConfig>(
-      (result, chain) => {
-        result[chain] = warpDeployConfig[chain];
-        return result;
-      },
-      {},
-    );
+    // @TODO handle synthetic addition because it needs to derive from one of the collateral
 
-    // Deploys
     const newDeployedContracts = await executeDeploy({
       context,
-      warpDeployConfig: newWarpDeployConfig,
+      warpDeployConfig: additionalConfig,
     });
 
-    // TODO Enroll with existing chains
+    // @TODO Enroll with existing chains
 
-    // Merge with existing artifacts
-    const mergedDeployParams = {
-      ...params,
-      warpDeployConfig: { ...warpDeployConfig, ...newWarpDeployConfig },
-    };
-
-    const mergedContracts = {
-      ...attachContractsMap(),
-      ...newDeployedContracts,
-    };
-    console.log('mergedDeployParams', mergedDeployParams);
-    const warpCoreConfig = await getWarpCoreConfig(
-      mergedDeployParams,
-      mergedContracts,
+    // Get existing contracts from config to merge with newly deployed ones
+    const deployedConfig = objFilter(
+      warpDeployConfig,
+      (chain, _config): _config is any => warpCoreChains.includes(chain),
     );
-    console.log('warpCoreConfig', warpCoreConfig);
+    const existingDeployedAddresses = objMap(
+      deployedConfig,
+      (chain, config) => {
+        return {
+          [config.type]: warpCoreByChain[chain].addressOrDenom!,
+        };
+      },
+    );
 
-    // await writeDeploymentArtifacts(warpCoreConfig, context);
+    const updatedWarpCoreConfig = await getWarpCoreConfig(params, {
+      ...attachContractsMap(existingDeployedAddresses, hypERC20factories),
+      ...newDeployedContracts,
+    });
+    WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
+    await writeDeploymentArtifacts(updatedWarpCoreConfig, context);
   } else if (warpDeployChains.length === warpCoreChains.length) {
     // Attempt to update Warp Routes
     // Can update existing or deploy new contracts
