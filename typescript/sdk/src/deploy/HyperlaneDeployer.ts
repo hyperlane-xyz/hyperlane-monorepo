@@ -37,6 +37,7 @@ import { ChainMap, ChainName } from '../types.js';
 
 import {
   UpgradeConfig,
+  isInitialized,
   isProxy,
   proxyAdmin,
   proxyConstructorArgs,
@@ -399,10 +400,21 @@ export abstract class HyperlaneDeployer<
     );
 
     if (initializeArgs) {
-      this.logger.debug(`Initialize ${contractName} on ${chain}`);
-      const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const initTx = await contract.initialize(...initializeArgs, overrides);
-      await this.multiProvider.handleTx(chain, initTx);
+      if (
+        await isInitialized(
+          this.multiProvider.getProvider(chain),
+          contract.address,
+        )
+      ) {
+        this.logger.debug(
+          'Skipping initialization because contract is already initialized',
+        );
+      } else {
+        this.logger.debug(`Initialize ${contractName} on ${chain}`);
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
+        const initTx = await contract.initialize(...initializeArgs, overrides);
+        await this.multiProvider.handleTx(chain, initTx);
+      }
     }
 
     const verificationInput = getContractVerificationInput(

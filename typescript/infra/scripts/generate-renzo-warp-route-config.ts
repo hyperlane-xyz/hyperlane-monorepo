@@ -15,6 +15,8 @@ import { symmetricDifference } from '@hyperlane-xyz/utils';
 const lockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
 const xERC20 = '0x2416092f143378750bb29b79eD961ab195CcEea5';
 const lockboxChain = 'ethereum';
+// over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
+const warpRouteOverheadGas = 200_000;
 
 const chainsToDeploy = [
   'arbitrum',
@@ -123,6 +125,7 @@ async function main() {
                     : TokenType.XERC20,
                 token: chain === lockboxChain ? lockbox : xERC20,
                 owner: zeroAddress,
+                gas: warpRouteOverheadGas,
                 mailbox: (await registry.getChainAddresses(chain))!.mailbox,
                 interchainSecurityModule: {
                   type: IsmType.AGGREGATION,
