@@ -10,6 +10,7 @@ import {
   WarpRouteDeployConfigSchema,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
+import { symmetricDifference } from '@hyperlane-xyz/utils';
 
 const lockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
 const xERC20 = '0x2416092f143378750bb29b79eD961ab195CcEea5';
@@ -24,6 +25,7 @@ const chainsToDeploy = [
   'mode',
   'linea',
   'ethereum',
+  'fraxtal',
 ];
 
 const ezEthValidators = {
@@ -83,12 +85,29 @@ const ezEthValidators = {
       '0x1fd889337F60986aa57166bc5AC121eFD13e4fdd', // Everclear
     ],
   },
+  fraxtal: {
+    threshold: 1,
+    validators: [
+      '0xe986f457965227A05DCF984C8d0C29e01253c44d', // Renzo
+      '0x25B3A88f7CfD3C9F7d7e32b295673A16a6Ddbd91', // luganodes
+    ],
+  },
 };
 const zeroAddress = '0x0000000000000000000000000000000000000001';
 
 async function main() {
   const registry = new GithubRegistry();
-
+  const diff = symmetricDifference(
+    new Set(chainsToDeploy),
+    new Set(Object.keys(ezEthValidators)),
+  );
+  if (diff.size > 0) {
+    throw new Error(
+      `chainsToDeploy !== validatorConfig, diff is ${Array.from(diff).join(
+        ', ',
+      )}`,
+    );
+  }
   const tokenConfig: WarpRouteDeployConfig =
     Object.fromEntries<TokenRouterConfig>(
       await Promise.all(
