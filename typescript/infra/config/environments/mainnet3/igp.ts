@@ -19,7 +19,7 @@ import {
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
-import { DEPLOYER, owners } from './owners.js';
+import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json';
 
@@ -28,7 +28,7 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 
 const remoteOverhead = (remote: ChainName) =>
-  ethereumChainNames.includes(remote)
+  ethereumChainNames.includes(remote as any)
     ? multisigIsmVerificationCost(
         defaultMultisigConfigs[remote].threshold,
         defaultMultisigConfigs[remote].validators.length,
@@ -59,7 +59,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(
-  owners,
+  ethereumChainOwners,
   (local, owner): IgpConfig => ({
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
     ...owner,

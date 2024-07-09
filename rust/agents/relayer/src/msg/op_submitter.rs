@@ -27,6 +27,7 @@ use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
 
 use super::op_queue::OpQueue;
+use super::op_queue::OperationPriorityQueue;
 
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
@@ -75,23 +76,64 @@ use super::op_queue::OpQueue;
 /// eligible for submission, we should be working on it within reason. This
 /// must be balanced with the cost of making RPCs that will almost certainly
 /// fail and potentially block new messages from being sent immediately.
-#[derive(Debug, new)]
+#[derive(Debug)]
 pub struct SerialSubmitter {
     /// Domain this submitter delivers to.
     domain: HyperlaneDomain,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<QueueOperation>,
-    /// Receiver for retry requests.
-    retry_tx: Sender<MessageRetryRequest>,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Max batch size for submitting messages
     max_batch_size: u32,
     /// tokio task monitor
     task_monitor: TaskMonitor,
+    prepare_queue: OpQueue,
+    submit_queue: OpQueue,
+    confirm_queue: OpQueue,
 }
 
 impl SerialSubmitter {
+    pub fn new(
+        domain: HyperlaneDomain,
+        rx: mpsc::UnboundedReceiver<QueueOperation>,
+        retry_op_transmitter: Sender<MessageRetryRequest>,
+        metrics: SerialSubmitterMetrics,
+        max_batch_size: u32,
+        task_monitor: TaskMonitor,
+    ) -> Self {
+        let prepare_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "prepare_queue".to_string(),
+            Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
+        );
+        let submit_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "submit_queue".to_string(),
+            Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
+        );
+        let confirm_queue = OpQueue::new(
+            metrics.submitter_queue_length.clone(),
+            "confirm_queue".to_string(),
+            Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
+        );
+
+        Self {
+            domain,
+            rx,
+            metrics,
+            max_batch_size,
+            task_monitor,
+            prepare_queue,
+            submit_queue,
+            confirm_queue,
+        }
+    }
+
+    pub async fn prepare_queue(&self) -> OperationPriorityQueue {
+        self.prepare_queue.queue.clone()
+    }
+
     pub fn spawn(self) -> Instrumented<JoinHandle<()>> {
         let span = info_span!("SerialSubmitter", destination=%self.domain);
         let task_monitor = self.task_monitor.clone();
@@ -106,25 +148,12 @@ impl SerialSubmitter {
             domain,
             metrics,
             rx: rx_prepare,
-            retry_tx,
             max_batch_size,
             task_monitor,
+            prepare_queue,
+            submit_queue,
+            confirm_queue,
         } = self;
-        let prepare_queue = OpQueue::new(
-            metrics.submitter_queue_length.clone(),
-            "prepare_queue".to_string(),
-            Arc::new(Mutex::new(retry_tx.subscribe())),
-        );
-        let submit_queue = OpQueue::new(
-            metrics.submitter_queue_length.clone(),
-            "submit_queue".to_string(),
-            Arc::new(Mutex::new(retry_tx.subscribe())),
-        );
-        let confirm_queue = OpQueue::new(
-            metrics.submitter_queue_length.clone(),
-            "confirm_queue".to_string(),
-            Arc::new(Mutex::new(retry_tx.subscribe())),
-        );
 
         let tasks = [
             tokio::spawn(TaskMonitor::instrument(

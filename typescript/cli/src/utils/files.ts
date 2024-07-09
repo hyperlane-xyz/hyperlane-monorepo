@@ -90,7 +90,10 @@ export function tryReadYamlAtPath<T>(filepath: string): T | null {
 }
 
 export function writeYaml(filepath: string, obj: any) {
-  writeFileAtPath(filepath, yamlStringify(obj, null, 2) + '\n');
+  writeFileAtPath(
+    filepath,
+    yamlStringify(obj, { indent: 2, sortMapEntries: true }) + '\n',
+  );
 }
 
 export function mergeYaml<T extends Record<string, any>>(

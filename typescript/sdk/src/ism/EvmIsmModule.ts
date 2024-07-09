@@ -81,7 +81,7 @@ export class EvmIsmModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
 
-  protected constructor(
+  constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
       IsmConfig,
@@ -142,9 +142,9 @@ export class EvmIsmModule extends HyperlaneModule<
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
-
     // Update the config
     this.params.config = targetConfig;
+    targetConfig = normalizeConfig(targetConfig);
 
     // if it's a fallback routing ISM, do a mailbox diff check
 

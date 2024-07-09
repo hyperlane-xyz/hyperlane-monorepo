@@ -145,9 +145,7 @@ export const read: CommandModuleWithContext<{
     try {
       const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
       writeYamlOrJson(configFilePath, coreConfig, 'yaml');
-      logGreen(
-        `✅ Warp route config written successfully to ${configFilePath}:\n`,
-      );
+      logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
       log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
     } catch (e: any) {
       errorRed(

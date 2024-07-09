@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
+  EvmERC20WarpModule,
   EvmIsmModule,
   HypERC20Deployer,
   HypERC721Deployer,
@@ -10,6 +11,7 @@ import {
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
+  ProxyFactoryFactoriesAddresses,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TokenType,
@@ -29,7 +31,14 @@ import {
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logRed,
+  logTable,
+} from '../logger.js';
 import {
   indentYamlOrJson,
   isFile,
@@ -44,7 +53,11 @@ import {
 
 interface DeployParams {
   context: WriteCommandContext;
-  configMap: WarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfig;
+}
+
+interface ApplyParams extends DeployParams {
+  warpCoreConfig: WarpCoreConfig;
 }
 
 export async function runWarpRouteDeploy({
@@ -79,7 +92,7 @@ export async function runWarpRouteDeploy({
 
   const deploymentParams = {
     context,
-    configMap: warpRouteConfig,
+    warpDeployConfig: warpRouteConfig,
   };
 
   logBlue('Warp route deployment plan');
@@ -102,13 +115,13 @@ export async function runWarpRouteDeploy({
   await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
 }
 
-async function runDeployPlanStep({ context, configMap }: DeployParams) {
+async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   const { skipConfirmation } = context;
 
   logBlue('\nDeployment plan');
   logGray('===============');
-  log(`Using token standard ${configMap.isNft ? 'ERC721' : 'ERC20'}`);
-  logTable(configMap);
+  log(`Using token standard ${warpDeployConfig.isNft ? 'ERC721' : 'ERC20'}`);
+  logTable(warpDeployConfig);
 
   if (skipConfirmation || context.isDryRun) return;
 
@@ -122,18 +135,18 @@ async function executeDeploy(params: DeployParams) {
   logBlue('All systems ready, captain! Beginning deployment...');
 
   const {
-    configMap,
+    warpDeployConfig,
     context: { registry, multiProvider, isDryRun, dryRunChain },
   } = params;
 
-  const deployer = configMap.isNft
+  const deployer = warpDeployConfig.isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider);
 
   const config: WarpRouteDeployConfig =
     isDryRun && dryRunChain
-      ? { [dryRunChain]: configMap[dryRunChain] }
-      : configMap;
+      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
+      : warpDeployConfig;
 
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
 
@@ -256,7 +269,7 @@ async function createWarpIsm(
 }
 
 async function getWarpCoreConfig(
-  { configMap, context }: DeployParams,
+  { warpDeployConfig, context }: DeployParams,
   contracts: HyperlaneContractsMap<TokenFactories>,
 ): Promise<WarpCoreConfig> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
@@ -264,7 +277,7 @@ async function getWarpCoreConfig(
   // TODO: replace with warp read
   const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
     context.multiProvider,
-    configMap,
+    warpDeployConfig,
   );
   assert(
     tokenMetadata && isTokenMetadata(tokenMetadata),
@@ -275,7 +288,7 @@ async function getWarpCoreConfig(
 
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
-    const config = configMap[chainName];
+    const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom =
       config.type === TokenType.collateral ? config.token : undefined;
     warpCoreConfig.tokens.push({
@@ -285,7 +298,8 @@ async function getWarpCoreConfig(
       symbol,
       name,
       addressOrDenom:
-        contract[configMap[chainName].type as keyof TokenFactories].address,
+        contract[warpDeployConfig[chainName].type as keyof TokenFactories]
+          .address,
       collateralAddressOrDenom,
     });
   }
@@ -312,4 +326,58 @@ async function getWarpCoreConfig(
   }
 
   return warpCoreConfig;
+}
+
+export async function runWarpRouteApply(params: ApplyParams) {
+  const {
+    warpDeployConfig,
+    warpCoreConfig,
+    context: { registry, multiProvider },
+  } = params;
+
+  // Addresses used to get static Ism factories
+  const addresses = await registry.getAddresses();
+
+  // Convert warpCoreConfig.tokens[] into a mapping of { [chainName]: Config }
+  // This allows O(1) reads within the loop
+  const warpCoreByChain = Object.fromEntries(
+    warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  );
+
+  // Attempt to update Warp Routes
+  // Can update existing or deploy new contracts
+  logGray(`Comparing target and onchain Warp configs`);
+  await promiseObjAll(
+    objMap(warpDeployConfig, async (chain, config) => {
+      try {
+        // Update Warp
+        config.ismFactoryAddresses = addresses[
+          chain
+        ] as ProxyFactoryFactoriesAddresses;
+        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
+          config,
+          chain,
+          addresses: {
+            deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
+          },
+        });
+        const transactions = await evmERC20WarpModule.update(config);
+
+        // Send Txs
+        if (transactions.length) {
+          for (const transaction of transactions) {
+            await multiProvider.sendTransaction(chain, transaction);
+          }
+
+          logGreen(`Warp config updated on ${chain}.`);
+        } else {
+          logGreen(
+            `Warp config on ${chain} is the same as target. No updates needed.`,
+          );
+        }
+      } catch (e) {
+        logRed(`Warp config on ${chain} failed to update.`, e);
+      }
+    }),
+  );
 }
