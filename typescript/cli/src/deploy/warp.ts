@@ -369,44 +369,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
   // get diff of both configs
   const warpDeployChains = Object.keys(warpDeployConfig);
   const warpCoreChains = Object.keys(warpCoreByChain);
-  if (warpDeployChains.length > warpCoreChains.length) {
-    logGray('Extending deployed Warp configs');
-    // Deploy with the additional config
-    const additionalConfig = objFilter(
-      warpDeployConfig,
-      (chain, _config): _config is any => !warpCoreChains.includes(chain),
-    );
-
-    // @TODO handle synthetic addition because it needs to derive from one of the collateral
-
-    const newDeployedContracts = await executeDeploy({
-      context,
-      warpDeployConfig: additionalConfig,
-    });
-
-    // @TODO Enroll with existing chains
-
-    // Get existing contracts from config to merge with newly deployed ones
-    const deployedConfig = objFilter(
-      warpDeployConfig,
-      (chain, _config): _config is any => warpCoreChains.includes(chain),
-    );
-    const existingDeployedAddresses = objMap(
-      deployedConfig,
-      (chain, config) => {
-        return {
-          [config.type]: warpCoreByChain[chain].addressOrDenom!,
-        };
-      },
-    );
-
-    const updatedWarpCoreConfig = await getWarpCoreConfig(params, {
-      ...attachContractsMap(existingDeployedAddresses, hypERC20factories),
-      ...newDeployedContracts,
-    });
-    WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
-    await writeDeploymentArtifacts(updatedWarpCoreConfig, context);
-  } else if (warpDeployChains.length === warpCoreChains.length) {
+  if (warpDeployChains.length === warpCoreChains.length) {
     // Attempt to update Warp Routes
     // Can update existing or deploy new contracts
     logGray(`Comparing target and onchain Warp configs`);
@@ -446,6 +409,43 @@ export async function runWarpRouteApply(params: ApplyParams) {
         }
       }),
     );
+  } else if (warpDeployChains.length > warpCoreChains.length) {
+    logGray('Extending deployed Warp configs');
+    // Deploy with the additional config
+    const additionalConfig = objFilter(
+      warpDeployConfig,
+      (chain, _config): _config is any => !warpCoreChains.includes(chain),
+    );
+
+    // @TODO handle synthetic addition because it needs to derive from one of the collateral
+
+    const newDeployedContracts = await executeDeploy({
+      context,
+      warpDeployConfig: additionalConfig,
+    });
+
+    // @TODO Enroll with existing chains
+
+    // Get existing contracts from config to merge with newly deployed ones
+    const deployedConfig = objFilter(
+      warpDeployConfig,
+      (chain, _config): _config is any => warpCoreChains.includes(chain),
+    );
+    const existingDeployedAddresses = objMap(
+      deployedConfig,
+      (chain, config) => {
+        return {
+          [config.type]: warpCoreByChain[chain].addressOrDenom!,
+        };
+      },
+    );
+
+    const updatedWarpCoreConfig = await getWarpCoreConfig(params, {
+      ...attachContractsMap(existingDeployedAddresses, hypERC20factories),
+      ...newDeployedContracts,
+    });
+    WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
+    await writeDeploymentArtifacts(updatedWarpCoreConfig, context);
   } else {
     throw new Error('Unenrolling warp routes is currently not supported');
   }
