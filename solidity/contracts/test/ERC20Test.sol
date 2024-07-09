@@ -86,6 +86,18 @@ contract XERC20Test is ERC20Test, IXERC20 {
     ) external view returns (uint256) {
         return type(uint256).max;
     }
+
+    function mintingMaxLimitOf(
+        address _bridge
+    ) external view returns (uint256) {
+        return type(uint256).max;
+    }
+
+    function burningMaxLimitOf(
+        address _bridge
+    ) external view returns (uint256) {
+        return type(uint256).max;
+    }
 }
 
 contract XERC20LockboxTest is IXERC20Lockbox {
