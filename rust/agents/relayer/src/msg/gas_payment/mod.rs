@@ -93,11 +93,12 @@ impl GasPaymentEnforcer {
             message_id: msg_id,
             destination: message.destination,
         };
-        let Some(current_payment) = self
+        let current_payment_option = self
             .db
-            .retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?
-        else {
-            return Ok(GasPolicyStatus::NoPaymentFound);
+            .retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
+        let current_payment = match current_payment_option {
+            Some(payment) => payment,
+            None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
         };
         let current_expenditure = self.db.retrieve_gas_expenditure_by_message_id(msg_id)?;
 
@@ -136,8 +137,12 @@ impl GasPaymentEnforcer {
                 .map(|result| {
                     if let Some(gas_limit) = result {
                         GasPolicyStatus::PolicyMet(gas_limit)
-                    } else {
+                    } else if current_payment_option.is_some() {
+                        // There is a gas payment but it didn't meet the policy
                         GasPolicyStatus::PolicyNotMet
+                    } else {
+                        // No payment was found and it didn't meet the policy
+                        GasPolicyStatus::NoPaymentFound
                     }
                 });
         }
@@ -244,7 +249,7 @@ mod test {
                         &TxCostEstimate::default(),
                     )
                     .await,
-                Ok(GasPolicyStatus::NoPaymentFound)
+                Ok(GasPolicyStatus::PolicyNotMet)
             ));
         })
         .await;
@@ -417,7 +422,7 @@ mod test {
                 )
                 .await
                 .unwrap(),
-                GasPolicyStatus::NoPaymentFound);
+                GasPolicyStatus::PolicyMet(U256::zero()));
 
             // Switch the sender & recipient
             let not_matching_message = HyperlaneMessage {

@@ -232,12 +232,7 @@ impl HyperlaneRocksDB {
         let existing_payment =
             match self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)? {
                 Some(payment) => payment,
-                None => InterchainGasPayment {
-                    message_id: gas_payment_key.message_id,
-                    destination: gas_payment_key.destination,
-                    payment: Default::default(),
-                    gas_amount: Default::default(),
-                },
+                None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
             };
         let total = existing_payment + event;
 
