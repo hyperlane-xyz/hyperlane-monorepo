@@ -1,5 +1,4 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-import { ethers } from 'ethers';
+import { ethers, providers } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -40,16 +39,28 @@ export const RelayerCacheSchema = z.object({
 type RelayerCache = z.infer<typeof RelayerCacheSchema>;
 
 export class HyperlaneRelayer {
-  private multiProvider: MultiProvider;
-  private metadataBuilder: BaseMetadataBuilder;
+  protected multiProvider: MultiProvider;
+  protected metadataBuilder: BaseMetadataBuilder;
+  protected readonly core: HyperlaneCore;
+  protected readonly retryTimeout: number;
 
   public cache: RelayerCache | undefined;
 
-  private stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
+  protected stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
 
   public readonly logger: Logger;
 
-  constructor(protected readonly core: HyperlaneCore, caching = true) {
+  constructor({
+    core,
+    caching = true,
+    retryTimeout = 5 * 1000,
+  }: {
+    core: HyperlaneCore;
+    caching?: boolean;
+    retryTimeout?: number;
+  }) {
+    this.core = core;
+    this.retryTimeout = retryTimeout;
     this.logger = core.logger.child({ module: 'Relayer' });
     this.metadataBuilder = new BaseMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
@@ -65,10 +76,13 @@ export class HyperlaneRelayer {
     chain: ChainName,
     hook: Address,
   ): Promise<DerivedHookConfig> {
-    const config = (this.cache?.hook[chain]?.[hook] ??
-      (await new EvmHookReader(this.multiProvider, chain).deriveHookConfig(
-        hook,
-      ))) as DerivedHookConfig | undefined;
+    let config: DerivedHookConfig | undefined;
+    if (this.cache?.hook[chain]?.[hook]) {
+      config = this.cache.hook[chain][hook] as DerivedHookConfig | undefined;
+    } else {
+      const evmHookReader = new EvmHookReader(this.multiProvider, chain);
+      config = await evmHookReader.deriveHookConfig(hook);
+    }
 
     if (!config) {
       throw new Error(`Hook config not found for ${hook}`);
@@ -85,10 +99,13 @@ export class HyperlaneRelayer {
     chain: ChainName,
     ism: Address,
   ): Promise<DerivedIsmConfig> {
-    const config = (this.cache?.ism[chain]?.[ism] ??
-      (await new EvmIsmReader(this.multiProvider, chain).deriveIsmConfig(
-        ism,
-      ))) as DerivedIsmConfig | undefined;
+    let config: DerivedIsmConfig | undefined;
+    if (this.cache?.ism[chain]?.[ism]) {
+      config = this.cache.ism[chain][ism] as DerivedIsmConfig | undefined;
+    } else {
+      const evmIsmReader = new EvmIsmReader(this.multiProvider, chain);
+      config = await evmIsmReader.deriveIsmConfig(ism);
+    }
 
     if (!config) {
       throw new Error(`ISM config not found for ${ism}`);
@@ -119,7 +136,7 @@ export class HyperlaneRelayer {
   }
 
   async relayMessage(
-    dispatchTx: TransactionReceipt,
+    dispatchTx: providers.TransactionReceipt,
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
   ): Promise<ethers.ContractReceipt> {
@@ -141,9 +158,14 @@ export class HyperlaneRelayer {
     ]);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
+    const blockTime = this.multiProvider.getChainMetadata(
+      message.parsed.destination,
+    ).blocks?.estimateBlockTime;
+    const waitTime = blockTime ? blockTime * 2 : this.retryTimeout;
+
     const metadata = await pollAsync(
       () => this.metadataBuilder.build({ message, ism, hook, dispatchTx }),
-      5 * 1000, // every 5 seconds
+      waitTime,
       12, // 12 attempts
     );
 
@@ -152,7 +174,7 @@ export class HyperlaneRelayer {
   }
 
   async relayMessages(
-    dispatchTx: TransactionReceipt,
+    dispatchTx: providers.TransactionReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = HyperlaneCore.getDispatchedMessages(dispatchTx);
     return Promise.all(
@@ -175,6 +197,7 @@ export class HyperlaneRelayer {
     this.cache = objMerge(this.cache, cache);
   }
 
+  // fill cache with default ISM and hook configs for quicker relaying (optional)
   async hydrateDefaults(): Promise<void> {
     assert(this.cache, 'Caching not enabled');
 

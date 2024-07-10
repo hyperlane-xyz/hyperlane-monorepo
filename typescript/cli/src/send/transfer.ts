@@ -159,7 +159,7 @@ async function executeDelivery({
   logBlue(`Sent transfer from ${origin} to ${recipient} on ${destination}.`);
 
   if (selfRelay) {
-    const relayer = new HyperlaneRelayer(core);
+    const relayer = new HyperlaneRelayer({ core });
     await relayer.relayMessage(transferTxReceipt);
     logGreen('Transfer was self-relayed!');
     return;

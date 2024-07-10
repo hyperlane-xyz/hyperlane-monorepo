@@ -42,10 +42,10 @@ export async function checkMessageStatus({
     context.multiProvider,
   );
 
-  let dispatchedTx: TransactionReceipt;
+  let dispatchedReceipt: TransactionReceipt;
   if (!dispatchTx) {
     try {
-      dispatchedTx = await core.getDispatchTx(origin, messageId);
+      dispatchedReceipt = await core.getDispatchTx(origin, messageId);
     } catch (e) {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
     }
@@ -54,11 +54,11 @@ export async function checkMessageStatus({
     });
   }
 
-  dispatchedTx ??= await context.multiProvider
+  dispatchedReceipt ??= await context.multiProvider
     .getProvider(origin)
     .getTransactionReceipt(dispatchTx);
 
-  const messages = core.getDispatchedMessages(dispatchedTx);
+  const messages = core.getDispatchedMessages(dispatchedReceipt);
   const match = messages.find((m) => m.id === messageId);
   assert(match, `Message ${messageId} not found in dispatch tx ${dispatchTx}`);
   const message = match;
@@ -77,8 +77,8 @@ export async function checkMessageStatus({
       return;
     }
 
-    const relayer = new HyperlaneRelayer(core);
-    deliveredTx = await relayer.relayMessage(dispatchedTx);
+    const relayer = new HyperlaneRelayer({ core });
+    deliveredTx = await relayer.relayMessage(dispatchedReceipt);
   }
 
   logGreen(

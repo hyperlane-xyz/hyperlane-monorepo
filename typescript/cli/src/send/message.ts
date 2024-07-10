@@ -109,7 +109,7 @@ async function executeDelivery({
     log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
     if (selfRelay) {
-      const relayer = new HyperlaneRelayer(core);
+      const relayer = new HyperlaneRelayer({ core });
       log('Attempting self-relay of message');
       await relayer.relayMessage(dispatchTx);
       logGreen('Message was self-relayed!');

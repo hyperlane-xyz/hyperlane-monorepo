@@ -15,7 +15,7 @@ import {
   addressToBytes32,
   assert,
   bytes32ToAddress,
-  eqAddress,
+  isZeroishAddress,
   messageId,
   objFilter,
   objMap,
@@ -220,13 +220,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
-  estimateHandle(message: DispatchedMessage): Promise<ethers.BigNumber> {
-    return this.getRecipient(message).estimateGas.handle(
-      message.parsed.origin,
-      message.parsed.sender,
-      message.parsed.body,
-      { from: this.getAddresses(this.getDestination(message)).mailbox },
-    );
+  async estimateHandle(message: DispatchedMessage): Promise<string> {
+    return (
+      await this.getRecipient(message).estimateGas.handle(
+        message.parsed.origin,
+        message.parsed.sender,
+        message.parsed.body,
+        { from: this.getAddresses(this.getDestination(message)).mailbox },
+      )
+    ).toString();
   }
 
   deliver(
@@ -251,7 +253,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     try {
       const client = MailboxClient__factory.connect(senderAddress, provider);
       const hook = await client.hook();
-      if (!eqAddress(hook, ethers.constants.AddressZero)) {
+      if (!isZeroishAddress(hook)) {
         return hook;
       }
     } catch (e) {
