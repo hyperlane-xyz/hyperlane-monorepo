@@ -410,11 +410,15 @@ export abstract class HyperlaneDeployer<
           'Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized',
         );
       } else {
-        this.logger.debug(`Initializing ${contractName} (${contract.address}) on ${chain}...`);
+        this.logger.debug(
+          `Initializing ${contractName} (${contract.address}) on ${chain}...`,
+        );
         const overrides = this.multiProvider.getTransactionOverrides(chain);
         const initTx = await contract.initialize(...initializeArgs, overrides);
         const receipt = await this.multiProvider.handleTx(chain, initTx);
-        this.logger.debug(`Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash});
+        this.logger.debug(
+          `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
+        );
       }
     }
 
