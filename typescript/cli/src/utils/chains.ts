@@ -16,7 +16,8 @@ export async function runSingleChainSelectionStep(
   chainMetadata: ChainMap<ChainMetadata>,
   message = 'Select chain',
 ) {
-  const choices = getChainChoices(chainMetadata);
+  const networkType = await selectNetworkType();
+  const choices = getChainChoices(chainMetadata, networkType);
   const chain = (await select({
     message,
     choices,
@@ -31,7 +32,8 @@ export async function runMultiChainSelectionStep(
   message = 'Select chains',
   requireMultiple = false,
 ) {
-  const choices = getChainChoices(chainMetadata);
+  const networkType = await selectNetworkType();
+  const choices = getChainChoices(chainMetadata, networkType);
   while (true) {
     logTip('Use SPACE key to select chains, then press ENTER');
     const chains = (await checkbox({
@@ -48,19 +50,36 @@ export async function runMultiChainSelectionStep(
   }
 }
 
-function getChainChoices(chainMetadata: ChainMap<ChainMetadata>) {
+async function selectNetworkType() {
+  const networkType = await select({
+    message: 'Select network type',
+    choices: [
+      { name: 'Mainnet', value: 'mainnet' },
+      { name: 'Testnet', value: 'testnet' },
+    ],
+  });
+  return networkType as 'mainnet' | 'testnet';
+}
+
+function getChainChoices(
+  chainMetadata: ChainMap<ChainMetadata>,
+  networkType: 'mainnet' | 'testnet',
+) {
   const chainsToChoices = (chains: ChainMetadata[]) =>
     chains.map((c) => ({ name: c.name, value: c.name }));
 
   const chains = Object.values(chainMetadata);
-  const testnetChains = chains.filter((c) => !!c.isTestnet);
-  const mainnetChains = chains.filter((c) => !c.isTestnet);
+  const filteredChains = chains.filter((c) =>
+    networkType === 'mainnet' ? !c.isTestnet : !!c.isTestnet,
+  );
   const choices: Parameters<typeof select>['0']['choices'] = [
     { name: '(New custom chain)', value: NEW_CHAIN_MARKER },
-    new Separator('--Mainnet Chains--'),
-    ...chainsToChoices(mainnetChains),
-    new Separator('--Testnet Chains--'),
-    ...chainsToChoices(testnetChains),
+    new Separator(
+      `--${
+        networkType.charAt(0).toUpperCase() + networkType.slice(1)
+      } Chains--`,
+    ),
+    ...chainsToChoices(filteredChains),
   ];
   return choices;
 }
