@@ -407,7 +407,7 @@ export abstract class HyperlaneDeployer<
         )
       ) {
         this.logger.debug(
-          'Skipping initialization because contract is already initialized',
+          'Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized',
         );
       } else {
         this.logger.debug(`Initialize ${contractName} on ${chain}`);
