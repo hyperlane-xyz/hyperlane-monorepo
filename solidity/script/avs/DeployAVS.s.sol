@@ -10,6 +10,7 @@ import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDeleg
 
 import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 import {ECDSAServiceManagerBase} from "../../contracts/avs/ECDSAServiceManagerBase.sol";
@@ -165,6 +166,33 @@ contract DeployAVS is Script {
         );
         console.log("StakeRegistry Proxy: ", address(stakeRegistryProxy));
         console.log("HyperlaneServiceManager Proxy: ", address(hsmProxy));
+
+        vm.stopBroadcast();
+    }
+
+    function upgradeHsm(
+        string memory network,
+        address hsmProxy,
+        address stakeRegistryProxy
+    ) external {
+        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+
+        _loadEigenlayerAddresses(network);
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
+                address(avsDirectory),
+                stakeRegistryProxy,
+                address(paymentCoordinator),
+                address(delegationManager)
+            );
+        console.log("Deployed new impl at", address(strategyManagerImpl));
+
+        proxyAdmin.upgrade(
+            ITransparentUpgradeableProxy(payable(hsmProxy)),
+            address(strategyManagerImpl)
+        );
 
         vm.stopBroadcast();
     }
