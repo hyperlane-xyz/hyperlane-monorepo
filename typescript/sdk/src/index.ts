@@ -308,10 +308,14 @@ export {
   defaultViemProviderBuilder,
   protocolToDefaultProviderBuilder,
 } from './providers/providerBuilders.js';
-export { PopulatedTransactionSchema } from './providers/transactions/schemas.js';
+export {
+  PopulatedTransactionSchema,
+  PopulatedTransactionsSchema,
+} from './providers/transactions/schemas.js';
 export {
   CallData,
   PopulatedTransaction,
+  PopulatedTransactions,
 } from './providers/transactions/types.js';
 
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
