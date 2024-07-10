@@ -2,4 +2,4 @@
 '@hyperlane-xyz/cli': patch
 ---
 
-chore: add symbol text when insuficient balance for pay gas
+Display token symbol when balance is insufficient for command
