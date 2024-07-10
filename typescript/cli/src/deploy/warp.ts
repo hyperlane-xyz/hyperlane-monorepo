@@ -158,7 +158,7 @@ async function executeDeploy(
 
   const deployer = warpDeployConfig.isNft
     ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider);
+    : new HypERC20Deployer(multiProvider); // @TODO replace with EvmERC20WarpModule
 
   const config: WarpRouteDeployConfig =
     isDryRun && dryRunChain
@@ -411,26 +411,39 @@ export async function runWarpRouteApply(params: ApplyParams) {
     );
   } else if (warpDeployChains.length > warpCoreChains.length) {
     logGray('Extending deployed Warp configs');
-    // Deploy with the additional config
-    const additionalConfig = objFilter(
+
+    // Get the existing deployed config
+    const deployedConfig: WarpRouteDeployConfig = objFilter(
+      warpDeployConfig,
+      (chain, _config): _config is any => warpCoreChains.includes(chain), // @TODO fix any
+    );
+
+    // Get additional config
+    let additionalConfig: WarpRouteDeployConfig = objFilter(
       warpDeployConfig,
       (chain, _config): _config is any => !warpCoreChains.includes(chain),
     );
 
-    // @TODO handle synthetic addition because it needs to derive from one of the collateral
+    // Derive additionalConfig metadata using the first deployed Warp Route
+    const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+      context.multiProvider,
+      deployedConfig,
+    );
 
+    additionalConfig = objMap(additionalConfig, (chain, config) => {
+      return {
+        ...config,
+        ...tokenMetadata,
+      };
+    });
+
+    // Deploy
     const newDeployedContracts = await executeDeploy({
       context,
       warpDeployConfig: additionalConfig,
     });
 
-    // @TODO Enroll with existing chains
-
-    // Get existing contracts from config to merge with newly deployed ones
-    const deployedConfig = objFilter(
-      warpDeployConfig,
-      (chain, _config): _config is any => warpCoreChains.includes(chain),
-    );
+    // Convert existing deployed config to HyperlaneAddressMap
     const existingDeployedAddresses = objMap(
       deployedConfig,
       (chain, config) => {
@@ -439,9 +452,13 @@ export async function runWarpRouteApply(params: ApplyParams) {
         };
       },
     );
+    const existingDeployedContracts = attachContractsMap(
+      existingDeployedAddresses,
+      hypERC20factories,
+    );
 
     const updatedWarpCoreConfig = await getWarpCoreConfig(params, {
-      ...attachContractsMap(existingDeployedAddresses, hypERC20factories),
+      ...existingDeployedContracts,
       ...newDeployedContracts,
     });
     WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
