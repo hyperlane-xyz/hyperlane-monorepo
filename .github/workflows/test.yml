@@ -404,6 +404,7 @@ jobs:
 
   env-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     needs: [yarn-build]
     strategy:
       fail-fast: false
