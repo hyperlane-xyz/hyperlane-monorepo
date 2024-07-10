@@ -6,13 +6,20 @@ import {
   MergedRegistry,
 } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  MultiProvider,
+  SubmissionStrategy,
+  SubmissionStrategySchema,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { readYamlOrJson } from '../utils/files.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
 import {
@@ -22,7 +29,7 @@ import {
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !isNullish(argv.dryRun);
+  let isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
@@ -36,6 +43,15 @@ export async function contextMiddleware(argv: Record<string, any>) {
     throw new Error(
       "'--from-address' or '-f' should only be used for dry-runs",
     );
+  if (argv.strategy) {
+    settings.submissionStrategy = getSubmissionStrategy(argv.strategy);
+    if (
+      settings.submissionStrategy.submitter.type ===
+      TxSubmitterType.IMPERSONATED_ACCOUNT
+    ) {
+      isDryRun = true;
+    }
+  }
   const context = isDryRun
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
@@ -52,6 +68,7 @@ export async function getContext({
   key,
   requiresKey,
   skipConfirmation,
+  submissionStrategy,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri);
 
@@ -68,6 +85,7 @@ export async function getContext({
     key,
     signer,
     skipConfirmation: !!skipConfirmation,
+    submissionStrategy,
   } as CommandContext;
 }
 
@@ -82,6 +100,7 @@ export async function getDryRunContext(
     key,
     fromAddress,
     skipConfirmation,
+    submissionStrategy,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
@@ -90,10 +109,12 @@ export async function getDryRunContext(
 
   if (!chain) {
     if (skipConfirmation) throw new Error('No chains provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to dry-run against:',
-    );
+    chain = submissionStrategy
+      ? submissionStrategy.chain
+      : await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select chain to dry-run against:',
+        );
   }
 
   logBlue(`Dry-running against chain: ${chain}`);
@@ -117,6 +138,7 @@ export async function getDryRunContext(
     skipConfirmation: !!skipConfirmation,
     isDryRun: true,
     dryRunChain: chain,
+    submissionStrategy,
   } as WriteCommandContext;
 }
 
@@ -162,4 +184,18 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
+}
+
+/**
+ * Retrieves a submission strategy from the provided filepath.
+ * @param submissionStrategyFilepath a filepath to the submission strategy file
+ * @returns a formatted submission strategy
+ */
+function getSubmissionStrategy(
+  submissionStrategyFilepath: string,
+): SubmissionStrategy {
+  const submissionStrategyFileContent = readYamlOrJson(
+    submissionStrategyFilepath.trim(),
+  );
+  return SubmissionStrategySchema.parse(submissionStrategyFileContent);
 }
