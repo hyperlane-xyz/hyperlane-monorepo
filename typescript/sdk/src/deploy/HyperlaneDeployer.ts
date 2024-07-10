@@ -413,7 +413,8 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(`Initializing ${contractName} (${contract.address}) on ${chain}...`);
         const overrides = this.multiProvider.getTransactionOverrides(chain);
         const initTx = await contract.initialize(...initializeArgs, overrides);
-        await this.multiProvider.handleTx(chain, initTx);
+        const receipt = await this.multiProvider.handleTx(chain, initTx);
+        this.logger.debug(`Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash});
       }
     }
 
