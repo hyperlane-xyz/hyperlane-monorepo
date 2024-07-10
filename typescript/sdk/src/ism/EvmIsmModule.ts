@@ -146,6 +146,11 @@ export class EvmIsmModule extends HyperlaneModule<
     this.args.config = targetConfig;
     targetConfig = normalizeConfig(targetConfig);
 
+    assert(
+      typeof targetConfig === 'object',
+      'normalized targetConfig should be an object',
+    );
+
     // if it's a fallback routing ISM, do a mailbox diff check
 
     // If configs match, no updates needed

@@ -155,17 +155,16 @@ function randomHookConfig(
 describe('EvmHookModule', async () => {
   const chain = TestChainName.test4;
 
-  // beforeEach
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
-  let fundingAccount: Signer;
+  let signer: Signer;
+  let funder: Signer;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
   let exampleRoutingConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
 
   beforeEach(async () => {
-    const [signer, funder] = await hre.ethers.getSigners();
-    fundingAccount = funder;
+    [signer, funder] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
@@ -223,7 +222,7 @@ describe('EvmHookModule', async () => {
   // Helper method for create a new multiprovider with an impersonated account
   async function impersonateAccount(account: Address): Promise<MultiProvider> {
     await hre.ethers.provider.send('hardhat_impersonateAccount', [account]);
-    await fundingAccount.sendTransaction({
+    await funder.sendTransaction({
       to: account,
       value: hre.ethers.utils.parseEther('1.0'),
     });
