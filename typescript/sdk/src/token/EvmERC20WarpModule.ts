@@ -58,7 +58,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    */
   public async read(): Promise<TokenRouterConfig> {
     return this.reader.deriveWarpRouteConfig(
-      this.params.addresses.deployedTokenRoute,
+      this.args.addresses.deployedTokenRoute,
     );
   }
 

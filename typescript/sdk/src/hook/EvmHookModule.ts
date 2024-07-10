@@ -100,7 +100,7 @@ export class EvmHookModule extends HyperlaneModule<
     params.config = HookConfigSchema.parse(params.config);
     super(params);
 
-    this.reader = new EvmHookReader(multiProvider, this.params.chain);
+    this.reader = new EvmHookReader(multiProvider, this.args.chain);
     this.deployer = new EvmModuleDeployer(
       multiProvider,
       {
@@ -111,16 +111,16 @@ export class EvmHookModule extends HyperlaneModule<
       contractVerifier,
     );
 
-    this.chain = this.multiProvider.getChainName(this.params.chain);
+    this.chain = this.multiProvider.getChainName(this.args.chain);
     this.domainId = this.multiProvider.getDomainId(this.chain);
 
     this.txOverrides = this.multiProvider.getTransactionOverrides(this.chain);
   }
 
   public async read(): Promise<HookConfig> {
-    return typeof this.params.config === 'string'
-      ? this.params.addresses.deployedHook
-      : this.reader.deriveHookConfig(this.params.addresses.deployedHook);
+    return typeof this.args.config === 'string'
+      ? this.args.addresses.deployedHook
+      : this.reader.deriveHookConfig(this.args.addresses.deployedHook);
   }
 
   public async update(
@@ -140,7 +140,7 @@ export class EvmHookModule extends HyperlaneModule<
     const currentConfig = normalizeConfig(await this.read());
 
     // Update the config
-    this.params.config = targetConfig;
+    this.args.config = targetConfig;
 
     // If configs match, no updates needed
     if (configDeepEquals(currentConfig, targetConfig)) {
@@ -161,7 +161,7 @@ export class EvmHookModule extends HyperlaneModule<
         config: targetConfig,
       });
 
-      this.params.addresses.deployedHook = contract.address;
+      this.args.addresses.deployedHook = contract.address;
       return [];
     }
 
@@ -201,7 +201,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     // Lastly, check if the resolved owner is different from the current owner
     const owner = await Ownable__factory.connect(
-      this.params.addresses.deployedHook,
+      this.args.addresses.deployedHook,
       this.multiProvider.getProvider(this.chain),
     ).owner();
 
@@ -210,7 +210,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
         chainId: this.domainId,
-        to: this.params.addresses.deployedHook,
+        to: this.args.addresses.deployedHook,
         data: Ownable__factory.createInterface().encodeFunctionData(
           'transferOwnership(address)',
           [targetConfig.owner],
@@ -248,7 +248,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     // deploy hook and assign address to module
     const deployedHook = await module.deploy({ config });
-    module.params.addresses.deployedHook = deployedHook.address;
+    module.args.addresses.deployedHook = deployedHook.address;
 
     return module;
   }
@@ -308,7 +308,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         annotation: `Updating paused state to ${targetConfig.paused}`,
         chainId: this.domainId,
-        to: this.params.addresses.deployedHook,
+        to: this.args.addresses.deployedHook,
         data,
       });
     }
@@ -331,7 +331,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
         chainId: this.domainId,
-        to: this.params.addresses.deployedHook,
+        to: this.args.addresses.deployedHook,
         data: igpInterface.encodeFunctionData('setBeneficiary(address)', [
           targetConfig.beneficiary,
         ]),
@@ -348,7 +348,7 @@ export class EvmHookModule extends HyperlaneModule<
     if (domainKeys.length > 0) {
       const domainId = this.multiProvider.getDomainId(domainKeys[0]);
       ({ gasOracle } = await InterchainGasPaymaster__factory.connect(
-        this.params.addresses.deployedHook,
+        this.args.addresses.deployedHook,
         this.multiProvider.getSignerOrProvider(this.chain),
       )['destinationGasConfigs(uint32)'](domainId));
 
@@ -373,7 +373,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Note: this will only update the gas params for remotes that are in the target config
     updateTxs.push(
       ...(await this.updateIgpRemoteGasParams({
-        interchainGasPaymaster: this.params.addresses.deployedHook,
+        interchainGasPaymaster: this.args.addresses.deployedHook,
         gasOracle,
         currentOverheads: currentConfig.overhead,
         targetOverheads: targetConfig.overhead,
@@ -520,7 +520,7 @@ export class EvmHookModule extends HyperlaneModule<
     // if maxProtocolFee has changed, deploy a new hook
     if (currentConfig.maxProtocolFee !== targetConfig.maxProtocolFee) {
       const hook = await this.deployProtocolFeeHook({ config: targetConfig });
-      this.params.addresses.deployedHook = hook.address;
+      this.args.addresses.deployedHook = hook.address;
       return [];
     }
 
@@ -529,7 +529,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         annotation: `Updating protocol fee from ${currentConfig.protocolFee} to ${targetConfig.protocolFee}`,
         chainId: this.domainId,
-        to: this.params.addresses.deployedHook,
+        to: this.args.addresses.deployedHook,
         data: protocolFeeInterface.encodeFunctionData(
           'setProtocolFee(uint256)',
           [targetConfig.protocolFee],
@@ -542,7 +542,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
         chainId: this.domainId,
-        to: this.params.addresses.deployedHook,
+        to: this.args.addresses.deployedHook,
         data: protocolFeeInterface.encodeFunctionData(
           'setBeneficiary(address)',
           [targetConfig.beneficiary],
@@ -571,7 +571,7 @@ export class EvmHookModule extends HyperlaneModule<
       )
     ) {
       const hook = await this.deploy({ config: targetConfig });
-      this.params.addresses.deployedHook = hook.address;
+      this.args.addresses.deployedHook = hook.address;
       return [];
     }
 
@@ -590,7 +590,7 @@ export class EvmHookModule extends HyperlaneModule<
       {
         annotation: 'Updating routing hooks...',
         chainId: this.domainId,
-        to: this.params.addresses.deployedHook,
+        to: this.args.addresses.deployedHook,
         data: DomainRoutingHook__factory.createInterface().encodeFunctionData(
           'setHooks((uint32,address)[])',
           [routingUpdates],
@@ -613,7 +613,7 @@ export class EvmHookModule extends HyperlaneModule<
       // @ts-ignore
       return IPostDispatchHook__factory.connect(
         config,
-        this.multiProvider.getSignerOrProvider(this.params.chain),
+        this.multiProvider.getSignerOrProvider(this.args.chain),
       );
     }
 
@@ -622,7 +622,7 @@ export class EvmHookModule extends HyperlaneModule<
         return this.deployer.deployContract({
           chain: this.chain,
           contractKey: HookType.MERKLE_TREE,
-          constructorArgs: [this.params.addresses.mailbox],
+          constructorArgs: [this.args.addresses.mailbox],
         });
       case HookType.INTERCHAIN_GAS_PAYMASTER:
         return this.deployIgpHook({ config });
@@ -704,7 +704,7 @@ export class EvmHookModule extends HyperlaneModule<
     );
     const signer = this.multiProvider.getSigner(this.chain);
     const factory = StaticAggregationHookFactory__factory.connect(
-      this.params.addresses.staticAggregationHookFactory,
+      this.args.addresses.staticAggregationHookFactory,
       signer,
     );
     const address = await EvmModuleDeployer.deployStaticAddressSet({
@@ -725,7 +725,7 @@ export class EvmHookModule extends HyperlaneModule<
     config: OpStackHookConfig;
   }): Promise<OPStackHook> {
     const chain = this.chain;
-    const mailbox = this.params.addresses.mailbox;
+    const mailbox = this.args.addresses.mailbox;
     this.logger.debug(
       'Deploying OPStackHook for %s to %s...',
       chain,
@@ -750,7 +750,7 @@ export class EvmHookModule extends HyperlaneModule<
       await EvmIsmModule.create({
         chain: config.destinationChain,
         config: ismConfig,
-        proxyFactoryFactories: this.params.addresses,
+        proxyFactoryFactories: this.args.addresses,
         mailbox: mailbox,
         multiProvider: this.multiProvider,
       })
@@ -831,7 +831,7 @@ export class EvmHookModule extends HyperlaneModule<
         chain: this.chain,
         contractKey: HookType.FALLBACK_ROUTING,
         constructorArgs: [
-          this.params.addresses.mailbox,
+          this.args.addresses.mailbox,
           deployerAddress,
           fallbackHook.address,
         ],
@@ -841,7 +841,7 @@ export class EvmHookModule extends HyperlaneModule<
       routingHook = await this.deployer.deployContract({
         chain: this.chain,
         contractKey: HookType.ROUTING,
-        constructorArgs: [this.params.addresses.mailbox, deployerAddress],
+        constructorArgs: [this.args.addresses.mailbox, deployerAddress],
       });
     }
 
@@ -905,7 +905,7 @@ export class EvmHookModule extends HyperlaneModule<
       chain: this.chain,
       contractKey: HookType.INTERCHAIN_GAS_PAYMASTER,
       contractName: HookType.INTERCHAIN_GAS_PAYMASTER,
-      proxyAdmin: this.params.addresses.proxyAdmin,
+      proxyAdmin: this.args.addresses.proxyAdmin,
       constructorArgs: [],
       initializeArgs: [deployerAddress, config.beneficiary],
     });
