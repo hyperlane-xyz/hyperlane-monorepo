@@ -69,6 +69,10 @@ export interface HookReader {
   derivePausableConfig(
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>>;
+  assertHookType(
+    hookType: OnchainHookType,
+    expectedType: OnchainHookType,
+  ): void;
 }
 
 export class EvmHookReader implements HookReader {
@@ -138,8 +142,10 @@ export class EvmHookReader implements HookReader {
         customMessage = customMessage.concat(
           ` [The provided hook contract might be outdated and not support hookType()]`,
         );
+        this.logger.info(`${customMessage}:\n\t${e}`);
+      } else {
+        this.logger.debug(`${customMessage}:\n\t${e}`);
       }
-      this.logger.trace(`${customMessage}:\n\t${e}`);
       throw new Error(`${customMessage}:\n\t${e}`);
     }
 
@@ -152,7 +158,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.MERKLE_TREE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
 
     return {
       address,
@@ -164,7 +170,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
+    this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
@@ -185,8 +191,9 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    assert(
-      (await hook.hookType()) === OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
     );
 
     const owner = await hook.owner();
@@ -259,7 +266,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
     const hook = ProtocolFee__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.PROTOCOL_FEE);
 
     const owner = await hook.owner();
     const maxProtocolFee = await hook.MAX_PROTOCOL_FEE();
@@ -281,7 +288,7 @@ export class EvmHookReader implements HookReader {
   ): Promise<WithAddress<OpStackHookConfig>> {
     const hook = OPStackHook__factory.connect(address, this.provider);
     const owner = await hook.owner();
-    assert((await hook.hookType()) === OnchainHookType.ID_AUTH_ISM);
+    this.assertHookType(await hook.hookType(), OnchainHookType.ID_AUTH_ISM);
 
     const messengerContract = await hook.l1Messenger();
     const destinationDomain = await hook.destinationDomain();
@@ -301,7 +308,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.ROUTING);
+    this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
@@ -321,7 +328,10 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    assert((await hook.hookType()) === OnchainHookType.FALLBACK_ROUTING);
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.FALLBACK_ROUTING,
+    );
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
@@ -367,7 +377,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>> {
     const hook = PausableHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.PAUSABLE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.PAUSABLE);
 
     const owner = await hook.owner();
     const paused = await hook.paused();
@@ -389,5 +399,15 @@ export class EvmHookReader implements HookReader {
       //@ts-ignore
       this.provider.setLogLevel(level);
     }
+  }
+
+  assertHookType(
+    hookType: OnchainHookType,
+    expectedType: OnchainHookType,
+  ): void {
+    assert(
+      hookType === expectedType,
+      `expected hook type to be ${expectedType}, got ${hookType}`,
+    );
   }
 }
