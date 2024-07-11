@@ -7,13 +7,17 @@ import {
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
 
-import { S3Config, S3Wrapper } from './s3.js';
+import {
+  HTTP_LOCATION_PREFIX,
+  S3Config,
+  S3Wrapper,
+  S3_LOCATION_PREFIX,
+} from './s3.js';
 
 const checkpointWithMessageIdKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}_with_id.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
 const ANNOUNCEMENT_KEY = 'announcement.json';
-const LOCATION_PREFIX = 's3://';
 
 /**
  * Extension of BaseValidator that includes AWS S3 utilities.
@@ -32,34 +36,34 @@ export class S3Validator extends BaseValidator {
   static async fromStorageLocation(
     storageLocation: string,
   ): Promise<S3Validator> {
-    if (storageLocation.startsWith(LOCATION_PREFIX)) {
-      const suffix = storageLocation.slice(LOCATION_PREFIX.length);
-      const pieces = suffix.split('/');
-      if (pieces.length >= 2) {
-        const s3Config = {
-          bucket: pieces[0],
-          region: pieces[1],
-          folder: pieces.slice(2).join('/'),
-          caching: true,
-        };
-        const s3Bucket = new S3Wrapper(s3Config);
-        const announcement = await s3Bucket.getS3Obj<S3Announcement>(
-          ANNOUNCEMENT_KEY,
-        );
-        if (!announcement) {
-          throw new Error('No announcement found');
-        }
-
-        const validatorConfig = {
-          address: announcement.data.value.validator,
-          localDomain: announcement.data.value.mailbox_domain,
-          mailbox: announcement.data.value.mailbox_address,
-        };
-
-        return new S3Validator(validatorConfig, s3Config);
-      }
+    let s3Bucket: S3Wrapper | undefined;
+    if (storageLocation.startsWith(S3_LOCATION_PREFIX)) {
+      s3Bucket = S3Wrapper.fromS3FormatLocation(storageLocation);
+    }
+    if (storageLocation.startsWith(HTTP_LOCATION_PREFIX)) {
+      s3Bucket = S3Wrapper.fromBucketUrl(storageLocation);
+    }
+    if (s3Bucket) {
+      return S3Validator.fromS3Bucket(s3Bucket);
     }
     throw new Error(`Unable to parse location ${storageLocation}`);
+  }
+
+  static async fromS3Bucket(s3Bucket: S3Wrapper): Promise<S3Validator> {
+    const announcement = await s3Bucket.getS3Obj<S3Announcement>(
+      ANNOUNCEMENT_KEY,
+    );
+    if (!announcement) {
+      throw new Error('No announcement found');
+    }
+
+    const validatorConfig = {
+      address: announcement.data.value.validator,
+      localDomain: announcement.data.value.mailbox_domain,
+      mailbox: announcement.data.value.mailbox_address,
+    };
+
+    return new S3Validator(validatorConfig, s3Bucket.config);
   }
 
   async getAnnouncement(): Promise<Announcement> {
@@ -101,7 +105,7 @@ export class S3Validator extends BaseValidator {
   }
 
   storageLocation(): string {
-    return `${LOCATION_PREFIX}/${this.s3Bucket.config.bucket}/${this.s3Bucket.config.region}`;
+    return `${S3_LOCATION_PREFIX}/${this.s3Bucket.config.bucket}/${this.s3Bucket.config.region}`;
   }
 
   getLatestCheckpointUrl(): string {
