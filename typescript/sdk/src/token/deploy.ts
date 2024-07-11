@@ -137,7 +137,7 @@ abstract class TokenDeployer<
             token = await IERC4626__factory.connect(
               config.token,
               provider,
-            ).asset();
+            ).callStatic.asset();
             break;
           default:
             token = config.token;
