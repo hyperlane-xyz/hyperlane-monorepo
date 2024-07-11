@@ -59,7 +59,7 @@ abstract class TokenDeployer<
     } else if (isNativeConfig(config)) {
       return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
     } else if (isSyntheticConfig(config)) {
-      assert(config.decimals); // decimals must be defined by this point
+      assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, config.mailbox];
     } else {
       throw new Error('Unknown token type when constructing arguments');
