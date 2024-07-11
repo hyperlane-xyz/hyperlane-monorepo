@@ -456,7 +456,7 @@ function transformIsmConfigForDisplay(ismConfig: IsmConfig): any[] {
           Type: ismConfig.type,
           Owner: ismConfig.owner,
           'Owner Overrides': ismConfig.ownerOverrides ?? 'Undefined',
-          Domains: ismConfig.domains,
+          Domains: 'See warp config for domain specification.',
         },
       ];
     case IsmType.FALLBACK_ROUTING:
@@ -465,7 +465,7 @@ function transformIsmConfigForDisplay(ismConfig: IsmConfig): any[] {
           Type: ismConfig.type,
           Owner: ismConfig.owner,
           'Owner Overrides': ismConfig.ownerOverrides ?? 'Undefined',
-          Domains: ismConfig.domains,
+          Domains: 'See warp config for domain specification.',
         },
       ];
     case IsmType.MERKLE_ROOT_MULTISIG:
