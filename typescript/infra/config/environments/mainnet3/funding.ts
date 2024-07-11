@@ -52,6 +52,8 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0.2',
     viction: '3',
     zetachain: '20',
+    // ignore PI chains
+    stride: '0',
     // ignore cosmos chains
     injective: '0',
     neutron: '0',
@@ -84,6 +86,8 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0',
     viction: '0.05',
     zetachain: '0',
+    // ignore PI chains
+    stride: '0',
     // ignore cosmos chains
     injective: '0',
     neutron: '0',
@@ -116,6 +120,8 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0.1',
     viction: '2',
     zetachain: '20',
+    // ignore PI chains
+    stride: '0',
     // ignore cosmos chains
     injective: '0',
     neutron: '0',

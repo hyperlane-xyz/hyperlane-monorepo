@@ -27,6 +27,7 @@ export const mainnet3SupportedChainNames = [
   'redstone',
   'scroll',
   'sei',
+  'stride',
   'taiko',
   'viction',
   'zetachain',

@@ -103,6 +103,10 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "stride": {
+    "amount": "0.005",
+    "decimals": 1
+  },
   "taiko": {
     "amount": "0.010000001",
     "decimals": 9

@@ -73,6 +73,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     redstone: true,
     scroll: true,
     sei: true,
+    stride: false, // PI chain
     taiko: true,
     viction: true,
     zetachain: true,
@@ -105,6 +106,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     redstone: true,
     scroll: true,
     sei: true,
+    stride: false, // PI chain
     taiko: true,
     viction: true,
     zetachain: true,
@@ -141,6 +143,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
     scroll: true,
+    stride: false, // PI chain
     taiko: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
