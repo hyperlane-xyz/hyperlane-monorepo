@@ -22,7 +22,7 @@ fi
 for i in "${!list1[@]}"; do
     location="${list1[i]}"
     chain="${list2[i]}"
-    # echo 
+
     echo "Executing: yarn tsx ../announce-validators.ts -e mainnet3 --location $location --chain $chain"
     yarn tsx ../announce-validators.ts -e mainnet3 --location "$location" --chain "$chain"
 done
