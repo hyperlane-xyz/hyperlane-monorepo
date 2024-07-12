@@ -142,10 +142,8 @@ export class EvmHookReader implements HookReader {
         customMessage = customMessage.concat(
           ` [The provided hook contract might be outdated and not support hookType()]`,
         );
-        this.logger.info(`${customMessage}:\n\t${e}`);
-      } else {
-        this.logger.debug(`${customMessage}:\n\t${e}`);
       }
+      this.logger.trace(`${customMessage}:\n\t${e}`);
       throw new Error(`${customMessage}:\n\t${e}`);
     }
 
