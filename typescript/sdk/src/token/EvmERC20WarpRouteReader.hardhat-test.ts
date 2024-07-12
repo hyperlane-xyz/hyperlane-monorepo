@@ -254,7 +254,7 @@ describe('ERC20WarpRouterReader', async () => {
     };
     // Deploy with config
     const warpRoute = await deployer.deploy(config);
-    console.log('warpRoute', warpRoute);
+
     // Derive config and check if remote router matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
