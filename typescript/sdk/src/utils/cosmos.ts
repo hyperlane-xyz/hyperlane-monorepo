@@ -274,7 +274,15 @@ export const CosmosChainSchema = z
               .object({
                 primary_color_hex: z
                   .string()
-                  .regex(new RegExp('^#[0-9a-fA-F]{6}$'))
+                  .min(1)
+                  .regex(new RegExp('^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$'))
+                  .optional(),
+                background_color_hex: z
+                  .string()
+                  .min(1)
+                  .regex(
+                    new RegExp('^(#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})|none)$'),
+                  )
                   .optional(),
                 circle: z.boolean().optional(),
                 dark_mode: z.boolean().optional(),
