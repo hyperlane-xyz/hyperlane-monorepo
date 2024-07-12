@@ -181,11 +181,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   // warp routes that we know are certainly paying for gas.
   {
     type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      ...routerMatchingList(injectiveInevmInjAddresses),
-      ...matchingList(inevmEthereumUsdcAddresses),
-      ...matchingList(inevmEthereumUsdtAddresses),
-    ],
+    matchingList: [...routerMatchingList(injectiveInevmInjAddresses)],
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
