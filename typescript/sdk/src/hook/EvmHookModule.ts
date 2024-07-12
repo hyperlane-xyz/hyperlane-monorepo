@@ -135,9 +135,8 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
-    // save current config for comparison
-    // normalize the config to ensure it's in a consistent format for comparison
-    const currentConfig = normalizeConfig(await this.read());
+    const unnormalizedCurrentConfig = await this.read();
+    const currentConfig = normalizeConfig(unnormalizedCurrentConfig);
 
     // Update the config
     this.args.config = targetConfig;
@@ -147,16 +146,7 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
-    // Else, we have to figure out what an update for this Hook entails
-    // Check if we need to deploy a new Hook
-    if (
-      // if updating from an address/custom config to a proper hook config, do a new deploy
-      typeof currentConfig === 'string' ||
-      // if updating a proper hook config whose types are different, do a new deploy
-      currentConfig.type !== targetConfig.type ||
-      // if it is not a mutable Hook, do a new deploy
-      !MUTABLE_HOOK_TYPE.includes(targetConfig.type)
-    ) {
+    if (this.shouldDeployNewHook(currentConfig, targetConfig)) {
       const contract = await this.deploy({
         config: targetConfig,
       });
@@ -165,34 +155,42 @@ export class EvmHookModule extends HyperlaneModule<
       return [];
     }
 
-    let updateTxs: AnnotatedEV5Transaction[];
+    const updateTxs: AnnotatedEV5Transaction[] = [];
 
     // obtain the update txs for each hook type
     switch (targetConfig.type) {
       case HookType.INTERCHAIN_GAS_PAYMASTER:
-        updateTxs = await this.updateIgpHook({
-          currentConfig,
-          targetConfig,
-        });
+        updateTxs.push(
+          ...(await this.updateIgpHook({
+            currentConfig,
+            targetConfig,
+          })),
+        );
         break;
       case HookType.PROTOCOL_FEE:
-        updateTxs = await this.updateProtocolFeeHook({
-          currentConfig,
-          targetConfig,
-        });
+        updateTxs.push(
+          ...(await this.updateProtocolFeeHook({
+            currentConfig,
+            targetConfig,
+          })),
+        );
         break;
       case HookType.PAUSABLE:
-        updateTxs = await this.updatePausableHook({
-          currentConfig,
-          targetConfig,
-        });
+        updateTxs.push(
+          ...(await this.updatePausableHook({
+            currentConfig,
+            targetConfig,
+          })),
+        );
         break;
       case HookType.ROUTING:
       case HookType.FALLBACK_ROUTING:
-        updateTxs = await this.updateRoutingHook({
-          currentConfig,
-          targetConfig,
-        });
+        updateTxs.push(
+          ...(await this.updateRoutingHook({
+            currentConfig,
+            targetConfig,
+          })),
+        );
         break;
       default:
         // MERKLE_TREE, AGGREGATION and OP_STACK hooks should already be handled before the switch
@@ -295,7 +293,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentConfig: PausableHookConfig;
     targetConfig: PausableHookConfig;
   }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs = [];
+    const updateTxs: AnnotatedEV5Transaction[] = [];
 
     if (currentConfig.paused !== targetConfig.paused) {
       // Have to encode separately otherwise tsc will complain
@@ -323,7 +321,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
   }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs = [];
+    const updateTxs: AnnotatedEV5Transaction[] = [];
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
 
     // Update beneficiary if changed
@@ -514,7 +512,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentConfig: ProtocolFeeHookConfig;
     targetConfig: ProtocolFeeHookConfig;
   }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs = [];
+    const updateTxs: AnnotatedEV5Transaction[] = [];
     const protocolFeeInterface = ProtocolFee__factory.createInterface();
 
     // if maxProtocolFee has changed, deploy a new hook
@@ -690,7 +688,7 @@ export class EvmHookModule extends HyperlaneModule<
     this.logger.debug('Deploying AggregationHook...');
 
     // deploy subhooks
-    const aggregatedHooks = [];
+    const aggregatedHooks: string[] = [];
     for (const hookConfig of config.hooks) {
       const { address } = await this.deploy({ config: hookConfig });
       aggregatedHooks.push(address);
@@ -962,5 +960,28 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     return gasOracle;
+  }
+
+  /**
+   * Determines if a new hook should be deployed based on the current and target configurations.
+   *
+   * @param currentConfig - The current hook configuration.
+   * @param targetConfig - The target hook configuration. Must not be a string.
+   * @returns {boolean} - Returns true if a new hook should be deployed, otherwise false.
+   *
+   * Conditions for deploying a new hook:
+   * - If updating from an address/custom config to a proper hook config.
+   * - If updating a proper hook config whose types are different.
+   * - If it is not a mutable Hook.
+   */
+  private shouldDeployNewHook(
+    currentConfig: HookConfig,
+    targetConfig: Exclude<HookConfig, string>,
+  ): boolean {
+    return (
+      typeof currentConfig === 'string' ||
+      currentConfig.type !== targetConfig.type ||
+      !MUTABLE_HOOK_TYPE.includes(targetConfig.type)
+    );
   }
 }
