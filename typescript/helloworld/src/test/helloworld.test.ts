@@ -4,10 +4,10 @@ import hre from 'hardhat';
 
 import {
   ChainMap,
-  Chains,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
+  TestChainName,
   TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
@@ -17,8 +17,8 @@ import { HelloWorldDeployer } from '../deploy/deploy.js';
 import { HelloWorld } from '../types/index.js';
 
 describe('HelloWorld', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
   let localDomain: number;
   let remoteDomain: number;
 

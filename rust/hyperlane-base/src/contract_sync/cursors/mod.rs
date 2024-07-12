@@ -13,8 +13,18 @@ pub enum CursorType {
     RateLimited,
 }
 
+// H256 * 1M = 32MB per origin chain worst case
+// With one such channel per origin chain.
+const TX_ID_CHANNEL_CAPACITY: Option<usize> = Some(1_000_000);
+
 pub trait Indexable {
+    /// Returns the configured cursor type of this type for the given domain, (e.g. `SequenceAware` or `RateLimited`)
     fn indexing_cursor(domain: HyperlaneDomainProtocol) -> CursorType;
+    /// Indexing tasks may have channels open between them to share information that improves reliability (such as the txid where a message event was indexed).
+    /// By default this method is None, and it should return a channel capacity if this indexing task is to broadcast anything to other tasks.
+    fn broadcast_channel_size() -> Option<usize> {
+        None
+    }
 }
 
 impl Indexable for HyperlaneMessage {
@@ -26,6 +36,11 @@ impl Indexable for HyperlaneMessage {
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
         }
     }
+
+    // Only broadcast txids from the message indexing task
+    fn broadcast_channel_size() -> Option<usize> {
+        TX_ID_CHANNEL_CAPACITY
+    }
 }
 
 impl Indexable for InterchainGasPayment {
@@ -33,7 +48,7 @@ impl Indexable for InterchainGasPayment {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
             HyperlaneDomainProtocol::Fuel => todo!(),
-            HyperlaneDomainProtocol::Sealevel => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
     }
@@ -55,7 +70,7 @@ impl Indexable for Delivery {
         match domain {
             HyperlaneDomainProtocol::Ethereum => CursorType::RateLimited,
             HyperlaneDomainProtocol::Fuel => todo!(),
-            HyperlaneDomainProtocol::Sealevel => CursorType::RateLimited,
+            HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
     }

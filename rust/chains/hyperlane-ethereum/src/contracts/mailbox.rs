@@ -7,24 +7,31 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::AbiEncode;
+use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use futures_util::future::join_all;
+use hyperlane_core::H512;
 use tracing::instrument;
 
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H160, H256, U256,
+    utils::bytes_to_hex, BatchItem, ChainCommunicationError, ChainResult, ContractLocator,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
+    RawHyperlaneMessage, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H160, H256, U256,
 };
 
+use crate::error::HyperlaneEthereumError;
 use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
+use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
+
+use super::multicall::{self, build_multicall};
+use super::utils::fetch_raw_logs_and_log_meta;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -130,11 +137,11 @@ where
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
-        let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+        let mut events: Vec<(Indexed<HyperlaneMessage>, LogMeta)> = self
             .contract
             .dispatch_filter()
             .from_block(*range.start())
@@ -142,11 +149,37 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (HyperlaneMessage::from(event.message.to_vec()), meta.into()))
+            .map(|(event, meta)| {
+                (
+                    HyperlaneMessage::from(event.message.to_vec()).into(),
+                    meta.into(),
+                )
+            })
             .collect();
 
-        events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
+        events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
         Ok(events)
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+        let logs = fetch_raw_logs_and_log_meta::<DispatchFilter, M>(
+            tx_hash,
+            self.provider.clone(),
+            self.contract.address(),
+        )
+        .await?
+        .into_iter()
+        .map(|(log, log_meta)| {
+            (
+                HyperlaneMessage::from(log.message.to_vec()).into(),
+                log_meta,
+            )
+        })
+        .collect();
+        Ok(logs)
     }
 }
 
@@ -155,7 +188,7 @@ impl<M> SequenceAwareIndexer<HyperlaneMessage> for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, skip(self))]
+    #[instrument(err, skip(self), ret)]
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
@@ -174,7 +207,10 @@ where
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -183,7 +219,7 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (H256::from(event.message_id), meta.into()))
+            .map(|(event, meta)| (Indexed::new(H256::from(event.message_id)), meta.into()))
             .collect())
     }
 }
@@ -272,6 +308,14 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
+        self.add_gas_overrides(tx, tx_gas_estimate).await
+    }
+
+    async fn add_gas_overrides<D: Detokenize>(
+        &self,
+        tx: ContractCall<M, D>,
+        tx_gas_estimate: Option<U256>,
+    ) -> ChainResult<ContractCall<M, D>> {
         let tx_overrides = TransactionOverrides {
             // If a gas limit is provided as a transaction override, use it instead
             // of the estimate.
@@ -354,6 +398,37 @@ where
             .process_contract_call(message, metadata, tx_gas_limit)
             .await?;
         let receipt = report_tx(contract_call).await?;
+        Ok(receipt.into())
+    }
+
+    #[instrument(skip(self, messages), fields(size=%messages.len()))]
+    async fn process_batch(
+        &self,
+        messages: &[BatchItem<HyperlaneMessage>],
+    ) -> ChainResult<TxOutcome> {
+        let mut multicall = build_multicall(self.provider.clone(), &self.conn, self.domain.clone())
+            .await
+            .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
+        let contract_call_futures = messages
+            .iter()
+            .map(|batch_item| async {
+                self.process_contract_call(
+                    &batch_item.data,
+                    &batch_item.submission_data.metadata,
+                    Some(batch_item.submission_data.gas_limit),
+                )
+                .await
+            })
+            .collect::<Vec<_>>();
+        let contract_calls = join_all(contract_call_futures)
+            .await
+            .into_iter()
+            .collect::<ChainResult<Vec<_>>>()?;
+
+        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls);
+        let call = self.add_gas_overrides(batch_call, None).await?;
+
+        let receipt = report_tx(call).await?;
         Ok(receipt.into())
     }
 
@@ -442,7 +517,7 @@ mod test {
     use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
 
     /// An amount of gas to add to the estimated gas
-    const GAS_ESTIMATE_BUFFER: u32 = 50000;
+    const GAS_ESTIMATE_BUFFER: u32 = 75_000;
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
@@ -453,6 +528,7 @@ mod test {
                 url: "http://127.0.0.1:8545".parse().unwrap(),
             },
             transaction_overrides: Default::default(),
+            operation_batch: Default::default(),
         };
 
         let mailbox = EthereumMailbox::new(

@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use cosmrs::rpc::client::Client;
-use hyperlane_core::rpc_clients::call_with_retry;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
 use std::fmt::Debug;
@@ -216,9 +215,7 @@ impl CosmosWasmIndexer {
 impl WasmIndexer for CosmosWasmIndexer {
     #[instrument(err, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let latest_block =
-            call_with_retry(move || Box::pin(Self::get_latest_block(self.provider.rpc().clone())))
-                .await?;
+        let latest_block = Self::get_latest_block(self.provider.rpc().clone()).await?;
         let latest_height: u32 = latest_block
             .block
             .header
@@ -242,11 +239,11 @@ impl WasmIndexer for CosmosWasmIndexer {
         let client = self.provider.rpc().clone();
         debug!(?block_number, cursor_label, domain=?self.provider.domain, "Getting logs in block");
 
-        let (block, block_results) = tokio::join!(
-            call_with_retry(|| { Box::pin(Self::get_block(client.clone(), block_number)) }),
-            call_with_retry(|| { Box::pin(Self::get_block_results(client.clone(), block_number)) }),
-        );
+        // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
+        // than indexing latency, so we do them sequentially.
+        let block = Self::get_block(client.clone(), block_number).await?;
+        let block_results = Self::get_block_results(client.clone(), block_number).await?;
 
-        Ok(self.handle_txs(block?, block_results?, parser, cursor_label))
+        Ok(self.handle_txs(block, block_results, parser, cursor_label))
     }
 }

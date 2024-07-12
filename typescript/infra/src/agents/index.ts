@@ -1,14 +1,16 @@
 import fs from 'fs';
 import { join } from 'path';
 
-import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
+import { getChain } from '../../config/registry.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
   DockerConfig,
   HelmRootAgentValues,
+  KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
 import { RelayerConfigHelper } from '../config/agent/relayer.js';
@@ -16,7 +18,12 @@ import { ScraperConfigHelper } from '../config/agent/scraper.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { AgentRole, Role } from '../roles.js';
-import { fetchGCPSecret } from '../utils/gcloud.js';
+import {
+  fetchGCPSecret,
+  gcpSecretExistsUsingClient,
+  getGcpSecretLatestVersionName,
+  setGCPSecretUsingClient,
+} from '../utils/gcloud.js';
 import {
   HelmCommand,
   buildHelmChartDependencies,
@@ -122,7 +129,7 @@ export abstract class AgentHelmManager {
         context: this.context,
         aws: !!this.config.aws,
         chains: this.config.contextChainNames[this.role].map((chain) => {
-          const metadata = chainMetadata[chain];
+          const metadata = getChain(chain);
           const reorgPeriod = metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
@@ -132,6 +139,7 @@ export abstract class AgentHelmManager {
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
+            maxBatchSize: 32,
           };
         }),
       },
@@ -144,7 +152,7 @@ export abstract class AgentHelmManager {
       return RpcConsensusType.Single;
     }
 
-    return this.config.rpcConsensusType;
+    return this.config.agentRoleConfig.rpcConsensusType;
   }
 
   async doesAgentReleaseExist() {
@@ -162,7 +170,11 @@ export abstract class AgentHelmManager {
   }
 
   dockerImage(): DockerConfig {
-    return this.config.docker;
+    return this.config.agentRoleConfig.docker;
+  }
+
+  kubernetesResources(): KubernetesResources | undefined {
+    return this.config.agentRoleConfig.resources;
   }
 }
 
@@ -209,6 +221,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
 
     const signers = await this.config.signers();
@@ -237,6 +250,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
@@ -272,6 +286,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         originChainName: cfg.originChainName,
         interval: cfg.interval,
       })),
+      resources: this.kubernetesResources(),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.
@@ -283,6 +298,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
     return helmValues;
   }
+}
+
+export function getSecretName(
+  environment: string,
+  chainName: ChainName,
+): string {
+  return `${environment}-rpc-endpoints-${chainName}`;
 }
 
 export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
@@ -298,20 +320,14 @@ export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
   };
 }
 
-export async function getSecretRpcEndpoint(
+export async function getSecretRpcEndpoints(
   environment: string,
   chainName: ChainName,
-  quorum = false,
 ): Promise<string[]> {
-  const secret = await fetchGCPSecret(
-    `${environment}-rpc-endpoint${quorum ? 's' : ''}-${chainName}`,
-    quorum,
-  );
-  if (typeof secret != 'string' && !Array.isArray(secret)) {
-    throw Error(`Expected secret for ${chainName} rpc endpoint`);
-  }
+  const secret = await fetchGCPSecret(getSecretName(environment, chainName));
+
   if (!Array.isArray(secret)) {
-    return [secret.trimEnd()];
+    throw Error(`Expected secret for ${chainName} rpc endpoint`);
   }
 
   return secret.map((i) => {
@@ -319,6 +335,29 @@ export async function getSecretRpcEndpoint(
       throw new Error(`Expected string in rpc endpoint array for ${chainName}`);
     return i.trimEnd();
   });
+}
+
+export async function getSecretRpcEndpointsLatestVersionName(
+  environment: string,
+  chainName: ChainName,
+) {
+  return getGcpSecretLatestVersionName(getSecretName(environment, chainName));
+}
+
+export async function secretRpcEndpointsExist(
+  environment: string,
+  chainName: ChainName,
+): Promise<boolean> {
+  return gcpSecretExistsUsingClient(getSecretName(environment, chainName));
+}
+
+export async function setSecretRpcEndpoints(
+  environment: string,
+  chainName: ChainName,
+  endpoints: string,
+) {
+  const secretName = getSecretName(environment, chainName);
+  await setGCPSecretUsingClient(secretName, endpoints);
 }
 
 export async function getSecretDeployerKey(

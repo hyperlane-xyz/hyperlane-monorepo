@@ -47,6 +47,9 @@
       "0x87cf8a85465118aff9ec728ca157798201b1e368"
     ]
   },
+  "fraxtal": {
+    "validators": ["0x8c772b730c8deb333dded14cb462e577a06283da"]
+  },
   "gnosis": {
     "validators": [
       "0xd5122daa0c3dfc94a825ae928f3ea138cdb6a2e1",
@@ -60,6 +63,9 @@
       "0xc2ea1799664f753bedb9872d617e3ebc60b2e0ab",
       "0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee"
     ]
+  },
+  "linea": {
+    "validators": ["0xad4886b6f5f5088c7ae53b69d1ff5cfc2a17bec4"]
   },
   "mantapacific": {
     "validators": [
@@ -106,6 +112,9 @@
       "0x1cd73544c000fd519784f56e59bc380a5fef53d6"
     ]
   },
+  "redstone": {
+    "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
+  },
   "scroll": {
     "validators": [
       "0x11387d89856219cf685f22781bf4e85e00468d54",
@@ -113,11 +122,17 @@
       "0x07c2f32a402543badc3141f6b98969d75ef2ac28"
     ]
   },
+  "sei": {
+    "validators": ["0x846e48a7e85e5403cc690a347e1ad3c3dca11b6e"]
+  },
   "viction": {
     "validators": [
       "0xe858971cd865b11d3e8fb6b6af72db0d85881baf",
       "0xad94659e2383214e4a1c4e8d3c17caffb75bc31b",
       "0x0f9e5775ac4d3b73dd28e5a3f8394443186cb70c"
     ]
+  },
+  "zetachain": {
+    "validators": ["0xa13d146b47242671466e4041f5fe68d22a2ffe09"]
   }
 }

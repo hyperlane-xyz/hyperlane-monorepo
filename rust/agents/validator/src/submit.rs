@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use std::vec;
 
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{ChainCommunicationError, ChainResult, MerkleTreeHook};
+use hyperlane_core::{ChainResult, MerkleTreeHook};
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
@@ -61,17 +61,8 @@ impl ValidatorSubmitter {
     /// Runs idly forever once the target checkpoint is reached to avoid exiting the task.
     pub(crate) async fn backfill_checkpoint_submitter(self, target_checkpoint: Checkpoint) {
         let mut tree = IncrementalMerkle::default();
-        call_and_retry_indefinitely(|| {
-            let target_checkpoint = target_checkpoint;
-            let self_clone = self.clone();
-            Box::pin(async move {
-                self_clone
-                    .submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
-                    .await?;
-                Ok(())
-            })
-        })
-        .await;
+        self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &target_checkpoint)
+            .await;
 
         info!(
             ?target_checkpoint,
@@ -132,21 +123,8 @@ impl ValidatorSubmitter {
                 sleep(self.interval).await;
                 continue;
             }
-
-            tree = call_and_retry_indefinitely(|| {
-                let mut tree = tree;
-                let self_clone = self.clone();
-                Box::pin(async move {
-                    self_clone
-                        .submit_checkpoints_until_correctness_checkpoint(
-                            &mut tree,
-                            &latest_checkpoint,
-                        )
-                        .await?;
-                    Ok(tree)
-                })
-            })
-            .await;
+            self.submit_checkpoints_until_correctness_checkpoint(&mut tree, &latest_checkpoint)
+                .await;
 
             self.metrics
                 .latest_checkpoint_processed
@@ -162,7 +140,7 @@ impl ValidatorSubmitter {
         &self,
         tree: &mut IncrementalMerkle,
         correctness_checkpoint: &Checkpoint,
-    ) -> ChainResult<()> {
+    ) {
         // This should never be called with a tree that is ahead of the correctness checkpoint.
         assert!(
             !tree_exceeds_checkpoint(correctness_checkpoint, tree),
@@ -182,7 +160,14 @@ impl ValidatorSubmitter {
         while tree.count() as u32 <= correctness_checkpoint.index {
             if let Some(insertion) = self
                 .message_db
-                .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))?
+                .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Error fetching merkle tree insertion for leaf index {}: {}",
+                        tree.count(),
+                        err
+                    )
+                })
             {
                 debug!(
                     index = insertion.index(),
@@ -225,9 +210,7 @@ impl ValidatorSubmitter {
                 ?correctness_checkpoint,
                 "Incorrect tree root, something went wrong"
             );
-            return Err(ChainCommunicationError::CustomError(
-                "Incorrect tree root, something went wrong".to_string(),
-            ));
+            panic!("Incorrect tree root, something went wrong");
         }
 
         if !checkpoint_queue.is_empty() {
@@ -236,56 +219,70 @@ impl ValidatorSubmitter {
                 queue_len = checkpoint_queue.len(),
                 "Reached tree consistency"
             );
-
-            self.sign_and_submit_checkpoints(checkpoint_queue).await?;
+            self.sign_and_submit_checkpoints(checkpoint_queue).await;
 
             info!(
                 index = checkpoint.index,
                 "Signed all queued checkpoints until index"
             );
         }
+    }
 
+    async fn sign_and_submit_checkpoint(
+        &self,
+        checkpoint: CheckpointWithMessageId,
+    ) -> ChainResult<()> {
+        let existing = self
+            .checkpoint_syncer
+            .fetch_checkpoint(checkpoint.index)
+            .await?;
+        if existing.is_some() {
+            debug!(index = checkpoint.index, "Checkpoint already submitted");
+            return Ok(());
+        }
+        let signed_checkpoint = self.signer.sign(checkpoint).await?;
+        self.checkpoint_syncer
+            .write_checkpoint(&signed_checkpoint)
+            .await?;
+        debug!(index = checkpoint.index, "Signed and submitted checkpoint");
+
+        // TODO: move these into S3 implementations
+        // small sleep before signing next checkpoint to avoid rate limiting
+        sleep(Duration::from_millis(100)).await;
         Ok(())
     }
 
     /// Signs and submits any previously unsubmitted checkpoints.
-    async fn sign_and_submit_checkpoints(
-        &self,
-        checkpoints: Vec<CheckpointWithMessageId>,
-    ) -> ChainResult<()> {
+    async fn sign_and_submit_checkpoints(&self, checkpoints: Vec<CheckpointWithMessageId>) {
         let last_checkpoint = checkpoints.as_slice()[checkpoints.len() - 1];
-
-        for queued_checkpoint in checkpoints {
-            let existing = self
-                .checkpoint_syncer
-                .fetch_checkpoint(queued_checkpoint.index)
-                .await?;
-            if existing.is_some() {
-                debug!(
-                    index = queued_checkpoint.index,
-                    "Checkpoint already submitted"
-                );
-                continue;
-            }
-            let signed_checkpoint = self.signer.sign(queued_checkpoint).await?;
-            self.checkpoint_syncer
-                .write_checkpoint(&signed_checkpoint)
-                .await?;
-            debug!(
-                index = queued_checkpoint.index,
-                "Signed and submitted checkpoint"
-            );
-
-            // TODO: move these into S3 implementations
-            // small sleep before signing next checkpoint to avoid rate limiting
-            sleep(Duration::from_millis(100)).await;
+        // Submits checkpoints to the store in reverse order. This speeds up processing historic checkpoints (those before the validator is spun up),
+        // since those are the most likely to make messages become processable.
+        // A side effect is that new checkpoints will also be submitted in reverse order.
+        for queued_checkpoint in checkpoints.into_iter().rev() {
+            // certain checkpoint stores rate limit very aggressively, so we retry indefinitely
+            call_and_retry_indefinitely(|| {
+                let self_clone = self.clone();
+                Box::pin(async move {
+                    self_clone
+                        .sign_and_submit_checkpoint(queued_checkpoint)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await;
         }
 
-        self.checkpoint_syncer
-            .update_latest_index(last_checkpoint.index)
-            .await?;
-
-        Ok(())
+        call_and_retry_indefinitely(|| {
+            let self_clone = self.clone();
+            Box::pin(async move {
+                self_clone
+                    .checkpoint_syncer
+                    .update_latest_index(last_checkpoint.index)
+                    .await?;
+                Ok(())
+            })
+        })
+        .await;
     }
 }
 

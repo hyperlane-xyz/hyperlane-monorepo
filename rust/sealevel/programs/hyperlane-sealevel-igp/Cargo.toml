@@ -21,7 +21,7 @@ num-derive.workspace = true
 num-traits.workspace = true
 thiserror.workspace = true
 # Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+# https://github.com/solana-foundation/developer-content/blob/main/docs/programs/lang-rust.md#depending-on-rand
 getrandom = { workspace = true, features = ["custom"] }
 serde = { workspace = true, optional = true }
 

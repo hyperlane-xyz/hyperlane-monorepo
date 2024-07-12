@@ -12,7 +12,6 @@ import {
   AccountConfig,
   ChainMap,
   ChainName,
-  Chains,
   HyperlaneApp,
   HyperlaneAppChecker,
   HyperlaneContractsMap,
@@ -24,9 +23,9 @@ import {
   MultiProvider,
   OwnableConfig,
   RouterConfig,
+  TestChainName,
   TestCoreApp,
   TestCoreDeployer,
-  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -43,7 +42,7 @@ export class TestApp extends HyperlaneApp<{}> {}
 export class TestChecker extends HyperlaneAppChecker<TestApp, OwnableConfig> {
   async checkChain(_: string): Promise<void> {
     this.addViolation({
-      chain: Chains.test2,
+      chain: TestChainName.test2,
       type: 'test',
       expected: 0,
       actual: 1,
@@ -90,8 +89,8 @@ export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
 }
 
 describe('ICA governance', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
 
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
@@ -129,10 +128,12 @@ describe('ICA governance', async () => {
     icaApp = new InterchainAccount(contracts, multiProvider);
 
     accountConfig = {
-      origin: Chains.test1,
+      origin: TestChainName.test1,
       owner: signer.address,
       localRouter: remote.address,
     };
+
+    accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
 
     const recipientF = new TestRecipient__factory(signer);
     recipient = await recipientF.deploy();
@@ -145,23 +146,15 @@ describe('ICA governance', async () => {
         recipient,
       },
     };
-    // missing ica
     const configMap = {
       [localChain]: { owner: signer.address },
-      [remoteChain]: {
-        owner: { origin: Chains.test1, owner: signer.address },
-      },
+      [remoteChain]: { owner: accountOwner },
     };
 
     const app = new TestApp(contractsMap, multiProvider);
     const checker = new TestChecker(multiProvider, app, configMap);
     governor = new HyperlaneTestGovernor(checker, icaApp);
 
-    accountOwner = await resolveOrDeployAccountOwner(
-      multiProvider,
-      remoteChain,
-      accountConfig,
-    );
     await recipient.transferOwnership(accountOwner);
   });
 
@@ -172,7 +165,7 @@ describe('ICA governance', async () => {
 
     // arrange
     const newIsm = randomAddress();
-    await governor.checker.checkChain(Chains.test2);
+    await governor.checker.checkChain(TestChainName.test2);
     const call = {
       to: recipient.address,
       data: recipient.interface.encodeFunctionData(

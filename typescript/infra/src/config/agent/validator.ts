@@ -4,10 +4,11 @@ import {
   ValidatorConfig as AgentValidatorConfig,
   ChainMap,
   ChainName,
-  chainMetadata,
+  S3Config,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
@@ -75,11 +76,9 @@ export interface LocalCheckpointSyncerConfig {
   path: string;
 }
 
-export interface S3CheckpointSyncerConfig {
+export type S3CheckpointSyncerConfig = S3Config & {
   type: CheckpointSyncerType.S3;
-  bucket: string;
-  region: string;
-}
+};
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   readonly #validatorsConfig: ValidatorBaseChainConfigMap;
@@ -118,7 +117,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     cfg: ValidatorBaseConfig,
     idx: number,
   ): Promise<ValidatorConfig['validators'][number]> {
-    const metadata = chainMetadata[this.chainName];
+    const metadata = getChain(this.chainName);
     const protocol = metadata.protocol;
 
     let validator: KeyConfig = { type: AgentSignerKeyType.Hex };

@@ -1,94 +1,74 @@
-import { select } from '@inquirer/prompts';
-import { ethers } from 'ethers';
-
 import {
   ChainName,
-  HyperlaneContractsMap,
   HyperlaneCore,
   MultiProtocolProvider,
-  MultiProvider,
   ProviderType,
+  Token,
   TokenAmount,
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, timeout } from '@hyperlane-xyz/utils';
+import { timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { getContext, getMergedContractAddresses } from '../context.js';
-import { runPreflightChecks } from '../deploy/utils.js';
+import { WriteCommandContext } from '../context/types.js';
+import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export async function sendTestTransfer({
-  key,
-  chainConfigPath,
-  coreArtifactsPath,
-  warpConfigPath,
+  context,
+  warpCoreConfig,
   origin,
   destination,
-  routerAddress,
-  wei,
+  amount,
   recipient,
   timeoutSec,
   skipWaitForDelivery,
   selfRelay,
 }: {
-  key?: string;
-  chainConfigPath: string;
-  coreArtifactsPath?: string;
-  warpConfigPath: string;
+  context: WriteCommandContext;
+  warpCoreConfig: WarpCoreConfig;
   origin?: ChainName;
   destination?: ChainName;
-  routerAddress?: Address;
-  wei: string;
+  amount: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { signer, multiProvider, customChains, coreArtifacts, warpCoreConfig } =
-    await getContext({
-      chainConfigPath,
-      coreConfig: { coreArtifactsPath },
-      keyConfig: { key },
-      warpConfig: { warpConfigPath },
-    });
+  const { chainMetadata } = context;
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the origin chain',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
-      customChains,
+      chainMetadata,
       'Select the destination chain',
     );
   }
 
-  await runPreflightChecks({
-    origin,
-    remotes: [destination],
-    multiProvider,
-    signer,
-    minGas: MINIMUM_TEST_SEND_GAS,
+  await runPreflightChecksForChains({
+    context,
+    chains: [origin, destination],
     chainsToGasCheck: [origin],
+    minGas: MINIMUM_TEST_SEND_GAS,
   });
 
   await timeout(
     executeDelivery({
+      context,
       origin,
       destination,
       warpCoreConfig,
-      routerAddress,
-      wei,
+      amount,
       recipient,
-      signer,
-      multiProvider,
-      coreArtifacts,
       skipWaitForDelivery,
       selfRelay,
     }),
@@ -98,39 +78,32 @@ export async function sendTestTransfer({
 }
 
 async function executeDelivery({
+  context,
   origin,
   destination,
   warpCoreConfig,
-  routerAddress,
-  wei,
+  amount,
   recipient,
-  multiProvider,
-  signer,
-  coreArtifacts,
   skipWaitForDelivery,
   selfRelay,
 }: {
+  context: WriteCommandContext;
   origin: ChainName;
   destination: ChainName;
   warpCoreConfig: WarpCoreConfig;
-  routerAddress?: Address;
-  wei: string;
+  amount: string;
   recipient?: string;
-  multiProvider: MultiProvider;
-  signer: ethers.Signer;
-  coreArtifacts?: HyperlaneContractsMap<any>;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
+  const { signer, multiProvider, registry } = context;
+
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
 
-  const mergedContractAddrs = getMergedContractAddresses(coreArtifacts);
+  const chainAddresses = await registry.getAddresses();
 
-  const core = HyperlaneCore.fromAddressesMap(
-    mergedContractAddrs,
-    multiProvider,
-  );
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
   const provider = multiProvider.getProvider(origin);
   const connectedSigner = signer.connect(provider);
@@ -140,47 +113,33 @@ async function executeDelivery({
     warpCoreConfig,
   );
 
-  if (!routerAddress) {
-    const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
-    if (tokensForRoute.length === 0) {
-      logRed(`No Warp Routes found from ${origin} to ${destination}`);
-      throw new Error('Error finding warp route');
-    }
-
-    routerAddress = (await select({
-      message: `Select router address`,
-      choices: [
-        ...tokensForRoute.map((t) => ({
-          value: t.addressOrDenom,
-          description: `${t.name} ($${t.symbol})`,
-        })),
-      ],
-      pageSize: 10,
-    })) as string;
-  }
-
-  const token = warpCore.findToken(origin, routerAddress);
-  if (!token) {
-    logRed(
-      `No Warp Routes found from ${origin} to ${destination} with router address ${routerAddress}`,
-    );
+  let token: Token;
+  const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
+  if (tokensForRoute.length === 0) {
+    logRed(`No Warp Routes found from ${origin} to ${destination}`);
     throw new Error('Error finding warp route');
+  } else if (tokensForRoute.length === 1) {
+    token = tokensForRoute[0];
+  } else {
+    logBlue(`Please select a token from the Warp config`);
+    const routerAddress = await runTokenSelectionStep(tokensForRoute);
+    token = warpCore.findToken(origin, routerAddress)!;
   }
 
   const senderAddress = await signer.getAddress();
   const errors = await warpCore.validateTransfer({
-    originTokenAmount: token.amount(wei),
+    originTokenAmount: token.amount(amount),
     destination,
     recipient: recipient ?? senderAddress,
     sender: senderAddress,
   });
   if (errors) {
-    logRed('Unable to validate transfer', errors);
+    logRed('Error validating transfer', JSON.stringify(errors));
     throw new Error('Error validating transfer');
   }
 
   const transferTxs = await warpCore.getTransferRemoteTxs({
-    originTokenAmount: new TokenAmount(wei, token),
+    originTokenAmount: new TokenAmount(amount, token),
     destination,
     sender: senderAddress,
     recipient: recipient ?? senderAddress,
@@ -202,7 +161,7 @@ async function executeDelivery({
   logBlue(`Message ID: ${message.id}`);
 
   if (selfRelay) {
-    await core.relayMessage(message);
+    await core.relayMessage(message, transferTxReceipt);
     logGreen('Message was self-relayed!');
     return;
   }

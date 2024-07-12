@@ -2,7 +2,6 @@ import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   HypERC20App,
   HypERC20Checker,
-  HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
@@ -11,13 +10,11 @@ import {
   InterchainAccountChecker,
   InterchainQuery,
   InterchainQueryChecker,
-  TokenType,
-  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts.js';
+import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
 import { getWarpConfig } from '../config/warp.js';
-import { deployEnvToSdkEnv } from '../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
@@ -29,21 +26,25 @@ import {
   Modules,
   getAddresses,
   getArgs as getRootArgs,
+  withChain,
   withContext,
   withModuleAndFork,
 } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 import { getHelloWorldApp } from './helloworld/utils.js';
 
 function getArgs() {
-  return withModuleAndFork(withContext(getRootArgs()))
+  return withChain(withModuleAndFork(withContext(getRootArgs())))
+    .boolean('asDeployer')
+    .default('asDeployer', false)
     .boolean('govern')
     .default('govern', false)
     .alias('g', 'govern').argv;
 }
 
 async function check() {
-  const { fork, govern, module, environment, context } = await getArgs();
+  const { fork, govern, module, environment, context, chain, asDeployer } =
+    await getArgs();
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -56,22 +57,23 @@ async function check() {
         [fork]: { blocks: { confirmations: 0 } },
       });
 
-      const owner = await resolveOrDeployAccountOwner(
-        multiProvider,
-        fork,
-        envConfig.core[fork].owner,
-      );
+      const owner = asDeployer ? DEPLOYER : envConfig.core[fork].owner;
       const signer = await impersonateAccount(owner, 1e18);
 
       multiProvider.setSigner(fork, signer);
     }
   }
 
-  const env = deployEnvToSdkEnv[environment];
-  const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-  const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
+  const { core, chainAddresses } = await getHyperlaneCore(
+    environment,
+    multiProvider,
+  );
+  const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+    chainAddresses,
+    multiProvider,
+  );
   const routerConfig = core.getRouterConfig(envConfig.owners);
-  const ica = InterchainAccount.fromEnvironment(env, multiProvider);
+  const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
 
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
@@ -83,7 +85,7 @@ async function check() {
     );
     governor = new HyperlaneCoreGovernor(checker);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
+    const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
@@ -94,7 +96,7 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const iqs = InterchainQuery.fromEnvironment(env, multiProvider);
+    const iqs = InterchainQuery.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new InterchainQueryChecker(
       multiProvider,
       iqs,
@@ -108,7 +110,10 @@ async function check() {
       Role.Deployer,
       Contexts.Hyperlane, // Owner should always be from the hyperlane context
     );
-    const ismFactory = HyperlaneIsmFactory.fromEnvironment(env, multiProvider);
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      chainAddresses,
+      multiProvider,
+    );
     const checker = new HelloWorldChecker(
       multiProvider,
       app,
@@ -143,6 +148,11 @@ async function check() {
     await governor.checker.checkChain(fork);
     if (govern) {
       await governor.govern(false, fork);
+    }
+  } else if (chain) {
+    await governor.checker.checkChain(chain);
+    if (govern) {
+      await governor.govern(true, chain);
     }
   } else {
     await governor.checker.check();

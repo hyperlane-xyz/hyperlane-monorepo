@@ -1,16 +1,14 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::MpmcReceiver;
+use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
-use tokio::sync::Mutex;
-use tracing::info;
+use tokio::sync::{broadcast::Receiver, Mutex};
+use tracing::{debug, info, instrument};
 
 use crate::server::MessageRetryRequest;
 
-use super::pending_operation::PendingOperation;
-
-pub type QueueOperation = Box<dyn PendingOperation>;
+pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
 /// Queue of generic operations that can be submitted to a destination chain.
 /// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
@@ -18,14 +16,22 @@ pub type QueueOperation = Box<dyn PendingOperation>;
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: MpmcReceiver<MessageRetryRequest>,
+    retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
-    queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
+    pub queue: OperationPriorityQueue,
 }
 
 impl OpQueue {
     /// Push an element onto the queue and update metrics
-    pub async fn push(&self, op: QueueOperation) {
+    /// Arguments:
+    /// - `op`: the operation to push onto the queue
+    /// - `new_status`: optional new status to set for the operation. When an operation is added to a queue,
+    /// it's very likely that its status has just changed, so this forces the caller to consider the new status
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
+    pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
+        if let Some(new_status) = new_status {
+            op.set_status(new_status);
+        }
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(op.as_ref()).inc();
 
@@ -33,15 +39,37 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
-    pub async fn pop(&mut self) -> Option<Reverse<QueueOperation>> {
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
+    pub async fn pop(&mut self) -> Option<QueueOperation> {
+        let pop_attempt = self.pop_many(1).await;
+        pop_attempt.into_iter().next()
+    }
+
+    /// Pop multiple elements at once from the queue and update metrics
+    #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
         self.process_retry_requests().await;
-        let op = self.queue.lock().await.pop();
-        op.map(|op| {
+        let mut queue = self.queue.lock().await;
+        let mut popped = vec![];
+        while let Some(Reverse(op)) = queue.pop() {
             // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
-            // in those cases, the queue length will decrease to zero until the operation is re-added.
-            self.get_operation_metric(op.0.as_ref()).dec();
-            op
-        })
+            // in those cases, the queue length will look like it has spikes whose sizes are at most `limit`
+            self.get_operation_metric(op.as_ref()).dec();
+            popped.push(op);
+            if popped.len() >= limit {
+                break;
+            }
+        }
+        // This function is called very often by the op_submitter tasks, so only log when there are operations to pop
+        // to avoid spamming the logs
+        if !popped.is_empty() {
+            debug!(
+                queue_label = %self.queue_metrics_label,
+                operations = ?popped,
+                "Popped OpQueue operations"
+            );
+        }
+        popped
     }
 
     pub async fn process_retry_requests(&mut self) {
@@ -50,7 +78,7 @@ impl OpQueue {
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
         let mut message_retry_requests = vec![];
-        while let Ok(message_id) = self.retry_rx.receiver.try_recv() {
+        while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
             message_retry_requests.push(message_id);
         }
         if message_retry_requests.is_empty() {
@@ -59,18 +87,18 @@ impl OpQueue {
         let mut queue = self.queue.lock().await;
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
-            .map(|Reverse(mut e)| {
+            .map(|Reverse(mut op)| {
                 // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
                 // but can't use `contains` because the types are different
-                if message_retry_requests.iter().any(|r| r == e) {
-                    let destination_domain = e.destination_domain().to_string();
+                if message_retry_requests.iter().any(|r| r == op) {
                     info!(
-                        id = ?e.id(),
-                        destination_domain, "Retrying OpQueue operation"
+                        operation = %op,
+                        queue_label = %self.queue_metrics_label,
+                        "Retrying OpQueue operation"
                     );
-                    e.reset_attempts()
+                    op.reset_attempts()
                 }
-                Reverse(e)
+                Reverse(op)
             })
             .collect();
         queue.append(&mut reprioritized_queue);
@@ -79,30 +107,38 @@ impl OpQueue {
     /// Get the metric associated with this operation
     fn get_operation_metric(&self, operation: &dyn PendingOperation) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
-        self.metrics
-            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
+        self.metrics.with_label_values(&[
+            &destination,
+            &self.queue_metrics_label,
+            &operation.status().to_string(),
+            &app_context,
+        ])
     }
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
-    use crate::msg::pending_operation::PendingOperationResult;
-    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain, MpmcChannel, H256};
+    use hyperlane_core::{
+        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
+        TryBatchAs, TxOutcome, H256, U256,
+    };
+    use serde::Serialize;
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
     };
+    use tokio::sync;
 
-    #[derive(Debug, Clone)]
-    struct MockPendingOperation {
+    #[derive(Debug, Clone, Serialize)]
+    pub struct MockPendingOperation {
         id: H256,
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
     }
 
     impl MockPendingOperation {
-        fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
+        pub fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
             Self {
                 id: H256::random(),
                 seconds_to_next_attempt,
@@ -111,17 +147,30 @@ mod test {
         }
     }
 
+    impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
+
     #[async_trait::async_trait]
+    #[typetag::serialize]
     impl PendingOperation for MockPendingOperation {
         fn id(&self) -> H256 {
             self.id
         }
+
+        fn status(&self) -> PendingOperationStatus {
+            PendingOperationStatus::FirstPrepareAttempt
+        }
+
+        fn set_status(&mut self, _status: PendingOperationStatus) {}
 
         fn reset_attempts(&mut self) {
             self.seconds_to_next_attempt = 0;
         }
 
         fn priority(&self) -> u32 {
+            todo!()
+        }
+
+        fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
             todo!()
         }
 
@@ -147,7 +196,15 @@ mod test {
 
         /// Submit this operation to the blockchain and report if it was successful
         /// or not.
-        async fn submit(&mut self) -> PendingOperationResult {
+        async fn submit(&mut self) {
+            todo!()
+        }
+
+        fn set_submission_outcome(&mut self, _outcome: TxOutcome) {
+            todo!()
+        }
+
+        fn get_tx_cost_estimate(&self) -> Option<U256> {
             todo!()
         }
 
@@ -155,6 +212,14 @@ mod test {
         /// responsible for checking if the operation has reached a point at
         /// which we consider it safe from reorgs.
         async fn confirm(&mut self) -> PendingOperationResult {
+            todo!()
+        }
+
+        fn set_operation_outcome(
+            &mut self,
+            _submission_outcome: TxOutcome,
+            _submission_estimated_cost: U256,
+        ) {
             todo!()
         }
 
@@ -166,16 +231,25 @@ mod test {
             )
         }
 
+        fn set_next_attempt_after(&mut self, _delay: Duration) {
+            todo!()
+        }
+
         fn set_retries(&mut self, _retries: u32) {
             todo!()
         }
     }
 
-    fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
+    pub fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
         (
             IntGaugeVec::new(
                 prometheus::Opts::new("op_queue", "OpQueue metrics"),
-                &["destination", "queue_metrics_label", "app_context"],
+                &[
+                    "destination",
+                    "queue_metrics_label",
+                    "operation_status",
+                    "app_context",
+                ],
             )
             .unwrap(),
             "queue_metrics_label".to_string(),
@@ -185,13 +259,17 @@ mod test {
     #[tokio::test]
     async fn test_multiple_op_queues_message_id() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
-        let mpmc_channel = MpmcChannel::new(100);
+        let broadcaster = sync::broadcast::Sender::new(100);
         let mut op_queue_1 = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
-            mpmc_channel.receiver(),
+            Arc::new(Mutex::new(broadcaster.subscribe())),
         );
-        let mut op_queue_2 = OpQueue::new(metrics, queue_metrics_label, mpmc_channel.receiver());
+        let mut op_queue_2 = OpQueue::new(
+            metrics,
+            queue_metrics_label,
+            Arc::new(Mutex::new(broadcaster.subscribe())),
+        );
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
@@ -208,27 +286,36 @@ mod test {
 
         // push to queue 1
         for _ in 0..=2 {
-            op_queue_1.push(ops.pop_front().unwrap()).await;
+            op_queue_1
+                .push(
+                    ops.pop_front().unwrap(),
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
         }
 
         // push to queue 2
         for _ in 3..messages_to_send {
-            op_queue_2.push(ops.pop_front().unwrap()).await;
+            op_queue_2
+                .push(
+                    ops.pop_front().unwrap(),
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
         }
 
         // Retry by message ids
-        let mpmc_tx = mpmc_channel.sender();
-        mpmc_tx
+        broadcaster
             .send(MessageRetryRequest::MessageId(op_ids[1]))
             .unwrap();
-        mpmc_tx
+        broadcaster
             .send(MessageRetryRequest::MessageId(op_ids[2]))
             .unwrap();
 
         // Pop elements from queue 1
         let mut queue_1_popped = vec![];
         while let Some(op) = op_queue_1.pop().await {
-            queue_1_popped.push(op.0);
+            queue_1_popped.push(op);
         }
 
         // The elements sent over the channel should be the first ones popped,
@@ -240,7 +327,7 @@ mod test {
         // Pop elements from queue 2
         let mut queue_2_popped = vec![];
         while let Some(op) = op_queue_2.pop().await {
-            queue_2_popped.push(op.0);
+            queue_2_popped.push(op);
         }
 
         // The elements should be popped in the order they were pushed, because there was no retry request for them
@@ -251,11 +338,11 @@ mod test {
     #[tokio::test]
     async fn test_destination_domain() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
-        let mpmc_channel = MpmcChannel::new(100);
+        let broadcaster = sync::broadcast::Sender::new(100);
         let mut op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
-            mpmc_channel.receiver(),
+            Arc::new(Mutex::new(broadcaster.subscribe())),
         );
 
         // Add some operations to the queue with increasing `next_attempt_after` values
@@ -273,12 +360,13 @@ mod test {
 
         // push to queue
         for op in ops {
-            op_queue.push(op).await;
+            op_queue
+                .push(op, Some(PendingOperationStatus::FirstPrepareAttempt))
+                .await;
         }
 
         // Retry by domain
-        let mpmc_tx = mpmc_channel.sender();
-        mpmc_tx
+        broadcaster
             .send(MessageRetryRequest::DestinationDomain(
                 destination_domain_2.id(),
             ))
@@ -287,7 +375,7 @@ mod test {
         // Pop elements from queue
         let mut popped = vec![];
         while let Some(op) = op_queue.pop().await {
-            popped.push(op.0.id());
+            popped.push(op.id());
         }
 
         // First messages should be those to `destination_domain_2` - their exact order depends on

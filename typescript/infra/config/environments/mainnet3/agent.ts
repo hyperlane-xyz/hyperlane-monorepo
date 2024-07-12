@@ -1,10 +1,7 @@
 import {
-  Chains,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
-  chainMetadata,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -18,16 +15,20 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { getDomainId } from '../../registry.js';
 
-import { environment, supportedChainNames } from './chains.js';
+import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
+import { supportedChainNames } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
+import arbitrumNeutronEclipAddresses from './warp/arbitrum-neutron-eclip-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
@@ -46,74 +47,104 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
-    [Chains.arbitrum]: true,
-    [Chains.ancient8]: true,
-    [Chains.avalanche]: true,
-    [Chains.base]: true,
-    [Chains.blast]: true,
-    [Chains.bsc]: true,
-    [Chains.celo]: true,
-    [Chains.ethereum]: true,
-    [Chains.neutron]: true,
-    [Chains.mantapacific]: true,
-    [Chains.mode]: true,
-    [Chains.moonbeam]: true,
-    [Chains.optimism]: true,
-    [Chains.polygon]: true,
-    [Chains.gnosis]: true,
-    [Chains.scroll]: true,
-    [Chains.polygonzkevm]: true,
-    [Chains.injective]: true,
-    [Chains.inevm]: true,
-    [Chains.viction]: true,
+    arbitrum: true,
+    ancient8: true,
+    avalanche: true,
+    base: true,
+    blast: true,
+    bob: true,
+    bsc: true,
+    celo: true,
+    ethereum: true,
+    fraxtal: true,
+    gnosis: true,
+    injective: true,
+    inevm: true,
+    linea: true,
+    mantapacific: true,
+    mantle: true,
+    mode: true,
+    moonbeam: true,
+    neutron: true,
+    optimism: true,
+    osmosis: true,
+    polygon: true,
+    polygonzkevm: true,
+    redstone: true,
+    scroll: true,
+    sei: true,
+    taiko: true,
+    viction: true,
+    zetachain: true,
   },
   [Role.Relayer]: {
-    [Chains.arbitrum]: true,
-    [Chains.ancient8]: true,
-    [Chains.avalanche]: true,
-    [Chains.base]: true,
-    [Chains.blast]: true,
-    [Chains.bsc]: true,
-    [Chains.celo]: true,
-    [Chains.ethereum]: true,
+    arbitrum: true,
+    ancient8: true,
+    avalanche: true,
+    base: true,
+    blast: true,
+    bob: true,
+    bsc: true,
+    celo: true,
+    ethereum: true,
+    fraxtal: true,
+    gnosis: true,
+    injective: true,
+    inevm: true,
+    linea: true,
+    mantapacific: true,
+    mantle: true,
+    mode: true,
+    moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
-    [Chains.neutron]: false,
-    [Chains.mantapacific]: false,
-    [Chains.mode]: true,
-    [Chains.moonbeam]: true,
-    [Chains.optimism]: true,
-    [Chains.polygon]: true,
-    [Chains.gnosis]: true,
-    [Chains.scroll]: true,
-    [Chains.polygonzkevm]: true,
-    [Chains.injective]: true,
-    [Chains.inevm]: true,
-    [Chains.viction]: true,
+    neutron: false,
+    optimism: true,
+    osmosis: true,
+    polygon: true,
+    polygonzkevm: true,
+    redstone: true,
+    scroll: true,
+    sei: true,
+    taiko: true,
+    viction: true,
+    zetachain: true,
   },
   [Role.Scraper]: {
-    [Chains.arbitrum]: true,
-    [Chains.ancient8]: true,
-    [Chains.avalanche]: true,
-    [Chains.base]: true,
-    [Chains.blast]: true,
-    [Chains.bsc]: true,
-    [Chains.celo]: true,
-    [Chains.ethereum]: true,
+    arbitrum: true,
+    ancient8: true,
+    avalanche: true,
+    base: true,
+    blast: true,
+    bob: true,
+    bsc: true,
+    celo: true,
+    ethereum: true,
+    fraxtal: true,
+    gnosis: true,
     // Cannot scrape non-EVM chains
-    [Chains.neutron]: false,
-    [Chains.mantapacific]: true,
-    [Chains.mode]: true,
-    [Chains.moonbeam]: true,
-    [Chains.optimism]: true,
-    [Chains.polygon]: true,
-    [Chains.gnosis]: true,
-    [Chains.scroll]: true,
-    [Chains.polygonzkevm]: true,
+    injective: false,
+    inevm: true,
+    linea: true,
+    mantapacific: true,
+    mantle: true,
+    mode: true,
+    moonbeam: true,
     // Cannot scrape non-EVM chains
-    [Chains.injective]: false,
-    [Chains.inevm]: true,
+    neutron: false,
+    optimism: true,
+    // Cannot scrape non-EVM chains
+    osmosis: false,
+    polygon: true,
+    polygonzkevm: true,
+    redstone: true,
+    // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
+    // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
+    sei: false,
+    scroll: true,
+    taiko: true,
     // Has RPC non-compliance that breaks scraping.
-    [Chains.viction]: false,
+    viction: false,
+    zetachain: true,
   },
 };
 
@@ -132,6 +163,11 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
+  {
+    type: GasPaymentEnforcementPolicyType.Minimum,
+    payment: '1',
+    matchingList: [{ destinationDomain: getDomainId('mantle') }],
+  },
   // To cover ourselves against IGP indexing issues and to ensure Nexus
   // users have the best possible experience, we whitelist messages between
   // warp routes that we know are certainly paying for gas.
@@ -193,7 +229,33 @@ const metricAppContexts = [
     name: 'ancient8_ethereum_usdc',
     matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
   },
+  {
+    name: 'renzo_ezeth',
+    matchingList: routerMatchingList(renzoEzEthAddresses),
+  },
 ];
+
+// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+const relayerResources = {
+  requests: {
+    cpu: '14000m',
+    memory: '12Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '250m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '4Gi',
+  },
+};
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -204,25 +266,28 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '7a8478b-20240703-113821',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '7a8478b-20240703-113821',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '7a8478b-20240703-113821',
     },
+    resources: scraperResources,
   },
 };
 
@@ -235,21 +300,23 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '4cc9327-20240701-214057',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContexts,
+    resources: relayerResources,
   },
   validators: {
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '0d12ff3-20240620-173353',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 
@@ -257,11 +324,7 @@ const neutron: RootAgentConfig = {
   ...contextBase,
   contextChainNames: {
     validator: [],
-    relayer: [
-      chainMetadata.neutron.name,
-      chainMetadata.mantapacific.name,
-      chainMetadata.arbitrum.name,
-    ],
+    relayer: ['neutron', 'mantapacific', 'arbitrum'],
     scraper: [],
   },
   context: Contexts.Neutron,
@@ -270,7 +333,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a2d6af6-20240422-164135',
+      tag: '9535087-20240623-174819',
     },
     gasPaymentEnforcement: [
       {
@@ -278,6 +341,7 @@ const neutron: RootAgentConfig = {
         matchingList: [
           ...routerMatchingList(mantaTIAAddresses),
           ...routerMatchingList(arbitrumTIAAddresses),
+          ...routerMatchingList(arbitrumNeutronEclipAddresses),
         ],
       },
       ...gasPaymentEnforcement,
@@ -291,7 +355,12 @@ const neutron: RootAgentConfig = {
         name: 'arbitrum_tia',
         matchingList: routerMatchingList(arbitrumTIAAddresses),
       },
+      {
+        name: 'arbitrum_neutron_eclip',
+        matchingList: routerMatchingList(arbitrumNeutronEclipAddresses),
+      },
     ],
+    resources: relayerResources,
   },
 };
 

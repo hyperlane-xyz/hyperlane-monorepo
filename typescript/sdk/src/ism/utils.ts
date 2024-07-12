@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  configDeepEquals,
   eqAddress,
   formatMessage,
   normalizeAddress,
@@ -21,10 +22,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { resolveOrDeployAccountOwner } from '../deploy/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -38,6 +37,46 @@ import {
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
+
+// Determines the domains to enroll and unenroll to update the current ISM config
+// to match the target ISM config.
+export function calculateDomainRoutingDelta(
+  current: RoutingIsmConfig,
+  target: RoutingIsmConfig,
+): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
+  const domainsToEnroll = [];
+  for (const origin of Object.keys(target.domains)) {
+    if (!current.domains[origin]) {
+      domainsToEnroll.push(origin);
+    } else {
+      const subModuleMatches = configDeepEquals(
+        current.domains[origin],
+        target.domains[origin],
+      );
+      if (!subModuleMatches) domainsToEnroll.push(origin);
+    }
+  }
+
+  const domainsToUnenroll = Object.keys(current.domains).reduce(
+    (acc, origin) => {
+      if (!Object.keys(target.domains).includes(origin)) {
+        acc.push(origin);
+      }
+      return acc;
+    },
+    [] as ChainName[],
+  );
+
+  return {
+    domainsToEnroll,
+    domainsToUnenroll,
+  };
+}
+
+/*
+ * The following functions are considered legacy and are deprecated. DO NOT USE.
+ * -----------------------------------------------------------------------------
+ */
 
 // Note that this function may return false negatives, but should
 // not return false positives.
@@ -223,11 +262,7 @@ export async function moduleMatchesConfig(
       );
       // Check that the RoutingISM owner matches the config
       const owner = await routingIsm.owner();
-      const expectedOwner = await resolveOrDeployAccountOwner(
-        multiProvider,
-        chain,
-        config.owner,
-      );
+      const expectedOwner = config.owner;
       matches &&= eqAddress(owner, expectedOwner);
       // check if the mailbox matches the config for fallback routing
       if (config.type === IsmType.FALLBACK_ROUTING) {
@@ -315,11 +350,7 @@ export async function moduleMatchesConfig(
     case IsmType.PAUSABLE: {
       const pausableIsm = PausableIsm__factory.connect(moduleAddress, provider);
       const owner = await pausableIsm.owner();
-      const expectedOwner = await resolveOrDeployAccountOwner(
-        multiProvider,
-        chain,
-        config.owner,
-      );
+      const expectedOwner = config.owner;
       matches &&= eqAddress(owner, expectedOwner);
 
       if (config.paused) {
@@ -351,11 +382,8 @@ export async function routingModuleDelta(
     domain.toNumber(),
   );
   // config.domains is already filtered to only include domains in the multiprovider
-  const safeConfigDomains = objMap(
-    config.domains,
-    (chainName) =>
-      chainMetadata[chainName]?.domainId ??
-      multiProvider.getDomainId(chainName),
+  const safeConfigDomains = objMap(config.domains, (chainName) =>
+    multiProvider.getDomainId(chainName),
   );
 
   const delta: RoutingIsmDelta = {
@@ -364,11 +392,7 @@ export async function routingModuleDelta(
   };
 
   // if owners don't match, we need to transfer ownership
-  const expectedOwner = await resolveOrDeployAccountOwner(
-    multiProvider,
-    destination,
-    config.owner,
-  );
+  const expectedOwner = config.owner;
   if (!eqAddress(owner, normalizeAddress(expectedOwner)))
     delta.owner = expectedOwner;
   if (config.type === IsmType.FALLBACK_ROUTING) {

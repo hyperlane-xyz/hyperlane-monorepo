@@ -1,7 +1,6 @@
-import { chainMetadata, getReorgPeriod } from '@hyperlane-xyz/sdk';
-
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
+import { getReorgPeriod } from '../../registry.js';
 import { validatorBaseConfigsFn } from '../utils.js';
 
 import { environment } from './chains.js';
@@ -13,7 +12,7 @@ export const validatorChainConfig = (
   return {
     alfajores: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
+      reorgPeriod: getReorgPeriod('alfajores'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -33,7 +32,7 @@ export const validatorChainConfig = (
     },
     fuji: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.alfajores),
+      reorgPeriod: getReorgPeriod('alfajores'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -53,7 +52,7 @@ export const validatorChainConfig = (
     },
     bsctestnet: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.bsctestnet),
+      reorgPeriod: getReorgPeriod('bsctestnet'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -71,9 +70,24 @@ export const validatorChainConfig = (
         'bsctestnet',
       ),
     },
+    holesky: {
+      interval: 13,
+      reorgPeriod: getReorgPeriod('holesky'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'],
+          [Contexts.ReleaseCandidate]: [
+            '0x7ab28ad88bb45867137ea823af88e2cb02359c03',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'holesky',
+      ),
+    },
+
     scrollsepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.scrollsepolia),
+      reorgPeriod: getReorgPeriod('scrollsepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -93,7 +107,7 @@ export const validatorChainConfig = (
     },
     sepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.sepolia),
+      reorgPeriod: getReorgPeriod('sepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -113,7 +127,7 @@ export const validatorChainConfig = (
     },
     plumetestnet: {
       interval: 5,
-      reorgPeriod: getReorgPeriod(chainMetadata.plumetestnet),
+      reorgPeriod: getReorgPeriod('plumetestnet'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [
@@ -133,7 +147,7 @@ export const validatorChainConfig = (
     },
     solanatestnet: {
       interval: 1,
-      reorgPeriod: getReorgPeriod(chainMetadata.solanatestnet),
+      reorgPeriod: getReorgPeriod('solanatestnet'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
@@ -145,7 +159,7 @@ export const validatorChainConfig = (
     },
     eclipsetestnet: {
       interval: 1,
-      reorgPeriod: getReorgPeriod(chainMetadata.eclipsetestnet),
+      reorgPeriod: getReorgPeriod('eclipsetestnet'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],

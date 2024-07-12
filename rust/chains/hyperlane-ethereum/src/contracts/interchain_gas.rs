@@ -9,13 +9,15 @@ use async_trait::async_trait;
 use ethers::prelude::Middleware;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512,
 };
 use tracing::instrument;
 
+use super::utils::fetch_raw_logs_and_log_meta;
 use crate::interfaces::i_interchain_gas_paymaster::{
-    IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, IINTERCHAINGASPAYMASTER_ABI,
+    GasPaymentFilter, IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal,
+    IINTERCHAINGASPAYMASTER_ABI,
 };
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
@@ -86,10 +88,10 @@ where
 {
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         let events = self
             .contract
             .gas_payment_filter()
@@ -102,12 +104,12 @@ where
             .into_iter()
             .map(|(log, log_meta)| {
                 (
-                    InterchainGasPayment {
+                    Indexed::new(InterchainGasPayment {
                         message_id: H256::from(log.message_id),
                         destination: log.destination_domain,
                         payment: log.payment.into(),
                         gas_amount: log.gas_amount.into(),
-                    },
+                    }),
                     log_meta.into(),
                 )
             })
@@ -123,6 +125,32 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.reorg_period))
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        let logs = fetch_raw_logs_and_log_meta::<GasPaymentFilter, M>(
+            tx_hash,
+            self.provider.clone(),
+            self.contract.address(),
+        )
+        .await?
+        .into_iter()
+        .map(|(log, log_meta)| {
+            (
+                Indexed::new(InterchainGasPayment {
+                    message_id: H256::from(log.message_id),
+                    destination: log.destination_domain,
+                    payment: log.payment.into(),
+                    gas_amount: log.gas_amount.into(),
+                }),
+                log_meta,
+            )
+        })
+        .collect();
+        Ok(logs)
     }
 }
 

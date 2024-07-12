@@ -3,11 +3,15 @@
 #![allow(clippy::assign_op_pattern)]
 #![allow(clippy::reversed_empty_ranges)]
 
-use std::{ops::Mul, str::FromStr};
+use std::{
+    ops::{Div, Mul},
+    str::FromStr,
+};
 
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, RoundingMode};
 use borsh::{BorshDeserialize, BorshSerialize};
 use fixed_hash::impl_fixed_hash_conversions;
+use num::CheckedDiv;
 use num_traits::Zero;
 use uint::construct_uint;
 
@@ -354,7 +358,7 @@ impl FixedPointNumber {
 
     /// Round up to the nearest integer
     pub fn ceil_to_integer(&self) -> Self {
-        Self(self.0.with_scale(0))
+        Self(self.0.with_scale_round(0, RoundingMode::Ceiling))
     }
 
     /// Ceil
@@ -421,10 +425,56 @@ where
     }
 }
 
+impl<T> Div<T> for FixedPointNumber
+where
+    T: Into<FixedPointNumber>,
+{
+    type Output = FixedPointNumber;
+
+    fn div(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        Self(self.0 / rhs.0)
+    }
+}
+
+impl CheckedDiv for FixedPointNumber {
+    fn checked_div(&self, v: &Self) -> Option<Self> {
+        if v.0.is_zero() {
+            return None;
+        }
+        Some(Self(self.0.clone() / v.0.clone()))
+    }
+}
+
 impl FromStr for FixedPointNumber {
     type Err = ChainCommunicationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(BigDecimal::from_str(s)?))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_fixed_point_number_ceil_to_integer() {
+        use super::FixedPointNumber;
+        use std::str::FromStr;
+
+        // Ceil a non-integer value
+        assert_eq!(
+            FixedPointNumber::from_str("1234.005")
+                .unwrap()
+                .ceil_to_integer(),
+            FixedPointNumber::from_str("1235").unwrap(),
+        );
+
+        // Don't change an integer value
+        assert_eq!(
+            FixedPointNumber::from_str("1234")
+                .unwrap()
+                .ceil_to_integer(),
+            FixedPointNumber::from_str("1234").unwrap(),
+        );
     }
 }

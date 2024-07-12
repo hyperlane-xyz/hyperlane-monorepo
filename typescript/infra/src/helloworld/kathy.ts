@@ -85,7 +85,6 @@ function getHelloworldKathyHelmValues(
       messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
       cycleOnce,
       fullCycleTime,
-      connectionType: kathyConfig.connectionType,
       cyclesBetweenEthereumMessages: kathyConfig.cyclesBetweenEthereumMessages,
     },
     image: {

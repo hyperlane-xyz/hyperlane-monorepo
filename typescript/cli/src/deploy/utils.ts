@@ -1,73 +1,47 @@
+import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 
 import {
   ChainMap,
+  ChainMetadata,
   ChainName,
   IsmConfig,
-  MultiProvider,
   MultisigConfig,
   getLocalProvider,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Command } from '../commands/deploy.js';
 import { parseIsmConfig } from '../config/ism.js';
-import { log, logGreen, logPink } from '../logger.js';
-import { assertGasBalances } from '../utils/balances.js';
+import { WriteCommandContext } from '../context/types.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logPink,
+  logTable,
+} from '../logger.js';
+import { nativeBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
 import { completeDryRun } from './dry-run.js';
 
-export async function runPreflightChecks({
-  origin,
-  remotes,
-  signer,
-  multiProvider,
-  minGas,
-  chainsToGasCheck,
-}: {
-  origin: ChainName;
-  remotes: ChainName[];
-  signer: ethers.Signer;
-  multiProvider: MultiProvider;
-  minGas: string;
-  chainsToGasCheck?: ChainName[];
-}) {
-  log('Running pre-flight checks...');
-
-  if (!origin || !remotes?.length) throw new Error('Invalid chain selection');
-  logGreen('✅ Chain selections are valid');
-
-  if (remotes.includes(origin))
-    throw new Error('Origin and remotes must be distinct');
-  logGreen('✅ Origin and remote are distinct');
-
-  return runPreflightChecksForChains({
-    chains: [origin, ...remotes],
-    signer,
-    multiProvider,
-    minGas,
-    chainsToGasCheck,
-  });
-}
-
 export async function runPreflightChecksForChains({
+  context,
   chains,
-  signer,
-  multiProvider,
   minGas,
   chainsToGasCheck,
 }: {
+  context: WriteCommandContext;
   chains: ChainName[];
-  signer: ethers.Signer;
-  multiProvider: MultiProvider;
   minGas: string;
   // Chains for which to assert a native balance
   // Defaults to all chains if not specified
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
+  const { signer, multiProvider } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -81,13 +55,41 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  await assertGasBalances(
+  await nativeBalancesAreSufficient(
     multiProvider,
     signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
-  logGreen('✅ Balances are sufficient');
+}
+
+export async function runDeployPlanStep({
+  context,
+  chain,
+}: {
+  context: WriteCommandContext;
+  chain: ChainName;
+}) {
+  const { signer, chainMetadata: chainMetadataMap, skipConfirmation } = context;
+  const address = await signer.getAddress();
+
+  logBlue('\nDeployment plan');
+  logGray('===============');
+  log(`Transaction signer and owner of new contracts: ${address}`);
+  log(`Deploying core contracts to network: ${chain}`);
+  const transformedChainMetadata = transformChainMetadataForDisplay(
+    chainMetadataMap[chain],
+  );
+  logTable(transformedChainMetadata);
+  log(
+    `Note: There are several contracts required for each chain, but contracts in your provided registries will be skipped.`,
+  );
+
+  if (skipConfirmation) return;
+  const isConfirmed = await confirm({
+    message: 'Is this deployment plan correct?',
+  });
+  if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
 // from parsed types
@@ -103,15 +105,15 @@ export function isZODISMConfig(filepath: string): boolean {
 }
 
 export async function prepareDeploy(
-  multiProvider: MultiProvider,
+  context: WriteCommandContext,
   userAddress: Address,
   chains: ChainName[],
-  dryRun: boolean = false,
 ): Promise<Record<string, BigNumber>> {
+  const { multiProvider, isDryRun } = context;
   const initialBalances: Record<string, BigNumber> = {};
   await Promise.all(
     chains.map(async (chain: ChainName) => {
-      const provider = dryRun
+      const provider = isDryRun
         ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
         : multiProvider.getProvider(chain);
       const currentBalance = await provider.getBalance(userAddress);
@@ -122,33 +124,47 @@ export async function prepareDeploy(
 }
 
 export async function completeDeploy(
-  command: Command,
+  context: WriteCommandContext,
+  command: string,
   initialBalances: Record<string, BigNumber>,
-  multiProvider: MultiProvider,
   userAddress: Address,
   chains: ChainName[],
-  dryRun: string,
 ) {
+  const { multiProvider, isDryRun } = context;
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
-    const provider = dryRun
+    const provider = isDryRun
       ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
       : multiProvider.getProvider(chain);
     const currentBalance = await provider.getBalance(userAddress);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (dryRun && balanceDelta.lt(0)) break;
+    if (isDryRun && balanceDelta.lt(0)) break;
     logPink(
       `\t- Gas required for ${command} ${
-        dryRun ? 'dry-run' : 'deploy'
+        isDryRun ? 'dry-run' : 'deploy'
       } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol
+        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
       }`,
     );
   }
 
-  if (dryRun) await completeDryRun(command);
+  if (isDryRun) await completeDryRun(command);
 }
 
 export function toUpperCamelCase(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
+  return {
+    Name: chainMetadata.name,
+    'Display Name': chainMetadata.displayName,
+    'Chain ID': chainMetadata.chainId,
+    'Domain ID': chainMetadata.domainId,
+    Protocol: chainMetadata.protocol,
+    'JSON RPC URL': chainMetadata.rpcUrls[0].http,
+    'Native Token: Symbol': chainMetadata.nativeToken?.symbol,
+    'Native Token: Name': chainMetadata.nativeToken?.name,
+    'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
+  };
 }

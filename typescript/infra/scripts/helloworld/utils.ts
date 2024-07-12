@@ -4,39 +4,33 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  HyperlaneCore,
   HyperlaneIgp,
   MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
-  RpcConsensusType,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
   filterChainMapToProtocol,
-  hyperlaneEnvironments,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import {
-  EnvironmentConfig,
-  deployEnvToSdkEnv,
-} from '../../src/config/environment.js';
+import { getEnvAddresses } from '../../config/registry.js';
+import { EnvironmentConfig } from '../../src/config/environment.js';
 import { HelloWorldConfig } from '../../src/config/helloworld/types.js';
 import { Role } from '../../src/roles.js';
+import { getHyperlaneCore } from '../core-utils.js';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
-    connectionType,
   );
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
 
@@ -47,8 +41,8 @@ export async function getHelloWorldApp(
       multiProvider,
     );
 
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[coreConfig.environment],
+  const { core } = await getHyperlaneCore(
+    coreConfig.environment,
     multiProvider,
   );
   return new HelloWorldApp(
@@ -64,15 +58,13 @@ export async function getHelloWorldMultiProtocolApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
-    connectionType,
   );
-  const sdkEnvName = deployEnvToSdkEnv[coreConfig.environment];
-  const envAddresses = hyperlaneEnvironments[sdkEnvName];
+
+  const envAddresses = getEnvAddresses(coreConfig.environment);
   const keys = await coreConfig.getKeys(keyContext, keyRole);
 
   // Fetch all the keys, which is required to get the address for
@@ -117,7 +109,7 @@ export async function getHelloWorldMultiProtocolApp(
   // }
 
   const core = MultiProtocolCore.fromAddressesMap(
-    envAddresses,
+    envAddresses as any,
     multiProtocolProvider,
   );
 

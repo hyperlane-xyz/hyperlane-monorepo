@@ -9,6 +9,7 @@ import { safelyAccessEnvVar } from './env.js';
 // A custom enum definition because pino does not export an enum
 // and because we use 'off' instead of 'silent' to match the agent options
 export enum LogLevel {
+  Trace = 'trace',
   Debug = 'debug',
   Info = 'info',
   Warn = 'warn',

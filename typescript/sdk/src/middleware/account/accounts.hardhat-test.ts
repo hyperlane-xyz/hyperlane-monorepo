@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber, constants } from 'ethers';
+import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -8,7 +8,7 @@ import {
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 
-import { Chains } from '../../consts/chains.js';
+import { TestChainName } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
@@ -25,8 +25,8 @@ import { InterchainAccountFactories } from './contracts.js';
 import { AccountConfig } from './types.js';
 
 describe('InterchainAccounts', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
 
   let signer: SignerWithAddress;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
@@ -84,7 +84,7 @@ describe('InterchainAccounts', async () => {
     const call = {
       to: recipient.address,
       data,
-      value: BigNumber.from('0'),
+      value: '0',
     };
     const quote = await local['quoteGasPayment(uint32)'](
       multiProvider.getDomainId(remoteChain),
@@ -95,7 +95,12 @@ describe('InterchainAccounts', async () => {
       owner: signer.address,
       localRouter: local.address,
     };
-    await app.callRemote(localChain, remoteChain, [call], config);
+    await app.callRemote({
+      chain: localChain,
+      destination: remoteChain,
+      innerCalls: [call],
+      config,
+    });
     const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
     expect(balanceAfter).to.lte(balanceBefore.sub(quote));

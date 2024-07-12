@@ -1,14 +1,13 @@
 import { input } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue } from '../logger.js';
-
-import { getTimestampForFilename } from './time.js';
+import { log } from '../logger.js';
 
 export type FileFormat = 'yaml' | 'json';
 
@@ -16,6 +15,14 @@ export type ArtifactsFile = {
   filename: string;
   description: string;
 };
+
+export function resolvePath(filePath: string): string {
+  if (filePath.startsWith('~')) {
+    const homedir = os.homedir();
+    return path.join(homedir, filePath.slice(1));
+  }
+  return filePath;
+}
 
 export function isFile(filepath: string) {
   if (!filepath) return false;
@@ -83,7 +90,10 @@ export function tryReadYamlAtPath<T>(filepath: string): T | null {
 }
 
 export function writeYaml(filepath: string, obj: any) {
-  writeFileAtPath(filepath, yamlStringify(obj, null, 2) + '\n');
+  writeFileAtPath(
+    filepath,
+    yamlStringify(obj, { indent: 2, sortMapEntries: true }) + '\n',
+  );
 }
 
 export function mergeYaml<T extends Record<string, any>>(
@@ -99,7 +109,7 @@ export function mergeYaml<T extends Record<string, any>>(
 }
 
 export function readYamlOrJson<T>(filepath: string, format?: FileFormat): T {
-  return resolveYamlOrJson(filepath, readJson, readYaml, format);
+  return resolveYamlOrJsonFn(filepath, readJson, readYaml, format);
 }
 
 export function writeYamlOrJson(
@@ -107,7 +117,7 @@ export function writeYamlOrJson(
   obj: Record<string, any>,
   format?: FileFormat,
 ) {
-  return resolveYamlOrJson(
+  return resolveYamlOrJsonFn(
     filepath,
     (f: string) => writeJson(f, obj),
     (f: string) => writeYaml(f, obj),
@@ -118,9 +128,9 @@ export function writeYamlOrJson(
 export function mergeYamlOrJson(
   filepath: string,
   obj: Record<string, any>,
-  format?: FileFormat,
+  format: FileFormat = 'yaml',
 ) {
-  return resolveYamlOrJson(
+  return resolveYamlOrJsonFn(
     filepath,
     (f: string) => mergeJson(f, obj),
     (f: string) => mergeYaml(f, obj),
@@ -128,55 +138,46 @@ export function mergeYamlOrJson(
   );
 }
 
-function resolveYamlOrJson(
+function resolveYamlOrJsonFn(
   filepath: string,
   jsonFn: any,
   yamlFn: any,
   format?: FileFormat,
 ) {
-  if (format === 'json' || filepath.endsWith('.json')) {
-    return jsonFn(filepath);
-  } else if (
-    format === 'yaml' ||
-    filepath.endsWith('.yaml') ||
-    filepath.endsWith('.yml')
-  ) {
-    return yamlFn(filepath);
-  } else {
+  const fileFormat = resolveFileFormat(filepath, format);
+  if (!fileFormat) {
     throw new Error(`Invalid file format for ${filepath}`);
   }
-}
 
-export function prepNewArtifactsFiles(
-  outPath: string,
-  files: Array<ArtifactsFile>,
-) {
-  const timestamp = getTimestampForFilename();
-  const newPaths: string[] = [];
-  for (const file of files) {
-    const filePath = path.join(outPath, `${file.filename}-${timestamp}.json`);
-    // Write empty object to ensure permissions are okay
-    writeJson(filePath, {});
-    newPaths.push(filePath);
-    logBlue(`${file.description} will be written to ${filePath}`);
+  if (fileFormat === 'json') {
+    return jsonFn(filepath);
   }
-  return newPaths;
+
+  return yamlFn(filepath);
 }
 
-/**
- * Retrieves artifacts file metadata for the current command.
- * @param dryRun whether or not the current command is being dry-run
- * @returns the artifacts files
- */
-export function getArtifactsFiles(
-  defaultFiles: ArtifactsFile[],
-  dryRun: string = '',
-): Array<ArtifactsFile> {
-  if (dryRun)
-    defaultFiles.map((defaultFile: ArtifactsFile) => {
-      defaultFile.filename = `dry-run_${defaultFile.filename}`;
-    });
-  return defaultFiles;
+export function resolveFileFormat(
+  filepath?: string,
+  format?: FileFormat,
+): FileFormat | undefined {
+  // early out if filepath is undefined
+  if (!filepath) {
+    return format;
+  }
+
+  if (format === 'json' || filepath?.endsWith('.json')) {
+    return 'json';
+  }
+
+  if (
+    format === 'yaml' ||
+    filepath?.endsWith('.yaml') ||
+    filepath?.endsWith('.yml')
+  ) {
+    return 'yaml';
+  }
+
+  return undefined;
 }
 
 export async function runFileSelectionStep(
@@ -211,4 +212,12 @@ export async function runFileSelectionStep(
 
   if (filename) return filename;
   else throw new Error(`No filepath entered ${description}`);
+}
+
+export function indentYamlOrJson(str: string, indentLevel: number): string {
+  const indent = ' '.repeat(indentLevel);
+  return str
+    .split('\n')
+    .map((line) => indent + line)
+    .join('\n');
 }

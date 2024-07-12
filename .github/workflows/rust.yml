@@ -1,12 +1,20 @@
 name: rust
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'rust/**'
+      - .github/workflows/rust.yml
+      - '!*.md'
   pull_request:
     branches: [main]
     paths:
       - 'rust/**'
       - .github/workflows/rust.yml
-
+      - '!*.md'
+  # Support for merge queues
+  merge_group:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -27,7 +35,7 @@ jobs:
     runs-on: larger-runner
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions-rs/toolchain@v1
@@ -37,8 +45,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v2-rust"
-          shared-key: "test"
+          prefix-key: "v3-rust"
           workspaces: |
             ./rust
       - name: Free disk space
@@ -55,7 +62,7 @@ jobs:
     runs-on: larger-runner
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions-rs/toolchain@v1
@@ -67,8 +74,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v2-rust"
-          shared-key: "lint"
+          prefix-key: "v3-rust"
           workspaces: |
             ./rust
       - name: Free disk space
