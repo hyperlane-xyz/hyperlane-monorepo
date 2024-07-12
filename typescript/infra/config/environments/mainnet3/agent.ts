@@ -28,6 +28,9 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import merklyErc20Addresses from './warp/merkly-erc20-addresses.json';
+import merklyEthAddresses from './warp/merkly-eth-addresses.json';
+import merklyNftAddresses from './warp/merkly-nft-addresses.json';
 import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
@@ -166,7 +169,12 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
-    matchingList: [{ destinationDomain: getDomainId('mantle') }],
+    matchingList: [
+      // Temporarily allow Merkly ETH messages to just require some payment
+      // as a workaround to https://github.com/hyperlane-xyz/issues/issues/1294
+      ...routerMatchingList(merklyEthAddresses),
+      { destinationDomain: getDomainId('mantle') },
+    ],
   },
   // To cover ourselves against IGP indexing issues and to ensure Nexus
   // users have the best possible experience, we whitelist messages between
@@ -177,19 +185,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       ...routerMatchingList(injectiveInevmInjAddresses),
       ...matchingList(inevmEthereumUsdcAddresses),
       ...matchingList(inevmEthereumUsdtAddresses),
-      ...routerMatchingList(victionEthereumEthAddresses),
-      ...routerMatchingList(victionEthereumUsdcAddresses),
-      ...routerMatchingList(victionEthereumUsdtAddresses),
-      ...routerMatchingList(ancient8EthereumUsdcAddresses),
     ],
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: matchingList(inevmEthereumUsdcAddresses),
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: matchingList(inevmEthereumUsdtAddresses),
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -233,6 +229,19 @@ const metricAppContexts = [
     name: 'renzo_ezeth',
     matchingList: routerMatchingList(renzoEzEthAddresses),
   },
+  // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
+  // {
+  //   name: 'merkly_erc20',
+  //   matchingList: routerMatchingList(merklyErc20Addresses),
+  // },
+  // {
+  //   name: 'merkly_eth',
+  //   matchingList: routerMatchingList(merklyErc20Addresses),
+  // },
+  // {
+  //   name: 'merkly_nft',
+  //   matchingList: routerMatchingList(merklyErc20Addresses),
+  // },
 ];
 
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
@@ -266,7 +275,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7a8478b-20240703-113821',
+      tag: 'bb470ae-20240710-155957',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -300,7 +309,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4cc9327-20240701-214057',
+      tag: 'bb470ae-20240710-155957',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
