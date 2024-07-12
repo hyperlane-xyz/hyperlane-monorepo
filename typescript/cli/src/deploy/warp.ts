@@ -388,7 +388,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
   );
 }
 
-function displayWarpDeployPlan(deployConfig: WarpRouteDeployConfig) {
+export function displayWarpDeployPlan(deployConfig: WarpRouteDeployConfig) {
   logBlue('\nWarp Route Deployment Plan');
   logGray('==========================');
   log(`📋 Token Standard: ${deployConfig.isNft ? 'ERC721' : 'ERC20'}`);
