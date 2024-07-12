@@ -225,7 +225,7 @@ export class EvmERC20WarpRouteReader {
       this.provider,
     );
     const domains = await warpRoute.domains();
-    console.log('domains,', domains);
+
     return Promise.all(
       domains.map(async (domain) => ({
         domain,
