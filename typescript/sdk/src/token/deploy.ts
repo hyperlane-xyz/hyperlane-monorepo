@@ -5,7 +5,6 @@ import {
   ERC20__factory,
   ERC721Enumerable__factory,
   GasRouter,
-  IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
 import { TokenType } from '@hyperlane-xyz/sdk';
@@ -125,24 +124,13 @@ abstract class TokenDeployer<
           };
         }
 
-        let token: string;
-        switch (config.type) {
-          case TokenType.XERC20Lockbox:
-            token = await IXERC20Lockbox__factory.connect(
-              config.token,
-              provider,
-            ).callStatic.ERC20();
-            break;
-          case TokenType.collateralVault:
-            token = await IERC4626__factory.connect(
-              config.token,
-              provider,
-            ).callStatic.asset();
-            break;
-          default:
-            token = config.token;
-            break;
-        }
+        const token =
+          config.type === TokenType.XERC20Lockbox
+            ? await IXERC20Lockbox__factory.connect(
+                config.token,
+                provider,
+              ).callStatic.ERC20()
+            : config.token;
 
         const erc20 = ERC20__factory.connect(token, provider);
         const [name, symbol, decimals] = await Promise.all([

@@ -14,10 +14,10 @@ import {
   ProxyFactoryFactoriesAddresses,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
+  TokenType,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   getTokenConnectionId,
-  isCollateralConfig,
   isTokenMetadata,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
@@ -289,10 +289,8 @@ async function getWarpCoreConfig(
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
-    const collateralAddressOrDenom = isCollateralConfig(config)
-      ? config.token // gets set in the above deriveTokenMetadata()
-      : undefined;
-
+    const collateralAddressOrDenom =
+      config.type === TokenType.collateral ? config.token : undefined;
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
