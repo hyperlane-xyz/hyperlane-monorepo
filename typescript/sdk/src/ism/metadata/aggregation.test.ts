@@ -25,7 +25,7 @@ const fixtures: Fixture<AggregationMetadata>[] = files
     };
   });
 
-describe('AggregationMetadataBuilder', () => {
+describe.only('AggregationMetadataBuilder', () => {
   fixtures.forEach((fixture, i) => {
     it(`should encode fixture ${i}`, () => {
       expect(AggregationMetadataBuilder.encode(fixture.decoded)).to.equal(
