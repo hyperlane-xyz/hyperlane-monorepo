@@ -1,7 +1,7 @@
-import { deepStrictEqual } from 'node:assert/strict';
+import deepEqual from 'deep-equal';
 import { stringify as yamlStringify } from 'yaml';
 
-import { ethersBigNumberSerializer, rootLogger } from './logging.js';
+import { ethersBigNumberSerializer } from './logging.js';
 import { WithAddress } from './types.js';
 import { assert } from './validation.js';
 
@@ -177,11 +177,5 @@ export function normalizeConfig(obj: WithAddress<any>): any {
 }
 
 export function configDeepEquals(v1: any, v2: any): boolean {
-  try {
-    deepStrictEqual(v1, v2);
-    return true;
-  } catch (error) {
-    rootLogger.info((error as Error).message);
-    return false;
-  }
+  return deepEqual(v1, v2, { strict: true });
 }
