@@ -124,7 +124,8 @@ export async function runWarpRouteDeploy({
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   const { skipConfirmation } = context;
 
-  displayWarpDeployPlan(warpDeployConfig);
+  logTable(warpDeployConfig);
+  // displayWarpDeployPlan(warpDeployConfig);
 
   if (skipConfirmation || context.isDryRun) return;
 
