@@ -5,7 +5,7 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { PopulatedTransaction } from '../../types.js';
+import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
@@ -24,7 +24,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     public readonly props: EV5GnosisSafeTxSubmitterProps,
   ) {}
 
-  public async submit(...txs: PopulatedTransaction[]): Promise<void> {
+  public async submit(...txs: PopulatedTransactions): Promise<void> {
     const safe = await getSafe(
       this.props.chain,
       this.multiProvider,
