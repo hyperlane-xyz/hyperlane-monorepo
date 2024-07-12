@@ -76,7 +76,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
-    let tokio_server = core_settings.tracing.start_tracing(&metrics)?;
+    let tokio_server = core_settings.tracing.start_tracing(&metrics).await?;
     let agent_metrics = create_agent_metrics(&metrics)?;
     let chain_metrics = create_chain_metrics(&metrics)?;
     let agent = A::from_settings(

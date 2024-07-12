@@ -67,6 +67,8 @@ opentelemetry-otlp = "0.15.0"
 tracing-opentelemetry = "0.23.0"
 opentelemetry-semantic-conventions = "0.14.0"
 opentelemetry_sdk = {version = "0.22.1", features = ["rt-tokio", "rt-tokio-current-thread"]}
+tracing-stackdriver = { version =  "0.9.0", features = ["opentelemetry"] }
+opentelemetry-stackdriver = { version = "0.19" }
 
 [dev-dependencies]
 color-eyre.workspace = true
