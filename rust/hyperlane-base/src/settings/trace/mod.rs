@@ -21,13 +21,9 @@ use opentelemetry_semantic_conventions::{
 // use tracing_core::Level;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::runtime::Tokio;
-use tracing_opentelemetry::{OpenTelemetryLayer};
-use tracing_stackdriver::{CloudTraceConfiguration};
-use tracing_subscriber::{
-    layer::{SubscriberExt},
-    util::SubscriberInitExt,
-};
-
+use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_stackdriver::CloudTraceConfiguration;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Configure a `tracing_subscriber::fmt` Layer outputting to stdout
 pub mod fmt;
