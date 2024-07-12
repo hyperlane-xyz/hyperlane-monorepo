@@ -3,6 +3,8 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
+  AggregationIsmConfig,
+  ChainName,
   EvmERC20WarpModule,
   EvmIsmModule,
   HypERC20Deployer,
@@ -10,14 +12,20 @@ import {
   HyperlaneAddresses,
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
+  IsmType,
   MultiProvider,
+  MultisigIsmConfig,
+  OpStackIsmConfig,
+  PausableIsmConfig,
   ProxyFactoryFactoriesAddresses,
+  RoutingIsmConfig,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
-  TokenType,
+  TrustedRelayerIsmConfig,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   getTokenConnectionId,
+  isCollateralConfig,
   isTokenMetadata,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
@@ -95,8 +103,6 @@ export async function runWarpRouteDeploy({
     warpDeployConfig: warpRouteConfig,
   };
 
-  logBlue('Warp route deployment plan');
-
   await runDeployPlanStep(deploymentParams);
   const chains = Object.keys(warpRouteConfig);
 
@@ -118,10 +124,7 @@ export async function runWarpRouteDeploy({
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   const { skipConfirmation } = context;
 
-  logBlue('\nDeployment plan');
-  logGray('===============');
-  log(`Using token standard ${warpDeployConfig.isNft ? 'ERC721' : 'ERC20'}`);
-  logTable(warpDeployConfig);
+  displayWarpDeployPlan(warpDeployConfig);
 
   if (skipConfirmation || context.isDryRun) return;
 
@@ -289,8 +292,10 @@ async function getWarpCoreConfig(
   // First pass, create token configs
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
-    const collateralAddressOrDenom =
-      config.type === TokenType.collateral ? config.token : undefined;
+    const collateralAddressOrDenom = isCollateralConfig(config)
+      ? config.token // gets set in the above deriveTokenMetadata()
+      : undefined;
+
     warpCoreConfig.tokens.push({
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
@@ -380,4 +385,132 @@ export async function runWarpRouteApply(params: ApplyParams) {
       }
     }),
   );
+}
+
+function displayWarpDeployPlan(deployConfig: WarpRouteDeployConfig) {
+  logBlue('\nWarp Route Deployment Plan');
+  logGray('==========================');
+  log(`📋 Token Standard: ${deployConfig.isNft ? 'ERC721' : 'ERC20'}`);
+
+  const { transformedDeployConfig, transformedIsmConfigs } =
+    transformDeployConfigForDisplay(deployConfig);
+
+  log('📋 Warp Route Config:');
+  logTable(transformedDeployConfig);
+  objMap(transformedIsmConfigs, (chain, ismConfigs) => {
+    log(`📋 ${chain} ISM Config(s):`);
+    ismConfigs.forEach((ismConfig) => {
+      logTable(ismConfig);
+    });
+  });
+}
+
+/* only used for transformIsmForDisplay type-sense */
+type IsmConfig =
+  | RoutingIsmConfig // type, owner, ownerOverrides, domain
+  | AggregationIsmConfig // type, modules, threshold
+  | MultisigIsmConfig // type, validators, threshold
+  | OpStackIsmConfig // type, origin, nativeBridge
+  | PausableIsmConfig // type, owner, paused, ownerOverrides
+  | TrustedRelayerIsmConfig; // type, relayer
+
+function transformDeployConfigForDisplay(deployConfig: WarpRouteDeployConfig) {
+  const transformedIsmConfigs: Record<ChainName, any[]> = {};
+  const transformedDeployConfig = objMap(deployConfig, (chain, config) => {
+    if (config.interchainSecurityModule)
+      transformedIsmConfigs[chain] = transformIsmConfigForDisplay(
+        config.interchainSecurityModule as IsmConfig,
+      );
+
+    return {
+      'NFT?': config.isNft ?? false,
+      Type: config.type,
+      Owner: config.owner,
+      Mailbox: config.mailbox,
+      'ISM Config(s)': config.interchainSecurityModule
+        ? 'See table(s) below.'
+        : 'No ISM config(s) specified.',
+    };
+  });
+
+  return {
+    transformedDeployConfig,
+    transformedIsmConfigs,
+  };
+}
+
+function transformIsmConfigForDisplay(ismConfig: IsmConfig): any[] {
+  const ismConfigs: any[] = [];
+  switch (ismConfig.type) {
+    case IsmType.AGGREGATION:
+      ismConfigs.push({
+        Type: ismConfig.type,
+        Threshold: ismConfig.threshold,
+        Modules: 'See table(s) below.',
+      });
+      ismConfig.modules.forEach((module) => {
+        ismConfigs.push(...transformIsmConfigForDisplay(module as IsmConfig));
+      });
+      return ismConfigs;
+    case IsmType.ROUTING:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          'Owner Overrides': ismConfig.ownerOverrides ?? 'Undefined',
+          Domains: 'See warp config for domain specification.',
+        },
+      ];
+    case IsmType.FALLBACK_ROUTING:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          'Owner Overrides': ismConfig.ownerOverrides ?? 'Undefined',
+          Domains: 'See warp config for domain specification.',
+        },
+      ];
+    case IsmType.MERKLE_ROOT_MULTISIG:
+      return [
+        {
+          Type: ismConfig.type,
+          Validators: ismConfig.validators,
+          Threshold: ismConfig.threshold,
+        },
+      ];
+    case IsmType.MESSAGE_ID_MULTISIG:
+      return [
+        {
+          Type: ismConfig.type,
+          Validators: ismConfig.validators,
+          Threshold: ismConfig.threshold,
+        },
+      ];
+    case IsmType.OP_STACK:
+      return [
+        {
+          Type: ismConfig.type,
+          Origin: ismConfig.origin,
+          'Native Bridge': ismConfig.nativeBridge,
+        },
+      ];
+    case IsmType.PAUSABLE:
+      return [
+        {
+          Type: ismConfig.type,
+          Owner: ismConfig.owner,
+          'Paused ?': ismConfig.paused,
+          'Owner Overrides': ismConfig.ownerOverrides ?? 'Undefined',
+        },
+      ];
+    case IsmType.TRUSTED_RELAYER:
+      return [
+        {
+          Type: ismConfig.type,
+          Relayer: ismConfig.relayer,
+        },
+      ];
+    default:
+      return [ismConfig];
+  }
 }
