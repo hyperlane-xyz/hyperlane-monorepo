@@ -115,7 +115,7 @@ export const deploy: CommandModuleWithWriteContext<{
     'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {
-    logGray(`Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`);
+    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
     logGray('------------------------------------------------');
 
     try {
