@@ -4,6 +4,7 @@ import {
   HypERC20CollateralVaultDeposit__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   MailboxClientConfig,
@@ -12,6 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  bytes32ToAddress,
   eqAddress,
   getLogLevel,
   rootLogger,
@@ -21,6 +23,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { RemoteRouter } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 
 import { CollateralExtensions } from './config.js';
@@ -56,17 +59,14 @@ export class EvmERC20WarpRouteReader {
   ): Promise<TokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
-    const fetchedBaseMetadata = await this.fetchMailboxClientConfig(
-      warpRouteAddress,
-    );
-    const fetchedTokenMetadata = await this.fetchTokenMetadata(
-      type,
-      warpRouteAddress,
-    );
+    const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
+    const tokenMetadata = await this.fetchTokenMetadata(type, warpRouteAddress);
+    const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
 
     return {
-      ...fetchedBaseMetadata,
-      ...fetchedTokenMetadata,
+      ...baseMetadata,
+      ...tokenMetadata,
+      remoteRouters,
       type,
     } as TokenRouterConfig;
   }
@@ -219,6 +219,20 @@ export class EvmERC20WarpRouteReader {
     return { name, symbol, decimals, totalSupply: totalSupply.toString() };
   }
 
+  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouter[]> {
+    const warpRoute = TokenRouter__factory.connect(
+      warpRouteAddress,
+      this.provider,
+    );
+    const domains = await warpRoute.domains();
+    console.log('domains,', domains);
+    return Promise.all(
+      domains.map(async (domain) => ({
+        domain,
+        router: bytes32ToAddress(await warpRoute.routers(domain)),
+      })),
+    );
+  }
   /**
    * Conditionally sets the log level for a smart provider.
    *

@@ -1,8 +1,12 @@
-import { MailboxClient__factory } from '@hyperlane-xyz/core';
+import {
+  MailboxClient__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
   ProtocolType,
+  addressToBytes32,
   assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -15,6 +19,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { RemoteRouter } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -74,7 +79,65 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     TokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    return this.updateIsm(actualConfig, expectedConfig);
+    const transactions = [];
+
+    transactions.push(
+      ...(await this.updateIsm(actualConfig, expectedConfig)),
+      ...(await this.updateRemoteRouters(
+        actualConfig.remoteRouters!,
+        expectedConfig.remoteRouters!,
+      )),
+    );
+
+    return transactions;
+  }
+
+  /**
+   * Enrolls the remote routers for the Warp Route contract.
+   *
+   * @param actualRemoteRouters - The current remote routers configured on the contract.
+   * @param expectedRemoteRouters - The new remote routers to be configured on the contract.
+   * @returns Ethereum transaction that need to be executed to enroll the routers
+   */
+  async updateRemoteRouters(
+    actualRemoteRouters: RemoteRouter[],
+    expectedRemoteRouters: RemoteRouter[],
+  ): Promise<AnnotatedEV5Transaction[]> {
+    let updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (
+      expectedRemoteRouters.length > 0 &&
+      expectedRemoteRouters.length > actualRemoteRouters.length
+    ) {
+      const contractToUpdate = TokenRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
+
+      const enrollRemoteRoutersParameters = expectedRemoteRouters.reduce<
+        [
+          number[], // domain
+          string[], // router
+        ]
+      >(
+        (results, remoteRouter) => {
+          results[0].push(remoteRouter.domain);
+          results[1].push(addressToBytes32(remoteRouter.router));
+          return results;
+        },
+        [[], []],
+      );
+
+      updateTransactions.push({
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute}}`,
+        chainId: this.domainId,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'enrollRemoteRouters',
+          enrollRemoteRoutersParameters,
+        ),
+      });
+    }
+    return updateTransactions;
   }
 
   /**
@@ -106,7 +169,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     if (actualDeployedIsm !== expectedDeployedIsm) {
       const contractToUpdate = MailboxClient__factory.connect(
         this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.args.chain),
+        this.multiProvider.getProvider(this.domainId),
       );
       updateTransactions.push({
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
@@ -182,12 +245,26 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deployContracts(chainName, config);
 
-    return new EvmERC20WarpModule(multiProvider, {
+    const warpModule = new EvmERC20WarpModule(multiProvider, {
       addresses: {
         deployedTokenRoute: deployedContracts[config.type].address,
       },
       chain,
       config,
     });
+
+    // Enroll Remote Routers
+    if (config.remoteRouters?.length) {
+      const actualRemoteRouters = (await warpModule.read()).remoteRouters!;
+      const expectedRemoteRouters = config.remoteRouters;
+      const enrollRemoteTx = await warpModule.updateRemoteRouters(
+        actualRemoteRouters,
+        expectedRemoteRouters,
+      );
+
+      await multiProvider.sendTransaction(chain, enrollRemoteTx[0]); // updateRemoteRouters is always a single tx
+    }
+
+    return warpModule;
   }
 }

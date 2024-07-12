@@ -48,7 +48,7 @@ describe('ERC20WarpRouterReader', async () => {
   let mailbox: Mailbox;
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
-  before(async () => {
+  beforeEach(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
@@ -233,5 +233,35 @@ describe('ERC20WarpRouterReader', async () => {
     );
 
     expect(derivedConfig.interchainSecurityModule).to.be.undefined;
+  });
+
+  it('should return the remote routers', async () => {
+    // Create config
+    const otherChain = TestChainName.test3;
+    const config = {
+      [chain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+      [otherChain]: {
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    console.log('warpRoute', warpRoute);
+    // Derive config and check if remote router matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+    expect(derivedConfig.remoteRouters?.length).to.equal(1);
+    expect(derivedConfig.remoteRouters![0].router).to.be.equal(
+      warpRoute[otherChain].collateral.address,
+    );
   });
 });

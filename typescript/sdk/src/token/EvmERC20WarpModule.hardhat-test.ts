@@ -40,6 +40,11 @@ import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { TokenType } from './config.js';
 import { TokenRouterConfig } from './schemas.js';
 
+const randomRemoteRouters = (n: number) => {
+  const emptyArray = new Array<number>(n).fill(0);
+  return emptyArray.map((_, domain) => ({ domain, router: randomAddress() }));
+};
+
 describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
@@ -228,7 +233,26 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     await validateCoreValues(nativeContract);
   });
 
-  describe('Update Ism', async () => {
+  it('should create with remote routers', async () => {
+    const numOfRouters = Math.floor(Math.random() * 10);
+    const config = {
+      ...baseConfig,
+      type: TokenType.native,
+      hook: hookAddress,
+      remoteRouters: randomRemoteRouters(numOfRouters),
+    } as TokenRouterConfig;
+
+    // Deploy using WarpModule
+    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      chain,
+      config,
+      multiProvider,
+    });
+    const { remoteRouters } = await evmERC20WarpModule.read();
+    expect(remoteRouters?.length).to.equal(numOfRouters);
+  });
+
+  describe('Update', async () => {
     const ismConfigToUpdate: IsmConfig[] = [
       {
         type: IsmType.TRUSTED_RELAYER,
@@ -370,6 +394,33 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(updatedConfig).to.deep.equal(
         expectedConfig.interchainSecurityModule,
       );
+    });
+
+    it('should update connected routers', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        ismFactoryAddresses,
+        interchainSecurityModule: ismAddress,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+      });
+      const numOfRouters = Math.floor(Math.random() * 10);
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters: randomRemoteRouters(numOfRouters),
+        }),
+      );
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(updatedConfig.remoteRouters?.length).to.be.equal(numOfRouters);
     });
   });
 });
