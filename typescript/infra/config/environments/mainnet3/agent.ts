@@ -3,6 +3,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -224,6 +225,19 @@ const metricAppContexts = [
   {
     name: 'renzo_ezeth',
     matchingList: routerMatchingList(renzoEzEthAddresses),
+  },
+  {
+    name: 'renzo_ezeth_old',
+    // There's an old message to Base that's stuck around, we
+    // just care about this one for now.
+    matchingList: [
+      {
+        recipientAddress: addressToBytes32(
+          '0x584BA77ec804f8B6A559D196661C0242C6844F49',
+        ),
+        destinationDomain: getDomainId('base'),
+      },
+    ],
   },
   // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
   // {
