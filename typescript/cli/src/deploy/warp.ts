@@ -32,6 +32,7 @@ import {
 import {
   ProtocolType,
   assert,
+  deepCopy,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -416,23 +417,27 @@ type IsmConfig =
   | TrustedRelayerIsmConfig; // type, relayer
 
 function transformDeployConfigForDisplay(deployConfig: WarpRouteDeployConfig) {
+  const deployConfigDeepCopy = deepCopy<WarpRouteDeployConfig>(deployConfig);
   const transformedIsmConfigs: Record<ChainName, any[]> = {};
-  const transformedDeployConfig = objMap(deployConfig, (chain, config) => {
-    if (config.interchainSecurityModule)
-      transformedIsmConfigs[chain] = transformIsmConfigForDisplay(
-        config.interchainSecurityModule as IsmConfig,
-      );
+  const transformedDeployConfig = objMap(
+    deployConfigDeepCopy,
+    (chain, config) => {
+      if (config.interchainSecurityModule)
+        transformedIsmConfigs[chain] = transformIsmConfigForDisplay(
+          config.interchainSecurityModule as IsmConfig,
+        );
 
-    return {
-      'NFT?': config.isNft ?? false,
-      Type: config.type,
-      Owner: config.owner,
-      Mailbox: config.mailbox,
-      'ISM Config(s)': config.interchainSecurityModule
-        ? 'See table(s) below.'
-        : 'No ISM config(s) specified.',
-    };
-  });
+      return {
+        'NFT?': config.isNft ?? false,
+        Type: config.type,
+        Owner: config.owner,
+        Mailbox: config.mailbox,
+        'ISM Config(s)': config.interchainSecurityModule
+          ? 'See table(s) below.'
+          : 'No ISM config(s) specified.',
+      };
+    },
+  );
 
   return {
     transformedDeployConfig,

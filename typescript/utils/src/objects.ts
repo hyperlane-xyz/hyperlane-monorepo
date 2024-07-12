@@ -13,7 +13,7 @@ export function deepEquals(v1: any, v2: any) {
   return JSON.stringify(v1) === JSON.stringify(v2);
 }
 
-export function deepCopy(v: any) {
+export function deepCopy<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
 }
 
