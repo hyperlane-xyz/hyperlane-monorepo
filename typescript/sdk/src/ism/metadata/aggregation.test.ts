@@ -21,7 +21,7 @@ const fixtures: Fixture<AggregationMetadata>[] = files
       decoded: {
         type: IsmType.AGGREGATION,
         submoduleMetadata: Object.values(values).map((value) =>
-          value === null ? null : String(value),
+          value === null || value === 'null' ? null : String(value),
         ),
       },
     };
