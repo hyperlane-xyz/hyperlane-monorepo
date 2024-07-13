@@ -176,7 +176,7 @@ impl TracingConfig {
         let tracer = provider.tracer("Example application");
 
         //install the tracer provider globally (this was done under the hood for us when we were using jaeger)
-        // global::set_tracer_provider(provider);
+        global::set_tracer_provider(provider);
 
         //use W3 standard for context propagation in open telemetry
         global::set_text_map_propagator(TraceContextPropagator::new());
