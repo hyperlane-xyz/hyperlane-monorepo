@@ -28,7 +28,7 @@ export async function nativeBalancesAreSufficient(
       const symbol =
         multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
       logRed(
-        `WARNING: ${address} has low balance on ${chain}. At least ${minBalance} recommended but found ${balance} ${symbol}`,
+        `WARNING: ${address} has low balance on ${chain}. At least ${minBalance} ${symbol} recommended but found ${balance} ${symbol}`,
       );
       sufficientBalances.push(false);
     }

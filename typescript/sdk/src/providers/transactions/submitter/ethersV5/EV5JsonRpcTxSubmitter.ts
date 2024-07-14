@@ -1,10 +1,11 @@
 import { TransactionReceipt } from '@ethersproject/providers';
-import { ContractReceipt, PopulatedTransaction } from 'ethers';
+import { ContractReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../../MultiProvider.js';
+import { PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
@@ -19,7 +20,7 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
   constructor(public readonly multiProvider: MultiProvider) {}
 
   public async submit(
-    ...txs: PopulatedTransaction[]
+    ...txs: PopulatedTransactions
   ): Promise<TransactionReceipt[]> {
     const receipts: TransactionReceipt[] = [];
     for (const tx of txs) {
