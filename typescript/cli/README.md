@@ -59,4 +59,7 @@ Send test message: `hyperlane send message`
 ## Logging
 
 The logging format can be toggled between human-readable vs JSON-structured logs using the `LOG_FORMAT` environment variable or the `--log <pretty|json>` flag.
-The logging verbosity can be configured using the `LOG_LEVEL` environment variable or the `--verbosity <debug|info|warn|error|off>` flag.
+
+Note: If you are unable to see color output after setting `LOG_FORMAT`, you may set the `FORCE_COLOR=true` environment variable as a last resort. See https://force-color.org/ & https://github.com/chalk for more info.
+
+The logging verbosity can be configured using the `LOG_LEVEL` environment variable or the `--verbosity <trace|debug|info|warn|error|off>` flag.
