@@ -28,8 +28,8 @@ import {
   WarpRouteDeployConfigSchema,
   attachContractsMap,
   getTokenConnectionId,
-  isCollateralConfig,
   hypERC20factories,
+  isCollateralConfig,
   isTokenMetadata,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
@@ -424,7 +424,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
       (chain, _config): _config is any => !warpCoreChains.includes(chain),
     );
 
-    // Derive additionalConfig metadata using the first deployed Warp Route
+    // Derive additionalConfig metadata using the first deployed Warp Route.
     const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       context.multiProvider,
       deployedConfig,
