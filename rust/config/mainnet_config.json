@@ -17,6 +17,10 @@
         "reorgPeriod": 0
       },
       "chainId": 888888888,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Ancient8",
       "domainId": 888888888,
       "domainRoutingIsm": "0x477145b11E1a71fEb658d96A0E27F19495121504",
@@ -73,6 +77,10 @@
         "reorgPeriod": 0
       },
       "chainId": 42161,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Arbitrum",
       "domainId": 42161,
       "domainRoutingIsm": "0x5d759B5CeEb1C3b0181bEc0F80fb04f820cc35D1",
@@ -139,6 +147,10 @@
         "reorgPeriod": 3
       },
       "chainId": 43114,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Avalanche",
       "domainId": 43114,
       "domainRoutingIsm": "0x9f68F961ba2dF53b1cB3EbCC0b08e89790C6E2f6",
@@ -205,6 +217,10 @@
         "reorgPeriod": 1
       },
       "chainId": 8453,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Base",
       "domainId": 8453,
       "domainRoutingIsm": "0x80C8F6394c0FcF7bAB16ac08b85484361eCe5888",
@@ -269,6 +285,10 @@
         "reorgPeriod": 1
       },
       "chainId": 81457,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Blast",
       "domainId": 81457,
       "domainRoutingIsm": "0x0296D16d371a49F631143612020138896b3eA421",
@@ -325,6 +345,10 @@
         "reorgPeriod": 1
       },
       "chainId": 60808,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "BOB",
       "domainId": 60808,
       "domainRoutingIsm": "0x93e62F2c9a89f8b1e62A3c726Bbf6BD1A7b7FA3e",
@@ -381,6 +405,10 @@
         "reorgPeriod": 15
       },
       "chainId": 56,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Binance Smart Chain",
       "displayNameShort": "Binance",
       "domainId": 56,
@@ -456,6 +484,10 @@
         "reorgPeriod": 0
       },
       "chainId": 42220,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Celo",
       "domainId": 42220,
       "domainRoutingIsm": "0xf18E32428dad0802C5D6F723cB80A6Da889777c4",
@@ -520,6 +552,10 @@
         "reorgPeriod": 14
       },
       "chainId": 1,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Ethereum",
       "domainId": 1,
       "domainRoutingIsm": "0xBA328338044e0C0AFd0591FB6E5e2F83C4e8F742",
@@ -586,6 +622,10 @@
         "reorgPeriod": 1
       },
       "chainId": 252,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Fraxtal",
       "domainId": 252,
       "domainRoutingIsm": "0x0CA20946c1b7367Bd47C0a35E8feD23a4Ff59B9a",
@@ -640,6 +680,10 @@
         "reorgPeriod": 14
       },
       "chainId": 100,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Gnosis",
       "domainId": 100,
       "domainRoutingIsm": "0x83873DB8B4982091D0781B4eDF108DCb98075C39",
@@ -704,6 +748,10 @@
       },
       "chainId": 2525,
       "customHook": "0xA376b27212D608324808923Add679A2c9FAFe9Da",
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Injective EVM",
       "displayNameShort": "inEVM",
       "domainId": 2525,
@@ -758,6 +806,10 @@
       "canonicalAsset": "inj",
       "chainId": "injective-1",
       "contractAddressBytes": 20,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Injective",
       "domainId": 6909546,
       "gasCurrencyCoinGeckoId": "injective-protocol",
@@ -814,6 +866,10 @@
         "reorgPeriod": 1
       },
       "chainId": 59144,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Linea",
       "domainId": 59144,
       "domainRoutingIsm": "0x6faCF71D804964Ca62f16e56DE74d7dF38FdC3F0",
@@ -869,6 +925,10 @@
         "reorgPeriod": 1
       },
       "chainId": 169,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Manta Pacific",
       "displayNameShort": "Manta",
       "domainId": 169,
@@ -930,6 +990,10 @@
         "reorgPeriod": 1
       },
       "chainId": 5000,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Mantle",
       "domainId": 5000,
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
@@ -986,6 +1050,10 @@
         "reorgPeriod": 1
       },
       "chainId": 34443,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Mode",
       "domainId": 34443,
       "domainRoutingIsm": "0xB6F0f1267B01C27326F61a4B4fe2c73751802685",
@@ -1042,6 +1110,10 @@
         "reorgPeriod": 2
       },
       "chainId": 1284,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Moonbeam",
       "domainId": 1284,
       "domainRoutingIsm": "0x7Faa23CEdA03364A79e05259e07D5E358E7400F7",
@@ -1106,6 +1178,10 @@
       "canonicalAsset": "untrn",
       "chainId": "neutron-1",
       "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Neutron",
       "domainId": 1853125230,
       "gasCurrencyCoinGeckoId": "neutron-3",
@@ -1168,6 +1244,10 @@
         "reorgPeriod": 0
       },
       "chainId": 10,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Optimism",
       "domainId": 10,
       "domainRoutingIsm": "0xDFfFCA9320E2c7530c61c4946B4c2376A1901dF2",
@@ -1229,6 +1309,10 @@
       "canonicalAsset": "uosmo",
       "chainId": "osmosis-1",
       "contractAddressBytes": 32,
+      "deployer": {
+        "name": "Mitosis",
+        "url": "https://mitosis.org"
+      },
       "displayName": "Osmosis",
       "domainId": 875,
       "gasCurrencyCoinGeckoId": "osmosis",
@@ -1291,6 +1375,10 @@
         "reorgPeriod": 256
       },
       "chainId": 137,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Polygon",
       "domainId": 137,
       "domainRoutingIsm": "0xBcb9d74E1D2549fc1939023433aaAB11587bc338",
@@ -1360,6 +1448,10 @@
         "reorgPeriod": 1
       },
       "chainId": 1101,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Polygon zkEVM",
       "displayNameShort": "zkEVM",
       "domainId": 1101,
@@ -1425,6 +1517,10 @@
         "reorgPeriod": 0
       },
       "chainId": 690,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Redstone",
       "domainId": 690,
       "domainRoutingIsm": "0x5D1e7D7c5B9e6dDC8439F67F10c578f2A1084f6F",
@@ -1479,6 +1575,10 @@
         "reorgPeriod": 1
       },
       "chainId": 534352,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Scroll",
       "domainId": 534352,
       "domainRoutingIsm": "0x4d02AfFc3F030c887e2f914B8B67E0B845e034fD",
@@ -1541,6 +1641,10 @@
         "reorgPeriod": 1
       },
       "chainId": 1329,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Sei",
       "domainId": 1329,
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
@@ -1598,6 +1702,10 @@
         "reorgPeriod": 1
       },
       "chainId": 167000,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Taiko",
       "domainId": 167000,
       "domainRoutingIsm": "0x5D1e7D7c5B9e6dDC8439F67F10c578f2A1084f6F",
@@ -1654,6 +1762,10 @@
         "reorgPeriod": 0
       },
       "chainId": 88,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Viction",
       "domainId": 88,
       "domainRoutingIsm": "0x477145b11E1a71fEb658d96A0E27F19495121504",
@@ -1716,6 +1828,10 @@
         "reorgPeriod": 0
       },
       "chainId": 7000,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "ZetaChain",
       "domainId": 7000,
       "domainRoutingIsm": "0xaDc0cB48E8DB81855A930C0C1165ea3dCe4Ba5C7",
