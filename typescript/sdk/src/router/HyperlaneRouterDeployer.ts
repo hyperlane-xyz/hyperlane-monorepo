@@ -62,8 +62,8 @@ export abstract class HyperlaneRouterDeployer<
       const enrollEntries = await Promise.all(
         allRemoteChains.map(async (remote) => {
           const remoteDomain = this.multiProvider.getDomainId(remote);
-          const current = await this.router(contracts).routers(remoteDomain); // single contract
-          const expected = addressToBytes32(allRouters[remote]); // address
+          const current = await this.router(contracts).routers(remoteDomain);
+          const expected = addressToBytes32(allRouters[remote]);
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
       );
