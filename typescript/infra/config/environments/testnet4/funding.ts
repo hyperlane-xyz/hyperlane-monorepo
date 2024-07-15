@@ -28,12 +28,14 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredBalancePerChain: {
     alfajores: '5',
     bsctestnet: '5',
+    connextsepolia: '1',
     fuji: '5',
     holesky: '5',
     plumetestnet: '0.2',
     // Funder boosts itself upto 5x balance on L2 before dispersing funds
     scrollsepolia: '1',
     sepolia: '5',
+    superpositiontestnet: '1',
     // no funding for solana
     eclipsetestnet: '0',
     solanatestnet: '0',
@@ -41,11 +43,13 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredKathyBalancePerChain: {
     alfajores: '1',
     bsctestnet: '1',
+    connextsepolia: '0',
     fuji: '1',
     holesky: '0',
     plumetestnet: '0.05',
     scrollsepolia: '1',
     sepolia: '1',
+    superpositiontestnet: '0',
     // no funding for solana
     eclipsetestnet: '0',
     solanatestnet: '0',
@@ -53,11 +57,13 @@ export const keyFunderConfig: KeyFunderConfig<
   igpClaimThresholdPerChain: {
     alfajores: '1',
     bsctestnet: '1',
+    connextsepolia: '0.1',
     fuji: '1',
     holesky: '1',
     plumetestnet: '0.1',
     scrollsepolia: '0.1',
     sepolia: '1',
+    superpositiontestnet: '0.1',
     // no funding for solana
     eclipsetestnet: '0',
     solanatestnet: '0',

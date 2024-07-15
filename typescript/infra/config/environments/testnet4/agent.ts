@@ -34,6 +34,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
   [Role.Validator]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: false,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
@@ -41,10 +42,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
+    superpositiontestnet: false,
   },
   [Role.Relayer]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: false,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
@@ -52,10 +55,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
+    superpositiontestnet: false,
   },
   [Role.Scraper]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: false,
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     fuji: true,
@@ -65,6 +70,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     sepolia: true,
     // Cannot scrape non-EVM chains
     solanatestnet: false,
+    superpositiontestnet: false,
   },
 };
 
