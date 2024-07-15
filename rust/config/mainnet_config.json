@@ -737,8 +737,8 @@
       },
       "chainId": 122,
       "deployer": {
-        "name": "Fuse",
-        "url": "https://www.fuse.io"
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       },
       "displayName": "Fuse",
       "domainId": 122,
@@ -2008,8 +2008,8 @@
       "chainId": 7777777,
       "deployer": {
         "email": "merklylabs@proton.me",
-        "name": "Merkly Labs",
-        "url": "https://merkly.com"
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       },
       "displayName": "Zora",
       "domainId": 7777777,

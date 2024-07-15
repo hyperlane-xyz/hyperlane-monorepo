@@ -60,10 +60,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
-    endurance: false,
+    endurance: true,
     ethereum: true,
     fraxtal: true,
-    fuse: false,
+    fuse: true,
     gnosis: true,
     injective: true,
     inevm: true,
@@ -83,7 +83,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     viction: true,
     zetachain: true,
-    zora: false,
+    zora: true,
   },
   [Role.Relayer]: {
     arbitrum: true,
@@ -94,10 +94,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
-    endurance: false,
+    endurance: true,
     ethereum: true,
     fraxtal: true,
-    fuse: false,
+    fuse: true,
     gnosis: true,
     injective: true,
     inevm: true,
@@ -118,7 +118,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     viction: true,
     zetachain: true,
-    zora: false,
+    zora: true,
   },
   [Role.Scraper]: {
     arbitrum: true,
@@ -280,7 +280,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7a8478b-20240703-113821',
+      tag: '5d19f57-20240715-145401',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -289,7 +289,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7a8478b-20240703-113821',
+      tag: '5d19f57-20240715-145401',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -299,7 +299,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7a8478b-20240703-113821',
+      tag: '5d19f57-20240715-145401',
     },
     resources: scraperResources,
   },
@@ -314,7 +314,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4cc9327-20240701-214057',
+      tag: '5d19f57-20240715-145401',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
