@@ -13,7 +13,6 @@ import {
   AddressBytes32,
   ProtocolType,
   addressToBytes32,
-  assert,
   bytes32ToAddress,
   isZeroishAddress,
   messageId,
@@ -124,9 +123,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const originChain = this.getOrigin(message);
     const hookReader = new EvmHookReader(this.multiProvider, originChain);
     const address = await this.getHookAddress(message);
-    const hookConfig = await hookReader.deriveHookConfig(address);
-    assert(hookConfig, `No hook config found for ${address}.`);
-    return hookConfig;
+    return hookReader.deriveHookConfig(address);
   }
 
   async sendMessage(

@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cli
 
+## 4.1.0
+
+### Minor Changes
+
+- 4cc9327e5: Update warp deploy to handle xerc20, initializerArgs to be the signer, update deploy gas constants
+
+### Patch Changes
+
+- 46652c62a: Fix the missing sorting in the YAML file generated
+- 56be527d6: Fix typo in core read command
+- 378a5b79f: Remove extra fields from warp core config
+- Updated dependencies [36e75af4e]
+- Updated dependencies [d31677224]
+- Updated dependencies [4cc9327e5]
+- Updated dependencies [1687fca93]
+  - @hyperlane-xyz/sdk@4.1.0
+  - @hyperlane-xyz/utils@4.1.0
+
 ## 4.0.0
 
 ### Major Changes

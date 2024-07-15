@@ -186,7 +186,7 @@ describe('EvmHookReader', () => {
     expect(config).to.deep.equal(hookConfig);
   });
 
-  it('should return an empty config if deriving fails', async () => {
+  it('should throw if derivation fails', async () => {
     const mockAddress = generateRandomAddress();
     const mockOwner = generateRandomAddress();
 
@@ -203,8 +203,13 @@ describe('EvmHookReader', () => {
       .returns(mockContract as unknown as IPostDispatchHook);
 
     // top-level method infers hook type
-    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
-    expect(hookConfig).to.be.undefined;
+    try {
+      await evmHookReader.deriveHookConfig(mockAddress);
+    } catch (e: any) {
+      expect(e.toString()).to.contain(
+        `Failed to derive undefined hook (${mockAddress}):`,
+      );
+    }
   });
 
   /*

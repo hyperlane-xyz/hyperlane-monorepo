@@ -81,7 +81,7 @@ export class EvmIsmModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
 
-  protected constructor(
+  constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
       IsmConfig,
@@ -132,9 +132,9 @@ export class EvmIsmModule extends HyperlaneModule<
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
-
     // Update the config
     this.args.config = targetConfig;
+    targetConfig = normalizeConfig(targetConfig);
 
     // moduleMatchesConfig expects any domain filtering to have been done already
     if (
@@ -466,14 +466,14 @@ export class EvmIsmModule extends HyperlaneModule<
     config.domains = availableDomains;
 
     // deploy the submodules first
-    const submoduleAddresses: Address[] = await Promise.all(
-      Object.keys(config.domains).map(async (origin) => {
-        const { address } = await this.deploy({
-          config: config.domains[origin],
-        });
-        return address;
-      }),
-    );
+    const submoduleAddresses: Address[] = [];
+
+    for (const origin of Object.keys(config.domains)) {
+      const { address } = await this.deploy({
+        config: config.domains[origin],
+      });
+      submoduleAddresses.push(address);
+    }
 
     if (config.type === IsmType.FALLBACK_ROUTING) {
       // deploy the fallback routing ISM

@@ -4,7 +4,6 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { FallbackDomainRoutingHook__factory } from '@hyperlane-xyz/core';
 import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
@@ -93,7 +92,6 @@ describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address;
-  let newMailboxAddress: Address;
   let fundingAccount: Signer;
 
   const chain = TestChainName.test4;
@@ -125,11 +123,6 @@ describe('EvmIsmModule', async () => {
 
     // mailbox
     mailboxAddress = (
-      await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
-
-    // new mailbox
-    newMailboxAddress = (
       await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
     ).getContracts(chain).mailbox.address;
 
@@ -242,15 +235,17 @@ describe('EvmIsmModule', async () => {
         // create a new ISM
         const { ism } = await createIsm(exampleRoutingConfig);
 
-        // add config for a domain the multiprovider doesn't have
-        exampleRoutingConfig.domains['test5'] = {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          threshold: 1,
-          validators: [randomAddress()],
+        // create an updated config with a domain the multiprovider doesn't have
+        const updatedRoutingConfig: IsmConfig = {
+          ...exampleRoutingConfig,
+          domains: {
+            ...exampleRoutingConfig.domains,
+            test5: randomMultisigIsmConfig(3, 5),
+          },
         };
 
         // expect 0 txs, as adding test5 domain is no-op
-        await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
+        await expectTxsAndUpdate(ism, updatedRoutingConfig, 0);
       });
 
       it(`update route in an existing ${type}`, async () => {
@@ -406,31 +401,34 @@ describe('EvmIsmModule', async () => {
         expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
           .true;
       });
+
+      it(`update threshold in an existing ${type} with Module creating using constructor`, async () => {
+        // create a an initial ISM
+        const { initialIsmAddress } = await createIsm(exampleRoutingConfig);
+
+        // update the threshold for a domain
+        (
+          exampleRoutingConfig.domains[TestChainName.test2] as MultisigIsmConfig
+        ).threshold = 2;
+
+        // create a new IsmModule using it's constructor. Set it's deployedIsm address to the initialIsmAddr
+        const ism = new EvmIsmModule(multiProvider, {
+          chain,
+          config: exampleRoutingConfig,
+          addresses: {
+            ...factoryAddresses,
+            mailbox: mailboxAddress,
+            deployedIsm: initialIsmAddress,
+          },
+        });
+
+        // expect 1 tx to update threshold for test2 domain
+        await expectTxsAndUpdate(ism, exampleRoutingConfig, 1);
+
+        // expect the ISM address to be the same
+        expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+          .true;
+      });
     }
-
-    it(`redeploy same config if the mailbox address changes for defaultFallbackRoutingIsm`, async () => {
-      exampleRoutingConfig.type = IsmType.FALLBACK_ROUTING;
-
-      // create a new ISM
-      const { ism, initialIsmAddress } = await createIsm(exampleRoutingConfig);
-
-      // point to new mailbox
-      ism.setNewMailbox(newMailboxAddress);
-
-      // expect a new ISM to be deployed, so no in-place updates to return
-      await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
-
-      // expect the ISM address to be different
-      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
-        .false;
-
-      // expect that the ISM is configured with the new mailbox
-      const onchainIsm = FallbackDomainRoutingHook__factory.connect(
-        ism.serialize().deployedIsm,
-        multiProvider.getSigner(chain),
-      );
-      const onchainMailbox = await onchainIsm['mailbox()']();
-      expect(eqAddress(onchainMailbox, newMailboxAddress)).to.be.true;
-    });
   });
 });

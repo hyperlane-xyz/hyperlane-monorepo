@@ -38,6 +38,7 @@ pub type QueueOperation = Box<dyn PendingOperation>;
 /// responsible for checking if the operation has reached a point at which we
 /// consider it safe from reorgs.
 #[async_trait]
+#[typetag::serialize(tag = "type")]
 pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Get the unique identifier for this operation.
     fn id(&self) -> H256;

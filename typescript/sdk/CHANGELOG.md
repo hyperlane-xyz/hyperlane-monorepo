@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 4.1.0
+
+### Minor Changes
+
+- 36e75af4e: Add optional deployer field to ChainMetadata schema
+- d31677224: Deploy to bob, mantle, taiko
+- 4cc9327e5: Update warp deploy to handle xerc20, initializerArgs to be the signer, update deploy gas constants
+- 1687fca93: Add EvmWarpModule with update() for ISM
+
+### Patch Changes
+
+- @hyperlane-xyz/core@4.1.0
+- @hyperlane-xyz/utils@4.1.0
+
 ## 4.0.0
 
 ### Minor Changes

@@ -1,28 +1,21 @@
-import { IRegistry } from '@hyperlane-xyz/registry';
-
 import {
   getKeysForRole,
   getMultiProtocolProvider,
   getMultiProviderForRole,
 } from '../../../scripts/agent-utils.js';
-import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { EnvironmentConfig } from '../../../src/config/environment.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
 import { agents } from './agent.js';
-import {
-  chainMetadataOverrides,
-  environment as environmentName,
-  getRegistry,
-} from './chains.js';
+import { environment as environmentName, getRegistry } from './chains.js';
 import { core } from './core.js';
 import { keyFunderConfig } from './funding.js';
 import { helloWorld } from './helloworld.js';
 import { igp } from './igp.js';
 import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
-import { owners } from './owners.js';
+import { ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment: EnvironmentConfig = {
@@ -50,7 +43,7 @@ export const environment: EnvironmentConfig = {
   agents,
   core,
   igp,
-  owners,
+  owners: ethereumChainOwners,
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,

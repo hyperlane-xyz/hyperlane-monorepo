@@ -21,7 +21,7 @@ import {
   logPink,
   logTable,
 } from '../logger.js';
-import { gasBalancesAreSufficient } from '../utils/balances.js';
+import { nativeBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
@@ -55,13 +55,12 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  const sufficient = await gasBalancesAreSufficient(
+  await nativeBalancesAreSufficient(
     multiProvider,
     signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
-  if (sufficient) logGreen('✅ Balances are sufficient');
 }
 
 export async function runDeployPlanStep({

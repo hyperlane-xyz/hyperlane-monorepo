@@ -236,6 +236,18 @@ export const validatorChainConfig = (
         'base',
       ),
     },
+    bob: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('bob'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x20f283be1eb0e81e22f51705dcb79883cfdd34aa'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'bob',
+      ),
+    },
     injective: {
       interval: 5,
       reorgPeriod: getReorgPeriod('injective'),
@@ -296,6 +308,18 @@ export const validatorChainConfig = (
         'linea',
       ),
     },
+    mantle: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mantle'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'mantle',
+      ),
+    },
     sei: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sei'),
@@ -328,6 +352,18 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'scroll',
+      ),
+    },
+    taiko: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('taiko'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa930073c8f2d0b2f7423ea32293e0d1362e65d79'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'taiko',
       ),
     },
     polygonzkevm: {
