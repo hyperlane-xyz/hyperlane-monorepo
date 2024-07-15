@@ -17,7 +17,7 @@ export function randomInt(max: number, min = 0): number {
 }
 
 export function randomAddress(): Address {
-  return ethers.utils.hexlify(ethers.utils.randomBytes(20));
+  return ethers.utils.hexlify(ethers.utils.randomBytes(20)).toLowerCase();
 }
 
 export function createRouterConfigMap(
