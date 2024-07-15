@@ -49,6 +49,7 @@ export const safes: ChainMap<Address | undefined> = {
   redstone: '0xa1a50ff5FD859558E1899fEC5C3064483177FA23',
   mantle: '0x8aFE6EECc6CcB02aA20DA8Fff7d29aadEBbc2DCd',
   bob: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
+  zetachain: '0x9d399876522Fc5C044D048594de399A2349d6026',
 };
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
