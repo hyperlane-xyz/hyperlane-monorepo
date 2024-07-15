@@ -43,7 +43,7 @@
     "amount": "0.001000253",
     "decimals": 9
   },
-  "fuse": {
+  "fusemainnet": {
     "amount": "11.0",
     "decimals": 9
   },
@@ -123,8 +123,8 @@
     "amount": "10.1",
     "decimals": 9
   },
-  "zora": {
-    "amount": "0.001000261",
+  "zoramainnet": {
+    "amount": "0.001000252",
     "decimals": 9
   }
 }

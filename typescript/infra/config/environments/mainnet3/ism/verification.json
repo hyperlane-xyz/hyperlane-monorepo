@@ -2223,7 +2223,7 @@
       "name": "DomaingRoutingIsm"
     }
   ],
-  "fuse": [
+  "fusemainnet": [
     {
       "address": "0xa81D28AcC27Ed1a663Acb1626882D2A2E7C1614E",
       "constructorArguments": "",
@@ -4693,7 +4693,7 @@
       "name": "DomaingRoutingIsm"
     }
   ],
-  "zora": [
+  "zoramainnet": [
     {
       "address": "0xD5F64616025F69440dEf7c53077208EE3ec0D665",
       "constructorArguments": "",

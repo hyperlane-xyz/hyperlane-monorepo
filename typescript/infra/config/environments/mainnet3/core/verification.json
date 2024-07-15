@@ -3321,7 +3321,7 @@
       "name": "ValidatorAnnounce"
     }
   ],
-  "fuse": [
+  "fusemainnet": [
     {
       "address": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5",
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
@@ -9001,7 +9001,7 @@
       "name": "PausableIsm"
     }
   ],
-  "zora": [
+  "zoramainnet": [
     {
       "address": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5",
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",

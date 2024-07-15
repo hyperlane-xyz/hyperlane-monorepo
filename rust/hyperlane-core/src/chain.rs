@@ -58,8 +58,10 @@ pub enum KnownHyperlaneDomain {
     Blast = 81457,
     Bob = 60808,
     Celo = 42220,
+    Endurance = 648,
     Ethereum = 1,
     Fraxtal = 252,
+    FuseMainnet = 122,
     Fuji = 43113,
     Gnosis = 100,
     InEvm = 2525,
@@ -78,6 +80,7 @@ pub enum KnownHyperlaneDomain {
     Taiko = 167000,
     Viction = 88,
     Zetachain = 7000,
+    ZoraMainnet = 7777777,
 
     // -- Local chains --
     //
@@ -211,9 +214,9 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             Mainnet: [
-                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Ethereum,
-                Fraxtal, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam,
-                Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Zetachain,
+                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Endurance, Ethereum,
+                Fraxtal, FuseMainnet, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam,
+                Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Zetachain, ZoraMainnet
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
@@ -231,9 +234,9 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Ethereum,
-                Fraxtal, Fuji, Gnosis, InEvm, Linea, MantaPacific, Mantle, Mode, Moonbeam, Optimism,
-                Polygon, Redstone, Sei, Taiko, Viction, Zetachain,
+                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Endurance, Ethereum,
+                Fraxtal, FuseMainnet, Fuji, Gnosis, InEvm, Linea, MantaPacific, Mantle, Mode, Moonbeam, Optimism,
+                Polygon, Redstone, Sei, Taiko, Viction, Zetachain, ZoraMainnet,
 
                 // Local chains
                 Test1, Test2, Test3,
@@ -260,9 +263,9 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             HyperlaneDomainTechnicalStack::ArbitrumNitro: [Arbitrum, PlumeTestnet],
             HyperlaneDomainTechnicalStack::Other: [
-                Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Ethereum, Fraxtal, Fuji,
-                Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam, Neutron,
-                Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Zetachain,
+                Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Endurance, Ethereum, Fraxtal, FuseMainnet,
+                Fuji, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam, Neutron,
+                Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Zetachain, ZoraMainnet,
 
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,

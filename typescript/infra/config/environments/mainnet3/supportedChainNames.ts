@@ -12,7 +12,7 @@ export const mainnet3SupportedChainNames = [
   'endurance',
   'ethereum',
   'fraxtal',
-  'fuse',
+  'fusemainnet',
   'gnosis',
   'inevm',
   'injective',
@@ -32,7 +32,7 @@ export const mainnet3SupportedChainNames = [
   'taiko',
   'viction',
   'zetachain',
-  'zora',
+  'zoramainnet',
 ] as const;
 
 export const supportedChainNames = [...mainnet3SupportedChainNames];

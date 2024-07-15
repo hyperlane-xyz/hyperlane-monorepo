@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '5d19f57-20240715-145357',
+    tag: 'b8ce75c-20240715-151405',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -37,7 +37,7 @@ export const keyFunderConfig: KeyFunderConfig<
     endurance: '20',
     ethereum: '0.5',
     fraxtal: '0.2',
-    fuse: '20',
+    fusemainnet: '20',
     gnosis: '5',
     inevm: '3',
     linea: '0.2',
@@ -54,7 +54,7 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0.2',
     viction: '3',
     zetachain: '20',
-    zora: '0.2',
+    zoramainnet: '0.2',
     // ignore cosmos chains
     injective: '0',
     neutron: '0',
@@ -72,7 +72,7 @@ export const keyFunderConfig: KeyFunderConfig<
     endurance: '0',
     ethereum: '0.4',
     fraxtal: '0',
-    fuse: '0',
+    fusemainnet: '0',
     gnosis: '100',
     inevm: '0.05',
     linea: '0',
@@ -89,7 +89,7 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0',
     viction: '0.05',
     zetachain: '0',
-    zora: '0',
+    zoramainnet: '0',
     // ignore cosmos chains
     injective: '0',
     neutron: '0',
@@ -107,7 +107,7 @@ export const keyFunderConfig: KeyFunderConfig<
     endurance: '10',
     ethereum: '0.2',
     fraxtal: '0.1',
-    fuse: '10',
+    fusemainnet: '10',
     gnosis: '5',
     inevm: '3',
     linea: '0.1',
@@ -124,7 +124,7 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0.1',
     viction: '2',
     zetachain: '20',
-    zora: '0.1',
+    zoramainnet: '0.1',
     // ignore cosmos chains
     injective: '0',
     neutron: '0',

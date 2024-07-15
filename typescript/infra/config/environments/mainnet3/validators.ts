@@ -510,28 +510,28 @@ export const validatorChainConfig = (
         'endurance',
       ),
     },
-    fuse: {
+    fusemainnet: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('fuse'),
+      reorgPeriod: getReorgPeriod('fusemainnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x905b20e6b88ef44e8aa89e66ff47452e8b9700ca'],
+          [Contexts.Hyperlane]: ['0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
-        'fuse',
+        'fusemainnet',
       ),
     },
-    zora: {
+    zoramainnet: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('zora'),
+      reorgPeriod: getReorgPeriod('zoramainnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x2677569efc0e9c767e7ce95544d8107681cc0427'],
+          [Contexts.Hyperlane]: ['0x35130945b625bb69b28aee902a3b9a76fa67125f'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
-        'zora',
+        'zoramainnet',
       ),
     },
   };

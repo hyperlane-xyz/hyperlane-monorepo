@@ -154,9 +154,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  fuse: {
+  fusemainnet: {
     threshold: 1,
-    validators: ['0x905b20e6b88ef44e8aa89e66ff47452e8b9700ca'],
+    validators: ['0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9'],
   },
 
   gnosis: {
@@ -383,8 +383,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  zora: {
+  zoramainnet: {
     threshold: 1,
-    validators: ['0x2677569efc0e9c767e7ce95544d8107681cc0427'],
+    validators: ['0x35130945b625bb69b28aee902a3b9a76fa67125f'],
   },
 };
