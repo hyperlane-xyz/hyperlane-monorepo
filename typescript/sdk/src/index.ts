@@ -36,6 +36,7 @@ export {
   attachContracts,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
+  attachAndConnectContracts,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
@@ -502,6 +503,7 @@ export {
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
+export { RemoteRouter } from './router/types.js';
 export { S3Validator } from './aws/validator.js';
 export { S3Config, S3Wrapper, S3Receipt } from './aws/s3.js';
 
@@ -513,3 +515,4 @@ export { EvmCoreModule, DeployedCoreAdresses } from './core/EvmCoreModule.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { ProxyFactoryFactoriesAddresses } from './deploy/schemas.js';
+export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
