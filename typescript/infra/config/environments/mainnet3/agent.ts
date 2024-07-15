@@ -60,8 +60,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    endurance: false,
     ethereum: true,
     fraxtal: true,
+    fuse: false,
     gnosis: true,
     injective: true,
     inevm: true,
@@ -81,6 +83,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     viction: true,
     zetachain: true,
+    zora: false,
   },
   [Role.Relayer]: {
     arbitrum: true,
@@ -91,8 +94,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    endurance: false,
     ethereum: true,
     fraxtal: true,
+    fuse: false,
     gnosis: true,
     injective: true,
     inevm: true,
@@ -113,6 +118,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     viction: true,
     zetachain: true,
+    zora: false,
   },
   [Role.Scraper]: {
     arbitrum: true,
@@ -123,8 +129,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    endurance: false,
     ethereum: true,
     fraxtal: true,
+    fuse: false,
     gnosis: true,
     // Cannot scrape non-EVM chains
     injective: false,
@@ -150,6 +158,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Has RPC non-compliance that breaks scraping.
     viction: false,
     zetachain: true,
+    zora: false,
   },
 };
 

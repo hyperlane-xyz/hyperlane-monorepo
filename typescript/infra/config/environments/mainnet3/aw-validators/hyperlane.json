@@ -43,6 +43,9 @@
       "0x7bf30afcb6a7d92146d5a910ea4c154fba38d25e"
     ]
   },
+  "endurance": {
+    "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
+  },
   "ethereum": {
     "validators": [
       "0x03c842db86a6a3e524d4a6615390c1ea8e2b9541",
@@ -52,6 +55,9 @@
   },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
+  },
+  "fuse": {
+    "validators": ["0x905b20e6b88ef44e8aa89e66ff47452e8b9700ca"]
   },
   "gnosis": {
     "validators": [
@@ -145,5 +151,8 @@
   },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
+  },
+  "zora": {
+    "validators": ["0x2677569efc0e9c767e7ce95544d8107681cc0427"]
   }
 }
