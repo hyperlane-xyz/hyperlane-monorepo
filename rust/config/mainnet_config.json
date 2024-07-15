@@ -720,7 +720,7 @@
       "testRecipient": "0x62B7592C1B6D1E43f4630B8e37f4377097840C05",
       "validatorAnnounce": "0x1956848601549de5aa0c887892061fA5aB4f6fC4"
     },
-    "fuse": {
+    "fusemainnet": {
       "aggregationHook": "0xF4135554ED2c60dB9c1166933797164C43ABb6E2",
       "blockExplorers": [
         {
@@ -750,13 +750,11 @@
       "index": {
         "from": 30585739
       },
-      "interchainAccountIsm": "0x2d9EAa6CeC7BBBB966d00490db94099d128C865F",
-      "interchainAccountRouter": "0x8061f756996bbd2b1046C5392679e701B7Ba420e",
       "interchainGasPaymaster": "0xFB9e40D811Cea562cc8a322b029eF2BDcC3ef6ed",
       "interchainSecurityModule": "0x9668E9639Ecca374D6c545110197BbFaF4a60dfF",
       "mailbox": "0x3071D4DA6020C956Fe15Bfd0a9Ca8D4574f16696",
       "merkleTreeHook": "0xfBc08389224d23b79cb21cDc16c5d42F0ad0F57f",
-      "name": "fuse",
+      "name": "fusemainnet",
       "nativeToken": {
         "decimals": 18,
         "name": "FUSE",
@@ -913,8 +911,7 @@
     },
     "injective": {
       "bech32Prefix": "inj",
-      "blockExplorers": [
-      ],
+      "blockExplorers": [],
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
@@ -1990,7 +1987,7 @@
       "testRecipient": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
       "validatorAnnounce": "0x48083C69f5a42c6B69ABbAd48AE195BD36770ee2"
     },
-    "zora": {
+    "zoramainnet": {
       "aggregationHook": "0x1e7115a7E45804C81C77caFF37f2BA421f32a0b4",
       "blockExplorers": [
         {
@@ -2007,7 +2004,6 @@
       },
       "chainId": 7777777,
       "deployer": {
-        "email": "merklylabs@proton.me",
         "name": "Abacus Works",
         "url": "https://www.hyperlane.xyz"
       },
@@ -2021,13 +2017,11 @@
       "index": {
         "from": 17180113
       },
-      "interchainAccountIsm": "0xE625f8eE564e8Fd8c0e7Ccf01Ff61a2BD74C6d2D",
-      "interchainAccountRouter": "0xEDc862886706A9caC354CECB5A39D7253305c6CE",
       "interchainGasPaymaster": "0x18B0688990720103dB63559a3563f7E8d0f63EDb",
       "interchainSecurityModule": "0x53903C3bA7A6a2784b38aFa3e6FB94c7b1FB61a0",
       "mailbox": "0xF5da68b2577EF5C0A0D98aA2a58483a68C2f232a",
       "merkleTreeHook": "0x886BB0f329781b98f98FDeb1ce7a8957F2d43B9F",
-      "name": "zora",
+      "name": "zoramainnet",
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",
