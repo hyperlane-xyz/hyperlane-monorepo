@@ -3,6 +3,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -31,6 +32,9 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
+import merklyErc20Addresses from './warp/merkly-erc20-addresses.json';
+import merklyEthAddresses from './warp/merkly-eth-addresses.json';
+import merklyNftAddresses from './warp/merkly-nft-addresses.json';
 import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
@@ -180,30 +184,19 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
-    matchingList: [{ destinationDomain: getDomainId('mantle') }],
+    matchingList: [
+      // Temporarily allow Merkly ETH messages to just require some payment
+      // as a workaround to https://github.com/hyperlane-xyz/issues/issues/1294
+      ...routerMatchingList(merklyEthAddresses),
+      { destinationDomain: getDomainId('mantle') },
+    ],
   },
   // To cover ourselves against IGP indexing issues and to ensure Nexus
   // users have the best possible experience, we whitelist messages between
   // warp routes that we know are certainly paying for gas.
   {
     type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      ...routerMatchingList(injectiveInevmInjAddresses),
-      ...matchingList(inevmEthereumUsdcAddresses),
-      ...matchingList(inevmEthereumUsdtAddresses),
-      ...routerMatchingList(victionEthereumEthAddresses),
-      ...routerMatchingList(victionEthereumUsdcAddresses),
-      ...routerMatchingList(victionEthereumUsdtAddresses),
-      ...routerMatchingList(ancient8EthereumUsdcAddresses),
-    ],
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: matchingList(inevmEthereumUsdcAddresses),
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: matchingList(inevmEthereumUsdtAddresses),
+    matchingList: [...routerMatchingList(injectiveInevmInjAddresses)],
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -247,6 +240,32 @@ const metricAppContexts = [
     name: 'renzo_ezeth',
     matchingList: routerMatchingList(renzoEzEthAddresses),
   },
+  {
+    name: 'renzo_ezeth_old',
+    // There's an old message to Base that's stuck around, we
+    // just care about this one for now.
+    matchingList: [
+      {
+        recipientAddress: addressToBytes32(
+          '0x584BA77ec804f8B6A559D196661C0242C6844F49',
+        ),
+        destinationDomain: getDomainId('base'),
+      },
+    ],
+  },
+  // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
+  // {
+  //   name: 'merkly_erc20',
+  //   matchingList: routerMatchingList(merklyErc20Addresses),
+  // },
+  // {
+  //   name: 'merkly_eth',
+  //   matchingList: routerMatchingList(merklyErc20Addresses),
+  // },
+  // {
+  //   name: 'merkly_nft',
+  //   matchingList: routerMatchingList(merklyErc20Addresses),
+  // },
 ];
 
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
