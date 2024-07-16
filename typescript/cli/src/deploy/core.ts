@@ -1,8 +1,16 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { ChainName, CoreConfig, EvmCoreModule } from '@hyperlane-xyz/sdk';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import {
+  ChainName,
+  ContractVerifier,
+  CoreConfig,
+  EvmCoreModule,
+  ExplorerLicenseType,
+} from '@hyperlane-xyz/sdk';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
+import { getOrRequestApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -39,6 +47,7 @@ export async function runCoreDeploy({
     dryRunChain,
     registry,
     skipConfirmation,
+    multiProvider,
   } = context;
 
   // Select a dry-run chain if it's not supplied
@@ -51,6 +60,9 @@ export async function runCoreDeploy({
       'Select chain to connect:',
     );
   }
+
+  const apiKeys = await getOrRequestApiKeys([chain], chainMetadata);
+
   const deploymentParams: DeployParams = {
     context,
     chain,
@@ -68,11 +80,19 @@ export async function runCoreDeploy({
 
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);
 
-  logBlue('All systems ready, captain! Beginning deployment...');
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
+
+  logBlue('🚀 All systems ready, captain! Beginning deployment...');
   const evmCoreModule = await EvmCoreModule.create({
     chain,
     config,
-    multiProvider: context.multiProvider,
+    multiProvider,
+    contractVerifier,
   });
 
   await completeDeploy(context, 'core', initialBalances, userAddress, [chain]);

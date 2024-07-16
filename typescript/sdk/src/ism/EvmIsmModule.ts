@@ -87,7 +87,7 @@ export class EvmIsmModule extends HyperlaneModule<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
-    contractVerifier?: ContractVerifier,
+    protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
@@ -234,25 +234,29 @@ export class EvmIsmModule extends HyperlaneModule<
     proxyFactoryFactories,
     mailbox,
     multiProvider,
+    contractVerifier,
   }: {
     chain: ChainNameOrId;
     config: IsmConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmIsmModule> {
-    // instantiate new EvmIsmModule
-    const module = new EvmIsmModule(multiProvider, {
-      addresses: {
-        ...proxyFactoryFactories,
-        mailbox,
-        deployedIsm: ethers.constants.AddressZero,
+    const module = new EvmIsmModule(
+      multiProvider,
+      {
+        addresses: {
+          ...proxyFactoryFactories,
+          mailbox,
+          deployedIsm: ethers.constants.AddressZero,
+        },
+        chain,
+        config,
       },
-      chain,
-      config,
-    });
+      contractVerifier,
+    );
 
-    // deploy ISM and assign address to module
     const deployedIsm = await module.deploy({ config });
     module.args.addresses.deployedIsm = deployedIsm.address;
 
