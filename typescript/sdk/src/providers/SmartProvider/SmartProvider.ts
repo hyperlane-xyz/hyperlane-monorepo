@@ -263,31 +263,40 @@ export class HyperlaneSmartProvider
           this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
         );
         const result = await Promise.race([resultPromise, timeoutPromise]);
-        const providerMetadataLog = `[rpcUrl: ${provider.getBaseUrl()}, chainId: ${
-          this.network.chainId
-        }, method: ${method}(${JSON.stringify(params)})]`;
+
+        const providerMetadata = {
+          providerIndex: pIndex,
+          rpcUrl: provider.getBaseUrl(),
+          method: `${method}(${JSON.stringify(params)})`,
+          chainId: this.network.chainId,
+        };
 
         if (result.status === ProviderStatus.Success) {
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.logger.debug(
-            `Slow response from provider #${pIndex} ${providerMetadataLog}.${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+            `Slow response from provider:`,
+            { ...providerMetadata },
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
           this.logger.debug(
-            `Error from provider #${pIndex} ${providerMetadataLog}: ${
-              result.error
-            } - ${!isLastProvider ? ' Triggering next provider.' : ''}`,
+            `Error from provider:`,
+            {
+              error: result.error,
+              ...providerMetadata,
+            },
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
           pIndex += 1;
         } else {
           throw new Error(
-            `Unexpected result from provider ${providerMetadataLog}`,
+            `Unexpected result from provider ${JSON.stringify(
+              providerMetadata,
+            )}`,
           );
         }
 
