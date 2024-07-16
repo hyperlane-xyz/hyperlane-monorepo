@@ -1,5 +1,8 @@
+import { stringify as yamlStringify } from 'yaml';
+
 import {
   ChainName,
+  DispatchedMessage,
   HyperlaneCore,
   HyperlaneRelayer,
   MultiProtocolProvider,
@@ -14,8 +17,9 @@ import { timeout } from '@hyperlane-xyz/utils';
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
-import { logBlue, logGreen, logRed } from '../logger.js';
+import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { indentYamlOrJson } from '../utils/files.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export async function sendTestTransfer({
@@ -155,12 +159,20 @@ async function executeDelivery({
     }
   }
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
+  const messageIndex: number = 0;
+  const message: DispatchedMessage =
+    HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
 
-  logBlue(`Sent transfer from ${origin} to ${recipient} on ${destination}.`);
+  logBlue(
+    `Sent transfer from sender (${senderAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
+  );
+  logBlue(`Message ID: ${message.id}`);
+  log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
   if (selfRelay) {
     const relayer = new HyperlaneRelayer({ core });
-    await relayer.relayMessage(transferTxReceipt);
+    log('Attempting self-relay of transfer...');
+    await relayer.relayMessage(transferTxReceipt, messageIndex, message);
     logGreen('Transfer was self-relayed!');
     return;
   }
