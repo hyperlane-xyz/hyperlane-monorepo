@@ -109,6 +109,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  connextsepolia: {
+    threshold: 1,
+    validators: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
+  },
+
   eclipsetestnet: {
     threshold: 1,
     validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
@@ -335,6 +340,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   solanatestnet: {
     threshold: 1,
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+  },
+
+  superpositiontestnet: {
+    threshold: 1,
+    validators: ['0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a'],
   },
 
   taiko: {
