@@ -137,7 +137,7 @@ async function addBlockExplorerConfig(metadata: ChainMetadata): Promise<void> {
     const apiKey =
       (await input({
         message:
-          "Optional: Enter an API key for the explorer, or 'enter' to skip. Please be sure to remove this field if you intend to add your config to the Hyperlane registry:",
+          "Optional: Provide an API key for the explorer, or press 'enter' to skip. Please be sure to remove this field if you intend to add your config to the Hyperlane registry:",
       })) ?? undefined;
     metadata.blockExplorers = [];
     metadata.blockExplorers[0] = {
