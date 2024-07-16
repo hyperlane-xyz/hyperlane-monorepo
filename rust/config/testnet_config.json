@@ -415,9 +415,6 @@
       "technicalStack": "arbitrumnitro",
       "testRecipient": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": 1000000
-      },
       "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9"
     },
     "scrollsepolia": {
