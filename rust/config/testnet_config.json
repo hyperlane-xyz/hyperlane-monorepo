@@ -22,6 +22,10 @@
         "reorgPeriod": 0
       },
       "chainId": 44787,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Alfajores",
       "domainId": 44787,
       "domainRoutingIsmFactory": "0x30d9A03762431F8A917a0C469E7A62Bf55092Ca6",
@@ -75,6 +79,10 @@
         "reorgPeriod": 9
       },
       "chainId": 97,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "BSC Testnet",
       "domainId": 97,
       "fallbackRoutingHook": "0x2670ED2EC08cAd135307556685a96bD4c16b007b",
@@ -125,6 +133,10 @@
         "reorgPeriod": 0
       },
       "chainId": 239092742,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Eclipse Testnet",
       "domainId": 239092742,
       "index": {
@@ -165,6 +177,10 @@
         "reorgPeriod": 3
       },
       "chainId": 43113,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Fuji",
       "domainId": 43113,
       "domainRoutingIsmFactory": "0x683a81E0e1a238dcA7341e04c08d3bba6f0Cb74f",
@@ -222,6 +238,10 @@
         "reorgPeriod": 2
       },
       "chainId": 17000,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Holesky",
       "domainId": 17000,
       "domainRoutingIsmFactory": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
@@ -273,6 +293,10 @@
         "reorgPeriod": 0
       },
       "chainId": 161221135,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Plume Testnet",
       "domainId": 161221135,
       "domainRoutingIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
@@ -329,6 +353,10 @@
         "reorgPeriod": 1
       },
       "chainId": 534351,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Scroll Sepolia",
       "domainId": 534351,
       "domainRoutingIsmFactory": "0x17866ebE0e503784a9461d3e753dEeD0d3F61153",
@@ -382,6 +410,10 @@
         "reorgPeriod": 2
       },
       "chainId": 11155111,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Sepolia",
       "domainId": 11155111,
       "domainRoutingIsmFactory": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
@@ -442,6 +474,10 @@
         "reorgPeriod": 0
       },
       "chainId": 1399811150,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
       "displayName": "Solana Testnet",
       "displayNameShort": "Sol Testnet",
       "domainId": 1399811150,
