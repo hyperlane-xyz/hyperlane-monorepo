@@ -2265,6 +2265,12 @@
       "constructorArguments": "0000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
       "isProxy": false,
       "name": "ValidatorAnnounce"
+    },
+    {
+      "address": "0x5Ed813B8b41f25c8002B01A72bbDBe6A0232Fe27",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "ethereum": [
