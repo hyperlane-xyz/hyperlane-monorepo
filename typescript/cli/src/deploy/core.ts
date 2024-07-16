@@ -2,6 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  ChainMap,
   ChainName,
   ContractVerifier,
   CoreConfig,
@@ -61,7 +62,9 @@ export async function runCoreDeploy({
     );
   }
 
-  const apiKeys = await getOrRequestApiKeys([chain], chainMetadata);
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await getOrRequestApiKeys([chain], chainMetadata);
 
   const deploymentParams: DeployParams = {
     context,

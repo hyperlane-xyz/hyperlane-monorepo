@@ -105,7 +105,9 @@ export async function runWarpRouteDeploy({
 
   const chains = Object.keys(warpRouteConfig);
 
-  const apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
 
   const deploymentParams = {
     context,
@@ -360,7 +362,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
   const {
     warpDeployConfig,
     warpCoreConfig,
-    context: { registry, multiProvider, chainMetadata },
+    context: { registry, multiProvider, chainMetadata, skipConfirmation },
   } = params;
 
   // Addresses used to get static Ism factories
@@ -374,7 +376,9 @@ export async function runWarpRouteApply(params: ApplyParams) {
 
   const chains = Object.keys(warpDeployConfig);
 
-  const apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
 
   const contractVerifier = new ContractVerifier(
     multiProvider,
