@@ -36,6 +36,8 @@ contract DeployAVS is Script {
     Quorum quorum;
     uint256 thresholdWeight = 6667;
 
+    address KILN_OPERATOR_ADDRESS = 0x1f8C8b1d78d01bCc42ebdd34Fae60181bD697662;
+
     function _loadEigenlayerAddresses(string memory targetEnv) internal {
         string memory root = vm.projectRoot();
         string memory path = string.concat(
@@ -170,7 +172,8 @@ contract DeployAVS is Script {
         vm.stopBroadcast();
     }
 
-    function upgradeHsm(
+    // upgrade for https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/4090
+    function upgradeHsm4090(
         string memory network,
         address hsmProxy,
         address stakeRegistryProxy
@@ -179,7 +182,19 @@ contract DeployAVS is Script {
 
         _loadEigenlayerAddresses(network);
 
-        vm.startBroadcast(deployerPrivateKey);
+        // using the --sender address to fake sign the transaction
+        vm.startBroadcast();
+
+        // check original behavior
+        HyperlaneServiceManager hsm = HyperlaneServiceManager(hsmProxy);
+        address[] memory strategies = hsm.getOperatorRestakedStrategies(
+            KILN_OPERATOR_ADDRESS
+        );
+        require(strategies.length > 0, "No strategies found for operator"); // actual length is 13
+        // for (uint256 i = 0; i < strategies.length; i++) {
+        //     vm.expectRevert(); // all strategies are expected to be 0x0..0
+        //     require(strategies[i] != address(0), "Strategy address is 0");
+        // }
 
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
@@ -189,10 +204,25 @@ contract DeployAVS is Script {
             );
         console.log("Deployed new impl at", address(strategyManagerImpl));
 
-        proxyAdmin.upgrade(
-            ITransparentUpgradeableProxy(payable(hsmProxy)),
-            address(strategyManagerImpl)
+        bytes memory encodedUpgradeCalldata = abi.encodeCall(
+            ProxyAdmin.upgrade,
+            (
+                ITransparentUpgradeableProxy(payable(hsmProxy)),
+                address(strategyManagerImpl)
+            )
         );
+        console.log("Encoded upgrade call: ");
+        console.logBytes(encodedUpgradeCalldata);
+
+        // only meant for simulating the call on mainnet as the actual caller needs to the gnosis safe
+        address(proxyAdmin).call(encodedUpgradeCalldata);
+
+        // check upgraded behavior
+        strategies = hsm.getOperatorRestakedStrategies(KILN_OPERATOR_ADDRESS);
+        require(strategies.length > 0, "No strategies found for operator"); // actual length is 13
+        for (uint256 i = 0; i < strategies.length; i++) {
+            require(strategies[i] != address(0), "Strategy address is 0");
+        }
 
         vm.stopBroadcast();
     }
