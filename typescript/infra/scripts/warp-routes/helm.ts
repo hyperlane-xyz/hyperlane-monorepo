@@ -36,7 +36,7 @@ function getWarpRoutesHelmValues(configFilePath: string) {
   const values = {
     image: {
       repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'f10895c-20240704-150848',
+      tag: '4c234a5-20240710-183247',
     },
     configFilePath: pathRelativeToMonorepoRoot,
   };
