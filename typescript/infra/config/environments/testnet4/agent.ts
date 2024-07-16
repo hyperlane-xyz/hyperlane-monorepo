@@ -15,7 +15,10 @@ import { Contexts } from '../../contexts.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
-import { supportedChainNames } from './supportedChainNames.js';
+import {
+  supportedChainNames,
+  testnet4SupportedChainNames,
+} from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
@@ -30,7 +33,9 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 //
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.
-export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+export const hyperlaneContextAgentChainConfig: AgentChainConfig<
+  typeof testnet4SupportedChainNames
+> = {
   [Role.Validator]: {
     alfajores: true,
     bsctestnet: true,
@@ -76,7 +81,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
-  supportedChainNames,
+  testnet4SupportedChainNames,
 );
 
 const contextBase = {
