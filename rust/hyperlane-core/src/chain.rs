@@ -96,11 +96,13 @@ pub enum KnownHyperlaneDomain {
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
     Chiado = 10200,
+    ConnextSepolia = 6398,
     Holesky = 17000,
     MoonbaseAlpha = 1287,
     PlumeTestnet = 161221135,
     ScrollSepolia = 534351,
     Sepolia = 11155111,
+    SuperpositionTestnet = 98985,
 }
 
 #[derive(Clone, Serialize)]
@@ -214,8 +216,8 @@ impl KnownHyperlaneDomain {
                 Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Zetachain,
             ],
             Testnet: [
-                Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia,
+                Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
+                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
@@ -237,8 +239,8 @@ impl KnownHyperlaneDomain {
                 Test1, Test2, Test3,
 
                 // Test chains
-                Alfajores, BinanceSmartChainTestnet, Chiado, Holesky, MoonbaseAlpha, PlumeTestnet,
-                ScrollSepolia, Sepolia
+                Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Holesky, MoonbaseAlpha, PlumeTestnet,
+                ScrollSepolia, Sepolia, SuperpositionTestnet
 
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
@@ -267,8 +269,8 @@ impl KnownHyperlaneDomain {
                 Test2, Test3,
 
                 // Test chains
-                Alfajores, BinanceSmartChainTestnet, Chiado, Holesky, MoonbaseAlpha, ScrollSepolia,
-                Sepolia
+                Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Holesky, MoonbaseAlpha, ScrollSepolia,
+                Sepolia, SuperpositionTestnet
            ],
         })
     }

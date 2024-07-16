@@ -70,6 +70,18 @@ export const validatorChainConfig = (
         'bsctestnet',
       ),
     },
+    connextsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('connextsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'connextsepolia',
+      ),
+    },
     holesky: {
       interval: 13,
       reorgPeriod: getReorgPeriod('holesky'),
@@ -157,16 +169,16 @@ export const validatorChainConfig = (
         'solanatestnet',
       ),
     },
-    eclipsetestnet: {
+    superpositiontestnet: {
       interval: 1,
-      reorgPeriod: getReorgPeriod('eclipsetestnet'),
+      reorgPeriod: getReorgPeriod('superpositiontestnet'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+          [Contexts.Hyperlane]: ['0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
-        'eclipsetestnet',
+        'superpositiontestnet',
       ),
     },
   };
