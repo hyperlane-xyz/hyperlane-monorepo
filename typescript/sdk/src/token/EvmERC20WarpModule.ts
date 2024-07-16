@@ -9,6 +9,7 @@ import {
   addressToBytes32,
   assert,
   configDeepEquals,
+  isObjEmpty,
   normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -115,7 +116,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       const { remoteRouters: actualRemoteRouters } = actualConfig;
       const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-      if (!configDeepEquals(expectedRemoteRouters, actualRemoteRouters)) {
+      if (!configDeepEquals(actualRemoteRouters, expectedRemoteRouters)) {
         const contractToUpdate = TokenRouter__factory.connect(
           this.args.addresses.deployedTokenRoute,
           this.multiProvider.getProvider(this.domainId),
@@ -254,7 +255,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     });
 
     // Enroll Remote Routers
-    if (config.remoteRouters && Object.keys(config.remoteRouters).length) {
+    if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
       const enrollRemoteTx = await warpModule.updateRemoteRouters(
         await warpModule.read(),
         config,
