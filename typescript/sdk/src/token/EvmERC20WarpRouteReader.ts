@@ -219,18 +219,19 @@ export class EvmERC20WarpRouteReader {
     return { name, symbol, decimals, totalSupply: totalSupply.toString() };
   }
 
-  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouter[]> {
+  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouter> {
     const warpRoute = TokenRouter__factory.connect(
       warpRouteAddress,
       this.provider,
     );
     const domains = await warpRoute.domains();
 
-    return Promise.all(
-      domains.map(async (domain) => ({
-        domain,
-        router: bytes32ToAddress(await warpRoute.routers(domain)),
-      })),
+    return Object.fromEntries(
+      await Promise.all(
+        domains.map(async (domain) => {
+          return [domain, bytes32ToAddress(await warpRoute.routers(domain))];
+        }),
+      ),
     );
   }
   /**

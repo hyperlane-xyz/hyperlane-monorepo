@@ -33,6 +33,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { RemoteRouter } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
@@ -41,8 +42,11 @@ import { TokenType } from './config.js';
 import { TokenRouterConfig } from './schemas.js';
 
 const randomRemoteRouters = (n: number) => {
-  const emptyArray = new Array<number>(n).fill(0);
-  return emptyArray.map((_, domain) => ({ domain, router: randomAddress() }));
+  const routers: RemoteRouter = {};
+  for (let domain = 0; domain < n; domain++) {
+    routers[domain] = randomAddress();
+  }
+  return routers;
 };
 
 describe('EvmERC20WarpHyperlaneModule', async () => {
@@ -249,7 +253,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       multiProvider,
     });
     const { remoteRouters } = await evmERC20WarpModule.read();
-    expect(remoteRouters?.length).to.equal(numOfRouters);
+    expect(Object.keys(remoteRouters!).length).to.equal(numOfRouters);
   });
 
   describe('Update', async () => {
@@ -420,7 +424,59 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       );
 
       const updatedConfig = await evmERC20WarpModule.read();
-      expect(updatedConfig.remoteRouters?.length).to.be.equal(numOfRouters);
+      expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(
+        numOfRouters,
+      );
+    });
+
+    it('should only extend routers if they are new ones are different', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        ismFactoryAddresses,
+        interchainSecurityModule: ismAddress,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+      });
+      const remoteRouters = randomRemoteRouters(1);
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters,
+        }),
+      );
+
+      let updatedConfig = await evmERC20WarpModule.read();
+      expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(1);
+
+      // Try to extend with the same remoteRouters
+      let txs = await evmERC20WarpModule.update({
+        ...config,
+        remoteRouters,
+      });
+
+      expect(txs.length).to.equal(0);
+      await sendTxs(txs);
+
+      // Try to extend with the different remoteRouters, but same length
+      txs = await evmERC20WarpModule.update({
+        ...config,
+        remoteRouters: {
+          3: randomAddress(),
+        },
+      });
+
+      expect(txs.length).to.equal(1);
+      await sendTxs(txs);
+
+      updatedConfig = await evmERC20WarpModule.read();
+      expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(2);
     });
   });
 });

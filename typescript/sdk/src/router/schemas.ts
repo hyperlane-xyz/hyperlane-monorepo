@@ -17,16 +17,16 @@ export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
 
-export const RemoteRouterSchema = z.object({
-  domain: z.number(),
-  router: z.string(),
-});
+export const RemoteRouterSchema = z.record(
+  z.string(), // domain
+  z.string(), // router
+);
 
 export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   ForeignDeploymentConfigSchema,
 ).merge(
   z.object({
-    remoteRouters: z.array(RemoteRouterSchema).optional(),
+    remoteRouters: RemoteRouterSchema.optional(),
   }),
 );
 

@@ -8,6 +8,8 @@ import {
   ProtocolType,
   addressToBytes32,
   assert,
+  configDeepEquals,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -102,31 +104,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
     if (expectedConfig.remoteRouters) {
+      // We normalize the addresses for comparison
+      actualConfig.remoteRouters = normalizeConfig(actualConfig.remoteRouters);
+      expectedConfig.remoteRouters = normalizeConfig(
+        expectedConfig.remoteRouters,
+      );
       assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+      assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
+
       const { remoteRouters: actualRemoteRouters } = actualConfig;
       const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-      if (
-        expectedRemoteRouters.length > 0 &&
-        expectedRemoteRouters.length > actualRemoteRouters.length
-      ) {
+      if (!configDeepEquals(expectedRemoteRouters, actualRemoteRouters)) {
         const contractToUpdate = TokenRouter__factory.connect(
           this.args.addresses.deployedTokenRoute,
           this.multiProvider.getProvider(this.domainId),
-        );
-
-        const enrollRemoteRoutersParameters = expectedRemoteRouters.reduce<
-          [
-            number[], // domain
-            string[], // router
-          ]
-        >(
-          (results, remoteRouter) => {
-            results[0].push(remoteRouter.domain);
-            results[1].push(addressToBytes32(remoteRouter.router));
-            return results;
-          },
-          [[], []],
         );
 
         updateTransactions.push({
@@ -135,7 +127,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           to: contractToUpdate.address,
           data: contractToUpdate.interface.encodeFunctionData(
             'enrollRemoteRouters',
-            enrollRemoteRoutersParameters,
+            [
+              Object.keys(expectedRemoteRouters).map((k) => Number(k)),
+              Object.values(expectedRemoteRouters).map((a) =>
+                addressToBytes32(a),
+              ),
+            ],
           ),
         });
       }
@@ -257,7 +254,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     });
 
     // Enroll Remote Routers
-    if (config.remoteRouters?.length) {
+    if (config.remoteRouters && Object.keys(config.remoteRouters).length) {
       const enrollRemoteTx = await warpModule.updateRemoteRouters(
         await warpModule.read(),
         config,
