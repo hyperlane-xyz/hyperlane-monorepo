@@ -279,6 +279,22 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "connextsepolia",
+        token: "ETH",
+        domain: 6398,
+        chain_id: 6398,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "superpositiontestnet",
+        token: "SPN",
+        domain: 98985,
+        chain_id: 98985,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "test1",
         token: "ETH",
         domain: 13371,
