@@ -23,7 +23,7 @@ const gasPrices: Record<
 > = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
-  connextsepolia: ethers.utils.parseUnits('10', 'gwei'),
+  connextsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   eclipsetestnet: ethers.BigNumber.from('28'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
   holesky: ethers.utils.parseUnits('10', 'gwei'),
@@ -31,7 +31,7 @@ const gasPrices: Record<
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
   solanatestnet: ethers.BigNumber.from('28'),
-  superpositiontestnet: ethers.utils.parseUnits('1', 'gwei'),
+  superpositiontestnet: ethers.utils.parseUnits('0.5', 'gwei'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -56,7 +56,7 @@ const chainTokenRarity: Record<
 > = {
   alfajores: Rarity.Common,
   bsctestnet: Rarity.Rare,
-  connextsepolia: Rarity.Rare,
+  connextsepolia: Rarity.Common,
   eclipsetestnet: Rarity.Common,
   fuji: Rarity.Rare,
   holesky: Rarity.Common,

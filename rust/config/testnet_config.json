@@ -150,7 +150,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 10,
-        "reorgPeriod": 1
+        "reorgPeriod": 0
       },
       "chainId": 6398,
       "deployer": {
@@ -163,7 +163,7 @@
       "domainRoutingIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
       "fallbackRoutingHook": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
       "index": {
-        "from": 6317217
+        "from": 4950
       },
       "interchainGasPaymaster": "0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450",
       "interchainSecurityModule": "0x5e6Fe18eC7D4b159bDC5Fa0C32bB1996277B3ddF",
@@ -192,6 +192,7 @@
       "staticMerkleRootMultisigIsmFactory": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
       "staticMessageIdMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
       "storageGasOracle": "0xF7561c34f17A32D5620583A3397C304e7038a7F6",
+      "technicalStack": "arbitrumnitro",
       "testRecipient": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
       "validatorAnnounce": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C"
     },
