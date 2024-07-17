@@ -110,16 +110,6 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     }
 
     /**
-     * @notice Check if a message is verified through verifyMessageId first.
-     * @param message Message to check.
-     */
-    function isVerified(bytes calldata message) public view returns (bool) {
-        bytes32 messageId = message.id();
-        // check for the first bit (used for verification)
-        return verifiedMessages[messageId].isBitSet(VERIFIED_MASK_INDEX);
-    }
-
-    /**
      * @notice Receive a message from the AbstractMessageIdAuthHook
      * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
