@@ -108,38 +108,58 @@ export class ContractVerifier {
         method: 'GET',
       });
     } else {
-      response = await fetch(url.toString(), {
+      const init: RequestInit = {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params,
-      });
+      };
+      response = await fetch(url.toString(), init);
+    }
+    let responseJson;
+    try {
+      const responseTextString = await response.text();
+      responseJson = JSON.parse(responseTextString);
+    } catch (error) {
+      verificationLogger.trace(
+        {
+          failure: response.statusText,
+          status: response.status,
+          chain,
+          apiUrl,
+          family,
+        },
+        'Failed to parse response from explorer.',
+      );
+      throw new Error(
+        `Failed to parse response from explorer (${apiUrl}, ${chain}): ${
+          response.statusText || 'UNKNOWN STATUS TEXT'
+        } (${response.status || 'UNKNOWN STATUS'})`,
+      );
     }
 
-    const responseText = await response.text();
-    const result = JSON.parse(responseText);
-
-    if (result.message !== 'OK') {
+    if (responseJson.message !== 'OK') {
       let errorMessage;
 
-      switch (result.result) {
+      switch (responseJson.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
           await sleep(5000);
           verificationLogger.trace(
             {
-              result: result.result,
+              result: responseJson.result,
             },
             'Verification still pending',
           );
           return this.submitForm(chain, action, verificationLogger, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
+        case ExplorerApiErrors.NOT_VERIFIED:
         case ExplorerApiErrors.PROXY_FAILED:
         case ExplorerApiErrors.BYTECODE_MISMATCH:
-          errorMessage = `${result.message}: ${result.result}`;
+          errorMessage = `${responseJson.message}: ${responseJson.result}`;
           break;
         default:
           errorMessage = `Verification failed: ${
-            JSON.stringify(result.result) ?? response.statusText
+            JSON.stringify(responseJson.result) ?? response.statusText
           }`;
           break;
       }
@@ -150,20 +170,20 @@ export class ContractVerifier {
       }
     }
 
-    if (result.result === ExplorerApiErrors.UNKNOWN_UID) {
+    if (responseJson.result === ExplorerApiErrors.UNKNOWN_UID) {
       await sleep(1000); // wait 1 second
       return this.submitForm(chain, action, verificationLogger, options);
     }
 
-    if (result.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
+    if (responseJson.result === ExplorerApiErrors.UNABLE_TO_VERIFY) {
       const errorMessage = `Verification failed. ${
-        JSON.stringify(result.result) ?? response.statusText
+        JSON.stringify(responseJson.result) ?? response.statusText
       }`;
       verificationLogger.debug(errorMessage);
       throw new Error(`[${chain}] ${errorMessage}`);
     }
 
-    return result.result;
+    return responseJson.result;
   }
 
   private async isAlreadyVerified(

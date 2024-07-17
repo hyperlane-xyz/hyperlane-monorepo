@@ -61,6 +61,7 @@ export const EXPLORER_GET_ACTIONS = [
 export enum ExplorerApiErrors {
   ALREADY_VERIFIED = 'Contract source code already verified',
   ALREADY_VERIFIED_ALT = 'Already Verified',
+  NOT_VERIFIED = 'Contract source code not verified',
   VERIFICATION_PENDING = 'Pending in queue',
   PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
   BYTECODE_MISMATCH = 'Fail - Unable to verify. Compiled contract deployment bytecode does NOT match the transaction deployment bytecode.',
