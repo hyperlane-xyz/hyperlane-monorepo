@@ -20,7 +20,9 @@ const fixtures: Fixture<AggregationMetadata>[] = files
       encoded,
       decoded: {
         type: IsmType.AGGREGATION,
-        submoduleMetadata: Object.values(values),
+        submoduleMetadata: Object.values(values).map((value) =>
+          value === null || value === 'null' ? null : String(value),
+        ),
       },
     };
   });

@@ -27,8 +27,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1',
       '0xec68258a7c882ac2fc46b81ce80380054ffb4ef2', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
-      '0x092e1c19da58e87ea65198785ee83867fe4bb418', // everstake
-      '0xc2d68e109a7e80e12098d50ac4ef9fa7b3061684', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
     ],
   },
 
@@ -37,7 +37,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x3fb8263859843bffb02950c492d492cae169f4cf',
       '0x402e0f8c6e4210d408b6ac00d197d4a099fcd25a', // dsrv
-      '0x716a1d4d3166c6151b05ce0450e0d77d94588eac', // everstake
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
     ],
   },
 
@@ -45,8 +45,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 2,
     validators: [
       '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
-      '0x64889519ad3ffc8f3ae436fcd63efc6b853fd63f', // staked
-      '0x41188cb5a5493a961c467ba38a3f8b1f1d35ee63', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
@@ -75,7 +75,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x570af9b7b36568c8877eebba6c6727aa9dab7268',
       '0x8292b1a53907ece0f76af8a50724e9492bcdc8a3', // dsrv
-      '0xeaf5cf9100f36a4baeea779f8745dda86159103c', // everstake
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
@@ -94,8 +94,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
       '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', // dsrv
-      '0xf2c1e3888eb618f1f1a071ef3618f134715a9a49', // everstake
-      '0x46ecbc794574727abb8f97f01dacd9db6135f47a', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
@@ -109,9 +109,19 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  connextsepolia: {
+    threshold: 1,
+    validators: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
+  },
+
   eclipsetestnet: {
     threshold: 1,
     validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+  },
+
+  endurance: {
+    threshold: 1,
+    validators: ['0x28c5b322da06f184ebf68693c5d19df4d4af13e5'],
   },
 
   ethereum: {
@@ -120,8 +130,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
       '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
-      '0xce327111035dd38698c92c3778884dbbb0ca8103', // everstake
-      '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
       '0xb683b742b378632a5f73a2a5a45801b3489bba44', // avs: luganodes
       '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de', // avs: pier two
     ],
@@ -144,12 +154,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  fusemainnet: {
+    threshold: 1,
+    validators: ['0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9'],
+  },
+
   gnosis: {
     threshold: 2,
     validators: [
       '0xd4df66a859585678f2ea8357161d896be19cc1ca',
       '0x19fb7e04a1be6b39b6966a0b0c60b929a93ed672', // dsrv
-      '0xdb96116d13a2fadde9742d7cc88474a5ed39a03a', // everstake
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
@@ -221,8 +236,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
       '0x645428d198d2e76cbd9c1647f5c80740bb750b97', // dsrv
-      '0xaed886392df07897743d8e272d438f00c4c9a2ae', // everstake
-      '0xcf0bb43255849cb3709a96ee166e5c3ce4adc7f9', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
     ],
   },
 
@@ -244,8 +259,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
       '0x5b7d47b76c69740462432f6a5a0ca5005e014157', // dsrv
-      '0x22b1ad4322cdb5f2c76ebf4e5a93803d480fcf0d', // everstake
-      '0x9636fbe90b6816438327b0fbde435aa3c8eeda15', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
@@ -265,7 +280,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac',
       '0x008f24cbb1cc30ad0f19f2516ca75730e37efb5f', // dsrv
-      '0x722aa4d45387009684582bca8281440d16b8b40f', // everstake
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
@@ -275,7 +290,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x86f2a44592bb98da766e880cfd70d3bbb295e61a',
       '0x865818fe1db986036d5fd0466dcd462562436d1a', // dsrv
-      '0x57231619fea13d85270ca6943298046c75a6dd01', // everstake
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
     ],
   },
 
@@ -291,8 +306,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 2,
     validators: [
       '0xad557170a9f2f21c35e03de07cb30dcbcc3dff63',
-      '0x37148DE77D9FA915e6F0A9B54bCdF5e6f53ca511', // staked
-      '0x276de8e2b88e659c4e5ad30d62d9de42c3da3403', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0xbac4ac39f1d8b5ef15f26fdb1294a7c9aba3f948', // dsrv
     ],
   },
@@ -337,6 +352,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
   },
 
+  superpositiontestnet: {
+    threshold: 1,
+    validators: ['0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a'],
+  },
+
   taiko: {
     threshold: 2,
     validators: [
@@ -361,5 +381,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
     ],
+  },
+
+  zoramainnet: {
+    threshold: 1,
+    validators: ['0x35130945b625bb69b28aee902a3b9a76fa67125f'],
   },
 };

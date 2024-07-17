@@ -39,12 +39,30 @@
 
     // List of extensions which should be recommended for users of this workspace.
     "recommendations": [
+      // Github's copilot (the nightly version)
       "GitHub.copilot-nightly",
+      // Review and manage PRs
       "GitHub.vscode-pull-request-github",
+      // Add useful git-related features
       "eamodio.gitlens",
+      // Show a render preview of markdown files
       "bierner.github-markdown-preview",
+      // Add a live share feature for collaboration
       "ms-vsliveshare.vsliveshare-pack",
-      "esbenp.prettier-vscode"
+      // Prettier's official extension (code formatting)
+      "esbenp.prettier-vscode",
+      // Spell-checker for catching typos
+      "streetsidesoftware.code-spell-checker",
+      // ESlint official extension (JS linting)
+      "dbaeumer.vscode-eslint",
+      // Markdown linting
+      "davidanson.vscode-markdownlint",
+      // Language support for MDX
+      "unifiedjs.vscode-mdx",
+      // More readable TS compiler errors
+      "yoavbls.pretty-ts-errors",
+      // Yaml language support
+      "redhat.vscode-yaml",
     ],
     // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
     "unwantedRecommendations": []
