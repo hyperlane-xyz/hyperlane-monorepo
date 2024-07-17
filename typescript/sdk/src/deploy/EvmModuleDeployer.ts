@@ -30,13 +30,15 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     protected readonly logger = rootLogger.child({
       module: 'EvmModuleDeployer',
     }),
-    protected readonly contractVerifier = new ContractVerifier(
+    protected readonly contractVerifier?: ContractVerifier,
+  ) {
+    this.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
       coreBuildArtifact,
       ExplorerLicenseType.MIT,
-    ),
-  ) {}
+    );
+  }
 
   // Deploys a contract from a factory
   public async deployContractFromFactory<F extends ethers.ContractFactory>({
@@ -53,9 +55,9 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>;
   }): Promise<ReturnType<F['deploy']>> {
     this.logger.info(
-      `Deploy ${contractName} on ${chain} with constructor args (${constructorArgs.join(
+      `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
-      )})`,
+      )})...`,
     );
     const contract = await this.multiProvider.handleDeploy(
       chain,

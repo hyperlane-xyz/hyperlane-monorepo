@@ -61,6 +61,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  bob: {
+    threshold: 2,
+    validators: [
+      '0x20f283be1eb0e81e22f51705dcb79883cfdd34aa',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
   bsc: {
     threshold: 2,
     validators: [
@@ -100,6 +109,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  connextsepolia: {
+    threshold: 1,
+    validators: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
+  },
+
   eclipsetestnet: {
     threshold: 1,
     validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
@@ -113,6 +127,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0xce327111035dd38698c92c3778884dbbb0ca8103', // everstake
       '0xb2f5a6a6e6046e2ede213617e989329666a6c4bc', // staked
+      '0xb683b742b378632a5f73a2a5a45801b3489bba44', // avs: luganodes
+      '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de', // avs: pier two
     ],
   },
 
@@ -185,6 +201,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xa0eE95e280D46C14921e524B075d0C341e7ad1C8', //cosmos spaces
       '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
       '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
+    ],
+  },
+
+  mantle: {
+    threshold: 2,
+    validators: [
+      '0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -315,6 +340,20 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   solanatestnet: {
     threshold: 1,
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+  },
+
+  superpositiontestnet: {
+    threshold: 1,
+    validators: ['0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a'],
+  },
+
+  taiko: {
+    threshold: 2,
+    validators: [
+      '0xa930073c8f2d0b2f7423ea32293e0d1362e65d79',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   viction: {

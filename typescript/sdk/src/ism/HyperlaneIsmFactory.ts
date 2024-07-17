@@ -344,6 +344,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
         );
+        // TODO: Should verify contract here
         logger.debug('Initialising fallback routing ISM ...');
         receipt = await this.multiProvider.handleTx(
           destination,
@@ -374,6 +375,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
           },
         );
+        // TODO: Should verify contract here
         receipt = await this.multiProvider.handleTx(destination, tx);
 
         // TODO: Break this out into a generalized function

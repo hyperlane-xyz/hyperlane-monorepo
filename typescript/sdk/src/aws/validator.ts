@@ -39,7 +39,7 @@ export class S3Validator extends BaseValidator {
         const s3Config = {
           bucket: pieces[0],
           region: pieces[1],
-          folder: pieces[2],
+          folder: pieces.slice(2).join('/'),
           caching: true,
         };
         const s3Bucket = new S3Wrapper(s3Config);

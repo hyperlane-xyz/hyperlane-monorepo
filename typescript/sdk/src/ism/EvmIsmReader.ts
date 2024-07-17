@@ -8,7 +8,6 @@ import {
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
-  TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -49,6 +48,10 @@ export interface IsmReader {
   deriveArbL2ToL1Config(
     address: Address,
   ): Promise<WithAddress<ArbL2ToL1IsmConfig>>;
+  assertModuleType(
+    moduleType: ModuleType,
+    expectedModuleType: ModuleType,
+  ): void;
 }
 
 export class EvmIsmReader implements IsmReader {
@@ -105,7 +108,7 @@ export class EvmIsmReader implements IsmReader {
       this.provider,
     );
     const owner = await ism.owner();
-    assert((await ism.moduleType()) === ModuleType.ROUTING);
+    this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
 
     const domains: RoutingIsmConfig['domains'] = {};
     const domainIds = await ism.domains();
@@ -146,7 +149,7 @@ export class EvmIsmReader implements IsmReader {
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>> {
     const ism = StaticAggregationIsm__factory.connect(address, this.provider);
-    assert((await ism.moduleType()) === ModuleType.AGGREGATION);
+    this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
 
     const [modules, threshold] = await ism.modulesAndThreshold(
       ethers.constants.AddressZero,
@@ -174,6 +177,7 @@ export class EvmIsmReader implements IsmReader {
     assert(
       moduleType === ModuleType.MERKLE_ROOT_MULTISIG ||
         moduleType === ModuleType.MESSAGE_ID_MULTISIG,
+      `expected module type to be ${ModuleType.MERKLE_ROOT_MULTISIG} or ${ModuleType.MESSAGE_ID_MULTISIG}, got ${moduleType}`,
     );
 
     const ismType =
@@ -196,14 +200,20 @@ export class EvmIsmReader implements IsmReader {
   async deriveNullConfig(
     address: Address,
   ): Promise<WithAddress<NullIsmConfig>> {
-    // if it has trustedRelayer() property --> TrustedRelayer ISM
+    const ism = IInterchainSecurityModule__factory.connect(
+      address,
+      this.provider,
+    );
+    this.assertModuleType(await ism.moduleType(), ModuleType.NULL);
+
+    // if it has trustedRelayer() property --> TRUSTED_RELAYER
     const trustedRelayerIsm = TrustedRelayerIsm__factory.connect(
       address,
       this.provider,
     );
+
     try {
       const relayer = await trustedRelayerIsm.trustedRelayer();
-      assert((await trustedRelayerIsm.moduleType()) === ModuleType.NULL);
       return {
         address,
         relayer,
@@ -221,7 +231,6 @@ export class EvmIsmReader implements IsmReader {
     try {
       const paused = await pausableIsm.paused();
       const owner = await pausableIsm.owner();
-      assert((await pausableIsm.moduleType()) === ModuleType.NULL);
       return {
         address,
         owner,
@@ -238,7 +247,6 @@ export class EvmIsmReader implements IsmReader {
     // if it has VERIFIED_MASK_INDEX, it's AbstractMessageIdAuthorizedIsm which means OPStackIsm
     const opStackIsm = OPStackIsm__factory.connect(address, this.provider);
     try {
-      assert((await opStackIsm.moduleType()) === ModuleType.NULL);
       await opStackIsm.VERIFIED_MASK_INDEX();
       return {
         address,
@@ -254,8 +262,6 @@ export class EvmIsmReader implements IsmReader {
     }
 
     // no specific properties, must be Test ISM
-    const testIsm = TestIsm__factory.connect(address, this.provider);
-    assert((await testIsm.moduleType()) === ModuleType.NULL);
     return {
       address,
       type: IsmType.TEST_ISM,
@@ -273,5 +279,15 @@ export class EvmIsmReader implements IsmReader {
       type: IsmType.ARB_L2_TO_L1,
       outbox,
     };
+  }
+
+  assertModuleType(
+    moduleType: ModuleType,
+    expectedModuleType: ModuleType,
+  ): void {
+    assert(
+      moduleType === expectedModuleType,
+      `expected module type to be ${expectedModuleType}, got ${moduleType}`,
+    );
   }
 }

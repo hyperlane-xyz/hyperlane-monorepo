@@ -58,7 +58,12 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
-    assert(localDomain === this.multiProvider.getDomainId(chain));
+    assert(
+      localDomain === this.multiProvider.getDomainId(chain),
+      `local domain ${localDomain} does not match expected domain ${this.multiProvider.getDomainId(
+        chain,
+      )} for ${chain}`,
+    );
 
     const actualIsm = await mailbox.defaultIsm();
 

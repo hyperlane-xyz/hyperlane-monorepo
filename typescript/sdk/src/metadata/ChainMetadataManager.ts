@@ -30,6 +30,7 @@ export interface ChainMetadataManagerOptions {
 export class ChainMetadataManager<MetaExt = {}> {
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
   public readonly logger: Logger;
+  static readonly DEFAULT_MAX_BLOCK_RANGE = 1000;
 
   /**
    * Create a new ChainMetadataManager with the given chainMetadata,
@@ -110,7 +111,9 @@ export class ChainMetadataManager<MetaExt = {}> {
     const metadata = this.getChainMetadata(chainNameOrId);
     return Math.max(
       ...metadata.rpcUrls.map(
-        ({ pagination }) => pagination?.maxBlockRange ?? 2000,
+        ({ pagination }) =>
+          pagination?.maxBlockRange ??
+          ChainMetadataManager.DEFAULT_MAX_BLOCK_RANGE,
       ),
     );
   }

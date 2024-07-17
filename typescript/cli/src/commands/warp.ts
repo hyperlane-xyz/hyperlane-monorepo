@@ -18,13 +18,14 @@ import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import {
   createWarpRouteDeployConfig,
   readWarpCoreConfig,
+  readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { runWarpRouteDeploy } from '../deploy/warp.js';
+import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
@@ -50,6 +51,7 @@ export const warpCommand: CommandModule = {
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
     yargs
+      .command(apply)
       .command(deploy)
       .command(init)
       .command(read)
@@ -58,6 +60,46 @@ export const warpCommand: CommandModule = {
       .demandCommand(),
 
   handler: () => log('Command required'),
+};
+
+export const apply: CommandModuleWithWriteContext<{
+  config: string;
+  symbol?: string;
+  warp: string;
+}> = {
+  command: 'apply',
+  describe: 'Update Warp Route contracts',
+  builder: {
+    config: warpDeploymentConfigCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+  },
+  handler: async ({ context, config, symbol, warp }) => {
+    logGray(`Hyperlane Warp Apply`);
+    logGray('--------------------'); // @TODO consider creating a helper function for these dashes
+    let warpCoreConfig: WarpCoreConfig;
+    if (symbol) {
+      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
+    } else if (warp) {
+      warpCoreConfig = readWarpCoreConfig(warp);
+    } else {
+      logRed(`Please specify either a symbol or warp config`);
+      process.exit(0);
+    }
+    const warpDeployConfig = await readWarpRouteDeployConfig(config);
+    await runWarpRouteApply({
+      context,
+      warpDeployConfig,
+      warpCoreConfig,
+    });
+    process.exit(0);
+  },
 };
 
 export const deploy: CommandModuleWithWriteContext<{
@@ -73,7 +115,7 @@ export const deploy: CommandModuleWithWriteContext<{
     'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {
-    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
+    logGray(`Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`);
     logGray('------------------------------------------------');
 
     try {

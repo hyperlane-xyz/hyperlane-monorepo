@@ -10,7 +10,7 @@ const CACHE_PATH = process.env.RELAYER_CACHE ?? './relayer-cache.json';
 async function main() {
   const { environment } = await getArgs().argv;
   const { core } = await getHyperlaneCore(environment);
-  const relayer = new HyperlaneRelayer(core);
+  const relayer = new HyperlaneRelayer({ core });
 
   // target subset of chains
   // const chains = ['ethereum', 'polygon', 'bsc']

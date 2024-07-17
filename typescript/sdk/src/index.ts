@@ -295,6 +295,7 @@ export {
   ViemTransaction,
   ViemTransactionReceipt,
 } from './providers/ProviderType.js';
+export { ProviderRetryOptions } from './providers/SmartProvider/types.js';
 export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider.js';
 export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 export {
@@ -305,19 +306,13 @@ export {
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
-  ChainMetadataWithRpcConnectionInfo,
-  ProviderErrorResult,
-  ProviderPerformResult,
-  ProviderRetryOptions,
-  ProviderStatus,
-  ProviderSuccessResult,
-  ProviderTimeoutResult,
-  SmartProviderOptions,
-} from './providers/SmartProvider/types.js';
-export { PopulatedTransactionSchema } from './providers/transactions/schemas.js';
+  PopulatedTransactionSchema,
+  PopulatedTransactionsSchema,
+} from './providers/transactions/schemas.js';
 export {
   CallData,
   PopulatedTransaction,
+  PopulatedTransactions,
 } from './providers/transactions/types.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
@@ -472,7 +467,6 @@ export {
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
-
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';
 export {
@@ -512,3 +506,4 @@ export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService }
 export { DeployedCoreAdresses, EvmCoreModule } from './core/EvmCoreModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export { ProxyFactoryFactoriesAddresses } from './deploy/schemas.js';

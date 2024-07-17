@@ -1,4 +1,35 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_GRAFANACLOUD-ABACUSWORKS-PROM",
+      "label": "grafanacloud-abacusworks-prom",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "11.2.0-72576"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -18,15 +49,14 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 66,
+  "id": null,
   "links": [],
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
       },
-      "description": "There shouldn't be abrupt changes, especially for a specific pair",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -39,8 +69,8 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 78,
+            "drawStyle": "line",
+            "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -58,7 +88,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "normal"
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -82,9 +112,104 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 12,
         "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+          },
+          "editorMode": "code",
+          "expr": "max by(chain) (increase (hyperlane_latest_checkpoint{agent=\"validator\", phase=\"validator_processed\"}[30m]))",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Signed checkpoint diffs (30m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
         "y": 0
       },
       "id": 2,
@@ -96,7 +221,6 @@
           "showLegend": true
         },
         "tooltip": {
-          "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
@@ -105,120 +229,23 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
           },
           "editorMode": "code",
-          "expr": "sum by (origin,remote)(round(increase(hyperlane_messages_processed_count[5m])))",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "{{hyperlane_deployment}}: {{origin}}->{{remote}}",
+          "expr": "max by (chain) (increase(hyperlane_block_height{agent=\"validator\"}[30m]))",
+          "instant": false,
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Messages Processed",
+      "title": "Latest block diffs (30m)",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 9
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "editorMode": "code",
-          "expr": "sum by (remote, queue_name)(\n    hyperlane_submitter_queue_length{queue_name=\"prepare_queue\"}\n)",
-          "interval": "",
-          "legendFormat": "{{hyperlane_deployment }} - {{remote}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Prepare queues (all)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
       },
       "fieldConfig": {
         "defaults": {
@@ -278,9 +305,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 8
       },
-      "id": 10,
+      "id": 3,
       "options": {
         "legend": {
           "calcs": [],
@@ -289,7 +316,6 @@
           "showLegend": true
         },
         "tooltip": {
-          "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
@@ -298,27 +324,23 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "sum by(remote, queue_name) (hyperlane_submitter_queue_length{queue_name=\"submit_queue\"})",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "interval": "",
-          "legendFormat": "{{remote}}",
+          "expr": "max by (pod) (increase(hyperlane_span_events_total{agent=\"validator\", event_level=\"error\"}[30m]))",
+          "instant": false,
+          "legendFormat": "__auto",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
-      "title": "Submit Queues",
+      "title": "Error log count diffs (30m)",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
       },
       "fieldConfig": {
         "defaults": {
@@ -377,10 +399,10 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 26
+        "x": 12,
+        "y": 8
       },
-      "id": 8,
+      "id": 4,
       "options": {
         "legend": {
           "calcs": [],
@@ -389,7 +411,6 @@
           "showLegend": true
         },
         "tooltip": {
-          "maxHeight": 600,
           "mode": "single",
           "sort": "none"
         }
@@ -398,39 +419,33 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "${DS_GRAFANACLOUD-ABACUSWORKS-PROM}"
           },
-          "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "sum by(remote, queue_name) (avg_over_time(hyperlane_submitter_queue_length{queue_name=\"confirm_queue\"}[20m]))",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "interval": "",
-          "legendFormat": "{{remote}}",
+          "expr": "max by (pod) (increase(hyperlane_span_events_total{agent=\"validator\", event_level=\"warn\"}[30m]))",
+          "instant": false,
+          "legendFormat": "__auto",
           "range": true,
-          "refId": "A",
-          "useBackend": false
+          "refId": "A"
         }
       ],
-      "title": "Confirm Queues",
+      "title": "Warning log count diffs (30m)",
       "type": "timeseries"
     }
   ],
-  "refresh": "1m",
   "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-3h",
     "to": "now"
   },
-  "timeRangeUpdatedDuringEditOrView": false,
   "timepicker": {},
   "timezone": "browser",
-  "title": "Easy Dashboard (External Sharing Template)",
-  "uid": "afdf6ada6uzvgga",
-  "version": 5,
+  "title": "Validator Dashboard (External Sharing Template)",
+  "uid": "cdqntgxna4vswd",
+  "version": 7,
   "weekStart": ""
 }

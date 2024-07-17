@@ -13,9 +13,8 @@ import {
   AddressBytes32,
   ProtocolType,
   addressToBytes32,
-  assert,
   bytes32ToAddress,
-  eqAddress,
+  isZeroishAddress,
   messageId,
   objFilter,
   objMap,
@@ -124,9 +123,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const originChain = this.getOrigin(message);
     const hookReader = new EvmHookReader(this.multiProvider, originChain);
     const address = await this.getHookAddress(message);
-    const hookConfig = await hookReader.deriveHookConfig(address);
-    assert(hookConfig, `No hook config found for ${address}.`);
-    return hookConfig;
+    return hookReader.deriveHookConfig(address);
   }
 
   async sendMessage(
@@ -220,13 +217,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
-  estimateHandle(message: DispatchedMessage): Promise<ethers.BigNumber> {
-    return this.getRecipient(message).estimateGas.handle(
-      message.parsed.origin,
-      message.parsed.sender,
-      message.parsed.body,
-      { from: this.getAddresses(this.getDestination(message)).mailbox },
-    );
+  async estimateHandle(message: DispatchedMessage): Promise<string> {
+    return (
+      await this.getRecipient(message).estimateGas.handle(
+        message.parsed.origin,
+        message.parsed.sender,
+        message.parsed.body,
+        { from: this.getAddresses(this.getDestination(message)).mailbox },
+      )
+    ).toString();
   }
 
   deliver(
@@ -251,7 +250,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     try {
       const client = MailboxClient__factory.connect(senderAddress, provider);
       const hook = await client.hook();
-      if (!eqAddress(hook, ethers.constants.AddressZero)) {
+      if (!isZeroishAddress(hook)) {
         return hook;
       }
     } catch (e) {
