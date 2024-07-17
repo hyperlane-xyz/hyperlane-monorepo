@@ -102,7 +102,7 @@ export class ContractVerifier {
       url.searchParams.set('action', action);
     }
 
-    let response;
+    let response: Response;
     if (isGetRequest) {
       response = await fetch(url.toString(), {
         method: 'GET',
@@ -123,20 +123,22 @@ export class ContractVerifier {
 
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
-          await sleep(5000); // wait 5 seconds
+          await sleep(5000);
+          verificationLogger.trace(
+            {
+              result: result.result,
+            },
+            'Verification still pending',
+          );
           return this.submitForm(chain, action, verificationLogger, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
-          return;
         case ExplorerApiErrors.PROXY_FAILED:
-          errorMessage = 'Proxy verification failed, try manually?';
-          break;
         case ExplorerApiErrors.BYTECODE_MISMATCH:
-          errorMessage =
-            'Compiled bytecode does not match deployed bytecode, check constructor arguments?';
+          errorMessage = `${result.message}: ${result.result}`;
           break;
         default:
-          errorMessage = `Verification failed. ${
+          errorMessage = `Verification failed: ${
             JSON.stringify(result.result) ?? response.statusText
           }`;
           break;
@@ -181,7 +183,8 @@ export class ContractVerifier {
       return !!result[0]?.SourceCode;
     } catch (error) {
       verificationLogger.debug(
-        `Error checking if contract is already verified: ${error}`,
+        { error },
+        'Error checking if contract is already verified',
       );
       return false;
     }
@@ -215,11 +218,15 @@ export class ContractVerifier {
         input.address,
       );
       verificationLogger.debug(
-        `✅ Successfully verified proxy ${addressUrl}#readProxyContract`,
+        {
+          url: `${addressUrl}#readProxyContract`,
+        },
+        `✅ Successfully verified proxy`,
       );
     } catch (error) {
       verificationLogger.debug(
-        `Verification of proxy at ${input.address} failed: ${error}`,
+        { error },
+        `Verification of proxy at ${input.address} failed`,
       );
       throw error;
     }
@@ -339,7 +346,7 @@ export class ContractVerifier {
       verificationLogger.debug(
         `Contract already verified at ${addressUrl}#code`,
       );
-      await sleep(200); // There is a rate limit of 5 requests per second
+      await sleep(200); // 5 calls/s (https://info.etherscan.com/api-return-errors/)
       return;
     }
 
