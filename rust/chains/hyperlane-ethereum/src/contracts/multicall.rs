@@ -55,7 +55,6 @@ where
     let mut individual_estimates_sum = Some(U256::zero());
     let overhead_per_call: U256 = MULTICALL_OVERHEAD_PER_CALL.into();
 
-    // sum over the `call.tx.gas() + overhead_per_call` for each call
     calls.into_iter().for_each(|call| {
         individual_estimates_sum = match call.tx.gas() {
             Some(gas_estimate) => {
