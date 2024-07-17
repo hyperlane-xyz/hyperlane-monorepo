@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
-use futures_util::future::join_all;
+use ethers_contract::{Multicall, MulticallResult};
+use futures_util::future::{join_all, Then};
 use hyperlane_core::H512;
 use tracing::instrument;
 
@@ -30,7 +31,7 @@ use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
-use super::multicall::{self, build_multicall};
+use super::multicall::{self, build_multicall, MulticallContractCall};
 use super::utils::fetch_raw_logs_and_log_meta;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -327,6 +328,39 @@ where
         };
         fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
     }
+
+    async fn simulate_and_submit_batch(
+        &self,
+        multicall: &mut Multicall<M>,
+        contract_calls: Vec<ContractCall<M, ()>>,
+    ) -> ChainResult<ContractCall<M, Vec<MulticallResult>>> {
+        if contract_calls.is_empty() {
+            return Err(HyperlaneEthereumError::NoSuccessfulCalls.into());
+        }
+        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await;
+        let call = self.add_gas_overrides(batch_call, None).await?;
+        let call_results = call.call().await?;
+
+        // only keep the contract_calls that were successful in `call_results`
+        let successful_contract_calls = contract_calls
+            .into_iter()
+            .zip(call_results.into_iter())
+            .filter_map(|(contract_call, result)| {
+                if result.success {
+                    Some(contract_call)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        if successful_contract_calls.len() == contract_calls.len() {
+            Ok(call)
+        } else {
+            self.simulate_and_submit_batch(multicall, successful_contract_calls)
+                .await
+        }
+    }
 }
 
 impl<M> HyperlaneChain for EthereumMailbox<M>
@@ -404,7 +438,7 @@ where
     async fn process_batch(
         &self,
         messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<TxOutcome> {
+    ) -> ChainResult<(TxOutcome, Vec<BatchItem<HyperlaneMessage>>)> {
         let mut multicall = build_multicall(self.provider.clone(), &self.conn, self.domain.clone())
             .await
             .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
@@ -424,11 +458,8 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await;
-        let call = self.add_gas_overrides(batch_call, None).await?;
-
-        let receipt = report_tx(call).await?;
-        Ok(receipt.into())
+        self.simulate_and_submit_batch(&mut multicall, contract_calls)
+            .await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

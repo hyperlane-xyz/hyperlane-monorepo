@@ -480,8 +480,9 @@ struct OperationBatch {
 
 impl OperationBatch {
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
+        let mut ops_to_submit_serially = vec![];
         match self.try_submit_as_batch(metrics).await {
-            Ok(outcome) => {
+            Ok((outcome, unsent_ops)) => {
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
                 let total_estimated_cost = total_estimated_cost(&self.operations);
                 for mut op in self.operations {
@@ -491,20 +492,25 @@ impl OperationBatch {
                         .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
                         .await;
                 }
+                ops_to_submit_serially.append(unsent_ops);
                 return;
             }
             Err(e) => {
                 warn!(error=?e, batch=?self.operations, "Error when submitting batch. Falling back to serial submission.");
+                ops_to_submit_serially = self.operations;
             }
         }
-        self.submit_serially(confirm_queue, metrics).await;
+        OperationBatch::new(ops_to_submit_serially, self.domain)
+            .submit_serially(confirm_queue, metrics)
+            .await;
     }
 
+    /// TODO: return the failed/skipped ones (so they can be submitted serially) and the successful ones so gas can be deducted
     #[instrument(skip(metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
         &self,
         metrics: &SerialSubmitterMetrics,
-    ) -> ChainResult<TxOutcome> {
+    ) -> ChainResult<(TxOutcome, Vec<QueueOperation>)> {
         let batch = self
             .operations
             .iter()

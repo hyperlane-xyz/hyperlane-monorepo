@@ -44,7 +44,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     async fn process_batch(
         &self,
         _messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<TxOutcome> {
+    ) -> ChainResult<(TxOutcome, Vec<BatchItem<HyperlaneMessage>>)> {
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }

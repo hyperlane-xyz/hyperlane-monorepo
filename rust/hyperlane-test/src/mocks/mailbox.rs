@@ -96,7 +96,7 @@ impl Mailbox for MockMailboxContract {
     async fn process_batch(
         &self,
         messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<TxOutcome> {
+    ) -> ChainResult<(TxOutcome, Vec<BatchItem<HyperlaneMessage>>)> {
         self.process_batch(messages).await
     }
 
