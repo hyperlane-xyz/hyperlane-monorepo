@@ -421,11 +421,11 @@ export async function runWarpRouteApply(params: ApplyParams) {
           const evmERC20WarpModule = new EvmERC20WarpModule(
             multiProvider,
             {
+              config,
               chain,
               addresses: {
                 deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
               },
-              config,
             },
             contractVerifier,
           );
@@ -433,7 +433,6 @@ export async function runWarpRouteApply(params: ApplyParams) {
 
           if (transactions.length) {
             for (const transaction of transactions) {
-              logGray(`Attempting on ${chain}`);
               await multiProvider.sendTransaction(chain, transaction);
             }
 
@@ -451,13 +450,12 @@ export async function runWarpRouteApply(params: ApplyParams) {
   } else if (warpDeployChains.length > warpCoreChains.length) {
     logGray('Extending deployed Warp configs');
 
-    // Get the existing deployed config
+    // Split between the existing and additional config
     const deployedConfig: WarpRouteDeployConfig = objFilter(
       warpDeployConfig,
       (chain, _config): _config is any => warpCoreChains.includes(chain),
     );
 
-    // Get additional config
     let additionalConfig: WarpRouteDeployConfig = objFilter(
       warpDeployConfig,
       (chain, _config): _config is any => !warpCoreChains.includes(chain),
@@ -500,9 +498,8 @@ export async function runWarpRouteApply(params: ApplyParams) {
       ...newDeployedContracts,
     } as HyperlaneContractsMap<HypERC20Factories>;
 
-    await enrollRemoteRouters(multiProvider, allRouters);
+    await enrollRemoteRouters(allRouters, multiProvider);
 
-    // Write the WarpCore Artifacts
     const updatedWarpCoreConfig = await getWarpCoreConfig(params, allRouters);
     WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
     await writeDeploymentArtifacts(updatedWarpCoreConfig, context);
@@ -514,12 +511,12 @@ export async function runWarpRouteApply(params: ApplyParams) {
 /**
  * Enroll all deployed routers with each other.
  *
- * @param multiProvider - A MultiProvider instance to interact with multiple chains.
  * @param deployedContractsMap - A map of deployed Hyperlane contracts by chain.
+ * @param multiProvider - A MultiProvider instance to interact with multiple chains.
  */
 async function enrollRemoteRouters(
-  multiProvider: MultiProvider,
   deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
+  multiProvider: MultiProvider,
 ): Promise<void> {
   logBlue(`Enrolling deployed routers with each other (if not already)...`);
   const deployedRouters: ChainMap<Address> = objMap(
@@ -530,10 +527,9 @@ async function enrollRemoteRouters(
 
   await promiseObjAll(
     objMap(deployedContractsMap, async (chain, contracts) => {
-      // Assume that contracts should always have a hypERC20factories
-      const router = getRouter(contracts);
+      const router = getRouter(contracts); // Assume deployedContract always has 1 value
 
-      // Mutate the config.remoteRouters by setting it to all other routers
+      // Mutate the config.remoteRouters by setting it to all other routers to update
       const config = await new EvmERC20WarpRouteReader(
         multiProvider,
         chain,
