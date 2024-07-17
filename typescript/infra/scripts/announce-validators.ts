@@ -3,7 +3,11 @@ import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HTTP_LOCATION_PREFIX,
+  S3_LOCATION_PREFIX,
+} from '@hyperlane-xyz/sdk';
 
 import { getChains } from '../config/registry.js';
 import { InfraS3Validator } from '../src/agents/aws/validator.js';
@@ -23,7 +27,7 @@ function getArgs() {
     .choices('chain', getChains())
     .describe(
       'location',
-      'location, e.g. s3://hyperlane-testnet4-sepolia-validator-0/us-east-1',
+      'location, e.g. "s3://hyperlane-testnet4-sepolia-validator-0/us-east-1" or "https://hyperlane-v3-validator-signatures-everstake-one-arbitrum.s3.us-east-2.amazonaws.com"',
     )
     .string('location')
     .check(({ chain, location }) => {
@@ -45,8 +49,10 @@ async function main() {
   const chains: ChainName[] = [];
   if (location) {
     chains.push(chain!);
-
-    if (location.startsWith('s3://')) {
+    if (
+      location.startsWith(S3_LOCATION_PREFIX) ||
+      location.startsWith(HTTP_LOCATION_PREFIX)
+    ) {
       const validator = await InfraS3Validator.fromStorageLocation(location);
       announcements.push({
         storageLocation: validator.storageLocation(),

@@ -503,7 +503,13 @@ export {
 export { isCompliant } from './utils/schemas.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { S3Validator } from './aws/validator.js';
-export { S3Config, S3Wrapper, S3Receipt } from './aws/s3.js';
+export {
+  S3Config,
+  S3Wrapper,
+  S3Receipt,
+  S3_LOCATION_PREFIX,
+  HTTP_LOCATION_PREFIX,
+} from './aws/s3.js';
 
 // prettier-ignore
 // @ts-ignore
