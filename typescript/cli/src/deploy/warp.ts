@@ -431,7 +431,6 @@ export async function runWarpRouteApply(params: ApplyParams) {
           );
           const transactions = await evmERC20WarpModule.update(config);
 
-          // Send Txs
           if (transactions.length) {
             for (const transaction of transactions) {
               logGray(`Attempting on ${chain}`);
