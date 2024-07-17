@@ -113,7 +113,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
-      return updateTransactions;
+      return [];
     }
 
     // We normalize the addresses for comparison
