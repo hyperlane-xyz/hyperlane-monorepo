@@ -95,7 +95,7 @@ export class EvmHookModule extends HyperlaneModule<
       HookConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
     >,
-    contractVerifier?: ContractVerifier,
+    protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = HookConfigSchema.parse(params.config);
     super(params);
@@ -226,25 +226,29 @@ export class EvmHookModule extends HyperlaneModule<
     proxyFactoryFactories,
     coreAddresses,
     multiProvider,
+    contractVerifier,
   }: {
     chain: ChainNameOrId;
     config: HookConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     coreAddresses: CoreAddresses;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmHookModule> {
-    // instantiate new EvmHookModule
-    const module = new EvmHookModule(multiProvider, {
-      addresses: {
-        ...proxyFactoryFactories,
-        ...coreAddresses,
-        deployedHook: ethers.constants.AddressZero,
+    const module = new EvmHookModule(
+      multiProvider,
+      {
+        addresses: {
+          ...proxyFactoryFactories,
+          ...coreAddresses,
+          deployedHook: ethers.constants.AddressZero,
+        },
+        chain,
+        config,
       },
-      chain,
-      config,
-    });
+      contractVerifier,
+    );
 
-    // deploy hook and assign address to module
     const deployedHook = await module.deploy({ config });
     module.args.addresses.deployedHook = deployedHook.address;
 
@@ -751,6 +755,7 @@ export class EvmHookModule extends HyperlaneModule<
         proxyFactoryFactories: this.args.addresses,
         mailbox: mailbox,
         multiProvider: this.multiProvider,
+        contractVerifier: this.contractVerifier,
       })
     ).serialize().deployedIsm;
 

@@ -192,14 +192,13 @@ export class ContractVerifier {
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
-    if (!input.isProxy) return;
+    verificationLogger.debug(`📝 Verifying proxy at ${input.address}...`);
 
     try {
-      const proxyGuid = await this.submitForm(
+      const { proxyGuid } = await this.markProxy(
         chain,
-        ExplorerApiActions.MARK_PROXY,
+        input,
         verificationLogger,
-        { address: input.address },
       );
       if (!proxyGuid) return;
 
@@ -216,11 +215,31 @@ export class ContractVerifier {
         input.address,
       );
       verificationLogger.debug(
-        `Successfully verified proxy ${addressUrl}#readProxyContract`,
+        `✅ Successfully verified proxy ${addressUrl}#readProxyContract`,
       );
     } catch (error) {
       verificationLogger.debug(
         `Verification of proxy at ${input.address} failed: ${error}`,
+      );
+      throw error;
+    }
+  }
+
+  private async markProxy(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    verificationLogger: Logger,
+  ): Promise<{ proxyGuid: any }> {
+    try {
+      return this.submitForm(
+        chain,
+        ExplorerApiActions.MARK_PROXY,
+        verificationLogger,
+        { address: input.address },
+      );
+    } catch (error) {
+      verificationLogger.debug(
+        `Marking of proxy at ${input.address} failed: ${error}`,
       );
       throw error;
     }
@@ -231,7 +250,9 @@ export class ContractVerifier {
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
-    verificationLogger.debug(`Verifying implementation at ${input.address}`);
+    verificationLogger.debug(
+      `📝 Verifying implementation at ${input.address}...`,
+    );
 
     const sourceName = this.contractSourceMap[input.name];
     if (!sourceName) {
@@ -267,7 +288,9 @@ export class ContractVerifier {
       chain,
       input.address,
     );
-    verificationLogger.debug(`Successfully verified ${addressUrl}#code`);
+    verificationLogger.debug(
+      `✅ Successfully verified implementation ${addressUrl}#code`,
+    );
   }
 
   async verifyContract(
@@ -320,7 +343,7 @@ export class ContractVerifier {
       return;
     }
 
-    await this.verifyImplementation(chain, input, verificationLogger);
-    await this.verifyProxy(chain, input, verificationLogger);
+    if (input.isProxy) await this.verifyProxy(chain, input, verificationLogger);
+    else await this.verifyImplementation(chain, input, verificationLogger);
   }
 }

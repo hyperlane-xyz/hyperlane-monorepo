@@ -1,4 +1,6 @@
 import { MailboxClient__factory } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
@@ -44,10 +46,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         deployedTokenRoute: Address;
       }
     >,
+    protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.contractVerifier ??= new ContractVerifier(
+      multiProvider,
+      {},
+      coreBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
   }
 
   /**
@@ -143,16 +152,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       'Ism Factories addresses not provided',
     );
 
-    const ismModule = new EvmIsmModule(this.multiProvider, {
-      chain: this.args.chain,
-      config: expectedConfig.interchainSecurityModule,
-      addresses: {
-        ...expectedConfig.ismFactoryAddresses,
-        mailbox: expectedConfig.mailbox,
-        deployedIsm: (actualConfig.interchainSecurityModule as DerivedIsmConfig)
-          .address,
+    const ismModule = new EvmIsmModule(
+      this.multiProvider,
+      {
+        chain: this.args.chain,
+        config: expectedConfig.interchainSecurityModule,
+        addresses: {
+          ...expectedConfig.ismFactoryAddresses,
+          mailbox: expectedConfig.mailbox,
+          deployedIsm: (
+            actualConfig.interchainSecurityModule as DerivedIsmConfig
+          ).address,
+        },
       },
-    });
+      this.contractVerifier,
+    );
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
@@ -176,18 +190,23 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: TokenRouterConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmERC20WarpModule> {
-    const { chain, config, multiProvider } = params;
+    const { chain, config, multiProvider, contractVerifier } = params;
     const chainName = multiProvider.getChainName(chain);
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deployContracts(chainName, config);
 
-    return new EvmERC20WarpModule(multiProvider, {
-      addresses: {
-        deployedTokenRoute: deployedContracts[config.type].address,
+    return new EvmERC20WarpModule(
+      multiProvider,
+      {
+        addresses: {
+          deployedTokenRoute: deployedContracts[config.type].address,
+        },
+        chain,
+        config,
       },
-      chain,
-      config,
-    });
+      contractVerifier,
+    );
   }
 }
