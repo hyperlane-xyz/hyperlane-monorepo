@@ -275,26 +275,26 @@ export class HyperlaneSmartProvider
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.logger.debug(
-            `Slow response from provider:`,
             { ...providerMetadata },
+            `Slow response from provider:`,
             isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
           this.logger.debug(
-            `Error from provider:`,
             {
               error: result.error,
               ...providerMetadata,
             },
+            `Error from provider.`,
             isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
           pIndex += 1;
         } else {
           throw new Error(
-            `Unexpected result from provider ${JSON.stringify(
+            `Unexpected result from provider: ${JSON.stringify(
               providerMetadata,
             )}`,
           );
