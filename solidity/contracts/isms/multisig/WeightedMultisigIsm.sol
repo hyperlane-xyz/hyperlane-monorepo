@@ -6,6 +6,7 @@ import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {AbstractWeightedMultisigIsm} from "./AbstractWeightedMultisigIsm.sol";
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
+import {StaticThresholdAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
 
 // solhint-disable no-empty-blocks
 
@@ -34,4 +35,18 @@ contract MessageIdWeightedMultisigIsm is
 {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
+}
+
+contract StaticMerkleRootMultisigIsmFactory is
+    StaticThresholdAddressSetFactory
+{
+    function _deployImplementation() internal override returns (address) {
+        return address(new MerkleRootWeightedMultisigIsm());
+    }
+}
+
+contract StaticMessageIdMultisigIsmFactory is StaticThresholdAddressSetFactory {
+    function _deployImplementation() internal override returns (address) {
+        return address(new MessageIdWeightedMultisigIsm());
+    }
 }

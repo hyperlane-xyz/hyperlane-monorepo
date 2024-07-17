@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import "@openzeppelin/contracts/utils/Strings.sol";
 
+import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {IMultisigIsm} from "../../contracts/interfaces/isms/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMerkleRootMultisigIsmFactory, StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
@@ -32,7 +33,7 @@ abstract contract AbstractMultisigIsmTest is Test {
 
     uint32 constant ORIGIN = 11;
     StaticThresholdAddressSetFactory factory;
-    IMultisigIsm ism;
+    IInterchainSecurityModule ism;
     TestMerkleTreeHook internal merkleTreeHook;
     TestPostDispatchHook internal noopHook;
     TestMailbox mailbox;
@@ -128,7 +129,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) internal returns (uint256[] memory) {
+    ) internal virtual returns (uint256[] memory) {
         uint256[] memory keys = new uint256[](n);
         address[] memory addresses = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -250,7 +251,7 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
 contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
     using TypeCasts for address;
 
-    function setUp() public {
+    function setUp() public virtual {
         mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         noopHook = new TestPostDispatchHook();
