@@ -17,7 +17,7 @@ use ethers_core::{
     },
 };
 use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{Middleware, TransactionOverrides};
 
@@ -103,6 +103,7 @@ where
     } else {
         estimated_gas_limit
     };
+    debug!(?estimated_gas_limit, gas_override=?transaction_overrides.gas_limit, used_gas_limit=?gas_limit, "Gas limit set for transaction");
 
     if let Some(gas_price) = transaction_overrides.gas_price {
         // If the gas price is set, we treat as a non-EIP-1559 chain.
