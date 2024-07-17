@@ -24,6 +24,10 @@ use crate::{Middleware, TransactionOverrides};
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
 
+pub fn apply_gas_estimate_buffer(gas: U256) -> U256 {
+    gas.saturating_add(GAS_ESTIMATE_BUFFER.into())
+}
+
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Dispatches a transaction, logs the tx id, and returns the result
@@ -92,13 +96,12 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
+    // Even if there is a configrued gas override, perform a gas estimation and keep the max, to avoid having the tx run out of gas.
+    let estimated_gas_limit: U256 = apply_gas_estimate_buffer(tx.estimate_gas().await?.into());
     let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
-        gas_limit
+        estimated_gas_limit.max(gas_limit)
     } else {
-        tx.estimate_gas()
-            .await?
-            .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
-            .into()
+        estimated_gas_limit
     };
 
     if let Some(gas_price) = transaction_overrides.gas_price {

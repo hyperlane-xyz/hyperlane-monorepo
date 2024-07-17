@@ -425,8 +425,10 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls);
-        let call = self.add_gas_overrides(batch_call, None).await?;
+        let batch = multicall::batch::<_, ()>(&mut multicall, contract_calls).await;
+        let call = self
+            .add_gas_overrides(batch.call, batch.individual_gas_estimates_sum)
+            .await?;
 
         let receipt = report_tx(call).await?;
         Ok(receipt.into())
