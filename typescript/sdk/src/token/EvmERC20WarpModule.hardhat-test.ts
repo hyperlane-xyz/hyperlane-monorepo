@@ -406,13 +406,15 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         type: TokenType.native,
         hook: hookAddress,
         ismFactoryAddresses,
-        interchainSecurityModule: ismAddress,
       } as TokenRouterConfig;
 
       // Deploy using WarpModule
       const evmERC20WarpModule = await EvmERC20WarpModule.create({
         chain,
-        config,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
         multiProvider,
       });
       const numOfRouters = Math.floor(Math.random() * 10);
@@ -435,13 +437,15 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         type: TokenType.native,
         hook: hookAddress,
         ismFactoryAddresses,
-        interchainSecurityModule: ismAddress,
       } as TokenRouterConfig;
 
       // Deploy using WarpModule
       const evmERC20WarpModule = await EvmERC20WarpModule.create({
         chain,
-        config,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
         multiProvider,
       });
       const remoteRouters = randomRemoteRouters(1);
