@@ -167,7 +167,7 @@ static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 tempfile = "3.3"
-tendermint = "0.32.2"
+tendermint = "0.32"
 tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"] }
 thiserror = "1.0"
 time = "0.3"

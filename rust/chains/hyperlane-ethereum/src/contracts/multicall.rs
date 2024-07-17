@@ -34,6 +34,7 @@ pub async fn build_multicall<M: Middleware + 'static>(
     Ok(multicall)
 }
 
+// TODO: estimate inidividual gas costs for each call and return them here
 pub fn batch<M: Middleware, D: Detokenize>(
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,

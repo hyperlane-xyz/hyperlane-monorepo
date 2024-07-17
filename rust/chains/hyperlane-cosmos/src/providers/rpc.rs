@@ -247,3 +247,58 @@ impl WasmIndexer for CosmosWasmIndexer {
         Ok(self.handle_txs(block, block_results, parser, cursor_label))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use hyperlane_core::ChainCommunicationError;
+    use tendermint_rpc::{client::CompatMode, HttpClient};
+    use tokio::time::sleep;
+
+    use crate::HyperlaneCosmosError;
+
+    use super::CosmosWasmIndexer;
+
+    #[tokio::test]
+    async fn test_cosmos_wasm_indexer() {
+        let mut block_no = 12387002;
+        let client = HttpClient::builder(
+            // "https://rpc-magnetix.neutron-1.neutron.org"
+            // "https://rpc-kralum.neutron-1.neutron.org"
+            "https://rpc.cosmos.directory/neutron"
+                // "https://neutron-rpc.publicnode.com"
+                .to_owned()
+                .parse()
+                .map_err(Into::<HyperlaneCosmosError>::into)
+                .unwrap(),
+        )
+        // Consider supporting different compatibility modes.
+        .compat_mode(CompatMode::latest())
+        .build()
+        .map_err(Into::<HyperlaneCosmosError>::into)
+        .unwrap();
+        // loop {
+        // block_no += 1;
+        println!("querying block: {}", block_no);
+        let block_results = CosmosWasmIndexer::get_block(client.clone(), block_no)
+            .await
+            .expect("querying block results failed");
+        println!("block_results: {:?}", block_results);
+
+        println!("querying get_latest_block");
+        let latest_block = CosmosWasmIndexer::get_latest_block(client.clone())
+            .await
+            .unwrap();
+        let latest_height: u32 = latest_block
+            .block
+            .header
+            .height
+            .value()
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)
+            .unwrap();
+        // sleep(Duration::from_secs(2)).await;
+    }
+    // }
+}

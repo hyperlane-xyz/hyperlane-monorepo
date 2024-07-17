@@ -7206,7 +7206,7 @@ dependencies = [
  "rkyv_derive",
  "seahash",
  "tinyvec",
- "uuid 1.6.1",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -7851,7 +7851,7 @@ dependencies = [
  "time",
  "tracing",
  "url",
- "uuid 1.6.1",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -7912,7 +7912,7 @@ dependencies = [
  "sea-query-derive",
  "serde_json",
  "time",
- "uuid 1.6.1",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -7928,7 +7928,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "time",
- "uuid 1.6.1",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -9450,7 +9450,7 @@ dependencies = [
  "time",
  "tokio-stream",
  "url",
- "uuid 1.6.1",
+ "uuid 1.10.0",
  "whoami",
 ]
 
@@ -10772,9 +10772,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.6.1"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e395fcf16a7a3d8127ec99782007af141946b4795001f876d54fb0d55978560"
+checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
 dependencies = [
  "serde",
 ]
