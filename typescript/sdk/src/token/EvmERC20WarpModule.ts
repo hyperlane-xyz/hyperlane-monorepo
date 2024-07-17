@@ -2,12 +2,17 @@ import {
   MailboxClient__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
   ProtocolType,
   addressToBytes32,
   assert,
+  configDeepEquals,
+  isObjEmpty,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -48,10 +53,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         deployedTokenRoute: Address;
       }
     >,
+    protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.contractVerifier ??= new ContractVerifier(
+      multiProvider,
+      {},
+      coreBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
   }
 
   /**
@@ -100,47 +112,41 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.remoteRouters) {
+      return [];
+    }
 
-    if (expectedConfig.remoteRouters) {
-      assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
-      const { remoteRouters: actualRemoteRouters } = actualConfig;
-      const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+    // We normalize the addresses for comparison
+    actualConfig.remoteRouters = normalizeConfig(actualConfig.remoteRouters);
+    expectedConfig.remoteRouters = normalizeConfig(
+      expectedConfig.remoteRouters,
+    );
+    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+    assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
 
-      if (
-        expectedRemoteRouters.length > 0 &&
-        expectedRemoteRouters.length > actualRemoteRouters.length
-      ) {
-        const contractToUpdate = TokenRouter__factory.connect(
-          this.args.addresses.deployedTokenRoute,
-          this.multiProvider.getProvider(this.domainId),
-        );
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-        const enrollRemoteRoutersParameters = expectedRemoteRouters.reduce<
+    if (!configDeepEquals(actualRemoteRouters, expectedRemoteRouters)) {
+      const contractToUpdate = TokenRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
+
+      updateTransactions.push({
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute}}`,
+        chainId: this.domainId,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'enrollRemoteRouters',
           [
-            number[], // domain
-            string[], // router
-          ]
-        >(
-          (results, remoteRouter) => {
-            results[0].push(remoteRouter.domain);
-            results[1].push(addressToBytes32(remoteRouter.router));
-            return results;
-          },
-          [[], []],
-        );
-
-        updateTransactions.push({
-          annotation: `Enrolling new routes for domain(s) ${enrollRemoteRoutersParameters[0].join(
-            ', ',
-          )} on Router ${this.args.addresses.deployedTokenRoute}`,
-          chainId: this.domainId,
-          to: contractToUpdate.address,
-          data: contractToUpdate.interface.encodeFunctionData(
-            'enrollRemoteRouters',
-            enrollRemoteRoutersParameters,
-          ),
-        });
-      }
+            Object.keys(expectedRemoteRouters).map((k) => Number(k)),
+            Object.values(expectedRemoteRouters).map((a) =>
+              addressToBytes32(a),
+            ),
+          ],
+        ),
+      });
     }
     return updateTransactions;
   }
@@ -157,6 +163,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.interchainSecurityModule) {
+      return [];
+    }
 
     if (expectedConfig.ismFactoryAddresses) {
       const actualDeployedIsm = (
@@ -214,16 +223,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       'Ism Factories addresses not provided',
     );
 
-    const ismModule = new EvmIsmModule(this.multiProvider, {
-      chain: this.args.chain,
-      config: expectedConfig.interchainSecurityModule,
-      addresses: {
-        ...expectedConfig.ismFactoryAddresses,
-        mailbox: expectedConfig.mailbox,
-        deployedIsm: (actualConfig.interchainSecurityModule as DerivedIsmConfig)
-          .address,
+    const ismModule = new EvmIsmModule(
+      this.multiProvider,
+      {
+        chain: this.args.chain,
+        config: expectedConfig.interchainSecurityModule,
+        addresses: {
+          ...expectedConfig.ismFactoryAddresses,
+          mailbox: expectedConfig.mailbox,
+          deployedIsm: (
+            actualConfig.interchainSecurityModule as DerivedIsmConfig
+          ).address,
+        },
       },
-    });
+      this.contractVerifier,
+    );
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
@@ -247,28 +261,29 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: TokenRouterConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmERC20WarpModule> {
-    const { chain, config, multiProvider } = params;
+    const { chain, config, multiProvider, contractVerifier } = params;
     const chainName = multiProvider.getChainName(chain);
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deployContracts(chainName, config);
 
-    const warpModule = new EvmERC20WarpModule(multiProvider, {
-      addresses: {
-        deployedTokenRoute: deployedContracts[config.type].address,
-      },
-      chain,
-      config,
-    });
-
-    // Enroll Remote Routers
-    if (config.remoteRouters?.length) {
-      const enrollRemoteTx = await warpModule.updateRemoteRouters(
-        await warpModule.read(),
+    const warpModule = new EvmERC20WarpModule(
+      multiProvider,
+      {
+        addresses: {
+          deployedTokenRoute: deployedContracts[config.type].address,
+        },
+        chain,
         config,
-      );
+      },
+      contractVerifier,
+    );
 
-      await multiProvider.sendTransaction(chain, enrollRemoteTx[0]); // updateRemoteRouters is always a single tx
+    if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
+      const enrollRemoteTxs = await warpModule.update(config); // @TODO Remove when EvmERC20WarpModule.create can be used
+      const onlyTxIndex = 0;
+      await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
     }
 
     return warpModule;

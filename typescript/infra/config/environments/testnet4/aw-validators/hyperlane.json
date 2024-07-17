@@ -13,6 +13,9 @@
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
   },
+  "connextsepolia": {
+    "validators": ["0xffbbec8c499585d80ef69eb613db624d27e089ab"]
+  },
   "fuji": {
     "validators": [
       "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
@@ -46,5 +49,8 @@
   },
   "solanatestnet": {
     "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
+  "superpositiontestnet": {
+    "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
   }
 }

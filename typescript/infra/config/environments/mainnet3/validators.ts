@@ -498,5 +498,41 @@ export const validatorChainConfig = (
         'zetachain',
       ),
     },
+    endurance: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('endurance'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x28c5b322da06f184ebf68693c5d19df4d4af13e5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'endurance',
+      ),
+    },
+    fusemainnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('fusemainnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'fusemainnet',
+      ),
+    },
+    zoramainnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zoramainnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x35130945b625bb69b28aee902a3b9a76fa67125f'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'zoramainnet',
+      ),
+    },
   };
 };

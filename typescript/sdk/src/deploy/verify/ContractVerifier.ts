@@ -102,7 +102,7 @@ export class ContractVerifier {
       url.searchParams.set('action', action);
     }
 
-    let response;
+    let response: Response;
     if (isGetRequest) {
       response = await fetch(url.toString(), {
         method: 'GET',
@@ -123,20 +123,22 @@ export class ContractVerifier {
 
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
-          await sleep(5000); // wait 5 seconds
+          await sleep(5000);
+          verificationLogger.trace(
+            {
+              result: result.result,
+            },
+            'Verification still pending',
+          );
           return this.submitForm(chain, action, verificationLogger, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
-          return;
         case ExplorerApiErrors.PROXY_FAILED:
-          errorMessage = 'Proxy verification failed, try manually?';
-          break;
         case ExplorerApiErrors.BYTECODE_MISMATCH:
-          errorMessage =
-            'Compiled bytecode does not match deployed bytecode, check constructor arguments?';
+          errorMessage = `${result.message}: ${result.result}`;
           break;
         default:
-          errorMessage = `Verification failed. ${
+          errorMessage = `Verification failed: ${
             JSON.stringify(result.result) ?? response.statusText
           }`;
           break;
@@ -181,7 +183,8 @@ export class ContractVerifier {
       return !!result[0]?.SourceCode;
     } catch (error) {
       verificationLogger.debug(
-        `Error checking if contract is already verified: ${error}`,
+        { error },
+        'Error checking if contract is already verified',
       );
       return false;
     }
@@ -192,14 +195,13 @@ export class ContractVerifier {
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
-    if (!input.isProxy) return;
+    verificationLogger.debug(`📝 Verifying proxy at ${input.address}...`);
 
     try {
-      const proxyGuid = await this.submitForm(
+      const { proxyGuid } = await this.markProxy(
         chain,
-        ExplorerApiActions.MARK_PROXY,
+        input,
         verificationLogger,
-        { address: input.address },
       );
       if (!proxyGuid) return;
 
@@ -216,11 +218,35 @@ export class ContractVerifier {
         input.address,
       );
       verificationLogger.debug(
-        `Successfully verified proxy ${addressUrl}#readProxyContract`,
+        {
+          url: `${addressUrl}#readProxyContract`,
+        },
+        `✅ Successfully verified proxy`,
       );
     } catch (error) {
       verificationLogger.debug(
-        `Verification of proxy at ${input.address} failed: ${error}`,
+        { error },
+        `Verification of proxy at ${input.address} failed`,
+      );
+      throw error;
+    }
+  }
+
+  private async markProxy(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    verificationLogger: Logger,
+  ): Promise<{ proxyGuid: any }> {
+    try {
+      return this.submitForm(
+        chain,
+        ExplorerApiActions.MARK_PROXY,
+        verificationLogger,
+        { address: input.address },
+      );
+    } catch (error) {
+      verificationLogger.debug(
+        `Marking of proxy at ${input.address} failed: ${error}`,
       );
       throw error;
     }
@@ -231,7 +257,9 @@ export class ContractVerifier {
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
-    verificationLogger.debug(`Verifying implementation at ${input.address}`);
+    verificationLogger.debug(
+      `📝 Verifying implementation at ${input.address}...`,
+    );
 
     const sourceName = this.contractSourceMap[input.name];
     if (!sourceName) {
@@ -267,7 +295,9 @@ export class ContractVerifier {
       chain,
       input.address,
     );
-    verificationLogger.debug(`Successfully verified ${addressUrl}#code`);
+    verificationLogger.debug(
+      `✅ Successfully verified implementation ${addressUrl}#code`,
+    );
   }
 
   async verifyContract(
@@ -316,11 +346,11 @@ export class ContractVerifier {
       verificationLogger.debug(
         `Contract already verified at ${addressUrl}#code`,
       );
-      await sleep(200); // There is a rate limit of 5 requests per second
+      await sleep(200); // 5 calls/s (https://info.etherscan.com/api-return-errors/)
       return;
     }
 
-    await this.verifyImplementation(chain, input, verificationLogger);
-    await this.verifyProxy(chain, input, verificationLogger);
+    if (input.isProxy) await this.verifyProxy(chain, input, verificationLogger);
+    else await this.verifyImplementation(chain, input, verificationLogger);
   }
 }

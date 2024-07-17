@@ -15,6 +15,7 @@ import {
   RouterConfig,
   TestChainName,
   TokenRouterConfig,
+  test3,
 } from '@hyperlane-xyz/sdk';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
@@ -238,6 +239,7 @@ describe('ERC20WarpRouterReader', async () => {
   it('should return the remote routers', async () => {
     // Create config
     const otherChain = TestChainName.test3;
+    const otherChainMetadata = test3;
     const config = {
       [chain]: {
         type: TokenType.collateral,
@@ -259,9 +261,9 @@ describe('ERC20WarpRouterReader', async () => {
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
     );
-    expect(derivedConfig.remoteRouters?.length).to.equal(1);
-    expect(derivedConfig.remoteRouters![0].router).to.be.equal(
-      warpRoute[otherChain].collateral.address,
-    );
+    expect(Object.keys(derivedConfig.remoteRouters!).length).to.equal(1);
+    expect(
+      derivedConfig.remoteRouters![otherChainMetadata.domainId!],
+    ).to.be.equal(warpRoute[otherChain].collateral.address);
   });
 });

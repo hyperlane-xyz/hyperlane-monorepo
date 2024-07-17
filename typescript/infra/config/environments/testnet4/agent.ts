@@ -15,7 +15,10 @@ import { Contexts } from '../../contexts.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
-import { supportedChainNames } from './supportedChainNames.js';
+import {
+  supportedChainNames,
+  testnet4SupportedChainNames,
+} from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
@@ -30,10 +33,13 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 //
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.
-export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+export const hyperlaneContextAgentChainConfig: AgentChainConfig<
+  typeof testnet4SupportedChainNames
+> = {
   [Role.Validator]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: true,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
@@ -41,10 +47,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
+    superpositiontestnet: true,
   },
   [Role.Relayer]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: true,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
@@ -52,10 +60,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
+    superpositiontestnet: true,
   },
   [Role.Scraper]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: false,
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     fuji: true,
@@ -65,12 +75,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
     sepolia: true,
     // Cannot scrape non-EVM chains
     solanatestnet: false,
+    superpositiontestnet: false,
   },
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
-  supportedChainNames,
+  testnet4SupportedChainNames,
 );
 
 const contextBase = {
@@ -120,7 +131,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '64cdc5f-20240715-212733',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -150,7 +161,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '64cdc5f-20240715-212733',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -159,7 +170,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: 'd962e36-20240716-132121',
     },
     resources: scraperResources,
   },
