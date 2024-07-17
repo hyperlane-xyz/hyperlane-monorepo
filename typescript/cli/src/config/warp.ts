@@ -123,7 +123,7 @@ export async function createWarpRouteDeployConfig({
 
   const result: WarpRouteDeployConfig = {};
   for (const chain of warpChains) {
-    logBlue(`Configuring warp route for chain ${chain}`);
+    logBlue(`${chain}: Configuring warp route...`);
     const type = await select({
       message: `Select ${chain}'s token type`,
       choices: TYPE_CHOICES,
