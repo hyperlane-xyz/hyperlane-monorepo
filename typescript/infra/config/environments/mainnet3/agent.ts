@@ -64,8 +64,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    endurance: true,
     ethereum: true,
     fraxtal: true,
+    fusemainnet: true,
     gnosis: true,
     injective: true,
     inevm: true,
@@ -85,6 +87,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     viction: true,
     zetachain: true,
+    zoramainnet: true,
   },
   [Role.Relayer]: {
     arbitrum: true,
@@ -95,8 +98,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    endurance: true,
     ethereum: true,
     fraxtal: true,
+    fusemainnet: true,
     gnosis: true,
     injective: true,
     inevm: true,
@@ -117,6 +122,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     viction: true,
     zetachain: true,
+    zoramainnet: true,
   },
   [Role.Scraper]: {
     arbitrum: true,
@@ -127,8 +133,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    endurance: false,
     ethereum: true,
     fraxtal: true,
+    fusemainnet: false,
     gnosis: true,
     // Cannot scrape non-EVM chains
     injective: false,
@@ -154,6 +162,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Has RPC non-compliance that breaks scraping.
     viction: false,
     zetachain: true,
+    zoramainnet: false,
   },
 };
 
@@ -290,7 +299,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'bb470ae-20240710-155957',
+      tag: 'd962e36-20240716-132121',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -299,7 +308,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '7a8478b-20240703-113821',
+      tag: 'd962e36-20240716-132121',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -309,7 +318,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7a8478b-20240703-113821',
+      tag: 'd962e36-20240716-132121',
     },
     resources: scraperResources,
   },
@@ -324,7 +333,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'bb470ae-20240710-155957',
+      tag: 'd962e36-20240716-132121',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
