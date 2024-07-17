@@ -132,8 +132,8 @@ export class ContractVerifier {
       );
       throw new Error(
         `Failed to parse response from explorer (${apiUrl}, ${chain}): ${
-          response.statusText ?? 'UNKNOWN STATUS TEXT'
-        } (${response.status ?? 'UNKNOWN STATUS'})`,
+          response.statusText || 'UNKNOWN STATUS TEXT'
+        } (${response.status || 'UNKNOWN STATUS'})`,
       );
     }
 
