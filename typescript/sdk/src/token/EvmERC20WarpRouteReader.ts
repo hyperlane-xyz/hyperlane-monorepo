@@ -23,7 +23,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { RemoteRouter } from '../router/types.js';
+import { RemoteRouters } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 
 import { CollateralExtensions } from './config.js';
@@ -219,7 +219,7 @@ export class EvmERC20WarpRouteReader {
     return { name, symbol, decimals, totalSupply: totalSupply.toString() };
   }
 
-  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouter> {
+  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
     const warpRoute = TokenRouter__factory.connect(
       warpRouteAddress,
       this.provider,

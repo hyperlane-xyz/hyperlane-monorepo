@@ -378,6 +378,7 @@ export {
   RouterConfig,
   RouterViolation,
   RouterViolationType,
+  RemoteRouters,
   proxiedFactories,
 } from './router/types.js';
 export {

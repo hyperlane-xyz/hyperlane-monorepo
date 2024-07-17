@@ -15,7 +15,7 @@ import { CheckerViolation } from '../deploy/types.js';
 import {
   GasRouterConfigSchema,
   MailboxClientConfigSchema,
-  RemoteRouterSchema,
+  RemoteRoutersSchema,
   RouterConfigSchema,
 } from './schemas.js';
 
@@ -63,4 +63,4 @@ export interface RouterViolation extends CheckerViolation {
   description?: string;
 }
 
-export type RemoteRouter = z.infer<typeof RemoteRouterSchema>;
+export type RemoteRouters = z.infer<typeof RemoteRoutersSchema>;

@@ -26,6 +26,7 @@ import {
   OpStackIsmConfig,
   PausableIsmConfig,
   ProxyFactoryFactoriesAddresses,
+  RemoteRouters,
   RoutingIsmConfig,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
@@ -383,14 +384,10 @@ async function getWarpCoreConfig(
 }
 
 export async function runWarpRouteApply(params: ApplyParams) {
-  const {
-    warpDeployConfig,
-    warpCoreConfig,
-    context: { registry, multiProvider, chainMetadata, skipConfirmation },
-  } = params;
+  const { warpDeployConfig, warpCoreConfig, context } = params;
+  const { registry, multiProvider, chainMetadata, skipConfirmation } = context;
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
-  // Addresses used to get static Ism factories
   const addresses = await registry.getAddresses();
 
   // Convert warpCoreConfig.tokens[] into a mapping of { [chainName]: Config }
@@ -412,17 +409,13 @@ export async function runWarpRouteApply(params: ApplyParams) {
     ExplorerLicenseType.MIT,
   );
 
-  // get diff of both configs
   const warpDeployChains = Object.keys(warpDeployConfig);
   const warpCoreChains = Object.keys(warpCoreByChain);
-  logGray(`Comparing target and onchain Warp configs`);
   if (warpDeployChains.length === warpCoreChains.length) {
-    // Attempt to update Warp Routes
-    // Can update existing or deploy new contracts
+    logGray('Updating existing deployed Warp Routes');
     await promiseObjAll(
       objMap(warpDeployConfig, async (chain, config) => {
         try {
-          // Update Warp
           config.ismFactoryAddresses = addresses[
             chain
           ] as ProxyFactoryFactoriesAddresses;
@@ -433,6 +426,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
               addresses: {
                 deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
               },
+              config,
             },
             contractVerifier,
           );
@@ -567,10 +561,14 @@ async function createEnrollRemoteRoutersTransactions(
         .getRemoteChains(chain)
         .filter((c) => allChains.includes(c));
 
-      config.remoteRouters = otherChains.map((remote) => ({
-        domain: multiProvider.getDomainId(remote),
-        router: deployedRouters[remote],
-      }));
+      config.remoteRouters = otherChains.reduce<RemoteRouters>(
+        (remoteRouters, chain) => {
+          remoteRouters[multiProvider.getDomainId(chain)] =
+            deployedRouters[chain];
+          return remoteRouters;
+        },
+        {},
+      );
       transactions.push(...(await evmERC20WarpModule.update(config)));
     }),
   );
