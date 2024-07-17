@@ -173,25 +173,6 @@ export class HyperlaneRelayer {
     return this.core.deliver(message, metadata);
   }
 
-  async relayMessages(
-    dispatchTx: providers.TransactionReceipt,
-  ): Promise<ethers.ContractReceipt[]> {
-    const messages = HyperlaneCore.getDispatchedMessages(dispatchTx);
-    return Promise.all(
-      messages.map((message, index) =>
-        this.relayMessage(dispatchTx, index, message),
-      ),
-    );
-  }
-
-  async relayMessageId(
-    originChain: ChainName,
-    messageId: string,
-  ): Promise<ethers.ContractReceipt> {
-    const dispatchTx = await this.core.getDispatchTx(originChain, messageId);
-    return this.relayMessage(dispatchTx);
-  }
-
   hydrate(cache: RelayerCache): void {
     assert(this.cache, 'Caching not enabled');
     this.cache = objMerge(this.cache, cache);
