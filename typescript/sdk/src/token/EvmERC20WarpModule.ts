@@ -277,12 +277,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       contractVerifier,
     );
 
-    // Enroll Remote Routers
     if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
-      const enrollRemoteTxs = await warpModule.updateRemoteRouters(
-        await warpModule.read(),
-        config,
-      );
+      const enrollRemoteTxs = await warpModule.update(config); // @TODO Remove when EvmERC20WarpModule.create can be used
       const onlyTxIndex = 0;
       await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
     }
