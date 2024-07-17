@@ -96,8 +96,12 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    // Even if there is a configured gas override, perform a gas estimation and keep the max, to avoid having the tx run out of gas.
-    let estimated_gas_limit: U256 = apply_gas_estimate_buffer(tx.estimate_gas().await?.into());
+    // either use the pre-estimated gas limit or estimate it
+    let estimated_gas_limit: U256 = match tx.tx.gas() {
+        Some(&estimate) => estimate.into(),
+        None => tx.estimate_gas().await?.into(),
+    };
+    let estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit);
     let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
         estimated_gas_limit.max(gas_limit)
     } else {

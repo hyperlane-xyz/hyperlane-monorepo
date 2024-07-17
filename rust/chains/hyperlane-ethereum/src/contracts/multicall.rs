@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use derive_new::new;
 use ethers::{abi::Detokenize, providers::Middleware};
 use ethers_contract::{builders::ContractCall, Multicall, MulticallResult, MulticallVersion};
 use hyperlane_core::{utils::hex_or_base58_to_h256, HyperlaneDomain, HyperlaneProvider, U256};
@@ -42,16 +41,10 @@ pub async fn build_multicall<M: Middleware + 'static>(
     Ok(multicall)
 }
 
-#[derive(new)]
-pub struct MulticallContractCall<M: Middleware, D: Detokenize> {
-    pub call: ContractCall<M, D>,
-    pub individual_gas_estimates_sum: Option<U256>,
-}
-
 pub async fn batch<M, D>(
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,
-) -> MulticallContractCall<M, Vec<MulticallResult>>
+) -> ContractCall<M, Vec<MulticallResult>>
 where
     M: Middleware + 'static,
     D: Detokenize,
@@ -62,25 +55,27 @@ where
     let mut individual_estimates_sum = Some(U256::zero());
     let overhead_per_call: U256 = MULTICALL_OVERHEAD_PER_CALL.into();
 
-    for call in calls.into_iter() {
-        match call.estimate_gas().await {
-            Ok(gas_estimate) => {
+    // sum over the `call.tx.gas() + overhead_per_call` for each call
+    calls.into_iter().for_each(|call| {
+        individual_estimates_sum = match call.tx.gas() {
+            Some(gas_estimate) => {
                 let gas_estimate: U256 = gas_estimate.into();
-                individual_estimates_sum =
-                    individual_estimates_sum.map(|sum| sum + gas_estimate + overhead_per_call);
+                individual_estimates_sum.map(|sum| sum + gas_estimate + overhead_per_call)
             }
-            Err(err) => {
-                warn!(?err, call=?call.tx, "Failed to estimate gas for call in batch");
+            None => {
+                warn!(call=?call.tx, "Failed to estimate gas for call in batch");
                 // if we fail to estimate the gas, we can't accurately estimate the total gas
                 // Return a None instead of an error, because this is a non-critical failure
-                individual_estimates_sum = None;
+                None
             }
-        }
+        };
         multicall.add_call(call, ALLOW_BATCH_FAILURES);
+    });
+
+    let mut batch_call = multicall.as_aggregate_3_value();
+    if let Some(gas_sum) = individual_estimates_sum {
+        // Add a buffer to this estimate, to match how gas is estimated for individual txs in `tx.rs::fill_tx_gas_params`
+        batch_call = batch_call.gas(apply_gas_estimate_buffer(gas_sum));
     }
-
-    // Add a buffer to this estimate, to match how gas is estimated for individual txs in `tx.rs::fill_tx_gas_params`
-    let individual_estimates_sum = individual_estimates_sum.map(apply_gas_estimate_buffer);
-
-    MulticallContractCall::new(multicall.as_aggregate_3_value(), individual_estimates_sum)
+    batch_call
 }

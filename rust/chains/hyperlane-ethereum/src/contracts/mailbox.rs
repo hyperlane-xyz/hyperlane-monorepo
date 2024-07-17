@@ -297,7 +297,6 @@ where
     }
 
     /// Returns a ContractCall that processes the provided message.
-    /// If the provided tx_gas_limit is None, gas estimation occurs.
     async fn process_contract_call(
         &self,
         message: &HyperlaneMessage,
@@ -426,9 +425,7 @@ where
             .collect::<ChainResult<Vec<_>>>()?;
 
         let batch = multicall::batch::<_, ()>(&mut multicall, contract_calls).await;
-        let call = self
-            .add_gas_overrides(batch.call, batch.individual_gas_estimates_sum)
-            .await?;
+        let call = self.add_gas_overrides(batch, None).await?;
 
         let receipt = report_tx(call).await?;
         Ok(receipt.into())
