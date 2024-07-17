@@ -253,14 +253,14 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: agent tests with CosmWasm
+      - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'
 
-      - name: agent tests excluding CosmWasm
+      - name: agent tests (EVM and Sealevel)
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
