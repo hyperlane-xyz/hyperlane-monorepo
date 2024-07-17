@@ -103,40 +103,41 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.remoteRouters) {
+      return updateTransactions;
+    }
 
-    if (expectedConfig.remoteRouters) {
-      // We normalize the addresses for comparison
-      actualConfig.remoteRouters = normalizeConfig(actualConfig.remoteRouters);
-      expectedConfig.remoteRouters = normalizeConfig(
-        expectedConfig.remoteRouters,
+    // We normalize the addresses for comparison
+    actualConfig.remoteRouters = normalizeConfig(actualConfig.remoteRouters);
+    expectedConfig.remoteRouters = normalizeConfig(
+      expectedConfig.remoteRouters,
+    );
+    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+    assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
+
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    if (!configDeepEquals(actualRemoteRouters, expectedRemoteRouters)) {
+      const contractToUpdate = TokenRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
       );
-      assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
-      assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
 
-      const { remoteRouters: actualRemoteRouters } = actualConfig;
-      const { remoteRouters: expectedRemoteRouters } = expectedConfig;
-
-      if (!configDeepEquals(actualRemoteRouters, expectedRemoteRouters)) {
-        const contractToUpdate = TokenRouter__factory.connect(
-          this.args.addresses.deployedTokenRoute,
-          this.multiProvider.getProvider(this.domainId),
-        );
-
-        updateTransactions.push({
-          annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute}}`,
-          chainId: this.domainId,
-          to: contractToUpdate.address,
-          data: contractToUpdate.interface.encodeFunctionData(
-            'enrollRemoteRouters',
-            [
-              Object.keys(expectedRemoteRouters).map((k) => Number(k)),
-              Object.values(expectedRemoteRouters).map((a) =>
-                addressToBytes32(a),
-              ),
-            ],
-          ),
-        });
-      }
+      updateTransactions.push({
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute}}`,
+        chainId: this.domainId,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'enrollRemoteRouters',
+          [
+            Object.keys(expectedRemoteRouters).map((k) => Number(k)),
+            Object.values(expectedRemoteRouters).map((a) =>
+              addressToBytes32(a),
+            ),
+          ],
+        ),
+      });
     }
     return updateTransactions;
   }
@@ -256,12 +257,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     // Enroll Remote Routers
     if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
-      const enrollRemoteTx = await warpModule.updateRemoteRouters(
+      const enrollRemoteTxs = await warpModule.updateRemoteRouters(
         await warpModule.read(),
         config,
       );
-
-      await multiProvider.sendTransaction(chain, enrollRemoteTx[0]); // updateRemoteRouters is always a single tx
+      const onlyTxIndex = 0;
+      await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
     }
 
     return warpModule;
