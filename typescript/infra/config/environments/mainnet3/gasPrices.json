@@ -31,12 +31,20 @@
     "amount": "10.0",
     "decimals": 9
   },
+  "endurance": {
+    "amount": "1.500000007",
+    "decimals": 9
+  },
   "ethereum": {
     "amount": "20",
     "decimals": 9
   },
   "fraxtal": {
     "amount": "0.001000253",
+    "decimals": 9
+  },
+  "fusemainnet": {
+    "amount": "11.0",
     "decimals": 9
   },
   "gnosis": {
@@ -104,7 +112,7 @@
     "decimals": 9
   },
   "taiko": {
-    "amount": "0.010000001",
+    "amount": "0.050000001",
     "decimals": 9
   },
   "viction": {
@@ -113,6 +121,10 @@
   },
   "zetachain": {
     "amount": "10.1",
+    "decimals": 9
+  },
+  "zoramainnet": {
+    "amount": "0.001000252",
     "decimals": 9
   }
 }
