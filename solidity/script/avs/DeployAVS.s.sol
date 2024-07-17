@@ -182,11 +182,11 @@ contract DeployAVS is Script {
 
         _loadEigenlayerAddresses(network);
 
-        // using the --sender address to fake sign the transaction
-        vm.startBroadcast();
+        vm.startBroadcast(deployerPrivateKey);
 
         // check original behavior
         HyperlaneServiceManager hsm = HyperlaneServiceManager(hsmProxy);
+
         address[] memory strategies = hsm.getOperatorRestakedStrategies(
             KILN_OPERATOR_ADDRESS
         );
