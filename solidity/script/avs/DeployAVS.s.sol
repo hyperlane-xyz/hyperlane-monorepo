@@ -214,6 +214,8 @@ contract DeployAVS is Script {
         console.log("Encoded upgrade call: ");
         console.logBytes(encodedUpgradeCalldata);
 
+        vm.stopBroadcast();
+
         // only meant for simulating the call on mainnet as the actual caller needs to the gnosis safe
         address(proxyAdmin).call(encodedUpgradeCalldata);
 
@@ -223,7 +225,5 @@ contract DeployAVS is Script {
         for (uint256 i = 0; i < strategies.length; i++) {
             require(strategies[i] != address(0), "Strategy address is 0");
         }
-
-        vm.stopBroadcast();
     }
 }
