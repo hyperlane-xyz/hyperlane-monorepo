@@ -10,7 +10,7 @@ use crate::{tx::apply_gas_estimate_buffer, ConnectionConf, EthereumProvider};
 
 const ALLOW_BATCH_FAILURES: bool = true;
 
-/// Conservative estimate picked by withdrawing the gas used by individual calls from the total cost of `aggregate3`
+/// Conservative estimate picked by subtracting the gas used by individual calls from the total cost of `aggregate3`
 /// based on:
 /// - https://dashboard.tenderly.co/shared/simulation/63e85ac7-3ea9-475c-8218-a7c1dd508366/gas-usage
 /// - https://dashboard.tenderly.co/tx/arbitrum/0xad644e431dc53c3fc0a074a749d118ff5517346c3f28d8e2513610cc9ab5c91a/gas-usage
