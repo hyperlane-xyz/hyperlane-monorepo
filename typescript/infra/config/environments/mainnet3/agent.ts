@@ -285,7 +285,7 @@ const validatorResources = {
 
 const scraperResources = {
   requests: {
-    cpu: '100m',
+    cpu: '2000m',
     memory: '4Gi',
   },
 };
