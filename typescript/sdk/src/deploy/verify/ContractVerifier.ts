@@ -124,7 +124,7 @@ export class ContractVerifier {
       const responseTextString = await response.text();
       verificationLogger.trace(
         { apiUrl, chain },
-        'Parsing reponse from explorer...',
+        'Parsing response from explorer...',
       );
       responseJson = JSON.parse(responseTextString);
     } catch (error) {
