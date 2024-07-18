@@ -13,10 +13,13 @@ import {AbstractWeightedMultisigIsm} from "../../contracts/isms/multisig/Abstrac
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
+import {MessageIdMultisigIsmMetadata} from "../../contracts/isms/libs/MessageIdMultisigIsmMetadata.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {AbstractMultisigIsmTest, MessageIdMultisigIsmTest} from "./MultisigIsm.t.sol";
+import {AbstractMultisigIsmTest, MerkleRootMultisigIsmTest, MessageIdMultisigIsmTest} from "./MultisigIsm.t.sol";
 
 abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
+    using Math for uint256;
     using Message for bytes;
     using TypeCasts for address;
 
@@ -25,10 +28,14 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
     uint96 public constant BASIS_POINTS = 10000;
 
     function addValidators(
+        uint96 threshold,
         uint8 n,
         bytes32 seed
-    ) internal returns (IWeightedMultisigIsm.ValidatorInfo[] memory) {
-        // vm.assume(BASIS_POINTS % n == 0);
+    )
+        internal
+        returns (uint256[] memory, IWeightedMultisigIsm.ValidatorInfo[] memory)
+    {
+        bound(threshold, 0, BASIS_POINTS);
         uint256[] memory keys = new uint256[](n);
         IWeightedMultisigIsm.ValidatorInfo[]
             memory validators = new IWeightedMultisigIsm.ValidatorInfo[](n);
@@ -38,14 +45,16 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
             validators[i].signingKey = vm.addr(key);
+            console.log("remaining: ", remainingWeight);
 
             if (i == n - 1) {
                 validators[i].weight = uint96(remainingWeight);
             } else {
                 uint256 weight = (uint256(
                     keccak256(abi.encode(seed, "weight", i))
-                ) % remainingWeight) + 1;
+                ) % (remainingWeight + 1));
 
+                console.log("weight: ", weight);
                 validators[i].weight = uint96(weight);
                 remainingWeight -= weight;
             }
@@ -53,12 +62,12 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
         weightedIsm = new MessageIdWeightedMultisigIsm();
         weightedIsm.initialize(address(this), validators, 6666);
         ism = IInterchainSecurityModule(address(weightedIsm));
-        return validators;
+        return (keys, validators);
     }
 
     function getMetadata(
-        uint8,
-        /*m*/ uint8 n,
+        uint8 m,
+        uint8 n,
         bytes32 seed,
         bytes memory message
     ) internal virtual override returns (bytes memory) {
@@ -67,6 +76,7 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
             uint32 domain = mailbox.localDomain();
             (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
             bytes32 messageId = message.id();
+
             bytes32 merkleTreeAddress = address(merkleTreeHook)
                 .addressToBytes32();
             digest = CheckpointLib.digest(
@@ -78,8 +88,15 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
             );
         }
 
-        IWeightedMultisigIsm.ValidatorInfo[]
-            memory allValidators = addValidators(n, seed);
+        uint96 threshold = uint96(
+            (uint256(m)).mulDiv(BASIS_POINTS, type(uint8).max)
+        );
+
+        (
+            uint256[] memory keys,
+            IWeightedMultisigIsm.ValidatorInfo[] memory allValidators
+        ) = addValidators(threshold, n, seed);
+        console.log("overflox post: ");
         uint96 thresholdWeight = weightedIsm.thresholdWeight();
 
         bytes memory metadata = metadataPrefix(message);
@@ -93,7 +110,7 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
         ) {
             console.log("signing key: ", allValidators[signerCount].signingKey);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-                allValidators[signerCount].signingKey,
+                keys[signerCount],
                 digest
             );
             console.logBytes(metadata);
@@ -109,6 +126,60 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
 
         return metadata;
     }
+
+    //     function testVerify_revertInsufficientWeight(
+    //         uint32 destination,
+    //         bytes32 recipient,
+    //         bytes calldata body,
+    //         uint8 m,
+    //         uint8 n,
+    //         bytes32 seed
+    //     ) public {
+    //         vm.assume(0 < m && m <= n && n < 10);
+    //         bytes memory message = getMessage(destination, recipient, body);
+    //         bytes memory metadata = getMetadata(m, n, seed, message);
+
+    //         uint256 signatureCount = (metadata.length - 68) / 65;
+
+    //         bound(signatureCount, 0, n);
+    //         uint256 newLength = metadata.length - 65;
+    //         bytes memory insufficientMetadata = new bytes(newLength);
+
+    //         for (uint256 i = 0; i < newLength; i++) {
+    //             insufficientMetadata[i] = metadata[i];
+    //         }
+
+    //         vm.expectRevert("Insufficient validator weight");
+    //         ism.verify(insufficientMetadata, message);
+    //     }
+    // }
+}
+
+contract MerkleRootWeightedMultisigIsmTest is
+    MerkleRootMultisigIsmTest,
+    AbstractWeightedMultisigIsmTest
+{
+    function setUp() public override {
+        mailbox = new TestMailbox(ORIGIN);
+        merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
+        noopHook = new TestPostDispatchHook();
+
+        mailbox.setDefaultHook(address(merkleTreeHook));
+        mailbox.setRequiredHook(address(noopHook));
+    }
+
+    function getMetadata(
+        uint8 m,
+        uint8 n,
+        bytes32 seed,
+        bytes memory message
+    )
+        internal
+        override(AbstractMultisigIsmTest, AbstractWeightedMultisigIsmTest)
+        returns (bytes memory)
+    {
+        return AbstractWeightedMultisigIsmTest.getMetadata(m, n, seed, message);
+    }
 }
 
 contract MessageIdWeightedMultisigIsmTest is
@@ -120,7 +191,6 @@ contract MessageIdWeightedMultisigIsmTest is
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         noopHook = new TestPostDispatchHook();
 
-        // factory = new StaticMessageIdMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
         mailbox.setRequiredHook(address(noopHook));
     }

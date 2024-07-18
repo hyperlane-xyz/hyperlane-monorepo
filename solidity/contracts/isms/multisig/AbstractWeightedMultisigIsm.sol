@@ -155,10 +155,6 @@ abstract contract AbstractWeightedMultisigIsm is
                 _newValidators[i].signingKey != address(0),
                 "Invalid validator address"
             );
-            require(
-                _newValidators[i].weight > 0,
-                "Validator weight must be positive"
-            );
             totalWeight += _newValidators[i].weight;
         }
         require(

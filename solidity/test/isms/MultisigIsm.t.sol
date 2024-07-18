@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 import "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -159,13 +160,11 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint32 destination,
         bytes32 recipient,
         bytes calldata body,
-        // uint8 m,
-        // uint8 n,
+        uint8 m,
+        uint8 n,
         bytes32 seed
     ) public {
-        // vm.assume(0 < m && m <= n && n < 10);
-        uint8 m = 2;
-        uint8 n = 2;
+        vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));
@@ -197,7 +196,7 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
 
     string constant proofKey = "proof";
 
-    function setUp() public {
+    function setUp() public virtual {
         mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         noopHook = new TestPostDispatchHook();
