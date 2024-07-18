@@ -5,7 +5,7 @@ use async_trait::async_trait;
 
 use crate::{
     traits::TxOutcome, utils::domain_hash, BatchItem, ChainCommunicationError, ChainResult,
-    HyperlaneContract, HyperlaneMessage, TxCostEstimate, H256, U256,
+    HyperlaneContract, HyperlaneMessage, QueueOperation, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -45,6 +45,16 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         &self,
         _messages: &[BatchItem<HyperlaneMessage>],
     ) -> ChainResult<(TxOutcome, Vec<BatchItem<HyperlaneMessage>>)> {
+        // Batching is not supported by default
+        Err(ChainCommunicationError::BatchingFailed)
+    }
+
+    /// Try process the given operations as a batch. Returns the outcome of the
+    /// batch (if one was submitted) and the operations that were not submitted.
+    async fn try_process_batch(
+        &self,
+        _ops: Vec<QueueOperation>,
+    ) -> ChainResult<(Option<TxOutcome>, Vec<QueueOperation>)> {
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }

@@ -12,7 +12,8 @@ use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use futures_util::future::{join_all, Then};
-use hyperlane_core::H512;
+use hyperlane_core::{QueueOperation, H512};
+use itertools::{Either, Itertools};
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -31,7 +32,7 @@ use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
-use super::multicall::{self, build_multicall, MulticallContractCall};
+use super::multicall::{self, build_multicall};
 use super::utils::fetch_raw_logs_and_log_meta;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -329,37 +330,36 @@ where
         fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
     }
 
-    async fn simulate_and_submit_batch(
+    async fn filter_failed_batch_ops(
         &self,
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
-    ) -> ChainResult<ContractCall<M, Vec<MulticallResult>>> {
-        if contract_calls.is_empty() {
-            return Err(HyperlaneEthereumError::NoSuccessfulCalls.into());
-        }
-        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await;
-        let call = self.add_gas_overrides(batch_call, None).await?;
-        let call_results = call.call().await?;
+    ) -> ChainResult<(Option<ContractCall<M, Vec<MulticallResult>>>, Vec<usize>)> {
+        let call_count = contract_calls.len();
+        let batch_call = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await;
+        let batch_call = self.add_gas_overrides(batch_call, None).await?;
+        let call_results = batch_call.call().await?;
 
-        // only keep the contract_calls that were successful in `call_results`
-        let successful_contract_calls = contract_calls
-            .into_iter()
-            .zip(call_results.into_iter())
-            .filter_map(|(contract_call, result)| {
-                if result.success {
-                    Some(contract_call)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+        // the successful calls are guaranteed to still be successful after removing the failed ones from the batch
+        let (successful_contract_calls, unsuccessful_contract_calls): (Vec<_>, Vec<_>) =
+            contract_calls
+                .into_iter()
+                .zip(call_results.into_iter())
+                .enumerate()
+                .partition_map(|(index, (contract_call, result))| {
+                    if result.success {
+                        Either::Left(contract_call)
+                    } else {
+                        Either::Right(index)
+                    }
+                });
 
-        if successful_contract_calls.len() == contract_calls.len() {
-            Ok(call)
+        let batch_call = if successful_contract_calls.len() == call_count {
+            Some(batch_call)
         } else {
-            self.simulate_and_submit_batch(multicall, successful_contract_calls)
-                .await
-        }
+            None
+        };
+        Ok((batch_call, unsuccessful_contract_calls))
     }
 }
 
@@ -434,11 +434,15 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(skip(self, messages), fields(size=%messages.len()))]
-    async fn process_batch(
+    #[instrument(skip(self, ops), fields(size=%ops.len()))]
+    async fn try_process_batch(
         &self,
-        messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<(TxOutcome, Vec<BatchItem<HyperlaneMessage>>)> {
+        ops: Vec<QueueOperation>,
+    ) -> ChainResult<(Option<TxOutcome>, Vec<QueueOperation>)> {
+        let messages = ops
+            .iter()
+            .map(|op| op.try_batch())
+            .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
         let mut multicall = build_multicall(self.provider.clone(), &self.conn, self.domain.clone())
             .await
             .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
@@ -458,8 +462,21 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        self.simulate_and_submit_batch(&mut multicall, contract_calls)
-            .await
+        let (maybe_batch_call, unsuccessful_call_indexes) = self
+            .filter_failed_batch_ops(&mut multicall, contract_calls)
+            .await?;
+        let maybe_batch_outcome = if let Some(batch_call) = maybe_batch_call {
+            let batch_outcome = report_tx(batch_call).await?;
+            Some(batch_outcome.into())
+        } else {
+            None
+        };
+        let unsuccessful_calls = ops
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, op)| unsuccessful_call_indexes.contains(&index).then(|| op))
+            .collect::<Vec<_>>();
+        Ok((maybe_batch_outcome, unsuccessful_calls))
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

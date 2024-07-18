@@ -481,8 +481,9 @@ struct OperationBatch {
 impl OperationBatch {
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         let mut ops_to_submit_serially = vec![];
+        let domain = self.domain.clone();
         match self.try_submit_as_batch(metrics).await {
-            Ok((outcome, unsent_ops)) => {
+            Ok((outcome, mut unsent_ops)) => {
                 info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
                 let total_estimated_cost = total_estimated_cost(&self.operations);
                 for mut op in self.operations {
@@ -492,7 +493,7 @@ impl OperationBatch {
                         .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
                         .await;
                 }
-                ops_to_submit_serially.append(unsent_ops);
+                ops_to_submit_serially.append(&mut unsent_ops);
                 return;
             }
             Err(e) => {
@@ -500,7 +501,7 @@ impl OperationBatch {
                 ops_to_submit_serially = self.operations;
             }
         }
-        OperationBatch::new(ops_to_submit_serially, self.domain)
+        OperationBatch::new(ops_to_submit_serially, domain)
             .submit_serially(confirm_queue, metrics)
             .await;
     }
@@ -508,23 +509,21 @@ impl OperationBatch {
     /// TODO: return the failed/skipped ones (so they can be submitted serially) and the successful ones so gas can be deducted
     #[instrument(skip(metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
-        &self,
+        self,
         metrics: &SerialSubmitterMetrics,
     ) -> ChainResult<(TxOutcome, Vec<QueueOperation>)> {
-        let batch = self
-            .operations
-            .iter()
-            .map(|op| op.try_batch())
-            .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
-
         // We already assume that the relayer submits to a single mailbox per destination.
         // So it's fine to use the first item in the batch to get the mailbox.
-        let Some(first_item) = batch.first() else {
+        let Some(first_item) = self.operations.first() else {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
-
-        let outcome = first_item.mailbox.process_batch(&batch).await?;
-        metrics.ops_submitted.inc_by(self.operations.len() as u64);
+        let outcome = if let Some(mailbox) = first_item.try_get_mailbox() {
+            mailbox.try_process_batch(self.operations).await?
+        } else {
+            (None, self.operations)
+        };
+        let ops_submitted = self.operations.len() - outcome.1.len();
+        metrics.ops_submitted.inc_by(ops_submitted as u64);
         Ok(outcome)
     }
 

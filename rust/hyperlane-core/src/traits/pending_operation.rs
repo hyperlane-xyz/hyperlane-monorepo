@@ -3,12 +3,13 @@ use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
     io::Write,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use crate::{
     ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, TryBatchAs, TxOutcome, H256, U256,
+    HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
@@ -118,6 +119,10 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the number of times this operation has been retried.
     #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
+
+    fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+        None
+    }
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]

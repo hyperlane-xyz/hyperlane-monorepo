@@ -4345,6 +4345,7 @@ dependencies = [
  "futures-util",
  "hex 0.4.3",
  "hyperlane-core",
+ "itertools 0.10.5",
  "num 0.4.1",
  "num-traits",
  "reqwest",
