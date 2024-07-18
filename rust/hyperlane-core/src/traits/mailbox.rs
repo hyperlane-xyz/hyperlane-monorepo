@@ -51,10 +51,10 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Try process the given operations as a batch. Returns the outcome of the
     /// batch (if one was submitted) and the operations that were not submitted.
-    async fn try_process_batch(
+    async fn try_process_batch<'a>(
         &self,
-        _ops: Vec<QueueOperation>,
-    ) -> ChainResult<(Option<TxOutcome>, Vec<QueueOperation>)> {
+        _ops: Vec<&'a QueueOperation>,
+    ) -> ChainResult<(Option<TxOutcome>, Vec<usize>)> {
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }

@@ -11,9 +11,9 @@ use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
-use futures_util::future::{join_all, Then};
+use futures_util::future::join_all;
 use hyperlane_core::{QueueOperation, H512};
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -341,25 +341,28 @@ where
         let call_results = batch_call.call().await?;
 
         // the successful calls are guaranteed to still be successful after removing the failed ones from the batch
-        let (successful_contract_calls, unsuccessful_contract_calls): (Vec<_>, Vec<_>) =
-            contract_calls
-                .into_iter()
-                .zip(call_results.into_iter())
-                .enumerate()
-                .partition_map(|(index, (contract_call, result))| {
-                    if result.success {
-                        Either::Left(contract_call)
+        let unsuccessful_calls = contract_calls
+            .iter()
+            .zip(call_results.iter())
+            .enumerate()
+            .filter_map(
+                |(index, (_, result))| {
+                    if !result.success {
+                        Some(index)
                     } else {
-                        Either::Right(index)
+                        None
                     }
-                });
+                },
+            )
+            .collect_vec();
 
-        let batch_call = if successful_contract_calls.len() == call_count {
-            Some(batch_call)
+        // only send a batch if there are at least two succesful calls
+        let successful_calls = call_count - unsuccessful_calls.len();
+        if successful_calls >= 2 {
+            Ok((Some(batch_call), unsuccessful_calls))
         } else {
-            None
-        };
-        Ok((batch_call, unsuccessful_contract_calls))
+            Ok((None, (0..call_count).collect()))
+        }
     }
 }
 
@@ -435,10 +438,10 @@ where
     }
 
     #[instrument(skip(self, ops), fields(size=%ops.len()))]
-    async fn try_process_batch(
+    async fn try_process_batch<'a>(
         &self,
-        ops: Vec<QueueOperation>,
-    ) -> ChainResult<(Option<TxOutcome>, Vec<QueueOperation>)> {
+        ops: Vec<&'a QueueOperation>,
+    ) -> ChainResult<(Option<TxOutcome>, Vec<usize>)> {
         let messages = ops
             .iter()
             .map(|op| op.try_batch())
@@ -471,12 +474,7 @@ where
         } else {
             None
         };
-        let unsuccessful_calls = ops
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, op)| unsuccessful_call_indexes.contains(&index).then(|| op))
-            .collect::<Vec<_>>();
-        Ok((maybe_batch_outcome, unsuccessful_calls))
+        Ok((maybe_batch_outcome, unsuccessful_call_indexes))
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

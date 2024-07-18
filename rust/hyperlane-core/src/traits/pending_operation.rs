@@ -120,6 +120,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
 
+    /// If this operation points to a maibox contract, return it
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         None
     }
