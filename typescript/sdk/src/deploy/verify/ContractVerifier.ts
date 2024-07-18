@@ -33,7 +33,7 @@ export class ContractVerifier {
     buildArtifact: BuildArtifact,
     licenseType: CompilerOptions['licenseType'],
   ) {
-    const prunedBuildArtifactInput = this.getPrunedBuildArtifactInput(
+    const prunedBuildArtifactInput = this.pruneAndMinifyBuildArtifactInput(
       buildArtifact.input,
     );
     this.standardInputJson = JSON.stringify(prunedBuildArtifactInput);
@@ -71,17 +71,30 @@ export class ContractVerifier {
     );
   }
 
-  private getPrunedBuildArtifactInput(
+  private pruneAndMinifyBuildArtifactInput(
     buildArtifactInput: SolidityStandardJsonInput,
   ): SolidityStandardJsonInput {
     return {
       language: buildArtifactInput.language,
       sources: Object.fromEntries(
-        Object.entries(buildArtifactInput.sources).filter(
-          ([sourceName]) =>
-            !sourceName.startsWith('contracts/test') &&
-            !sourceName.startsWith('contracts/mock'),
-        ),
+        Object.entries(buildArtifactInput.sources)
+          .filter(
+            ([sourceName]) =>
+              !sourceName.startsWith('contracts/test') &&
+              !sourceName.startsWith('contracts/mock'),
+          )
+          .map(([sourceName, { content }]) => [
+            sourceName,
+            {
+              content: content
+                .split('\n')
+                .map((line) => line.trim())
+                .filter((line) => line !== '')
+                .join('\n')
+                .replace(/^(\/\/ SPDX-License-Identifier: .+)$/m, '$1\n')
+                .replace(/([^\n])\s*(pragma\s+solidity)/g, '$1\n$2'),
+            },
+          ]),
       ),
       settings: buildArtifactInput.settings,
     };
