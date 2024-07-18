@@ -14,6 +14,14 @@ export type SolidityStandardJsonInput = {
       content: string;
     };
   };
+  language: string;
+  settings: {
+    optimizer: {
+      enabled: boolean;
+      runs: number;
+    };
+    outputSelection: any;
+  };
 };
 
 export type BuildArtifact = {

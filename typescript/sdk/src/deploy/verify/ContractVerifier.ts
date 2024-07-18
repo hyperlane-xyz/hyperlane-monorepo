@@ -16,6 +16,7 @@ import {
   ExplorerApiActions,
   ExplorerApiErrors,
   FormOptions,
+  SolidityStandardJsonInput,
 } from './types.js';
 
 export class ContractVerifier {
@@ -32,8 +33,11 @@ export class ContractVerifier {
     buildArtifact: BuildArtifact,
     licenseType: CompilerOptions['licenseType'],
   ) {
-    // Extract the standard input json and compiler version from the build artifact
-    this.standardInputJson = JSON.stringify(buildArtifact.input);
+    const prunedBuildArtifactInput = this.getPrunedBuildArtifactInput(
+      buildArtifact.input,
+    );
+    this.standardInputJson = JSON.stringify(prunedBuildArtifactInput);
+
     const compilerversion = `v${buildArtifact.solcLongVersion}`;
 
     // double check compiler version matches expected format
@@ -65,6 +69,22 @@ export class ContractVerifier {
         }
       },
     );
+  }
+
+  private getPrunedBuildArtifactInput(
+    buildArtifactInput: SolidityStandardJsonInput,
+  ): SolidityStandardJsonInput {
+    return {
+      language: buildArtifactInput.language,
+      sources: Object.fromEntries(
+        Object.entries(buildArtifactInput.sources).filter(
+          ([sourceName]) =>
+            !sourceName.startsWith('contracts/test') &&
+            !sourceName.startsWith('contracts/mock'),
+        ),
+      ),
+      settings: buildArtifactInput.settings,
+    };
   }
 
   private async submitForm(
