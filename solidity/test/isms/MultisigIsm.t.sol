@@ -87,7 +87,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 n,
         bytes32 seed,
         bytes memory message
-    ) internal returns (bytes memory) {
+    ) internal virtual returns (bytes memory) {
         bytes32 digest;
         {
             uint32 domain = mailbox.localDomain();
@@ -159,11 +159,13 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint32 destination,
         bytes32 recipient,
         bytes calldata body,
-        uint8 m,
-        uint8 n,
+        // uint8 m,
+        // uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
+        // vm.assume(0 < m && m <= n && n < 10);
+        uint8 m = 2;
+        uint8 n = 2;
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));

@@ -4,31 +4,48 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
-import {AbstractWeightedMultisigIsm} from "./AbstractWeightedMultisigIsm.sol";
+import {AbstractStaticWeightedMultisigIsm, AbstractWeightedMultisigIsm} from "./AbstractWeightedMultisigIsm.sol";
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {StaticThresholdAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
+import {MetaProxy} from "../../libs/MetaProxy.sol";
 
-// solhint-disable no-empty-blocks
+abstract contract AbstractMetaProxyMultisigIsm is
+    AbstractStaticWeightedMultisigIsm
+{
+    /**
+     * @inheritdoc AbstractStaticWeightedMultisigIsm
+     */
+    function validatorsAndThresholdWeight(
+        bytes calldata /* _message*/
+    ) public pure override returns (ValidatorInfo[] memory, uint96) {
+        return abi.decode(MetaProxy.metadata(), (ValidatorInfo[], uint8));
+    }
+}
 
-/**
- * @title StaticMerkleRootMultisigIsm
- * @notice Manages per-domain m-of-n validator set that is used
- * to verify interchain messages using a merkle root signature quorum
- * and merkle proof of inclusion.
- */
-contract MerkleRootWeightedMultisigIsm is
-    AbstractWeightedMultisigIsm,
-    AbstractMerkleRootMultisigIsm
+contract MerkleRootStaticWeightedMultisigIsm is
+    AbstractMerkleRootMultisigIsm,
+    AbstractMetaProxyMultisigIsm
 {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.WEIGHT_MERKLE_ROOT_MULTISIG);
 }
 
-/**
- * @title StaticMessageIdMultisigIsm
- * @notice Manages per-domain m-of-n validator set that is used
- * to verify interchain messages using a message ID signature quorum.
- */
+contract MerkleRootWeightedMultisigIsm is
+    AbstractMessageIdMultisigIsm,
+    AbstractWeightedMultisigIsm
+{
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
+}
+
+contract MessageIdStaticWeightedMultisigIsm is
+    AbstractMessageIdMultisigIsm,
+    AbstractMetaProxyMultisigIsm
+{
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
+}
+
 contract MessageIdWeightedMultisigIsm is
     AbstractMessageIdMultisigIsm,
     AbstractWeightedMultisigIsm
@@ -37,16 +54,18 @@ contract MessageIdWeightedMultisigIsm is
         uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
 }
 
-contract StaticMerkleRootMultisigIsmFactory is
+contract StaticMerkleRootWeightedMultisigIsmFactory is
     StaticThresholdAddressSetFactory
 {
     function _deployImplementation() internal override returns (address) {
-        return address(new MerkleRootWeightedMultisigIsm());
+        return address(new MerkleRootStaticWeightedMultisigIsm());
     }
 }
 
-contract StaticMessageIdMultisigIsmFactory is StaticThresholdAddressSetFactory {
+contract StaticMessageIdWeightedMultisigIsmFactory is
+    StaticThresholdAddressSetFactory
+{
     function _deployImplementation() internal override returns (address) {
-        return address(new MessageIdWeightedMultisigIsm());
+        return address(new MessageIdStaticWeightedMultisigIsm());
     }
 }

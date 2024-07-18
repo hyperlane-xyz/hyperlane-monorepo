@@ -1,17 +1,75 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
+
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IWeightedMultisigIsm} from "../../interfaces/isms/IWeightedMultisigIsm.sol";
+import {IStaticWeightedMultisigIsm, IWeightedMultisigIsm} from "../../interfaces/isms/IWeightedMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 
 import {MerkleLib} from "../../libs/Merkle.sol";
 import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
+
+abstract contract AbstractStaticWeightedMultisigIsm is
+    AbstractMultisig,
+    IStaticWeightedMultisigIsm
+{
+    // ============ Constants ============
+    uint96 public constant BASIS_POINTS = 10000;
+
+    function validatorsAndThresholdWeight(
+        bytes calldata /* _message*/
+    ) public view virtual returns (ValidatorInfo[] memory, uint96);
+
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) public view virtual returns (bool) {
+        bytes32 _digest = digest(_metadata, _message);
+        (
+            ValidatorInfo[] memory _validators,
+            uint96 _thresholdWeight
+        ) = validatorsAndThresholdWeight(_message);
+        require(
+            _thresholdWeight > 0 && _thresholdWeight <= BASIS_POINTS,
+            "Invalid threshold weight"
+        );
+        uint256 _validatorCount = _validators.length;
+        uint256 _validatorIndex = 0;
+        uint96 _totalWeight = 0;
+
+        // Assumes that signatures are ordered by validator
+        for (
+            uint256 i = 0;
+            _totalWeight < _thresholdWeight && i < _validatorCount;
+            ++i
+        ) {
+            address _signer = ECDSA.recover(_digest, signatureAt(_metadata, i));
+            // Loop through remaining validators until we find a match
+            while (
+                _validatorIndex < _validatorCount &&
+                _signer != _validators[_validatorIndex].signingKey
+            ) {
+                ++_validatorIndex;
+            }
+            // Fail if we never found a match
+            require(_validatorIndex < _validatorCount, "Invalid signer");
+
+            // Add the weight of the current validator
+            _totalWeight += _validators[_validatorIndex].weight;
+        }
+        require(
+            _totalWeight >= _thresholdWeight,
+            "Insufficient validator weight"
+        );
+        return true;
+    }
+}
 
 /**
  * @title WeightedMultisigIsm
@@ -22,13 +80,10 @@ import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
  * @dev See ./StaticWeightedIsm.sol for concrete implementations.
  */
 abstract contract AbstractWeightedMultisigIsm is
-    AbstractMultisig,
+    AbstractStaticWeightedMultisigIsm,
     IWeightedMultisigIsm,
     OwnableUpgradeable
 {
-    // ============ Constants ============
-    uint96 public constant BASIS_POINTS = 10000;
-
     // ============ State Variables ============
     ValidatorInfo[] public validators;
     uint96 public thresholdWeight;
@@ -67,7 +122,13 @@ abstract contract AbstractWeightedMultisigIsm is
      */
     function validatorsAndThresholdWeight(
         bytes calldata /* _message*/
-    ) public view virtual returns (ValidatorInfo[] memory, uint96) {
+    )
+        public
+        view
+        virtual
+        override(IStaticWeightedMultisigIsm, AbstractStaticWeightedMultisigIsm)
+        returns (ValidatorInfo[] memory, uint96)
+    {
         return (validators, thresholdWeight);
     }
 
@@ -76,62 +137,6 @@ abstract contract AbstractWeightedMultisigIsm is
         uint96 _newThresholdWeight
     ) external onlyOwner {
         _updateValidatorSet(_newValidators, _newThresholdWeight);
-    }
-
-    // ============ Public Functions ============
-
-    /**
-     * @notice Requires that m-of-n validators verify a merkle root,
-     * and verifies a merkle proof of `_message` against that root.
-     * @dev Optimization relies on the caller sorting signatures in the same order as validators.
-     * @dev Employs https://www.geeksforgeeks.org/two-pointers-technique/ to minimize gas usage.
-     * @param _metadata ABI encoded module metadata
-     * @param _message Formatted Hyperlane message (see Message.sol).
-     */
-    function verify(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) public view virtual returns (bool) {
-        bytes32 _digest = digest(_metadata, _message);
-        (
-            ValidatorInfo[] memory _validators,
-            uint96 _thresholdWeight
-        ) = validatorsAndThresholdWeight(_message);
-        require(
-            _thresholdWeight > 0 && _thresholdWeight <= BASIS_POINTS,
-            "Invalid threshold weight"
-        );
-
-        uint256 _validatorCount = _validators.length;
-        uint256 _validatorIndex = 0;
-        uint96 _totalWeight = 0;
-
-        // Assumes that signatures are ordered by validator
-        for (
-            uint256 i = 0;
-            _totalWeight < _thresholdWeight && i < _validatorCount;
-            ++i
-        ) {
-            address _signer = ECDSA.recover(_digest, signatureAt(_metadata, i));
-            // Loop through remaining validators until we find a match
-            while (
-                _validatorIndex < _validatorCount &&
-                _signer != _validators[_validatorIndex].signingKey
-            ) {
-                ++_validatorIndex;
-            }
-            // Fail if we never found a match
-            require(_validatorIndex < _validatorCount, "Invalid signer");
-
-            // Add the weight of the current validator
-            _totalWeight += _validators[_validatorIndex].weight;
-            ++_validatorIndex;
-        }
-        require(
-            _totalWeight >= _thresholdWeight,
-            "Insufficient validator weight"
-        );
-        return true;
     }
 
     function _updateValidatorSet(

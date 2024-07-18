@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 
 import {IInterchainSecurityModule} from "../IInterchainSecurityModule.sol";
 
-interface IWeightedMultisigIsm is IInterchainSecurityModule {
+interface IStaticWeightedMultisigIsm is IInterchainSecurityModule {
     struct ValidatorInfo {
         address signingKey;
         uint96 weight;
@@ -18,14 +18,15 @@ interface IWeightedMultisigIsm is IInterchainSecurityModule {
      * @return validators The array of validator addresses
      * @return thresholdWeight The total weight of validators needed (out of 10000 basis points)
      */
-
     function validatorsAndThresholdWeight(
         bytes calldata _message
     )
         external
         view
         returns (ValidatorInfo[] memory validators, uint96 thresholdWeight);
+}
 
+interface IWeightedMultisigIsm is IStaticWeightedMultisigIsm {
     function updateValidatorSet(
         ValidatorInfo[] calldata _validators,
         uint96 _thresholdWeight
