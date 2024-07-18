@@ -92,6 +92,9 @@ export class ContractVerifier {
       params.set('apikey', apiKey);
     }
 
+    let timeout: number = 1000;
+    if (family === ExplorerFamily.Etherscan) timeout = 5000;
+
     const url = new URL(apiUrl);
     const isGetRequest = EXPLORER_GET_ACTIONS.includes(action);
     if (isGetRequest) {
@@ -150,13 +153,13 @@ export class ContractVerifier {
 
       switch (responseJson.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
-          await sleep(5000);
           verificationLogger.trace(
             {
               result: responseJson.result,
             },
             'Verification still pending',
           );
+          await sleep(timeout);
           return this.submitForm(chain, action, verificationLogger, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
@@ -179,7 +182,7 @@ export class ContractVerifier {
     }
 
     if (responseJson.result === ExplorerApiErrors.UNKNOWN_UID) {
-      await sleep(1000); // wait 1 second
+      await sleep(timeout);
       return this.submitForm(chain, action, verificationLogger, options);
     }
 
@@ -195,84 +198,124 @@ export class ContractVerifier {
       { apiUrl, chain, result: responseJson.result },
       'Returning result from explorer.',
     );
+
+    await sleep(timeout);
     return responseJson.result;
   }
 
-  private async verifyProxy(
+  private async verify(
     chain: ChainName,
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
-    verificationLogger.debug(`📝 Verifying proxy at ${input.address}...`);
+    const contractType: string = input.isProxy ? 'proxy' : 'implementation';
+
+    verificationLogger.debug(
+      {
+        name: input.name,
+        address: input.address,
+      },
+      `📝 Verifying ${contractType}...`,
+    );
+
+    const data = input.isProxy
+      ? this.getProxyData(input)
+      : this.getImplementationData(chain, input, verificationLogger);
 
     try {
-      const proxyGuid = await this.markProxy(chain, input, verificationLogger);
-
-      verificationLogger.trace({ proxyGuid }, 'Checking proxy status...');
-      await this.submitForm(
+      const guid: string = await this.submitForm(
         chain,
-        ExplorerApiActions.CHECK_PROXY_STATUS,
+        input.isProxy
+          ? ExplorerApiActions.VERIFY_PROXY
+          : ExplorerApiActions.VERIFY_IMPLEMENTATION,
         verificationLogger,
-        {
-          guid: proxyGuid,
-        },
+        data,
       );
+
+      verificationLogger.trace(
+        {
+          guid,
+          name: input.name,
+          address: input.address,
+        },
+        `Retrieved guid from verified ${contractType}.`,
+      );
+
+      await this.checkStatus(
+        chain,
+        input,
+        verificationLogger,
+        guid,
+        contractType,
+      );
+
       const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
         input.address,
       );
-      verificationLogger.debug(
-        {
-          url: `${addressUrl}#readProxyContract`,
-        },
-        `✅ Successfully verified proxy`,
-      );
-    } catch (error) {
-      verificationLogger.debug(
-        { error },
-        `Verification of proxy at ${input.address} failed`,
-      );
-      throw error;
-    }
-  }
 
-  private async markProxy(
-    chain: ChainName,
-    input: ContractVerificationInput,
-    verificationLogger: Logger,
-  ): Promise<string> {
-    try {
-      const proxyGuid = await this.submitForm(
-        chain,
-        ExplorerApiActions.VERIFY_PROXY,
-        verificationLogger,
+      verificationLogger.debug(
         {
+          addressUrl: addressUrl
+            ? `${addressUrl}#code`
+            : `Could not retrieve ${contractType} explorer URL.`,
+          name: input.name,
           address: input.address,
-          expectedimplementation: input.expectedimplementation,
         },
+        `✅ Successfully verified ${contractType}.`,
       );
-      verificationLogger.trace(
-        { proxyGuid },
-        'Retrieved guid from verified proxy.',
-      );
-      return proxyGuid;
     } catch (error) {
       verificationLogger.debug(
-        `Marking of proxy at ${input.address} failed: ${error}`,
+        {
+          name: input.name,
+          address: input.address,
+          error,
+        },
+        `Verification of ${contractType} failed`,
       );
       throw error;
     }
   }
 
-  private async verifyImplementation(
+  private async checkStatus(
     chain: ChainName,
     input: ContractVerificationInput,
     verificationLogger: Logger,
+    guid: string,
+    contractType: string,
   ): Promise<void> {
-    verificationLogger.debug(
-      `📝 Verifying implementation at ${input.address}...`,
+    verificationLogger.trace(
+      {
+        guid,
+        name: input.name,
+        address: input.address,
+      },
+      `Checking ${contractType} status...`,
     );
+    await this.submitForm(
+      chain,
+      input.isProxy
+        ? ExplorerApiActions.CHECK_PROXY_STATUS
+        : ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS,
+      verificationLogger,
+      {
+        guid: guid,
+      },
+    );
+  }
 
+  private getProxyData(input: ContractVerificationInput) {
+    return {
+      address: input.address,
+      expectedimplementation: input.expectedimplementation,
+    };
+  }
+
+  private getImplementationData(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    verificationLogger: Logger,
+  ) {
     const sourceName = this.contractSourceMap[input.name];
     if (!sourceName) {
       const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
@@ -280,39 +323,17 @@ export class ContractVerifier {
       throw new Error(`[${chain}] ${errorMessage}`);
     }
 
-    const data = {
+    return {
       sourceCode: this.standardInputJson,
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
-      // TYPO IS ENFORCED BY API
+      /* TYPO IS ENFORCED BY API */
       constructorArguements: strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
-
-    const guid = await this.submitForm(
-      chain,
-      ExplorerApiActions.VERIFY_IMPLEMENTATION,
-      verificationLogger,
-      data,
-    );
-    if (!guid) return;
-
-    await this.submitForm(
-      chain,
-      ExplorerApiActions.CHECK_STATUS,
-      verificationLogger,
-      { guid },
-    );
-    const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-      chain,
-      input.address,
-    );
-    verificationLogger.debug(
-      `✅ Successfully verified implementation ${addressUrl}#code`,
-    );
   }
 
-  async verifyContract(
+  public async verifyContract(
     chain: ChainName,
     input: ContractVerificationInput,
     logger = this.logger,
@@ -322,35 +343,62 @@ export class ContractVerifier {
     const metadata = this.multiProvider.tryGetChainMetadata(chain);
     const rpcUrl = metadata?.rpcUrls[0].http ?? '';
     if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
-      verificationLogger.debug('Skipping verification for local endpoints');
+      verificationLogger.debug(
+        {
+          name: input.name,
+          address: input.address,
+        },
+        'Skipping verification for local endpoints',
+      );
       return;
     }
 
     const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
     if (!explorerApi) {
-      verificationLogger.debug('No explorer API set, skipping');
+      verificationLogger.debug(
+        {
+          name: input.name,
+          address: input.address,
+        },
+        'No explorer API set, skipping',
+      );
       return;
     }
 
     if (!explorerApi.family) {
-      verificationLogger.debug(`No explorer family set, skipping`);
+      verificationLogger.debug(
+        {
+          name: input.name,
+          address: input.address,
+        },
+        `No explorer family set, skipping`,
+      );
       return;
     }
 
     if (explorerApi.family === ExplorerFamily.Other) {
-      verificationLogger.debug(`Unsupported explorer family, skipping`);
+      verificationLogger.debug(
+        {
+          name: input.name,
+          address: input.address,
+        },
+        `Unsupported explorer family, skipping`,
+      );
       return;
     }
 
     if (input.address === ethers.constants.AddressZero) return;
     if (Array.isArray(input.constructorArguments)) {
       verificationLogger.debug(
+        {
+          name: input.name,
+          address: input.address,
+        },
         'Constructor arguments in legacy format, skipping',
       );
       return;
     }
 
-    if (input.isProxy) await this.verifyProxy(chain, input, verificationLogger);
-    else await this.verifyImplementation(chain, input, verificationLogger);
+    await this.verify(chain, input, verificationLogger);
   }
 }
