@@ -3,6 +3,7 @@ export type ContractVerificationInput = {
   address: string;
   constructorArguments?: string; // abi-encoded bytes
   isProxy?: boolean;
+  expectedimplementation?: string;
 };
 
 export type VerificationInput = ContractVerificationInput[];
@@ -47,7 +48,7 @@ export type CompilerOptions = {
 export enum ExplorerApiActions {
   GETSOURCECODE = 'getsourcecode',
   VERIFY_IMPLEMENTATION = 'verifysourcecode',
-  MARK_PROXY = 'verifyproxycontract',
+  VERIFY_PROXY = 'verifyproxycontract',
   CHECK_STATUS = 'checkverifystatus',
   CHECK_PROXY_STATUS = 'checkproxyverification',
 }
@@ -81,9 +82,10 @@ export type FormOptions<Action extends ExplorerApiActions> =
         contractname: string;
         constructorArguements?: string; // TYPO IS ENFORCED BY API
       }
-    : Action extends ExplorerApiActions.MARK_PROXY
+    : Action extends ExplorerApiActions.VERIFY_PROXY
     ? {
         address: string;
+        expectedimplementation: string;
       }
     : Action extends ExplorerApiActions.CHECK_STATUS
     ? {
