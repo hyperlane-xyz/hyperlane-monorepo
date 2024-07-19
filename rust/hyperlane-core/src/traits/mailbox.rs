@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::num::NonZeroU64;
 
 use async_trait::async_trait;
+use derive_new::new;
 
 use crate::{
     traits::TxOutcome, utils::domain_hash, BatchItem, ChainCommunicationError, ChainResult,
@@ -44,7 +45,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     async fn process_batch(
         &self,
         _messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<(TxOutcome, Vec<BatchItem<HyperlaneMessage>>)> {
+    ) -> ChainResult<BatchResult> {
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }
@@ -54,7 +55,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     async fn try_process_batch<'a>(
         &self,
         _ops: Vec<&'a QueueOperation>,
-    ) -> ChainResult<(Option<TxOutcome>, Vec<usize>)> {
+    ) -> ChainResult<BatchResult> {
         // Batching is not supported by default
         Err(ChainCommunicationError::BatchingFailed)
     }
@@ -69,4 +70,24 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8>;
+}
+
+/// The result of processing a batch of messages
+#[derive(new, Debug)]
+pub struct BatchResult {
+    /// The outcome of executing the batch, if one was sent
+    pub outcome: Option<TxOutcome>,
+    /// Indexes of failed calls in the batch (i.e. that were not executed)
+    pub failed_call_indexes: Vec<usize>,
+}
+
+impl BatchResult {
+    /// Create a BatchResult from a failed simulation, given the number of operations
+    /// in the simulated batch
+    pub fn failed(ops_count: usize) -> Self {
+        Self {
+            outcome: None,
+            failed_call_indexes: (0..ops_count).collect(),
+        }
+    }
 }

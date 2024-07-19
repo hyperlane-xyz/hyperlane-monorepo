@@ -7,12 +7,13 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use derive_new::new;
 use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use futures_util::future::join_all;
-use hyperlane_core::{QueueOperation, H512};
+use hyperlane_core::{BatchResult, QueueOperation, H512};
 use itertools::Itertools;
 use tracing::instrument;
 
@@ -330,18 +331,18 @@ where
         fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
     }
 
-    async fn filter_failed_batch_ops(
+    async fn simulate_batch(
         &self,
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
-    ) -> ChainResult<(Option<ContractCall<M, Vec<MulticallResult>>>, Vec<usize>)> {
-        let call_count = contract_calls.len();
-        let batch_call = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await;
-        let batch_call = self.add_gas_overrides(batch_call, None).await?;
-        let call_results = batch_call.call().await?;
+    ) -> ChainResult<BatchSimulation<M>> {
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await;
+        let batch = self.add_gas_overrides(batch, None).await?;
+        let call_results = batch.call().await?;
 
-        // the successful calls are guaranteed to still be successful after removing the failed ones from the batch
-        let unsuccessful_calls = contract_calls
+        // successful calls within the batch are guaranteed to still be successful after
+        // removing failed ones from the batch
+        let failed_calls = contract_calls
             .iter()
             .zip(call_results.iter())
             .enumerate()
@@ -357,11 +358,39 @@ where
             .collect_vec();
 
         // only send a batch if there are at least two succesful calls
-        let successful_calls = call_count - unsuccessful_calls.len();
+        let call_count = contract_calls.len();
+        let successful_calls = call_count - failed_calls.len();
         if successful_calls >= 2 {
-            Ok((Some(batch_call), unsuccessful_calls))
+            Ok(BatchSimulation::new(Some(batch), failed_calls))
         } else {
-            Ok((None, (0..call_count).collect()))
+            Ok(BatchSimulation::failed(call_count))
+        }
+    }
+}
+
+#[derive(new)]
+pub struct BatchSimulation<M> {
+    pub call: Option<ContractCall<M, Vec<MulticallResult>>>,
+    /// Indexes of failed calls in the batch
+    pub failed_call_indexes: Vec<usize>,
+}
+
+impl<M> BatchSimulation<M> {
+    pub fn failed(ops_count: usize) -> Self {
+        Self::new(None, (0..ops_count).collect())
+    }
+}
+
+impl<M: Middleware + 'static> BatchSimulation<M> {
+    pub async fn submit_tx(self) -> ChainResult<BatchResult> {
+        if let Some(batch_call) = self.call {
+            let batch_outcome = report_tx(batch_call).await?;
+            Ok(BatchResult::new(
+                Some(batch_outcome.into()),
+                self.failed_call_indexes,
+            ))
+        } else {
+            Ok(BatchResult::failed(self.failed_call_indexes.len()))
         }
     }
 }
@@ -441,7 +470,7 @@ where
     async fn try_process_batch<'a>(
         &self,
         ops: Vec<&'a QueueOperation>,
-    ) -> ChainResult<(Option<TxOutcome>, Vec<usize>)> {
+    ) -> ChainResult<BatchResult> {
         let messages = ops
             .iter()
             .map(|op| op.try_batch())
@@ -465,16 +494,8 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let (maybe_batch_call, unsuccessful_call_indexes) = self
-            .filter_failed_batch_ops(&mut multicall, contract_calls)
-            .await?;
-        let maybe_batch_outcome = if let Some(batch_call) = maybe_batch_call {
-            let batch_outcome = report_tx(batch_call).await?;
-            Some(batch_outcome.into())
-        } else {
-            None
-        };
-        Ok((maybe_batch_outcome, unsuccessful_call_indexes))
+        let batch_simulation = self.simulate_batch(&mut multicall, contract_calls).await?;
+        batch_simulation.submit_tx().await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
