@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use ethers::{abi::Detokenize, providers::Middleware};
 use ethers_contract::{builders::ContractCall, Multicall, MulticallResult, MulticallVersion};
-use hyperlane_core::{utils::hex_or_base58_to_h256, HyperlaneDomain, HyperlaneProvider, U256};
+use hyperlane_core::{
+    utils::hex_or_base58_to_h256, ChainResult, HyperlaneDomain, HyperlaneProvider, U256,
+};
 use tracing::warn;
 
-use crate::{tx::apply_gas_estimate_buffer, ConnectionConf, EthereumProvider};
+use crate::{ConnectionConf, EthereumProvider};
 
 const ALLOW_BATCH_FAILURES: bool = true;
 
@@ -44,7 +46,7 @@ pub async fn build_multicall<M: Middleware + 'static>(
 pub async fn batch<M, D>(
     multicall: &mut Multicall<M>,
     calls: Vec<ContractCall<M, D>>,
-) -> ContractCall<M, Vec<MulticallResult>>
+) -> ChainResult<ContractCall<M, Vec<MulticallResult>>>
 where
     M: Middleware + 'static,
     D: Detokenize,
@@ -62,9 +64,7 @@ where
                 individual_estimates_sum.map(|sum| sum + gas_estimate + overhead_per_call)
             }
             None => {
-                warn!(call=?call.tx, "Failed to estimate gas for call in batch");
-                // if we fail to estimate the gas, we can't accurately estimate the total gas
-                // Return a None instead of an error, because this is a non-critical failure
+                warn!(call=?call.tx, "Unknown gas limit for batched call, falling back to estimating gas for entire batch");
                 None
             }
         };
@@ -72,9 +72,11 @@ where
     });
 
     let mut batch_call = multicall.as_aggregate_3_value();
+    let mut gas_limit: U256 = batch_call.estimate_gas().await?.into();
+    // Use the max of the sum of individual estimates and the estimate for the entire batch
     if let Some(gas_sum) = individual_estimates_sum {
-        // Add a buffer to this estimate, to match how gas is estimated for individual txs in `tx.rs::fill_tx_gas_params`
-        batch_call = batch_call.gas(apply_gas_estimate_buffer(gas_sum));
+        gas_limit = gas_limit.max(gas_sum)
     }
-    batch_call
+    batch_call = batch_call.gas(gas_limit);
+    Ok(batch_call)
 }

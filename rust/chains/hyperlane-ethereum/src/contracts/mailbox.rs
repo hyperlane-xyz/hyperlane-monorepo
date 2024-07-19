@@ -28,7 +28,7 @@ use crate::interfaces::i_mailbox::{
 };
 use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
-use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
 use super::multicall::{self, build_multicall};
 use super::utils::fetch_raw_logs_and_log_meta;
@@ -303,29 +303,26 @@ where
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, ()>> {
-        let tx = self.contract.process(
+        let mut tx = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        self.add_gas_overrides(tx, tx_gas_estimate).await
+        if let Some(gas_estimate) = tx_gas_estimate {
+            tx = tx.gas(gas_estimate);
+        }
+        self.add_gas_overrides(tx).await
     }
 
     async fn add_gas_overrides<D: Detokenize>(
         &self,
         tx: ContractCall<M, D>,
-        tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, D>> {
-        let tx_overrides = TransactionOverrides {
-            // If a gas limit is provided as a transaction override, use it instead
-            // of the estimate.
-            gas_limit: self
-                .conn
-                .transaction_overrides
-                .gas_limit
-                .or(tx_gas_estimate),
-            ..self.conn.transaction_overrides.clone()
-        };
-        fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
+        fill_tx_gas_params(
+            tx,
+            self.provider.clone(),
+            &self.conn.transaction_overrides.clone(),
+        )
+        .await
     }
 }
 
@@ -424,8 +421,9 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await;
-        let call = self.add_gas_overrides(batch_call, None).await?;
+        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await?;
+        // TODO: set the gas limit for the batch call via an override than as `.gas(...)`
+        let call = self.add_gas_overrides(batch_call).await?;
 
         let receipt = report_tx(call).await?;
         Ok(receipt.into())
