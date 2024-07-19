@@ -79,30 +79,37 @@ export class ContractVerifier {
       apiKey = this.apiKeys[chain],
     } = this.multiProvider.getExplorerApi(chain);
     const params = new URLSearchParams();
+
     params.set('module', 'contract');
     params.set('action', action);
+    if (apiKey) params.set('apikey', apiKey);
 
-    // no need to provide every argument for every request
     for (const [key, value] of Object.entries(options ?? {})) {
       params.set(key, value);
     }
 
-    // only include apikey if provided & not blockscout
-    if (family !== ExplorerFamily.Blockscout && apiKey) {
-      params.set('apikey', apiKey);
-    }
-
     let timeout: number = 1000;
-    if (family === ExplorerFamily.Etherscan) timeout = 5000;
-
     const url = new URL(apiUrl);
     const isGetRequest = EXPLORER_GET_ACTIONS.includes(action);
-    if (isGetRequest) {
-      url.search = params.toString();
-    } else if (family === ExplorerFamily.Blockscout) {
-      // Blockscout requires module and action to be query params
-      url.searchParams.set('module', 'contract');
-      url.searchParams.set('action', action);
+    if (isGetRequest) url.search = params.toString();
+
+    switch (family) {
+      case ExplorerFamily.Etherscan:
+        timeout = 5000;
+        break;
+      case ExplorerFamily.Blockscout:
+        timeout = 1000;
+        url.searchParams.set('module', 'contract');
+        url.searchParams.set('action', action);
+        break;
+      case ExplorerFamily.Routescan:
+        timeout = 500;
+        break;
+      case ExplorerFamily.Other:
+      default:
+        throw new Error(
+          `Unsupported explorer family: ${family}, ${chain}, ${apiUrl}`,
+        );
     }
 
     verificationLogger.trace(
@@ -338,62 +345,38 @@ export class ContractVerifier {
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    const verificationLogger = logger.child({ chain, name: input.name });
+    const verificationLogger = logger.child({
+      chain,
+      name: input.name,
+      address: input.address,
+    });
 
     const metadata = this.multiProvider.tryGetChainMetadata(chain);
     const rpcUrl = metadata?.rpcUrls[0].http ?? '';
     if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
-      verificationLogger.debug(
-        {
-          name: input.name,
-          address: input.address,
-        },
-        'Skipping verification for local endpoints',
-      );
+      verificationLogger.debug('Skipping verification for local endpoints');
       return;
     }
 
     const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
     if (!explorerApi) {
-      verificationLogger.debug(
-        {
-          name: input.name,
-          address: input.address,
-        },
-        'No explorer API set, skipping',
-      );
+      verificationLogger.debug('No explorer API set, skipping');
       return;
     }
 
     if (!explorerApi.family) {
-      verificationLogger.debug(
-        {
-          name: input.name,
-          address: input.address,
-        },
-        `No explorer family set, skipping`,
-      );
+      verificationLogger.debug(`No explorer family set, skipping`);
       return;
     }
 
     if (explorerApi.family === ExplorerFamily.Other) {
-      verificationLogger.debug(
-        {
-          name: input.name,
-          address: input.address,
-        },
-        `Unsupported explorer family, skipping`,
-      );
+      verificationLogger.debug(`Unsupported explorer family, skipping`);
       return;
     }
 
     if (input.address === ethers.constants.AddressZero) return;
     if (Array.isArray(input.constructorArguments)) {
       verificationLogger.debug(
-        {
-          name: input.name,
-          address: input.address,
-        },
         'Constructor arguments in legacy format, skipping',
       );
       return;
