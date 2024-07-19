@@ -484,8 +484,7 @@ struct OperationBatch {
 
 impl OperationBatch {
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
-        let domain = self.domain.clone();
-        let unsent_ops = match self.try_submit_as_batch(metrics).await {
+        let excluded_ops = match self.try_submit_as_batch(metrics).await {
             Ok(batch_result) => {
                 Self::handle_batch_result(self.operations, batch_result, confirm_queue).await
             }
@@ -495,15 +494,14 @@ impl OperationBatch {
             }
         };
 
-        if !unsent_ops.is_empty() {
-            debug!(unsent_ops=?unsent_ops, "Operations would revert in batch. Submitting individually.");
-            OperationBatch::new(unsent_ops, domain)
+        if !excluded_ops.is_empty() {
+            debug!(excluded_ops=?excluded_ops, "Operations would revert in batch. Submitting individually.");
+            OperationBatch::new(excluded_ops, self.domain)
                 .submit_serially(confirm_queue, metrics)
                 .await;
         }
     }
 
-    /// TODO: return the failed/skipped ones (so they can be submitted serially) and the successful ones so gas can be deducted
     #[instrument(skip(metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
         &self,
@@ -521,7 +519,7 @@ impl OperationBatch {
         } else {
             BatchResult::failed(self.operations.len())
         };
-        let ops_submitted = self.operations.len() - outcome.failed_call_indexes.len();
+        let ops_submitted = self.operations.len() - outcome.excluded_call_indexes.len();
         metrics.ops_submitted.inc_by(ops_submitted as u64);
         Ok(outcome)
     }
@@ -533,9 +531,9 @@ impl OperationBatch {
         batch_result: BatchResult,
         confirm_queue: &mut OpQueue,
     ) -> Vec<Box<dyn PendingOperation>> {
-        let (sent_ops, unsent_ops): (Vec<_>, Vec<_>) =
+        let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
             operations.into_iter().enumerate().partition_map(|(i, op)| {
-                if !batch_result.failed_call_indexes.contains(&i) {
+                if !batch_result.excluded_call_indexes.contains(&i) {
                     Either::Left(op)
                 } else {
                     Either::Right(op)
@@ -543,10 +541,10 @@ impl OperationBatch {
             });
 
         if let Some(outcome) = batch_result.outcome {
-            info!(batch_size=sent_ops.len(), outcome=?outcome, batch=?sent_ops, "Submitted transaction batch");
+            info!(batch_size=sent_ops.len(), outcome=?outcome, batch=?sent_ops, ?excluded_ops, "Submitted transaction batch");
             Self::update_sent_ops_state(sent_ops, outcome, confirm_queue).await;
         }
-        unsent_ops
+        excluded_ops
     }
 
     async fn update_sent_ops_state(

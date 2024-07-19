@@ -77,8 +77,8 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 pub struct BatchResult {
     /// The outcome of executing the batch, if one was sent
     pub outcome: Option<TxOutcome>,
-    /// Indexes of failed calls in the batch (i.e. that were not executed)
-    pub failed_call_indexes: Vec<usize>,
+    /// Indexes of excluded calls from the batch (i.e. that were not executed)
+    pub excluded_call_indexes: Vec<usize>,
 }
 
 impl BatchResult {
@@ -87,7 +87,7 @@ impl BatchResult {
     pub fn failed(ops_count: usize) -> Self {
         Self {
             outcome: None,
-            failed_call_indexes: (0..ops_count).collect(),
+            excluded_call_indexes: (0..ops_count).collect(),
         }
     }
 }

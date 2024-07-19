@@ -371,8 +371,9 @@ where
 #[derive(new)]
 pub struct BatchSimulation<M> {
     pub call: Option<ContractCall<M, Vec<MulticallResult>>>,
-    /// Indexes of failed calls in the batch
-    pub failed_call_indexes: Vec<usize>,
+    /// Indexes of excluded calls in the batch (because they either failed the simulation
+    /// or they were the only successful call)
+    pub excluded_call_indexes: Vec<usize>,
 }
 
 impl<M> BatchSimulation<M> {
@@ -387,10 +388,10 @@ impl<M: Middleware + 'static> BatchSimulation<M> {
             let batch_outcome = report_tx(batch_call).await?;
             Ok(BatchResult::new(
                 Some(batch_outcome.into()),
-                self.failed_call_indexes,
+                self.excluded_call_indexes,
             ))
         } else {
-            Ok(BatchResult::failed(self.failed_call_indexes.len()))
+            Ok(BatchResult::failed(self.excluded_call_indexes.len()))
         }
     }
 }
