@@ -1,14 +1,13 @@
 import { SafeFactory } from '@safe-global/protocol-kit';
 import { SafeAccountConfig } from '@safe-global/protocol-kit';
 
-import { getChainMetadata } from '../../config/registry.js';
-import {
-  GCP_PROJECT_ID,
-  getSecretManagerServiceClient,
-} from '../../src/utils/gcloud.js';
+import { Contexts } from '../../config/contexts.js';
+import { getChain } from '../../config/registry.js';
+import { Role } from '../../src/roles.js';
 import { readJSONAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
+  getKeyForRole,
   withChainRequired,
   withSafeTxServiceUrlRequired,
   withThreshold,
@@ -21,8 +20,8 @@ async function main() {
     withSafeTxServiceUrlRequired(withChainRequired(getArgs())),
   ).argv;
 
-  const chainMetadata = await getChainMetadata();
-  const rpcUrls = chainMetadata[chain].rpcUrls;
+  const chainMetadata = await getChain(chain);
+  const rpcUrls = chainMetadata.rpcUrls;
   const deployerPrivateKey = await getDeployerPrivateKey();
 
   let safeFactory;
@@ -62,21 +61,14 @@ async function main() {
 }
 
 const getDeployerPrivateKey = async () => {
-  const client = await getSecretManagerServiceClient();
+  const key = await getKeyForRole(
+    'mainnet3',
+    Contexts.Hyperlane,
+    Role.Deployer,
+  );
+  await key.fetch();
 
-  const [version] = await client.accessSecretVersion({
-    name: `projects/${GCP_PROJECT_ID}/secrets/hyperlane-mainnet3-key-deployer/versions/latest`,
-  });
-
-  const payload = version.payload?.data;
-
-  if (!payload) {
-    throw new Error('No payload found for deployer key secret');
-  }
-
-  const { privateKey } = JSON.parse(payload.toString());
-
-  return privateKey;
+  return key.privateKey;
 };
 
 main()
