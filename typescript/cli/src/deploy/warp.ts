@@ -423,7 +423,7 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
   WarpCoreConfigSchema.parse(warpCoreConfig);
   const addresses = await registry.getAddresses();
 
-  const tokenConfigsByChain = Object.fromEntries(
+  const warpCoreConfigByChain = Object.fromEntries(
     warpCoreConfig.tokens.map((token) => [
       token.chainName,
       token,
@@ -444,7 +444,7 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
   );
 
   const warpDeployChains = Object.keys(warpDeployConfig);
-  const warpCoreChains = Object.keys(tokenConfigsByChain);
+  const warpCoreChains = Object.keys(warpCoreConfigByChain);
   if (warpDeployChains.length === warpCoreChains.length) {
     logGray('Updating deployed Warp Routes');
     await promiseObjAll(
@@ -459,7 +459,8 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
               config,
               chain,
               addresses: {
-                deployedTokenRoute: tokenConfigsByChain[chain].addressOrDenom!,
+                deployedTokenRoute:
+                  warpCoreConfigByChain[chain].addressOrDenom!,
               },
             },
             contractVerifier,
@@ -486,43 +487,40 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
     logGray('Extending deployed Warp configs');
 
     // Split between the existing and additional config
-    const existingConfig: WarpRouteDeployConfig = objFilter(
+    const existingConfigs: WarpRouteDeployConfig = objFilter(
       warpDeployConfig,
       (chain, _config): _config is any => warpCoreChains.includes(chain),
     );
 
-    const extendedConfig: WarpRouteDeployConfig = objFilter(
+    let extendedConfigs: WarpRouteDeployConfig = objFilter(
       warpDeployConfig,
       (chain, _config): _config is any => !warpCoreChains.includes(chain),
     );
 
     const existingTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       multiProvider,
-      existingConfig,
+      existingConfigs,
     );
-    const mergedConfig: WarpRouteDeployConfig = objMap(
-      extendedConfig,
-      (_chain, extendedTokenMetadata) => {
-        return {
-          ...extendedTokenMetadata,
-          ...existingTokenMetadata,
-        };
-      },
-    );
+    extendedConfigs = objMap(extendedConfigs, (_chain, extendedConfig) => {
+      return {
+        ...extendedConfig,
+        ...existingTokenMetadata,
+      };
+    });
 
     const newExtensionContracts = await executeDeploy(
       {
         // TODO: use EvmERC20WarpModule when it's ready
         context,
-        warpDeployConfig: mergedConfig,
+        warpDeployConfig: extendedConfigs,
       },
       apiKeys,
     );
 
     const existingContractAddresses = objMap(
-      existingConfig,
+      existingConfigs,
       (chain, config) => ({
-        [config.type]: tokenConfigsByChain[chain].addressOrDenom!,
+        [config.type]: warpCoreConfigByChain[chain].addressOrDenom!,
       }),
     );
     const mergedRouters = {
