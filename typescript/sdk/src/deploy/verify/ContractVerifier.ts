@@ -217,13 +217,7 @@ export class ContractVerifier {
   ): Promise<void> {
     const contractType: string = input.isProxy ? 'proxy' : 'implementation';
 
-    verificationLogger.debug(
-      {
-        name: input.name,
-        address: input.address,
-      },
-      `📝 Verifying ${contractType}...`,
-    );
+    verificationLogger.debug(`📝 Verifying ${contractType}...`);
 
     const data = input.isProxy
       ? this.getProxyData(input)
@@ -240,11 +234,7 @@ export class ContractVerifier {
       );
 
       verificationLogger.trace(
-        {
-          guid,
-          name: input.name,
-          address: input.address,
-        },
+        { guid },
         `Retrieved guid from verified ${contractType}.`,
       );
 
@@ -266,18 +256,12 @@ export class ContractVerifier {
           addressUrl: addressUrl
             ? `${addressUrl}#code`
             : `Could not retrieve ${contractType} explorer URL.`,
-          name: input.name,
-          address: input.address,
         },
         `✅ Successfully verified ${contractType}.`,
       );
     } catch (error) {
       verificationLogger.debug(
-        {
-          name: input.name,
-          address: input.address,
-          error,
-        },
+        { error },
         `Verification of ${contractType} failed`,
       );
       throw error;
@@ -291,14 +275,7 @@ export class ContractVerifier {
     guid: string,
     contractType: string,
   ): Promise<void> {
-    verificationLogger.trace(
-      {
-        guid,
-        name: input.name,
-        address: input.address,
-      },
-      `Checking ${contractType} status...`,
-    );
+    verificationLogger.trace({ guid }, `Checking ${contractType} status...`);
     await this.submitForm(
       chain,
       input.isProxy
