@@ -115,12 +115,12 @@ export class EvmERC20WarpRouteReader {
     }
 
     // Finally check native
-    // Using estimateGas to send 1 wei. Success implies that the Warp Route has a receive() function
+    // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
     try {
       await this.multiProvider.estimateGas(this.chain, {
         to: warpRouteAddress,
         from: await this.multiProvider.getSignerAddress(this.chain),
-        value: BigNumber.from(1),
+        value: BigNumber.from(0),
       });
       return TokenType.native;
     } catch (e) {
