@@ -24,7 +24,7 @@ export class ContractVerifier {
 
   protected contractSourceMap: { [contractName: string]: string } = {};
 
-  protected readonly standardInputJson: string;
+  protected readonly standardInputJson: SolidityStandardJsonInput;
   protected readonly compilerOptions: CompilerOptions;
 
   constructor(
@@ -33,10 +33,7 @@ export class ContractVerifier {
     buildArtifact: BuildArtifact,
     licenseType: CompilerOptions['licenseType'],
   ) {
-    const prunedBuildArtifactInput = this.pruneAndMinifyBuildArtifactInput(
-      buildArtifact.input,
-    );
-    this.standardInputJson = JSON.stringify(prunedBuildArtifactInput);
+    this.standardInputJson = buildArtifact.input;
 
     const compilerversion = `v${buildArtifact.solcLongVersion}`;
 
@@ -71,33 +68,49 @@ export class ContractVerifier {
     );
   }
 
-  private pruneAndMinifyBuildArtifactInput(
-    buildArtifactInput: SolidityStandardJsonInput,
-  ): SolidityStandardJsonInput {
-    return {
-      language: buildArtifactInput.language,
-      sources: Object.fromEntries(
-        Object.entries(buildArtifactInput.sources)
-          .filter(
-            ([sourceName]) =>
-              !sourceName.startsWith('contracts/test') &&
-              !sourceName.startsWith('contracts/mock'),
-          )
-          .map(([sourceName, { content }]) => [
-            sourceName,
-            {
-              content: content
-                .split('\n')
-                .map((line) => line.trim())
-                .filter((line) => line !== '')
-                .join('\n')
-                .replace(/^(\/\/ SPDX-License-Identifier: .+)$/m, '$1\n')
-                .replace(/([^\n])\s*(pragma\s+solidity)/g, '$1\n$2'),
-            },
-          ]),
-      ),
-      settings: buildArtifactInput.settings,
-    };
+  public async verifyContract(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    logger = this.logger,
+  ): Promise<void> {
+    const verificationLogger = logger.child({
+      chain,
+      name: input.name,
+      address: input.address,
+    });
+
+    const metadata = this.multiProvider.tryGetChainMetadata(chain);
+    const rpcUrl = metadata?.rpcUrls[0].http ?? '';
+    if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
+      verificationLogger.debug('Skipping verification for local endpoints');
+      return;
+    }
+
+    const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
+    if (!explorerApi) {
+      verificationLogger.debug('No explorer API set, skipping');
+      return;
+    }
+
+    if (!explorerApi.family) {
+      verificationLogger.debug(`No explorer family set, skipping`);
+      return;
+    }
+
+    if (explorerApi.family === ExplorerFamily.Other) {
+      verificationLogger.debug(`Unsupported explorer family, skipping`);
+      return;
+    }
+
+    if (input.address === ethers.constants.AddressZero) return;
+    if (Array.isArray(input.constructorArguments)) {
+      verificationLogger.debug(
+        'Constructor arguments in legacy format, skipping',
+      );
+      return;
+    }
+
+    await this.verify(chain, input, verificationLogger);
   }
 
   private async submitForm(
@@ -340,8 +353,15 @@ export class ContractVerifier {
       throw new Error(`[${chain}] ${errorMessage}`);
     }
 
+    const filteredStandardInputJson =
+      this.filterStandardInputJsonByContractName(
+        input.name,
+        this.standardInputJson,
+        verificationLogger,
+      );
+
     return {
-      sourceCode: this.standardInputJson,
+      sourceCode: JSON.stringify(filteredStandardInputJson),
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       /* TYPO IS ENFORCED BY API */
@@ -350,48 +370,88 @@ export class ContractVerifier {
     };
   }
 
-  public async verifyContract(
-    chain: ChainName,
-    input: ContractVerificationInput,
-    logger = this.logger,
-  ): Promise<void> {
-    const verificationLogger = logger.child({
-      chain,
-      name: input.name,
-      address: input.address,
-    });
+  /**
+   * Filters the solidity standard input for a specific contract name.
+   *
+   * This is a BFS impl to traverse the source input dependency graph.
+   * 1. Named contract file is set as root node.
+   * 2. The next level is formed by the direct imports of the contract file.
+   * 3. Each subsequent level's dependencies form the next level, etc.
+   * 4. The queue tracks the next files to process, and ensures the dependency graph explorered level by level.
+   */
+  private filterStandardInputJsonByContractName(
+    contractName: string,
+    input: SolidityStandardJsonInput,
+    verificationLogger: Logger,
+  ): SolidityStandardJsonInput {
+    verificationLogger.trace(
+      { contractName },
+      'Filtering unused contracts from solidity standard input JSON....',
+    );
+    const filteredSources: SolidityStandardJsonInput['sources'] = {};
+    const sourceFiles: string[] = Object.keys(input.sources);
+    const contractFile: string = this.getContractFile(
+      contractName,
+      sourceFiles,
+    );
+    const queue: string[] = [contractFile];
+    const processed = new Set<string>();
 
-    const metadata = this.multiProvider.tryGetChainMetadata(chain);
-    const rpcUrl = metadata?.rpcUrls[0].http ?? '';
-    if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
-      verificationLogger.debug('Skipping verification for local endpoints');
-      return;
+    while (queue.length > 0) {
+      const file = queue.shift()!;
+      if (processed.has(file)) continue;
+      processed.add(file);
+
+      filteredSources[file] = input.sources[file];
+
+      const content = input.sources[file].content;
+      const importStatements = this.getAllImportStatements(content);
+
+      importStatements.forEach((importStatement) => {
+        const importPath = importStatement.match(/["']([^"']+)["']/)?.[1];
+        if (importPath) {
+          const resolvedPath = this.resolveImportPath(file, importPath);
+          if (sourceFiles.includes(resolvedPath)) queue.push(resolvedPath);
+        }
+      });
     }
 
-    const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
-    if (!explorerApi) {
-      verificationLogger.debug('No explorer API set, skipping');
-      return;
-    }
+    return {
+      ...input,
+      sources: filteredSources,
+    };
+  }
 
-    if (!explorerApi.family) {
-      verificationLogger.debug(`No explorer family set, skipping`);
-      return;
+  private getContractFile(contractName: string, sourceFiles: string[]): string {
+    const contractFile = sourceFiles.find((file) =>
+      file.endsWith(`/${contractName}.sol`),
+    );
+    if (!contractFile) {
+      throw new Error(`Contract ${contractName} not found in sources.`);
     }
+    return contractFile;
+  }
 
-    if (explorerApi.family === ExplorerFamily.Other) {
-      verificationLogger.debug(`Unsupported explorer family, skipping`);
-      return;
+  private getAllImportStatements(content: string) {
+    const importRegex =
+      /import\s+(?:(?:(?:"[^"]+"|'[^']+')\s*;)|(?:{[^}]+}\s+from\s+(?:"[^"]+"|'[^']+')\s*;)|(?:\s*(?:"[^"]+"|'[^']+')\s*;))/g;
+    return content.match(importRegex) || [];
+  }
+
+  private resolveImportPath(currentFile: string, importPath: string): string {
+    /* Use as-is for external dependencies and absolute imports */
+    if (importPath.startsWith('@') || importPath.startsWith('http')) {
+      return importPath;
     }
-
-    if (input.address === ethers.constants.AddressZero) return;
-    if (Array.isArray(input.constructorArguments)) {
-      verificationLogger.debug(
-        'Constructor arguments in legacy format, skipping',
-      );
-      return;
-    }
-
-    await this.verify(chain, input, verificationLogger);
+    const currentDir = currentFile.split('/').slice(0, -1).join('/');
+    const resolvedPath = importPath.split('/').reduce((acc, part) => {
+      if (part === '..') {
+        acc.pop();
+      } else if (part !== '.') {
+        acc.push(part);
+      }
+      return acc;
+    }, currentDir.split('/'));
+    return resolvedPath.join('/');
   }
 }
