@@ -79,27 +79,37 @@ export class ContractVerifier {
       apiKey = this.apiKeys[chain],
     } = this.multiProvider.getExplorerApi(chain);
     const params = new URLSearchParams();
+
     params.set('module', 'contract');
     params.set('action', action);
+    if (apiKey) params.set('apikey', apiKey);
 
-    // no need to provide every argument for every request
     for (const [key, value] of Object.entries(options ?? {})) {
       params.set(key, value);
     }
 
-    // only include apikey if provided & not blockscout
-    if (family !== ExplorerFamily.Blockscout && apiKey) {
-      params.set('apikey', apiKey);
-    }
-
+    let timeout: number = 1000;
     const url = new URL(apiUrl);
     const isGetRequest = EXPLORER_GET_ACTIONS.includes(action);
-    if (isGetRequest) {
-      url.search = params.toString();
-    } else if (family === ExplorerFamily.Blockscout) {
-      // Blockscout requires module and action to be query params
-      url.searchParams.set('module', 'contract');
-      url.searchParams.set('action', action);
+    if (isGetRequest) url.search = params.toString();
+
+    switch (family) {
+      case ExplorerFamily.Etherscan:
+        timeout = 5000;
+        break;
+      case ExplorerFamily.Blockscout:
+        timeout = 1000;
+        url.searchParams.set('module', 'contract');
+        url.searchParams.set('action', action);
+        break;
+      case ExplorerFamily.Routescan:
+        timeout = 500;
+        break;
+      case ExplorerFamily.Other:
+      default:
+        throw new Error(
+          `Unsupported explorer family: ${family}, ${chain}, ${apiUrl}`,
+        );
     }
 
     verificationLogger.trace(
@@ -150,13 +160,13 @@ export class ContractVerifier {
 
       switch (responseJson.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
-          await sleep(5000);
           verificationLogger.trace(
             {
               result: responseJson.result,
             },
             'Verification still pending',
           );
+          await sleep(timeout);
           return this.submitForm(chain, action, verificationLogger, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
@@ -179,7 +189,7 @@ export class ContractVerifier {
     }
 
     if (responseJson.result === ExplorerApiErrors.UNKNOWN_UID) {
-      await sleep(1000); // wait 1 second
+      await sleep(timeout);
       return this.submitForm(chain, action, verificationLogger, options);
     }
 
@@ -195,84 +205,101 @@ export class ContractVerifier {
       { apiUrl, chain, result: responseJson.result },
       'Returning result from explorer.',
     );
+
+    await sleep(timeout);
     return responseJson.result;
   }
 
-  private async verifyProxy(
+  private async verify(
     chain: ChainName,
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
-    verificationLogger.debug(`📝 Verifying proxy at ${input.address}...`);
+    const contractType: string = input.isProxy ? 'proxy' : 'implementation';
+
+    verificationLogger.debug(`📝 Verifying ${contractType}...`);
+
+    const data = input.isProxy
+      ? this.getProxyData(input)
+      : this.getImplementationData(chain, input, verificationLogger);
 
     try {
-      const proxyGuid = await this.markProxy(chain, input, verificationLogger);
-
-      verificationLogger.trace({ proxyGuid }, 'Checking proxy status...');
-      await this.submitForm(
+      const guid: string = await this.submitForm(
         chain,
-        ExplorerApiActions.CHECK_PROXY_STATUS,
+        input.isProxy
+          ? ExplorerApiActions.VERIFY_PROXY
+          : ExplorerApiActions.VERIFY_IMPLEMENTATION,
         verificationLogger,
-        {
-          guid: proxyGuid,
-        },
+        data,
       );
+
+      verificationLogger.trace(
+        { guid },
+        `Retrieved guid from verified ${contractType}.`,
+      );
+
+      await this.checkStatus(
+        chain,
+        input,
+        verificationLogger,
+        guid,
+        contractType,
+      );
+
       const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
         input.address,
       );
+
       verificationLogger.debug(
         {
-          url: `${addressUrl}#readProxyContract`,
+          addressUrl: addressUrl
+            ? `${addressUrl}#code`
+            : `Could not retrieve ${contractType} explorer URL.`,
         },
-        `✅ Successfully verified proxy`,
+        `✅ Successfully verified ${contractType}.`,
       );
     } catch (error) {
       verificationLogger.debug(
         { error },
-        `Verification of proxy at ${input.address} failed`,
+        `Verification of ${contractType} failed`,
       );
       throw error;
     }
   }
 
-  private async markProxy(
+  private async checkStatus(
     chain: ChainName,
     input: ContractVerificationInput,
     verificationLogger: Logger,
-  ): Promise<string> {
-    try {
-      const proxyGuid = await this.submitForm(
-        chain,
-        ExplorerApiActions.VERIFY_PROXY,
-        verificationLogger,
-        {
-          address: input.address,
-          expectedimplementation: input.expectedimplementation,
-        },
-      );
-      verificationLogger.trace(
-        { proxyGuid },
-        'Retrieved guid from verified proxy.',
-      );
-      return proxyGuid;
-    } catch (error) {
-      verificationLogger.debug(
-        `Marking of proxy at ${input.address} failed: ${error}`,
-      );
-      throw error;
-    }
-  }
-
-  private async verifyImplementation(
-    chain: ChainName,
-    input: ContractVerificationInput,
-    verificationLogger: Logger,
+    guid: string,
+    contractType: string,
   ): Promise<void> {
-    verificationLogger.debug(
-      `📝 Verifying implementation at ${input.address}...`,
+    verificationLogger.trace({ guid }, `Checking ${contractType} status...`);
+    await this.submitForm(
+      chain,
+      input.isProxy
+        ? ExplorerApiActions.CHECK_PROXY_STATUS
+        : ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS,
+      verificationLogger,
+      {
+        guid: guid,
+      },
     );
+  }
 
+  private getProxyData(input: ContractVerificationInput) {
+    return {
+      address: input.address,
+      expectedimplementation: input.expectedimplementation,
+    };
+  }
+
+  private getImplementationData(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    verificationLogger: Logger,
+  ) {
     const sourceName = this.contractSourceMap[input.name];
     if (!sourceName) {
       const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
@@ -280,44 +307,26 @@ export class ContractVerifier {
       throw new Error(`[${chain}] ${errorMessage}`);
     }
 
-    const data = {
+    return {
       sourceCode: this.standardInputJson,
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
-      // TYPO IS ENFORCED BY API
+      /* TYPO IS ENFORCED BY API */
       constructorArguements: strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
-
-    const guid = await this.submitForm(
-      chain,
-      ExplorerApiActions.VERIFY_IMPLEMENTATION,
-      verificationLogger,
-      data,
-    );
-    if (!guid) return;
-
-    await this.submitForm(
-      chain,
-      ExplorerApiActions.CHECK_STATUS,
-      verificationLogger,
-      { guid },
-    );
-    const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-      chain,
-      input.address,
-    );
-    verificationLogger.debug(
-      `✅ Successfully verified implementation ${addressUrl}#code`,
-    );
   }
 
-  async verifyContract(
+  public async verifyContract(
     chain: ChainName,
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    const verificationLogger = logger.child({ chain, name: input.name });
+    const verificationLogger = logger.child({
+      chain,
+      name: input.name,
+      address: input.address,
+    });
 
     const metadata = this.multiProvider.tryGetChainMetadata(chain);
     const rpcUrl = metadata?.rpcUrls[0].http ?? '';
@@ -350,7 +359,6 @@ export class ContractVerifier {
       return;
     }
 
-    if (input.isProxy) await this.verifyProxy(chain, input, verificationLogger);
-    else await this.verifyImplementation(chain, input, verificationLogger);
+    await this.verify(chain, input, verificationLogger);
   }
 }

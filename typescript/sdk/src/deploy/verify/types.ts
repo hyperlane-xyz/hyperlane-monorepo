@@ -49,12 +49,12 @@ export enum ExplorerApiActions {
   GETSOURCECODE = 'getsourcecode',
   VERIFY_IMPLEMENTATION = 'verifysourcecode',
   VERIFY_PROXY = 'verifyproxycontract',
-  CHECK_STATUS = 'checkverifystatus',
+  CHECK_IMPLEMENTATION_STATUS = 'checkverifystatus',
   CHECK_PROXY_STATUS = 'checkproxyverification',
 }
 
 export const EXPLORER_GET_ACTIONS = [
-  ExplorerApiActions.CHECK_STATUS,
+  ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS,
   ExplorerApiActions.CHECK_PROXY_STATUS,
   ExplorerApiActions.GETSOURCECODE,
 ];
@@ -80,14 +80,15 @@ export type FormOptions<Action extends ExplorerApiActions> =
         contractaddress: string;
         sourceCode: string;
         contractname: string;
-        constructorArguements?: string; // TYPO IS ENFORCED BY API
+        /* TYPO IS ENFORCED BY API */
+        constructorArguements?: string;
       }
     : Action extends ExplorerApiActions.VERIFY_PROXY
     ? {
         address: string;
         expectedimplementation: string;
       }
-    : Action extends ExplorerApiActions.CHECK_STATUS
+    : Action extends ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS
     ? {
         guid: string;
       }
