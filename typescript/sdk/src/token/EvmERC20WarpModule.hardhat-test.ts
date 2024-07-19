@@ -33,7 +33,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { RemoteRouter } from '../router/types.js';
+import { RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 
@@ -42,7 +42,7 @@ import { TokenType } from './config.js';
 import { TokenRouterConfig } from './schemas.js';
 
 const randomRemoteRouters = (n: number) => {
-  const routers: RemoteRouter = {};
+  const routers: RemoteRouters = {};
   for (let domain = 0; domain < n; domain++) {
     routers[domain] = randomAddress();
   }

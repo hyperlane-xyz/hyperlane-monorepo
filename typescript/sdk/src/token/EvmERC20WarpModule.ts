@@ -134,7 +134,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       );
 
       updateTransactions.push({
-        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute}}`,
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         chainId: this.domainId,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData(
@@ -166,34 +166,37 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     if (!expectedConfig.interchainSecurityModule) {
       return [];
     }
-    const actualDeployedIsm = (
-      actualConfig.interchainSecurityModule as DerivedIsmConfig
-    ).address;
 
-    // Try to update (may also deploy) Ism with the expected config
-    const {
-      deployedIsm: expectedDeployedIsm,
-      updateTransactions: ismUpdateTransactions,
-    } = await this.deployOrUpdateIsm(actualConfig, expectedConfig);
+    if (expectedConfig.ismFactoryAddresses) {
+      const actualDeployedIsm = (
+        actualConfig.interchainSecurityModule as DerivedIsmConfig
+      ).address;
 
-    // If an ISM is updated in-place, push the update txs
-    updateTransactions.push(...ismUpdateTransactions);
+      // Try to update (may also deploy) Ism with the expected config
+      const {
+        deployedIsm: expectedDeployedIsm,
+        updateTransactions: ismUpdateTransactions,
+      } = await this.deployOrUpdateIsm(actualConfig, expectedConfig);
 
-    // If a new ISM is deployed, push the setInterchainSecurityModule tx
-    if (actualDeployedIsm !== expectedDeployedIsm) {
-      const contractToUpdate = MailboxClient__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.domainId),
-      );
-      updateTransactions.push({
-        annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        chainId: this.domainId,
-        to: contractToUpdate.address,
-        data: contractToUpdate.interface.encodeFunctionData(
-          'setInterchainSecurityModule',
-          [expectedDeployedIsm],
-        ),
-      });
+      // If an ISM is updated in-place, push the update txs
+      updateTransactions.push(...ismUpdateTransactions);
+
+      // If a new ISM is deployed, push the setInterchainSecurityModule tx
+      if (actualDeployedIsm !== expectedDeployedIsm) {
+        const contractToUpdate = MailboxClient__factory.connect(
+          this.args.addresses.deployedTokenRoute,
+          this.multiProvider.getProvider(this.domainId),
+        );
+        updateTransactions.push({
+          annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
+          chainId: this.domainId,
+          to: contractToUpdate.address,
+          data: contractToUpdate.interface.encodeFunctionData(
+            'setInterchainSecurityModule',
+            [expectedDeployedIsm],
+          ),
+        });
+      }
     }
 
     return updateTransactions;
