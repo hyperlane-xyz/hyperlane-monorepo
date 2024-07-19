@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Add hyperlane warp with extend
+Add hyperlane warp update to extend a warp config
