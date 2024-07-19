@@ -198,33 +198,6 @@ export class ContractVerifier {
     return responseJson.result;
   }
 
-  // private async isAlreadyVerified(
-  //   chain: ChainName,
-  //   input: ContractVerificationInput,
-  //   verificationLogger: Logger,
-  // ): Promise<boolean> {
-  //   try {
-  //     const result = await this.submitForm(
-  //       chain,
-  //       ExplorerApiActions.GETSOURCECODE,
-  //       verificationLogger,
-  //       {
-  //         address: input.address,
-  //       },
-  //     );
-  //     return !!result[0]?.SourceCode;
-  //   } catch (error: any) {
-  //     // This specific error message is thrown when a contract is not verified.
-  //     if (!error.message.includes(ExplorerApiErrors.NOT_VERIFIED.toString())) {
-  //       verificationLogger.debug(
-  //         { error },
-  //         'Error checking if contract is already verified',
-  //       );
-  //     }
-  //     return false;
-  //   }
-  // }
-
   private async verifyProxy(
     chain: ChainName,
     input: ContractVerificationInput,
@@ -376,18 +349,6 @@ export class ContractVerifier {
       );
       return;
     }
-
-    // if (await this.isAlreadyVerified(chain, input, verificationLogger)) {
-    //   const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
-    //     chain,
-    //     input.address,
-    //   );
-    //   verificationLogger.debug(
-    //     `Contract already verified at ${addressUrl}#code`,
-    //   );
-    //   await sleep(200); // 5 calls/s (https://info.etherscan.com/api-return-errors/)
-    //   return;
-    // }
 
     if (input.isProxy) await this.verifyProxy(chain, input, verificationLogger);
     else await this.verifyImplementation(chain, input, verificationLogger);
