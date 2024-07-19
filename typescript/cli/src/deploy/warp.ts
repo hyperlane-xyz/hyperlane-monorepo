@@ -15,6 +15,7 @@ import {
   HypERC20Deployer,
   HypERC20Factories,
   HypERC721Deployer,
+  HypERC721Factories,
   HyperlaneAddresses,
   HyperlaneContracts,
   HyperlaneContractsMap,
@@ -163,7 +164,10 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
-async function executeDeploy(params: DeployParams, apiKeys: ChainMap<string>) {
+async function executeDeploy(
+  params: DeployParams,
+  apiKeys: ChainMap<string>,
+): Promise<HyperlaneContractsMap<HypERC20Factories | HypERC721Factories>> {
   logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
   const {
@@ -173,7 +177,7 @@ async function executeDeploy(params: DeployParams, apiKeys: ChainMap<string>) {
 
   const deployer = warpDeployConfig.isNft
     ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider); // @TODO replace with EvmERC20WarpModule
+    : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
   const config: WarpRouteDeployConfig =
     isDryRun && dryRunChain
@@ -382,7 +386,7 @@ async function getWarpCoreConfig(
   return warpCoreConfig;
 }
 
-export async function runWarpRouteApply(params: ApplyParams) {
+export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
   const { warpDeployConfig, warpCoreConfig, context } = params;
   const { registry, multiProvider, chainMetadata, skipConfirmation } = context;
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
@@ -476,7 +480,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
     // Deploy and enrolls additional routers with each other
     const newDeployedContracts = await executeDeploy(
       {
-        // @TODO use EvmERC20WarpModule when it's ready
+        // TODO: use EvmERC20WarpModule when it's ready
         context,
         warpDeployConfig: additionalConfig,
       },
