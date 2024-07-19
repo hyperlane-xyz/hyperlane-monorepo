@@ -17,8 +17,19 @@ export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
 
+const RemoteRouterDomain = z.string();
+const RemoteRouterRouter = z.string().startsWith('0x');
+export const RemoteRouterSchema = z.record(
+  RemoteRouterDomain,
+  RemoteRouterRouter,
+);
+
 export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   ForeignDeploymentConfigSchema,
+).merge(
+  z.object({
+    remoteRouters: RemoteRouterSchema.optional(),
+  }),
 );
 
 export const GasRouterConfigSchema = RouterConfigSchema.extend({

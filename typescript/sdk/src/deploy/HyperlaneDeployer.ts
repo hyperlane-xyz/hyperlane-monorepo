@@ -389,9 +389,9 @@ export abstract class HyperlaneDeployer<
     }
 
     this.logger.info(
-      `Deploy ${contractName} on ${chain} with constructor args (${constructorArgs.join(
+      `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
-      )})`,
+      )})...`,
     );
     const contract = await this.multiProvider.handleDeploy(
       chain,

@@ -1,12 +1,16 @@
 import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
+  ChainMap,
   ChainName,
+  ContractVerifier,
   EvmERC20WarpModule,
   EvmIsmModule,
+  ExplorerLicenseType,
   HypERC20Deployer,
   HypERC721Deployer,
   HyperlaneAddresses,
@@ -38,6 +42,7 @@ import {
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
+import { getOrRequestApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import {
   log,
@@ -75,7 +80,7 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const { signer, skipConfirmation } = context;
+  const { signer, skipConfirmation, chainMetadata } = context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -98,13 +103,18 @@ export async function runWarpRouteDeploy({
     context,
   );
 
+  const chains = Object.keys(warpRouteConfig);
+
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+
   const deploymentParams = {
     context,
     warpDeployConfig: warpRouteConfig,
   };
 
   await runDeployPlanStep(deploymentParams);
-  const chains = Object.keys(warpRouteConfig);
 
   await runPreflightChecksForChains({
     context,
@@ -116,7 +126,7 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await prepareDeploy(context, userAddress, chains);
 
-  await executeDeploy(deploymentParams);
+  await executeDeploy(deploymentParams, apiKeys);
 
   await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
 }
@@ -134,8 +144,8 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   if (!isConfirmed) throw new Error('Deployment cancelled');
 }
 
-async function executeDeploy(params: DeployParams) {
-  logBlue('All systems ready, captain! Beginning deployment...');
+async function executeDeploy(params: DeployParams, apiKeys: ChainMap<string>) {
+  logBlue('🚀 All systems ready, captain! Beginning deployment...');
 
   const {
     warpDeployConfig,
@@ -151,7 +161,17 @@ async function executeDeploy(params: DeployParams) {
       ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
       : warpDeployConfig;
 
-  const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
+
+  const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(
+    multiProvider,
+    contractVerifier,
+  );
 
   // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
   // Then return a modified config with the ism address as a string
@@ -160,6 +180,7 @@ async function executeDeploy(params: DeployParams) {
     multiProvider,
     registry,
     ismFactoryDeployer,
+    contractVerifier,
   );
 
   const deployedContracts = await deployer.deploy(modifiedConfig);
@@ -179,6 +200,7 @@ async function deployAndResolveWarpIsm(
   multiProvider: MultiProvider,
   registry: IRegistry,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
+  contractVerifier?: ContractVerifier,
 ): Promise<WarpRouteDeployConfig> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
@@ -226,6 +248,7 @@ async function deployAndResolveWarpIsm(
           staticMessageIdMultisigIsmFactory:
             chainAddresses.staticMessageIdMultisigIsmFactory,
         },
+        contractVerifier,
       );
 
       logGreen(
@@ -246,6 +269,7 @@ async function createWarpIsm(
   warpConfig: WarpRouteDeployConfig,
   multiProvider: MultiProvider,
   factoryAddresses: HyperlaneAddresses<any>,
+  contractVerifier?: ContractVerifier,
 ): Promise<string> {
   const {
     domainRoutingIsmFactory,
@@ -266,6 +290,7 @@ async function createWarpIsm(
       staticMessageIdMultisigIsmFactory,
     },
     config: warpConfig[chain].interchainSecurityModule!,
+    contractVerifier,
   });
   const { deployedIsm } = evmIsmModule.serialize();
   return deployedIsm;
@@ -337,7 +362,7 @@ export async function runWarpRouteApply(params: ApplyParams) {
   const {
     warpDeployConfig,
     warpCoreConfig,
-    context: { registry, multiProvider },
+    context: { registry, multiProvider, chainMetadata, skipConfirmation },
   } = params;
 
   // Addresses used to get static Ism factories
@@ -347,6 +372,19 @@ export async function runWarpRouteApply(params: ApplyParams) {
   // This allows O(1) reads within the loop
   const warpCoreByChain = Object.fromEntries(
     warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+  );
+
+  const chains = Object.keys(warpDeployConfig);
+
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
   );
 
   // Attempt to update Warp Routes
@@ -359,13 +397,17 @@ export async function runWarpRouteApply(params: ApplyParams) {
         config.ismFactoryAddresses = addresses[
           chain
         ] as ProxyFactoryFactoriesAddresses;
-        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
-          config,
-          chain,
-          addresses: {
-            deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
+        const evmERC20WarpModule = new EvmERC20WarpModule(
+          multiProvider,
+          {
+            config,
+            chain,
+            addresses: {
+              deployedTokenRoute: warpCoreByChain[chain].addressOrDenom!,
+            },
           },
-        });
+          contractVerifier,
+        );
         const transactions = await evmERC20WarpModule.update(config);
 
         // Send Txs

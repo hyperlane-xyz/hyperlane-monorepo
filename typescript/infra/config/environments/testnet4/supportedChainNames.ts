@@ -2,6 +2,7 @@
 export const testnet4SupportedChainNames = [
   'alfajores',
   'bsctestnet',
+  'connextsepolia',
   'eclipsetestnet',
   'holesky',
   'fuji',
@@ -9,6 +10,7 @@ export const testnet4SupportedChainNames = [
   'scrollsepolia',
   'sepolia',
   'solanatestnet',
+  'superpositiontestnet',
 ] as const;
 
 export const supportedChainNames = [...testnet4SupportedChainNames];
