@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
 
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IStaticWeightedMultisigIsm, IWeightedMultisigIsm} from "../../interfaces/isms/IWeightedMultisigIsm.sol";
@@ -39,7 +49,11 @@ abstract contract AbstractStaticWeightedMultisigIsm is
             _thresholdWeight > 0 && _thresholdWeight <= BASIS_POINTS,
             "Invalid threshold weight"
         );
-        uint256 _validatorCount = _validators.length;
+
+        uint256 _validatorCount = Math.min(
+            _validators.length,
+            signatureCount(_metadata)
+        );
         uint256 _validatorIndex = 0;
         uint96 _totalWeight = 0;
 

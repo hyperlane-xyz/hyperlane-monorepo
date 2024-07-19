@@ -104,6 +104,8 @@ abstract contract AbstractMultisigIsmTest is Test {
                 messageId
             );
         }
+        console.log("digest: ");
+        console.logBytes32(digest);
 
         uint256[] memory signers = ThresholdTestUtils.choose(
             m,
@@ -111,12 +113,21 @@ abstract contract AbstractMultisigIsmTest is Test {
             seed
         );
 
+        for (uint256 i = 0; i < m; i++) {
+            console.log("signing key: ", signers[i]);
+        }
+
         bytes memory metadata = metadataPrefix(message);
         fixtureInit();
 
         for (uint256 i = 0; i < m; i++) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
+            // console.log("signing s: ");
+            // console.logBytes32(s);
+            // console.logBytes(metadata);
+
             metadata = abi.encodePacked(metadata, r, s, v);
+            // console.logBytes(metadata);
 
             fixtureAppendSignature(i, v, r, s);
         }

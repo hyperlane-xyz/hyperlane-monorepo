@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
@@ -31,7 +43,7 @@ contract MerkleRootStaticWeightedMultisigIsm is
 }
 
 contract MerkleRootWeightedMultisigIsm is
-    AbstractMessageIdMultisigIsm,
+    AbstractMerkleRootMultisigIsm,
     AbstractWeightedMultisigIsm
 {
     uint8 public constant moduleType =

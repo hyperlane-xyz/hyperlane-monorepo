@@ -65,4 +65,10 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisig {
     ) internal pure virtual override returns (bytes calldata) {
         return _metadata.signatureAt(_index);
     }
+
+    function signatureCount(
+        bytes calldata _metadata
+    ) public pure override returns (uint256) {
+        return _metadata.signatureCount();
+    }
 }

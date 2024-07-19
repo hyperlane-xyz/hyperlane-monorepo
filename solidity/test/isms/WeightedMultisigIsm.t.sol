@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {IWeightedMultisigIsm} from "../../contracts/interfaces/isms/IWeightedMultisigIsm.sol";
-import {MessageIdWeightedMultisigIsm} from "../../contracts/isms/multisig/WeightedMultisigIsm.sol";
+import {MerkleRootWeightedMultisigIsm, MessageIdWeightedMultisigIsm} from "../../contracts/isms/multisig/WeightedMultisigIsm.sol";
+
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {AbstractWeightedMultisigIsm} from "../../contracts/isms/multisig/AbstractWeightedMultisigIsm.sol";
@@ -45,7 +44,6 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
             validators[i].signingKey = vm.addr(key);
-            console.log("remaining: ", remainingWeight);
 
             if (i == n - 1) {
                 validators[i].weight = uint96(remainingWeight);
@@ -53,15 +51,14 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
                 uint256 weight = (uint256(
                     keccak256(abi.encode(seed, "weight", i))
                 ) % (remainingWeight + 1));
-
-                console.log("weight: ", weight);
                 validators[i].weight = uint96(weight);
                 remainingWeight -= weight;
             }
         }
-        weightedIsm = new MessageIdWeightedMultisigIsm();
-        weightedIsm.initialize(address(this), validators, 6666);
-        ism = IInterchainSecurityModule(address(weightedIsm));
+
+        address deployedIsm = _initializeIsm(validators, threshold);
+
+        ism = IInterchainSecurityModule(deployedIsm);
         return (keys, validators);
     }
 
@@ -96,7 +93,7 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
             uint256[] memory keys,
             IWeightedMultisigIsm.ValidatorInfo[] memory allValidators
         ) = addValidators(threshold, n, seed);
-        console.log("overflox post: ");
+
         uint96 thresholdWeight = weightedIsm.thresholdWeight();
 
         bytes memory metadata = metadataPrefix(message);
@@ -108,12 +105,11 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
         while (
             totalWeight < thresholdWeight && signerCount < allValidators.length
         ) {
-            console.log("signing key: ", allValidators[signerCount].signingKey);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(
                 keys[signerCount],
                 digest
             );
-            console.logBytes(metadata);
+
             metadata = abi.encodePacked(metadata, r, s, v);
 
             fixtureAppendSignature(signerCount, v, r, s);
@@ -127,32 +123,36 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
         return metadata;
     }
 
-    //     function testVerify_revertInsufficientWeight(
-    //         uint32 destination,
-    //         bytes32 recipient,
-    //         bytes calldata body,
-    //         uint8 m,
-    //         uint8 n,
-    //         bytes32 seed
-    //     ) public {
-    //         vm.assume(0 < m && m <= n && n < 10);
-    //         bytes memory message = getMessage(destination, recipient, body);
-    //         bytes memory metadata = getMetadata(m, n, seed, message);
+    function testVerify_revertInsufficientWeight(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, seed, message);
 
-    //         uint256 signatureCount = (metadata.length - 68) / 65;
+        uint256 signatureCount = weightedIsm.signatureCount(metadata);
+        vm.assume(signatureCount >= 1);
 
-    //         bound(signatureCount, 0, n);
-    //         uint256 newLength = metadata.length - 65;
-    //         bytes memory insufficientMetadata = new bytes(newLength);
+        uint256 newLength = metadata.length - 65;
+        bytes memory insufficientMetadata = new bytes(newLength);
 
-    //         for (uint256 i = 0; i < newLength; i++) {
-    //             insufficientMetadata[i] = metadata[i];
-    //         }
+        for (uint256 i = 0; i < newLength; i++) {
+            insufficientMetadata[i] = metadata[i];
+        }
 
-    //         vm.expectRevert("Insufficient validator weight");
-    //         ism.verify(insufficientMetadata, message);
-    //     }
-    // }
+        vm.expectRevert("Insufficient validator weight");
+        ism.verify(insufficientMetadata, message);
+    }
+
+    function _initializeIsm(
+        IWeightedMultisigIsm.ValidatorInfo[] memory validators,
+        uint96 threshold
+    ) internal virtual returns (address);
 }
 
 contract MerkleRootWeightedMultisigIsmTest is
@@ -180,6 +180,15 @@ contract MerkleRootWeightedMultisigIsmTest is
     {
         return AbstractWeightedMultisigIsmTest.getMetadata(m, n, seed, message);
     }
+
+    function _initializeIsm(
+        IWeightedMultisigIsm.ValidatorInfo[] memory validators,
+        uint96 threshold
+    ) internal override returns (address) {
+        weightedIsm = new MerkleRootWeightedMultisigIsm();
+        weightedIsm.initialize(address(this), validators, threshold);
+        return address(weightedIsm);
+    }
 }
 
 contract MessageIdWeightedMultisigIsmTest is
@@ -206,5 +215,14 @@ contract MessageIdWeightedMultisigIsmTest is
         returns (bytes memory)
     {
         return AbstractWeightedMultisigIsmTest.getMetadata(m, n, seed, message);
+    }
+
+    function _initializeIsm(
+        IWeightedMultisigIsm.ValidatorInfo[] memory validators,
+        uint96 threshold
+    ) internal override returns (address) {
+        weightedIsm = new MessageIdWeightedMultisigIsm();
+        weightedIsm.initialize(address(this), validators, threshold);
+        return address(weightedIsm);
     }
 }
