@@ -422,7 +422,6 @@ where
             .collect::<ChainResult<Vec<_>>>()?;
 
         let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls).await?;
-        // TODO: set the gas limit for the batch call via an override than as `.gas(...)`
         let call = self.add_gas_overrides(batch_call).await?;
 
         let receipt = report_tx(call).await?;
