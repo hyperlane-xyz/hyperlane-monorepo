@@ -16,6 +16,7 @@ export enum ProviderMethod {
   GetTransactionReceipt = 'getTransactionReceipt',
   GetLogs = 'getLogs',
   SendTransaction = 'sendTransaction',
+  MaxPriorityFeePerGas = 'maxPriorityFeePerGas',
 }
 
 export const AllProviderMethods = Object.values(ProviderMethod);

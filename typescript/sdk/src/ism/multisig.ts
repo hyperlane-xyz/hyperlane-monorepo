@@ -1,13 +1,13 @@
 import { objFilter, objMap } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../types';
+import { ChainMap, ChainName } from '../types.js';
 
 import {
   AggregationIsmConfig,
   IsmType,
   MultisigConfig,
   MultisigIsmConfig,
-} from './types';
+} from './types.js';
 
 // build multisigIsmConfig from multisigConfig
 // eg. for { sepolia (local), arbitrumsepolia, scrollsepolia }
@@ -42,7 +42,7 @@ export const buildAggregationIsmConfigs = (
       (chain, config): config is MultisigConfig =>
         chain !== local && chains.includes(chain),
     ),
-    (_, config) => ({
+    (_, config): AggregationIsmConfig => ({
       type: IsmType.AGGREGATION,
       modules: [
         {
@@ -56,5 +56,5 @@ export const buildAggregationIsmConfigs = (
       ],
       threshold: 1,
     }),
-  ) as ChainMap<AggregationIsmConfig>;
+  );
 };

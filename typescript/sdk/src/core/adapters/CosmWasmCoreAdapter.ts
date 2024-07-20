@@ -1,8 +1,8 @@
 import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 
-import { Address, HexString } from '@hyperlane-xyz/utils';
+import { Address, HexString, assert, ensure0x } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
   Coin,
   DefaultHookResponse,
@@ -14,15 +14,20 @@ import {
   OwnerResponse,
   QueryMsg,
   RequiredHookResponse,
-} from '../../cw-types/Mailbox.types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+} from '../../cw-types/Mailbox.types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
-} from '../../providers/ProviderType';
-import { ChainName } from '../../types';
+} from '../../providers/ProviderType.js';
+import { ChainName } from '../../types.js';
 
-import { ICoreAdapter } from './types';
+import { ICoreAdapter } from './types.js';
+
+const MESSAGE_DISPATCH_EVENT_TYPE = 'wasm-mailbox_dispatch';
+const MESSAGE_DISPATCH_ID_EVENT_TYPE = 'wasm-mailbox_dispatch_id';
+const MESSAGE_ID_ATTRIBUTE_KEY = 'message_id';
+const MESSAGE_DESTINATION_ATTRIBUTE_KEY = 'destination';
 
 type MailboxResponse =
   | DefaultHookResponse
@@ -169,8 +174,32 @@ export class CosmWasmCoreAdapter
         `Unsupported provider type for CosmosCoreAdapter ${sourceTx.type}`,
       );
     }
-    // TODO: parse mailbox logs and extract message ids
-    throw new Error('Method not implemented.');
+    const dispatchIdEvents = sourceTx.receipt.events.filter(
+      (e) => e.type === MESSAGE_DISPATCH_ID_EVENT_TYPE,
+    );
+    const dispatchEvents = sourceTx.receipt.events.filter(
+      (e) => e.type === MESSAGE_DISPATCH_EVENT_TYPE,
+    );
+    assert(
+      dispatchIdEvents.length === dispatchEvents.length,
+      'Mismatched dispatch and dispatch id events',
+    );
+    const result: Array<{ messageId: string; destination: ChainName }> = [];
+    for (let i = 0; i < dispatchIdEvents.length; i++) {
+      const idAttribute = dispatchIdEvents[i].attributes.find(
+        (a) => a.key === MESSAGE_ID_ATTRIBUTE_KEY,
+      );
+      const destAttribute = dispatchEvents[i].attributes.find(
+        (a) => a.key === MESSAGE_DESTINATION_ATTRIBUTE_KEY,
+      );
+      assert(idAttribute, 'No message id attribute found in dispatch event');
+      assert(destAttribute, 'No destination attribute found in dispatch event');
+      result.push({
+        messageId: ensure0x(idAttribute.value),
+        destination: this.multiProvider.getChainName(destAttribute.value),
+      });
+    }
+    return result;
   }
 
   async waitForMessageProcessed(

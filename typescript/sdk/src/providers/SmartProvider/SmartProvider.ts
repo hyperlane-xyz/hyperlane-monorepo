@@ -1,9 +1,10 @@
-import debug, { Debugger } from 'debug';
-import { providers } from 'ethers';
+import { BigNumber, providers, utils } from 'ethers';
+import pino, { Logger } from 'pino';
 
 import {
   raceWithContext,
   retryAsync,
+  rootLogger,
   runWithTimeout,
   sleep,
 } from '@hyperlane-xyz/utils';
@@ -13,18 +14,18 @@ import {
   ChainMetadata,
   ExplorerFamily,
   RpcUrl,
-} from '../../metadata/chainMetadataTypes';
+} from '../../metadata/chainMetadataTypes.js';
 
-import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider';
-import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider';
-import { IProviderMethods, ProviderMethod } from './ProviderMethods';
+import { HyperlaneEtherscanProvider } from './HyperlaneEtherscanProvider.js';
+import { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
+import { IProviderMethods, ProviderMethod } from './ProviderMethods.js';
 import {
   ChainMetadataWithRpcConnectionInfo,
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
   SmartProviderOptions,
-} from './types';
+} from './types.js';
 
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
@@ -36,7 +37,7 @@ export class HyperlaneSmartProvider
   extends providers.BaseProvider
   implements IProviderMethods
 {
-  protected logger: Debugger;
+  protected logger: Logger;
 
   // TODO also support blockscout here
   public readonly explorerProviders: HyperlaneEtherscanProvider[];
@@ -53,7 +54,9 @@ export class HyperlaneSmartProvider
     super(network);
     const supportedMethods = new Set<ProviderMethod>();
 
-    this.logger = debug(`hyperlane:SmartProvider:${this.network.chainId}`);
+    this.logger = rootLogger.child({
+      module: `SmartProvider:${this.network.chainId}`,
+    });
 
     if (!rpcUrls?.length && !blockExplorers?.length)
       throw new Error('At least one RPC URL or block explorer is required');
@@ -92,6 +95,44 @@ export class HyperlaneSmartProvider
     }
 
     this.supportedMethods = [...supportedMethods.values()];
+  }
+
+  setLogLevel(level: pino.LevelWithSilentOrString) {
+    this.logger.level = level;
+  }
+
+  async getPriorityFee(): Promise<BigNumber> {
+    try {
+      return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
+    } catch (error) {
+      return BigNumber.from('1500000000');
+    }
+  }
+
+  async getFeeData(): Promise<providers.FeeData> {
+    // override hardcoded getFeedata
+    // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
+    const { block, gasPrice } = await utils.resolveProperties({
+      block: this.getBlock('latest'),
+      gasPrice: this.getGasPrice().catch(() => {
+        return null;
+      }),
+    });
+
+    let lastBaseFeePerGas: BigNumber | null = null,
+      maxFeePerGas: BigNumber | null = null,
+      maxPriorityFeePerGas: BigNumber | null = null;
+
+    if (block?.baseFeePerGas) {
+      // We may want to compute this more accurately in the future,
+      // using the formula "check if the base fee is correct".
+      // See: https://eips.ethereum.org/EIPS/eip-1559
+      lastBaseFeePerGas = block.baseFeePerGas;
+      maxPriorityFeePerGas = await this.getPriorityFee();
+      maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
+    }
+
+    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
   }
 
   static fromChainMetadata(
@@ -171,7 +212,7 @@ export class HyperlaneSmartProvider
       });
       return true;
     } catch (error) {
-      this.logger('Provider is unhealthy', error);
+      this.logger.error('Provider is unhealthy', error);
       return false;
     }
   }
@@ -223,26 +264,40 @@ export class HyperlaneSmartProvider
         );
         const result = await Promise.race([resultPromise, timeoutPromise]);
 
+        const providerMetadata = {
+          providerIndex: pIndex,
+          rpcUrl: provider.getBaseUrl(),
+          method: `${method}(${JSON.stringify(params)})`,
+          chainId: this.network.chainId,
+        };
+
         if (result.status === ProviderStatus.Success) {
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
-          this.logger(
-            `Slow response from provider #${pIndex}.${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+          this.logger.debug(
+            { ...providerMetadata },
+            `Slow response from provider:`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
-          this.logger(
-            `Error from provider #${pIndex}.${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+          this.logger.debug(
+            {
+              error: result.error,
+              ...providerMetadata,
+            },
+            `Error from provider.`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
           pIndex += 1;
         } else {
-          throw new Error('Unexpected result from provider');
+          throw new Error(
+            `Unexpected result from provider: ${JSON.stringify(
+              providerMetadata,
+            )}`,
+          );
         }
 
         // All providers already triggered, wait for one to complete or all to fail/timeout
@@ -300,14 +355,14 @@ export class HyperlaneSmartProvider
   ): Promise<ProviderPerformResult> {
     try {
       if (this.options?.debug)
-        this.logger(
+        this.logger.debug(
           `Provider #${pIndex} performing method ${method} for reqId ${reqId}`,
         );
       const result = await provider.perform(method, params, reqId);
       return { status: ProviderStatus.Success, value: result };
     } catch (error) {
       if (this.options?.debug)
-        this.logger(
+        this.logger.error(
           `Error performing ${method} on provider #${pIndex} for reqId ${reqId}`,
           error,
         );
@@ -353,7 +408,7 @@ export class HyperlaneSmartProvider
     errors: unknown[],
     fallbackMsg: string,
   ): void {
-    this.logger(fallbackMsg);
+    this.logger.error(fallbackMsg);
     // TODO inspect the errors in some clever way to choose which to throw
     if (errors.length > 0) throw errors[0];
     else throw new Error(fallbackMsg);

@@ -11,39 +11,38 @@ import {
   MultiProtocolCore,
   MultiProvider,
   ProviderType,
-  RpcConsensusType,
   TypedTransactionReceipt,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
-  debug,
   ensure0x,
-  error,
-  log,
   objMap,
+  pick,
   retryAsync,
+  rootLogger,
+  sleep,
   strip0x,
   timeout,
-  warn,
 } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { testnetConfigs } from '../../config/environments/testnet4/chains';
+import { Contexts } from '../../config/contexts.js';
 import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
-} from '../../config/environments/testnet4/helloworld';
-import { owners } from '../../config/environments/testnet4/owners';
-import { CloudAgentKey } from '../../src/agents/keys';
-import { DeployEnvironment } from '../../src/config/environment';
-import { Role } from '../../src/roles';
-import { startMetricsServer } from '../../src/utils/metrics';
-import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, withContext } from '../agent-utils';
-import { getEnvironmentConfig } from '../core-utils';
+} from '../../config/environments/testnet4/helloworld.js';
+import { owners } from '../../config/environments/testnet4/owners.js';
+import { CloudAgentKey } from '../../src/agents/keys.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
+import { Role } from '../../src/roles.js';
+import { startMetricsServer } from '../../src/utils/metrics.js';
+import { assertChain, diagonalize } from '../../src/utils/utils.js';
+import { getArgs, withContext } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
-import { getHelloWorldMultiProtocolApp } from './utils';
+import { getHelloWorldMultiProtocolApp } from './utils.js';
+
+const logger = rootLogger.child({ module: 'kathy' });
 
 const metricsRegister = new Registry();
 // TODO rename counter names
@@ -127,16 +126,6 @@ function getKathyArgs() {
       chainStrs.map((chainStr: string) => assertChain(chainStr)),
     )
 
-    .string('connection-type')
-    .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', RpcConsensusType.Single)
-    .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
-      RpcConsensusType.Fallback,
-    ])
-    .demandOption('connection-type')
-
     .number('cycles-between-ethereum-messages')
     .describe(
       'cycles-between-ethereum-messages',
@@ -155,17 +144,15 @@ async function main(): Promise<boolean> {
     fullCycleTime,
     messageSendTimeout,
     messageReceiptTimeout,
-    connectionType,
     cyclesBetweenEthereumMessages,
   } = await getKathyArgs();
 
   let errorOccurred = false;
 
   startMetricsServer(metricsRegister);
-  debug('Starting up', { environment });
+  logger.debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
-  // const coreConfig = getCoreConfigStub(environment);
 
   const { app, core, igp, multiProvider, keys } =
     await getHelloWorldMultiProtocolApp(
@@ -173,7 +160,6 @@ async function main(): Promise<boolean> {
       context,
       Role.Kathy,
       undefined,
-      connectionType,
     );
 
   const appChains = app.chains();
@@ -202,7 +188,7 @@ async function main(): Promise<boolean> {
     .filter((v) => v !== null)
     .map((v) => v!);
 
-  debug('Pairings calculated', { chains, pairings });
+  logger.debug('Pairings calculated', { chains, pairings });
 
   let allowedToSend: number;
   let currentPairingIndex: number;
@@ -214,7 +200,7 @@ async function main(): Promise<boolean> {
     // Start with pairing 0
     currentPairingIndex = 0;
 
-    debug('Cycling once through all pairs');
+    logger.debug('Cycling once through all pairs');
   } else {
     // If we are not cycling just once and are running this as a service, do so at an interval.
     // Track how many we are still allowed to send in case some messages send slower than expected.
@@ -223,14 +209,14 @@ async function main(): Promise<boolean> {
     // in case we are restarting kathy, keep it from always running the exact same messages first
     currentPairingIndex = Date.now() % pairings.length;
 
-    debug('Running as a service', {
+    logger.debug('Running as a service', {
       sendFrequency,
     });
 
     setInterval(() => {
       // bucket cap since if we are getting really behind it probably does not make sense to let it run away.
       allowedToSend = Math.min(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
-      debug('Tick; allowed to send another message', {
+      logger.debug('Tick; allowed to send another message', {
         allowedToSend,
         sendFrequency,
       });
@@ -246,9 +232,13 @@ async function main(): Promise<boolean> {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  chains.map((chain) =>
-    updateWalletBalanceMetricFor(app, chain, coreConfig.owners[chain].owner),
-  );
+  chains.map(async (chain) => {
+    return updateWalletBalanceMetricFor(
+      app,
+      chain,
+      coreConfig.owners[chain].owner,
+    );
+  });
 
   // Incremented each time an entire cycle has occurred
   let currentCycle = 0;
@@ -265,7 +255,7 @@ async function main(): Promise<boolean> {
         await app.stats(),
       )) {
         for (const [destination, counts] of Object.entries(destinationStats)) {
-          debug('Message stats', {
+          logger.debug('Message stats', {
             origin,
             destination,
             currentCycle,
@@ -278,7 +268,7 @@ async function main(): Promise<boolean> {
       cycleMessageCount = 0;
 
       if (cycleOnce) {
-        log('Finished cycling through all pairs once');
+        logger.info('Finished cycling through all pairs once');
         // Return true to signify messages should stop being sent.
         return true;
       }
@@ -310,7 +300,7 @@ async function main(): Promise<boolean> {
       (origin === 'ethereum' || destination === 'ethereum') &&
       currentCycle % (cyclesBetweenEthereumMessages + 1) !== 0
     ) {
-      debug('Skipping message to/from Ethereum', {
+      logger.debug('Skipping message to/from Ethereum', {
         currentCycle,
         origin,
         destination,
@@ -334,7 +324,7 @@ async function main(): Promise<boolean> {
     // In the cycle-once case, the loop is expected to exit before ever hitting
     // this condition.
     if (allowedToSend <= 0) {
-      debug('Waiting before sending next message', {
+      logger.debug('Waiting before sending next message', {
         ...logCtx,
         sendFrequency,
       });
@@ -342,7 +332,7 @@ async function main(): Promise<boolean> {
     }
     allowedToSend--;
 
-    debug('Initiating sending of new message', logCtx);
+    logger.debug('Initiating sending of new message', logCtx);
 
     try {
       await sendMessage(
@@ -356,22 +346,19 @@ async function main(): Promise<boolean> {
         messageSendTimeout,
         messageReceiptTimeout,
       );
-      log('Message sent successfully', { origin, destination });
+      logger.info('Message sent successfully', { origin, destination });
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
-      error(`Error sending message, continuing...`, {
+      logger.error(`Error sending message, continuing...`, {
         error: format(e),
         ...logCtx,
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    updateWalletBalanceMetricFor(
-      app,
-      origin,
-      coreConfig.owners[origin].owner,
-    ).catch((e) => {
-      warn('Failed to update wallet balance for chain', {
+    const owner = coreConfig.owners[origin].owner;
+    updateWalletBalanceMetricFor(app, origin, owner).catch((e) => {
+      logger.warn('Failed to update wallet balance for chain', {
         chain: origin,
         err: format(e),
       });
@@ -419,7 +406,7 @@ async function sendMessage(
 
   const metricLabels = { origin, remote: destination };
 
-  log('Sending message', {
+  logger.info('Sending message', {
     origin,
     destination,
     interchainGasPayment: value,
@@ -493,7 +480,7 @@ async function sendMessage(
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
 
-  log('Message sent, waiting for it to be processed', {
+  logger.info('Message sent, waiting for it to be processed', {
     origin,
     destination,
     receipt,
@@ -509,7 +496,7 @@ async function sendMessage(
   messageReceiptSeconds
     .labels(metricLabels)
     .inc((Date.now() - startTime) / 1000);
-  log('Message received', {
+  logger.info('Message received', {
     origin,
     destination,
   });
@@ -535,11 +522,22 @@ async function updateWalletBalanceMetricFor(
       token_symbol: 'Native',
     })
     .set(balance);
-  debug('Wallet balance updated for chain', { chain, signerAddress, balance });
+  logger.debug('Wallet balance updated for chain', {
+    chain,
+    signerAddress,
+    balance,
+  });
 }
 
 // Get a core config intended for testing Kathy without secret access
-export function getCoreConfigStub(environment: DeployEnvironment) {
+export async function getCoreConfigStub(environment: DeployEnvironment) {
+  const environmentConfig = getEnvironmentConfig(environment);
+  // Don't fetch any secrets.
+  const registry = await environmentConfig.getRegistry(false);
+  const testnetConfigs = pick(
+    await registry.getMetadata(),
+    environmentConfig.supportedChainNames,
+  );
   const multiProvider = new MultiProvider({
     // Desired chains here. Key must have funds on these chains
     ...testnetConfigs,
@@ -549,7 +547,7 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
   const privateKeyEvm = process.env.KATHY_PRIVATE_KEY_EVM;
   if (!privateKeyEvm) throw new Error('KATHY_PRIVATE_KEY_EVM env var not set');
   const evmSigner = new Wallet(privateKeyEvm);
-  console.log('evmSigner address', evmSigner.address);
+  logger.info('evmSigner address', evmSigner.address);
   multiProvider.setSharedSigner(evmSigner);
 
   // const privateKeySealevel = process.env.KATHY_PRIVATE_KEY_SEALEVEL;
@@ -559,7 +557,7 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
   // const sealevelSigner = Keypair.fromSeed(
   //   Buffer.from(privateKeySealevel, 'hex'),
   // );
-  // console.log('sealevelSigner address', sealevelSigner.publicKey.toBase58());
+  // console.logger.info('sealevelSigner address', sealevelSigner.publicKey.toBase58());
 
   const testnetKeys = objMap(testnetConfigs, (_, __) => ({
     address: evmSigner.address,
@@ -580,15 +578,15 @@ export function getCoreConfigStub(environment: DeployEnvironment) {
 
 main()
   .then((errorOccurred: boolean) => {
-    log('Main exited');
+    logger.info('Main exited');
     if (errorOccurred) {
-      error('An error occurred at some point');
+      logger.error('An error occurred at some point');
       process.exit(1);
     } else {
       process.exit(0);
     }
   })
   .catch((e) => {
-    error('Error in main', { error: format(e) });
+    logger.error('Error in main', { error: format(e) });
     process.exit(1);
   });

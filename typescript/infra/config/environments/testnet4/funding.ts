@@ -1,15 +1,16 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { KeyFunderConfig } from '../../../src/config/funding.js';
+import { Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { KeyFunderConfig } from '../../../src/config/funding';
-import { Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+import { environment } from './chains.js';
+import { testnet4SupportedChainNames } from './supportedChainNames.js';
 
-import { environment } from './chains';
-
-export const keyFunderConfig: KeyFunderConfig = {
+export const keyFunderConfig: KeyFunderConfig<
+  typeof testnet4SupportedChainNames
+> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'c037206-20240220-152500',
+    tag: '64cdc5f-20240715-212744',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -17,28 +18,54 @@ export const keyFunderConfig: KeyFunderConfig = {
   cronSchedule: '15 * * * *', // Every hour at the 15-minute mark
   namespace: environment,
   prometheusPushGateway:
-    'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+    'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  connectionType: RpcConsensusType.Quorum,
   // desired balance config
   desiredBalancePerChain: {
     alfajores: '5',
-    arbitrumgoerli: '0.5',
     bsctestnet: '5',
+    connextsepolia: '1',
     fuji: '5',
-    goerli: '0.5',
-    mumbai: '5',
-    optimismgoerli: '0.5',
+    holesky: '5',
     plumetestnet: '0.2',
-    polygonzkevmtestnet: '1',
+    // Funder boosts itself upto 5x balance on L2 before dispersing funds
     scrollsepolia: '1',
     sepolia: '5',
+    superpositiontestnet: '1',
+    // no funding for solana
+    eclipsetestnet: '0',
+    solanatestnet: '0',
   },
   desiredKathyBalancePerChain: {
+    alfajores: '1',
+    bsctestnet: '1',
+    connextsepolia: '0',
+    fuji: '1',
+    holesky: '0',
     plumetestnet: '0.05',
+    scrollsepolia: '1',
+    sepolia: '1',
+    superpositiontestnet: '0',
+    // no funding for solana
+    eclipsetestnet: '0',
+    solanatestnet: '0',
+  },
+  igpClaimThresholdPerChain: {
+    alfajores: '1',
+    bsctestnet: '1',
+    connextsepolia: '0.1',
+    fuji: '1',
+    holesky: '1',
+    plumetestnet: '0.1',
+    scrollsepolia: '0.1',
+    sepolia: '1',
+    superpositiontestnet: '0.1',
+    // no funding for solana
+    eclipsetestnet: '0',
+    solanatestnet: '0',
   },
 };

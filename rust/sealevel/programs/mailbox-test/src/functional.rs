@@ -212,7 +212,7 @@ async fn test_dispatch_from_eoa() {
             local_domain: LOCAL_DOMAIN,
             outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
             owner: Some(payer.pubkey()),
-            tree: expected_tree,
+            tree: expected_tree.clone(),
         },
     )
     .await;

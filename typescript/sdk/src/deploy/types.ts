@@ -1,4 +1,5 @@
 import type { Contract } from 'ethers';
+import { z } from 'zod';
 
 import type {
   AccessControl,
@@ -7,16 +8,10 @@ import type {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import type { ChainName } from '../types';
+import { OwnableSchema } from '../schemas.js';
+import type { ChainName } from '../types.js';
 
-export type OwnableConfig<Keys extends PropertyKey = PropertyKey> = {
-  owner: Address;
-  ownerOverrides?: Partial<Record<Keys, Address>>;
-};
-
-export function isOwnableConfig(config: object): config is OwnableConfig {
-  return 'owner' in config;
-}
+export type OwnableConfig = z.infer<typeof OwnableSchema>;
 
 export interface CheckerViolation {
   chain: ChainName;
@@ -33,6 +28,7 @@ export enum ViolationType {
   ProxyAdmin = 'ProxyAdmin',
   TimelockController = 'TimelockController',
   AccessControl = 'AccessControl',
+  TokenMismatch = 'TokenMismatch',
 }
 
 export interface OwnerViolation extends CheckerViolation {
@@ -71,4 +67,8 @@ export interface NotDeployedViolation extends CheckerViolation {
 export interface BytecodeMismatchViolation extends CheckerViolation {
   type: ViolationType.BytecodeMismatch;
   name: string;
+}
+
+export interface TokenMismatchViolation extends CheckerViolation {
+  tokenAddress: Address;
 }

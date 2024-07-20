@@ -9,14 +9,14 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
   BalanceResponse,
   ExecuteMsg as Cw20Execute,
   QueryMsg as Cw20Query,
   TokenInfoResponse,
-} from '../../cw-types/Cw20Base.types';
-import { QuoteDispatchResponse } from '../../cw-types/Mailbox.types';
+} from '../../cw-types/Cw20Base.types.js';
+import { QuoteDispatchResponse } from '../../cw-types/Mailbox.types.js';
 import {
   DomainsResponse,
   InterchainSecurityModuleResponse,
@@ -27,10 +27,10 @@ import {
   TokenTypeResponse,
   ExecuteMsg as WarpCw20Execute,
   QueryMsg as WarpCw20Query,
-} from '../../cw-types/WarpCw20.types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { ERC20Metadata } from '../config';
+} from '../../cw-types/WarpCw20.types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
@@ -38,7 +38,7 @@ import {
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 
 // Interacts with IBC denom tokens in CosmWasm
 export class CwNativeTokenAdapter
@@ -92,7 +92,7 @@ export class CwNativeTokenAdapter
   }
 }
 
-export type CW20Metadata = ERC20Metadata;
+export type CW20Metadata = TokenMetadata;
 type CW20Response = TokenInfoResponse | BalanceResponse;
 
 // Interacts with CW20/721 contracts
@@ -274,7 +274,9 @@ export class CwHypSyntheticAdapter
       }));
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO this may require separate queries to get the hook and/or mailbox
     // before making a query for the QuoteDispatchResponse
     // Punting on this given that only static quotes are used for now
@@ -287,7 +289,7 @@ export class CwHypSyntheticAdapter
     //   amount: BigInt(resp.gas_amount?.amount || 0),
     //   addressOrDenom: resp.gas_amount?.denom,
     // };
-    throw new Error('CW adpater quoteGasPayment method not implemented');
+    throw new Error('CW adapter quoteTransferRemoteGas method not implemented');
   }
 
   async populateTransferRemoteTx({
@@ -296,7 +298,8 @@ export class CwHypSyntheticAdapter
     weiAmountOrId,
     interchainGas,
   }: TransferRemoteParams): Promise<ExecuteInstruction> {
-    if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
+    if (!interchainGas)
+      interchainGas = await this.quoteTransferRemoteGas(destination);
     const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
@@ -363,8 +366,8 @@ export class CwHypNativeAdapter
     return this.cw20adapter.getAllRouters();
   }
 
-  quoteGasPayment(destination: Domain): Promise<InterchainGasQuote> {
-    return this.cw20adapter.quoteGasPayment(destination);
+  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote> {
+    return this.cw20adapter.quoteTransferRemoteGas(destination);
   }
 
   async getDenom(): Promise<string> {
@@ -386,7 +389,8 @@ export class CwHypNativeAdapter
   }: TransferRemoteParams): Promise<ExecuteInstruction> {
     const collateralDenom = await this.getDenom();
 
-    if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
+    if (!interchainGas)
+      interchainGas = await this.quoteTransferRemoteGas(destination);
     const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 

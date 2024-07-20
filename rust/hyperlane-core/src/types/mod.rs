@@ -9,19 +9,23 @@ pub use ::primitive_types as ethers_core_types;
 pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
+pub use indexing::*;
 pub use log_metadata::*;
 pub use merkle_tree::*;
 pub use message::*;
+pub use transaction::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
 
 mod announcement;
 mod chain_data;
 mod checkpoint;
+mod indexing;
 mod log_metadata;
 mod merkle_tree;
 mod message;
 mod serialize;
+mod transaction;
 
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
@@ -114,6 +118,15 @@ pub struct GasPaymentKey {
     pub destination: u32,
 }
 
+impl From<InterchainGasPayment> for GasPaymentKey {
+    fn from(value: InterchainGasPayment) -> Self {
+        Self {
+            message_id: value.message_id,
+            destination: value.destination,
+        }
+    }
+}
+
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash)]
 pub struct InterchainGasPayment {
@@ -125,6 +138,18 @@ pub struct InterchainGasPayment {
     pub payment: U256,
     /// Amount of destination gas paid for.
     pub gas_amount: U256,
+}
+
+impl InterchainGasPayment {
+    /// Create a new InterchainGasPayment from a GasPaymentKey
+    pub fn from_gas_payment_key(key: GasPaymentKey) -> Self {
+        Self {
+            message_id: key.message_id,
+            destination: key.destination,
+            payment: Default::default(),
+            gas_amount: Default::default(),
+        }
+    }
 }
 
 /// Amount of gas spent attempting to send the message.

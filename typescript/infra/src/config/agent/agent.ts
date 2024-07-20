@@ -2,25 +2,27 @@ import {
   AgentChainMetadata,
   AgentSignerAwsKey,
   AgentSignerKeyType,
-  ChainMap,
   ChainName,
   RpcConsensusType,
-  chainMetadata,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../../config/contexts';
-import { AgentChainNames, AgentRole, Role } from '../../roles';
-import { DeployEnvironment } from '../environment';
-import { HelmImageValues } from '../infrastructure';
+import { Contexts } from '../../../config/contexts.js';
+import { getChain } from '../../../config/registry.js';
+import { AgentChainNames, AgentRole, Role } from '../../roles.js';
+import { DeployEnvironment } from '../environment.js';
+import { HelmImageValues } from '../infrastructure.js';
 
 import {
   BaseRelayerConfig,
   HelmRelayerChainValues,
   HelmRelayerValues,
-} from './relayer';
-import { BaseScraperConfig, HelmScraperValues } from './scraper';
-import { HelmValidatorValues, ValidatorBaseChainConfigMap } from './validator';
+} from './relayer.js';
+import { BaseScraperConfig, HelmScraperValues } from './scraper.js';
+import {
+  HelmValidatorValues,
+  ValidatorBaseChainConfigMap,
+} from './validator.js';
 
 export type DeepPartial<T> = T extends object
   ? {
@@ -86,8 +88,12 @@ export interface AgentContextConfig extends AgentEnvConfig {
 
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
+  // K8s-specific
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
+  resources?: KubernetesResources;
+
+  // Agent-specific
   rpcConsensusType: RpcConsensusType;
   index?: IndexingConfig;
 }
@@ -114,6 +120,16 @@ export interface AwsConfig {
 export interface DockerConfig {
   repo: string;
   tag: string;
+}
+
+export interface KubernetesResources {
+  requests?: KubernetesComputeResources;
+  limits?: KubernetesComputeResources;
+}
+
+export interface KubernetesComputeResources {
+  cpu: string;
+  memory: string;
 }
 
 export class RootAgentConfigHelper implements AgentContextConfig {
@@ -151,21 +167,14 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   }
 }
 
-export abstract class AgentConfigHelper<R = unknown>
-  extends RootAgentConfigHelper
-  implements AgentRoleConfig
-{
-  rpcConsensusType: RpcConsensusType;
-  docker: DockerConfig;
-  chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
-  index?: IndexingConfig;
-
-  protected constructor(root: RootAgentConfig, agent: AgentRoleConfig) {
+export abstract class AgentConfigHelper<
+  R = unknown,
+> extends RootAgentConfigHelper {
+  protected constructor(
+    root: RootAgentConfig,
+    readonly agentRoleConfig: AgentRoleConfig,
+  ) {
     super(root);
-    this.rpcConsensusType = agent.rpcConsensusType;
-    this.docker = agent.docker;
-    this.chainDockerOverrides = agent.chainDockerOverrides;
-    this.index = agent.index;
   }
 
   // role this config is for
@@ -175,13 +184,13 @@ export abstract class AgentConfigHelper<R = unknown>
 
   // If the provided chain has an override, return the override, otherwise return the default.
   dockerImageForChain(chainName: ChainName): DockerConfig {
-    if (this.chainDockerOverrides?.[chainName]) {
+    if (this.agentRoleConfig.chainDockerOverrides?.[chainName]) {
       return {
-        ...this.docker,
-        ...this.chainDockerOverrides[chainName],
+        ...this.agentRoleConfig.docker,
+        ...this.agentRoleConfig.chainDockerOverrides[chainName],
       };
     }
-    return this.docker;
+    return this.agentRoleConfig.docker;
   }
 }
 
@@ -192,12 +201,14 @@ export const allAgentChainNames = (agentChainNames: AgentChainNames) => [
 // Returns the default KeyConfig for the `chainName`'s chain signer.
 // For Ethereum or Sealevel, this is a hexKey, for Cosmos, this is a cosmosKey.
 export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
-  const metadata = chainMetadata[chainName];
+  const metadata = getChain(chainName);
 
   switch (metadata?.protocol) {
     case ProtocolType.Cosmos:
       if (metadata.bech32Prefix === undefined) {
-        throw new Error(`Bech32 prefix for cosmos chain ${name} is undefined`);
+        throw new Error(
+          `Bech32 prefix for cosmos chain ${chainName} is undefined`,
+        );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
     // For Ethereum and Sealevel, use a hex key
@@ -208,16 +219,19 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
   }
 }
 
-export type AgentChainConfig = Record<AgentRole, ChainMap<boolean>>;
+export type AgentChainConfig<SupportedChains extends readonly ChainName[]> =
+  Record<AgentRole, Record<SupportedChains[number], boolean>>;
 
 /// Converts an AgentChainConfig to an AgentChainNames object.
-export function getAgentChainNamesFromConfig(
-  config: AgentChainConfig,
-  supportedChainNames: ChainName[],
+export function getAgentChainNamesFromConfig<
+  SupportedChains extends readonly ChainName[],
+>(
+  config: AgentChainConfig<SupportedChains>,
+  supportedChainNames: SupportedChains,
 ): AgentChainNames {
   ensureAgentChainConfigIncludesAllChainNames(config, supportedChainNames);
 
-  return objMap(config, (role, roleConfig) =>
+  return objMap(config, (_, roleConfig) =>
     Object.entries(roleConfig)
       .filter(([_chain, enabled]) => enabled)
       .map(([chain]) => chain),
@@ -225,9 +239,11 @@ export function getAgentChainNamesFromConfig(
 }
 
 // Throws if any of the roles in the config do not have all the expected chain names.
-export function ensureAgentChainConfigIncludesAllChainNames(
-  config: AgentChainConfig,
-  expectedChainNames: ChainName[],
+export function ensureAgentChainConfigIncludesAllChainNames<
+  SupportedChains extends readonly ChainName[],
+>(
+  config: AgentChainConfig<SupportedChains>,
+  expectedChainNames: SupportedChains,
 ) {
   for (const [role, roleConfig] of Object.entries(config)) {
     const chainNames = Object.keys(roleConfig);

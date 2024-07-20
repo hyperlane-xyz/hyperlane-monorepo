@@ -132,7 +132,7 @@ impl CoreMetrics {
                 "Submitter queue length",
                 const_labels_ref
             ),
-            &["remote", "queue_name"],
+            &["remote", "queue_name", "operation_status", "app_context"],
             registry
         )?;
 

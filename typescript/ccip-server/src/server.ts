@@ -5,7 +5,7 @@ import { ProofsServiceAbi } from './abis/ProofsServiceAbi';
 import * as config from './config';
 import { ProofsService } from './services/ProofsService';
 
-// Initalize Services
+// Initialize Services
 const proofsService = new ProofsService(
   // SuccinctConfig
   {
@@ -26,7 +26,7 @@ const proofsService = new ProofsService(
   },
 );
 
-// Initalize Server and add Service handlers
+// Initialize Server and add Service handlers
 const server = new Server();
 
 server.add(ProofsServiceAbi, [

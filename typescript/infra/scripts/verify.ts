@@ -5,23 +5,19 @@ import {
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
 
+import { assertEnvironment } from '../src/config/environment.js';
 import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
-} from '../src/deployment/verify';
-import { readJSONAtPath } from '../src/utils/utils';
+} from '../src/deployment/verify.js';
+import { readJSONAtPath } from '../src/utils/utils.js';
 
-import {
-  assertEnvironment,
-  getArgs,
-  withBuildArtifactPath,
-  withNetwork,
-} from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+import { getArgs, withBuildArtifactPath, withChain } from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {
-  const { environment, buildArtifactPath, verificationArtifactPath, network } =
-    await withNetwork(withBuildArtifactPath(getArgs()))
+  const { environment, buildArtifactPath, verificationArtifactPath, chain } =
+    await withChain(withBuildArtifactPath(getArgs()))
       .string('verificationArtifactPath')
       .describe(
         'verificationArtifactPath',
@@ -58,7 +54,7 @@ async function main() {
 
   // verify all the things
   const failedResults = (
-    await verifier.verify(network ? [network] : undefined)
+    await verifier.verify(chain ? [chain] : undefined)
   ).filter((result) => result.status === 'rejected');
 
   // only log the failed verifications to console

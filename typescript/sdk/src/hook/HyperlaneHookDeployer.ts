@@ -1,4 +1,3 @@
-import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
@@ -10,21 +9,20 @@ import {
   ProtocolFee,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
-import { Address, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContracts } from '../contracts/types';
-import { CoreAddresses } from '../core/contracts';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
-import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer';
-import { IgpFactories } from '../gas/contracts';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { IsmType, OpStackIsmConfig } from '../ism/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { CoreAddresses } from '../core/contracts.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
+import { IgpFactories } from '../gas/contracts.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { IsmType, OpStackIsmConfig } from '../ism/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { DeployedHook, HookFactories, hookFactories } from './contracts';
+import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -34,7 +32,7 @@ import {
   IgpHookConfig,
   OpStackHookConfig,
   ProtocolFeeHookConfig,
-} from './types';
+} from './types.js';
 
 export class HyperlaneHookDeployer extends HyperlaneDeployer<
   HookConfig,
@@ -51,7 +49,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     ),
   ) {
     super(multiProvider, hookFactories, {
-      logger: debug('hyperlane:HookDeployer'),
+      logger: rootLogger.child({ module: 'HookDeployer' }),
       contractVerifier,
     });
   }
@@ -66,6 +64,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: HookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
+    if (typeof config === 'string') {
+      throw new Error('Hook deployer should not receive address config');
+    }
+
     let hook: DeployedHook;
     if (config.type === HookType.MERKLE_TREE) {
       const mailbox = coreAddresses.mailbox;
@@ -94,11 +96,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       hook = await this.deployRouting(chain, config, coreAddresses);
     } else if (config.type === HookType.PAUSABLE) {
       hook = await this.deployContract(chain, config.type, []);
-      await this.transferOwnershipOfContracts<HookType.PAUSABLE>(
-        chain,
-        config,
-        { [HookType.PAUSABLE]: hook },
-      );
+      await this.transferOwnershipOfContracts(chain, config, {
+        [HookType.PAUSABLE]: hook,
+      });
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -112,7 +112,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: ProtocolFeeHookConfig,
   ): Promise<ProtocolFee> {
-    this.logger('Deploying ProtocolFeeHook for %s', chain);
+    this.logger.debug('Deploying ProtocolFeeHook for %s', chain);
     return this.deployContract(chain, HookType.PROTOCOL_FEE, [
       config.maxProtocolFee,
       config.protocolFee,
@@ -126,7 +126,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: IgpHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<IgpFactories>> {
-    this.logger('Deploying IGP as hook for %s', chain);
+    this.logger.debug('Deploying IGP as hook for %s', chain);
     if (coreAddresses.proxyAdmin) {
       this.igpDeployer.writeCache(
         chain,
@@ -149,10 +149,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: AggregationHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<HyperlaneContracts<HookFactories>> {
-    this.logger('Deploying AggregationHook for %s', chain);
+    this.logger.debug('Deploying AggregationHook for %s', chain);
     const aggregatedHooks: string[] = [];
     let hooks: any = {};
     for (const hookConfig of config.hooks) {
+      if (typeof hookConfig === 'string') {
+        aggregatedHooks.push(hookConfig);
+        continue;
+      }
+
       const subhooks = await this.deployContracts(
         chain,
         hookConfig,
@@ -161,12 +166,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
     }
-    this.logger(
-      `Deploying aggregation hook of ${config.hooks.map((h) => h.type)}`,
-    );
+    this.logger.debug(`Deploying aggregation hook of ${config.hooks}`);
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
-      this.ismFactory.getContracts(chain).aggregationHookFactory,
+      this.ismFactory.getContracts(chain).staticAggregationHookFactory,
       aggregatedHooks,
       this.logger,
     );
@@ -183,7 +186,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     config: OpStackHookConfig,
     coreAddresses = this.core[chain],
   ): Promise<OPStackHook> {
-    this.logger(
+    this.logger.debug(
       'Deploying OPStackHook for %s to %s',
       chain,
       config.destinationChain,
@@ -220,12 +223,15 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     // set authorized hook on opstack ism
     const authorizedHook = await opstackIsm.authorizedHook();
     if (authorizedHook === addressToBytes32(hook.address)) {
-      this.logger('Authorized hook already set on ism %s', opstackIsm.address);
+      this.logger.debug(
+        'Authorized hook already set on ism %s',
+        opstackIsm.address,
+      );
       return hook;
     } else if (
       authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
     ) {
-      this.logger(
+      this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,
         addressToBytes32(hook.address),
@@ -234,7 +240,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error('Authorized hook mismatch');
     }
     // check if mismatch and redeploy hook
-    this.logger(
+    this.logger.debug(
       'Setting authorized hook %s on ism % on destination %s',
       hook.address,
       opstackIsm.address,
@@ -258,12 +264,14 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Mailbox address is required for ${config.type}`);
     }
 
+    // we don't config owner as config.owner because there're post-deploy steps like
+    // enrolling routing hooks which need ownership, and therefore we transferOwnership at the end
     const deployer = await this.multiProvider.getSigner(chain).getAddress();
 
     let routingHook: DomainRoutingHook | FallbackDomainRoutingHook;
     switch (config.type) {
       case HookType.ROUTING: {
-        this.logger('Deploying DomainRoutingHook for %s', chain);
+        this.logger.debug('Deploying DomainRoutingHook for %s', chain);
         routingHook = await this.deployContract(chain, HookType.ROUTING, [
           mailbox,
           deployer,
@@ -271,16 +279,22 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         break;
       }
       case HookType.FALLBACK_ROUTING: {
-        this.logger('Deploying FallbackDomainRoutingHook for %s', chain);
-        const fallbackHook = await this.deployContracts(
-          chain,
-          config.fallback,
-          coreAddresses,
-        );
+        this.logger.debug('Deploying FallbackDomainRoutingHook for %s', chain);
+        let fallbackAddress: Address;
+        if (typeof config.fallback === 'string') {
+          fallbackAddress = config.fallback;
+        } else {
+          const fallbackHook = await this.deployContracts(
+            chain,
+            config.fallback,
+            coreAddresses,
+          );
+          fallbackAddress = fallbackHook[config.fallback.type].address;
+        }
         routingHook = await this.deployContract(
           chain,
           HookType.FALLBACK_ROUTING,
-          [mailbox, deployer, fallbackHook[config.fallback.type].address],
+          [mailbox, deployer, fallbackAddress],
         );
         break;
       }
@@ -290,8 +304,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
     for (const [dest, hookConfig] of Object.entries(config.domains)) {
-      const destDomain =
-        chainMetadata[dest]?.domainId ?? this.multiProvider.getDomainId(dest);
+      const destDomain = this.multiProvider.getDomainId(dest);
       if (typeof hookConfig === 'string') {
         routingConfigs.push({
           destination: destDomain,
@@ -311,12 +324,20 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     const overrides = this.multiProvider.getTransactionOverrides(chain);
-    await this.runIfOwner(chain, routingHook, async () =>
-      this.multiProvider.handleTx(
+    await this.runIfOwner(chain, routingHook, async () => {
+      this.logger.debug(
+        {
+          chain,
+          routingHookAddress: routingHook.address,
+          routingConfigs,
+        },
+        'Setting routing hooks',
+      );
+      return this.multiProvider.handleTx(
         chain,
         routingHook.setHooks(routingConfigs, overrides),
-      ),
-    );
+      );
+    });
 
     await this.transferOwnershipOfContracts(chain, config, {
       [config.type]: routingHook,

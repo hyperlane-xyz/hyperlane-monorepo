@@ -2,14 +2,14 @@ use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fmt::{Debug, Display, Formatter},
-    io::{BufRead, BufReader, Read},
+    fs::{File, OpenOptions},
+    io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc,
-        mpsc::Sender,
-        Arc,
+        mpsc::{self, Sender},
+        Arc, Mutex,
     },
     thread::{sleep, spawn},
     time::Duration,
@@ -240,8 +240,18 @@ impl Program {
         })
     }
 
-    pub fn spawn(self, log_prefix: &'static str) -> AgentHandles {
+    pub fn spawn(self, log_prefix: &'static str, logs_dir: Option<&Path>) -> AgentHandles {
         let mut command = self.create_command();
+        let log_file = logs_dir.map(|logs_dir| {
+            let log_file_name = format!("{}-output.log", log_prefix);
+            let log_file_path = logs_dir.join(log_file_name);
+            let log_file = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(log_file_path)
+                .expect("Failed to create a log file");
+            Arc::new(Mutex::new(log_file))
+        });
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         log!("Spawning {}...", &self);
@@ -250,17 +260,35 @@ impl Program {
             .unwrap_or_else(|e| panic!("Failed to start {:?} with error: {e}", &self));
         let child_stdout = child.stdout.take().unwrap();
         let filter = self.get_filter();
-        let stdout =
-            spawn(move || prefix_log(child_stdout, log_prefix, &RUN_LOG_WATCHERS, filter, None));
+        let cloned_log_file = log_file.clone();
+        let stdout = spawn(move || {
+            prefix_log(
+                child_stdout,
+                log_prefix,
+                &RUN_LOG_WATCHERS,
+                filter,
+                cloned_log_file,
+                None,
+            )
+        });
         let child_stderr = child.stderr.take().unwrap();
-        let stderr =
-            spawn(move || prefix_log(child_stderr, log_prefix, &RUN_LOG_WATCHERS, filter, None));
+        let stderr = spawn(move || {
+            prefix_log(
+                child_stderr,
+                log_prefix,
+                &RUN_LOG_WATCHERS,
+                filter,
+                None,
+                None,
+            )
+        });
         (
             log_prefix.to_owned(),
             child,
             Box::new(SimpleTaskHandle(stdout)),
             Box::new(SimpleTaskHandle(stderr)),
             self.get_memory(),
+            log_file.clone(),
         )
     }
 
@@ -281,13 +309,13 @@ impl Program {
             let stdout = child.stdout.take().unwrap();
             let name = self.get_bin_name();
             let running = running.clone();
-            spawn(move || prefix_log(stdout, &name, &running, filter, stdout_ch_tx))
+            spawn(move || prefix_log(stdout, &name, &running, filter, None, stdout_ch_tx))
         };
         let stderr = {
             let stderr = child.stderr.take().unwrap();
             let name = self.get_bin_name();
             let running = running.clone();
-            spawn(move || prefix_log(stderr, &name, &running, filter, None))
+            spawn(move || prefix_log(stderr, &name, &running, filter, None, None))
         };
 
         let status = loop {
@@ -321,6 +349,7 @@ fn prefix_log(
     prefix: &str,
     run_log_watcher: &AtomicBool,
     filter: Option<LogFilter>,
+    file: Option<Arc<Mutex<File>>>,
     channel: Option<Sender<String>>,
 ) {
     let mut reader = BufReader::new(output).lines();
@@ -340,6 +369,10 @@ fn prefix_log(
                 }
             }
             println!("<{prefix}> {line}");
+            if let Some(file) = &file {
+                let mut writer = file.lock().expect("Failed to acquire lock for log file");
+                writeln!(writer, "{}", line).unwrap_or(());
+            }
             if let Some(channel) = &channel {
                 // ignore send errors
                 channel.send(line).unwrap_or(());

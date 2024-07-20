@@ -7,15 +7,15 @@ import {
   objMerge,
 } from '@hyperlane-xyz/utils';
 
-import { filterOwnableContracts } from '../contracts/contracts';
+import { filterOwnableContracts } from '../contracts/contracts.js';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { RouterConfig } from '../router/types';
-import { ChainMap } from '../types';
+} from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap } from '../types.js';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
@@ -39,7 +39,7 @@ export abstract class HyperlaneRouterDeployer<
     _: ChainMap<Config>,
     foreignRouters: ChainMap<Address> = {},
   ): Promise<void> {
-    this.logger(
+    this.logger.debug(
       `Enrolling deployed routers with each other (if not already)...`,
     );
 
@@ -80,7 +80,7 @@ export abstract class HyperlaneRouterDeployer<
 
       await super.runIfOwner(chain, this.router(contracts), async () => {
         const chains = domains.map((id) => this.multiProvider.getChainName(id));
-        this.logger(
+        this.logger.debug(
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );
         await this.multiProvider.handleTx(
@@ -99,7 +99,7 @@ export abstract class HyperlaneRouterDeployer<
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
-    this.logger(`Transferring ownership of ownables...`);
+    this.logger.debug(`Transferring ownership of ownables...`);
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
       const ownables = (await filterOwnableContracts(contracts)) as Partial<
@@ -138,7 +138,7 @@ export abstract class HyperlaneRouterDeployer<
     );
     await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
-    this.logger(`Finished deploying router contracts for all chains.`);
+    this.logger.debug(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
   }

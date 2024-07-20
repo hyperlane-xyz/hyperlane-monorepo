@@ -1,5 +1,7 @@
-import { getArgs } from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+import { pick } from '@hyperlane-xyz/utils';
+
+import { getArgs } from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 // This script exists to print the chain metadata configs for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
@@ -9,7 +11,15 @@ async function main() {
 
   const environmentConfig = getEnvironmentConfig(args.environment);
 
-  console.log(JSON.stringify(environmentConfig.chainMetadataConfigs, null, 2));
+  // Intentionally do not include any secrets in the output
+  const registry = await environmentConfig.getRegistry(false);
+  const allMetadata = await registry.getMetadata();
+  const environmentMetadata = pick(
+    allMetadata,
+    environmentConfig.supportedChainNames,
+  );
+
+  console.log(JSON.stringify(environmentMetadata, null, 2));
 }
 
 main().catch((err) => {

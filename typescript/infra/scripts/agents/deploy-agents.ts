@@ -1,8 +1,8 @@
-import { createAgentKeysIfNotExists } from '../../src/agents/key-utils';
-import { HelmCommand } from '../../src/utils/helm';
-import { getConfigsBasedOnArgs } from '../core-utils';
+import { createAgentKeysIfNotExists } from '../../src/agents/key-utils.js';
+import { HelmCommand } from '../../src/utils/helm.js';
+import { getConfigsBasedOnArgs } from '../core-utils.js';
 
-import { AgentCli } from './utils';
+import { AgentCli } from './utils.js';
 
 async function main() {
   // Note the create-keys script should be ran prior to running this script.

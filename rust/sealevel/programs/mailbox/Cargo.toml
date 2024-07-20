@@ -17,7 +17,7 @@ solana-program.workspace = true
 thiserror.workspace = true
 spl-noop.workspace = true
 # Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
-# https://github.com/solana-labs/solana/blob/master/docs/src/developing/on-chain-programs/developing-rust.md#depending-on-rand
+# https://github.com/solana-foundation/developer-content/blob/main/docs/programs/lang-rust.md#depending-on-rand
 getrandom = { workspace = true, features = ["custom"] }
 
 proc-macro-crate = "~1.2.1" # TODO: remove this dependency once solana supports rust >=1.64

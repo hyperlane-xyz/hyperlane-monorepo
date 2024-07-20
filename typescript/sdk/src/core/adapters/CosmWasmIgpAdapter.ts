@@ -2,7 +2,7 @@ import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
   BeneficiaryResponse,
   DefaultGasResponse,
@@ -13,9 +13,9 @@ import {
   QuoteGasPaymentResponse,
   RouteResponseForAddr,
   RoutesResponseForAddr,
-} from '../../cw-types/Igp.types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainMap, ChainName } from '../../types';
+} from '../../cw-types/Igp.types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainMap, ChainName } from '../../types.js';
 
 // TODO: import more
 type IgpResponse =

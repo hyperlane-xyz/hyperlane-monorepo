@@ -1,13 +1,21 @@
-import { Debugger, debug } from 'debug';
+import { Logger } from 'pino';
 
-import { objFilter, objMap, pick } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  ProtocolType,
+  objFilter,
+  objMap,
+  pick,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
-import type { ChainMetadata } from '../metadata/chainMetadataTypes';
-import type { ChainMap, ChainName, ChainNameOrId } from '../types';
+import { multiProtocolTestChainMetadata } from '../consts/testChains.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
-import { MultiProvider, MultiProviderOptions } from './MultiProvider';
+import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
   CosmJsProvider,
   CosmJsWasmProvider,
@@ -17,15 +25,20 @@ import {
   ProviderType,
   SolanaWeb3Provider,
   TypedProvider,
+  TypedTransaction,
   ViemProvider,
-} from './ProviderType';
+} from './ProviderType.js';
 import {
   ProviderBuilderMap,
   defaultProviderBuilderMap,
-} from './providerBuilders';
+} from './providerBuilders.js';
+import {
+  TransactionFeeEstimate,
+  estimateTransactionFee,
+} from './transactionFeeEstimators.js';
 
 export interface MultiProtocolProviderOptions {
-  loggerName?: string;
+  logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
 }
@@ -48,18 +61,18 @@ export class MultiProtocolProvider<
   // Chain name -> provider type -> signer
   protected signers: ChainMap<ProviderMap<never>> = {}; // TODO signer support
   protected readonly providerBuilders: Partial<ProviderBuilderMap>;
-  public readonly logger: Debugger;
+  public readonly logger: Logger;
 
   constructor(
-    chainMetadata: ChainMap<
-      ChainMetadata<MetaExt>
-    > = defaultChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
+    chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     protected readonly options: MultiProtocolProviderOptions = {},
   ) {
     super(chainMetadata, options);
-    this.logger = debug(
-      options?.loggerName || 'hyperlane:MultiProtocolProvider',
-    );
+    this.logger =
+      options?.logger ||
+      rootLogger.child({
+        module: 'MultiProtocolProvider',
+      });
     this.providers = options.providers || {};
     this.providerBuilders =
       options.providerBuilders || defaultProviderBuilderMap;
@@ -208,6 +221,28 @@ export class MultiProtocolProvider<
     }
   }
 
+  estimateTransactionFee({
+    chainNameOrId,
+    transaction,
+    sender,
+    senderPubKey,
+  }: {
+    chainNameOrId: ChainNameOrId;
+    transaction: TypedTransaction;
+    sender: Address;
+    senderPubKey?: HexString;
+  }): Promise<TransactionFeeEstimate> {
+    const provider = this.getProvider(chainNameOrId, transaction.type);
+    const chainMetadata = this.getChainMetadata(chainNameOrId);
+    return estimateTransactionFee({
+      transaction,
+      provider,
+      chainMetadata,
+      sender,
+      senderPubKey,
+    });
+  }
+
   override intersect(
     chains: ChainName[],
     throwIfNotSubset = false,
@@ -221,5 +256,24 @@ export class MultiProtocolProvider<
       providers: pick(this.providers, intersection),
     });
     return { intersection, result: multiProvider };
+  }
+
+  /**
+   * Creates a MultiProvider for test networks
+   */
+  static createTestMultiProtocolProvider<MetaExt = {}>(
+    metadata = multiProtocolTestChainMetadata,
+    providers: Partial<Record<ProtocolType, TypedProvider>> = {},
+  ): MultiProtocolProvider<MetaExt> {
+    const mp = new MultiProtocolProvider(metadata);
+    const providerMap: ChainMap<TypedProvider> = {};
+    for (const [protocol, provider] of Object.entries(providers)) {
+      const chains = Object.values(metadata).filter(
+        (m) => m.protocol === protocol,
+      );
+      chains.forEach((c) => (providerMap[c.name] = provider));
+    }
+    mp.setProviders(providerMap);
+    return mp as MultiProtocolProvider<MetaExt>;
   }
 }

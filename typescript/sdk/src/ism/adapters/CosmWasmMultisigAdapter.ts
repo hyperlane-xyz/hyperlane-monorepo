@@ -7,15 +7,15 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
   EnrolledValidatorsResponse,
   ExecuteMsg as MultisigExecute,
   QueryMsg as MultisigQuery,
-} from '../../cw-types/IsmMultisig.types';
-import { MultisigConfig } from '../../ism/types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainMap, ChainName } from '../../types';
+} from '../../cw-types/IsmMultisig.types.js';
+import { MultisigConfig } from '../../ism/types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainMap, ChainName } from '../../types.js';
 
 type MultisigResponse = EnrolledValidatorsResponse;
 

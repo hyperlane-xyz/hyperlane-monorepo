@@ -1,29 +1,37 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "3.7.0",
+  "version": "4.1.0",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
-    "@hyperlane-xyz/sdk": "3.7.0",
-    "@hyperlane-xyz/utils": "3.7.0",
+    "@aws-sdk/client-kms": "^3.577.0",
+    "@aws-sdk/client-s3": "^3.577.0",
+    "@hyperlane-xyz/registry": "2.3.0",
+    "@hyperlane-xyz/sdk": "4.1.0",
+    "@hyperlane-xyz/utils": "4.1.0",
     "@inquirer/prompts": "^3.0.0",
+    "asn1.js": "^5.4.1",
     "bignumber.js": "^9.1.1",
     "chalk": "^5.3.0",
     "ethers": "^5.7.2",
     "latest-version": "^8.0.0",
     "terminal-link": "^3.0.0",
-    "yaml": "^2.3.1",
+    "tsx": "^4.7.1",
+    "yaml": "^2.4.1",
     "yargs": "^17.7.2",
-    "zod": "^3.21.2"
+    "zod": "^3.21.2",
+    "zod-validation-error": "^3.3.0"
   },
   "devDependencies": {
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",
     "@types/yargs": "^17.0.24",
-    "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
+    "@typescript-eslint/eslint-plugin": "^7.4.0",
+    "@typescript-eslint/parser": "^7.4.0",
     "chai": "^4.3.6",
-    "eslint": "^8.43.0",
-    "eslint-config-prettier": "^8.8.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
     "typescript": "^5.1.6"
@@ -47,6 +55,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
+  "engines": {
+    "node": ">=16"
+  },
   "bin": {
     "hyperlane": "./dist/cli.js"
   },
@@ -62,6 +73,5 @@
     "Permissionless",
     "Deployment",
     "Typescript"
-  ],
-  "packageManager": "yarn@4.0.1"
+  ]
 }

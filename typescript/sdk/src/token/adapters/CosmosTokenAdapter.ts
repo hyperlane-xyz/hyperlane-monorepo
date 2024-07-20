@@ -3,19 +3,19 @@ import Long from 'long';
 
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
-import { BaseCosmosAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { MinimalTokenMetadata } from '../config';
+import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { TokenMetadata } from '../types.js';
 
-import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter';
+import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
 import {
   IHypTokenAdapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 
 const COSMOS_IBC_TRANSFER_TIMEOUT = 600_000; // 10 minutes
 
@@ -43,7 +43,7 @@ export class CosmNativeTokenAdapter
     return BigInt(coin.amount);
   }
 
-  getMetadata(): Promise<MinimalTokenMetadata> {
+  getMetadata(): Promise<TokenMetadata> {
     throw new Error('Metadata not available to native tokens');
   }
 
@@ -104,7 +104,9 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
-  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
     return { amount: 0n, addressOrDenom: this.properties.ibcDenom };
   }
@@ -159,7 +161,9 @@ export class CosmIbcToWarpTokenAdapter
     super(chainName, multiProvider, addresses, properties);
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO implement IBC interchain transfer gas estimation here
     return { amount: 0n, addressOrDenom: this.properties.intermediateIbcDenom };
   }

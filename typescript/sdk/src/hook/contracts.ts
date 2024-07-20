@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { ValueOf } from '@hyperlane-xyz/utils';
 
-import { HookType } from './types';
+import { HookType } from './types.js';
 
 export const hookFactories = {
   [HookType.MERKLE_TREE]: new MerkleTreeHook__factory(),

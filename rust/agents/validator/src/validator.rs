@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
-use crate::server::validator_server::ValidatorServer;
+use crate::server as validator_server;
 use async_trait::async_trait;
 use derive_more::AsRef;
 use eyre::Result;
@@ -13,7 +13,7 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
     settings::ChainConf,
-    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, CoreMetrics,
+    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
@@ -63,6 +63,7 @@ impl BaseAgent for Validator {
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        _tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -97,14 +98,13 @@ impl BaseAgent for Validator {
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
         let merkle_tree_hook_sync = settings
-            .build_merkle_tree_hook_indexer(
+            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
                 &settings.origin_chain,
                 &metrics,
                 &contract_sync_metrics,
-                Arc::new(msg_db.clone()),
+                msg_db.clone().into(),
             )
-            .await?
-            .into();
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -130,17 +130,16 @@ impl BaseAgent for Validator {
     async fn run(mut self) {
         let mut tasks = vec![];
 
-        let routes =
-            ValidatorServer::new(self.origin_chain.clone(), self.core.metrics.clone()).routes;
-
         // run server
+        let custom_routes =
+            validator_server::routes(self.origin_chain.clone(), self.core.metrics.clone());
         let server = self
             .core
             .settings
             .server(self.core_metrics.clone())
             .expect("Failed to create server");
         let server_task = tokio::spawn(async move {
-            server.run(routes);
+            server.run_with_custom_routes(custom_routes);
         })
         .instrument(info_span!("Validator server"));
         tasks.push(server_task);
@@ -209,11 +208,12 @@ impl Validator {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
+        let cursor = contract_sync.cursor(index_settings).await;
         tokio::spawn(async move {
-            contract_sync.clone().sync("merkle_tree_hook", cursor).await;
+            contract_sync
+                .clone()
+                .sync("merkle_tree_hook", cursor.into())
+                .await;
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }
@@ -353,7 +353,7 @@ impl Validator {
                     } else {
                         let result = self
                             .validator_announce
-                            .announce(signed_announcement.clone(), None)
+                            .announce(signed_announcement.clone())
                             .await;
                         Self::log_on_announce_failure(result, &chain_signer);
                     }

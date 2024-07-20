@@ -23,17 +23,17 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
-import { BaseSealevelAdapter } from '../../app/MultiProtocolApp';
-import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel';
-import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter';
-import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
+import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
+import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
+import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter.js';
+import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
-} from '../../utils/sealevelSerialization';
-import { MinimalTokenMetadata } from '../config';
+} from '../../utils/sealevelSerialization.js';
+import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
@@ -41,14 +41,14 @@ import {
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
 import {
   SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
-} from './serialization';
+} from './serialization.js';
 
 // author @tkporter @jmrossy
 // Interacts with native currencies
@@ -61,7 +61,7 @@ export class SealevelNativeTokenAdapter
     return BigInt(balance.toString());
   }
 
-  async getMetadata(): Promise<MinimalTokenMetadata> {
+  async getMetadata(): Promise<TokenMetadata> {
     throw new Error('Metadata not available to native tokens');
   }
 
@@ -115,9 +115,9 @@ export class SealevelTokenAdapter
     return BigInt(response.value.amount);
   }
 
-  async getMetadata(_isNft?: boolean): Promise<MinimalTokenMetadata> {
+  async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
     // TODO solana support
-    return { decimals: 9, symbol: 'SPL', name: 'SPL Token' };
+    return { decimals: 9, symbol: 'SPL', name: 'SPL Token', totalSupply: '' };
   }
 
   async isApproveRequired(): Promise<boolean> {
@@ -212,11 +212,12 @@ export abstract class SealevelHypTokenAdapter
     return this.cachedTokenAccountData;
   }
 
-  override async getMetadata(): Promise<MinimalTokenMetadata> {
+  override async getMetadata(): Promise<TokenMetadata> {
     const tokenData = await this.getTokenAccountData();
     // TODO full token metadata support
     return {
       decimals: tokenData.decimals,
+      totalSupply: '0',
       symbol: 'HYP',
       name: 'Unknown Hyp Token',
     };
@@ -243,7 +244,9 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
-  async quoteGasPayment(_destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
     // TODO Solana support
     return { amount: 0n };
   }
@@ -504,7 +507,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return this.wrappedNative.getBalance(owner);
   }
 
-  override async getMetadata(): Promise<MinimalTokenMetadata> {
+  override async getMetadata(): Promise<TokenMetadata> {
     return this.wrappedNative.getMetadata();
   }
 

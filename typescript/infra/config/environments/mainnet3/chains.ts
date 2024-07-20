@@ -1,48 +1,41 @@
-import {
-  ChainMap,
-  ChainMetadata,
-  Mainnets,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
-import { getChainMetadatas } from '../../../src/config/chain';
+import { getRegistryForEnvironment } from '../../../src/config/chain.js';
+import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 
-// The `Mainnets` from the SDK are all supported chains for the mainnet3 environment.
-// These chains may be any protocol type.
-export const supportedChainNames = Mainnets;
+import { supportedChainNames } from './supportedChainNames.js';
 
-export type MainnetChains = (typeof supportedChainNames)[number];
 export const environment = 'mainnet3';
 
-const {
-  ethereumMetadatas: defaultEthereumMainnetConfigs,
-  nonEthereumMetadatas: nonEthereumMainnetConfigs,
-} = getChainMetadatas(supportedChainNames);
+export const ethereumChainNames = supportedChainNames.filter(
+  isEthereumProtocolChain,
+);
 
-export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
-  ...defaultEthereumMainnetConfigs,
+export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsc: {
-    ...chainMetadata.bsc,
     transactionOverrides: {
-      gasPrice: 7 * 10 ** 9, // 7 gwei
+      gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
   polygon: {
-    ...chainMetadata.polygon,
     blocks: {
-      ...chainMetadata.polygon.blocks,
       confirmations: 3,
     },
     transactionOverrides: {
-      maxFeePerGas: 250 * 10 ** 9, // 250 gwei
+      // A very high max fee per gas is used as Polygon is susceptible
+      // to large swings in gas prices.
+      maxFeePerGas: 550 * 10 ** 9, // 550 gwei
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-      // gasPrice: 50 * 10 ** 9, // 50 gwei
+    },
+  },
+  polygonzkevm: {
+    transactionOverrides: {
+      gasPrice: 1 * 10 ** 9, // 1 gwei
     },
   },
   ethereum: {
-    ...chainMetadata.ethereum,
     blocks: {
-      ...chainMetadata.ethereum.blocks,
       confirmations: 3,
     },
     transactionOverrides: {
@@ -50,13 +43,33 @@ export const ethereumMainnetConfigs: ChainMap<ChainMetadata> = {
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
+  scroll: {
+    transactionOverrides: {
+      // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
+      // too low for the transaction to be included in a reasonable amount of time -
+      // this often leads to transaction underpriced issues.
+      gasPrice: 2 * 10 ** 9, // 2 gwei
+    },
+  },
+  sei: {
+    // Sei's `eth_feeHistory` is not to spec and incompatible with ethers-rs,
+    // so we force legacy transactions by setting a gas price.
+    transactionOverrides: {
+      gasPrice: 2 * 10 ** 9, // 2 gwei
+    },
+  },
+  moonbeam: {
+    transactionOverrides: {
+      maxFeePerGas: 350 * 10 ** 9, // 350 gwei
+      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
+    },
+  },
 };
 
-export const mainnetConfigs: ChainMap<ChainMetadata> = {
-  ...ethereumMainnetConfigs,
-  ...nonEthereumMainnetConfigs,
-};
-
-export const ethereumChainNames = Object.keys(
-  ethereumMainnetConfigs,
-) as MainnetChains[];
+export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+  getRegistryForEnvironment(
+    environment,
+    supportedChainNames,
+    chainMetadataOverrides,
+    useSecrets,
+  );

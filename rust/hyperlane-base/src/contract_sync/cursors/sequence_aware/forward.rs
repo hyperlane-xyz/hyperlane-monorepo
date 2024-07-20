@@ -8,16 +8,16 @@ use std::{
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ContractSyncCursor, CursorAction, HyperlaneSequenceAwareIndexerStoreReader, IndexMode, LogMeta,
-    SequenceAwareIndexer, Sequenced,
+    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
+    SequenceIndexed,
 };
 use itertools::Itertools;
-use tracing::{debug, warn};
+use tracing::{debug, instrument, warn};
 
 use super::{LastIndexedSnapshot, TargetSnapshot};
 
 /// A sequence-aware cursor that syncs forwards in perpetuity.
-#[derive(Debug)]
 pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     /// The max chunk size to query for logs.
     /// If in sequence mode, this is the max number of sequences to query.
@@ -41,7 +41,24 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
-impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
+impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForwardSequenceAwareSyncCursor")
+            .field("chunk_size", &self.chunk_size)
+            .field("last_indexed_snapshot", &self.last_indexed_snapshot)
+            .field("current_indexing_snapshot", &self.current_indexing_snapshot)
+            .field("target_snapshot", &self.target_snapshot)
+            .field("index_mode", &self.index_mode)
+            .finish()
+    }
+}
+
+impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
+    #[instrument(
+        skip(db, latest_sequence_querier),
+        fields(chunk_size, next_sequence, start_block, index_mode),
+        ret
+    )]
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
@@ -75,6 +92,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     /// If there are no logs to index, returns `None`.
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
+    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
         self.skip_indexed().await?;
@@ -218,7 +236,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     }
 
     /// Updates the cursor with the logs that were found in the range.
-    /// Only used in sequence mode.
+    /// Only used in block mode.
     /// Logs are expected to be sorted by sequence in ascending order and deduplicated.
     ///
     /// Behavior:
@@ -227,7 +245,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     /// - If the target block is reached and the target sequence hasn't been reached, the cursor rewinds to the last indexed snapshot.
     fn update_block_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
@@ -252,7 +270,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
         if let Some(highest_sequence_log) = logs.last() {
             // Update the last indexed snapshot.
             self.last_indexed_snapshot = LastIndexedSnapshot {
-                sequence: Some(highest_sequence_log.0.sequence()),
+                sequence: Some(highest_sequence_log.0.sequence),
                 at_block: highest_sequence_log.1.block_number.try_into()?,
             };
         }
@@ -300,7 +318,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     /// - If there are any gaps, the cursor rewinds and the range will be retried.
     fn update_sequence_range(
         &mut self,
-        logs: Vec<(T, LogMeta)>,
+        logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
@@ -345,7 +363,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
 
         // Update the last indexed snapshot.
         self.last_indexed_snapshot = LastIndexedSnapshot {
-            sequence: Some(highest_sequence_log.0.sequence()),
+            sequence: Some(highest_sequence_log.0.sequence),
             at_block: highest_sequence_log.1.block_number.try_into()?,
         };
         // Position the current snapshot to the next sequence.
@@ -358,7 +376,7 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
     /// and logs the inconsistencies due to sequence gaps.
     fn rewind_due_to_sequence_gaps(
         &mut self,
-        logs: &Vec<(T, LogMeta)>,
+        logs: &Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
         expected_sequences: &HashSet<u32>,
         expected_sequence_range: &RangeInclusive<u32>,
@@ -386,7 +404,9 @@ impl<T: Sequenced + Debug> ForwardSequenceAwareSyncCursor<T> {
 }
 
 #[async_trait]
-impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCursor<T> {
+impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+    for ForwardSequenceAwareSyncCursor<T>
+{
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         // TODO: Fix ETA calculation
         let eta = Duration::from_secs(0);
@@ -417,19 +437,24 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
     /// - Even if the logs include a gap, in practice these logs will have already been inserted into the DB.
     ///   This means that while gaps result in a rewind here, already known logs may be "fast forwarded" through,
     ///   and the cursor won't actually end up re-indexing already known logs.
-    async fn update(&mut self, logs: Vec<(T, LogMeta)>, range: RangeInclusive<u32>) -> Result<()> {
+    #[instrument(err, ret, skip(logs), fields(range=?range, logs=?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>()))]
+    async fn update(
+        &mut self,
+        logs: Vec<(Indexed<T>, LogMeta)>,
+        range: RangeInclusive<u32>,
+    ) -> Result<()> {
         // Remove any sequence duplicates, filter out any logs preceding our current snapshot,
         // and sort in ascending order.
-        let logs = logs
+        let logs = indexed_to_sequence_indexed_array(logs)?
             .into_iter()
-            .unique_by(|(log, _)| log.sequence())
-            .filter(|(log, _)| log.sequence() >= self.current_indexing_snapshot.sequence)
-            .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence().cmp(&log_b.sequence()))
+            .unique_by(|(log, _)| log.sequence)
+            .filter(|(log, _)| log.sequence >= self.current_indexing_snapshot.sequence)
+            .sorted_by(|(log_a, _), (log_b, _)| log_a.sequence.cmp(&log_b.sequence))
             .collect::<Vec<_>>();
 
         let all_log_sequences = logs
             .iter()
-            .map(|(log, _)| log.sequence())
+            .map(|(log, _)| log.sequence)
             .collect::<HashSet<_>>();
 
         match &self.index_mode {
@@ -443,7 +468,7 @@ impl<T: Sequenced + Debug> ContractSyncCursor<T> for ForwardSequenceAwareSyncCur
 #[cfg(test)]
 pub(crate) mod test {
     use derive_new::new;
-    use hyperlane_core::{ChainResult, HyperlaneLogStore, Indexer};
+    use hyperlane_core::{ChainResult, HyperlaneLogStore, Indexed, Indexer, Sequenced};
 
     use super::*;
 
@@ -468,7 +493,10 @@ pub(crate) mod test {
     where
         T: Sequenced + Debug,
     {
-        async fn fetch_logs(&self, _range: RangeInclusive<u32>) -> ChainResult<Vec<(T, LogMeta)>> {
+        async fn fetch_logs_in_range(
+            &self,
+            _range: RangeInclusive<u32>,
+        ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
             Ok(vec![])
         }
 
@@ -484,7 +512,7 @@ pub(crate) mod test {
 
     #[async_trait]
     impl<T: Sequenced + Debug> HyperlaneLogStore<T> for MockHyperlaneSequenceAwareIndexerStore<T> {
-        async fn store_logs(&self, logs: &[(T, LogMeta)]) -> eyre::Result<u32> {
+        async fn store_logs(&self, logs: &[(Indexed<T>, LogMeta)]) -> eyre::Result<u32> {
             Ok(logs.len() as u32)
         }
     }
@@ -497,7 +525,7 @@ pub(crate) mod test {
             Ok(self
                 .logs
                 .iter()
-                .find(|(log, _)| log.sequence() == sequence)
+                .find(|(log, _)| log.sequence() == Some(sequence))
                 .map(|(log, _)| log.clone()))
         }
 
@@ -508,7 +536,7 @@ pub(crate) mod test {
             Ok(self
                 .logs
                 .iter()
-                .find(|(log, _)| log.sequence() == sequence)
+                .find(|(log, _)| log.sequence() == Some(sequence))
                 .map(|(_, meta)| meta.block_number))
         }
     }
@@ -518,9 +546,16 @@ pub(crate) mod test {
         pub sequence: u32,
     }
 
+    impl From<MockSequencedData> for Indexed<MockSequencedData> {
+        fn from(val: MockSequencedData) -> Self {
+            let sequence = val.sequence;
+            Indexed::new(val).with_sequence(sequence)
+        }
+    }
+
     impl Sequenced for MockSequencedData {
-        fn sequence(&self) -> u32 {
-            self.sequence
+        fn sequence(&self) -> Option<u32> {
+            Some(self.sequence)
         }
     }
 
@@ -645,7 +680,10 @@ pub(crate) mod test {
             // Update the cursor with the found log.
             cursor
                 .update(
-                    vec![(MockSequencedData::new(5), log_meta_with_block(115))],
+                    vec![(
+                        Indexed::new(MockSequencedData::new(5)).with_sequence(5),
+                        log_meta_with_block(115),
+                    )],
                     expected_range,
                 )
                 .await
@@ -722,7 +760,10 @@ pub(crate) mod test {
             // Update the cursor with the found log.
             cursor
                 .update(
-                    vec![(MockSequencedData::new(5), log_meta_with_block(195))],
+                    vec![(
+                        Indexed::new(MockSequencedData::new(5)).with_sequence(5),
+                        log_meta_with_block(195),
+                    )],
                     expected_range,
                 )
                 .await
@@ -831,7 +872,7 @@ pub(crate) mod test {
 
             async fn update_and_expect_rewind(
                 cur: &mut ForwardSequenceAwareSyncCursor<MockSequencedData>,
-                logs: Vec<(MockSequencedData, LogMeta)>,
+                logs: Vec<(Indexed<MockSequencedData>, LogMeta)>,
             ) {
                 // For a more rigorous test case, first do a range where no logs are found,
                 // then in the next range there are issues, and we should rewind to the last indexed snapshot.
@@ -891,7 +932,7 @@ pub(crate) mod test {
             // We don't build upon the last sequence (5 missing)
             update_and_expect_rewind(
                 &mut cursor,
-                vec![(MockSequencedData::new(6), log_meta_with_block(100))],
+                vec![(MockSequencedData::new(6).into(), log_meta_with_block(100))],
             )
             .await;
 
@@ -899,8 +940,8 @@ pub(crate) mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(5), log_meta_with_block(95)),
-                    (MockSequencedData::new(7), log_meta_with_block(105)),
+                    (MockSequencedData::new(5).into(), log_meta_with_block(95)),
+                    (MockSequencedData::new(7).into(), log_meta_with_block(105)),
                 ],
             )
             .await;
@@ -926,18 +967,18 @@ pub(crate) mod test {
             let expected_range = 90..=100;
             assert_eq!(range, expected_range);
 
-            // Update the cursor with some paritally bogus logs:
+            // Update the cursor with some partially bogus logs:
             // - A log at sequence 4, which was already indexed and should be ignored
             // - Three logs of sequence 5, i.e. duplicated
             // - A log at sequence 6, which is unexpected, but tolerated nonetheless
             cursor
                 .update(
                     vec![
-                        (MockSequencedData::new(4), log_meta_with_block(90)),
-                        (MockSequencedData::new(5), log_meta_with_block(95)),
-                        (MockSequencedData::new(5), log_meta_with_block(95)),
-                        (MockSequencedData::new(6), log_meta_with_block(100)),
-                        (MockSequencedData::new(5), log_meta_with_block(95)),
+                        (MockSequencedData::new(4).into(), log_meta_with_block(90)),
+                        (MockSequencedData::new(5).into(), log_meta_with_block(95)),
+                        (MockSequencedData::new(5).into(), log_meta_with_block(95)),
+                        (MockSequencedData::new(6).into(), log_meta_with_block(100)),
+                        (MockSequencedData::new(5).into(), log_meta_with_block(95)),
                     ],
                     expected_range,
                 )
@@ -1019,7 +1060,7 @@ pub(crate) mod test {
             // Update the cursor with the found log.
             cursor
                 .update(
-                    vec![(MockSequencedData::new(5), log_meta_with_block(115))],
+                    vec![(MockSequencedData::new(5).into(), log_meta_with_block(115))],
                     expected_range,
                 )
                 .await
@@ -1111,7 +1152,7 @@ pub(crate) mod test {
 
             async fn update_and_expect_rewind(
                 cur: &mut ForwardSequenceAwareSyncCursor<MockSequencedData>,
-                logs: Vec<(MockSequencedData, LogMeta)>,
+                logs: Vec<(Indexed<MockSequencedData>, LogMeta)>,
             ) {
                 // Expect the range to be:
                 // (new sequence, new sequence)
@@ -1144,8 +1185,8 @@ pub(crate) mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(6), log_meta_with_block(100)),
-                    (MockSequencedData::new(7), log_meta_with_block(105)),
+                    (MockSequencedData::new(6).into(), log_meta_with_block(100)),
+                    (MockSequencedData::new(7).into(), log_meta_with_block(105)),
                 ],
             )
             .await;
@@ -1154,8 +1195,8 @@ pub(crate) mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(5), log_meta_with_block(115)),
-                    (MockSequencedData::new(7), log_meta_with_block(120)),
+                    (MockSequencedData::new(5).into(), log_meta_with_block(115)),
+                    (MockSequencedData::new(7).into(), log_meta_with_block(120)),
                 ],
             )
             .await;
@@ -1164,8 +1205,8 @@ pub(crate) mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(5), log_meta_with_block(115)),
-                    (MockSequencedData::new(6), log_meta_with_block(120)),
+                    (MockSequencedData::new(5).into(), log_meta_with_block(115)),
+                    (MockSequencedData::new(6).into(), log_meta_with_block(120)),
                 ],
             )
             .await;
@@ -1174,10 +1215,10 @@ pub(crate) mod test {
             update_and_expect_rewind(
                 &mut cursor,
                 vec![
-                    (MockSequencedData::new(5), log_meta_with_block(115)),
-                    (MockSequencedData::new(6), log_meta_with_block(115)),
-                    (MockSequencedData::new(7), log_meta_with_block(120)),
-                    (MockSequencedData::new(8), log_meta_with_block(125)),
+                    (MockSequencedData::new(5).into(), log_meta_with_block(115)),
+                    (MockSequencedData::new(6).into(), log_meta_with_block(115)),
+                    (MockSequencedData::new(7).into(), log_meta_with_block(120)),
+                    (MockSequencedData::new(8).into(), log_meta_with_block(125)),
                 ],
             )
             .await;

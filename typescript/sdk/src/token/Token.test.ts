@@ -4,19 +4,24 @@ import { ethers } from 'ethers';
 
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import {
+  TestChainName,
+  test1,
+  testCosmosChain,
+  testSealevelChain,
+} from '../consts/testChains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { stubMultiProtocolProvider } from '../test/multiProviderStubs.js';
 
-import { TokenArgs } from './IToken';
-import { Token } from './Token';
-import { TokenStandard } from './TokenStandard';
+import { TokenArgs } from './IToken.js';
+import { Token } from './Token.js';
+import { TokenStandard } from './TokenStandard.js';
 
 // null values represent TODOs here, ideally all standards should be tested
 const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   // EVM
   [TokenStandard.ERC20]: {
-    chainName: Chains.ethereum,
+    chainName: TestChainName.test1,
     standard: TokenStandard.ERC20,
     addressOrDenom: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
     decimals: 6,
@@ -24,11 +29,9 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'USDC',
   },
   [TokenStandard.ERC721]: null,
-  [TokenStandard.EvmNative]: Token.FromChainMetadataNativeToken(
-    chainMetadata.optimism,
-  ),
+  [TokenStandard.EvmNative]: Token.FromChainMetadataNativeToken(test1),
   [TokenStandard.EvmHypNative]: {
-    chainName: Chains.inevm,
+    chainName: TestChainName.test2,
     standard: TokenStandard.EvmHypNative,
     addressOrDenom: '0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4',
     decimals: 18,
@@ -36,17 +39,33 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'Injective Coin',
   },
   [TokenStandard.EvmHypCollateral]: {
-    chainName: Chains.goerli,
+    chainName: TestChainName.test3,
     standard: TokenStandard.EvmHypCollateral,
-    addressOrDenom: '0x145de8760021c4ac6676376691b78038d3DE9097',
-    collateralAddressOrDenom: '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6',
+    addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
+    collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
     decimals: 18,
-    symbol: 'WETH',
-    name: 'Weth',
+    symbol: 'USDC',
+    name: 'USDC',
   },
   [TokenStandard.EvmHypSynthetic]: {
-    chainName: Chains.inevm,
+    chainName: TestChainName.test2,
     standard: TokenStandard.EvmHypSynthetic,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypXERC20]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypXERC20,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypXERC20Lockbox]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypXERC20Lockbox,
     addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
     decimals: 6,
     symbol: 'USDC',
@@ -55,7 +74,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
 
   // Sealevel
   [TokenStandard.SealevelSpl]: {
-    chainName: Chains.solana,
+    chainName: testSealevelChain.name,
     standard: TokenStandard.SealevelSpl,
     addressOrDenom: 'So11111111111111111111111111111111111111112',
     decimals: 9,
@@ -63,16 +82,15 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'SOL',
   },
   [TokenStandard.SealevelSpl2022]: {
-    chainName: Chains.solana,
+    chainName: testSealevelChain.name,
     standard: TokenStandard.SealevelSpl2022,
     addressOrDenom: '21zHSATJqhNkcpoNkhFzPJW9LARSmoinLEeDtdygGuWh',
     decimals: 6,
     symbol: 'SOLMAX',
     name: 'Solana Maxi',
   },
-  [TokenStandard.SealevelNative]: Token.FromChainMetadataNativeToken(
-    chainMetadata.solana,
-  ),
+  [TokenStandard.SealevelNative]:
+    Token.FromChainMetadataNativeToken(testSealevelChain),
   [TokenStandard.SealevelHypNative]: null,
   [TokenStandard.SealevelHypCollateral]: null,
   [TokenStandard.SealevelHypSynthetic]: null,
@@ -80,11 +98,10 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   // Cosmos
   [TokenStandard.CosmosIcs20]: null,
   [TokenStandard.CosmosIcs721]: null,
-  [TokenStandard.CosmosNative]: Token.FromChainMetadataNativeToken(
-    chainMetadata.neutron,
-  ),
+  [TokenStandard.CosmosNative]:
+    Token.FromChainMetadataNativeToken(testCosmosChain),
   [TokenStandard.CosmosIbc]: {
-    chainName: Chains.neutron,
+    chainName: testCosmosChain.name,
     standard: TokenStandard.CosmosIbc,
     addressOrDenom:
       'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
@@ -94,7 +111,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.CW20]: null,
   [TokenStandard.CWNative]: {
-    chainName: Chains.neutron,
+    chainName: testCosmosChain.name,
     standard: TokenStandard.CWNative,
     addressOrDenom:
       'ibc/5751B8BCDA688FD0A8EC0B292EEF1CDEAB4B766B63EC632778B196D317C40C3A',
@@ -104,7 +121,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.CW721]: null,
   [TokenStandard.CwHypNative]: {
-    chainName: Chains.injective,
+    chainName: testCosmosChain.name,
     standard: TokenStandard.CwHypNative,
     addressOrDenom: 'inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k',
     igpTokenAddressOrDenom: 'inj',
@@ -113,7 +130,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'Injective Coin',
   },
   [TokenStandard.CwHypCollateral]: {
-    chainName: Chains.neutron,
+    chainName: testCosmosChain.name,
     standard: TokenStandard.CwHypCollateral,
     addressOrDenom:
       'neutron1jyyjd3x0jhgswgm6nnctxvzla8ypx50tew3ayxxwkrjfxhvje6kqzvzudq',
@@ -124,16 +141,12 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'TIA.n',
   },
   [TokenStandard.CwHypSynthetic]: null,
-
-  // Fuel
-  [TokenStandard.FuelNative]: null,
 };
 
 const PROTOCOL_TO_ADDRESS: Partial<Record<ProtocolType, Address>> = {
   [ProtocolType.Ethereum]: ethers.constants.AddressZero,
   [ProtocolType.Cosmos]:
     'neutron13we0myxwzlpx8l5ark8elw5gj5d59dl6cjkzmt80c5q5cv5rt54qvzkv2a',
-  [ProtocolType.Fuel]: '',
 };
 
 const STANDARD_TO_ADDRESS: Partial<Record<TokenStandard, Address>> = {
@@ -146,31 +159,31 @@ const STANDARD_TO_ADDRESS: Partial<Record<TokenStandard, Address>> = {
 };
 
 describe('Token', () => {
-  it('Handles all standards', async () => {
-    const multiProvider = new MultiProtocolProvider();
-    for (const tokenArgs of Object.values(STANDARD_TO_TOKEN)) {
-      if (!tokenArgs) continue;
+  for (const tokenArgs of Object.values(STANDARD_TO_TOKEN)) {
+    if (!tokenArgs) continue;
+    it(`Handles ${tokenArgs.standard} standard`, async () => {
+      const multiProvider =
+        MultiProtocolProvider.createTestMultiProtocolProvider();
+
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
       expect(token.standard).to.eql(tokenArgs.standard);
       const adapter = token.getAdapter(multiProvider);
-      const adddress =
+      const address =
         STANDARD_TO_ADDRESS[token.standard] ??
         PROTOCOL_TO_ADDRESS[token.protocol];
-      if (!adddress)
+      if (!address)
         throw new Error(`No address for standard ${tokenArgs.standard}`);
-      const balance = await adapter.getBalance(adddress);
-      expect(typeof balance).to.eql('bigint');
-    }
-  })
-    .timeout(120_000)
-    .retries(3);
 
-  it('Constructs from ChainMetadata', () => {
-    for (const metadata of Object.values(chainMetadata)) {
-      if (!metadata.nativeToken) continue;
-      const token = Token.FromChainMetadataNativeToken(metadata);
-      expect(token.symbol).to.eql(metadata.nativeToken.symbol);
-    }
-  });
+      const sandbox = stubMultiProtocolProvider(multiProvider);
+      // @ts-ignore simple extra mock for the Ethers V5 token contract call
+      adapter.contract = {
+        balanceOf: async () => '100',
+      };
+
+      const balance = await adapter.getBalance(address);
+      expect(typeof balance).to.eql('bigint');
+      sandbox.restore();
+    });
+  }
 });

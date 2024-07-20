@@ -1,20 +1,14 @@
-import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { S3Validator } from '../src/agents/aws/validator';
-import { deployEnvToSdkEnv } from '../src/config/environment';
+import { InfraS3Validator } from '../src/agents/aws/validator.js';
 
-import { getArgs, getValidatorsByChain } from './agent-utils';
-import { getEnvironmentConfig } from './core-utils';
+import { getArgs, getValidatorsByChain } from './agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 async function main() {
   const { environment } = await getArgs().argv;
   const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
+  const { core } = await getHyperlaneCore(environment);
 
   await promiseObjAll(
     objMap(getValidatorsByChain(config.core), async (chain, set) => {
@@ -27,20 +21,20 @@ async function main() {
           if (storageLocations[i].length != 1) {
             throw new Error('Only support single announcement');
           }
-          return S3Validator.fromStorageLocation(storageLocations[i][0]);
+          return InfraS3Validator.fromStorageLocation(storageLocations[i][0]);
         }),
       );
       const controlValidator = validators[0];
       await Promise.all(
         validators.slice(1).map(async (prospectiveValidator) => {
           const address = prospectiveValidator.address;
-          const bucket = prospectiveValidator.s3Bucket.bucket;
+          const bucket = prospectiveValidator.s3Bucket;
           try {
             const metrics = await prospectiveValidator.compare(
               controlValidator,
             );
             console.log(
-              `${chain} ${bucket} validators against control ${controlValidator.s3Bucket.bucket}`,
+              `${chain} ${bucket} validators against control ${controlValidator.s3Bucket}`,
             );
             console.table(metrics);
           } catch (error) {

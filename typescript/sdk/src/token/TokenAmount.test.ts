@@ -1,24 +1,21 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { Chains } from '../consts/chains';
+import { TestChainName, test2 } from '../consts/testChains.js';
 
-import { Token } from './Token';
-import { TokenAmount } from './TokenAmount';
-import { TokenStandard } from './TokenStandard';
+import { Token } from './Token.js';
+import { TokenAmount } from './TokenAmount.js';
+import { TokenStandard } from './TokenStandard.js';
 
 const token1 = new Token({
-  chainName: Chains.ethereum,
+  chainName: TestChainName.test1,
   standard: TokenStandard.ERC20,
   addressOrDenom: ethers.constants.AddressZero,
   decimals: 4,
   symbol: 'FAKE',
   name: 'Fake Token',
 });
-const token2 = Token.FromChainMetadataNativeToken(
-  chainMetadata[Chains.neutron],
-);
+const token2 = Token.FromChainMetadataNativeToken(test2);
 
 describe('TokenAmount', () => {
   let tokenAmount1: TokenAmount;
@@ -33,7 +30,7 @@ describe('TokenAmount', () => {
 
   it('Formats human readable string', () => {
     expect(tokenAmount1.getDecimalFormattedAmount()).to.eq(12345.6789);
-    expect(tokenAmount2.getDecimalFormattedAmount()).to.eq(0.000001);
+    expect(tokenAmount2.getDecimalFormattedAmount()).to.eq(1e-18);
   });
 
   it('Does arithmetic', () => {

@@ -70,44 +70,6 @@
     },
     "isTestnet": true
   },
-  "mumbai": {
-    "chainId": 80001,
-    "domainId": 80001,
-    "name": "mumbai",
-    "protocol": "ethereum",
-    "displayName": "Mumbai",
-    "nativeToken": {
-      "name": "MATIC",
-      "symbol": "MATIC",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://rpc.ankr.com/polygon_mumbai",
-        "pagination": {
-          "maxBlockRange": 10000,
-          "minBlockNumber": 22900000
-        }
-      },
-      {
-        "http": "https://matic-mumbai.chainstacklabs.com"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "PolygonScan",
-        "url": "https://mumbai.polygonscan.com",
-        "apiUrl": "https://api-testnet.polygonscan.com/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 3,
-      "reorgPeriod": 32,
-      "estimateBlockTime": 5
-    },
-    "isTestnet": true
-  },
   "bsctestnet": {
     "chainId": 97,
     "domainId": 97,
@@ -136,43 +98,6 @@
       "confirmations": 1,
       "reorgPeriod": 9,
       "estimateBlockTime": 3
-    },
-    "isTestnet": true
-  },
-  "goerli": {
-    "chainId": 5,
-    "domainId": 5,
-    "name": "goerli",
-    "protocol": "ethereum",
-    "displayName": "Goerli",
-    "nativeToken": {
-      "name": "Ether",
-      "symbol": "ETH",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-      },
-      {
-        "http": "https://rpc.ankr.com/eth_goerli"
-      },
-      {
-        "http": "https://eth-goerli.public.blastapi.io"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "Etherscan",
-        "url": "https://goerli.etherscan.io",
-        "apiUrl": "https://api-goerli.etherscan.io/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "reorgPeriod": 2,
-      "estimateBlockTime": 13
     },
     "isTestnet": true
   },
@@ -205,70 +130,6 @@
       "confirmations": 1,
       "reorgPeriod": 1,
       "estimateBlockTime": 12
-    },
-    "isTestnet": true
-  },
-  "optimismgoerli": {
-    "chainId": 420,
-    "domainId": 420,
-    "name": "optimismgoerli",
-    "protocol": "ethereum",
-    "displayName": "Optimism Goerli",
-    "displayNameShort": "Opt. Goerli",
-    "nativeToken": {
-      "name": "Ether",
-      "symbol": "ETH",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://goerli.optimism.io"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "Etherscan",
-        "url": "https://goerli-optimism.etherscan.io",
-        "apiUrl": "https://api-goerli-optimism.etherscan.io/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "reorgPeriod": 1,
-      "estimateBlockTime": 3
-    },
-    "isTestnet": true
-  },
-  "arbitrumgoerli": {
-    "chainId": 421613,
-    "domainId": 421613,
-    "name": "arbitrumgoerli",
-    "protocol": "ethereum",
-    "displayName": "Arbitrum Goerli",
-    "displayNameShort": "Arb. Goerli",
-    "nativeToken": {
-      "name": "Ether",
-      "symbol": "ETH",
-      "decimals": 18
-    },
-    "rpcUrls": [
-      {
-        "http": "https://goerli-rollup.arbitrum.io/rpc"
-      }
-    ],
-    "blockExplorers": [
-      {
-        "name": "Arbiscan",
-        "url": "https://goerli.arbiscan.io",
-        "apiUrl": "https://api-goerli.arbiscan.io/api",
-        "family": "etherscan"
-      }
-    ],
-    "blocks": {
-      "confirmations": 1,
-      "reorgPeriod": 1,
-      "estimateBlockTime": 3
     },
     "isTestnet": true
   },

@@ -1,23 +1,23 @@
 import { expect } from 'chai';
 
-import { Chains } from '../consts/chains';
-import { MultiProvider } from '../providers/MultiProvider';
+import { TestChainName } from '../consts/testChains.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { buildAgentConfig } from './agentConfig';
+import { buildAgentConfig } from './agentConfig.js';
 
 describe('Agent config', () => {
   const args: Parameters<typeof buildAgentConfig> = [
-    [Chains.ethereum],
-    new MultiProvider(),
+    [TestChainName.test1],
+    MultiProvider.createTestMultiProvider(),
     {
-      ethereum: {
+      test1: {
         mailbox: '0xmailbox',
         interchainGasPaymaster: '0xgas',
         validatorAnnounce: '0xannounce',
         merkleTreeHook: '0xmerkle',
       },
     },
-    { ethereum: 0 },
+    { test1: 0 },
   ];
 
   it('Should generate a new agent config', () => {
@@ -26,13 +26,15 @@ describe('Agent config', () => {
       'chains',
       'defaultRpcConsensusType',
     ]);
-    expect(result.chains[Chains.ethereum].mailbox).to.equal('0xmailbox');
-    expect(result.chains[Chains.ethereum].interchainGasPaymaster).to.equal(
+    expect(result.chains[TestChainName.test1].mailbox).to.equal('0xmailbox');
+    expect(result.chains[TestChainName.test1].interchainGasPaymaster).to.equal(
       '0xgas',
     );
-    expect(result.chains[Chains.ethereum].validatorAnnounce).to.equal(
+    expect(result.chains[TestChainName.test1].validatorAnnounce).to.equal(
       '0xannounce',
     );
-    expect(result.chains[Chains.ethereum].merkleTreeHook).to.equal('0xmerkle');
+    expect(result.chains[TestChainName.test1].merkleTreeHook).to.equal(
+      '0xmerkle',
+    );
   });
 });

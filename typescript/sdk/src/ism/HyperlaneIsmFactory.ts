@@ -1,5 +1,5 @@
-import debug, { Debugger } from 'debug';
 import { ethers } from 'ethers';
+import { Logger } from 'pino';
 
 import {
   DefaultFallbackRoutingIsm,
@@ -17,30 +17,27 @@ import {
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   TestIsm__factory,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  assert,
   eqAddress,
   objFilter,
-  warn,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../app/HyperlaneApp';
-import { chainMetadata } from '../consts/chainMetadata';
-import {
-  HyperlaneEnvironment,
-  hyperlaneEnvironments,
-} from '../consts/environments';
-import { appFromAddressesMapHelper } from '../contracts/contracts';
-import { HyperlaneAddressesMap } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
-} from '../deploy/contracts';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+} from '../deploy/contracts.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import {
   AggregationIsmConfig,
@@ -51,8 +48,8 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
-} from './types';
-import { routingModuleDelta } from './utils';
+} from './types.js';
+import { routingModuleDelta } from './utils.js';
 
 export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
@@ -63,18 +60,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   protected deployer?: HyperlaneDeployer<any, any>;
   setDeployer(deployer: HyperlaneDeployer<any, any>): void {
     this.deployer = deployer;
-  }
-
-  static fromEnvironment<Env extends HyperlaneEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider,
-  ): HyperlaneIsmFactory {
-    const envAddresses = hyperlaneEnvironments[env];
-    if (!envAddresses) {
-      throw new Error(`No addresses found for ${env}`);
-    }
-    /// @ts-ignore
-    return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
   }
 
   static fromAddressesMap(
@@ -89,7 +74,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     return new HyperlaneIsmFactory(
       helper.contractsMap,
       multiProvider,
-      debug('hyperlane:IsmFactoryApp'),
+      rootLogger.child({ module: 'ismFactoryApp' }),
     );
   }
 
@@ -110,9 +95,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
 
     const ismType = config.type;
-    const logger = this.logger.extend(`${destination}:${ismType}`);
+    const logger = this.logger.child({ destination, ismType });
 
-    logger(
+    logger.debug(
       `Deploying ${ismType} to ${destination} ${
         origin ? `(for verifying ${origin})` : ''
       }`,
@@ -145,10 +130,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        if (!this.deployer) {
-          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
-        }
-        contract = await this.deployer?.deployContractFromFactory(
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
           destination,
           new OPStackIsm__factory(),
           IsmType.OP_STACK,
@@ -156,24 +142,38 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       case IsmType.PAUSABLE:
-        if (!this.deployer) {
-          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
-        }
-        contract = await this.deployer?.deployContractFromFactory(
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
           destination,
           new PausableIsm__factory(),
           IsmType.PAUSABLE,
           [config.owner],
         );
-        await this.deployer?.transferOwnershipOfContracts(destination, config, {
+        await this.deployer.transferOwnershipOfContracts(destination, config, {
           [IsmType.PAUSABLE]: contract,
         });
+        break;
+      case IsmType.TRUSTED_RELAYER:
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
+        contract = await this.deployer.deployContractFromFactory(
+          destination,
+          new TrustedRelayerIsm__factory(),
+          IsmType.TRUSTED_RELAYER,
+          [mailbox, config.relayer],
+        );
         break;
       case IsmType.TEST_ISM:
         if (!this.deployer) {
           throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
         }
-        contract = await this.deployer?.deployContractFromFactory(
+        contract = await this.deployer.deployContractFromFactory(
           destination,
           new TestIsm__factory(),
           IsmType.TEST_ISM,
@@ -205,13 +205,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   protected async deployMultisigIsm(
     destination: ChainName,
     config: MultisigIsmConfig,
-    logger: Debugger,
+    logger: Logger,
   ): Promise<IMultisigIsm> {
     const signer = this.multiProvider.getSigner(destination);
     const multisigIsmFactory =
       config.type === IsmType.MERKLE_ROOT_MULTISIG
-        ? this.getContracts(destination).merkleRootMultisigIsmFactory
-        : this.getContracts(destination).messageIdMultisigIsmFactory;
+        ? this.getContracts(destination).staticMerkleRootMultisigIsmFactory
+        : this.getContracts(destination).staticMessageIdMultisigIsmFactory;
 
     const address = await this.deployStaticAddressSet(
       destination,
@@ -230,31 +230,28 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     origin?: ChainName;
     mailbox?: Address;
     existingIsmAddress?: Address;
-    logger: Debugger;
+    logger: Logger;
   }): Promise<IRoutingIsm> {
-    const { destination, config, mailbox, existingIsmAddress } = params;
+    const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
-    const routingIsmFactory = this.getContracts(destination).routingIsmFactory;
+    const domainRoutingIsmFactory =
+      this.getContracts(destination).domainRoutingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
     config.domains = objFilter(
       config.domains,
       (domain, config): config is IsmConfig => {
-        const domainId =
-          chainMetadata[domain]?.domainId ??
-          this.multiProvider.tryGetDomainId(domain);
+        const domainId = this.multiProvider.tryGetDomainId(domain);
         if (domainId === null) {
-          warn(
+          logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
           );
         }
         return domainId !== null;
       },
     );
-    const safeConfigDomains = Object.keys(config.domains).map(
-      (domain) =>
-        chainMetadata[domain]?.domainId ??
-        this.multiProvider.getDomainId(domain),
+    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
+      this.multiProvider.getDomainId(domain),
     );
     const delta: RoutingIsmDelta = existingIsmAddress
       ? await routingModuleDelta(
@@ -290,7 +287,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       // deploying all the ISMs which have to be updated
       for (const originDomain of delta.domainsToEnroll) {
         const origin = this.multiProvider.getChainName(originDomain); // already filtered to only include domains in the multiprovider
-        params.logger(
+        logger.debug(
           `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
         );
         const ism = await this.deploy({
@@ -309,7 +306,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // unenrolling domains if needed
       for (const originDomain of delta.domainsToUnenroll) {
-        params.logger(
+        logger.debug(
           `Unenrolling originDomain ${originDomain} from preexisting routing ISM at ${existingIsmAddress}...`,
         );
         const tx = await routingIsm.remove(originDomain, overrides);
@@ -317,7 +314,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       // transfer ownership if needed
       if (delta.owner) {
-        params.logger(`Transferring ownership of routing ISM...`);
+        logger.debug(`Transferring ownership of routing ISM...`);
         const tx = await routingIsm.transferOwnership(delta.owner, overrides);
         await this.multiProvider.handleTx(destination, tx);
       }
@@ -341,13 +338,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             'Mailbox address is required for deploying fallback routing ISM',
           );
         }
-        params.logger('Deploying fallback routing ISM ...');
+        logger.debug('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
         );
-        params.logger('Initialising fallback routing ISM ...');
+        // TODO: Should verify contract here
+        logger.debug('Initialising fallback routing ISM ...');
         receipt = await this.multiProvider.handleTx(
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
@@ -359,19 +357,32 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       } else {
         // deploying new domain routing ISM
-        const tx = await routingIsmFactory.deploy(
-          config.owner,
+        const owner = config.owner;
+        // estimate gas
+        const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+          owner,
           safeConfigDomains,
           submoduleAddresses,
           overrides,
         );
+        // add 10% buffer
+        const tx = await domainRoutingIsmFactory.deploy(
+          owner,
+          safeConfigDomains,
+          submoduleAddresses,
+          {
+            ...overrides,
+            gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+          },
+        );
+        // TODO: Should verify contract here
         receipt = await this.multiProvider.handleTx(destination, tx);
 
         // TODO: Break this out into a generalized function
         const dispatchLogs = receipt.logs
           .map((log) => {
             try {
-              return routingIsmFactory.interface.parseLog(log);
+              return domainRoutingIsmFactory.interface.parseLog(log);
             } catch (e) {
               return undefined;
             }
@@ -398,12 +409,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config: AggregationIsmConfig;
     origin?: ChainName;
     mailbox?: Address;
-    logger: Debugger;
+    logger: Logger;
   }): Promise<IAggregationIsm> {
     const { destination, config, origin, mailbox } = params;
     const signer = this.multiProvider.getSigner(destination);
-    const aggregationIsmFactory =
-      this.getContracts(destination).aggregationIsmFactory;
+    const staticAggregationIsmFactory =
+      this.getContracts(destination).staticAggregationIsmFactory;
     const addresses: Address[] = [];
     for (const module of config.modules) {
       const submodule = await this.deploy({
@@ -416,7 +427,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
     const address = await this.deployStaticAddressSet(
       destination,
-      aggregationIsmFactory,
+      staticAggregationIsmFactory,
       addresses,
       params.logger,
       config.threshold,
@@ -428,7 +439,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     chain: ChainName,
     factory: StaticThresholdAddressSetFactory | StaticAddressSetFactory,
     values: Address[],
-    logger: Debugger,
+    logger: Logger,
     threshold = values.length,
   ): Promise<Address> {
     const sorted = [...values].sort();
@@ -439,20 +450,28 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     );
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
-      logger(
+      logger.debug(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const hash = await factory['deploy(address[],uint8)'](
+
+      // estimate gas
+      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
         sorted,
         threshold,
         overrides,
       );
+      // add 10% buffer
+      const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+        ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+      });
+
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
     } else {
-      logger(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}`,
+      logger.debug(
+        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
       );
     }
     return address;

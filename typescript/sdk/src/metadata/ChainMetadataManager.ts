@@ -1,9 +1,8 @@
-import { Debugger, debug } from 'debug';
+import { Logger } from 'pino';
 
-import { ProtocolType, exclude, pick } from '@hyperlane-xyz/utils';
+import { ProtocolType, exclude, pick, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata as defaultChainMetadata } from '../consts/chainMetadata';
-import { ChainMap, ChainName, ChainNameOrId } from '../types';
+import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import {
   getExplorerAddressUrl,
@@ -11,16 +10,16 @@ import {
   getExplorerApiUrl,
   getExplorerBaseUrl,
   getExplorerTxUrl,
-} from './blockExplorer';
+} from './blockExplorer.js';
 import {
   ChainMetadata,
+  ChainMetadataSchema,
   ExplorerFamily,
   getDomainId,
-  safeParseChainMetadata,
-} from './chainMetadataTypes';
+} from './chainMetadataTypes.js';
 
 export interface ChainMetadataManagerOptions {
-  loggerName?: string;
+  logger?: Logger;
 }
 
 /**
@@ -30,16 +29,15 @@ export interface ChainMetadataManagerOptions {
  */
 export class ChainMetadataManager<MetaExt = {}> {
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
-  public readonly logger: Debugger;
+  public readonly logger: Logger;
+  static readonly DEFAULT_MAX_BLOCK_RANGE = 1000;
 
   /**
    * Create a new ChainMetadataManager with the given chainMetadata,
    * or the SDK's default metadata if not provided
    */
   constructor(
-    chainMetadata: ChainMap<
-      ChainMetadata<MetaExt>
-    > = defaultChainMetadata as ChainMap<ChainMetadata<MetaExt>>,
+    chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     options: ChainMetadataManagerOptions = {},
   ) {
     Object.entries(chainMetadata).forEach(([key, cm]) => {
@@ -49,7 +47,11 @@ export class ChainMetadataManager<MetaExt = {}> {
         );
       this.addChain(cm);
     });
-    this.logger = debug(options?.loggerName || 'hyperlane:MetadataManager');
+    this.logger =
+      options?.logger ||
+      rootLogger.child({
+        module: 'MetadataManager',
+      });
   }
 
   /**
@@ -57,14 +59,7 @@ export class ChainMetadataManager<MetaExt = {}> {
    * @throws if chain's name or domain/chain ID collide
    */
   addChain(metadata: ChainMetadata<MetaExt>): void {
-    const parseResult = safeParseChainMetadata(metadata);
-    if (!parseResult.success) {
-      throw new Error(
-        `Invalid chain metadata for ${
-          metadata.name
-        }: ${parseResult.error.format()}`,
-      );
-    }
+    ChainMetadataSchema.parse(metadata);
     // Ensure no two chains have overlapping names/domainIds/chainIds
     for (const chainMetadata of Object.values(this.metadata)) {
       const { name, chainId, domainId } = chainMetadata;
@@ -110,6 +105,17 @@ export class ChainMetadataManager<MetaExt = {}> {
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
     }
     return chainMetadata;
+  }
+
+  getMaxBlockRange(chainNameOrId: ChainNameOrId): number {
+    const metadata = this.getChainMetadata(chainNameOrId);
+    return Math.max(
+      ...metadata.rpcUrls.map(
+        ({ pagination }) =>
+          pagination?.maxBlockRange ??
+          ChainMetadataManager.DEFAULT_MAX_BLOCK_RANGE,
+      ),
+    );
   }
 
   /**
@@ -210,7 +216,9 @@ export class ChainMetadataManager<MetaExt = {}> {
    * Get the ids for all chains known to this MultiProvider
    */
   getKnownDomainIds(): number[] {
-    return this.getKnownChainNames().map(this.getDomainId);
+    return this.getKnownChainNames().map((chainName) =>
+      this.getDomainId(chainName),
+    );
   }
 
   /**
@@ -232,14 +240,38 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
+   * Get the RPC details for a given chain name, chain id, or domain id.
+   * Optional index for metadata containing more than one RPC.
+   * @throws if chain's metadata has not been set
+   */
+  getRpc(
+    chainNameOrId: ChainNameOrId,
+    index = 0,
+  ): ChainMetadata['rpcUrls'][number] {
+    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
+    if (!rpcUrls?.length || !rpcUrls[index])
+      throw new Error(
+        `No RPC configured at index ${index} for ${chainNameOrId}`,
+      );
+    return rpcUrls[index];
+  }
+
+  /**
    * Get an RPC URL for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getRpcUrl(chainNameOrId: ChainNameOrId): string {
-    const { rpcUrls } = this.getChainMetadata(chainNameOrId);
-    if (!rpcUrls?.length || !rpcUrls[0].http)
-      throw new Error(`No RPC URl configured for ${chainNameOrId}`);
-    return rpcUrls[0].http;
+  getRpcUrl(chainNameOrId: ChainNameOrId, index = 0): string {
+    const { http } = this.getRpc(chainNameOrId, index);
+    if (!http) throw new Error(`No RPC URL configured for ${chainNameOrId}`);
+    return http;
+  }
+
+  /**
+   * Get an RPC concurrency level for a given chain name, chain id, or domain id
+   */
+  tryGetRpcConcurrency(chainNameOrId: ChainNameOrId, index = 0): number | null {
+    const { concurrency } = this.getRpc(chainNameOrId, index);
+    return concurrency ?? null;
   }
 
   /**

@@ -12,38 +12,42 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
-    BaseAgent, ChainMetrics, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    SequencedDataContractSync, WatermarkContractSync,
+    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
+    SyncOptions,
 };
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, U256,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
+    H512, U256,
 };
 use tokio::{
     sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        broadcast::{Receiver, Sender},
+        mpsc::{self, UnboundedSender},
         RwLock,
     },
     task::JoinHandle,
 };
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
+use tokio_metrics::TaskMonitor;
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
-use crate::processor::Processor;
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
     msg::{
+        blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
-        metadata::{AppContextClassifier, BaseMetadataBuilder},
+        metadata::{BaseMetadataBuilder, IsmAwareAppContextClassifier},
+        op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::{MessageContext, MessageSubmissionMetrics},
-        pending_operation::DynPendingOperation,
         processor::{MessageProcessor, MessageProcessorMetrics},
-        serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
     },
+    server::{self as relayer_server, MessageRetryRequest},
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 use crate::{
     merkle_tree::processor::{MerkleTreeProcessor, MerkleTreeProcessorMetrics},
     processor::ProcessorExt,
 };
+use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -58,37 +62,41 @@ pub struct Relayer {
     destination_chains: HashMap<HyperlaneDomain, ChainConf>,
     #[as_ref]
     core: HyperlaneAgentCore,
-    message_syncs: HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<HyperlaneMessage>>>,
+    message_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<HyperlaneMessage>>>,
     interchain_gas_payment_syncs:
-        HashMap<HyperlaneDomain, Arc<WatermarkContractSync<InterchainGasPayment>>>,
+        HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<InterchainGasPayment>>>,
     /// Context data for each (origin, destination) chain pair a message can be
     /// sent between
     msg_ctxs: HashMap<ContextKey, Arc<MessageContext>>,
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
-    merkle_tree_hook_syncs:
-        HashMap<HyperlaneDomain, Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
+    merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
-    whitelist: Arc<MatchingList>,
-    blacklist: Arc<MatchingList>,
+    message_whitelist: Arc<MatchingList>,
+    message_blacklist: Arc<MatchingList>,
+    address_blacklist: Arc<AddressBlacklist>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
+    metric_app_contexts: Vec<(MatchingList, String)>,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct
     // or move them in `core_metrics`, like the validator metrics
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    /// Tokio console server
+    pub tokio_console_server: Option<console_subscriber::Server>,
 }
 
 impl Debug for Relayer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Relayer {{ origin_chains: {:?}, destination_chains: {:?}, whitelist: {:?}, blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
+            "Relayer {{ origin_chains: {:?}, destination_chains: {:?}, message_whitelist: {:?}, message_blacklist: {:?}, address_blacklist: {:?}, transaction_gas_limit: {:?}, skip_transaction_gas_limit_for: {:?}, allow_local_checkpoint_syncers: {:?} }}",
             self.origin_chains,
             self.destination_chains,
-            self.whitelist,
-            self.blacklist,
+            self.message_whitelist,
+            self.message_blacklist,
+            self.address_blacklist,
             self.transaction_gas_limit,
             self.skip_transaction_gas_limit_for,
             self.allow_local_checkpoint_syncers
@@ -108,6 +116,7 @@ impl BaseAgent for Relayer {
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
         chain_metrics: ChainMetrics,
+        tokio_console_server: console_subscriber::Server,
     ) -> Result<Self>
     where
         Self: Sized,
@@ -129,45 +138,58 @@ impl BaseAgent for Relayer {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
 
-        let message_syncs = settings
-            .build_message_indexers(
+        let message_syncs: HashMap<_, Arc<dyn ContractSyncer<HyperlaneMessage>>> = settings
+            .contract_syncs::<HyperlaneMessage, _>(
                 settings.origin_chains.iter(),
                 &core_metrics,
                 &contract_sync_metrics,
                 dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
             )
-            .await?;
-        let interchain_gas_payment_syncs = settings
-            .build_interchain_gas_payment_indexers(
-                settings.origin_chains.iter(),
-                &core_metrics,
-                &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
-                    .collect(),
-            )
-            .await?;
-        let merkle_tree_hook_syncs = settings
-            .build_merkle_tree_hook_indexers(
-                settings.origin_chains.iter(),
-                &core_metrics,
-                &contract_sync_metrics,
-                dbs.iter()
-                    .map(|(d, db)| (d.clone(), Arc::new(db.clone()) as _))
-                    .collect(),
-            )
-            .await?;
+            .await?
+            .into_iter()
+            .map(|(k, v)| (k, v as _))
+            .collect();
 
-        let whitelist = Arc::new(settings.whitelist);
-        let blacklist = Arc::new(settings.blacklist);
+        let interchain_gas_payment_syncs = settings
+            .contract_syncs::<InterchainGasPayment, _>(
+                settings.origin_chains.iter(),
+                &core_metrics,
+                &contract_sync_metrics,
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+                    .collect(),
+            )
+            .await?
+            .into_iter()
+            .map(|(k, v)| (k, v as _))
+            .collect();
+
+        let merkle_tree_hook_syncs = settings
+            .contract_syncs::<MerkleTreeInsertion, _>(
+                settings.origin_chains.iter(),
+                &core_metrics,
+                &contract_sync_metrics,
+                dbs.iter()
+                    .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
+                    .collect(),
+            )
+            .await?
+            .into_iter()
+            .map(|(k, v)| (k, v as _))
+            .collect();
+
+        let message_whitelist = Arc::new(settings.whitelist);
+        let message_blacklist = Arc::new(settings.blacklist);
+        let address_blacklist = Arc::new(AddressBlacklist::new(settings.address_blacklist));
         let skip_transaction_gas_limit_for = settings.skip_transaction_gas_limit_for;
         let transaction_gas_limit = settings.transaction_gas_limit;
 
         info!(
-            %whitelist,
-            %blacklist,
+            %message_whitelist,
+            %message_blacklist,
+            ?address_blacklist,
             ?transaction_gas_limit,
             ?skip_transaction_gas_limit_for,
             "Whitelist configuration"
@@ -225,8 +247,7 @@ impl BaseAgent for Relayer {
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     db,
-                    5,
-                    AppContextClassifier::new(
+                    IsmAwareAppContextClassifier::new(
                         mailboxes[destination].clone(),
                         settings.metric_app_contexts.clone(),
                     ),
@@ -259,38 +280,62 @@ impl BaseAgent for Relayer {
             interchain_gas_payment_syncs,
             prover_syncs,
             merkle_tree_hook_syncs,
-            whitelist,
-            blacklist,
+            message_whitelist,
+            message_blacklist,
+            address_blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers: settings.allow_local_checkpoint_syncers,
+            metric_app_contexts: settings.metric_app_contexts,
             core_metrics,
             agent_metrics,
             chain_metrics,
+            tokio_console_server: Some(tokio_console_server),
         })
     }
 
     #[allow(clippy::async_yields_async)]
-    async fn run(self) {
+    async fn run(mut self) {
         let mut tasks = vec![];
 
-        // running http server
-        let server = self
-            .core
-            .settings
-            .server(self.core_metrics.clone())
-            .expect("Failed to create server");
-        let server_task = server.run(vec![]).instrument(info_span!("Relayer server"));
-        tasks.push(server_task);
-
+        let task_monitor = tokio_metrics::TaskMonitor::new();
+        if let Some(tokio_console_server) = self.tokio_console_server.take() {
+            let console_server =
+                tokio::spawn(TaskMonitor::instrument(&task_monitor.clone(), async move {
+                    info!("Starting tokio console server");
+                    if let Err(e) = tokio_console_server.serve().await {
+                        error!(error=?e, "Tokio console server failed to start");
+                    }
+                }));
+            tasks.push(console_server.instrument(info_span!("Tokio console server")));
+        }
+        let sender = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
+        let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
         for (dest_domain, dest_conf) in &self.destination_chains {
-            let (send_channel, receive_channel) =
-                mpsc::unbounded_channel::<Box<DynPendingOperation>>();
+            let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
+            let serial_submitter = SerialSubmitter::new(
+                dest_domain.clone(),
+                receive_channel,
+                sender.clone(),
+                SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
+                // Default to submitting one message at a time if there is no batch config
+                self.core.settings.chains[dest_domain.name()]
+                    .connection
+                    .operation_batch_config()
+                    .map(|c| c.max_batch_size)
+                    .unwrap_or(1),
+                task_monitor.clone(),
+            );
+            prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
 
-            tasks.push(self.run_destination_submitter(dest_domain, receive_channel));
+            tasks.push(self.run_destination_submitter(
+                dest_domain,
+                serial_submitter,
+                task_monitor.clone(),
+            ));
 
             let metrics_updater = MetricsUpdater::new(
                 dest_conf,
@@ -305,15 +350,52 @@ impl BaseAgent for Relayer {
         }
 
         for origin in &self.origin_chains {
-            tasks.push(self.run_message_sync(origin).await);
-            tasks.push(self.run_interchain_gas_payment_sync(origin).await);
-            tasks.push(self.run_merkle_tree_hook_syncs(origin).await);
+            let maybe_broadcaster = self
+                .message_syncs
+                .get(origin)
+                .and_then(|sync| sync.get_broadcaster());
+            tasks.push(self.run_message_sync(origin, task_monitor.clone()).await);
+            tasks.push(
+                self.run_interchain_gas_payment_sync(
+                    origin,
+                    maybe_broadcaster.clone().map(|b| b.subscribe()),
+                    task_monitor.clone(),
+                )
+                .await,
+            );
+            tasks.push(
+                self.run_merkle_tree_hook_syncs(
+                    origin,
+                    maybe_broadcaster.map(|b| b.subscribe()),
+                    task_monitor.clone(),
+                )
+                .await,
+            );
         }
+        // run server
+        let custom_routes = relayer_server::Server::new()
+            .with_op_retry(sender.clone())
+            .with_message_queue(prep_queues)
+            .routes();
+
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = server
+            .run_with_custom_routes(custom_routes)
+            .instrument(info_span!("Relayer server"));
+        tasks.push(server_task);
 
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
-            tasks.push(self.run_message_processor(origin, send_channels.clone()));
-            tasks.push(self.run_merkle_tree_processor(origin));
+            tasks.push(self.run_message_processor(
+                origin,
+                send_channels.clone(),
+                task_monitor.clone(),
+            ));
+            tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
 
         if let Err(err) = try_join_all(tasks).await {
@@ -326,24 +408,28 @@ impl BaseAgent for Relayer {
 }
 
 impl Relayer {
-    async fn run_message_sync(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
+    async fn run_message_sync(
+        &self,
+        origin: &HyperlaneDomain,
+        task_monitor: TaskMonitor,
+    ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
-        tokio::spawn(async move {
+        let cursor = contract_sync.cursor(index_settings).await;
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
-                .sync("dispatched_messages", cursor)
+                .sync("dispatched_messages", cursor.into())
                 .await
-        })
-        .instrument(info_span!("ContractSync"))
+        }))
+        .instrument(info_span!("MessageSync"))
     }
 
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
+        tx_id_receiver: Option<Receiver<H512>>,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self
@@ -351,28 +437,45 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync.rate_limited_cursor(index_settings).await;
-        tokio::spawn(async move { contract_sync.clone().sync("gas_payments", cursor).await })
-            .instrument(info_span!("ContractSync"))
+        let cursor = contract_sync.cursor(index_settings).await;
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            contract_sync
+                .clone()
+                .sync(
+                    "gas_payments",
+                    SyncOptions::new(Some(cursor), tx_id_receiver),
+                )
+                .await
+        }))
+        .instrument(info_span!("IgpSync"))
     }
 
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
+        tx_id_receiver: Option<Receiver<H512>>,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .forward_backward_message_sync_cursor(index_settings)
-            .await;
-        tokio::spawn(async move { contract_sync.clone().sync("merkle_tree_hook", cursor).await })
-            .instrument(info_span!("ContractSync"))
+        let cursor = contract_sync.cursor(index_settings).await;
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            contract_sync
+                .clone()
+                .sync(
+                    "merkle_tree_hook",
+                    SyncOptions::new(Some(cursor), tx_id_receiver),
+                )
+                .await
+        }))
+        .instrument(info_span!("MerkleTreeHookSync"))
     }
 
     fn run_message_processor(
         &self,
         origin: &HyperlaneDomain,
-        send_channels: HashMap<u32, UnboundedSender<Box<DynPendingOperation>>>,
+        send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -397,20 +500,26 @@ impl Relayer {
 
         let message_processor = MessageProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
-            self.whitelist.clone(),
-            self.blacklist.clone(),
+            self.message_whitelist.clone(),
+            self.message_blacklist.clone(),
+            self.address_blacklist.clone(),
             metrics,
             send_channels,
             destination_ctxs,
+            self.metric_app_contexts.clone(),
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());
-        let processor = Processor::new(Box::new(message_processor));
+        let processor = Processor::new(Box::new(message_processor), task_monitor.clone());
 
         processor.spawn().instrument(span)
     }
 
-    fn run_merkle_tree_processor(&self, origin: &HyperlaneDomain) -> Instrumented<JoinHandle<()>> {
+    fn run_merkle_tree_processor(
+        &self,
+        origin: &HyperlaneDomain,
+        task_monitor: TaskMonitor,
+    ) -> Instrumented<JoinHandle<()>> {
         let metrics = MerkleTreeProcessorMetrics::new();
         let merkle_tree_processor = MerkleTreeProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
@@ -419,25 +528,21 @@ impl Relayer {
         );
 
         let span = info_span!("MerkleTreeProcessor", origin=%merkle_tree_processor.domain());
-        let processor = Processor::new(Box::new(merkle_tree_processor));
+        let processor = Processor::new(Box::new(merkle_tree_processor), task_monitor.clone());
         processor.spawn().instrument(span)
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip(self, receiver))]
+    #[tracing::instrument(skip(self, serial_submitter))]
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: UnboundedReceiver<Box<DynPendingOperation>>,
+        serial_submitter: SerialSubmitter,
+        task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        let serial_submitter = SerialSubmitter::new(
-            destination.clone(),
-            receiver,
-            SerialSubmitterMetrics::new(&self.core.metrics, destination),
-        );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
-        tokio::spawn(async move {
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             // Propagate task panics
             serial_submitter.spawn().await.unwrap_or_else(|err| {
                 panic!(
@@ -445,7 +550,7 @@ impl Relayer {
                     destination, err
                 )
             });
-        })
+        }))
         .instrument(span)
     }
 }

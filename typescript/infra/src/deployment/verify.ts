@@ -1,7 +1,7 @@
 import { BuildArtifact, ChainMap } from '@hyperlane-xyz/sdk';
 
-import { fetchGCPSecret } from '../utils/gcloud';
-import { readJSONAtPath } from '../utils/utils';
+import { fetchGCPSecret } from '../utils/gcloud.js';
+import { readJSONAtPath } from '../utils/utils.js';
 
 // read build artifact from given path
 export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {

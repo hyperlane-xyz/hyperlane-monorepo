@@ -1,55 +1,49 @@
-import { ChainMetadata, RpcConsensusType } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objFilter } from '@hyperlane-xyz/utils';
-
 import {
   getKeysForRole,
+  getMultiProtocolProvider,
   getMultiProviderForRole,
-} from '../../../scripts/agent-utils';
-import { EnvironmentConfig } from '../../../src/config';
-import { Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+} from '../../../scripts/agent-utils.js';
+import { EnvironmentConfig } from '../../../src/config/environment.js';
+import { Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { agents } from './agent';
-import { environment as environmentName, mainnetConfigs } from './chains';
-import { core } from './core';
-import { keyFunderConfig } from './funding';
-import { helloWorld } from './helloworld';
-import { igp } from './igp';
-import { infrastructure } from './infrastructure';
-import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer';
-import { owners } from './owners';
+import { agents } from './agent.js';
+import { environment as environmentName, getRegistry } from './chains.js';
+import { core } from './core.js';
+import { keyFunderConfig } from './funding.js';
+import { helloWorld } from './helloworld.js';
+import { igp } from './igp.js';
+import { infrastructure } from './infrastructure.js';
+import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
+import { ethereumChainOwners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
-  chainMetadataConfigs: mainnetConfigs,
-  getMultiProvider: (
+  supportedChainNames,
+  getRegistry,
+  getMultiProtocolProvider: async () =>
+    getMultiProtocolProvider(await getRegistry()),
+  getMultiProvider: async (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-    connectionType?: RpcConsensusType,
-  ) => {
-    const config = objFilter(
-      mainnetConfigs,
-      (_, chainMetadata): chainMetadata is ChainMetadata =>
-        chainMetadata.protocol === ProtocolType.Ethereum,
-    );
-
-    return getMultiProviderForRole(
-      config,
+    useSecrets?: boolean,
+  ) =>
+    getMultiProviderForRole(
       environmentName,
+      await getRegistry(useSecrets),
       context,
       role,
       undefined,
-      connectionType,
-    );
-  },
+    ),
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-  ) => getKeysForRole(mainnetConfigs, environmentName, context, role),
+  ) => getKeysForRole(environmentName, supportedChainNames, context, role),
   agents,
   core,
   igp,
-  owners,
+  owners: ethereumChainOwners,
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,

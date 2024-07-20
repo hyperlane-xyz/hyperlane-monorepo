@@ -7,6 +7,11 @@ import {
   HypERC20Collateral,
   HypERC20Collateral__factory,
   HypERC20__factory,
+  HypXERC20,
+  HypXERC20Lockbox,
+  HypXERC20Lockbox__factory,
+  HypXERC20__factory,
+  IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -18,18 +23,23 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainName } from '../../types';
-import { MinimalTokenMetadata } from '../config';
+import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { TokenMetadata } from '../types.js';
 
 import {
   IHypTokenAdapter,
+  IHypXERC20Adapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
-} from './ITokenAdapter';
+} from './ITokenAdapter.js';
+
+// An estimate of the gas amount for a typical EVM token router transferRemote transaction
+// Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
+export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -41,7 +51,7 @@ export class EvmNativeTokenAdapter
     return BigInt(balance.toString());
   }
 
-  async getMetadata(): Promise<MinimalTokenMetadata> {
+  async getMetadata(): Promise<TokenMetadata> {
     // TODO get metadata from chainMetadata config
     throw new Error('Metadata not available to native tokens');
   }
@@ -94,13 +104,14 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
     return BigInt(balance.toString());
   }
 
-  override async getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
-    const [decimals, symbol, name] = await Promise.all([
+  override async getMetadata(isNft?: boolean): Promise<TokenMetadata> {
+    const [decimals, symbol, name, totalSupply] = await Promise.all([
       isNft ? 0 : this.contract.decimals(),
       this.contract.symbol(),
       this.contract.name(),
+      this.contract.totalSupply(),
     ]);
-    return { decimals, symbol, name };
+    return { decimals, symbol, name, totalSupply: totalSupply.toString() };
   }
 
   override async isApproveRequired(
@@ -181,7 +192,9 @@ export class EvmHypSyntheticAdapter
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  async quoteGasPayment(destination: Domain): Promise<InterchainGasQuote> {
+  async quoteTransferRemoteGas(
+    destination: Domain,
+  ): Promise<InterchainGasQuote> {
     const gasPayment = await this.contract.quoteGasPayment(destination);
     // If EVM hyp contracts eventually support alternative IGP tokens,
     // this would need to determine the correct token address
@@ -194,15 +207,15 @@ export class EvmHypSyntheticAdapter
     recipient,
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
-    if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
+    if (!interchainGas)
+      interchainGas = await this.quoteTransferRemoteGas(destination);
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction.transferRemote(
-      destination,
-      recipBytes32,
-      weiAmountOrId,
-      { value: interchainGas.amount.toString() },
-    );
+    return this.contract.populateTransaction[
+      'transferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, weiAmountOrId, {
+      value: interchainGas.amount.toString(),
+    });
   }
 }
 
@@ -230,7 +243,7 @@ export class EvmHypCollateralAdapter
     if (!this.wrappedTokenAddress) {
       this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
     }
-    return this.wrappedTokenAddress;
+    return this.wrappedTokenAddress!;
   }
 
   protected async getWrappedTokenAdapter(): Promise<
@@ -241,7 +254,7 @@ export class EvmHypCollateralAdapter
     });
   }
 
-  override getMetadata(isNft?: boolean): Promise<MinimalTokenMetadata> {
+  override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
     return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
   }
 
@@ -272,6 +285,92 @@ export class EvmHypCollateralAdapter
   }
 }
 
+// Interacts with HypXERC20Lockbox contracts
+export class EvmHypXERC20LockboxAdapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
+{
+  hypXERC20Lockbox: HypXERC20Lockbox;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async getMintLimit(): Promise<bigint> {
+    const xERC20 = await this.hypXERC20Lockbox.xERC20();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).mintingCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
+  }
+
+  async getBurnLimit(): Promise<bigint> {
+    const xERC20 = await this.hypXERC20Lockbox.xERC20();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).mintingCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
+  }
+}
+
+// Interacts with HypXERC20 contracts
+export class EvmHypXERC20Adapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
+{
+  hypXERC20: HypXERC20;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.hypXERC20 = HypXERC20__factory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+  }
+
+  async getMintLimit(): Promise<bigint> {
+    const xERC20 = await this.hypXERC20.wrappedToken();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).mintingCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
+  }
+
+  async getBurnLimit(): Promise<bigint> {
+    const xERC20 = await this.hypXERC20.wrappedToken();
+
+    const limit = await IXERC20__factory.connect(
+      xERC20,
+      this.getProvider(),
+    ).burningCurrentLimitOf(this.contract.address);
+
+    return BigInt(limit.toString());
+  }
+}
+
 // Interacts HypNative contracts
 export class EvmHypNativeAdapter
   extends EvmHypCollateralAdapter
@@ -287,7 +386,8 @@ export class EvmHypNativeAdapter
     recipient,
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
-    if (!interchainGas) interchainGas = await this.quoteGasPayment(destination);
+    if (!interchainGas)
+      interchainGas = await this.quoteTransferRemoteGas(destination);
 
     let txValue: bigint | undefined = undefined;
     const { addressOrDenom: igpAddressOrDenom, amount: igpAmount } =
@@ -300,11 +400,8 @@ export class EvmHypNativeAdapter
     }
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction.transferRemote(
-      destination,
-      recipBytes32,
-      weiAmountOrId,
-      { value: txValue?.toString() },
-    );
+    return this.contract.populateTransaction[
+      'transferRemote(uint32,bytes32,uint256)'
+    ](destination, recipBytes32, weiAmountOrId, { value: txValue?.toString() });
   }
 }

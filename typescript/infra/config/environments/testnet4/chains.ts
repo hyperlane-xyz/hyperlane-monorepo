@@ -1,45 +1,19 @@
-import {
-  ChainMap,
-  ChainMetadata,
-  Chains,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
-// All supported chains for the testnet4 environment.
-// These chains may be any protocol type.
-export const supportedChainNames = [
-  Chains.alfajores,
-  Chains.arbitrumgoerli,
-  Chains.bsctestnet,
-  Chains.eclipsetestnet,
-  Chains.fuji,
-  Chains.goerli,
-  Chains.mumbai,
-  Chains.optimismgoerli,
-  Chains.plumetestnet,
-  Chains.polygonzkevmtestnet,
-  Chains.scrollsepolia,
-  Chains.sepolia,
-  Chains.solanatestnet,
-];
+import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
+
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const environment = 'testnet4';
 
-export const testnetConfigs: ChainMap<ChainMetadata> = {
-  ...Object.fromEntries(
-    supportedChainNames.map((chain) => [chain, chainMetadata[chain]]),
-  ),
-  mumbai: {
-    ...chainMetadata.mumbai,
-    transactionOverrides: {
-      maxFeePerGas: 150 * 10 ** 9, // 70 gwei
-      maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
-    },
-  },
+export const ethereumChainNames = supportedChainNames.filter(
+  isEthereumProtocolChain,
+);
+
+export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsctestnet: {
-    ...chainMetadata.bsctestnet,
     transactionOverrides: {
-      gasPrice: 80 * 10 ** 9, // 8 gwei
+      gasPrice: 8 * 10 ** 9, // 8 gwei
     },
   },
 };

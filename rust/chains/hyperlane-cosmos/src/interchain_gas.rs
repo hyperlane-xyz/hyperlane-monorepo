@@ -1,20 +1,22 @@
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use futures::future;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster, InterchainGasPayment,
-    LogMeta, SequenceAwareIndexer, H256, U256,
+    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
 };
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     signers::Signer,
-    utils::{CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64},
+    utils::{
+        execute_and_parse_log_futures, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
+        CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+    },
     ConnectionConf, CosmosProvider, HyperlaneCosmosError,
 };
 
@@ -202,39 +204,28 @@ impl CosmosInterchainGasPaymasterIndexer {
 
 #[async_trait]
 impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         let logs_futures: Vec<_> = range
             .map(|block_number| {
                 let self_clone = self.clone();
                 tokio::spawn(async move {
                     let logs = self_clone
                         .indexer
-                        .get_logs_in_block(block_number, Self::interchain_gas_payment_parser)
+                        .get_logs_in_block(
+                            block_number,
+                            Self::interchain_gas_payment_parser,
+                            "InterchainGasPaymentCursor",
+                        )
                         .await;
                     (logs, block_number)
                 })
             })
             .collect();
 
-        // TODO: this can be refactored when we rework indexing, to be part of the block-by-block indexing
-        let result = future::join_all(logs_futures)
-            .await
-            .into_iter()
-            .flatten()
-            .filter_map(|(res, block_number)| match res {
-                Ok(logs) => Some(logs),
-                Err(err) => {
-                    warn!(?err, ?block_number, "Failed to fetch logs for block");
-                    None
-                }
-            })
-            .flatten()
-            .collect();
-
-        Ok(result)
+        execute_and_parse_log_futures(logs_futures).await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {

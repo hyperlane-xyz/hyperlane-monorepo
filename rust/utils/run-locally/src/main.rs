@@ -11,18 +11,25 @@
 //! the end conditions are met, the test is a failure. Defaults to 10 min.
 //! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 16 if CI mode is enabled.
 //! else false.
+//! - `SEALEVEL_ENABLED`: true/false, enables sealevel testing. Defaults to true.
 
 use std::{
-    fs,
+    collections::HashMap,
+    fs::{self, File},
     path::Path,
     process::{Child, ExitCode},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread::sleep,
     time::{Duration, Instant},
 };
 
+use ethers_contract::MULTICALL_ADDRESS;
 use logging::log;
 pub use metrics::fetch_metric;
+use once_cell::sync::Lazy;
 use program::Program;
 use tempfile::tempdir;
 
@@ -45,6 +52,12 @@ mod program;
 mod solana;
 mod utils;
 
+pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
+    let dir = Path::new("/tmp/test_logs");
+    fs::create_dir_all(dir).unwrap();
+    dir
+});
+
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[
     // test1
@@ -60,16 +73,17 @@ const RELAYER_KEYS: &[&str] = &[
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
-const VALIDATOR_KEYS: &[&str] = &[
+const ETH_VALIDATOR_KEYS: &[&str] = &[
     // eth
     "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
     "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+];
+
+const SEALEVEL_VALIDATOR_KEYS: &[&str] = &[
     // sealevel
     "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
 ];
-
-const VALIDATOR_ORIGIN_CHAINS: &[&str] = &["test1", "test2", "test3", "sealeveltest1"];
 
 const AGENT_BIN_PATH: &str = "target/debug";
 const INFRA_PATH: &str = "../typescript/infra";
@@ -86,14 +100,15 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 /// cleanup purposes at this time.
 #[derive(Default)]
 struct State {
-    agents: Vec<(String, Child)>,
+    #[allow(clippy::type_complexity)]
+    agents: HashMap<String, (Child, Option<Arc<Mutex<File>>>)>,
     watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
     data: Vec<Box<dyn ArbitraryData>>,
 }
 
 impl State {
     fn push_agent(&mut self, handles: AgentHandles) {
-        self.agents.push((handles.0, handles.1));
+        self.agents.insert(handles.0, (handles.1, handles.5));
         self.watchers.push(handles.2);
         self.watchers.push(handles.3);
         self.data.push(handles.4);
@@ -104,9 +119,7 @@ impl Drop for State {
     fn drop(&mut self) {
         SHUTDOWN.store(true, Ordering::Relaxed);
         log!("Signaling children to stop...");
-        // stop children in reverse order
-        self.agents.reverse();
-        for (name, mut agent) in self.agents.drain(..) {
+        for (name, (mut agent, _)) in self.agents.drain() {
             log!("Stopping child {}", name);
             stop_child(&mut agent);
         }
@@ -121,6 +134,7 @@ impl Drop for State {
             drop(data)
         }
         fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+        fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
     }
 }
 
@@ -132,20 +146,27 @@ fn main() -> ExitCode {
     })
     .unwrap();
 
-    assert_eq!(VALIDATOR_ORIGIN_CHAINS.len(), VALIDATOR_KEYS.len());
-    const VALIDATOR_COUNT: usize = VALIDATOR_KEYS.len();
-
     let config = Config::load();
-
-    let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
-    fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-    let checkpoints_dirs: Vec<DynPath> = (0..VALIDATOR_COUNT - 1)
+    let mut validator_origin_chains = ["test1", "test2", "test3"].to_vec();
+    let mut validator_keys = ETH_VALIDATOR_KEYS.to_vec();
+    let mut validator_count: usize = validator_keys.len();
+    let mut checkpoints_dirs: Vec<DynPath> = (0..validator_count)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
-        .chain([Box::new(solana_checkpoint_path) as DynPath])
         .collect();
+    if config.sealevel_enabled {
+        validator_origin_chains.push("sealeveltest1");
+        let mut sealevel_keys = SEALEVEL_VALIDATOR_KEYS.to_vec();
+        validator_keys.append(&mut sealevel_keys);
+        let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
+        fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
+        checkpoints_dirs.push(Box::new(solana_checkpoint_path) as DynPath);
+        validator_count += 1;
+    }
+    assert_eq!(validator_origin_chains.len(), validator_keys.len());
+
     let rocks_db_dir = tempdir().unwrap();
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
-    let validator_dbs = (0..VALIDATOR_COUNT)
+    let validator_dbs = (0..validator_count)
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
         .collect::<Vec<_>>();
 
@@ -157,6 +178,8 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
         .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
 
+    let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
+
     let relayer_env = common_agent_env
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "relayer"))
@@ -165,10 +188,25 @@ fn main() -> ExitCode {
             "CHAINS_TEST2_CONNECTION_URLS",
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
+        .hyp_env(
+            "CHAINS_TEST1_BATCHCONTRACTADDRESS",
+            multicall_address_string.clone(),
+        )
+        .hyp_env("CHAINS_TEST1_MAXBATCHSIZE", "5")
         // by setting this as a quorum provider we will cause nonce errors when delivering to test2
         // because the message will be sent to the node 3 times.
         .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
+        .hyp_env(
+            "CHAINS_TEST2_BATCHCONTRACTADDRESS",
+            multicall_address_string.clone(),
+        )
+        .hyp_env("CHAINS_TEST2_MAXBATCHSIZE", "5")
         .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env(
+            "CHAINS_TEST3_BATCHCONTRACTADDRESS",
+            multicall_address_string,
+        )
+        .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
         .hyp_env("METRICSPORT", "9092")
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
@@ -182,15 +220,6 @@ fn main() -> ExitCode {
             r#"[{
                 "type": "minimum",
                 "payment": "1",
-                "matchingList": [
-                    {
-                        "originDomain": ["13375","13376"],
-                        "destinationDomain": ["13375","13376"]
-                    }
-                ]
-            },
-            {
-                "type": "none"
             }]"#,
         )
         .arg(
@@ -198,11 +227,15 @@ fn main() -> ExitCode {
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // default is used for TEST3
-        .arg("defaultSigner.key", RELAYER_KEYS[2])
-        .arg(
+        .arg("defaultSigner.key", RELAYER_KEYS[2]);
+    let relayer_env = if config.sealevel_enabled {
+        relayer_env.arg(
             "relayChains",
             "test1,test2,test3,sealeveltest1,sealeveltest2",
-        );
+        )
+    } else {
+        relayer_env.arg("relayChains", "test1,test2,test3")
+    };
 
     let base_validator_env = common_agent_env
         .clone()
@@ -224,14 +257,14 @@ fn main() -> ExitCode {
         .hyp_env("INTERVAL", "5")
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
 
-    let validator_envs = (0..VALIDATOR_COUNT)
+    let validator_envs = (0..validator_count)
         .map(|i| {
             base_validator_env
                 .clone()
                 .hyp_env("METRICSPORT", (9094 + i).to_string())
                 .hyp_env("DB", validator_dbs[i].to_str().unwrap())
-                .hyp_env("ORIGINCHAINNAME", VALIDATOR_ORIGIN_CHAINS[i])
-                .hyp_env("VALIDATOR_KEY", VALIDATOR_KEYS[i])
+                .hyp_env("ORIGINCHAINNAME", validator_origin_chains[i])
+                .hyp_env("VALIDATOR_KEY", validator_keys[i])
                 .hyp_env(
                     "CHECKPOINTSYNCER_PATH",
                     (*checkpoints_dirs[i]).as_ref().to_str().unwrap(),
@@ -265,7 +298,7 @@ fn main() -> ExitCode {
             .join(", ")
     );
     log!("Relayer DB in {}", relayer_db.display());
-    (0..VALIDATOR_COUNT).for_each(|i| {
+    (0..validator_count).for_each(|i| {
         log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
     });
 
@@ -273,9 +306,14 @@ fn main() -> ExitCode {
     // Ready to run...
     //
 
-    let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
-    state.data.push(Box::new(solana_path_tempdir));
-    let solana_program_builder = build_solana_programs(solana_path.clone());
+    let solana_paths = if config.sealevel_enabled {
+        let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+        state.data.push(Box::new(solana_path_tempdir));
+        let solana_program_builder = build_solana_programs(solana_path.clone());
+        Some((solana_program_builder.join(), solana_path))
+    } else {
+        None
+    };
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
@@ -285,14 +323,17 @@ fn main() -> ExitCode {
         .arg("bin", "relayer")
         .arg("bin", "validator")
         .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .arg("bin", "hyperlane-sealevel-client")
+        .arg("bin", "init-db");
+    let build_rust = if config.sealevel_enabled {
+        build_rust.arg("bin", "hyperlane-sealevel-client")
+    } else {
+        build_rust
+    };
+    let build_rust = build_rust
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
     let start_anvil = start_anvil(config.clone());
-
-    let solana_program_path = solana_program_builder.join();
 
     log!("Running postgres db...");
     let postgres = Program::new("docker")
@@ -302,24 +343,31 @@ fn main() -> ExitCode {
         .arg("env", "POSTGRES_PASSWORD=47221c18c610")
         .arg("publish", "5432:5432")
         .cmd("postgres:14")
-        .spawn("SQL");
+        .spawn("SQL", None);
     state.push_agent(postgres);
 
     build_rust.join();
 
     let solana_ledger_dir = tempdir().unwrap();
-    let start_solana_validator = start_solana_test_validator(
-        solana_path.clone(),
-        solana_program_path,
-        solana_ledger_dir.as_ref().to_path_buf(),
-    );
+    let solana_config_path = if let Some((solana_program_path, solana_path)) = solana_paths.clone()
+    {
+        let start_solana_validator = start_solana_test_validator(
+            solana_path.clone(),
+            solana_program_path,
+            solana_ledger_dir.as_ref().to_path_buf(),
+        );
 
-    let (solana_config_path, solana_validator) = start_solana_validator.join();
-    state.push_agent(solana_validator);
+        let (solana_config_path, solana_validator) = start_solana_validator.join();
+        state.push_agent(solana_validator);
+        Some(solana_config_path)
+    } else {
+        None
+    };
+
     state.push_agent(start_anvil.join());
 
     // spawn 1st validator before any messages have been sent to test empty mailbox
-    state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1"));
+    state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1", None));
 
     sleep(Duration::from_secs(5));
 
@@ -327,7 +375,7 @@ fn main() -> ExitCode {
     Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
         .run()
         .join();
-    state.push_agent(scraper_env.spawn("SCR"));
+    state.push_agent(scraper_env.spawn("SCR", None));
 
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env_single_insertion = Program::new("yarn")
@@ -360,22 +408,35 @@ fn main() -> ExitCode {
         .arg("required-hook", "merkleTreeHook");
     kathy_env_double_insertion.clone().run().join();
 
-    // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
-    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    if let Some((solana_config_path, (_, solana_path))) =
+        solana_config_path.clone().zip(solana_paths.clone())
+    {
+        // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
+        for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+            initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
+                .join();
+        }
     }
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
-        let validator = validator_env.spawn(make_static(format!("VL{}", 1 + i)));
+        let validator = validator_env.spawn(
+            make_static(format!("VL{}", 1 + i)),
+            Some(AGENT_LOGGING_DIR.as_ref()),
+        );
         state.push_agent(validator);
     }
 
-    state.push_agent(relayer_env.spawn("RLY"));
+    state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
-    // Send some sealevel messages after spinning up the relayer, to test the forward indexing cursor
-    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-        initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone()).join();
+    if let Some((solana_config_path, (_, solana_path))) =
+        solana_config_path.clone().zip(solana_paths.clone())
+    {
+        // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
+        for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
+            initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
+                .join();
+        }
     }
 
     log!("Setup complete! Agents running in background...");
@@ -384,7 +445,11 @@ fn main() -> ExitCode {
     // Send half the kathy messages after the relayer comes up
     kathy_env_double_insertion.clone().run().join();
     kathy_env_zero_insertion.clone().run().join();
-    state.push_agent(kathy_env_single_insertion.flag("mineforever").spawn("KTY"));
+    state.push_agent(
+        kathy_env_single_insertion
+            .flag("mineforever")
+            .spawn("KTY", None),
+    );
 
     let loop_start = Instant::now();
     // give things a chance to fully start.
@@ -394,12 +459,14 @@ fn main() -> ExitCode {
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
-            // if termination_invariants_met(&config, starting_relayer_balance)
             if termination_invariants_met(
                 &config,
                 starting_relayer_balance,
-                &solana_path,
-                &solana_config_path,
+                solana_paths
+                    .clone()
+                    .map(|(_, solana_path)| solana_path)
+                    .as_deref(),
+                solana_config_path.as_deref(),
             )
             .unwrap_or(false)
             {
@@ -414,7 +481,7 @@ fn main() -> ExitCode {
         }
 
         // verify long-running tasks are still running
-        for (name, child) in state.agents.iter_mut() {
+        for (name, (child, _)) in state.agents.iter_mut() {
             if let Some(status) = child.try_wait().unwrap() {
                 if !status.success() {
                     log!(

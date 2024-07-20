@@ -1,8 +1,6 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware.js';
 
-import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware';
-
-import { environment } from './chains';
+import { environment } from './chains.js';
 
 export const liquidityLayerRelayerConfig: LiquidityLayerRelayerConfig = {
   docker: {
@@ -11,6 +9,5 @@ export const liquidityLayerRelayerConfig: LiquidityLayerRelayerConfig = {
   },
   namespace: environment,
   prometheusPushGateway:
-    'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
-  connectionType: RpcConsensusType.Single,
+    'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
 };

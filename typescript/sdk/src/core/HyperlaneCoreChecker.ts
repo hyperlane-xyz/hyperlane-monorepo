@@ -1,23 +1,23 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { BytecodeHash } from '../consts/bytecode';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { proxyImplementation } from '../deploy/proxy';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory';
-import { collectValidators, moduleMatchesConfig } from '../ism/utils';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { proxyImplementation } from '../deploy/proxy.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
+import { HyperlaneCore } from './HyperlaneCore.js';
 import {
   CoreConfig,
   CoreViolationType,
   MailboxViolation,
   MailboxViolationType,
   ValidatorAnnounceViolation,
-} from './types';
+} from './types.js';
 
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,
@@ -39,7 +39,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       return;
     }
 
-    await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
@@ -47,25 +46,24 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     if (config.upgrade) {
       await this.checkUpgrade(chain, config.upgrade);
     }
+    await this.checkDomainOwnership(chain);
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-
-    const ownableOverrides: Record<string, Address> =
-      config.ownerOverrides || {};
-    if (config.upgrade) {
-      const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
-      ownableOverrides.proxyAdmin = proxyOwner;
-    }
-    return this.checkOwnership(chain, config.owner, ownableOverrides);
+    return this.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
-    assert(localDomain === this.multiProvider.getDomainId(chain));
+    assert(
+      localDomain === this.multiProvider.getDomainId(chain),
+      `local domain ${localDomain} does not match expected domain ${this.multiProvider.getDomainId(
+        chain,
+      )} for ${chain}`,
+    );
 
     const actualIsm = await mailbox.defaultIsm();
 
@@ -120,8 +118,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         ],
         (bytecode) =>
           // This is obviously super janky but basically we are searching
-          //  for the ocurrences of localDomain in the bytecode and remove
-          //  that to compare, but some coincidental ocurrences of
+          //  for the occurrences of localDomain in the bytecode and remove
+          //  that to compare, but some coincidental occurrences of
           // localDomain in the bytecode should be not be removed which
           // are just done via an offset guard
           bytecode

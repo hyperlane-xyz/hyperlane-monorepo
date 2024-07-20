@@ -1,22 +1,25 @@
-import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
   ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContracts } from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { ContractVerifier } from '../deploy/verify/ContractVerifier';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts';
-import { serializeDifference } from './oracle/types';
-import { IgpConfig } from './types';
+import { IgpFactories, igpFactories } from './contracts.js';
+import {
+  oracleConfigToOracleData,
+  serializeDifference,
+} from './oracle/types.js';
+import { IgpConfig } from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   IgpConfig,
@@ -25,10 +28,12 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
   ) {
     super(multiProvider, igpFactories, {
-      logger: debug('hyperlane:IgpDeployer'),
+      logger: rootLogger.child({ module: 'IgpDeployer' }),
       contractVerifier,
+      concurrentDeploy,
     });
   }
 
@@ -38,27 +43,33 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
-    const beneficiary = config.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
+      'interchainGasPaymaster',
       proxyAdmin.address,
       [],
-      [await this.multiProvider.getSignerAddress(chain), beneficiary],
+      [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
-      const remoteId =
-        chainMetadata[remote]?.domainId ??
-        this.multiProvider.getDomainId(remote);
+      // TODO: add back support for non-EVM remotes.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      const remoteId = this.multiProvider.tryGetDomainId(remote);
+      if (remoteId === null) {
+        this.logger.warn(
+          `Skipping overhead ${chain} -> ${remote}. Expected if the remote is a non-EVM chain.`,
+        );
+        continue;
+      }
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
         !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
         !currentGasConfig.gasOverhead.eq(newGasOverhead)
       ) {
-        this.logger(
+        this.logger.debug(
           `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
         );
         gasParamsToSet.push({
@@ -93,32 +104,52 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const gasOracle = await this.deployContract(chain, 'storageGasOracle', []);
 
     if (!config.oracleConfig) {
-      this.logger('No oracle config provided, skipping...');
+      this.logger.debug('No oracle config provided, skipping...');
       return gasOracle;
     }
 
-    this.logger(`Configuring gas oracle from ${chain}...`);
+    this.logger.info(`Configuring gas oracle from ${chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
-      // check core metadata for non EVMs and fallback to multiprovider for custom EVMs
-      const remoteDomain =
-        chainMetadata[remote]?.domainId ??
-        this.multiProvider.getDomainId(remote);
+      // TODO: add back support for non-EVM remotes.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
+      if (remoteDomain === null) {
+        this.logger.warn(
+          `Skipping gas oracle ${chain} -> ${remote}. Expected if the remote is a non-EVM chain.`,
+        );
+        continue;
+      }
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
+
+      const desiredData = oracleConfigToOracleData(desired);
 
       if (
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
-        this.logger(`-> ${remote} ${serializeDifference(actual, desired)}`);
+        this.logger.info(
+          `${chain} -> ${remote}: ${serializeDifference(actual, desiredData)}`,
+        );
         configsToSet.push({
           remoteDomain,
-          ...desired,
+          ...desiredData,
         });
       }
+
+      const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
+      const exampleRemoteGasCost = desiredData.tokenExchangeRate
+        .mul(desiredData.gasPrice)
+        .mul(exampleRemoteGas)
+        .div(TOKEN_EXCHANGE_RATE_SCALE);
+      this.logger.info(
+        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
+          exampleRemoteGasCost,
+        )}`,
+      );
     }
 
     if (configsToSet.length > 0) {

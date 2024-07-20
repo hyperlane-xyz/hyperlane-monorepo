@@ -1,17 +1,18 @@
+/* eslint-disable no-console */
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
-import { DomainRoutingIsm } from '@hyperlane-xyz/core';
-import { Address, error } from '@hyperlane-xyz/utils';
+import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
+import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
 
-import { TestChains } from '../consts/chains';
-import { TestCoreApp } from '../core/TestCoreApp';
-import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import { randomAddress, randomInt } from '../test/testUtils';
+import { TestChainName, testChains } from '../consts/testChains.js';
+import { TestCoreApp } from '../core/TestCoreApp.js';
+import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { randomAddress } from '../test/testUtils.js';
 
-import { HyperlaneIsmFactory } from './HyperlaneIsmFactory';
+import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
   IsmConfig,
@@ -19,52 +20,75 @@ import {
   ModuleType,
   MultisigIsmConfig,
   RoutingIsmConfig,
-} from './types';
-import { moduleMatchesConfig } from './utils';
+  TrustedRelayerIsmConfig,
+} from './types.js';
+import { moduleMatchesConfig } from './utils.js';
 
 function randomModuleType(): ModuleType {
   const choices = [
     ModuleType.AGGREGATION,
-    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
     ModuleType.ROUTING,
+    ModuleType.NULL,
   ];
-  return choices[randomInt(choices.length)];
+  return randomElement(choices);
 }
 
-const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
+const randomMultisigIsmConfig = (
+  m: number,
+  n: number,
+  addresses?: string[],
+): MultisigIsmConfig => {
   const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray.map(() => randomAddress());
+  const validators = emptyArray
+    .map(() => (addresses ? randomElement(addresses) : randomAddress()))
+    .sort();
   return {
-    type: IsmType.MERKLE_ROOT_MULTISIG,
+    type: IsmType.MESSAGE_ID_MULTISIG,
     validators,
     threshold: m,
   };
 };
 
-const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
+export const randomIsmConfig = (
+  maxDepth = 5,
+  validatorAddresses?: string[],
+  relayerAddress?: string,
+): Exclude<IsmConfig, Address> => {
   const moduleType =
-    depth == maxDepth ? ModuleType.MERKLE_ROOT_MULTISIG : randomModuleType();
-  if (moduleType === ModuleType.MERKLE_ROOT_MULTISIG) {
-    const n = randomInt(5, 1);
-    return randomMultisigIsmConfig(randomInt(n, 1), n);
+    maxDepth === 0 ? ModuleType.MESSAGE_ID_MULTISIG : randomModuleType();
+  if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
+    const n = randomInt(validatorAddresses?.length ?? 5, 1);
+    return randomMultisigIsmConfig(randomInt(n, 1), n, validatorAddresses);
   } else if (moduleType === ModuleType.ROUTING) {
     const config: RoutingIsmConfig = {
       type: IsmType.ROUTING,
       owner: randomAddress(),
       domains: Object.fromEntries(
-        TestChains.map((c) => [c, randomIsmConfig(depth + 1)]),
+        testChains.map((c) => [
+          c,
+          randomIsmConfig(maxDepth - 1, validatorAddresses, relayerAddress),
+        ]),
       ),
     };
     return config;
   } else if (moduleType === ModuleType.AGGREGATION) {
-    const n = randomInt(5, 1);
+    const n = randomInt(5, 2);
     const modules = new Array<number>(n)
       .fill(0)
-      .map(() => randomIsmConfig(depth + 1));
+      .map(() =>
+        randomIsmConfig(maxDepth - 1, validatorAddresses, relayerAddress),
+      );
     const config: AggregationIsmConfig = {
       type: IsmType.AGGREGATION,
       threshold: randomInt(n, 1),
       modules,
+    };
+    return config;
+  } else if (moduleType === ModuleType.NULL) {
+    const config: TrustedRelayerIsmConfig = {
+      type: IsmType.TRUSTED_RELAYER,
+      relayer: relayerAddress ?? randomAddress(),
     };
     return config;
   } else {
@@ -79,10 +103,10 @@ describe('HyperlaneIsmFactory', async () => {
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address, newMailboxAddress: Address;
-  const chain = 'test1';
+  const chain = TestChainName.test1;
 
   beforeEach(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     ismFactory = new HyperlaneIsmFactory(
@@ -101,10 +125,9 @@ describe('HyperlaneIsmFactory', async () => {
       type: IsmType.ROUTING,
       owner: await multiProvider.getSignerAddress(chain),
       domains: Object.fromEntries(
-        TestChains.filter((c) => c !== 'test1').map((c) => [
-          c,
-          randomMultisigIsmConfig(3, 5),
-        ]),
+        testChains
+          .filter((c) => c !== TestChainName.test1 && c !== TestChainName.test4)
+          .map((c) => [c, randomMultisigIsmConfig(3, 5)]),
       ),
     };
   });
@@ -122,16 +145,41 @@ describe('HyperlaneIsmFactory', async () => {
     expect(matches).to.be.true;
   });
 
+  it('deploys a trusted relayer ism', async () => {
+    const relayer = randomAddress();
+    const config: TrustedRelayerIsmConfig = {
+      type: IsmType.TRUSTED_RELAYER,
+      relayer,
+    };
+    const ism = (await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    })) as TrustedRelayerIsm;
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+    expect(matches).to.be.true;
+  });
+
   for (let i = 0; i < 16; i++) {
     it('deploys a random ism config', async () => {
       const config = randomIsmConfig();
       let ismAddress: string;
       try {
-        const ism = await ismFactory.deploy({ destination: chain, config });
+        const ism = await ismFactory.deploy({
+          destination: chain,
+          config,
+          mailbox: mailboxAddress,
+        });
         ismAddress = ism.address;
       } catch (e) {
-        error('Failed to deploy random ism config', e);
-        error(JSON.stringify(config, null, 2));
+        console.error('Failed to deploy random ism config', e);
+        console.error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
 
@@ -145,8 +193,8 @@ describe('HyperlaneIsmFactory', async () => {
         );
         expect(matches).to.be.true;
       } catch (e) {
-        error('Failed to match random ism config', e);
-        error(JSON.stringify(config, null, 2));
+        console.error('Failed to match random ism config', e);
+        console.error(JSON.stringify(config, null, 2));
         process.exit(1);
       }
     });
@@ -305,11 +353,14 @@ describe('HyperlaneIsmFactory', async () => {
       });
       const existingIsm = ism.address;
       const domainsBefore = await (ism as DomainRoutingIsm).domains();
-
       // deleting the domain and removing from multiprovider should unenroll the domain
       // NB: we'll deploy new multisigIsms for the domains bc of new factories but the routingIsm address should be the same because of existingIsmAddress
       delete exampleRoutingConfig.domains['test3'];
-      multiProvider = multiProvider.intersect(['test1', 'test2']).result;
+      multiProvider = multiProvider.intersect([
+        TestChainName.test1,
+        TestChainName.test2,
+        TestChainName.test4,
+      ]).result;
       ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
       ismFactory = new HyperlaneIsmFactory(
         await ismFactoryDeployer.deploy(

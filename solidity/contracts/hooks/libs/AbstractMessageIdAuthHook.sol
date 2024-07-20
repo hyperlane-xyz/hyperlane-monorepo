@@ -58,7 +58,7 @@ abstract contract AbstractMessageIdAuthHook is
     }
 
     /// @inheritdoc IPostDispatchHook
-    function hookType() external pure returns (uint8) {
+    function hookType() external pure virtual returns (uint8) {
         return uint8(IPostDispatchHook.Types.ID_AUTH_ISM);
     }
 
@@ -77,6 +77,10 @@ abstract contract AbstractMessageIdAuthHook is
         require(
             message.destination() == destinationDomain,
             "AbstractMessageIdAuthHook: invalid destination domain"
+        );
+        require(
+            metadata.msgValue(0) < 2 ** 255,
+            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
         );
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,

@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use cosmrs::rpc::client::Client;
-use hyperlane_core::rpc_clients::call_with_retry;
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
 use sha256::digest;
+use std::fmt::Debug;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
@@ -25,9 +25,10 @@ pub trait WasmIndexer: Send + Sync {
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq + 'static;
+        T: Send + Sync + PartialEq + Debug + 'static;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -122,9 +123,10 @@ impl CosmosWasmIndexer {
         block: BlockResponse,
         block_results: BlockResultsResponse,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
     ) -> Vec<(T, LogMeta)>
     where
-        T: PartialEq + 'static,
+        T: PartialEq + Debug + 'static,
     {
         let Some(tx_results) = block_results.txs_results else {
             return vec![];
@@ -213,9 +215,7 @@ impl CosmosWasmIndexer {
 impl WasmIndexer for CosmosWasmIndexer {
     #[instrument(err, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let latest_block =
-            call_with_retry(move || Box::pin(Self::get_latest_block(self.provider.rpc().clone())))
-                .await?;
+        let latest_block = Self::get_latest_block(self.provider.rpc().clone()).await?;
         let latest_height: u32 = latest_block
             .block
             .header
@@ -231,17 +231,19 @@ impl WasmIndexer for CosmosWasmIndexer {
         &self,
         block_number: u32,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
     where
-        T: Send + Sync + PartialEq + 'static,
+        T: Send + Sync + PartialEq + Debug + 'static,
     {
         let client = self.provider.rpc().clone();
+        debug!(?block_number, cursor_label, domain=?self.provider.domain, "Getting logs in block");
 
-        let (block, block_results) = tokio::join!(
-            call_with_retry(|| { Box::pin(Self::get_block(client.clone(), block_number)) }),
-            call_with_retry(|| { Box::pin(Self::get_block_results(client.clone(), block_number)) }),
-        );
+        // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
+        // than indexing latency, so we do them sequentially.
+        let block = Self::get_block(client.clone(), block_number).await?;
+        let block_results = Self::get_block_results(client.clone(), block_number).await?;
 
-        Ok(self.handle_txs(block?, block_results?, parser))
+        Ok(self.handle_txs(block, block_results, parser, cursor_label))
     }
 }

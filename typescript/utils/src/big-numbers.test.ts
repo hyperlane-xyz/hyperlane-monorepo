@@ -1,4 +1,4 @@
-import BigNumber from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
 import { expect } from 'chai';
 import { FixedNumber } from 'ethers';
 
@@ -10,7 +10,7 @@ import {
   isBigNumberish,
   isZeroish,
   mulBigAndFixed,
-} from './big-numbers';
+} from './big-numbers.js';
 
 describe('isBigNumberish', () => {
   const testCases = [

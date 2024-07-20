@@ -1,5 +1,5 @@
+import { S3Receipt, S3Validator } from '@hyperlane-xyz/sdk';
 import {
-  BaseValidator,
   Checkpoint,
   HexString,
   S3Checkpoint,
@@ -7,8 +7,6 @@ import {
   SignatureLike,
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
-
-import { S3Receipt, S3Wrapper } from './s3';
 
 export enum CheckpointStatus {
   EXTRA = '➕',
@@ -35,71 +33,22 @@ type S3CheckpointReceipt = S3Receipt<SignedCheckpoint>;
 const checkpointWithMessageIdKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}_with_id.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
-const ANNOUNCEMENT_KEY = 'announcement.json';
-const LOCATION_PREFIX = 's3://';
 
 /**
  * Extension of BaseValidator that includes AWS S3 utilities.
  */
-export class S3Validator extends BaseValidator {
-  s3Bucket: S3Wrapper;
-
-  constructor(
-    address: string,
-    localDomain: number,
-    mailbox: string,
-    s3Bucket: string,
-    s3Region: string,
-    s3Folder: string | undefined,
-  ) {
-    super(address, localDomain, mailbox);
-    this.s3Bucket = new S3Wrapper(s3Bucket, s3Region, s3Folder);
-  }
-
+export class InfraS3Validator extends S3Validator {
   static async fromStorageLocation(
     storageLocation: string,
-  ): Promise<S3Validator> {
-    if (storageLocation.startsWith(LOCATION_PREFIX)) {
-      const suffix = storageLocation.slice(LOCATION_PREFIX.length);
-      const pieces = suffix.split('/');
-      if (pieces.length >= 2) {
-        const s3Bucket = new S3Wrapper(pieces[0], pieces[1], pieces[2]);
-        const announcement = await s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
-        const address = announcement?.data.value.validator;
-        const mailbox = announcement?.data.value.mailbox_address;
-        const localDomain = announcement?.data.value.mailbox_domain;
-
-        return new S3Validator(
-          address,
-          localDomain,
-          mailbox,
-          pieces[0],
-          pieces[1],
-          pieces[2],
-        );
-      }
-    }
-    throw new Error(`Unable to parse location ${storageLocation}`);
+  ): Promise<InfraS3Validator> {
+    const inner = await S3Validator.fromStorageLocation(storageLocation);
+    return new InfraS3Validator(inner.validatorConfig, inner.s3Config);
   }
 
-  async getAnnouncement(): Promise<any> {
-    const data = await this.s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
-    if (data) {
-      return data.data;
-    }
-  }
-
-  async getLatestCheckpointIndex() {
-    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
-      LATEST_KEY,
-    );
-
-    if (!latestCheckpointIndex) return -1;
-
-    return latestCheckpointIndex.data;
-  }
-
-  async compare(other: S3Validator, count = 5): Promise<CheckpointMetric[]> {
+  async compare(
+    other: InfraS3Validator,
+    count = 5,
+  ): Promise<CheckpointMetric[]> {
     const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
       LATEST_KEY,
     );
@@ -153,7 +102,7 @@ export class S3Validator extends BaseValidator {
             actual.data.messageId,
           )
         ) {
-          const signerAddress = this.recoverAddressFromCheckpoint(
+          const signerAddress = InfraS3Validator.recoverAddressFromCheckpoint(
             actual.data.checkpoint,
             actual.data.signature,
             actual.data.messageId,
@@ -194,10 +143,6 @@ export class S3Validator extends BaseValidator {
     }
 
     return checkpointMetrics.slice(-1 * count);
-  }
-
-  storageLocation(): string {
-    return `${LOCATION_PREFIX}/${this.s3Bucket.bucket}/${this.s3Bucket.region}`;
   }
 
   private async getCheckpointReceipt(

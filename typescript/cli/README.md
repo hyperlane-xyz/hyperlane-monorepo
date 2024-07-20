@@ -12,7 +12,7 @@ To read more about interchain applications, how the protocol works, and how to i
 
 ## Setup
 
-Node 16 or newer is required.
+Node 18 or newer is required.
 
 **Option 1: Global install:**
 
@@ -55,3 +55,11 @@ Run warp route deployments: `hyperlane deploy warp`
 View SDK contract addresses: `hyperlane chains addresses`
 
 Send test message: `hyperlane send message`
+
+## Logging
+
+The logging format can be toggled between human-readable vs JSON-structured logs using the `LOG_FORMAT` environment variable or the `--log <pretty|json>` flag.
+
+Note: If you are unable to see color output after setting `LOG_FORMAT`, you may set the `FORCE_COLOR=true` environment variable as a last resort. See https://force-color.org/ & https://github.com/chalk for more info.
+
+The logging verbosity can be configured using the `LOG_LEVEL` environment variable or the `--verbosity <trace|debug|info|warn|error|off>` flag.

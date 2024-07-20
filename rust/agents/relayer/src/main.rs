@@ -11,16 +11,9 @@ use eyre::Result;
 
 use hyperlane_base::agent_main;
 
-use crate::relayer::Relayer;
+use relayer::Relayer;
 
-mod merkle_tree;
-mod msg;
-mod processor;
-mod prover;
-mod relayer;
-mod settings;
-
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread", worker_threads = 20)]
 async fn main() -> Result<()> {
     agent_main::<Relayer>().await
 }

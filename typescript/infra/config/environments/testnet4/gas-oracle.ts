@@ -1,35 +1,37 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+} from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
-} from '../../../src/config';
-import {
-  TOKEN_EXCHANGE_RATE_DECIMALS,
   getTokenExchangeRateFromValues,
-} from '../../../src/config/gas-oracle';
+} from '../../../src/config/gas-oracle.js';
 
-import { supportedChainNames } from './chains';
+import { ethereumChainNames } from './chains.js';
+import { testnet4SupportedChainNames } from './supportedChainNames.js';
 
 // Taken by looking at each testnet and overestimating gas prices
-const gasPrices: ChainMap<BigNumber> = {
+const gasPrices: Record<
+  (typeof testnet4SupportedChainNames)[number],
+  BigNumber
+> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
-  fuji: ethers.utils.parseUnits('30', 'gwei'),
-  mumbai: ethers.utils.parseUnits('45', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
-  goerli: ethers.utils.parseUnits('5', 'gwei'),
-  sepolia: ethers.utils.parseUnits('5', 'gwei'),
-  optimismgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
-  arbitrumgoerli: ethers.utils.parseUnits('0.5', 'gwei'),
-  scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
-  lineagoerli: ethers.utils.parseUnits('1', 'gwei'),
-  polygonzkevmtestnet: ethers.utils.parseUnits('1', 'gwei'),
-  chiado: ethers.utils.parseUnits('2', 'gwei'),
-  solanatestnet: ethers.BigNumber.from('28'),
+  connextsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   eclipsetestnet: ethers.BigNumber.from('28'),
+  fuji: ethers.utils.parseUnits('30', 'gwei'),
+  holesky: ethers.utils.parseUnits('10', 'gwei'),
   plumetestnet: ethers.utils.parseUnits('0.01', 'gwei'),
+  scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
+  sepolia: ethers.utils.parseUnits('5', 'gwei'),
+  solanatestnet: ethers.BigNumber.from('28'),
+  superpositiontestnet: ethers.utils.parseUnits('0.5', 'gwei'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -48,27 +50,26 @@ const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
   [Rarity.Mythic]: ethers.utils.parseUnits('5', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
 
-const chainTokenRarity: ChainMap<Rarity> = {
+const chainTokenRarity: Record<
+  (typeof testnet4SupportedChainNames)[number],
+  Rarity
+> = {
   alfajores: Rarity.Common,
-  fuji: Rarity.Rare,
-  mumbai: Rarity.Rare,
   bsctestnet: Rarity.Rare,
-  goerli: Rarity.Mythic,
-  sepolia: Rarity.Mythic,
-  optimismgoerli: Rarity.Mythic,
-  arbitrumgoerli: Rarity.Mythic,
-  scrollsepolia: Rarity.Rare,
-  lineagoerli: Rarity.Rare,
-  polygonzkevmtestnet: Rarity.Common,
-  chiado: Rarity.Common,
-  solanatestnet: Rarity.Common,
+  connextsepolia: Rarity.Common,
   eclipsetestnet: Rarity.Common,
+  fuji: Rarity.Rare,
+  holesky: Rarity.Common,
   plumetestnet: Rarity.Common,
+  scrollsepolia: Rarity.Rare,
+  sepolia: Rarity.Mythic,
+  solanatestnet: Rarity.Common,
+  superpositiontestnet: Rarity.Common,
 };
 
 // Gets the "value" of a testnet chain
 function getApproximateValue(chain: ChainName): BigNumber {
-  const rarity = chainTokenRarity[chain];
+  const rarity = chainTokenRarity[chain as keyof typeof chainTokenRarity];
   return RARITY_APPROXIMATE_VALUE[rarity];
 }
 
@@ -82,7 +83,10 @@ function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
-    supportedChainNames,
-    gasPrices,
+    ethereumChainNames,
+    objMap(gasPrices, (_, gasPrice) => ({
+      amount: gasPrice.toString(),
+      decimals: 1,
+    })),
     getTokenExchangeRate,
   );

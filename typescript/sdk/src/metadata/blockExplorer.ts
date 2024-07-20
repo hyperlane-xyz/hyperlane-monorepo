@@ -1,19 +1,10 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { solanaChainToClusterName } from '../consts/chainMetadata';
-
-import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes';
+import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
 export function getExplorerBaseUrl(metadata: ChainMetadata): string | null {
   if (!metadata?.blockExplorers?.length) return null;
   const url = new URL(metadata.blockExplorers[0].url);
-  // TODO consider move handling of these chain/protocol specific quirks to ChainMetadata
-  if (
-    metadata.protocol === ProtocolType.Sealevel &&
-    solanaChainToClusterName[metadata.name]
-  ) {
-    url.searchParams.set('cluster', solanaChainToClusterName[metadata.name]);
-  }
   return url.toString();
 }
 
@@ -73,5 +64,7 @@ function appendToPath(baseUrl: string, pathExtension: string) {
   let currentPath = base.pathname;
   if (currentPath.endsWith('/')) currentPath = currentPath.slice(0, -1);
   const newPath = `${currentPath}/${pathExtension}`;
-  return new URL(newPath, base);
+  const newUrl = new URL(newPath, base);
+  newUrl.search = base.searchParams.toString();
+  return newUrl;
 }

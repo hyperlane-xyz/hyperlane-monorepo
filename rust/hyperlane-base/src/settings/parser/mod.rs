@@ -1,6 +1,6 @@
 //! This module is responsible for parsing the agent's settings.
 //!
-//! The correct settings shape is defined in the TypeScript SDK metadata. While the the exact shape
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the exact shape
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
@@ -187,6 +187,18 @@ fn parse_chain(
         .parse_address_hash()
         .end();
 
+    let batch_contract_address = chain
+        .chain(&mut err)
+        .get_opt_key("batchContractAddress")
+        .parse_address_hash()
+        .end();
+
+    let max_batch_size = chain
+        .chain(&mut err)
+        .get_opt_key("maxBatchSize")
+        .parse_u32()
+        .unwrap_or(1);
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -194,6 +206,10 @@ fn parse_chain(
         &chain,
         &mut err,
         default_rpc_consensus_type,
+        OperationBatchConfig {
+            batch_contract_address,
+            max_batch_size,
+        },
     );
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
@@ -422,7 +438,7 @@ fn parse_custom_urls(
         .end()
         .map(|urls| {
             urls.split(',')
-                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + "customGrpcUrls"))
+                .filter_map(|url| url.parse().take_err(err, || &chain.cwp + key))
                 .collect_vec()
         })
 }
@@ -440,12 +456,12 @@ fn parse_base_and_override_urls(
 
     if combined.is_empty() {
         err.push(
-            &chain.cwp + "rpc_urls",
-            eyre!("Missing base rpc definitions for chain"),
+            &chain.cwp + base_key,
+            eyre!("Missing base {} definitions for chain", base_key),
         );
         err.push(
             &chain.cwp + "custom_rpc_urls",
-            eyre!("Also missing rpc overrides for chain"),
+            eyre!("Also missing {} overrides for chain", base_key),
         );
     }
     combined
