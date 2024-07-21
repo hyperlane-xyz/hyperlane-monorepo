@@ -38,10 +38,10 @@ contract TelepathyCcipReadHookTest is Test {
             bytes("")
         );
         hook.postDispatch(metadata, message);
-        assertEq(message.id(), hook.dispatched(address(this), _nonce));
+        assertEq(message.id(), hook.dispatched(_nonce));
     }
 
-    function testTelepathyCcipReadHookTest_QuotesZero() public {
+    function testTelepathyCcipReadHookTest_QuotesZero() public view {
         bytes memory metadata = StandardHookMetadata.formatMetadata(
             0,
             0, // gas limit
@@ -51,7 +51,7 @@ contract TelepathyCcipReadHookTest is Test {
         assertEq(hook.quoteDispatch(metadata, bytes("")), 0);
     }
 
-    function testTelepathyCcipReadHookTest_HookType() public {
+    function testTelepathyCcipReadHookTest_HookType() public view {
         assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.CCIP_READ));
     }
 }
