@@ -5,35 +5,20 @@ import { ProofsServiceAbi } from './abis/ProofsServiceAbi';
 import * as config from './config';
 import { ProofsService } from './services/ProofsService';
 
-// Initialize Services
-const proofsService = new ProofsService(
-  // SuccinctConfig
-  {
-    stepFunctionId: config.STEP_FN_ID,
-    lightClientAddress: config.LIGHT_CLIENT_ADDR,
-    apiKey: config.SUCCINCT_API_KEY,
-    platformUrl: config.SUCCINCT_PLATFORM_URL,
-    chainId: config.CHAIN_ID,
-  },
-  // RpcConfig
-  {
-    url: config.RPC_ADDRESS,
-    chainId: config.CHAIN_ID,
-  },
-  // HyperlaneConfig
-  {
-    url: config.HYPERLANE_API_URL,
-  },
-);
-
-// Initialize Server and add Service handlers
 const server = new Server();
-
 server.add(ProofsServiceAbi, [
-  { type: 'getProofs', func: proofsService.getProofs.bind(this) },
+  {
+    type: 'getProofs',
+    func: async ([target, storageKey, messageId]) => {
+      const proofsService = new ProofsService(
+        config.RPC_ADDRESS,
+        config.HYPERLANE_API_URL,
+      );
+      return proofsService.getProofs(target, storageKey, messageId);
+    },
+  },
 ]);
 
-// Start Server
 const app = server.makeApp(config.SERVER_URL_PREFIX);
 app.listen(config.SERVER_PORT, () =>
   log(`Listening on port ${config.SERVER_PORT}`),
