@@ -21,15 +21,15 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  Domain,
   ProtocolType,
   assert,
-  configDeepEquals,
+  deepEquals,
   eqAddress,
   normalizeConfig,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
-import { Domain } from '@hyperlane-xyz/utils';
 
 import { attachAndConnectContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -150,7 +150,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // If configs match, no updates needed
-    if (configDeepEquals(currentConfig, targetConfig)) {
+    if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
 

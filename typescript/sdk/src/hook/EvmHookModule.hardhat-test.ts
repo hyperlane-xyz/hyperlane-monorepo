@@ -4,7 +4,7 @@ import hre from 'hardhat';
 
 import {
   Address,
-  configDeepEquals,
+  deepEquals,
   normalizeConfig,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
@@ -214,7 +214,7 @@ describe('EvmHookModule', async () => {
   }): Promise<boolean> {
     const normalizedDerivedConfig = normalizeConfig(await hook.read());
     const normalizedConfig = normalizeConfig(config);
-    const matches = configDeepEquals(normalizedDerivedConfig, normalizedConfig);
+    const matches = deepEquals(normalizedDerivedConfig, normalizedConfig);
     if (!matches) {
       console.error(
         'Derived config:\n',

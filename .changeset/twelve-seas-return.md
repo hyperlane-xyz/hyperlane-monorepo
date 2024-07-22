@@ -2,4 +2,4 @@
 '@hyperlane-xyz/utils': patch
 ---
 
-Ensure `configDeepEquals` is browser compatible
+Replace `configDeepEquals` with improve `deepEquals`

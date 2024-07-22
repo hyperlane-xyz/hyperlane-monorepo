@@ -5,14 +5,14 @@
   "dependencies": {
     "@cosmjs/encoding": "^0.31.3",
     "@solana/web3.js": "^1.78.0",
-    "@types/deep-equal": "^1.0.4",
     "bignumber.js": "^9.1.1",
-    "deep-equal": "^2.2.3",
     "ethers": "^5.7.2",
+    "lodash": "^4.17.21",
     "pino": "^8.19.0",
     "yaml": "^2.4.1"
   },
   "devDependencies": {
+    "@types/lodash": "4.17.7",
     "@types/mocha": "^10.0.1",
     "chai": "^4.3.6",
     "mocha": "^10.2.0",

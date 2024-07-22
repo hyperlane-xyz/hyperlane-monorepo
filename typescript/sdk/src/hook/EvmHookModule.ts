@@ -20,7 +20,7 @@ import {
   Address,
   ProtocolType,
   addressToBytes32,
-  configDeepEquals,
+  deepEquals,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -169,7 +169,7 @@ export class EvmHookModule extends HyperlaneModule<
 
       // If the domain is not in the current config or the config has changed, deploy a new hook
       // TODO: in-place updates per domain as a future optimization
-      if (!configDeepEquals(currentDomains[dest], targetDomainConfig)) {
+      if (!deepEquals(currentDomains[dest], targetDomainConfig)) {
         const domainHook = await this.deploy({
           config: targetDomainConfig,
         });
@@ -195,7 +195,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Deploy a new fallback hook if the fallback config has changed
     if (
       target.type === HookType.FALLBACK_ROUTING &&
-      !configDeepEquals(
+      !deepEquals(
         target.fallback,
         (current as FallbackRoutingHookConfig).fallback,
       )
