@@ -129,7 +129,7 @@ describe('EvmIsmModule', async () => {
     // example routing config
     exampleRoutingConfig = {
       type: IsmType.ROUTING,
-      owner: await multiProvider.getSignerAddress(chain),
+      owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
       domains: Object.fromEntries(
         testChains
           .filter((c) => c !== TestChainName.test4)
@@ -307,7 +307,6 @@ describe('EvmIsmModule', async () => {
         const numDomainsAfter = Object.keys(
           ((await ism.read()) as RoutingIsmConfig).domains,
         ).length;
-        console.log(numDomainsBefore, numDomainsAfter);
         expect(numDomainsBefore - 1).to.equal(numDomainsAfter);
       });
 

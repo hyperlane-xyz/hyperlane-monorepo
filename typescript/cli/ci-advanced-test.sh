@@ -252,6 +252,7 @@ run_hyperlane_send_message() {
         --destination ${CHAIN2} \
         --warp ${WARP_CONFIG_FILE} \
         --quick \
+        --relay \
         --key $ANVIL_KEY \
         | tee /tmp/message2
 

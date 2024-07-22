@@ -188,6 +188,7 @@ export class WarpCore {
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
   }): Promise<TransactionFeeEstimate> {
+    this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
     );
@@ -220,12 +221,22 @@ export class WarpCore {
 
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
-      return this.multiProvider.estimateTransactionFee({
-        chainNameOrId: originMetadata.name,
-        transaction: txs[0],
-        sender,
-        senderPubKey,
-      });
+      try {
+        return this.multiProvider.estimateTransactionFee({
+          chainNameOrId: originMetadata.name,
+          transaction: txs[0],
+          sender,
+          senderPubKey,
+        });
+      } catch (error) {
+        this.logger.error(
+          `Failed to estimate local gas fee for ${originToken.symbol} transfer`,
+          error,
+        );
+        throw new Error('Gas estimation failed, balance may be insufficient', {
+          cause: error,
+        });
+      }
     }
     // On ethereum, sometimes 2 txs are required (one approve, one transferRemote)
     else if (
@@ -244,6 +255,49 @@ export class WarpCore {
     } else {
       throw new Error('Cannot estimate local gas for multiple transactions');
     }
+  }
+
+  /**
+   * Similar to getLocalTransferFee in that it estimates local gas fees
+   * but it also resolves the native token and returns a TokenAmount
+   * @todo: rename to getLocalTransferFee for consistency (requires breaking change)
+   */
+  async getLocalTransferFeeAmount({
+    originToken,
+    destination,
+    sender,
+    senderPubKey,
+    interchainFee,
+  }: {
+    originToken: IToken;
+    destination: ChainNameOrId;
+    sender: Address;
+    senderPubKey?: HexString;
+    interchainFee?: TokenAmount;
+  }): Promise<TokenAmount> {
+    const originMetadata = this.multiProvider.getChainMetadata(
+      originToken.chainName,
+    );
+    // If there's no native token, we can't represent local gas
+    if (!originMetadata.nativeToken)
+      throw new Error(`No native token found for ${originMetadata.name}`);
+
+    this.logger.debug(
+      `Using native token ${originMetadata.nativeToken.symbol} for local gas fee`,
+    );
+
+    const localFee = await this.getLocalTransferFee({
+      originToken,
+      destination,
+      sender,
+      senderPubKey,
+      interchainFee,
+    });
+
+    // Get the local gas token. This assumes the chain's native token will pay for local gas
+    // This will need to be smarter if more complex scenarios on Cosmos are supported
+    const localGasToken = Token.FromChainMetadataNativeToken(originMetadata);
+    return localGasToken.amount(localFee.fee);
   }
 
   /**
@@ -339,26 +393,14 @@ export class WarpCore {
       destination,
     });
 
-    const originMetadata = this.multiProvider.getChainMetadata(
-      originToken.chainName,
-    );
-    // If there's no native token, we can't represent local gas
-    if (!originMetadata.nativeToken)
-      throw new Error(`No native token found for ${originMetadata.name}`);
-
     // Next, get the local gas quote
-    const localFee = await this.getLocalTransferFee({
+    const localQuote = await this.getLocalTransferFeeAmount({
       originToken,
       destination,
       sender,
       senderPubKey,
       interchainFee: interchainQuote,
     });
-
-    // Get the local gas token. This assumes the chain's native token will pay for local gas
-    // This will need to be smarter if more complex scenarios on Cosmos are supported
-    const localGasToken = Token.FromChainMetadataNativeToken(originMetadata);
-    const localQuote = localGasToken.amount(localFee.fee);
 
     return {
       interchainQuote,
@@ -620,26 +662,47 @@ export class WarpCore {
     sender: Address,
     senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
-    const { token, amount } = originTokenAmount;
+    const { token: originToken, amount } = originTokenAmount;
 
-    const { amount: senderBalance } = await token.getBalance(
+    const { amount: senderBalance } = await originToken.getBalance(
       this.multiProvider,
       sender,
     );
     const senderBalanceAmount = originTokenAmount.token.amount(senderBalance);
 
-    // First check basic token balance
+    // Check 1: Check basic token balance
     if (amount > senderBalance) return { amount: 'Insufficient balance' };
 
-    // Next, ensure balances can cover the COMBINED amount and fees
-    // The combined will be more than originTokenAmount if the transfer
-    // fee token == the either of the fee tokens
-    const feeEstimate = await this.estimateTransferRemoteFees({
-      originToken: token,
+    // Check 2: Ensure the balance can cover interchain fee
+    // Slightly redundant with Check 4 but gives more specific error messages
+    const interchainQuote = await this.getInterchainTransferFee({
+      originToken,
+      destination,
+    });
+    // Get balance of the IGP fee token, which may be different from the transfer token
+    const interchainQuoteTokenBalance = originToken.isFungibleWith(
+      interchainQuote.token,
+    )
+      ? senderBalanceAmount
+      : await interchainQuote.token.getBalance(this.multiProvider, sender);
+    if (interchainQuoteTokenBalance.amount < interchainQuote.amount) {
+      return {
+        amount: `Insufficient ${interchainQuote.token.symbol} for interchain gas`,
+      };
+    }
+
+    // Check 3: Simulates the transfer by getting the local gas fee
+    const localQuote = await this.getLocalTransferFeeAmount({
+      originToken,
       destination,
       sender,
       senderPubKey,
+      interchainFee: interchainQuote,
     });
+
+    const feeEstimate = { interchainQuote, localQuote };
+
+    // Check 4: Ensure balances can cover the COMBINED amount and fees
     const maxTransfer = await this.getMaxTransferAmount({
       balance: senderBalanceAmount,
       destination,
@@ -649,19 +712,6 @@ export class WarpCore {
     });
     if (amount > maxTransfer.amount) {
       return { amount: 'Insufficient balance for gas and transfer' };
-    }
-
-    // Finally, if the IGP fee token differs from the transfer token,
-    // ensure there's sufficient balance for the IGP fee
-    const igpQuote = feeEstimate.interchainQuote;
-    if (!token.isFungibleWith(igpQuote.token)) {
-      const igpTokenBalance = await igpQuote.token.getBalance(
-        this.multiProvider,
-        sender,
-      );
-      if (igpTokenBalance.amount < igpQuote.amount) {
-        return { amount: `Insufficient ${igpQuote.token.symbol} for gas` };
-      }
     }
 
     return null;
