@@ -351,7 +351,7 @@ where
             )
             .collect_vec();
 
-        // only send a batch if there are at least two succesful calls
+        // only send a batch if there are at least two successful calls
         let call_count = contract_calls.len();
         let successful_calls = call_count - failed_calls.len();
         if successful_calls >= 2 {
