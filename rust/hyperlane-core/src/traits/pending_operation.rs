@@ -203,6 +203,8 @@ pub enum ReprepareReason {
     #[strum(to_string = "Gas payment requirement not met")]
     /// Gas payment requirement not met
     GasPaymentRequirementNotMet,
+    /// Gas payment not found
+    GasPaymentNotFound,
     #[strum(to_string = "Message delivery estimated gas exceeds max gas limit")]
     /// Message delivery estimated gas exceeds max gas limit
     ExceedsMaxGasLimit,
