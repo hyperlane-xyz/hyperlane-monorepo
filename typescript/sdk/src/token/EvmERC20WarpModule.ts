@@ -12,6 +12,7 @@ import {
   addressToBytes32,
   assert,
   configDeepEquals,
+  eqAddress,
   isObjEmpty,
   normalizeConfig,
   rootLogger,
@@ -216,10 +217,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-    actualConfig = normalizeConfig(actualConfig);
-    expectedConfig = normalizeConfig(expectedConfig);
-
-    if (!configDeepEquals(actualConfig.owner, expectedConfig.owner)) {
+    if (!eqAddress(actualConfig.owner, expectedConfig.owner)) {
       const { deployedTokenRoute } = this.args.addresses;
       const { owner: newOwner } = expectedConfig;
       updateTransactions.push({
