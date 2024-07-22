@@ -22,12 +22,12 @@ abstract contract StaticWeightedValidatorSetFactory {
     function _deployImplementation() internal virtual returns (address);
 
     /**
-     * @notice Deploys a StaticThresholdAddressSet contract address for the given
+     * @notice Deploys a StaticWeightedValidatorSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _validators An array of addresses
-     * @param _thresholdWeight The threshold value to use
-     * @return set The contract address representing this StaticThresholdAddressSet
+     * @param _thresholdWeight The threshold weight value to use
+     * @return set The contract address representing this StaticWeightedValidatorSet
      */
     function deploy(
         IStaticWeightedMultisigIsm.ValidatorInfo[] calldata _validators,
@@ -45,12 +45,12 @@ abstract contract StaticWeightedValidatorSetFactory {
     }
 
     /**
-     * @notice Returns the StaticThresholdAddressSet contract address for the given
+     * @notice Returns the StaticWeightedValidatorSet contract address for the given
      * values
      * @dev Consider sorting addresses to ensure contract reuse
      * @param _validators An array of addresses
-     * @param _thresholdWeight The threshold value to use
-     * @return set The contract address representing this StaticThresholdAddressSet
+     * @param _thresholdWeight The threshold weight value to use
+     * @return set The contract address representing this StaticWeightedValidatorSet
      */
     function getAddress(
         IStaticWeightedMultisigIsm.ValidatorInfo[] calldata _validators,
@@ -64,11 +64,11 @@ abstract contract StaticWeightedValidatorSetFactory {
     }
 
     /**
-     * @notice Returns the StaticThresholdAddressSet contract address for the given
+     * @notice Returns the StaticWeightedValidatorSet contract address for the given
      * values
      * @param _salt The salt used in Create2
      * @param _bytecode The metaproxy bytecode used in Create2
-     * @return set The contract address representing this StaticThresholdAddressSet
+     * @return set The contract address representing this StaticWeightedValidatorSet
      */
     function _getAddress(
         bytes32 _salt,
@@ -81,7 +81,7 @@ abstract contract StaticWeightedValidatorSetFactory {
     /**
      * @notice Returns the create2 salt and bytecode for the given values
      * @param _validators An array of addresses
-     * @param _thresholdWeight The threshold value to use
+     * @param _thresholdWeight The threshold weight value to use
      * @return _salt The salt used in Create2
      * @return _bytecode The metaproxy bytecode used in Create2
      */

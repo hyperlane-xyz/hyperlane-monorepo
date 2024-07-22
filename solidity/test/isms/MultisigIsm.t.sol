@@ -164,7 +164,6 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes32 seed
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
-
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));

@@ -16,7 +16,7 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol";
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
-import {AbstractStaticWeightedMultisigIsm, AbstractWeightedMultisigIsm} from "./AbstractWeightedMultisigIsm.sol";
+import {AbstractStaticWeightedMultisigIsm} from "./AbstractWeightedMultisigIsm.sol";
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {StaticWeightedValidatorSetFactory} from "../../libs/StaticWeightedValidatorSetFactory.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
@@ -42,25 +42,9 @@ contract StaticMerkleRootWeightedMultisigIsm is
         uint8(IInterchainSecurityModule.Types.WEIGHT_MERKLE_ROOT_MULTISIG);
 }
 
-contract MerkleRootWeightedMultisigIsm is
-    AbstractMerkleRootMultisigIsm,
-    AbstractWeightedMultisigIsm
-{
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
-}
-
 contract StaticMessageIdWeightedMultisigIsm is
     AbstractMessageIdMultisigIsm,
     AbstractMetaProxyMultisigIsm
-{
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
-}
-
-contract MessageIdWeightedMultisigIsm is
-    AbstractMessageIdMultisigIsm,
-    AbstractWeightedMultisigIsm
 {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);

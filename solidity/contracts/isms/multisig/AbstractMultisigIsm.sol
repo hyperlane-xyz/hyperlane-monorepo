@@ -22,6 +22,13 @@ import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 
+/**
+ * @title AbstractMultisig
+ * @notice Manages per-domain m-of-n Validator sets
+ * @dev See ./AbstractMerkleRootMultisigIsm.sol and ./AbstractMessageIdMultisigIsm.sol
+ * for concrete implementations of `digest` and `signatureAt`.
+ * @dev See ./StaticMultisigIsm.sol for concrete implementations.
+ */
 abstract contract AbstractMultisig {
     /**
      * @notice Returns the digest to be used for signature verification.
@@ -45,18 +52,20 @@ abstract contract AbstractMultisig {
         uint256 _index
     ) internal pure virtual returns (bytes calldata);
 
+    /**
+     * @notice Returns the number of signatures in the metadata.
+     * @param _metadata ABI encoded module metadata
+     * @return count The number of signatures
+     */
     function signatureCount(
         bytes calldata _metadata
     ) public pure virtual returns (uint256);
 }
 
 /**
- * @title MultisigIsm
- * @notice Manages per-domain m-of-n Validator sets that are used to verify
+ * @title AbstractMultisigIsm
+ * @notice Manages per-domain m-of-n Validator sets of AbstractMultisig that are used to verify
  * interchain messages.
- * @dev See ./AbstractMerkleRootMultisigIsm.sol and ./AbstractMessageIdMultisigIsm.sol
- * for concrete implementations of `digest` and `signatureAt`.
- * @dev See ./StaticMultisigIsm.sol for concrete implementations.
  */
 abstract contract AbstractMultisigIsm is AbstractMultisig {
     // ============ Virtual Functions ============

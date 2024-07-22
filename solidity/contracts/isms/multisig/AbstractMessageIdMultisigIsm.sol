@@ -51,6 +51,9 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisig {
         return _metadata.signatureAt(_index);
     }
 
+    /**
+     * @inheritdoc AbstractMultisig
+     */
     function signatureCount(
         bytes calldata _metadata
     ) public pure override returns (uint256) {

@@ -3,8 +3,8 @@ pragma solidity ^0.8.13;
 
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../contracts/libs/Message.sol";
-import {IWeightedMultisigIsm} from "../../contracts/interfaces/isms/IWeightedMultisigIsm.sol";
-import {MerkleRootWeightedMultisigIsm, MessageIdWeightedMultisigIsm, StaticMerkleRootWeightedMultisigIsmFactory, StaticMessageIdWeightedMultisigIsmFactory} from "../../contracts/isms/multisig/WeightedMultisigIsm.sol";
+import {IStaticWeightedMultisigIsm} from "../../contracts/interfaces/isms/IWeightedMultisigIsm.sol";
+import {StaticMerkleRootWeightedMultisigIsmFactory, StaticMessageIdWeightedMultisigIsmFactory} from "../../contracts/isms/multisig/WeightedMultisigIsm.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
@@ -36,18 +36,23 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         bytes32 seed
     )
         internal
-        returns (uint256[] memory, IWeightedMultisigIsm.ValidatorInfo[] memory)
+        returns (
+            uint256[] memory,
+            IStaticWeightedMultisigIsm.ValidatorInfo[] memory
+        )
     {
         bound(threshold, 0, BASIS_POINTS);
         uint256[] memory keys = new uint256[](n);
-        IWeightedMultisigIsm.ValidatorInfo[]
-            memory validators = new IWeightedMultisigIsm.ValidatorInfo[](n);
+        IStaticWeightedMultisigIsm.ValidatorInfo[]
+            memory validators = new IStaticWeightedMultisigIsm.ValidatorInfo[](
+                n
+            );
 
         uint256 remainingWeight = BASIS_POINTS;
         for (uint256 i = 0; i < n; i++) {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
-            validators[i].signingKey = vm.addr(key);
+            validators[i].signingAddress = vm.addr(key);
 
             if (i == n - 1) {
                 validators[i].weight = uint96(remainingWeight);
@@ -97,7 +102,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
 
         (
             uint256[] memory keys,
-            IWeightedMultisigIsm.ValidatorInfo[] memory allValidators
+            IStaticWeightedMultisigIsm.ValidatorInfo[] memory allValidators
         ) = addValidators(threshold, n, seed);
 
         (, uint96 thresholdWeight) = weightedIsm.validatorsAndThresholdWeight(
@@ -158,7 +163,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
     }
 }
 
-contract MerkleRootWeightedMultisigIsmTest is
+contract StaticMerkleRootWeightedMultisigIsmTest is
     MerkleRootMultisigIsmTest,
     AbstractStaticWeightedMultisigIsmTest
 {
@@ -191,7 +196,7 @@ contract MerkleRootWeightedMultisigIsmTest is
     }
 }
 
-contract MessageIdWeightedMultisigIsmTest is
+contract StaticMessageIdWeightedMultisigIsmTest is
     MessageIdMultisigIsmTest,
     AbstractStaticWeightedMultisigIsmTest
 {

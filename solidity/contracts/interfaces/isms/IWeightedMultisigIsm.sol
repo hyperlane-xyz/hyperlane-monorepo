@@ -1,22 +1,34 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 import {IInterchainSecurityModule} from "../IInterchainSecurityModule.sol";
 
 interface IStaticWeightedMultisigIsm is IInterchainSecurityModule {
+    // ============ Structs ============
+
+    // ValidatorInfo contains the signing address and weight of a validator
     struct ValidatorInfo {
-        address signingKey;
+        address signingAddress;
         uint96 weight;
     }
 
     /**
-     * @notice Returns the set of validators responsible for verifying _message
-     * and the number of signatures required
-     * @dev Can change based on the content of _message
-     * @dev Signatures provided to `verify` must be consistent with validator ordering
-     * @param _message Hyperlane formatted interchain message
-     * @return validators The array of validator addresses
-     * @return thresholdWeight The total weight of validators needed (out of 10000 basis points)
+     * @notice Returns the validators and threshold weight for this ISM.
+     * @param _message The message to be verified
+     * @return validators The validators and their weights
+     * @return thresholdWeight The threshold weight required to pass verification
      */
     function validatorsAndThresholdWeight(
         bytes calldata _message
@@ -24,11 +36,4 @@ interface IStaticWeightedMultisigIsm is IInterchainSecurityModule {
         external
         view
         returns (ValidatorInfo[] memory validators, uint96 thresholdWeight);
-}
-
-interface IWeightedMultisigIsm is IStaticWeightedMultisigIsm {
-    function updateValidatorSet(
-        ValidatorInfo[] calldata _validators,
-        uint96 _thresholdWeight
-    ) external;
 }
