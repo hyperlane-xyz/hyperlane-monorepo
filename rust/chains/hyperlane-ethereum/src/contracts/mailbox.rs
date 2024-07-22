@@ -306,29 +306,26 @@ where
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, ()>> {
-        let tx = self.contract.process(
+        let mut tx = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        self.add_gas_overrides(tx, tx_gas_estimate).await
+        if let Some(gas_estimate) = tx_gas_estimate {
+            tx = tx.gas(gas_estimate);
+        }
+        self.add_gas_overrides(tx).await
     }
 
     async fn add_gas_overrides<D: Detokenize>(
         &self,
         tx: ContractCall<M, D>,
-        tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, D>> {
-        let tx_overrides = TransactionOverrides {
-            // If a gas limit is provided as a transaction override, use it instead
-            // of the estimate.
-            gas_limit: self
-                .conn
-                .transaction_overrides
-                .gas_limit
-                .or(tx_gas_estimate),
-            ..self.conn.transaction_overrides.clone()
-        };
-        fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
+        fill_tx_gas_params(
+            tx,
+            self.provider.clone(),
+            &self.conn.transaction_overrides.clone(),
+        )
+        .await
     }
 
     async fn simulate_batch(
@@ -336,12 +333,9 @@ where
         multicall: &mut Multicall<M>,
         contract_calls: Vec<ContractCall<M, ()>>,
     ) -> ChainResult<BatchSimulation<M>> {
-        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await;
-        let batch = self.add_gas_overrides(batch, None).await?;
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
         let call_results = batch.call().await?;
 
-        // successful calls within the batch are guaranteed to still be successful after
-        // removing failed ones from the batch
         let failed_calls = contract_calls
             .iter()
             .zip(call_results.iter())
@@ -361,16 +355,30 @@ where
         let call_count = contract_calls.len();
         let successful_calls = call_count - failed_calls.len();
         if successful_calls >= 2 {
-            Ok(BatchSimulation::new(Some(batch), failed_calls))
+            Ok(BatchSimulation::new(
+                Some(self.submittable_batch(batch)),
+                failed_calls,
+            ))
         } else {
             Ok(BatchSimulation::failed(call_count))
+        }
+    }
+
+    fn submittable_batch(
+        &self,
+        call: ContractCall<M, Vec<MulticallResult>>,
+    ) -> SubmittableBatch<M> {
+        SubmittableBatch {
+            call,
+            provider: self.provider.clone(),
+            transaction_overrides: self.conn.transaction_overrides.clone(),
         }
     }
 }
 
 #[derive(new)]
 pub struct BatchSimulation<M> {
-    pub call: Option<ContractCall<M, Vec<MulticallResult>>>,
+    pub call: Option<SubmittableBatch<M>>,
     /// Indexes of excluded calls in the batch (because they either failed the simulation
     /// or they were the only successful call)
     pub excluded_call_indexes: Vec<usize>,
@@ -383,16 +391,31 @@ impl<M> BatchSimulation<M> {
 }
 
 impl<M: Middleware + 'static> BatchSimulation<M> {
-    pub async fn submit_tx(self) -> ChainResult<BatchResult> {
-        if let Some(batch_call) = self.call {
-            let batch_outcome = report_tx(batch_call).await?;
+    pub async fn try_submit(self) -> ChainResult<BatchResult> {
+        if let Some(submittable_batch) = self.call {
+            let batch_outcome = submittable_batch.submit().await?;
             Ok(BatchResult::new(
-                Some(batch_outcome.into()),
+                Some(batch_outcome),
                 self.excluded_call_indexes,
             ))
         } else {
             Ok(BatchResult::failed(self.excluded_call_indexes.len()))
         }
+    }
+}
+
+pub struct SubmittableBatch<M> {
+    pub call: ContractCall<M, Vec<MulticallResult>>,
+    provider: Arc<M>,
+    transaction_overrides: TransactionOverrides,
+}
+
+impl<M: Middleware + 'static> SubmittableBatch<M> {
+    pub async fn submit(self) -> ChainResult<TxOutcome> {
+        let call_with_gas_overrides =
+            fill_tx_gas_params(self.call, self.provider, &self.transaction_overrides).await?;
+        let outcome = report_tx(call_with_gas_overrides).await?;
+        Ok(outcome.into())
     }
 }
 
@@ -496,7 +519,7 @@ where
             .collect::<ChainResult<Vec<_>>>()?;
 
         let batch_simulation = self.simulate_batch(&mut multicall, contract_calls).await?;
-        batch_simulation.submit_tx().await
+        batch_simulation.try_submit().await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

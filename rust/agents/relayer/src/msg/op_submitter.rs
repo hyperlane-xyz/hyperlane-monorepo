@@ -489,13 +489,13 @@ impl OperationBatch {
                 Self::handle_batch_result(self.operations, batch_result, confirm_queue).await
             }
             Err(e) => {
-                warn!(error=?e, batch=?self.operations, "Error when submitting batch. Falling back to serial submission.");
+                warn!(error=?e, batch=?self.operations, "Error when submitting batch");
                 self.operations
             }
         };
 
         if !excluded_ops.is_empty() {
-            debug!(excluded_ops=?excluded_ops, "Operations would revert in batch. Submitting individually.");
+            warn!(excluded_ops=?excluded_ops, "Either the batch tx would revert, or the operations would revert in the batch. Falling back to serial submission.");
             OperationBatch::new(excluded_ops, self.domain)
                 .submit_serially(confirm_queue, metrics)
                 .await;
@@ -519,7 +519,7 @@ impl OperationBatch {
         } else {
             BatchResult::failed(self.operations.len())
         };
-        let ops_submitted = self.operations.len() - outcome.excluded_call_indexes.len();
+        let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
         metrics.ops_submitted.inc_by(ops_submitted as u64);
         Ok(outcome)
     }
@@ -533,7 +533,7 @@ impl OperationBatch {
     ) -> Vec<Box<dyn PendingOperation>> {
         let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
             operations.into_iter().enumerate().partition_map(|(i, op)| {
-                if !batch_result.excluded_call_indexes.contains(&i) {
+                if !batch_result.failed_indexes.contains(&i) {
                     Either::Left(op)
                 } else {
                     Either::Right(op)

@@ -78,7 +78,7 @@ pub struct BatchResult {
     /// The outcome of executing the batch, if one was sent
     pub outcome: Option<TxOutcome>,
     /// Indexes of excluded calls from the batch (i.e. that were not executed)
-    pub excluded_call_indexes: Vec<usize>,
+    pub failed_indexes: Vec<usize>,
 }
 
 impl BatchResult {
@@ -87,7 +87,7 @@ impl BatchResult {
     pub fn failed(ops_count: usize) -> Self {
         Self {
             outcome: None,
-            excluded_call_indexes: (0..ops_count).collect(),
+            failed_indexes: (0..ops_count).collect(),
         }
     }
 }
