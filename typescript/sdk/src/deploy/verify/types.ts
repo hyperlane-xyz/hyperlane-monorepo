@@ -3,6 +3,7 @@ export type ContractVerificationInput = {
   address: string;
   constructorArguments?: string; // abi-encoded bytes
   isProxy?: boolean;
+  expectedimplementation?: string;
 };
 
 export type VerificationInput = ContractVerificationInput[];
@@ -12,6 +13,14 @@ export type SolidityStandardJsonInput = {
     [sourceName: string]: {
       content: string;
     };
+  };
+  language: string;
+  settings: {
+    optimizer: {
+      enabled: boolean;
+      runs: number;
+    };
+    outputSelection: any;
   };
 };
 
@@ -47,13 +56,13 @@ export type CompilerOptions = {
 export enum ExplorerApiActions {
   GETSOURCECODE = 'getsourcecode',
   VERIFY_IMPLEMENTATION = 'verifysourcecode',
-  MARK_PROXY = 'verifyproxycontract',
-  CHECK_STATUS = 'checkverifystatus',
+  VERIFY_PROXY = 'verifyproxycontract',
+  CHECK_IMPLEMENTATION_STATUS = 'checkverifystatus',
   CHECK_PROXY_STATUS = 'checkproxyverification',
 }
 
 export const EXPLORER_GET_ACTIONS = [
-  ExplorerApiActions.CHECK_STATUS,
+  ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS,
   ExplorerApiActions.CHECK_PROXY_STATUS,
   ExplorerApiActions.GETSOURCECODE,
 ];
@@ -79,13 +88,15 @@ export type FormOptions<Action extends ExplorerApiActions> =
         contractaddress: string;
         sourceCode: string;
         contractname: string;
-        constructorArguements?: string; // TYPO IS ENFORCED BY API
+        /* TYPO IS ENFORCED BY API */
+        constructorArguements?: string;
       }
-    : Action extends ExplorerApiActions.MARK_PROXY
+    : Action extends ExplorerApiActions.VERIFY_PROXY
     ? {
         address: string;
+        expectedimplementation: string;
       }
-    : Action extends ExplorerApiActions.CHECK_STATUS
+    : Action extends ExplorerApiActions.CHECK_IMPLEMENTATION_STATUS
     ? {
         guid: string;
       }

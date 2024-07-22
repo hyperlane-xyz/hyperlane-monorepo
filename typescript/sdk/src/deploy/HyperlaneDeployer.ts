@@ -370,6 +370,7 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
     shouldRecover = true,
+    implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
     if (shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
@@ -422,11 +423,12 @@ export abstract class HyperlaneDeployer<
       }
     }
 
-    const verificationInput = getContractVerificationInput(
-      contractName,
+    const verificationInput = getContractVerificationInput({
+      name: contractName,
       contract,
-      factory.bytecode,
-    );
+      bytecode: factory.bytecode,
+      expectedimplementation: implementationAddress,
+    });
     this.addVerificationArtifacts(chain, [verificationInput]);
 
     // try verifying contract
@@ -593,6 +595,9 @@ export abstract class HyperlaneDeployer<
       new TransparentUpgradeableProxy__factory(),
       'TransparentUpgradeableProxy',
       constructorArgs,
+      undefined,
+      true,
+      implementation.address,
     );
 
     return implementation.attach(proxy.address) as C;

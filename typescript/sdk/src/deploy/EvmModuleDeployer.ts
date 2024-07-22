@@ -47,12 +47,14 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     contractName,
     constructorArgs,
     initializeArgs,
+    implementationAddress,
   }: {
     chain: ChainName;
     factory: F;
     contractName: string;
     constructorArgs: Parameters<F['deploy']>;
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>;
+    implementationAddress?: Address;
   }): Promise<ReturnType<F['deploy']>> {
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
@@ -72,11 +74,12 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       await this.multiProvider.handleTx(chain, initTx);
     }
 
-    const verificationInput = getContractVerificationInput(
-      contractName,
+    const verificationInput = getContractVerificationInput({
+      name: contractName,
       contract,
-      factory.bytecode,
-    );
+      bytecode: factory.bytecode,
+      expectedimplementation: implementationAddress,
+    });
     this.addVerificationArtifacts({ chain, artifacts: [verificationInput] });
 
     // try verifying contract
@@ -215,6 +218,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       factory: new TransparentUpgradeableProxy__factory(),
       contractName: 'TransparentUpgradeableProxy',
       constructorArgs,
+      implementationAddress: implementation.address,
     });
 
     return implementation.attach(proxy.address) as C;

@@ -23,7 +23,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { RemoteRouter } from '../router/types.js';
+import { RemoteRouters } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 
 import { CollateralExtensions } from './config.js';
@@ -115,12 +115,12 @@ export class EvmERC20WarpRouteReader {
     }
 
     // Finally check native
-    // Using estimateGas to send 1 wei. Success implies that the Warp Route has a receive() function
+    // Using estimateGas to send 0 wei. Success implies that the Warp Route has a receive() function
     try {
       await this.multiProvider.estimateGas(this.chain, {
         to: warpRouteAddress,
         from: await this.multiProvider.getSignerAddress(this.chain),
-        value: BigNumber.from(1),
+        value: BigNumber.from(0),
       });
       return TokenType.native;
     } catch (e) {
@@ -219,7 +219,7 @@ export class EvmERC20WarpRouteReader {
     return { name, symbol, decimals, totalSupply: totalSupply.toString() };
   }
 
-  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouter> {
+  async fetchRemoteRouters(warpRouteAddress: Address): Promise<RemoteRouters> {
     const warpRoute = TokenRouter__factory.connect(
       warpRouteAddress,
       this.provider,
