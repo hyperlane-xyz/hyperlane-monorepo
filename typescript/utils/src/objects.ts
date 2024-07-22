@@ -1,5 +1,4 @@
-import cloneDeep from 'lodash/clonedeep.js';
-import isEqual from 'lodash/isEqual.js';
+import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
