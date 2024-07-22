@@ -120,8 +120,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   endurance: {
-    threshold: 1,
-    validators: ['0x28c5b322da06f184ebf68693c5d19df4d4af13e5'],
+    threshold: 2,
+    validators: [
+      '0x28c5b322da06f184ebf68693c5d19df4d4af13e5',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x7419021c0de2772b763e554480158a82a291c1f2', // fusionist
+    ],
   },
 
   ethereum: {
@@ -155,8 +159,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fusemainnet: {
-    threshold: 1,
-    validators: ['0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9'],
+    threshold: 2,
+    validators: [
+      '0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9',
+      '0x6760226b34213d262D41D5291Ed57E81a68b4E0b', // fuse
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   gnosis: {
@@ -384,7 +392,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zoramainnet: {
-    threshold: 1,
-    validators: ['0x35130945b625bb69b28aee902a3b9a76fa67125f'],
+    threshold: 3,
+    validators: [
+      '0x35130945b625bb69b28aee902a3b9a76fa67125f',
+      '0x7089b6352d37d23fb05a7fee4229c78e038fba09', // imperator (needs announcing)
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 };
