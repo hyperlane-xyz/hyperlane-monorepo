@@ -6002,7 +6002,7 @@ __metadata:
   dependencies:
     "@cosmjs/encoding": "npm:^0.31.3"
     "@solana/web3.js": "npm:^1.78.0"
-    "@types/lodash": "npm:4.17.7"
+    "@types/lodash": "npm:^4.17.7"
     "@types/mocha": "npm:^10.0.1"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:^4.3.6"
@@ -9736,7 +9736,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/lodash@npm:4.17.7":
+"@types/lodash@npm:^4.17.7":
   version: 4.17.7
   resolution: "@types/lodash@npm:4.17.7"
   checksum: b8177f19cf962414a66989837481b13f546afc2e98e8d465bec59e6ac03a59c584eb7053ce511cde3a09c5f3096d22a5ae22cfb56b23f3b0da75b0743b6b1a44
