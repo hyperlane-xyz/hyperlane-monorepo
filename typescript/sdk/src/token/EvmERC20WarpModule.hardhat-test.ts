@@ -491,7 +491,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         ismFactoryAddresses,
       } as TokenRouterConfig;
 
-      let owner = randomAddress();
+      const owner = randomAddress();
       const evmERC20WarpModule = await EvmERC20WarpModule.create({
         chain,
         config: {
