@@ -13,6 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import "forge-std/console.sol";
+
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -41,6 +43,7 @@ abstract contract AbstractStaticWeightedMultisigIsm is
         bytes calldata _message
     ) public view virtual returns (bool) {
         bytes32 _digest = digest(_metadata, _message);
+        console.log("validatorsAndThresholdWeight:");
         (
             ValidatorInfo[] memory _validators,
             uint96 _thresholdWeight

@@ -18,7 +18,7 @@ import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {AbstractStaticWeightedMultisigIsm, AbstractWeightedMultisigIsm} from "./AbstractWeightedMultisigIsm.sol";
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
-import {StaticThresholdAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
+import {StaticWeightedValidatorSetFactory} from "../../libs/StaticWeightedValidatorSetFactory.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
 abstract contract AbstractMetaProxyMultisigIsm is
@@ -30,11 +30,11 @@ abstract contract AbstractMetaProxyMultisigIsm is
     function validatorsAndThresholdWeight(
         bytes calldata /* _message*/
     ) public pure override returns (ValidatorInfo[] memory, uint96) {
-        return abi.decode(MetaProxy.metadata(), (ValidatorInfo[], uint8));
+        return abi.decode(MetaProxy.metadata(), (ValidatorInfo[], uint96));
     }
 }
 
-contract MerkleRootStaticWeightedMultisigIsm is
+contract StaticMerkleRootWeightedMultisigIsm is
     AbstractMerkleRootMultisigIsm,
     AbstractMetaProxyMultisigIsm
 {
@@ -50,7 +50,7 @@ contract MerkleRootWeightedMultisigIsm is
         uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
 }
 
-contract MessageIdStaticWeightedMultisigIsm is
+contract StaticMessageIdWeightedMultisigIsm is
     AbstractMessageIdMultisigIsm,
     AbstractMetaProxyMultisigIsm
 {
@@ -67,17 +67,17 @@ contract MessageIdWeightedMultisigIsm is
 }
 
 contract StaticMerkleRootWeightedMultisigIsmFactory is
-    StaticThresholdAddressSetFactory
+    StaticWeightedValidatorSetFactory
 {
     function _deployImplementation() internal override returns (address) {
-        return address(new MerkleRootStaticWeightedMultisigIsm());
+        return address(new StaticMerkleRootWeightedMultisigIsm());
     }
 }
 
 contract StaticMessageIdWeightedMultisigIsmFactory is
-    StaticThresholdAddressSetFactory
+    StaticWeightedValidatorSetFactory
 {
     function _deployImplementation() internal override returns (address) {
-        return address(new MessageIdStaticWeightedMultisigIsm());
+        return address(new StaticMessageIdWeightedMultisigIsm());
     }
 }

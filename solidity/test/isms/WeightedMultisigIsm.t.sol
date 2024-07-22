@@ -4,11 +4,12 @@ pragma solidity ^0.8.13;
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {IWeightedMultisigIsm} from "../../contracts/interfaces/isms/IWeightedMultisigIsm.sol";
-import {MerkleRootWeightedMultisigIsm, MessageIdWeightedMultisigIsm} from "../../contracts/isms/multisig/WeightedMultisigIsm.sol";
+import {MerkleRootWeightedMultisigIsm, MessageIdWeightedMultisigIsm, StaticMerkleRootWeightedMultisigIsmFactory, StaticMessageIdWeightedMultisigIsmFactory} from "../../contracts/isms/multisig/WeightedMultisigIsm.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
-import {AbstractWeightedMultisigIsm} from "../../contracts/isms/multisig/AbstractWeightedMultisigIsm.sol";
+import {StaticWeightedValidatorSetFactory} from "../../contracts/libs/StaticWeightedValidatorSetFactory.sol";
+import {AbstractStaticWeightedMultisigIsm} from "../../contracts/isms/multisig/AbstractWeightedMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
@@ -17,12 +18,15 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {AbstractMultisigIsmTest, MerkleRootMultisigIsmTest, MessageIdMultisigIsmTest} from "./MultisigIsm.t.sol";
 
-abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
+abstract contract AbstractStaticWeightedMultisigIsmTest is
+    AbstractMultisigIsmTest
+{
     using Math for uint256;
     using Message for bytes;
     using TypeCasts for address;
 
-    AbstractWeightedMultisigIsm weightedIsm;
+    StaticWeightedValidatorSetFactory weightedFactory;
+    AbstractStaticWeightedMultisigIsm weightedIsm;
 
     uint96 public constant BASIS_POINTS = 10000;
 
@@ -56,9 +60,11 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
             }
         }
 
-        address deployedIsm = _initializeIsm(validators, threshold);
-
-        ism = IInterchainSecurityModule(deployedIsm);
+        // ism = IInterchainSecurityModule(deployedIsm);
+        ism = IInterchainSecurityModule(
+            weightedFactory.deploy(validators, threshold)
+        );
+        weightedIsm = AbstractStaticWeightedMultisigIsm(address(ism));
         return (keys, validators);
     }
 
@@ -94,7 +100,9 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
             IWeightedMultisigIsm.ValidatorInfo[] memory allValidators
         ) = addValidators(threshold, n, seed);
 
-        uint96 thresholdWeight = weightedIsm.thresholdWeight();
+        (, uint96 thresholdWeight) = weightedIsm.validatorsAndThresholdWeight(
+            message
+        );
 
         bytes memory metadata = metadataPrefix(message);
         fixtureInit();
@@ -148,22 +156,17 @@ abstract contract AbstractWeightedMultisigIsmTest is AbstractMultisigIsmTest {
         vm.expectRevert("Insufficient validator weight");
         ism.verify(insufficientMetadata, message);
     }
-
-    function _initializeIsm(
-        IWeightedMultisigIsm.ValidatorInfo[] memory validators,
-        uint96 threshold
-    ) internal virtual returns (address);
 }
 
 contract MerkleRootWeightedMultisigIsmTest is
     MerkleRootMultisigIsmTest,
-    AbstractWeightedMultisigIsmTest
+    AbstractStaticWeightedMultisigIsmTest
 {
     function setUp() public override {
         mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         noopHook = new TestPostDispatchHook();
-
+        weightedFactory = new StaticMerkleRootWeightedMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
         mailbox.setRequiredHook(address(noopHook));
     }
@@ -175,31 +178,28 @@ contract MerkleRootWeightedMultisigIsmTest is
         bytes memory message
     )
         internal
-        override(AbstractMultisigIsmTest, AbstractWeightedMultisigIsmTest)
+        override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
         returns (bytes memory)
     {
-        return AbstractWeightedMultisigIsmTest.getMetadata(m, n, seed, message);
-    }
-
-    function _initializeIsm(
-        IWeightedMultisigIsm.ValidatorInfo[] memory validators,
-        uint96 threshold
-    ) internal override returns (address) {
-        weightedIsm = new MerkleRootWeightedMultisigIsm();
-        weightedIsm.initialize(address(this), validators, threshold);
-        return address(weightedIsm);
+        return
+            AbstractStaticWeightedMultisigIsmTest.getMetadata(
+                m,
+                n,
+                seed,
+                message
+            );
     }
 }
 
 contract MessageIdWeightedMultisigIsmTest is
     MessageIdMultisigIsmTest,
-    AbstractWeightedMultisigIsmTest
+    AbstractStaticWeightedMultisigIsmTest
 {
     function setUp() public override {
         mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         noopHook = new TestPostDispatchHook();
-
+        weightedFactory = new StaticMessageIdWeightedMultisigIsmFactory();
         mailbox.setDefaultHook(address(merkleTreeHook));
         mailbox.setRequiredHook(address(noopHook));
     }
@@ -211,18 +211,15 @@ contract MessageIdWeightedMultisigIsmTest is
         bytes memory message
     )
         internal
-        override(AbstractMultisigIsmTest, AbstractWeightedMultisigIsmTest)
+        override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
         returns (bytes memory)
     {
-        return AbstractWeightedMultisigIsmTest.getMetadata(m, n, seed, message);
-    }
-
-    function _initializeIsm(
-        IWeightedMultisigIsm.ValidatorInfo[] memory validators,
-        uint96 threshold
-    ) internal override returns (address) {
-        weightedIsm = new MessageIdWeightedMultisigIsm();
-        weightedIsm.initialize(address(this), validators, threshold);
-        return address(weightedIsm);
+        return
+            AbstractStaticWeightedMultisigIsmTest.getMetadata(
+                m,
+                n,
+                seed,
+                message
+            );
     }
 }
