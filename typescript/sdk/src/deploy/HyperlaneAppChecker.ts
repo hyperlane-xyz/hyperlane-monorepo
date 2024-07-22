@@ -8,6 +8,7 @@ import {
   eqAddress,
   objMap,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
@@ -40,6 +41,7 @@ export abstract class HyperlaneAppChecker<
     multiProvider: MultiProvider,
     app: App,
     configMap: ChainMap<Config>,
+    public readonly logger = rootLogger.child({ module: 'App' }),
   ) {
     this.multiProvider = multiProvider;
     this.app = app;
@@ -76,6 +78,9 @@ export abstract class HyperlaneAppChecker<
   }
 
   async checkProxiedContracts(chain: ChainName): Promise<void> {
+    this.logger.debug(
+      `Checking admins addresses for proxied contracts for ${chain}`,
+    );
     const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
     if (!expectedAdmin) {
       throw new Error(
@@ -90,6 +95,12 @@ export abstract class HyperlaneAppChecker<
         if (await isProxy(provider, contract.address)) {
           // Check the ProxiedContract's admin matches expectation
           const actualAdmin = await proxyAdmin(provider, contract.address);
+          this.logger.debug(
+            `Checking contract: ${String(
+              name,
+            )} Expected admin address: ${expectedAdmin} Actual admin address: ${actualAdmin}
+            `,
+          );
           if (!eqAddress(actualAdmin, expectedAdmin)) {
             this.addViolation({
               type: ViolationType.ProxyAdmin,
@@ -192,6 +203,9 @@ export abstract class HyperlaneAppChecker<
     name: string,
     address: string,
   ): Promise<void> {
+    this.logger.debug(
+      `Checking proxy for ${chain} with name ${name} and address ${address}`,
+    );
     return this.checkBytecode(chain, name, address, [
       BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
       BytecodeHash.TRANSPARENT_PROXY_4_9_3_BYTECODE_HASH,
@@ -209,10 +223,17 @@ export abstract class HyperlaneAppChecker<
     owner: Address,
     ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
+    this.logger.debug(
+      `Checking ownership of contracts for ${chain} with owner ${owner}`,
+    );
     const ownableContracts = await this.ownables(chain);
+    this.logger.debug(`Ownable contracts: ${Object.keys(ownableContracts)}`);
     for (const [name, contract] of Object.entries(ownableContracts)) {
       const expectedOwner = ownableOverrides?.[name] ?? owner;
       const actual = await contract.owner();
+      this.logger.debug(
+        `Checking ownership for ${name}, expected owner ${expectedOwner}, actual owner ${actual}`,
+      );
       if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
           chain,

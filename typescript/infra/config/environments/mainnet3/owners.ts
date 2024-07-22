@@ -25,7 +25,7 @@ export function localAccountRouters(): ChainMap<Address> {
 export const safes: ChainMap<Address | undefined> = {
   mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI
   celo: '0x879038d6Fc9F6D5e2BA73188bd078486d77e1156',
-  ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
+  ethereum: '0x0DA0C3e52C977Ed3cBc641fF02DD271c3ED55aFe',
   avalanche: '0x5bE94B17112B8F18eA9Ac8e559377B467556a3c3',
   polygon: '0xf9cFD440CfBCfAB8473cc156485B7eE753b2913E',
   bsc: '0x7bB2ADeDdC342ffb611dDC073095cc4B8C547170',
@@ -44,7 +44,7 @@ export const safes: ChainMap<Address | undefined> = {
   mode: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
 };
 
-export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+export const DEPLOYER = '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5';
 
 // NOTE: if you wanna use ICA governance, you can do the following:
 // const localRouters = localAccountRouters();
