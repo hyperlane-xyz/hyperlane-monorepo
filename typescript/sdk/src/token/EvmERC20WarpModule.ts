@@ -10,7 +10,7 @@ import {
   ProtocolType,
   addressToBytes32,
   assert,
-  configDeepEquals,
+  deepEquals,
   isObjEmpty,
   normalizeConfig,
   rootLogger,
@@ -127,7 +127,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { remoteRouters: actualRemoteRouters } = actualConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-    if (!configDeepEquals(actualRemoteRouters, expectedRemoteRouters)) {
+    if (!deepEquals(actualRemoteRouters, expectedRemoteRouters)) {
       const contractToUpdate = TokenRouter__factory.connect(
         this.args.addresses.deployedTokenRoute,
         this.multiProvider.getProvider(this.domainId),
