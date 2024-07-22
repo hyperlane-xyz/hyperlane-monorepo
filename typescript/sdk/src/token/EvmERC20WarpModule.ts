@@ -96,8 +96,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     transactions.push(
       ...(await this.updateIsm(actualConfig, expectedConfig)),
-      ...(await this.updateRemoteRouters(actualConfig, expectedConfig)),
-      ...(await this.transferOwnership(actualConfig, expectedConfig)),
+      ...this.updateRemoteRouters(actualConfig, expectedConfig),
+      ...this.updateOwnership(actualConfig, expectedConfig),
     );
 
     return transactions;
@@ -110,10 +110,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
-  async updateRemoteRouters(
+  updateRemoteRouters(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): AnnotatedEV5Transaction[] {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
@@ -212,10 +212,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  async transferOwnership(
+  updateOwnership(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): AnnotatedEV5Transaction[] {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!eqAddress(actualConfig.owner, expectedConfig.owner)) {
       const { deployedTokenRoute } = this.args.addresses;
