@@ -14,6 +14,8 @@ import { objMerge } from '@hyperlane-xyz/utils';
 
 import { log } from '../logger.js';
 
+export const MAX_READ_LINE_OUTPUT = 250;
+
 export type FileFormat = 'yaml' | 'json';
 
 export type ArtifactsFile = {

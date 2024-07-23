@@ -11,6 +11,7 @@ import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { errorRed, log, logGray, logGreen } from '../logger.js';
 import {
+  MAX_READ_LINE_OUTPUT,
   logYamlIfUnderMaxLines,
   readYamlOrJson,
   writeYamlOrJson,
@@ -145,7 +146,7 @@ export const read: CommandModuleWithContext<{
       const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
       writeYamlOrJson(configFilePath, coreConfig, 'yaml');
       logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
-      logYamlIfUnderMaxLines(coreConfig, 250);
+      logYamlIfUnderMaxLines(coreConfig, MAX_READ_LINE_OUTPUT);
     } catch (e: any) {
       errorRed(
         `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
