@@ -482,5 +482,43 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       updatedConfig = await evmERC20WarpModule.read();
       expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(2);
     });
+
+    it('should update the owner only if they are different', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        ismFactoryAddresses,
+      } as TokenRouterConfig;
+
+      const owner = randomAddress();
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
+        multiProvider,
+      });
+      expect(owner).to.equal(owner);
+
+      const newOwner = randomAddress();
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          owner: newOwner,
+        }),
+      );
+
+      const latestConfig = normalizeConfig(await evmERC20WarpModule.read());
+      expect(latestConfig.owner).to.equal(newOwner);
+
+      // No op if the same owner
+      const txs = await evmERC20WarpModule.update({
+        ...config,
+        owner: newOwner,
+      });
+      expect(txs.length).to.equal(0);
+    });
   });
 });

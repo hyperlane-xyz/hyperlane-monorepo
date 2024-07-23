@@ -1,5 +1,6 @@
 import {
   MailboxClient__factory,
+  Ownable__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -11,6 +12,7 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
+  eqAddress,
   isObjEmpty,
   normalizeConfig,
   rootLogger,
@@ -94,7 +96,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     transactions.push(
       ...(await this.updateIsm(actualConfig, expectedConfig)),
-      ...(await this.updateRemoteRouters(actualConfig, expectedConfig)),
+      ...this.updateRemoteRouters(actualConfig, expectedConfig),
+      ...this.updateOwnership(actualConfig, expectedConfig),
     );
 
     return transactions;
@@ -107,10 +110,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
-  async updateRemoteRouters(
+  updateRemoteRouters(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): AnnotatedEV5Transaction[] {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
@@ -197,6 +200,35 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           ),
         });
       }
+    }
+
+    return updateTransactions;
+  }
+
+  /**
+   * Transfer ownership of an existing Warp route with a given config.
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns Ethereum transaction that need to be executed to update the owner.
+   */
+  updateOwnership(
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!eqAddress(actualConfig.owner, expectedConfig.owner)) {
+      const { deployedTokenRoute } = this.args.addresses;
+      const { owner: newOwner } = expectedConfig;
+      updateTransactions.push({
+        annotation: `Transferring ownership of Warp route ${deployedTokenRoute} to ${newOwner}`,
+        chainId: this.domainId,
+        to: deployedTokenRoute,
+        data: Ownable__factory.createInterface().encodeFunctionData(
+          'transferOwnership(address)',
+          [newOwner],
+        ),
+      });
     }
 
     return updateTransactions;
