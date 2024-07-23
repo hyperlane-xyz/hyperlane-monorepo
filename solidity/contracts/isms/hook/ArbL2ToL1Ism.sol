@@ -13,7 +13,7 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-// ============ Internal Imports ============
+// ============ Internal Imports =============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
