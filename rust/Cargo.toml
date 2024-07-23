@@ -48,6 +48,10 @@ license-file = "../LICENSE.md"
 publish = false
 version = "0.1.0"
 
+[profile.memory-profiling]
+inherits = "release"
+debug = 1
+
 [workspace.dependencies]
 Inflector = "0.11.4"
 anyhow = "1.0"
@@ -80,6 +84,7 @@ curve25519-dalek = { version = "~3.2", features = ["serde"] }
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
+dhat = "0.3.3"
 ed25519-dalek = "~1.0"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"

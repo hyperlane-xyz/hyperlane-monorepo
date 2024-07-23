@@ -1,5 +1,9 @@
 cargo-features = ["workspace-inheritance"]
 
+[profile.memory-profiling]
+inherits = "release"
+debug = 1
+
 [package]
 name = "relayer"
 documentation.workspace = true
@@ -15,8 +19,10 @@ axum.workspace = true
 config.workspace = true
 console-subscriber.workspace = true
 convert_case.workspace = true
+ctrlc = { workspace = true, features = ["termination"], optional = true }
 derive-new.workspace = true
 derive_more.workspace = true
+dhat = { workspace = true, optional = true }
 ethers-contract.workspace = true
 ethers.workspace = true
 eyre.workspace = true
@@ -55,3 +61,4 @@ default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
 color-eyre = ["hyperlane-base/color-eyre"]
 test-utils = ["hyperlane-base/test-utils"]
+memory-profiling = ["dep:ctrlc", "dep:dhat"]

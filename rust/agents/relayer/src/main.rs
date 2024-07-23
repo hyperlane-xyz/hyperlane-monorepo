@@ -13,7 +13,18 @@ use hyperlane_base::agent_main;
 
 use relayer::Relayer;
 
+#[cfg(feature = "memory-profiling")]
+mod memory_profiler;
+
 #[tokio::main(flavor = "multi_thread", worker_threads = 20)]
 async fn main() -> Result<()> {
-    agent_main::<Relayer>().await
+    let agent_main_fut = agent_main::<Relayer>();
+
+    #[cfg(feature = "memory-profiling")]
+    memory_profiler::run_future(agent_main_fut).await?;
+
+    #[cfg(not(feature = "memory-profiling"))]
+    agent_main_fut.await?;
+
+    Ok(())
 }
