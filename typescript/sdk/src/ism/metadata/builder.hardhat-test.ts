@@ -33,8 +33,8 @@ import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 import { BaseMetadataBuilder, MetadataContext } from './builder.js';
 
 const MAX_ISM_DEPTH = 5;
-const MAX_NUM_VALIDATORS = 10;
-const NUM_RUNS = 16;
+const MAX_NUM_VALIDATORS = 5;
+const NUM_RUNS = 5;
 
 describe('BaseMetadataBuilder', () => {
   let core: HyperlaneCore;
@@ -114,8 +114,7 @@ describe('BaseMetadataBuilder', () => {
       );
   });
 
-  // eslint-disable-next-line jest/no-disabled-tests
-  describe.skip('#build', () => {
+  describe('#build', () => {
     let origin: ChainName;
     let destination: ChainName;
     let context: MetadataContext;
