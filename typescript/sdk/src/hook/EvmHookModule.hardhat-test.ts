@@ -121,6 +121,14 @@ function randomHookConfig(
         destinationChain: 'testChain',
       };
 
+    case HookType.ARB_L2_TO_L1:
+      return {
+        type: hookType,
+        arbSys: randomAddress(),
+        destinationChain: 'test1',
+        gasOverhead: 200_000,
+      };
+
     case HookType.ROUTING:
       return {
         owner: randomAddress(),

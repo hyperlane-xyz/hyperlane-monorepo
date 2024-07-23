@@ -35,6 +35,8 @@ export const OpStackHookSchema = OwnableSchema.extend({
 export const ArbL2ToL1HookSchema = z.object({
   type: z.literal(HookType.ARB_L2_TO_L1),
   arbSys: z.string(),
+  destinationChain: z.string(),
+  gasOverhead: z.number(),
 });
 
 export const IgpSchema = OwnableSchema.extend({

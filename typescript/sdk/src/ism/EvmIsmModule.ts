@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsmFactory__factory,
@@ -379,6 +380,14 @@ export class EvmIsmModule extends HyperlaneModule<
         return this.deployer.deployContractFromFactory({
           chain: this.chain,
           factory: new OPStackIsm__factory(),
+          contractName: IsmType.OP_STACK,
+          constructorArgs: [config.nativeBridge],
+        });
+
+      case IsmType.ARB_L2_TO_L1:
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new ArbL2ToL1Ism__factory(),
           contractName: IsmType.OP_STACK,
           constructorArgs: [config.nativeBridge],
         });

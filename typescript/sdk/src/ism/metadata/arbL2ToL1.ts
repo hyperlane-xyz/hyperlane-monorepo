@@ -1,5 +1,8 @@
-import { ArbitrumProvider, L2ToL1MessageReader } from '@arbitrum/sdk';
-import { L2ToL1TransactionEvent } from '@arbitrum/sdk/dist/lib/message/L2ToL1Message.js';
+import {
+  ArbitrumProvider,
+  ChildToParentMessageReader,
+  ChildToParentTransactionEvent,
+} from '@arbitrum/sdk';
 import { assert } from 'console';
 import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
@@ -77,7 +80,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     this.logger.debug({ matchingL2Tx }, 'Found matching L2ToL1Tx event');
 
     if (matchingL2Tx) {
-      const l2ToL1TxEvent: L2ToL1TransactionEvent = {
+      const l2ToL1TxEvent: ChildToParentTransactionEvent = {
         ...matchingL2Tx.args,
         caller: matchingL2Tx.args.caller,
         destination: matchingL2Tx.args.destination,
@@ -90,7 +93,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         data: matchingL2Tx.args.data,
       };
 
-      const reader = new L2ToL1MessageReader(
+      const reader = new ChildToParentMessageReader(
         this.core.multiProvider.getProvider('sepolia'),
         l2ToL1TxEvent,
       );

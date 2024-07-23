@@ -114,7 +114,7 @@ contract ArbL2ToL1IsmTest is Test {
     function deployIsm() public {
         arbBridge = new MockArbBridge();
 
-        ism = new ArbL2ToL1Ism(address(arbBridge), address(arbBridge));
+        ism = new ArbL2ToL1Ism(address(arbBridge));
     }
 
     function deployAll() public {
