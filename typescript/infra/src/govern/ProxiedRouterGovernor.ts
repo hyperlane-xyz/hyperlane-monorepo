@@ -21,43 +21,46 @@ export class ProxiedRouterGovernor<
   protected async mapViolationToCall(violation: CheckerViolation) {
     switch (violation.type) {
       case ConnectionClientViolationType.InterchainSecurityModule:
-        this.handleIsmViolation(violation as ConnectionClientViolation);
-        break;
+        return this.handleIsmViolation(violation as ConnectionClientViolation);
       case RouterViolationType.EnrolledRouter:
-        this.handleEnrolledRouterViolation(violation as RouterViolation);
-        break;
+        return this.handleEnrolledRouterViolation(violation as RouterViolation);
       case ViolationType.Owner:
-        this.handleOwnerViolation(violation as OwnerViolation);
-        break;
+        return this.handleOwnerViolation(violation as OwnerViolation);
       default:
         throw new Error(`Unsupported violation type ${violation.type}`);
     }
   }
 
   protected handleIsmViolation(violation: ConnectionClientViolation) {
-    this.pushCall(violation.chain, {
-      to: violation.contract.address,
-      data: violation.contract.interface.encodeFunctionData(
-        'setInterchainSecurityModule',
-        [violation.expected],
-      ),
-      value: BigNumber.from(0),
-      description: `Set ISM of ${violation.contract.address} to ${violation.expected}`,
-    });
+    return {
+      chain: violation.chain,
+      call: {
+        to: violation.contract.address,
+        data: violation.contract.interface.encodeFunctionData(
+          'setInterchainSecurityModule',
+          [violation.expected],
+        ),
+        value: BigNumber.from(0),
+        description: `Set ISM of ${violation.contract.address} to ${violation.expected}`,
+      },
+    };
   }
 
   protected handleEnrolledRouterViolation(violation: RouterViolation) {
     const remoteDomain = this.checker.multiProvider.getDomainId(
       violation.remoteChain,
     );
-    this.pushCall(violation.chain, {
-      to: violation.contract.address,
-      data: violation.contract.interface.encodeFunctionData(
-        'enrollRemoteRouter',
-        [remoteDomain, violation.expected],
-      ),
-      value: BigNumber.from(0),
-      description: `Enroll router for remote chain ${violation.remoteChain} (${remoteDomain}) ${violation.expected} in ${violation.contract.address}`,
-    });
+    return {
+      chain: violation.chain,
+      call: {
+        to: violation.contract.address,
+        data: violation.contract.interface.encodeFunctionData(
+          'enrollRemoteRouter',
+          [remoteDomain, violation.expected],
+        ),
+        value: BigNumber.from(0),
+        description: `Enroll router for remote chain ${violation.remoteChain} (${remoteDomain}) ${violation.expected} in ${violation.contract.address}`,
+      },
+    };
   }
 }

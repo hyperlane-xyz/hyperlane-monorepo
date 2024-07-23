@@ -9,15 +9,15 @@ import {
   getArgs,
   getKeyForRole,
   withChainRequired,
-  withSafeTxServiceUrlRequired,
+  withSafeHomeUrlRequired,
   withThreshold,
 } from '../agent-utils.js';
 
 const OWNERS_FILE_PATH = 'config/environments/mainnet3/safe/safeSigners.json';
 
 async function main() {
-  const { chain, safeTxServiceUrl, threshold } = await withThreshold(
-    withSafeTxServiceUrlRequired(withChainRequired(getArgs())),
+  const { chain, safeHomeUrl, threshold } = await withThreshold(
+    withSafeHomeUrlRequired(withChainRequired(getArgs())),
   ).argv;
 
   const chainMetadata = await getChain(chain);
@@ -54,10 +54,18 @@ async function main() {
   const safeAddress = await safe.getAddress();
 
   console.log(`Safe address: ${safeAddress}`);
-  console.log(
-    `Safe url: ${safeTxServiceUrl}/home?safe=${chain}:${safeAddress}`,
-  );
+  console.log(`Safe url: ${safeHomeUrl}/home?safe=${chain}:${safeAddress}`);
   console.log('url may not be correct, please check by following the link');
+
+  try {
+    const response = await fetch(`${safeHomeUrl}/home`);
+    const resultsJson = await response.json();
+    console.log(
+      `Add the transaction service url ${resultsJson.results.transactionService} as gnosisSafeTransactionServiceUrl to the metadata.yml in the registry`,
+    );
+  } catch (e) {
+    console.error(`Error fetching safe tx service url: ${e}`);
+  }
 }
 
 const getDeployerPrivateKey = async () => {

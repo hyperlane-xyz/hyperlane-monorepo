@@ -44,16 +44,18 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
           throw new Error('Invalid mailbox violation expected value');
         }
 
-        this.pushCall(violation.chain, {
-          to: violation.contract.address,
-          data: violation.contract.interface.encodeFunctionData(
-            'setDefaultIsm',
-            [ismAddress],
-          ),
-          value: BigNumber.from(0),
-          description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
-        });
-        break;
+        return {
+          chain: violation.chain,
+          call: {
+            to: violation.contract.address,
+            data: violation.contract.interface.encodeFunctionData(
+              'setDefaultIsm',
+              [ismAddress],
+            ),
+            value: BigNumber.from(0),
+            description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
+          },
+        };
       }
       default:
         throw new Error(`Unsupported mailbox violation type ${violation.type}`);
@@ -63,16 +65,14 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   protected async mapViolationToCall(violation: CheckerViolation) {
     switch (violation.type) {
       case ViolationType.Owner: {
-        this.handleOwnerViolation(violation as OwnerViolation);
-        break;
+        return this.handleOwnerViolation(violation as OwnerViolation);
       }
       case CoreViolationType.Mailbox: {
-        await this.handleMailboxViolation(violation as MailboxViolation);
-        break;
+        return this.handleMailboxViolation(violation as MailboxViolation);
       }
       case CoreViolationType.ValidatorAnnounce: {
         console.warn('Ignoring ValidatorAnnounce violation');
-        break;
+        return undefined;
       }
       default:
         throw new Error(`Unsupported violation type ${violation.type}`);

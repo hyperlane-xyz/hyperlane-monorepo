@@ -395,7 +395,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 3,
     validators: [
       '0x35130945b625bb69b28aee902a3b9a76fa67125f',
-      '0x7089b6352d37d23fb05a7fee4229c78e038fba09', // imperator (needs announcing)
+      '0x7089b6352d37d23fb05a7fee4229c78e038fba09', // imperator
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],

@@ -23,12 +23,10 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
   protected async mapViolationToCall(violation: CheckerViolation) {
     switch (violation.type) {
       case 'InterchainGasPaymaster': {
-        this.handleIgpViolation(violation as IgpViolation);
-        break;
+        return this.handleIgpViolation(violation as IgpViolation);
       }
       case 'Owner': {
-        super.handleOwnerViolation(violation as OwnerViolation);
-        break;
+        return super.handleOwnerViolation(violation as OwnerViolation);
       }
       default:
         throw new Error(`Unsupported violation type ${violation.type}`);
@@ -39,16 +37,18 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
     switch (violation.subType) {
       case IgpViolationType.Beneficiary: {
         const beneficiaryViolation = violation as IgpBeneficiaryViolation;
-        this.pushCall(beneficiaryViolation.chain, {
-          to: beneficiaryViolation.contract.address,
-          data: beneficiaryViolation.contract.interface.encodeFunctionData(
-            'setBeneficiary',
-            [beneficiaryViolation.expected],
-          ),
-          value: BigNumber.from(0),
-          description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
-        });
-        break;
+        return {
+          chain: beneficiaryViolation.chain,
+          call: {
+            to: beneficiaryViolation.contract.address,
+            data: beneficiaryViolation.contract.interface.encodeFunctionData(
+              'setBeneficiary',
+              [beneficiaryViolation.expected],
+            ),
+            value: BigNumber.from(0),
+            description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
+          },
+        };
       }
       case IgpViolationType.GasOracles: {
         const gasOraclesViolation = violation as IgpGasOraclesViolation;
@@ -68,23 +68,25 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
           });
         }
 
-        this.pushCall(gasOraclesViolation.chain, {
-          to: gasOraclesViolation.contract.address,
-          data: gasOraclesViolation.contract.interface.encodeFunctionData(
-            'setDestinationGasConfigs',
-            [configs],
-          ),
-          value: BigNumber.from(0),
-          description: `Setting ${Object.keys(gasOraclesViolation.expected)
-            .map((remoteStr) => {
-              const remote = remoteStr as ChainName;
-              const remoteId = this.checker.multiProvider.getDomainId(remote);
-              const expected = gasOraclesViolation.expected[remote];
-              return `gas oracle for ${remote} (domain ID ${remoteId}) to ${expected}`;
-            })
-            .join(', ')}`,
-        });
-        break;
+        return {
+          chain: gasOraclesViolation.chain,
+          call: {
+            to: gasOraclesViolation.contract.address,
+            data: gasOraclesViolation.contract.interface.encodeFunctionData(
+              'setDestinationGasConfigs',
+              [configs],
+            ),
+            value: BigNumber.from(0),
+            description: `Setting ${Object.keys(gasOraclesViolation.expected)
+              .map((remoteStr) => {
+                const remote = remoteStr as ChainName;
+                const remoteId = this.checker.multiProvider.getDomainId(remote);
+                const expected = gasOraclesViolation.expected[remote];
+                return `gas oracle for ${remote} (domain ID ${remoteId}) to ${expected}`;
+              })
+              .join(', ')}`,
+          },
+        };
       }
       case IgpViolationType.Overhead: {
         const overheadViolation = violation as IgpOverheadViolation;
@@ -99,23 +101,25 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
           },
         }));
 
-        this.pushCall(violation.chain, {
-          to: overheadViolation.contract.address,
-          data: overheadViolation.contract.interface.encodeFunctionData(
-            'setDestinationGasConfigs',
-            [configs],
-          ),
-          value: BigNumber.from(0),
-          description: `Setting ${Object.keys(violation.expected)
-            .map((remoteStr) => {
-              const remote = remoteStr as ChainName;
-              const remoteId = this.checker.multiProvider.getDomainId(remote);
-              const expected = violation.expected[remote];
-              return `destination gas overhead for ${remote} (domain ID ${remoteId}) to ${expected}`;
-            })
-            .join(', ')}`,
-        });
-        break;
+        return {
+          chain: violation.chain,
+          call: {
+            to: overheadViolation.contract.address,
+            data: overheadViolation.contract.interface.encodeFunctionData(
+              'setDestinationGasConfigs',
+              [configs],
+            ),
+            value: BigNumber.from(0),
+            description: `Setting ${Object.keys(violation.expected)
+              .map((remoteStr) => {
+                const remote = remoteStr as ChainName;
+                const remoteId = this.checker.multiProvider.getDomainId(remote);
+                const expected = violation.expected[remote];
+                return `destination gas overhead for ${remote} (domain ID ${remoteId}) to ${expected}`;
+              })
+              .join(', ')}`,
+          },
+        };
       }
       default:
         throw new Error(
