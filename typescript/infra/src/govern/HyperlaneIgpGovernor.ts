@@ -3,6 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
   ChainName,
+  CheckerViolation,
   HyperlaneIgp,
   IgpBeneficiaryViolation,
   IgpConfig,
@@ -19,20 +20,18 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
   HyperlaneIgp,
   IgpConfig
 > {
-  protected async mapViolationsToCalls() {
-    for (const violation of this.checker.violations) {
-      switch (violation.type) {
-        case 'InterchainGasPaymaster': {
-          this.handleIgpViolation(violation as IgpViolation);
-          break;
-        }
-        case 'Owner': {
-          super.handleOwnerViolation(violation as OwnerViolation);
-          break;
-        }
-        default:
-          throw new Error(`Unsupported violation type ${violation.type}`);
+  protected async mapViolationToCall(violation: CheckerViolation) {
+    switch (violation.type) {
+      case 'InterchainGasPaymaster': {
+        this.handleIgpViolation(violation as IgpViolation);
+        break;
       }
+      case 'Owner': {
+        super.handleOwnerViolation(violation as OwnerViolation);
+        break;
+      }
+      default:
+        throw new Error(`Unsupported violation type ${violation.type}`);
     }
   }
 

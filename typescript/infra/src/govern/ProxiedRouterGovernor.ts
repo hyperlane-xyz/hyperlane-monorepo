@@ -1,6 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import {
+  CheckerViolation,
   ConnectionClientViolation,
   ConnectionClientViolationType,
   OwnerViolation,
@@ -17,21 +18,19 @@ export class ProxiedRouterGovernor<
   App extends RouterApp<any>,
   Config extends RouterConfig,
 > extends HyperlaneAppGovernor<App, Config> {
-  protected async mapViolationsToCalls() {
-    for (const violation of this.checker.violations) {
-      switch (violation.type) {
-        case ConnectionClientViolationType.InterchainSecurityModule:
-          this.handleIsmViolation(violation as ConnectionClientViolation);
-          break;
-        case RouterViolationType.EnrolledRouter:
-          this.handleEnrolledRouterViolation(violation as RouterViolation);
-          break;
-        case ViolationType.Owner:
-          this.handleOwnerViolation(violation as OwnerViolation);
-          break;
-        default:
-          throw new Error(`Unsupported violation type ${violation.type}`);
-      }
+  protected async mapViolationToCall(violation: CheckerViolation) {
+    switch (violation.type) {
+      case ConnectionClientViolationType.InterchainSecurityModule:
+        this.handleIsmViolation(violation as ConnectionClientViolation);
+        break;
+      case RouterViolationType.EnrolledRouter:
+        this.handleEnrolledRouterViolation(violation as RouterViolation);
+        break;
+      case ViolationType.Owner:
+        this.handleOwnerViolation(violation as OwnerViolation);
+        break;
+      default:
+        throw new Error(`Unsupported violation type ${violation.type}`);
     }
   }
 

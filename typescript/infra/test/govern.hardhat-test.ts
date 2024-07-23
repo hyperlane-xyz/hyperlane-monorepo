@@ -12,6 +12,7 @@ import {
   AccountConfig,
   ChainMap,
   ChainName,
+  CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
   HyperlaneContractsMap,
@@ -54,7 +55,7 @@ export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
   TestApp,
   OwnableConfig
 > {
-  protected async mapViolationsToCalls() {
+  protected async mapViolationToCall(_violation: CheckerViolation) {
     return;
   }
 

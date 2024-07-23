@@ -1,6 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import {
+  CheckerViolation,
   CoreConfig,
   CoreViolationType,
   HyperlaneCore,
@@ -59,24 +60,22 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
     }
   }
 
-  protected async mapViolationsToCalls() {
-    for (const violation of this.checker.violations) {
-      switch (violation.type) {
-        case ViolationType.Owner: {
-          this.handleOwnerViolation(violation as OwnerViolation);
-          break;
-        }
-        case CoreViolationType.Mailbox: {
-          await this.handleMailboxViolation(violation as MailboxViolation);
-          break;
-        }
-        case CoreViolationType.ValidatorAnnounce: {
-          console.warn('Ignoring ValidatorAnnounce violation');
-          break;
-        }
-        default:
-          throw new Error(`Unsupported violation type ${violation.type}`);
+  protected async mapViolationToCall(violation: CheckerViolation) {
+    switch (violation.type) {
+      case ViolationType.Owner: {
+        this.handleOwnerViolation(violation as OwnerViolation);
+        break;
       }
+      case CoreViolationType.Mailbox: {
+        await this.handleMailboxViolation(violation as MailboxViolation);
+        break;
+      }
+      case CoreViolationType.ValidatorAnnounce: {
+        console.warn('Ignoring ValidatorAnnounce violation');
+        break;
+      }
+      default:
+        throw new Error(`Unsupported violation type ${violation.type}`);
     }
   }
 }

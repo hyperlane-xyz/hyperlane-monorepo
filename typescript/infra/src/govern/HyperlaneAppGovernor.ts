@@ -5,6 +5,7 @@ import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
   InterchainAccount,
@@ -153,7 +154,13 @@ export abstract class HyperlaneAppGovernor<
     return this.calls[chain].pop();
   }
 
-  protected abstract mapViolationsToCalls(): Promise<void>;
+  protected async mapViolationsToCalls(): Promise<void> {
+    await Promise.all(this.checker.violations.map(this.mapViolationToCall));
+  }
+
+  protected abstract mapViolationToCall(
+    violation: CheckerViolation,
+  ): Promise<void>;
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {
