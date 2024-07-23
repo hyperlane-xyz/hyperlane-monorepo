@@ -30,6 +30,7 @@ export {
   attachContracts,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
+  attachAndConnectContracts,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
@@ -377,6 +378,7 @@ export {
   RouterConfig,
   RouterViolation,
   RouterViolationType,
+  RemoteRouters,
   proxiedFactories,
 } from './router/types.js';
 export {
@@ -507,3 +509,4 @@ export { DeployedCoreAdresses, EvmCoreModule } from './core/EvmCoreModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { ProxyFactoryFactoriesAddresses } from './deploy/schemas.js';
+export { AnnotatedEV5Transaction } from './providers/ProviderType.js';

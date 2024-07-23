@@ -229,7 +229,11 @@ impl HyperlaneRocksDB {
     /// Update the total gas payment for a message to include gas_payment
     fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
         let gas_payment_key = event.into();
-        let existing_payment = self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
+        let existing_payment =
+            match self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)? {
+                Some(payment) => payment,
+                None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
+            };
         let total = existing_payment + event;
 
         debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
@@ -261,11 +265,12 @@ impl HyperlaneRocksDB {
     pub fn retrieve_gas_payment_by_gas_payment_key(
         &self,
         gas_payment_key: GasPaymentKey,
-    ) -> DbResult<InterchainGasPayment> {
+    ) -> DbResult<Option<InterchainGasPayment>> {
         Ok(self
             .retrieve_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key)?
-            .unwrap_or_default()
-            .complete(gas_payment_key.message_id, gas_payment_key.destination))
+            .map(|payment| {
+                payment.complete(gas_payment_key.message_id, gas_payment_key.destination)
+            }))
     }
 
     /// Retrieve the total gas payment for a message
