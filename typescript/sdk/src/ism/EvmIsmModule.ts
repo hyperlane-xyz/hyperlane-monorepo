@@ -389,7 +389,7 @@ export class EvmIsmModule extends HyperlaneModule<
           chain: this.chain,
           factory: new ArbL2ToL1Ism__factory(),
           contractName: IsmType.OP_STACK,
-          constructorArgs: [config.nativeBridge],
+          constructorArgs: [config.bridge],
         });
 
       case IsmType.PAUSABLE:

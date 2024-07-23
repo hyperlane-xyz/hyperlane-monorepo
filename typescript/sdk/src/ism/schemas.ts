@@ -27,7 +27,7 @@ export const OpStackIsmConfigSchema = z.object({
 
 export const ArbL2ToL1IsmConfigSchema = z.object({
   type: z.literal(IsmType.ARB_L2_TO_L1),
-  outbox: z.string(),
+  bridge: z.string(),
 });
 
 export const PausableIsmConfigSchema = PausableSchema.and(

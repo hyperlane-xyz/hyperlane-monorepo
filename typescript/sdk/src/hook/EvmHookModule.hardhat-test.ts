@@ -29,7 +29,9 @@ import {
   ProtocolFeeHookConfig,
 } from './types.js';
 
-const hookTypes = Object.values(HookType);
+const hookTypes = Object.values(HookType).filter(
+  (hook) => hook !== HookType.ARB_L2_TO_L1,
+);
 
 function randomHookType(): HookType {
   // OP_STACK filtering is temporary until we have a way to deploy the required contracts
@@ -119,14 +121,6 @@ function randomHookConfig(
         type: hookType,
         nativeBridge: randomAddress(),
         destinationChain: 'testChain',
-      };
-
-    case HookType.ARB_L2_TO_L1:
-      return {
-        type: hookType,
-        arbSys: randomAddress(),
-        destinationChain: 'test1',
-        gasOverhead: 200_000,
       };
 
     case HookType.ROUTING:

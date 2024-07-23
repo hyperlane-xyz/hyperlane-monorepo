@@ -5,6 +5,7 @@ import {
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
+  IOutbox__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
@@ -274,10 +275,12 @@ export class EvmIsmReader implements IsmReader {
     const ism = ArbL2ToL1Ism__factory.connect(address, this.provider);
 
     const outbox = await ism.arbOutbox();
+    const outboxContract = IOutbox__factory.connect(outbox, this.provider);
+    const bridge = await outboxContract.bridge();
     return {
       address,
       type: IsmType.ARB_L2_TO_L1,
-      outbox,
+      bridge,
     };
   }
 

@@ -49,7 +49,6 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { randomAddress } from '../test/testUtils.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
@@ -837,14 +836,14 @@ export class EvmHookModule extends HyperlaneModule<
       config.destinationChain,
     );
 
-    const outbox =
+    const bridge =
       config.destinationChain === 'test1'
         ? mailbox // need a valid mock contract for testing
-        : getArbitrumNetwork(destinationDomain).ethBridge.outbox;
+        : getArbitrumNetwork(destinationDomain).ethBridge.bridge;
 
     const ismConfig: ArbL2ToL1IsmConfig = {
       type: IsmType.ARB_L2_TO_L1,
-      outbox,
+      bridge,
     };
 
     const arbL2ToL1IsmAddress = (
