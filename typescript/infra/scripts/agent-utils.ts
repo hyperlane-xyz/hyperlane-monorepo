@@ -111,6 +111,7 @@ export function withChainRequired<T>(args: Argv<T>) {
 
 export function withSafeHomeUrlRequired<T>(args: Argv<T>) {
   return args
+    .string('safeHomeUrl')
     .describe('safeHomeUrl', 'Custom safe home url')
     .demandOption('safeHomeUrl');
 }

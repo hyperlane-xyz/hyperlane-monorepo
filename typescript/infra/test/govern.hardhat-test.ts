@@ -56,7 +56,7 @@ export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
   OwnableConfig
 > {
   protected async mapViolationToCall(_violation: CheckerViolation) {
-    return;
+    return undefined;
   }
 
   mockPushCall(chain: string, call: AnnotatedCallData): void {

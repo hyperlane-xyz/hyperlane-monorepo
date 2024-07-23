@@ -58,13 +58,23 @@ async function main() {
   console.log('url may not be correct, please check by following the link');
 
   try {
-    const response = await fetch(`${safeHomeUrl}/home`);
+    // TODO: check https://app.safe.global for officially supported chains, filter by chain id
+    const chainsUrl = `${safeHomeUrl.replace(
+      'https://',
+      'https://gateway.',
+    )}/v1/chains`;
+    console.log(`Fetching chain data from ${chainsUrl}`);
+    const response = await fetch(chainsUrl);
+
     const resultsJson = await response.json();
+
+    const transactionService = resultsJson.results[0].transactionService;
+    console.log(`Chains: ${JSON.stringify(transactionService)}`);
     console.log(
-      `Add the transaction service url ${resultsJson.results.transactionService} as gnosisSafeTransactionServiceUrl to the metadata.yml in the registry`,
+      `Add the transaction service url ${transactionService} as gnosisSafeTransactionServiceUrl to the metadata.yml in the registry`,
     );
   } catch (e) {
-    console.error(`Error fetching safe tx service url: ${e}`);
+    console.error(`Could not fetch safe tx service url: ${e}`);
   }
 }
 
