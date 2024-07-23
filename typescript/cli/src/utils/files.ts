@@ -3,7 +3,12 @@ import select from '@inquirer/select';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
+import {
+  LineCounter,
+  parse,
+  parse as yamlParse,
+  stringify as yamlStringify,
+} from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/utils';
 
@@ -220,4 +225,23 @@ export function indentYamlOrJson(str: string, indentLevel: number): string {
     .split('\n')
     .map((line) => indent + line)
     .join('\n');
+}
+
+/**
+ * Logs the YAML representation of an object if the number of lines is less than the specified maximum.
+ *
+ * @param obj - The object to be converted to YAML.
+ * @param maxLines - The maximum number of lines allowed for the YAML representation.
+ * @param margin - The number of spaces to use for indentation (default is 2).
+ */
+export function logYamlIfUnderMaxLines(
+  obj: any,
+  maxLines: number,
+  margin = 2,
+): void {
+  const asYamlString = yamlStringify(obj, null, margin);
+  const lineCounter = new LineCounter();
+  parse(asYamlString, { lineCounter });
+
+  log(lineCounter.lineStarts.length < maxLines ? asYamlString : '');
 }
