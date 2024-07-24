@@ -27,7 +27,7 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
-export const getServerErrorMessage = (errorMsg: string) =>
+export const getSmartProviderErrorMessage = (errorMsg: string) =>
   `RPC request failed with ${errorMsg}. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 
 // EthersError considered to be generic server errors. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
@@ -426,9 +426,9 @@ export class HyperlaneSmartProvider
       (e) => e.status === ProviderStatus.Timeout,
     );
     if (rpcServerError) {
-      throw Error(getServerErrorMessage(rpcServerError.code));
+      throw Error(getSmartProviderErrorMessage(rpcServerError.code));
     } else if (timedOutError) {
-      throw Error(getServerErrorMessage(ProviderStatus.Timeout));
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
     } else {
       throw errors[0]; // Assumes that all errors are of ProviderStatus.Error
     }
