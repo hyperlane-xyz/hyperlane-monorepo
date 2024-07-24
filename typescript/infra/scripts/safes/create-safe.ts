@@ -9,15 +9,15 @@ import {
   getArgs,
   getKeyForRole,
   withChainRequired,
-  withSafeTxServiceUrlRequired,
+  withSafeHomeUrlRequired,
   withThreshold,
 } from '../agent-utils.js';
 
 const OWNERS_FILE_PATH = 'config/environments/mainnet3/safe/safeSigners.json';
 
 async function main() {
-  const { chain, safeTxServiceUrl, threshold } = await withThreshold(
-    withSafeTxServiceUrlRequired(withChainRequired(getArgs())),
+  const { chain, safeHomeUrl, threshold } = await withThreshold(
+    withSafeHomeUrlRequired(withChainRequired(getArgs())),
   ).argv;
 
   const chainMetadata = await getChain(chain);
@@ -54,10 +54,28 @@ async function main() {
   const safeAddress = await safe.getAddress();
 
   console.log(`Safe address: ${safeAddress}`);
-  console.log(
-    `Safe url: ${safeTxServiceUrl}/home?safe=${chain}:${safeAddress}`,
-  );
+  console.log(`Safe url: ${safeHomeUrl}/home?safe=${chain}:${safeAddress}`);
   console.log('url may not be correct, please check by following the link');
+
+  try {
+    // TODO: check https://app.safe.global for officially supported chains, filter by chain id
+    const chainsUrl = `${safeHomeUrl.replace(
+      'https://',
+      'https://gateway.',
+    )}/v1/chains`;
+    console.log(`Fetching chain data from ${chainsUrl}`);
+    const response = await fetch(chainsUrl);
+
+    const resultsJson = await response.json();
+
+    const transactionService = resultsJson.results[0].transactionService;
+    console.log(`Chains: ${JSON.stringify(transactionService)}`);
+    console.log(
+      `Add the transaction service url ${transactionService} as gnosisSafeTransactionServiceUrl to the metadata.yml in the registry`,
+    );
+  } catch (e) {
+    console.error(`Could not fetch safe tx service url: ${e}`);
+  }
 }
 
 const getDeployerPrivateKey = async () => {

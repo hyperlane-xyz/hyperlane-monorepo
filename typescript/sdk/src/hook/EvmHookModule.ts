@@ -27,7 +27,7 @@ import {
   Address,
   ProtocolType,
   addressToBytes32,
-  configDeepEquals,
+  deepEquals,
   eqAddress,
   normalizeConfig,
   rootLogger,
@@ -145,7 +145,7 @@ export class EvmHookModule extends HyperlaneModule<
     this.args.config = targetConfig;
 
     // If configs match, no updates needed
-    if (configDeepEquals(currentConfig, targetConfig)) {
+    if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
@@ -278,7 +278,7 @@ export class EvmHookModule extends HyperlaneModule<
 
       // If the domain is not in the current config or the config has changed, deploy a new hook
       // TODO: in-place updates per domain as a future optimization
-      if (!configDeepEquals(currentDomains[dest], targetDomainConfig)) {
+      if (!deepEquals(currentDomains[dest], targetDomainConfig)) {
         const domainHook = await this.deploy({
           config: targetDomainConfig,
         });
@@ -474,7 +474,7 @@ export class EvmHookModule extends HyperlaneModule<
       }
 
       // only update if the oracle config has changed
-      if (!current || !configDeepEquals(current, target)) {
+      if (!current || !deepEquals(current, target)) {
         configsToSet.push({ remoteDomain, ...target });
 
         // Log an example remote gas cost
@@ -570,7 +570,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Deploy a new fallback hook if the fallback config has changed
     if (
       targetConfig.type === HookType.FALLBACK_ROUTING &&
-      !configDeepEquals(
+      !deepEquals(
         targetConfig.fallback,
         (currentConfig as FallbackRoutingHookConfig).fallback,
       )

@@ -1,10 +1,15 @@
 /* eslint-disable no-console */
-import assert from 'assert';
 import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  deepEquals,
+  eqAddress,
+  normalizeConfig,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -255,7 +260,7 @@ describe('EvmHookModule', async () => {
   afterEach(async () => {
     const normalizedDerivedConfig = normalizeConfig(await testHook.read());
     const normalizedConfig = normalizeConfig(testConfig);
-    assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
+    deepEquals(normalizedDerivedConfig, normalizedConfig);
   });
 
   // create a new Hook and verify that it matches the config
