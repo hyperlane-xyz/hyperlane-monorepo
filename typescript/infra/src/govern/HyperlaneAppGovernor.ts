@@ -20,6 +20,7 @@ import {
   bytes32ToAddress,
   eqAddress,
   objMap,
+  retryAsync,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -141,11 +142,17 @@ export abstract class HyperlaneAppGovernor<
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
+
     const safeOwner = this.checker.configMap[chain].owner;
-    await sendCallsForType(
-      SubmissionType.SAFE,
-      new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+    await retryAsync(
+      () =>
+        sendCallsForType(
+          SubmissionType.SAFE,
+          new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+        ),
+      10,
     );
+
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
 
