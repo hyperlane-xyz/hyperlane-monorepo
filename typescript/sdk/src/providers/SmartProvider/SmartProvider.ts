@@ -30,8 +30,8 @@ import {
 export const getSmartProviderErrorMessage = (errorMsg: string) =>
   `RPC request failed with ${errorMsg}. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 
-// These EthersError are considered to be generic server errors. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
-const SERVER_ERRORS = [
+// This is a partial list. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
+const RPC_SERVER_ERRORS = [
   EthersError.NOT_IMPLEMENTED,
   EthersError.SERVER_ERROR,
   EthersError.UNKNOWN_ERROR,
@@ -421,7 +421,9 @@ export class HyperlaneSmartProvider
     this.logger.error(fallbackMsg);
     if (errors.length === 0) throw new Error(fallbackMsg);
 
-    const rpcServerError = errors.find((e) => SERVER_ERRORS.includes(e.code));
+    const rpcServerError = errors.find((e) =>
+      RPC_SERVER_ERRORS.includes(e.code),
+    );
     const timedOutError = errors.find(
       (e) => e.status === ProviderStatus.Timeout,
     );
