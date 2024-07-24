@@ -325,7 +325,7 @@ export class HyperlaneSmartProvider
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.throwCombinedProviderErrors(
-            providerResultErrors,
+            [result, ...providerResultErrors],
             `All providers timed out for method ${method}`,
           );
         } else if (result.status === ProviderStatus.Error) {
@@ -418,18 +418,19 @@ export class HyperlaneSmartProvider
     errors: any[],
     fallbackMsg: string,
   ): void {
-    if (errors.length > 0) {
-      const serverError = errors.find((e) => SERVER_ERRORS.includes(e.code));
-      if (serverError) {
-        const errorMsg = getServerErrorMessage(serverError.code);
-        this.logger.debug(errorMsg);
-        throw Error(errorMsg);
-      } else {
-        throw errors[0];
-      }
+    this.logger.error(fallbackMsg);
+    if (errors.length === 0) throw new Error(fallbackMsg);
+
+    const rpcServerError = errors.find((e) => SERVER_ERRORS.includes(e.code));
+    const timedOutError = errors.find(
+      (e) => e.status === ProviderStatus.Timeout,
+    );
+    if (rpcServerError) {
+      throw Error(getServerErrorMessage(rpcServerError.code));
+    } else if (timedOutError) {
+      throw Error(getServerErrorMessage(ProviderStatus.Timeout));
     } else {
-      this.logger.error(fallbackMsg);
-      throw new Error(fallbackMsg);
+      throw errors[0]; // Assumes that all errors are of ProviderStatus.Error
     }
   }
 }
