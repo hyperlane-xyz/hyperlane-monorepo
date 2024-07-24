@@ -97,7 +97,7 @@ export class HyperlaneSmartProvider
     this.supportedMethods = [...supportedMethods.values()];
   }
 
-  setLogLevel(level: pino.LevelWithSilentOrString) {
+  setLogLevel(level: pino.LevelWithSilentOrString): void {
     this.logger.level = level;
   }
 
