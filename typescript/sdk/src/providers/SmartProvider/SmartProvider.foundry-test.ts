@@ -5,7 +5,7 @@ import { ERC20__factory } from '@hyperlane-xyz/core';
 
 import {
   HyperlaneSmartProvider,
-  getServerErrorMessage,
+  getSmartProviderErrorMessage,
 } from './SmartProvider.js';
 
 const PK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -101,7 +101,7 @@ describe('SmartProvider', async () => {
       await factory.deploy('fake', 'FAKE');
     } catch (e: any) {
       expect(e.message).to.equal(
-        getServerErrorMessage(EthersError.SERVER_ERROR),
+        getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
       );
     }
   });
@@ -124,7 +124,7 @@ describe('SmartProvider', async () => {
       await factory.deploy('fake', 'FAKE');
     } catch (e: any) {
       expect(e.message).to.equal(
-        getServerErrorMessage(EthersError.SERVER_ERROR),
+        getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
       );
     }
   });
