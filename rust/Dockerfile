@@ -29,9 +29,9 @@ RUN \
   --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
     RUSTFLAGS="--cfg tokio_unstable" cargo build --profile memory-profiling --features memory-profiling --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
-    cp /usr/src/target/release/validator /release && \
-    cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/scraper /release
+    cp /usr/src/target/memory-profiling/validator /release && \
+    cp /usr/src/target/memory-profiling/relayer /release && \
+    cp /usr/src/target/memory-profiling/scraper /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:22.04
