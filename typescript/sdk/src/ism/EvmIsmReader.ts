@@ -107,9 +107,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       const errorMessage = `Failed to derive ISM module type ${moduleType} (${address}):\n\t${e}`;
       this.logger.debug(errorMessage);
       throw new Error(errorMessage);
+    } finally {
+      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
-
-    this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
 
     return derivedIsmConfig;
   }

@@ -147,9 +147,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         this.logger.debug(`${customMessage}:\n\t${e}`);
       }
       throw new Error(`${customMessage}:\n\t${e}`);
+    } finally {
+      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
-
-    this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
 
     return derivedHookConfig;
   }
