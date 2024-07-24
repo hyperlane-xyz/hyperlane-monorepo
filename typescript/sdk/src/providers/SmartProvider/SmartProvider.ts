@@ -432,7 +432,7 @@ export class HyperlaneSmartProvider
     } else if (timedOutError) {
       throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
     } else {
-      throw errors[0]; // Assumes that all errors are of ProviderStatus.Error
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Error)); // Assumes that all errors are of ProviderStatus.Error
     }
   }
 }
