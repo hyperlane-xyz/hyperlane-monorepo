@@ -25,6 +25,7 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
     await this.checkToken(chain);
+    await this.checkProxiedContracts(chain, this.configMap[chain].proxyAdmin);
   }
 
   async checkToken(chain: ChainName): Promise<void> {
