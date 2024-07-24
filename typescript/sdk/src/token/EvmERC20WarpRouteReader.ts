@@ -1,4 +1,4 @@
-import { BigNumber, constants, providers } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 
 import {
   HypERC20CollateralVaultDeposit__factory,
@@ -25,15 +25,15 @@ import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RemoteRouters } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
+import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { CollateralExtensions } from './config.js';
 import { TokenMetadata } from './types.js';
 
-export class EvmERC20WarpRouteReader {
+export class EvmERC20WarpRouteReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmERC20WarpRouteReader',
   });
-  provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
 
@@ -42,7 +42,7 @@ export class EvmERC20WarpRouteReader {
     protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = this.multiProvider.getProvider(chain);
+    super(multiProvider, chain);
     this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
     this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
   }
@@ -233,16 +233,5 @@ export class EvmERC20WarpRouteReader {
         }),
       ),
     );
-  }
-  /**
-   * Conditionally sets the log level for a smart provider.
-   *
-   * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
-   */
-  protected setSmartProviderLogLevel(level: string) {
-    if ('setLogLevel' in this.provider) {
-      //@ts-ignore
-      this.provider.setLogLevel(level);
-    }
   }
 }
