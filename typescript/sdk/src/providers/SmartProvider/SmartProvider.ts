@@ -30,7 +30,7 @@ import {
 export const getSmartProviderErrorMessage = (errorMsg: string) =>
   `RPC request failed with ${errorMsg}. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 
-// EthersError considered to be generic server errors. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
+// These EthersError are considered to be generic server errors. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
 const SERVER_ERRORS = [
   EthersError.NOT_IMPLEMENTED,
   EthersError.SERVER_ERROR,
