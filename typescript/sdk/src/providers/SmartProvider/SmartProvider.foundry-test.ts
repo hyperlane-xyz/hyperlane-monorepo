@@ -142,6 +142,8 @@ describe('SmartProvider', async () => {
     const signer = new Wallet(PK, smartProvider);
 
     const factory = new ERC20__factory(signer);
-    await factory.deploy('fake', 'FAKE');
+    const erc20 = await factory.deploy('fake', 'FAKE');
+
+    expect(erc20.address).to.not.be.empty;
   });
 });
