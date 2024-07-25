@@ -17,12 +17,16 @@ use ethers_core::{
     },
 };
 use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
+
+pub fn apply_gas_estimate_buffer(gas: U256) -> U256 {
+    gas.saturating_add(GAS_ESTIMATE_BUFFER.into())
+}
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -92,14 +96,18 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
-        gas_limit
-    } else {
-        tx.estimate_gas()
-            .await?
-            .saturating_add(U256::from(GAS_ESTIMATE_BUFFER).into())
-            .into()
+    // either use the pre-estimated gas limit or estimate it
+    let estimated_gas_limit: U256 = match tx.tx.gas() {
+        Some(&estimate) => estimate.into(),
+        None => tx.estimate_gas().await?.into(),
     };
+    let estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit);
+    let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
+        estimated_gas_limit.max(gas_limit)
+    } else {
+        estimated_gas_limit
+    };
+    debug!(?estimated_gas_limit, gas_override=?transaction_overrides.gas_limit, used_gas_limit=?gas_limit, "Gas limit set for transaction");
 
     if let Some(gas_price) = transaction_overrides.gas_price {
         // If the gas price is set, we treat as a non-EIP-1559 chain.

@@ -97,7 +97,7 @@ export class HyperlaneSmartProvider
     this.supportedMethods = [...supportedMethods.values()];
   }
 
-  setLogLevel(level: pino.LevelWithSilentOrString) {
+  setLogLevel(level: pino.LevelWithSilentOrString): void {
     this.logger.level = level;
   }
 
@@ -264,26 +264,40 @@ export class HyperlaneSmartProvider
         );
         const result = await Promise.race([resultPromise, timeoutPromise]);
 
+        const providerMetadata = {
+          providerIndex: pIndex,
+          rpcUrl: provider.getBaseUrl(),
+          method: `${method}(${JSON.stringify(params)})`,
+          chainId: this.network.chainId,
+        };
+
         if (result.status === ProviderStatus.Success) {
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.logger.debug(
-            `Slow response from provider #${pIndex}.${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+            { ...providerMetadata },
+            `Slow response from provider:`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
           this.logger.debug(
-            `Error from provider #${pIndex}: ${result.error} - ${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+            {
+              error: result.error,
+              ...providerMetadata,
+            },
+            `Error from provider.`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
           pIndex += 1;
         } else {
-          throw new Error('Unexpected result from provider');
+          throw new Error(
+            `Unexpected result from provider: ${JSON.stringify(
+              providerMetadata,
+            )}`,
+          );
         }
 
         // All providers already triggered, wait for one to complete or all to fail/timeout

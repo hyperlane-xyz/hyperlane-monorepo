@@ -22,6 +22,7 @@ import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.s
 
 // ============ External Imports ============
 
+import {IBridge} from "@arbitrum/nitro-contracts/src/bridge/IBridge.sol";
 import {IOutbox} from "@arbitrum/nitro-contracts/src/bridge/IOutbox.sol";
 import {CrossChainEnabledArbitrumL1} from "@openzeppelin/contracts/crosschain/arbitrum/CrossChainEnabledArbitrumL1.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -45,15 +46,12 @@ contract ArbL2ToL1Ism is
 
     // ============ Constructor ============
 
-    constructor(
-        address _bridge,
-        address _outbox
-    ) CrossChainEnabledArbitrumL1(_bridge) {
+    constructor(address _bridge) CrossChainEnabledArbitrumL1(_bridge) {
         require(
             Address.isContract(_bridge),
             "ArbL2ToL1Ism: invalid Arbitrum Bridge"
         );
-        arbOutbox = IOutbox(_outbox);
+        arbOutbox = IOutbox(IBridge(_bridge).activeOutbox());
     }
 
     // ============ External Functions ============
