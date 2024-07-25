@@ -32,8 +32,13 @@ import { TestRecipientDeployer } from '../../core/TestRecipientDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../../deploy/contracts.js';
 import { EvmHookModule } from '../../hook/EvmHookModule.js';
-import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
+import {
+  ArbL2ToL1HookConfig,
+  HookType,
+  MerkleTreeHookConfig,
+} from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { randomAddress } from '../../test/testUtils.js';
 import { ChainName } from '../../types.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
 import { randomIsmConfig } from '../HyperlaneIsmFactory.hardhat-test.js';
@@ -75,10 +80,21 @@ describe('BaseMetadataBuilder', () => {
       (_, { testRecipient }) => testRecipient,
     );
     core = await coreDeployer.deployApp();
-    const hookConfig = objMap(
+    const _ = objMap(
       core.chainMap,
       (): MerkleTreeHookConfig => ({
         type: HookType.MERKLE_TREE,
+      }),
+    );
+    console.log(_);
+
+    const hookConfig = objMap(
+      core.chainMap,
+      (): ArbL2ToL1HookConfig => ({
+        type: HookType.ARB_L2_TO_L1,
+        arbSys: randomAddress(),
+        destinationChain: randomElement(testChains),
+        gasOverhead: 200_000,
       }),
     );
 

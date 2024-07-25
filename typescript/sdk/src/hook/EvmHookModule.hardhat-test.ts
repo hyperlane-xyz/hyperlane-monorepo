@@ -267,6 +267,9 @@ describe('EvmHookModule', async () => {
   async function createHook(
     config: HookConfig,
   ): Promise<{ hook: EvmHookModule; initialHookAddress: Address }> {
+    if (config.type === HookType.ARB_L2_TO_L1) {
+      // deploy
+    }
     const hook = await EvmHookModule.create({
       chain,
       config,

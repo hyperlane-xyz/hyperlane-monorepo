@@ -837,9 +837,8 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     const bridge =
-      config.destinationChain === 'test1'
-        ? mailbox // need a valid mock contract for testing
-        : getArbitrumNetwork(destinationDomain).ethBridge.bridge;
+      config.arbBridge ??
+      getArbitrumNetwork(destinationDomain).ethBridge.bridge;
 
     const ismConfig: ArbL2ToL1IsmConfig = {
       type: IsmType.ARB_L2_TO_L1,
