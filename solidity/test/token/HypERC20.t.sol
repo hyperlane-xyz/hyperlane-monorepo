@@ -231,7 +231,7 @@ abstract contract HypTokenTest is Test {
     function testTransfer_withHookSpecified(
         uint256 fee,
         bytes calldata metadata
-    ) public {
+    ) public virtual {
         TestPostDispatchHook hook = new TestPostDispatchHook();
         hook.setFee(fee);
 

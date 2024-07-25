@@ -112,6 +112,41 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         );
     }
 
+    function testSyntheticTransfers_withRebase() public {
+        uint256 transferAmount = 100e18;
+
+        vm.prank(ALICE);
+
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        // increase collateral in vault
+        uint256 yield = 5e18;
+        primaryToken.mintTo(address(vault), yield);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+
+        vm.prank(BOB);
+        remoteToken.transfer(CAROL, transferAmount); // transfer ~100e18 equivalent to CAROL
+
+        // max 1bp diff
+        assertApproxEqRelDecimal(
+            remoteToken.balanceOf(BOB),
+            transferAmount + yield,
+            1e14,
+            0
+        );
+        assertApproxEqRelDecimal(
+            remoteToken.balanceOf(CAROL),
+            transferAmount,
+            1e14,
+            0
+        );
+    }
+
     function testWithdrawalWithoutYield() public {
         uint256 transferAmount = 100e18;
 
@@ -245,6 +280,77 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         );
     }
 
+    function testWithdrawalAfterDrawdown() public {
+        uint256 transferAmount = 100e18;
+
+        vm.prank(ALICE);
+
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        // decrease collateral in vault by 10%
+        uint256 yield = 5e18;
+        primaryToken.burnFrom(address(vault), yield);
+        localRebasingToken.rebase(DESTINATION);
+        remoteMailbox.processNextInboundMessage();
+
+        remoteRebasingToken.shareBalanceOf(BOB);
+        // Use balance here since it might be off by <1bp
+        uint256 bobsBalance = remoteRebasingToken.balanceOf(BOB);
+        vm.prank(BOB);
+        remoteRebasingToken.transferRemote{value: 0}(
+            ORIGIN,
+            BOB.addressToBytes32(),
+            bobsBalance
+        );
+        localMailbox.processNextInboundMessage();
+        assertApproxEqRelDecimal(
+            primaryToken.balanceOf(BOB),
+            transferAmount - yield,
+            1e14,
+            0
+        );
+    }
+
+    function testTransfer_withHookSpecified(
+        uint256,
+        bytes calldata
+    ) public override {
+        // skip
+    }
+
+    function testBenchmark_overheadGasUsage() public override {
+        uint256 transferAmount = 100e18;
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        assertEq(remoteToken.balanceOf(BOB), transferAmount);
+
+        // adding rebasing to the overhead
+        uint256 yield = 5e18;
+        primaryToken.mintTo(address(vault), yield);
+
+        localRebasingToken.rebase(DESTINATION);
+        remoteMailbox.processNextInboundMessage();
+        assertEq(remoteToken.balanceOf(BOB), transferAmount + yield);
+
+        vm.prank(address(localMailbox));
+
+        uint256 gasBefore = gasleft();
+        localToken.handle(
+            DESTINATION,
+            address(remoteToken).addressToBytes32(),
+            abi.encodePacked(BOB.addressToBytes32(), transferAmount)
+        );
+        uint256 gasAfter = gasleft();
+        console.log(
+            "Overhead gas usage for withdrawal: %d",
+            gasBefore - gasAfter
+        );
+    }
+
     // Override to expect different function signature and no balance assertion
     function _performRemoteTransferWithoutExpectation(
         uint256 _msgValue,
@@ -262,6 +368,4 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         remoteMailbox.processNextInboundMessage();
         // _processTransfers(BOB, _amount);
     }
-
-    function testTransfer_withHookSpecified() public {}
 }
