@@ -25,16 +25,17 @@ use types::*;
 use utils::*;
 
 use crate::cosmos::link::link_networks;
+use crate::fetch_metric;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
-use crate::{fetch_metric, AGENT_BIN_PATH};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
 use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
+const COSMOS_AGENT_BIN_PATH: &str = "target/debug";
 const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
 const OSMOSIS_CLI_VERSION: &str = "20.5.0";
 
@@ -241,7 +242,7 @@ fn launch_cosmos_validator(
     agent_config_path: PathBuf,
     debug: bool,
 ) -> AgentHandles {
-    let validator_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "validator");
+    let validator_bin = concat_path(format!("../../{COSMOS_AGENT_BIN_PATH}"), "validator");
     let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
     let validator_base_db = concat_path(&validator_base, "db");
 
@@ -283,7 +284,7 @@ fn launch_cosmos_relayer(
     metrics: u32,
     debug: bool,
 ) -> AgentHandles {
-    let relayer_bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "relayer");
+    let relayer_bin = concat_path(format!("../../{COSMOS_AGENT_BIN_PATH}"), "relayer");
     let relayer_base = tempdir().unwrap();
 
     let relayer = Program::default()
