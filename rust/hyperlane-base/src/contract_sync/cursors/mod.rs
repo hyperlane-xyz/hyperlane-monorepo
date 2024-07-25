@@ -13,8 +13,8 @@ pub enum CursorType {
     RateLimited,
 }
 
-// H256 * 100k = ~3.2MB per origin chain
-const TX_ID_CHANNEL_CAPACITY: Option<usize> = Some(100_000);
+// H512 * 30k =~ 2MB per origin chain
+const TX_ID_CHANNEL_CAPACITY: Option<usize> = Some(30_000);
 
 pub trait Indexable {
     /// Returns the configured cursor type of this type for the given domain, (e.g. `SequenceAware` or `RateLimited`)

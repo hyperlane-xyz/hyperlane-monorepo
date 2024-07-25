@@ -109,10 +109,11 @@ export function withChainRequired<T>(args: Argv<T>) {
   return withChain(args).demandOption('chain');
 }
 
-export function withSafeTxServiceUrlRequired<T>(args: Argv<T>) {
+export function withSafeHomeUrlRequired<T>(args: Argv<T>) {
   return args
-    .describe('safeTxServiceUrl', 'Custom safe transaction service url')
-    .demandOption('safeTxServiceUrl');
+    .string('safeHomeUrl')
+    .describe('safeHomeUrl', 'Custom safe home url')
+    .demandOption('safeHomeUrl');
 }
 
 export function withThreshold<T>(args: Argv<T>) {

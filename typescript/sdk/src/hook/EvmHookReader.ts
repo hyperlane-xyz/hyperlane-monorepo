@@ -1,4 +1,4 @@
-import { ethers, providers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   DomainRoutingHook,
@@ -27,6 +27,7 @@ import {
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
+import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationHookConfig,
@@ -75,8 +76,7 @@ export interface HookReader {
   ): void;
 }
 
-export class EvmHookReader implements HookReader {
-  protected readonly provider: providers.Provider;
+export class EvmHookReader extends HyperlaneReader implements HookReader {
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
 
   constructor(
@@ -86,15 +86,15 @@ export class EvmHookReader implements HookReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = multiProvider.getProvider(chain);
+    super(multiProvider, chain);
   }
 
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
-    let onchainHookType = undefined;
+    let onchainHookType: OnchainHookType | undefined = undefined;
     let derivedHookConfig: DerivedHookConfig;
     try {
       const hook = IPostDispatchHook__factory.connect(address, this.provider);
-      this.logger.debug('Deriving HookConfig', { address });
+      this.logger.debug('Deriving HookConfig:', { address });
 
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
@@ -147,9 +147,9 @@ export class EvmHookReader implements HookReader {
         this.logger.debug(`${customMessage}:\n\t${e}`);
       }
       throw new Error(`${customMessage}:\n\t${e}`);
+    } finally {
+      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
-
-    this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
 
     return derivedHookConfig;
   }
@@ -387,18 +387,6 @@ export class EvmHookReader implements HookReader {
       paused,
       type: HookType.PAUSABLE,
     };
-  }
-
-  /**
-   * Conditionally sets the log level for a smart provider.
-   *
-   * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
-   */
-  protected setSmartProviderLogLevel(level: string): void {
-    if ('setLogLevel' in this.provider) {
-      //@ts-ignore
-      this.provider.setLogLevel(level);
-    }
   }
 
   assertHookType(

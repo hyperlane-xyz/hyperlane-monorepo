@@ -319,7 +319,7 @@ fn main() -> ExitCode {
     log!("Building rust...");
     let build_rust = Program::new("cargo")
         .cmd("build")
-        .arg("features", "test-utils")
+        .arg("features", "test-utils memory-profiling")
         .arg("bin", "relayer")
         .arg("bin", "validator")
         .arg("bin", "scraper")

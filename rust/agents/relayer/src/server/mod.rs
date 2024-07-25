@@ -5,7 +5,7 @@ use tokio::sync::broadcast::Sender;
 
 use crate::msg::op_queue::OperationPriorityQueue;
 
-pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 1_000;
+pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
 pub use list_messages::*;
 pub use message_retry::*;
