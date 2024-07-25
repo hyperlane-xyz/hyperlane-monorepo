@@ -1,13 +1,13 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "4.1.0",
+  "version": "4.2.0-beta1",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.74.0",
     "@cosmjs/cosmwasm-stargate": "^0.31.3",
     "@cosmjs/stargate": "^0.31.3",
-    "@hyperlane-xyz/core": "4.1.0",
-    "@hyperlane-xyz/utils": "4.1.0",
+    "@hyperlane-xyz/core": "4.2.0-beta1",
+    "@hyperlane-xyz/utils": "4.2.0-beta1",
     "@safe-global/api-kit": "1.3.0",
     "@safe-global/protocol-kit": "1.3.0",
     "@solana/spl-token": "^0.3.8",
@@ -46,13 +46,11 @@
   },
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
-    "./logos": "./logos"
+    ".": "./dist/index.js"
   },
   "types": "./dist/index.d.ts",
   "files": [
-    "/dist",
-    "/logos"
+    "/dist"
   ],
   "sideEffects": false,
   "engines": {
