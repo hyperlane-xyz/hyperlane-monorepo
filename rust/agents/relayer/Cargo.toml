@@ -1,9 +1,5 @@
 cargo-features = ["workspace-inheritance"]
 
-[profile.memory-profiling]
-inherits = "release"
-debug = 1
-
 [package]
 name = "relayer"
 documentation.workspace = true

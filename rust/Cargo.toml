@@ -48,10 +48,6 @@ license-file = "../LICENSE.md"
 publish = false
 version = "0.1.0"
 
-[profile.memory-profiling]
-inherits = "release"
-debug = 1
-
 [workspace.dependencies]
 Inflector = "0.11.4"
 anyhow = "1.0"
