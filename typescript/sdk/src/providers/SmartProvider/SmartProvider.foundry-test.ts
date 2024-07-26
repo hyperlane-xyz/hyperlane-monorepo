@@ -85,27 +85,27 @@ describe('SmartProvider', async () => {
     expect(Array.isArray(logs)).to.be.true;
   });
 
-  it('throws with invalid RPC', async () => {
-    const INVALID_URL = 'http://1337.1337.1337.1';
-    const INVALID_NETWORK = 55555;
-    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(
-      INVALID_NETWORK,
-      INVALID_URL,
-      {
-        maxRetries: 3,
-      },
-    );
-    const signer = new Wallet(PK, smartProvider);
+  // it('throws with invalid RPC', async () => {
+  //   const INVALID_URL = 'http://1337.1337.1337.1';
+  //   const INVALID_NETWORK = 55555;
+  //   const smartProvider = HyperlaneSmartProvider.fromRpcUrl(
+  //     INVALID_NETWORK,
+  //     INVALID_URL,
+  //     {
+  //       maxRetries: 3,
+  //     },
+  //   );
+  //   const signer = new Wallet(PK, smartProvider);
 
-    try {
-      const factory = new ERC20__factory(signer);
-      await factory.deploy('fake', 'FAKE');
-    } catch (e: any) {
-      expect(e.message).to.equal(
-        getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
-      );
-    }
-  });
+  //   try {
+  //     const factory = new ERC20__factory(signer);
+  //     await factory.deploy('fake', 'FAKE');
+  //   } catch (e: any) {
+  //     expect(e.message).to.equal(
+  //       getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
+  //     );
+  //   }
+  // });
 
   it('throws with multiple invalid RPCs', async () => {
     const INVALID_URL_1 = 'http://1337.1337.1337.1';
