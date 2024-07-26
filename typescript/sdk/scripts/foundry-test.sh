@@ -10,7 +10,7 @@ function cleanup() {
 cleanup
 
 echo "Starting anvil chain"
-anvil --chain-id 81337 -p 8546 --state /tmp/anvil1/state --gas-price 1 > /dev/null &
+anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --gas-price 1 > /dev/null &
 
 echo "Running mocha tests"
 yarn mocha --config .mocharc.json './src/**/*.foundry-test.ts'
