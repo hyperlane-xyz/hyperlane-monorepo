@@ -123,11 +123,11 @@ where
                     );
                 }
                 Err(TryRecvError::Empty) => {
-                    trace!("No txid received");
+                    trace!("No tx id received");
                     break;
                 }
                 Err(err) => {
-                    warn!(?err, "Error receiving txid from channel");
+                    warn!(?err, "Error receiving tx id from channel");
                     break;
                 }
             }

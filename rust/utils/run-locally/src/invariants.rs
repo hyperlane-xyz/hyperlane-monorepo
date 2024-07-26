@@ -65,12 +65,21 @@ pub fn termination_invariants_met(
     const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
     const LOOKING_FOR_EVENTS_LOG_MESSAGE: &str = "Looking for events in index range";
     const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
+
+    // Only noticed 1 or 2 items in the txid logs, but also included 3 out of caution
+    const TX_ID_INDEXING_SINGLE_LOG_MESSAGE: &str = "Found log(s) for tx id num_logs=1";
+    const TX_ID_INDEXING_DOUBLE_LOG_MESSAGE: &str = "Found log(s) for tx id num_logs=2";
+    const TX_ID_INDEXING_TRIPLE_LOG_MESSAGE: &str = "Found log(s) for tx id num_logs=3";
+
     let relayer_logfile = File::open(log_file_path)?;
     let invariant_logs = &[
         STORING_NEW_MESSAGE_LOG_MESSAGE,
         LOOKING_FOR_EVENTS_LOG_MESSAGE,
         GAS_EXPENDITURE_LOG_MESSAGE,
         HYPER_INCOMING_BODY_LOG_MESSAGE,
+        TX_ID_INDEXING_SINGLE_LOG_MESSAGE,
+        TX_ID_INDEXING_DOUBLE_LOG_MESSAGE,
+        TX_ID_INDEXING_TRIPLE_LOG_MESSAGE,
     ];
     let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
     // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
@@ -91,6 +100,22 @@ pub fn termination_invariants_met(
     );
     assert!(
         log_counts.get(LOOKING_FOR_EVENTS_LOG_MESSAGE).unwrap() > &0,
+        "Didn't find any logs about looking for events in index range"
+    );
+    let total_tx_id_log_count = log_counts
+        .get(TX_ID_INDEXING_SINGLE_LOG_MESSAGE)
+        .unwrap_or(&0)
+        + 2 * log_counts
+            .get(TX_ID_INDEXING_DOUBLE_LOG_MESSAGE)
+            .unwrap_or(&0)
+        + 3 * log_counts
+            .get(TX_ID_INDEXING_TRIPLE_LOG_MESSAGE)
+            .unwrap_or(&0);
+    assert!(
+        // there are 3 txid-indexed events:
+        // - relayer: merkle insertion and gas payment
+        // - scraper: gas payment
+        total_tx_id_log_count as u64 >= config.kathy_messages * 3,
         "Didn't find any logs about looking for events in index range"
     );
     assert!(

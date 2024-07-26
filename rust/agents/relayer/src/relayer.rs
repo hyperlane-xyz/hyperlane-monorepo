@@ -9,6 +9,7 @@ use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
+    broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
@@ -358,7 +359,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_interchain_gas_payment_sync(
                     origin,
-                    maybe_broadcaster.as_mut().map(|b| b.get_receiver()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_mut()).await,
                     task_monitor.clone(),
                 )
                 .await,
@@ -366,7 +367,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_merkle_tree_hook_syncs(
                     origin,
-                    maybe_broadcaster.as_mut().map(|b| b.get_receiver()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_mut()).await,
                     task_monitor.clone(),
                 )
                 .await,

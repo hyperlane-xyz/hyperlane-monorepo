@@ -153,7 +153,6 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db.clone(),
                 index_settings.clone(),
-                maybe_broadcaster.as_mut().map(|b| b.get_receiver()),
             )
             .await,
         );
@@ -164,7 +163,7 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db,
                 index_settings.clone(),
-                maybe_broadcaster.as_mut().map(|b| b.get_receiver()),
+                BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_mut()).await,
             )
             .await,
         );
@@ -216,7 +215,6 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         db: HyperlaneSqlDb,
         index_settings: IndexSettings,
-        tx_id_receiver: Option<MpscReceiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
         let sync = self
             .as_ref()
@@ -232,11 +230,10 @@ impl Scraper {
 
         let label = "message_delivery";
         let cursor = sync.cursor(index_settings.clone()).await;
-        tokio::spawn(async move {
-            sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                .await
-        })
-        .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
+        // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
+        // other types of indexed txs / events
+        tokio::spawn(async move { sync.sync(label, SyncOptions::new(Some(cursor), None)).await })
+            .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
     }
 
     async fn build_interchain_gas_payment_indexer(
