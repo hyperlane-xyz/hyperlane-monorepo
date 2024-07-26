@@ -116,7 +116,9 @@ pub fn termination_invariants_met(
         // - relayer: merkle insertion and gas payment
         // - scraper: gas payment
         total_tx_id_log_count as u64 >= config.kathy_messages * 3,
-        "Didn't find any logs about looking for events in index range"
+        "Didn't find as many tx id logs as expected. Found {} and expected {}",
+        total_tx_id_log_count,
+        config.kathy_messages * 3
     );
     assert!(
         log_counts.get(HYPER_INCOMING_BODY_LOG_MESSAGE).is_none(),
