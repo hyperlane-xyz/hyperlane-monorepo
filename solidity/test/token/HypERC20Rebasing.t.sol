@@ -103,6 +103,9 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         primaryToken.approve(address(localToken), transferAmount);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
 
+        console.log("Remote balance of BOB: %d", remoteToken.balanceOf(BOB));
+        console.log("expected: ", 2 * transferAmount + yield);
+
         // max 1bp diff
         assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
