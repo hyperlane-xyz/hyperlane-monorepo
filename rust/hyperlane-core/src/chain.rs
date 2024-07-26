@@ -59,7 +59,7 @@ pub enum KnownHyperlaneDomain {
     Blast = 81457,
     Bob = 60808,
     Celo = 42220,
-    Cheeschain = 383353,
+    Cheesechain = 383353,
     Endurance = 648,
     Ethereum = 1,
     Fraxtal = 252,
@@ -218,7 +218,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             Mainnet: [
-                Ancient8, Arbitrum, Arthera, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheeschain, Endurance, Ethereum,
+                Ancient8, Arbitrum, Arthera, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
                 Fraxtal, FuseMainnet, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam,
                 Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet
             ],
@@ -238,7 +238,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ancient8, Arbitrum, Arthera, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheeschain, Endurance, Ethereum,
+                Ancient8, Arbitrum, Arthera, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
                 Fraxtal, FuseMainnet, Fuji, Gnosis, InEvm, Linea, MantaPacific, Mantle, Mode, Moonbeam, Optimism,
                 Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet,
 
@@ -267,7 +267,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             HyperlaneDomainTechnicalStack::ArbitrumNitro: [Arbitrum, PlumeTestnet],
             HyperlaneDomainTechnicalStack::Other: [
-                Ancient8, Avalanche, Arthera, BinanceSmartChain, Blast, Bob, Celo, Cheeschain, Endurance, Ethereum, Fraxtal, FuseMainnet,
+                Ancient8, Avalanche, Arthera, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum, Fraxtal, FuseMainnet,
                 Fuji, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam, Neutron,
                 Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet,
 
