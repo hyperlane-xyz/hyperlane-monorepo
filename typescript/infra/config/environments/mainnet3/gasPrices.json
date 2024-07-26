@@ -3,6 +3,10 @@
     "amount": "0.5",
     "decimals": 9
   },
+  "arthera": {
+    "amount": "1.025056",
+    "decimals": 9
+  },
   "ancient8": {
     "amount": "0.001000252",
     "decimals": 9
@@ -29,6 +33,10 @@
   },
   "celo": {
     "amount": "10.0",
+    "decimals": 9
+  },
+  "cheesechain": {
+    "amount": "1.0",
     "decimals": 9
   },
   "endurance": {
@@ -117,6 +125,14 @@
   },
   "viction": {
     "amount": "0.25",
+    "decimals": 9
+  },
+  "worldchain": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
+  "xlayer": {
+    "amount": "5.0",
     "decimals": 9
   },
   "zetachain": {

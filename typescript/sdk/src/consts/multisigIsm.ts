@@ -32,6 +32,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  arthera: {
+    threshold: 1,
+    validators: ['0x13710ac11c36c169f62fba95767ae59a1e57098d'],
+  },
+
   avalanche: {
     threshold: 2,
     validators: [
@@ -98,6 +103,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
+  },
+
+  cheesechain: {
+    threshold: 1,
+    validators: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
   },
 
   chiado: {
@@ -381,6 +391,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xa3f93fe365bf99f431d8fde740b140615e24f99b', // rockx
       '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
     ],
+  },
+
+  worldchain: {
+    threshold: 1,
+    validators: ['0x31048785845325b22817448b68d08f8a8fe36854'],
+  },
+
+  xlayer: {
+    threshold: 1,
+    validators: ['0xa2ae7c594703e988f23d97220717c513db638ea3'],
   },
 
   zetachain: {

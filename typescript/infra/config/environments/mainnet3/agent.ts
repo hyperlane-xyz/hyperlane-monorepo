@@ -57,6 +57,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     arbitrum: true,
+    arthera: false,
     ancient8: true,
     avalanche: true,
     base: true,
@@ -64,6 +65,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    cheesechain: false,
     endurance: true,
     ethereum: true,
     fraxtal: true,
@@ -86,11 +88,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     taiko: true,
     viction: true,
+    worldchain: false,
+    xlayer: false,
     zetachain: true,
     zoramainnet: true,
   },
   [Role.Relayer]: {
     arbitrum: true,
+    arthera: false,
     ancient8: true,
     avalanche: true,
     base: true,
@@ -98,6 +103,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    cheesechain: false,
     endurance: true,
     ethereum: true,
     fraxtal: true,
@@ -121,11 +127,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     taiko: true,
     viction: true,
+    worldchain: false,
+    xlayer: false,
     zetachain: true,
     zoramainnet: true,
   },
   [Role.Scraper]: {
     arbitrum: true,
+    arthera: false,
     ancient8: true,
     avalanche: true,
     base: true,
@@ -133,6 +142,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    cheesechain: false,
     endurance: false,
     ethereum: true,
     fraxtal: true,
@@ -155,12 +165,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     polygonzkevm: true,
     redstone: true,
     // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
-    // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
+    // and the scraper
+    // not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
     scroll: true,
     taiko: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
+    worldchain: false,
+    xlayer: false,
     zetachain: true,
     zoramainnet: false,
   },

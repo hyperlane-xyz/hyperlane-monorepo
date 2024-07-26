@@ -27,6 +27,7 @@ export const keyFunderConfig: KeyFunderConfig<
   // desired balance config
   desiredBalancePerChain: {
     arbitrum: '0.5',
+    arthera: '0', // because we have a gas pass
     ancient8: '0.5',
     avalanche: '5',
     base: '0.5',
@@ -34,6 +35,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0.2',
     bsc: '5',
     celo: '3',
+    cheesechain: '50',
     endurance: '20',
     ethereum: '0.5',
     fraxtal: '0.2',
@@ -53,6 +55,8 @@ export const keyFunderConfig: KeyFunderConfig<
     sei: '10',
     taiko: '0.2',
     viction: '3',
+    worldchain: '0.2',
+    xlayer: '0.5',
     zetachain: '20',
     zoramainnet: '0.2',
     // ignore cosmos chains
@@ -62,6 +66,7 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
+    arthera: '0',
     ancient8: '0',
     avalanche: '6',
     base: '0.05',
@@ -69,6 +74,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0',
     bsc: '0.35',
     celo: '150',
+    cheesechain: '0',
     endurance: '0',
     ethereum: '0.4',
     fraxtal: '0',
@@ -88,6 +94,8 @@ export const keyFunderConfig: KeyFunderConfig<
     sei: '0',
     taiko: '0',
     viction: '0.05',
+    worldchain: '0',
+    xlayer: '0',
     zetachain: '0',
     zoramainnet: '0',
     // ignore cosmos chains
@@ -97,6 +105,7 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   igpClaimThresholdPerChain: {
     arbitrum: '0.1',
+    arthera: '1000',
     ancient8: '0.1',
     avalanche: '2',
     base: '0.1',
@@ -104,6 +113,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0.1',
     bsc: '0.3',
     celo: '5',
+    cheesechain: '25',
     endurance: '10',
     ethereum: '0.2',
     fraxtal: '0.1',
@@ -125,6 +135,8 @@ export const keyFunderConfig: KeyFunderConfig<
     viction: '2',
     zetachain: '20',
     zoramainnet: '0.1',
+    worldchain: '0.1',
+    xlayer: '0.25',
     // ignore cosmos chains
     injective: '0',
     neutron: '0',

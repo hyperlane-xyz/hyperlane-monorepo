@@ -84,6 +84,67 @@ export const validatorChainConfig = (
         'avalanche',
       ),
     },
+
+    arthera: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('arthera'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x13710ac11c36c169f62fba95767ae59a1e57098d'],
+          [Contexts.ReleaseCandidate]: [
+            '0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'arthera',
+      ),
+    },
+
+    cheesechain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('cheesechain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
+          [Contexts.ReleaseCandidate]: [
+            '0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'cheesechain',
+      ),
+    },
+
+    worldchain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('worldchain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x31048785845325b22817448b68d08f8a8fe36854'],
+          [Contexts.ReleaseCandidate]: [
+            '0x385a2452930a0681d3ea4e40fb7722095142afcc',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'worldchain',
+      ),
+    },
+
+    xlayer: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('xlayer'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa2ae7c594703e988f23d97220717c513db638ea3'],
+          [Contexts.ReleaseCandidate]: [
+            '0xa68e98cb98190485847581c8004b40ee81cbc723',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'xlayer',
+      ),
+    },
+
     polygon: {
       interval: 5,
       reorgPeriod: getReorgPeriod('polygon'),

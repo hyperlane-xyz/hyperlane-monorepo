@@ -2,6 +2,7 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const mainnet3SupportedChainNames = [
   'arbitrum',
+  'arthera',
   'ancient8',
   'avalanche',
   'base',
@@ -9,6 +10,7 @@ export const mainnet3SupportedChainNames = [
   'bob',
   'bsc',
   'celo',
+  'cheesechain',
   'endurance',
   'ethereum',
   'fraxtal',
@@ -31,6 +33,8 @@ export const mainnet3SupportedChainNames = [
   'sei',
   'taiko',
   'viction',
+  'worldchain',
+  'xlayer',
   'zetachain',
   'zoramainnet',
 ] as const;

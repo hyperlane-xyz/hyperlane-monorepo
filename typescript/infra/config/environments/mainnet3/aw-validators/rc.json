@@ -1,12 +1,19 @@
 {
   "ancient8": {
-    "validators": ["0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"]
+    "validators": [
+      "0xaae4d879a04e3d8b956eb4ffbefd57fdbed09cae"
+    ]
   },
   "arbitrum": {
     "validators": [
       "0xb4c18167c163391facb345bb069d12d0430a6a89",
       "0x2f6dc057ae079997f76205903b85c8302164a78c",
       "0x229d4dc6a740212da746b0e35314419a24bc2a5b"
+    ]
+  },
+  "arthera": {
+    "validators": [
+      "0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4"
     ]
   },
   "avalanche": {
@@ -24,7 +31,9 @@
     ]
   },
   "blast": {
-    "validators": ["0x5b32f226e472da6ca19abfe1a29d5d28102a2d1a"]
+    "validators": [
+      "0x5b32f226e472da6ca19abfe1a29d5d28102a2d1a"
+    ]
   },
   "bsc": {
     "validators": [
@@ -40,6 +49,11 @@
       "0xd796c1d4fcfb3c63acfa6e4113aa6ae1399b337c"
     ]
   },
+  "cheesechain": {
+    "validators": [
+      "0xa481835355309ed46540c742a1c04b58380aa7b4"
+    ]
+  },
   "ethereum": {
     "validators": [
       "0x0580884289890805802012b9872afa5ae41a5fa6",
@@ -48,7 +62,9 @@
     ]
   },
   "fraxtal": {
-    "validators": ["0x8c772b730c8deb333dded14cb462e577a06283da"]
+    "validators": [
+      "0x8c772b730c8deb333dded14cb462e577a06283da"
+    ]
   },
   "gnosis": {
     "validators": [
@@ -65,7 +81,9 @@
     ]
   },
   "linea": {
-    "validators": ["0xad4886b6f5f5088c7ae53b69d1ff5cfc2a17bec4"]
+    "validators": [
+      "0xad4886b6f5f5088c7ae53b69d1ff5cfc2a17bec4"
+    ]
   },
   "mantapacific": {
     "validators": [
@@ -75,7 +93,9 @@
     ]
   },
   "mode": {
-    "validators": ["0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"]
+    "validators": [
+      "0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"
+    ]
   },
   "moonbeam": {
     "validators": [
@@ -113,7 +133,9 @@
     ]
   },
   "redstone": {
-    "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
+    "validators": [
+      "0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"
+    ]
   },
   "scroll": {
     "validators": [
@@ -123,7 +145,9 @@
     ]
   },
   "sei": {
-    "validators": ["0x846e48a7e85e5403cc690a347e1ad3c3dca11b6e"]
+    "validators": [
+      "0x846e48a7e85e5403cc690a347e1ad3c3dca11b6e"
+    ]
   },
   "viction": {
     "validators": [
@@ -132,7 +156,19 @@
       "0x0f9e5775ac4d3b73dd28e5a3f8394443186cb70c"
     ]
   },
+  "worldchain": {
+    "validators": [
+      "0x385a2452930a0681d3ea4e40fb7722095142afcc"
+    ]
+  },
+  "xlayer": {
+    "validators": [
+      "0xa68e98cb98190485847581c8004b40ee81cbc723"
+    ]
+  },
   "zetachain": {
-    "validators": ["0xa13d146b47242671466e4041f5fe68d22a2ffe09"]
+    "validators": [
+      "0xa13d146b47242671466e4041f5fe68d22a2ffe09"
+    ]
   }
 }
