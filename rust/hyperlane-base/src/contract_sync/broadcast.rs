@@ -34,7 +34,7 @@ impl BroadcastMpscSender<H512> {
     }
 
     /// Get a receiver channel that will receive messages broadcasted by all the senders
-    pub async fn get_receiver(&mut self) -> MpscReceiver<H512> {
+    pub async fn get_receiver(&self) -> MpscReceiver<H512> {
         let (sender, receiver) = tokio::sync::mpsc::channel(self.capacity);
 
         self.sender.lock().await.push(sender);
@@ -42,7 +42,7 @@ impl BroadcastMpscSender<H512> {
     }
 
     /// Utility function map an option of `BroadcastMpscSender` to an option of `MpscReceiver`
-    pub async fn map_get_receiver(maybe_self: Option<&mut Self>) -> Option<MpscReceiver<H512>> {
+    pub async fn map_get_receiver(maybe_self: Option<&Self>) -> Option<MpscReceiver<H512>> {
         if let Some(s) = maybe_self {
             Some(s.get_receiver().await)
         } else {

@@ -351,7 +351,7 @@ impl BaseAgent for Relayer {
         }
 
         for origin in &self.origin_chains {
-            let mut maybe_broadcaster = self
+            let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
                 .and_then(|sync| sync.get_broadcaster());
@@ -359,7 +359,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_interchain_gas_payment_sync(
                     origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_mut()).await,
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,
@@ -367,7 +367,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_merkle_tree_hook_syncs(
                     origin,
-                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_mut()).await,
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,

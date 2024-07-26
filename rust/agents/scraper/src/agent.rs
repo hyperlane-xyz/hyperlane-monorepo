@@ -136,7 +136,7 @@ impl Scraper {
         let domain = scraper.domain.clone();
 
         let mut tasks = Vec::with_capacity(2);
-        let (message_indexer, mut maybe_broadcaster) = self
+        let (message_indexer, maybe_broadcaster) = self
             .build_message_indexer(
                 domain.clone(),
                 self.core_metrics.clone(),
@@ -163,7 +163,7 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db,
                 index_settings.clone(),
-                BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_mut()).await,
+                BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_ref()).await,
             )
             .await,
         );
