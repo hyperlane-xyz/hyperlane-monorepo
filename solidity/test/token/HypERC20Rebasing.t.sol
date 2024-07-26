@@ -17,6 +17,7 @@ import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
+import {MockERC4626YieldSharing} from "../../contracts/mock/MockERC4626YieldSharing.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 
@@ -28,15 +29,23 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
     using TypeCasts for address;
 
     uint256 constant YIELD = 1e11;
+    uint256 constant YIELD_FEES = 1e17; // 10% of yield goes to the vault owner
     HypERC20RebasingCollateral internal rebasingCollateral;
-    ERC4626Test vault;
+    MockERC4626YieldSharing vault;
 
     HypERC20RebasingCollateral localRebasingToken;
     HypERC20Rebasing remoteRebasingToken;
 
     function setUp() public override {
         super.setUp();
-        vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
+
+        vm.prank(DANIEL); // daniel will be the owner of the vault and accrue yield fees
+        vault = new MockERC4626YieldSharing(
+            address(primaryToken),
+            "Regular Vault",
+            "RV",
+            YIELD_FEES
+        );
 
         HypERC20RebasingCollateral implementation = new HypERC20RebasingCollateral(
                 vault,
@@ -75,7 +84,6 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), transferAmount);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
-        assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
         // increase collateral in vault
         uint256 yield = 5e18;
@@ -83,7 +91,10 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
 
         localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
-        assertEq(remoteToken.balanceOf(BOB), transferAmount + yield);
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            transferAmount + _discountedYield(yield)
+        );
     }
 
     function testRebaseWithTransfer() public {
@@ -103,13 +114,10 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         primaryToken.approve(address(localToken), transferAmount);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
 
-        console.log("Remote balance of BOB: %d", remoteToken.balanceOf(BOB));
-        console.log("expected: ", 2 * transferAmount + yield);
-
         // max 1bp diff
         assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
-            2 * transferAmount + yield,
+            2 * transferAmount + _discountedYield(yield),
             1e14,
             0
         );
@@ -138,7 +146,7 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         // max 1bp diff
         assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
-            transferAmount + yield,
+            transferAmount + _discountedYield(yield),
             1e14,
             0
         );
@@ -190,13 +198,15 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         );
 
         localMailbox.processNextInboundMessage();
+
         // BOB gets the yield even though it didn't rebase
         assertApproxEqRelDecimal(
             primaryToken.balanceOf(BOB),
-            transferAmount + yield,
+            transferAmount + _discountedYield(yield),
             1e14,
             0
         );
+        assertEq(vault.accumulatedFees(), yield / 10);
     }
 
     function testWithdrawalAfterYield() public {
@@ -226,10 +236,11 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         localMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
             primaryToken.balanceOf(BOB),
-            transferAmount + yield,
+            transferAmount + _discountedYield(yield),
             1e14,
             0
         );
+        assertEq(vault.accumulatedFees(), yield / 10);
     }
 
     function testWithdrawalInFlight() public {
@@ -265,9 +276,10 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         );
         localMailbox.processNextInboundMessage();
 
+        uint256 claimableFees = vault.getClaimableFees();
         assertApproxEqRelDecimal(
             primaryToken.balanceOf(CAROL),
-            transferAmount + yield,
+            transferAmount + yield - (claimableFees / 2),
             1e14,
             0
         );
@@ -277,10 +289,11 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         remoteMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
-            transferAmount + yield,
+            transferAmount + yield - (claimableFees / 2),
             1e14,
             0
         );
+        assertEq(vault.accumulatedFees(), yield / 5); // 0.1 * 2 * yield
     }
 
     function testWithdrawalAfterDrawdown() public {
@@ -293,8 +306,8 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
         // decrease collateral in vault by 10%
-        uint256 yield = 5e18;
-        primaryToken.burnFrom(address(vault), yield);
+        uint256 drawdown = 5e18;
+        primaryToken.burnFrom(address(vault), drawdown);
         localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
 
@@ -310,7 +323,7 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
         localMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
             primaryToken.balanceOf(BOB),
-            transferAmount - yield,
+            transferAmount - drawdown,
             1e14,
             0
         );
@@ -337,7 +350,10 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
 
         localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
-        assertEq(remoteToken.balanceOf(BOB), transferAmount + yield);
+        assertEq(
+            remoteToken.balanceOf(BOB),
+            transferAmount + _discountedYield(yield)
+        );
 
         vm.prank(address(localMailbox));
 
@@ -365,10 +381,10 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
             BOB.addressToBytes32(),
             _amount
         );
-
-        // vm.expectEmit(true, true, false, true);
-        // emit ReceivedTransferRemote(ORIGIN, BOB.addressToBytes32(), _amount);
         remoteMailbox.processNextInboundMessage();
-        // _processTransfers(BOB, _amount);
+    }
+
+    function _discountedYield(uint256 _yield) internal view returns (uint256) {
+        return _yield - vault.getClaimableFees();
     }
 }

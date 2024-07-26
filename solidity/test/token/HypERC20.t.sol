@@ -55,6 +55,7 @@ abstract contract HypTokenTest is Test {
     address internal constant ALICE = address(0x1);
     address internal constant BOB = address(0x2);
     address internal constant CAROL = address(0x3);
+    address internal constant DANIEL = address(0x4);
     address internal constant PROXY_ADMIN = address(0x37);
 
     ERC20Test internal primaryToken;
