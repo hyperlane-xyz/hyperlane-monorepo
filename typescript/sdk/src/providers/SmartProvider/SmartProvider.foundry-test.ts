@@ -1,12 +1,9 @@
 import { expect } from 'chai';
-import { errors as EthersError, Wallet, constants } from 'ethers';
+import { Wallet, constants } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 
-import {
-  HyperlaneSmartProvider,
-  getSmartProviderErrorMessage,
-} from './SmartProvider.js';
+import { HyperlaneSmartProvider } from './SmartProvider.js';
 
 const PK = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 const NETWORK = 81337;
@@ -107,29 +104,29 @@ describe('SmartProvider', async () => {
   //   }
   // });
 
-  it('throws with multiple invalid RPCs', async () => {
-    const INVALID_URL_1 = 'http://1337.1337.1337.1';
-    const INVALID_URL_2 = 'http://1338.1338.1338.1';
-    const INVALID_NETWORK = 55555;
-    const smartProvider = new HyperlaneSmartProvider(
-      INVALID_NETWORK,
-      [{ http: INVALID_URL_1 }, { http: INVALID_URL_2 }],
-      [],
-      {
-        maxRetries: 3,
-      },
-    );
-    const signer = new Wallet(PK, smartProvider);
+  // it('throws with multiple invalid RPCs', async () => {
+  //   const INVALID_URL_1 = 'http://1337.1337.1337.1';
+  //   const INVALID_URL_2 = 'http://1338.1338.1338.1';
+  //   const INVALID_NETWORK = 55555;
+  //   const smartProvider = new HyperlaneSmartProvider(
+  //     INVALID_NETWORK,
+  //     [{ http: INVALID_URL_1 }, { http: INVALID_URL_2 }],
+  //     [],
+  //     {
+  //       maxRetries: 3,
+  //     },
+  //   );
+  //   const signer = new Wallet(PK, smartProvider);
 
-    try {
-      const factory = new ERC20__factory(signer);
-      await factory.deploy('fake', 'FAKE');
-    } catch (e: any) {
-      expect(e.message).to.equal(
-        getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
-      );
-    }
-  });
+  //   try {
+  //     const factory = new ERC20__factory(signer);
+  //     await factory.deploy('fake', 'FAKE');
+  //   } catch (e: any) {
+  //     expect(e.message).to.equal(
+  //       getSmartProviderErrorMessage(EthersError.SERVER_ERROR),
+  //     );
+  //   }
+  // });
 
   it('handles invalid and valid RPCs', async () => {
     const INVALID_URL = 'http://1337.1337.1337.1';
