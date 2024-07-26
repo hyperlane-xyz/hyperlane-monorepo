@@ -23,6 +23,7 @@ pub struct RoutingIsmBuilder {}
 #[async_trait]
 impl BuildableWithProvider for RoutingIsmBuilder {
     type Output = Box<dyn RoutingIsm>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
