@@ -5,7 +5,11 @@ import type { IRegistry } from '@hyperlane-xyz/registry';
 import { Circle } from './Circle.js';
 import { QuestionMarkIcon } from './QuestionMark.js';
 
-type SvgIcon = (props: { width: number; height: number; title?: string }) => ReactElement;
+type SvgIcon = (props: {
+  width: number;
+  height: number;
+  title?: string;
+}) => ReactElement;
 
 export interface ChainLogoProps {
   chainName: string;

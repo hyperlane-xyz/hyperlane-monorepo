@@ -15,7 +15,9 @@ export function Circle({
   classes?: string;
 }>) {
   const bgColor =
-    bgColorSeed === null || bgColorSeed == undefined ? '' : seedToBgColor(bgColorSeed);
+    bgColorSeed === null || bgColorSeed == undefined
+      ? ''
+      : seedToBgColor(bgColorSeed);
   return (
     <div
       style={{ width: `${size}px`, height: `${size}px` }}

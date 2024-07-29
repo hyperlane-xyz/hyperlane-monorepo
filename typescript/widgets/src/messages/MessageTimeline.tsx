@@ -49,7 +49,9 @@ export function MessageTimeline({
           </div>
           <ChevronBlue />
         </div>
-        <h4 className={styles.stageHeader}>{getStageHeader(Stage.Sent, stage, timings, status)}</h4>
+        <h4 className={styles.stageHeader}>
+          {getStageHeader(Stage.Sent, stage, timings, status)}
+        </h4>
         {!hideDescriptions && (
           <p className={styles.stageDesc}>
             {timeSentStr
@@ -61,7 +63,11 @@ export function MessageTimeline({
       <div className={styles.stageSpacer}></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${getStageOpacityClass(Stage.Finalized, stage, status)}`}
+          className={`${styles.stageBar} ${getStageOpacityClass(
+            Stage.Finalized,
+            stage,
+            status,
+          )}`}
         >
           <div className={styles.stageHole}></div>
           <div className={styles.stageIconContainer}>
@@ -75,13 +81,19 @@ export function MessageTimeline({
           {getStageHeader(Stage.Finalized, stage, timings, status)}
         </h4>
         {!hideDescriptions && (
-          <p className={styles.stageDesc}>Origin transaction has sufficient confirmations</p>
+          <p className={styles.stageDesc}>
+            Origin transaction has sufficient confirmations
+          </p>
         )}
       </div>
       <div className={styles.stageSpacer}></div>
       <div className={styles.stageContainer}>
         <div
-          className={`${styles.stageBar} ${getStageOpacityClass(Stage.Validated, stage, status)}`}
+          className={`${styles.stageBar} ${getStageOpacityClass(
+            Stage.Validated,
+            stage,
+            status,
+          )}`}
         >
           <div className={styles.stageHole}></div>
           <div className={styles.stageIconContainer}>
@@ -95,7 +107,9 @@ export function MessageTimeline({
           {getStageHeader(Stage.Validated, stage, timings, status)}
         </h4>
         {!hideDescriptions && (
-          <p className={styles.stageDesc}>Validators have signed the message bundle</p>
+          <p className={styles.stageDesc}>
+            Validators have signed the message bundle
+          </p>
         )}
       </div>
       <div className={styles.stageSpacer}></div>
@@ -118,7 +132,9 @@ export function MessageTimeline({
           {getStageHeader(Stage.Relayed, stage, timings, status)}
         </h4>
         {!hideDescriptions && (
-          <p className={styles.stageDesc}>Destination transaction has been confirmed</p>
+          <p className={styles.stageDesc}>
+            Destination transaction has been confirmed
+          </p>
         )}
       </div>
     </div>
@@ -128,7 +144,12 @@ export function MessageTimeline({
 function StageIcon({ Icon, size }: { Icon: any; size?: number }) {
   return (
     <div className="htw-h-9 htw-w-9 htw-flex htw-items-center htw-justify-center htw-rounded-full htw-bg-blue-500">
-      <Icon width={size ?? 14} height={size ?? 14} alt="" color={ColorPalette.White} />
+      <Icon
+        width={size ?? 14}
+        height={size ?? 14}
+        alt=""
+        color={ColorPalette.White}
+      />
     </div>
   );
 }
@@ -180,7 +201,10 @@ function getStageOpacityClass(
   messageStatus: MessageStatus,
 ) {
   if (currentStage >= targetStage) return '';
-  if (currentStage === targetStage - 1 && messageStatus !== MessageStatus.Failing)
+  if (
+    currentStage === targetStage - 1 &&
+    messageStatus !== MessageStatus.Failing
+  )
     return 'htw-animate-pulse-slow';
   return 'htw-opacity-50';
 }
@@ -191,8 +215,11 @@ const styles = {
   stageBar:
     'htw-w-full htw-h-6 htw-flex htw-items-center htw-justify-center htw-bg-blue-500 htw-relative',
   stageHole: 'htw-w-3 htw-h-3 htw-rounded-full htw-bg-white',
-  stageIconContainer: 'htw-absolute htw--top-12 htw-flex htw-flex-col htw-items-center',
+  stageIconContainer:
+    'htw-absolute htw--top-12 htw-flex htw-flex-col htw-items-center',
   stageIconCircle: 'htw-w-0.5 htw-h-4 htw-bg-blue-500',
-  stageHeader: 'htw-mt-2.5 htw-text-gray-700 htw-text-xs xs:htw-text-sm sm:htw-text-base',
-  stageDesc: 'htw-mt-1 sm:htw-px-4 htw-text-xs htw-text-gray-500 htw-text-center',
+  stageHeader:
+    'htw-mt-2.5 htw-text-gray-700 htw-text-xs xs:htw-text-sm sm:htw-text-base',
+  stageDesc:
+    'htw-mt-1 sm:htw-px-4 htw-text-xs htw-text-gray-500 htw-text-center',
 };

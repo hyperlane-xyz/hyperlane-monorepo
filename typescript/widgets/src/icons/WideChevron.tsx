@@ -11,7 +11,14 @@ export interface WideChevronProps {
   classes?: string;
 }
 
-function _WideChevron({ width, height, direction, color, rounded, classes }: WideChevronProps) {
+function _WideChevron({
+  width,
+  height,
+  direction,
+  color,
+  rounded,
+  classes,
+}: WideChevronProps) {
   let directionClass;
   switch (direction) {
     case 'n':

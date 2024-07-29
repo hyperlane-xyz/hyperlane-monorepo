@@ -10,7 +10,9 @@ export default {
   component: ChainLogo,
 } as ComponentMeta<typeof ChainLogo>;
 
-const Template: ComponentStory<typeof ChainLogo> = (args) => <ChainLogo {...args} />;
+const Template: ComponentStory<typeof ChainLogo> = (args) => (
+  <ChainLogo {...args} />
+);
 
 const registry = new GithubRegistry();
 

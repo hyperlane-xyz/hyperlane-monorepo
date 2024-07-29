@@ -9,7 +9,9 @@ export default {
   component: MessageTimeline,
 } as ComponentMeta<typeof MessageTimeline>;
 
-const Template: ComponentStory<typeof MessageTimeline> = (args) => <MessageTimeline {...args} />;
+const Template: ComponentStory<typeof MessageTimeline> = (args) => (
+  <MessageTimeline {...args} />
+);
 
 const defaultTimings = {
   [MessageStage.Finalized]: 10,

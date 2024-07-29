@@ -9,7 +9,9 @@ export default {
   component: WideChevron,
 } as ComponentMeta<typeof WideChevron>;
 
-const Template: ComponentStory<typeof WideChevron> = (args) => <WideChevron {...args} />;
+const Template: ComponentStory<typeof WideChevron> = (args) => (
+  <WideChevron {...args} />
+);
 
 export const BlueEastRounded = Template.bind({});
 BlueEastRounded.args = {
