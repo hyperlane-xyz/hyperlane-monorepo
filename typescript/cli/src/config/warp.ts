@@ -173,7 +173,7 @@ export async function createWarpRouteDeployConfig({
           isNft,
           interchainSecurityModule,
           token: await input({
-            message: `Enter the erc-4626 vault address on chain ${chain}`,
+            message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
         };
         break;
