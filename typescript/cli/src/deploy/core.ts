@@ -9,6 +9,7 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { getOrRequestApiKeys } from '../context/context.js';
@@ -29,18 +30,15 @@ interface DeployParams {
   chain: ChainName;
   config: CoreConfig;
 }
+
+interface ApplyParams extends DeployParams {
+  mailbox: Address;
+}
 /**
  * Executes the core deploy command.
  */
-export async function runCoreDeploy({
-  context,
-  chain,
-  config,
-}: {
-  context: WriteCommandContext;
-  chain: ChainName;
-  config: CoreConfig;
-}) {
+export async function runCoreDeploy(params: DeployParams) {
+  let { context, chain, config } = params;
   const {
     signer,
     isDryRun,
@@ -110,4 +108,10 @@ export async function runCoreDeploy({
 
   logGreen('✅ Core contract deployments complete:\n');
   log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));
+}
+
+export async function runCoreApply(params: ApplyParams) {
+  let { chain, config: expectedCoreConfig } = params;
+  console.log('chain', chain);
+  console.log('expectedCoreConfig', expectedCoreConfig);
 }
