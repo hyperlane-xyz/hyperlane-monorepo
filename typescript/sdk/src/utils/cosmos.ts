@@ -9,6 +9,7 @@ export const CosmosChainSchema = z
       .regex(new RegExp('^(\\.\\./)+chain\\.schema\\.json$'))
       .optional(),
     chain_name: z.string().regex(new RegExp('[a-z0-9]+')),
+    chain_type: z.string().regex(new RegExp('[a-z0-9]+')),
     chain_id: z.string(),
     pre_fork_chain_name: z.string().regex(new RegExp('[a-z0-9]+')).optional(),
     pretty_name: z.string().optional(),
@@ -456,7 +457,9 @@ export async function getCosmosRegistryChain(chain: string) {
     const errorMessages = result.error.issues.map(
       (issue: any) => `${issue.path} => ${issue.message}`,
     );
-    throw new Error(`Invalid Cosmos chain:\n ${errorMessages.join('\n')}`);
+    throw new Error(
+      `Invalid Cosmos chain ${chain}:\n ${errorMessages.join('\n')}`,
+    );
   }
   return result.data;
 }
