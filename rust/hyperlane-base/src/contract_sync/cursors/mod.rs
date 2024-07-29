@@ -13,8 +13,7 @@ pub enum CursorType {
     RateLimited,
 }
 
-// H256 * 1M = 32MB per origin chain worst case
-// With one such channel per origin chain.
+// H512 * 1M = 64MB per origin chain
 const TX_ID_CHANNEL_CAPACITY: Option<usize> = Some(1_000_000);
 
 pub trait Indexable {

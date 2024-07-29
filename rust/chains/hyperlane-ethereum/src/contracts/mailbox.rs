@@ -52,6 +52,7 @@ pub struct SequenceIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for SequenceIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -74,6 +75,7 @@ pub struct DeliveryIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<H256>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -245,6 +247,7 @@ pub struct MailboxBuilder {}
 #[async_trait]
 impl BuildableWithProvider for MailboxBuilder {
     type Output = Box<dyn Mailbox>;
+    const NEEDS_SIGNER: bool = true;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

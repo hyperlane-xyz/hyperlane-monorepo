@@ -46,13 +46,11 @@
   },
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
-    "./logos": "./logos"
+    ".": "./dist/index.js"
   },
   "types": "./dist/index.d.ts",
   "files": [
-    "/dist",
-    "/logos"
+    "/dist"
   ],
   "sideEffects": false,
   "engines": {
