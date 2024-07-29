@@ -75,6 +75,12 @@ export class EvmCoreModule extends HyperlaneModule<
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
+  /**
+   * Updates the core contracts with the provided configuration.
+   *
+   * @param expectedConfig - The configuration for the core contracts to be updated.
+   * @returns An array of Ethereum transactions that were executed to update the contract.
+   */
   public async update(
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
@@ -83,7 +89,9 @@ export class EvmCoreModule extends HyperlaneModule<
 
     const transactions = [];
 
-    transactions.push(...this.updateOwnership(actualConfig, expectedConfig));
+    transactions.push(
+      ...this.updateMailOwnership(actualConfig, expectedConfig),
+    );
 
     return transactions;
   }
@@ -95,7 +103,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @param expectedConfig - The expected token core configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  updateOwnership(
+  updateMailOwnership(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
