@@ -146,7 +146,7 @@ export const read: CommandModuleWithContext<{
       const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
       writeYamlOrJson(configFilePath, coreConfig, 'yaml');
       logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
-      logYamlIfUnderMaxLines(coreConfig, MAX_READ_LINE_OUTPUT);
+      logYamlIfUnderMaxLines(coreConfig);
     } catch (e: any) {
       errorRed(
         `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
