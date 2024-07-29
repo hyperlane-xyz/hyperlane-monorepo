@@ -10,17 +10,18 @@ import {
   TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { normalizeConfig, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { testCoreConfig } from '../test/testUtils.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
 import { CoreConfig } from './types.js';
 
 describe('EvmCoreModule', async () => {
-  const CHAIN = TestChainName.test1;
+  const CHAIN = TestChainName.test4;
   const DELAY = 1892391283182;
   let config: CoreConfig;
   let signer: SignerWithAddress;
@@ -31,12 +32,17 @@ describe('EvmCoreModule', async () => {
   let validatorAnnounceContract: any;
   let testRecipientContract: any;
   let timelockControllerContract: any;
-
+  async function sendTxs(txs: AnnotatedEV5Transaction[]) {
+    for (const tx of txs) {
+      await multiProvider.sendTransaction(CHAIN, tx);
+    }
+  }
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     config = {
       ...testCoreConfig([CHAIN])[CHAIN],
+      owner: signer.address,
       upgrade: {
         timelock: {
           delay: DELAY,
@@ -159,6 +165,36 @@ describe('EvmCoreModule', async () => {
     it('should deploy timelock if upgrade is set', async () => {
       expect(evmCoreModule.serialize().timelockController).to.exist;
       expect(await timelockControllerContract.getMinDelay()).to.equal(DELAY);
+    });
+  });
+
+  describe('Update', async () => {
+    it('should update the owner only if they are different', async () => {
+      const evmCoreModule = await EvmCoreModule.create({
+        chain: CHAIN,
+        config,
+        multiProvider,
+      });
+      const newOwner = randomAddress();
+      let latestConfig = normalizeConfig(await evmCoreModule.read());
+      expect(latestConfig.owner).to.not.equal(newOwner);
+
+      await sendTxs(
+        await evmCoreModule.update({
+          ...config,
+          owner: newOwner,
+        }),
+      );
+
+      latestConfig = normalizeConfig(await evmCoreModule.read());
+      expect(latestConfig.owner).to.equal(newOwner);
+
+      // No op if the same owner
+      const txs = await evmCoreModule.update({
+        ...config,
+        owner: newOwner,
+      });
+      expect(txs.length).to.equal(0);
     });
   });
 });

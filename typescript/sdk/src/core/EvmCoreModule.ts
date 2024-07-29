@@ -1,5 +1,10 @@
 import { Mailbox } from '@hyperlane-xyz/core';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  ProtocolType,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import {
   attachContractsMap,
@@ -26,6 +31,7 @@ import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
+import { CoreConfigSchema } from './schemas.js';
 
 export type DeployedCoreAdresses = HyperlaneAddresses<CoreFactories> & {
   testRecipient: Address;
@@ -43,6 +49,10 @@ export class EvmCoreModule extends HyperlaneModule<
   protected coreReader: EvmCoreReader;
   public readonly chainName: string;
 
+  // We use domainId here because MultiProvider.getDomainId() will always
+  // return a number, and EVM the domainId and chainId are the same.
+  public readonly domainId: Domain;
+
   protected constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<CoreConfig, DeployedCoreAdresses>,
@@ -50,6 +60,7 @@ export class EvmCoreModule extends HyperlaneModule<
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
     this.chainName = this.multiProvider.getChainName(this.args.chain);
+    this.domainId = multiProvider.getDomainId(args.chain);
   }
 
   /**
@@ -60,8 +71,36 @@ export class EvmCoreModule extends HyperlaneModule<
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
-  public async update(_config: CoreConfig): Promise<AnnotatedEV5Transaction[]> {
-    throw new Error('Method not implemented.');
+  public async update(
+    expectedConfig: CoreConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    CoreConfigSchema.parse(expectedConfig);
+    const actualConfig = await this.read();
+
+    const transactions = [];
+
+    transactions.push(...this.updateOwnership(actualConfig, expectedConfig));
+
+    return transactions;
+  }
+
+  /**
+   * Transfer ownership of an existing mailbox with a given config.
+   *
+   * @param actualConfig - The on-chain core configuration.
+   * @param expectedConfig - The expected token core configuration.
+   * @returns Ethereum transaction that need to be executed to update the owner.
+   */
+  updateOwnership(
+    actualConfig: CoreConfig,
+    expectedConfig: CoreConfig,
+  ): AnnotatedEV5Transaction[] {
+    return EvmCoreModule.transferOwnership({
+      actualOwner: actualConfig.owner,
+      expectedOwner: expectedConfig.owner,
+      deployedAddress: this.args.addresses.mailbox,
+      chainId: this.domainId,
+    });
   }
 
   /**
@@ -167,7 +206,7 @@ export class EvmCoreModule extends HyperlaneModule<
       ).address;
     }
 
-    // Deploy Test Receipient
+    // Deploy Test Recipient
     const testRecipient = (
       await coreDeployer.deployTestRecipient(
         chainName,
