@@ -52,6 +52,9 @@ pub trait BuildableWithProvider {
     /// The type that will be created.
     type Output;
 
+    /// Whether this provider requires a signer
+    const NEEDS_SIGNER: bool;
+
     /// Construct a new instance of the associated trait using a connection
     /// config. This is the first step and will wrap the provider with
     /// metrics and a signer as needed.
