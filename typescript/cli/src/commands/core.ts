@@ -11,7 +11,6 @@ import { runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { errorRed, log, logGray, logGreen } from '../logger.js';
 import {
-  MAX_READ_LINE_OUTPUT,
   logYamlIfUnderMaxLines,
   readYamlOrJson,
   writeYamlOrJson,
