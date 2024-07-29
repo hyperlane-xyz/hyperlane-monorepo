@@ -238,8 +238,8 @@ export function indentYamlOrJson(str: string, indentLevel: number): string {
  */
 export function logYamlIfUnderMaxLines(
   obj: any,
-  maxLines: number,
-  margin = 2,
+  maxLines: number = MAX_READ_LINE_OUTPUT,
+  margin: number = 2,
 ): void {
   const asYamlString = yamlStringify(obj, null, margin);
   const lineCounter = new LineCounter();
