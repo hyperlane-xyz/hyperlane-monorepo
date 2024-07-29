@@ -1,4 +1,3 @@
-import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import { EvmCoreReader } from '@hyperlane-xyz/sdk';
@@ -15,7 +14,7 @@ import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { errorRed, log, logGray, logGreen } from '../logger.js';
 import {
-  indentYamlOrJson,
+  logYamlIfUnderMaxLines,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
@@ -187,7 +186,7 @@ export const read: CommandModuleWithContext<{
       const coreConfig = await evmCoreReader.deriveCoreConfig(mailbox);
       writeYamlOrJson(configFilePath, coreConfig, 'yaml');
       logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
-      log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));
+      logYamlIfUnderMaxLines(coreConfig);
     } catch (e: any) {
       errorRed(
         `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
