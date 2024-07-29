@@ -1,6 +1,6 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
@@ -109,8 +109,9 @@ async function executeDelivery({
     log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
 
     if (selfRelay) {
+      const relayer = new HyperlaneRelayer({ core });
       log('Attempting self-relay of message');
-      await core.relayMessage(message, dispatchTx);
+      await relayer.relayMessage(dispatchTx);
       logGreen('Message was self-relayed!');
     } else {
       if (skipWaitForDelivery) {

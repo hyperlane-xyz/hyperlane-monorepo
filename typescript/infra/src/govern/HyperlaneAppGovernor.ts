@@ -5,6 +5,7 @@ import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
   InterchainAccount,
@@ -19,6 +20,7 @@ import {
   bytes32ToAddress,
   eqAddress,
   objMap,
+  retryAsync,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -117,13 +119,17 @@ export abstract class HyperlaneAppGovernor<
           console.log(
             `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
-          await multiSend.sendTransactions(
-            calls.map((call) => ({
-              to: call.to,
-              data: call.data,
-              value: call.value,
-            })),
-          );
+          try {
+            await multiSend.sendTransactions(
+              calls.map((call) => ({
+                to: call.to,
+                data: call.data,
+                value: call.value,
+              })),
+            );
+          } catch (error) {
+            console.error(`Error submitting calls on ${chain}: ${error}`);
+          }
         } else {
           console.log(
             `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
@@ -136,11 +142,17 @@ export abstract class HyperlaneAppGovernor<
       SubmissionType.SIGNER,
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
+
     const safeOwner = this.checker.configMap[chain].owner;
-    await sendCallsForType(
-      SubmissionType.SAFE,
-      new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+    await retryAsync(
+      () =>
+        sendCallsForType(
+          SubmissionType.SAFE,
+          new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+        ),
+      10,
     );
+
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
 
@@ -153,27 +165,50 @@ export abstract class HyperlaneAppGovernor<
     return this.calls[chain].pop();
   }
 
-  protected abstract mapViolationsToCalls(): Promise<void>;
+  protected async mapViolationsToCalls(): Promise<void> {
+    const callObjs = await Promise.all(
+      this.checker.violations.map((violation) =>
+        this.mapViolationToCall(violation),
+      ),
+    );
 
-  protected async inferCallSubmissionTypes() {
-    for (const chain of Object.keys(this.calls)) {
-      try {
-        for (const call of this.calls[chain]) {
-          let submissionType = await this.inferCallSubmissionType(chain, call);
-          if (submissionType === SubmissionType.MANUAL) {
-            submissionType = await this.inferICAEncodedSubmissionType(
-              chain,
-              call,
-            );
-          }
-          call.submissionType = submissionType;
-        }
-      } catch (error) {
-        console.error(
-          `Error inferring call submission types for chain ${chain}: ${error}`,
-        );
+    for (const callObj of callObjs) {
+      if (callObj) {
+        this.pushCall(callObj.chain, callObj.call);
       }
     }
+  }
+
+  protected abstract mapViolationToCall(
+    violation: CheckerViolation,
+  ): Promise<{ chain: string; call: AnnotatedCallData } | undefined>;
+
+  protected async inferCallSubmissionTypes() {
+    await Promise.all(
+      Object.keys(this.calls).map(async (chain) => {
+        try {
+          await Promise.all(
+            this.calls[chain].map(async (call) => {
+              let submissionType = await this.inferCallSubmissionType(
+                chain,
+                call,
+              );
+              if (submissionType === SubmissionType.MANUAL) {
+                submissionType = await this.inferICAEncodedSubmissionType(
+                  chain,
+                  call,
+                );
+              }
+              call.submissionType = submissionType;
+            }),
+          );
+        } catch (error) {
+          console.error(
+            `Error inferring call submission types for chain ${chain}: ${error}`,
+          );
+        }
+      }),
+    );
   }
 
   protected async inferICAEncodedSubmissionType(
@@ -306,14 +341,17 @@ export abstract class HyperlaneAppGovernor<
   }
 
   handleOwnerViolation(violation: OwnerViolation) {
-    this.pushCall(violation.chain, {
-      to: violation.contract.address,
-      data: violation.contract.interface.encodeFunctionData(
-        'transferOwnership',
-        [violation.expected],
-      ),
-      value: BigNumber.from(0),
-      description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
-    });
+    return {
+      chain: violation.chain,
+      call: {
+        to: violation.contract.address,
+        data: violation.contract.interface.encodeFunctionData(
+          'transferOwnership',
+          [violation.expected],
+        ),
+        value: BigNumber.from(0),
+        description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
+      },
+    };
   }
 }

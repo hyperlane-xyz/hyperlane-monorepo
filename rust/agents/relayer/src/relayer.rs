@@ -22,7 +22,7 @@ use hyperlane_core::{
 use tokio::{
     sync::{
         broadcast::{Receiver, Sender},
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        mpsc::{self, UnboundedSender},
         RwLock,
     },
     task::JoinHandle,
@@ -309,41 +309,33 @@ impl BaseAgent for Relayer {
                 }));
             tasks.push(console_server.instrument(info_span!("Tokio console server")));
         }
-
-        // run server
         let sender = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let custom_routes = relayer_server::routes(sender.clone());
-
-        let server = self
-            .core
-            .settings
-            .server(self.core_metrics.clone())
-            .expect("Failed to create server");
-        let server_task = server
-            .run_with_custom_routes(custom_routes)
-            .instrument(info_span!("Relayer server"));
-        tasks.push(server_task);
-
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
+        let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
         for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
-
-            tasks.push(
-                self.run_destination_submitter(
-                    dest_domain,
-                    receive_channel,
-                    sender.clone(),
-                    // Default to submitting one message at a time if there is no batch config
-                    self.core.settings.chains[dest_domain.name()]
-                        .connection
-                        .operation_batch_config()
-                        .map(|c| c.max_batch_size)
-                        .unwrap_or(1),
-                    task_monitor.clone(),
-                ),
+            let serial_submitter = SerialSubmitter::new(
+                dest_domain.clone(),
+                receive_channel,
+                sender.clone(),
+                SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
+                // Default to submitting one message at a time if there is no batch config
+                self.core.settings.chains[dest_domain.name()]
+                    .connection
+                    .operation_batch_config()
+                    .map(|c| c.max_batch_size)
+                    .unwrap_or(1),
+                task_monitor.clone(),
             );
+            prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
+
+            tasks.push(self.run_destination_submitter(
+                dest_domain,
+                serial_submitter,
+                task_monitor.clone(),
+            ));
 
             let metrics_updater = MetricsUpdater::new(
                 dest_conf,
@@ -380,6 +372,21 @@ impl BaseAgent for Relayer {
                 .await,
             );
         }
+        // run server
+        let custom_routes = relayer_server::Server::new()
+            .with_op_retry(sender.clone())
+            .with_message_queue(prep_queues)
+            .routes();
+
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = server
+            .run_with_custom_routes(custom_routes)
+            .instrument(info_span!("Relayer server"));
+        tasks.push(server_task);
 
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
@@ -526,23 +533,13 @@ impl Relayer {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip(self, receiver))]
+    #[tracing::instrument(skip(self, serial_submitter))]
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: UnboundedReceiver<QueueOperation>,
-        retry_receiver_channel: Sender<MessageRetryRequest>,
-        batch_size: u32,
+        serial_submitter: SerialSubmitter,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        let serial_submitter = SerialSubmitter::new(
-            destination.clone(),
-            receiver,
-            retry_receiver_channel,
-            SerialSubmitterMetrics::new(&self.core.metrics, destination),
-            batch_size,
-            task_monitor.clone(),
-        );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {

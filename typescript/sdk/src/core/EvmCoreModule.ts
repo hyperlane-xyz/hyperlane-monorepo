@@ -12,6 +12,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -72,12 +73,14 @@ export class EvmCoreModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmCoreModule> {
-    const { chain, config, multiProvider } = params;
+    const { chain, config, multiProvider, contractVerifier } = params;
     const addresses = await EvmCoreModule.deploy({
       config,
       multiProvider,
       chain,
+      contractVerifier,
     });
 
     // Create CoreModule and deploy the Core contracts
@@ -98,18 +101,18 @@ export class EvmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
+    contractVerifier?: ContractVerifier;
   }): Promise<DeployedCoreAdresses> {
-    const { config, multiProvider, chain } = params;
+    const { config, multiProvider, chain, contractVerifier } = params;
     const chainName = multiProvider.getChainName(chain);
 
-    // Deploy Ism Factories
     const ismFactoryFactories = await EvmCoreModule.deployIsmFactories({
       chainName,
       config,
       multiProvider,
+      contractVerifier,
     });
 
-    // Deploy IsmFactory to be used in CoreDeployer
     const ismFactory = new HyperlaneIsmFactory(
       attachContractsMap(
         { [chainName]: ismFactoryFactories },
@@ -118,8 +121,11 @@ export class EvmCoreModule extends HyperlaneModule<
       multiProvider,
     );
 
-    // Initialize Deployer
-    const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+    const coreDeployer = new HyperlaneCoreDeployer(
+      multiProvider,
+      ismFactory,
+      contractVerifier,
+    );
 
     // Deploy proxyAdmin
     const proxyAdmin = (
@@ -144,6 +150,7 @@ export class EvmCoreModule extends HyperlaneModule<
           mailbox: mailbox.address,
           owner: await multiProvider.getSigner(chain).getAddress(),
         },
+        contractVerifier,
       })
     ).serialize();
 
@@ -189,12 +196,13 @@ export class EvmCoreModule extends HyperlaneModule<
     chainName: string;
     config: CoreConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<HyperlaneAddresses<ProxyFactoryFactories>> {
-    const { chainName, config, multiProvider } = params;
+    const { chainName, config, multiProvider, contractVerifier } = params;
 
-    // ChainMap is still needed for HyperlaneIsmFactory
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
+      contractVerifier,
     );
     const ismFactoriesFactory = await proxyFactoryDeployer.deploy({
       [chainName]: config,

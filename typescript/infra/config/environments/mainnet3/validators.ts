@@ -236,6 +236,18 @@ export const validatorChainConfig = (
         'base',
       ),
     },
+    bob: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('bob'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x20f283be1eb0e81e22f51705dcb79883cfdd34aa'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'bob',
+      ),
+    },
     injective: {
       interval: 5,
       reorgPeriod: getReorgPeriod('injective'),
@@ -296,6 +308,18 @@ export const validatorChainConfig = (
         'linea',
       ),
     },
+    mantle: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mantle'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'mantle',
+      ),
+    },
     sei: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sei'),
@@ -328,6 +352,18 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'scroll',
+      ),
+    },
+    taiko: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('taiko'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa930073c8f2d0b2f7423ea32293e0d1362e65d79'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'taiko',
       ),
     },
     polygonzkevm: {
@@ -460,6 +496,42 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'zetachain',
+      ),
+    },
+    endurance: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('endurance'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x28c5b322da06f184ebf68693c5d19df4d4af13e5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'endurance',
+      ),
+    },
+    fusemainnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('fusemainnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'fusemainnet',
+      ),
+    },
+    zoramainnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zoramainnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x35130945b625bb69b28aee902a3b9a76fa67125f'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'zoramainnet',
       ),
     },
   };

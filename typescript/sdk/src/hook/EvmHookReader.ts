@@ -1,4 +1,4 @@
-import { ethers, providers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   DomainRoutingHook,
@@ -27,6 +27,7 @@ import {
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
+import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationHookConfig,
@@ -46,9 +47,7 @@ import {
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 export interface HookReader {
-  deriveHookConfig(
-    address: Address,
-  ): Promise<WithAddress<HookConfig> | undefined>;
+  deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>>;
@@ -71,10 +70,13 @@ export interface HookReader {
   derivePausableConfig(
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>>;
+  assertHookType(
+    hookType: OnchainHookType,
+    expectedType: OnchainHookType,
+  ): void;
 }
 
-export class EvmHookReader implements HookReader {
-  protected readonly provider: providers.Provider;
+export class EvmHookReader extends HyperlaneReader implements HookReader {
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
 
   constructor(
@@ -84,16 +86,15 @@ export class EvmHookReader implements HookReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = multiProvider.getProvider(chain);
+    super(multiProvider, chain);
   }
 
-  async deriveHookConfig(
-    address: Address,
-  ): Promise<DerivedHookConfig | undefined> {
-    let onchainHookType = undefined;
+  async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
+    let onchainHookType: OnchainHookType | undefined = undefined;
+    let derivedHookConfig: DerivedHookConfig;
     try {
       const hook = IPostDispatchHook__factory.connect(address, this.provider);
-      this.logger.debug('Deriving HookConfig', { address });
+      this.logger.debug('Deriving HookConfig:', { address });
 
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
@@ -102,43 +103,62 @@ export class EvmHookReader implements HookReader {
 
       switch (onchainHookType) {
         case OnchainHookType.ROUTING:
-          return this.deriveDomainRoutingConfig(address);
+          derivedHookConfig = await this.deriveDomainRoutingConfig(address);
+          break;
         case OnchainHookType.AGGREGATION:
-          return this.deriveAggregationConfig(address);
+          derivedHookConfig = await this.deriveAggregationConfig(address);
+          break;
         case OnchainHookType.MERKLE_TREE:
-          return this.deriveMerkleTreeConfig(address);
+          derivedHookConfig = await this.deriveMerkleTreeConfig(address);
+          break;
         case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
-          return this.deriveIgpConfig(address);
+          derivedHookConfig = await this.deriveIgpConfig(address);
+          break;
         case OnchainHookType.FALLBACK_ROUTING:
-          return this.deriveFallbackRoutingConfig(address);
+          derivedHookConfig = await this.deriveFallbackRoutingConfig(address);
+          break;
         case OnchainHookType.PAUSABLE:
-          return this.derivePausableConfig(address);
+          derivedHookConfig = await this.derivePausableConfig(address);
+          break;
         case OnchainHookType.PROTOCOL_FEE:
-          return this.deriveProtocolFeeConfig(address);
+          derivedHookConfig = await this.deriveProtocolFeeConfig(address);
+          break;
         // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
         // For now assume it's OP_STACK
         case OnchainHookType.ID_AUTH_ISM:
-          return this.deriveOpStackConfig(address);
+          derivedHookConfig = await this.deriveOpStackConfig(address);
+          break;
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
           );
       }
-    } catch (e) {
-      this.logger.debug(
-        `Failed to derive ${onchainHookType} hook (${address}): ${e}`,
-      );
+    } catch (e: any) {
+      let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
+      if (
+        !onchainHookType &&
+        e.message.includes('Invalid response from provider')
+      ) {
+        customMessage = customMessage.concat(
+          ` [The provided hook contract might be outdated and not support hookType()]`,
+        );
+        this.logger.info(`${customMessage}:\n\t${e}`);
+      } else {
+        this.logger.debug(`${customMessage}:\n\t${e}`);
+      }
+      throw new Error(`${customMessage}:\n\t${e}`);
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
-    return undefined;
+
+    return derivedHookConfig;
   }
 
   async deriveMerkleTreeConfig(
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.MERKLE_TREE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
 
     return {
       address,
@@ -150,17 +170,13 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
+    this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
       hooks,
-      async (hook) => {
-        const hookConfig = await this.deriveHookConfig(hook);
-        assert(hookConfig, `No hook config found for ${hook}.`);
-        return hookConfig;
-      },
+      (hook) => this.deriveHookConfig(hook),
     );
 
     return {
@@ -175,8 +191,9 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    assert(
-      (await hook.hookType()) === OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
     );
 
     const owner = await hook.owner();
@@ -249,7 +266,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
     const hook = ProtocolFee__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.PROTOCOL_FEE);
 
     const owner = await hook.owner();
     const maxProtocolFee = await hook.MAX_PROTOCOL_FEE();
@@ -271,7 +288,7 @@ export class EvmHookReader implements HookReader {
   ): Promise<WithAddress<OpStackHookConfig>> {
     const hook = OPStackHook__factory.connect(address, this.provider);
     const owner = await hook.owner();
-    assert((await hook.hookType()) === OnchainHookType.ID_AUTH_ISM);
+    this.assertHookType(await hook.hookType(), OnchainHookType.ID_AUTH_ISM);
 
     const messengerContract = await hook.l1Messenger();
     const destinationDomain = await hook.destinationDomain();
@@ -291,7 +308,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.ROUTING);
+    this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
@@ -311,17 +328,16 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    assert((await hook.hookType()) === OnchainHookType.FALLBACK_ROUTING);
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.FALLBACK_ROUTING,
+    );
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
 
     const fallbackHook = await hook.fallbackHook();
     const fallbackHookConfig = await this.deriveHookConfig(fallbackHook);
-    assert(
-      fallbackHookConfig,
-      `No fallback hook config found for ${fallbackHook}.`,
-    );
 
     return {
       owner,
@@ -343,9 +359,7 @@ export class EvmHookReader implements HookReader {
       try {
         const domainHook = await hook.hooks(domainId);
         if (domainHook !== ethers.constants.AddressZero) {
-          const hookConfig = await this.deriveHookConfig(domainHook);
-          assert(hookConfig, `No hook config found for ${domainHook}.`);
-          domainHooks[chainName] = hookConfig;
+          domainHooks[chainName] = await this.deriveHookConfig(domainHook);
         }
       } catch (error) {
         this.logger.debug(
@@ -363,7 +377,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>> {
     const hook = PausableHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.PAUSABLE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.PAUSABLE);
 
     const owner = await hook.owner();
     const paused = await hook.paused();
@@ -375,15 +389,13 @@ export class EvmHookReader implements HookReader {
     };
   }
 
-  /**
-   * Conditionally sets the log level for a smart provider.
-   *
-   * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
-   */
-  protected setSmartProviderLogLevel(level: string) {
-    if ('setLogLevel' in this.provider) {
-      //@ts-ignore
-      this.provider.setLogLevel(level);
-    }
+  assertHookType(
+    hookType: OnchainHookType,
+    expectedType: OnchainHookType,
+  ): void {
+    assert(
+      hookType === expectedType,
+      `expected hook type to be ${expectedType}, got ${hookType}`,
+    );
   }
 }
