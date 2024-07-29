@@ -65,7 +65,7 @@ export abstract class HyperlaneModule<
     }
 
     updateTransactions.push({
-      annotation: `Transferring ownership of from ${actualOwner} to ${expectedOwner}`,
+      annotation: `Transferring ownership of ${deployedAddress} from current owner ${actualOwner} to new owner ${expectedOwner}`,
       chainId,
       to: deployedAddress,
       data: Ownable__factory.createInterface().encodeFunctionData(

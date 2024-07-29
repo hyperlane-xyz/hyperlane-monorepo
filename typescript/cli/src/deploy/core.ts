@@ -14,7 +14,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { getOrRequestApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGreen } from '../logger.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
@@ -111,7 +111,28 @@ export async function runCoreDeploy(params: DeployParams) {
 }
 
 export async function runCoreApply(params: ApplyParams) {
-  let { chain, config: expectedCoreConfig } = params;
-  console.log('chain', chain);
-  console.log('expectedCoreConfig', expectedCoreConfig);
+  const { context, chain, mailbox, config } = params;
+  const { multiProvider } = context;
+  const evmCoreModule = new EvmCoreModule(multiProvider, {
+    chain,
+    config,
+    addresses: {
+      mailbox,
+    },
+  });
+
+  const transactions = await evmCoreModule.update(config);
+
+  if (transactions.length) {
+    logGray('Updating deployed core contracts');
+    for (const transaction of transactions) {
+      await multiProvider.sendTransaction(chain, transaction);
+    }
+
+    logGreen(`Core config updated on ${chain}.`);
+  } else {
+    logGreen(
+      `Core config on ${chain} is the same as target. No updates needed.`,
+    );
+  }
 }

@@ -3,6 +3,7 @@ import {
   Address,
   Domain,
   ProtocolType,
+  assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -33,17 +34,19 @@ import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
 import { CoreConfigSchema } from './schemas.js';
 
-export type DeployedCoreAdresses = HyperlaneAddresses<CoreFactories> & {
-  testRecipient: Address;
-  timelockController?: Address; // Can be optional because it is only deployed if config.upgrade = true
-  interchainAccountRouter: Address;
-  interchainAccountIsm: Address;
-} & HyperlaneAddresses<ProxyFactoryFactories>;
+type DeployedCoreAddresses = Partial<
+  HyperlaneAddresses<CoreFactories> & {
+    testRecipient: Address;
+    timelockController: Address;
+    interchainAccountRouter: Address;
+    interchainAccountIsm: Address;
+  } & HyperlaneAddresses<ProxyFactoryFactories>
+>;
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   CoreConfig,
-  DeployedCoreAdresses
+  DeployedCoreAddresses
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
@@ -53,9 +56,9 @@ export class EvmCoreModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
 
-  protected constructor(
+  constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAdresses>,
+    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAddresses>,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
@@ -68,6 +71,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns The core config.
    */
   public async read(): Promise<CoreConfig> {
+    assert(this.args.addresses.mailbox, 'Mailbox not provided for read');
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
@@ -95,6 +99,11 @@ export class EvmCoreModule extends HyperlaneModule<
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
+    assert(
+      this.args.addresses.mailbox,
+      'Mailbox not provided for update ownership',
+    );
+
     return EvmCoreModule.transferOwnership({
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
@@ -141,7 +150,7 @@ export class EvmCoreModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
     contractVerifier?: ContractVerifier;
-  }): Promise<DeployedCoreAdresses> {
+  }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, contractVerifier } = params;
     const chainName = multiProvider.getChainName(chain);
 
