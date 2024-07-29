@@ -1,6 +1,5 @@
 import {
   MailboxClient__factory,
-  Ownable__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -12,7 +11,6 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
-  eqAddress,
   isObjEmpty,
   normalizeConfig,
   rootLogger,
@@ -216,22 +214,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-    if (!eqAddress(actualConfig.owner, expectedConfig.owner)) {
-      const { deployedTokenRoute } = this.args.addresses;
-      const { owner: newOwner } = expectedConfig;
-      updateTransactions.push({
-        annotation: `Transferring ownership of Warp route ${deployedTokenRoute} to ${newOwner}`,
-        chainId: this.domainId,
-        to: deployedTokenRoute,
-        data: Ownable__factory.createInterface().encodeFunctionData(
-          'transferOwnership(address)',
-          [newOwner],
-        ),
-      });
-    }
-
-    return updateTransactions;
+    return EvmERC20WarpModule.transferOwnership({
+      actualOwner: actualConfig.owner,
+      expectedOwner: expectedConfig.owner,
+      deployedAddress: this.args.addresses.deployedTokenRoute,
+      chainId: this.domainId,
+    });
   }
 
   /**
