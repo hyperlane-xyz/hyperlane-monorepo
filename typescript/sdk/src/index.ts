@@ -505,7 +505,7 @@ export { isCompliant } from './utils/schemas.js';
 // @ts-ignore
 export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
 
-export { DeployedCoreAdresses, EvmCoreModule } from './core/EvmCoreModule.js';
+export { EvmCoreModule } from './core/EvmCoreModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { ProxyFactoryFactoriesAddresses } from './deploy/schemas.js';
