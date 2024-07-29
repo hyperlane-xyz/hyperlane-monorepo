@@ -199,13 +199,13 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
 
         localMailbox.processNextInboundMessage();
 
+        uint256 _bobBal = primaryToken.balanceOf(BOB);
+        uint256 _expectedBal = transferAmount + _discountedYield(yield);
+
         // BOB gets the yield even though it didn't rebase
-        assertApproxEqRelDecimal(
-            primaryToken.balanceOf(BOB),
-            transferAmount + _discountedYield(yield),
-            1e14,
-            0
-        );
+        assertApproxEqRelDecimal(_bobBal, _expectedBal, 1e14, 0);
+        assertTrue(_bobBal < _expectedBal, "Transfer remote should round down");
+
         assertEq(vault.accumulatedFees(), yield / 10);
     }
 

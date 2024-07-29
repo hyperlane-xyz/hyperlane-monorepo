@@ -48,7 +48,8 @@ contract HypERC20RebasingCollateral is HypERC20Collateral {
         uint256 _shares = _depositIntoVault(_amount);
         uint256 _exchangeRate = PRECISION.mulDiv(
             vault.totalAssets(),
-            vault.totalSupply()
+            vault.totalSupply(),
+            Math.Rounding.Down
         );
         bytes memory _tokenMetadata = abi.encode(_exchangeRate);
 
