@@ -1,7 +1,7 @@
 import { MessageTx } from '../explorerTypes';
 
 class HyperlaneService {
-  async getOriginBlockByMessageId(_id: string): Promise<MessageTx> {
+  async getOriginBlockByMessageId(_messageId: string): Promise<MessageTx> {
     return {
       timestamp: 123456789,
       hash: '0x123abc456def789',
