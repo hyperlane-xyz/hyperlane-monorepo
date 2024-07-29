@@ -66,7 +66,6 @@ pub fn termination_invariants_met(
     const LOOKING_FOR_EVENTS_LOG_MESSAGE: &str = "Looking for events in index range";
     const HYPER_INCOMING_BODY_LOG_MESSAGE: &str = "incoming body completed";
 
-    // Only noticed 1 or 2 items in the txid logs, but also included 3 out of caution
     const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
 
     let relayer_logfile = File::open(log_file_path)?;
@@ -104,7 +103,8 @@ pub fn termination_invariants_met(
         // - relayer: merkle insertion and gas payment
         // - scraper: gas payment
         // some logs are emitted for multiple events, so requiring there to be at least
-        // `config.kathy_messages` logs is a reasonable approximation
+        // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
+        // are expected to be logged for each message.
         *total_tx_id_log_count as u64 >= config.kathy_messages,
         "Didn't find as many tx id logs as expected. Found {} and expected {}",
         total_tx_id_log_count,
