@@ -116,6 +116,7 @@ where
                         num_logs,
                         ?tx_id,
                         sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                        pending_ids = ?recv.len(),
                         "Found log(s) for tx id"
                     );
                 }

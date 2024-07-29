@@ -2,6 +2,7 @@ import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -55,13 +56,16 @@ export class EvmIcaModule extends HyperlaneModule<
     chain,
     config,
     multiProvider,
+    contractVerifier,
   }: {
     chain: ChainNameOrId;
     config: InterchainAccountConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmIcaModule> {
     const interchainAccountDeployer = new InterchainAccountDeployer(
       multiProvider,
+      contractVerifier,
     );
     const deployedContracts = await interchainAccountDeployer.deployContracts(
       multiProvider.getChainName(chain),
