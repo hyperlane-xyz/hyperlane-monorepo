@@ -7,7 +7,7 @@
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
     "@aws-sdk/client-s3": "^3.74.0",
-    "@cosmjs/amino": "^0.31.3",
+    "@cosmjs/amino": "^0.32.4",
     "@eth-optimism/sdk": "^3.1.6",
     "@ethersproject/experimental": "^5.7.0",
     "@ethersproject/hardware-wallets": "^5.7.0",
