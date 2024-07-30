@@ -85,21 +85,6 @@ export const validatorChainConfig = (
       ),
     },
 
-    arthera: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('arthera'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x13710ac11c36c169f62fba95767ae59a1e57098d'],
-          [Contexts.ReleaseCandidate]: [
-            '0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'arthera',
-      ),
-    },
-
     cheesechain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('cheesechain'),

@@ -52,7 +52,6 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
 pub enum KnownHyperlaneDomain {
     Ancient8 = 888888888,
     Arbitrum = 42161,
-    Arthera = 10242,
     Avalanche = 43114,
     #[cfg_attr(feature = "strum", strum(serialize = "bsc"))]
     BinanceSmartChain = 56,
@@ -218,7 +217,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             Mainnet: [
-                Ancient8, Arbitrum, Arthera, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
+                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
                 Fraxtal, FuseMainnet, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam,
                 Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet
             ],
@@ -238,7 +237,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ancient8, Arbitrum, Arthera, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
+                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
                 Fraxtal, FuseMainnet, Fuji, Gnosis, InEvm, Linea, MantaPacific, Mantle, Mode, Moonbeam, Optimism,
                 Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet,
 
@@ -267,7 +266,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             HyperlaneDomainTechnicalStack::ArbitrumNitro: [Arbitrum, PlumeTestnet],
             HyperlaneDomainTechnicalStack::Other: [
-                Ancient8, Avalanche, Arthera, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum, Fraxtal, FuseMainnet,
+                Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum, Fraxtal, FuseMainnet,
                 Fuji, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam, Neutron,
                 Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet,
 

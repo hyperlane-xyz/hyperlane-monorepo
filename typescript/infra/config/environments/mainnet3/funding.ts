@@ -27,7 +27,6 @@ export const keyFunderConfig: KeyFunderConfig<
   // desired balance config
   desiredBalancePerChain: {
     arbitrum: '0.5',
-    arthera: '0', // because we have a gas pass
     ancient8: '0.5',
     avalanche: '5',
     base: '0.5',
@@ -66,7 +65,6 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
-    arthera: '0',
     ancient8: '0',
     avalanche: '6',
     base: '0.05',
@@ -105,7 +103,6 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   igpClaimThresholdPerChain: {
     arbitrum: '0.1',
-    arthera: '1000',
     ancient8: '0.1',
     avalanche: '2',
     base: '0.1',

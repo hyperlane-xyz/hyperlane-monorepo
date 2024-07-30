@@ -32,11 +32,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  arthera: {
-    threshold: 1,
-    validators: ['0x13710ac11c36c169f62fba95767ae59a1e57098d'],
-  },
-
   avalanche: {
     threshold: 2,
     validators: [

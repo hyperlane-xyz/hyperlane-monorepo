@@ -2,7 +2,6 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const mainnet3SupportedChainNames = [
   'arbitrum',
-  'arthera',
   'ancient8',
   'avalanche',
   'base',

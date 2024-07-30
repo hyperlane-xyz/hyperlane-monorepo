@@ -32,9 +32,7 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
-import merklyErc20Addresses from './warp/merkly-erc20-addresses.json';
 import merklyEthAddresses from './warp/merkly-eth-addresses.json';
-import merklyNftAddresses from './warp/merkly-nft-addresses.json';
 import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
@@ -57,7 +55,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
     arbitrum: true,
-    arthera: false,
     ancient8: true,
     avalanche: true,
     base: true,
@@ -95,7 +92,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Relayer]: {
     arbitrum: true,
-    arthera: false,
     ancient8: true,
     avalanche: true,
     base: true,
@@ -134,7 +130,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Scraper]: {
     arbitrum: true,
-    arthera: false,
     ancient8: true,
     avalanche: true,
     base: true,
