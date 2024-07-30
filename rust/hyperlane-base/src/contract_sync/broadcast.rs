@@ -24,7 +24,7 @@ pub struct BroadcastMpscSender<T> {
 
 impl BroadcastMpscSender<H512> {
     /// Send a message to all the receiving channels.
-    // This will block if at least of the receiving channels is full
+    // This will block if at least one of the receiving channels is full
     pub async fn send(&self, txid: H512) -> Result<()> {
         let senders = self.sender.lock().await;
         for sender in &*senders {
