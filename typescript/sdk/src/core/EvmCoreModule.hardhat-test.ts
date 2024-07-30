@@ -238,7 +238,7 @@ describe('EvmCoreModule', async () => {
         },
       });
 
-      let defaultIsmToUpdate: IsmConfig = normalizeConfig({
+      const defaultIsmToUpdate: IsmConfig = normalizeConfig({
         type: IsmType.ROUTING,
         owner: signer.address,
         domains: {
