@@ -6,6 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -20,7 +21,7 @@ use crate::interfaces::merkle_tree_hook::{
 use crate::tx::call_with_lag;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
 
-use super::utils::fetch_raw_logs_and_log_meta;
+use super::utils::fetch_raw_logs_and_meta;
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
@@ -153,20 +154,24 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        let logs = fetch_raw_logs_and_log_meta::<InsertedIntoTreeFilter, M>(
-            tx_hash,
-            self.provider.clone(),
-            self.contract.address(),
-        )
-        .await?
-        .into_iter()
-        .map(|(log, log_meta)| {
-            (
-                MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
-                log_meta,
-            )
+        let raw_logs_and_meta = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract = self.contract.address();
+            Box::pin(async move {
+                fetch_raw_logs_and_meta::<InsertedIntoTreeFilter, M>(tx_hash, provider, contract)
+                    .await
+            })
         })
-        .collect();
+        .await;
+        let logs = raw_logs_and_meta
+            .into_iter()
+            .map(|(log, log_meta)| {
+                (
+                    MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
+                    log_meta,
+                )
+            })
+            .collect();
         Ok(logs)
     }
 }

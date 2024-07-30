@@ -13,6 +13,7 @@ use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use futures_util::future::join_all;
+use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, H512};
 use itertools::Itertools;
 use tracing::instrument;
@@ -34,7 +35,7 @@ use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
 use super::multicall::{self, build_multicall};
-use super::utils::fetch_raw_logs_and_log_meta;
+use super::utils::fetch_raw_logs_and_meta;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -170,20 +171,23 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let logs = fetch_raw_logs_and_log_meta::<DispatchFilter, M>(
-            tx_hash,
-            self.provider.clone(),
-            self.contract.address(),
-        )
-        .await?
-        .into_iter()
-        .map(|(log, log_meta)| {
-            (
-                HyperlaneMessage::from(log.message.to_vec()).into(),
-                log_meta,
-            )
+        let raw_logs_and_meta = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract = self.contract.address();
+            Box::pin(async move {
+                fetch_raw_logs_and_meta::<DispatchFilter, M>(tx_hash, provider, contract).await
+            })
         })
-        .collect();
+        .await;
+        let logs = raw_logs_and_meta
+            .into_iter()
+            .map(|(log, log_meta)| {
+                (
+                    HyperlaneMessage::from(log.message.to_vec()).into(),
+                    log_meta,
+                )
+            })
+            .collect();
         Ok(logs)
     }
 }
