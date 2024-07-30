@@ -30,6 +30,9 @@ use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
+/// Log message when querying logs by tx id. Also used in end-to-end testing to make sure this log is present.
+pub const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
+
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data.
@@ -119,7 +122,8 @@ where
                         ?tx_id,
                         sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
                         pending_ids = ?recv.len(),
-                        "Found log(s) for tx id"
+                        "{}",
+                        TX_ID_INDEXING_LOG_MESSAGE
                     );
                 }
                 Err(TryRecvError::Empty) => {
