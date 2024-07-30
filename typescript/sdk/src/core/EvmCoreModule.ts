@@ -79,7 +79,7 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Updates the core contracts with the provided configuration.
+   * Updates the core contracts with the provided configuration
    *
    * @param expectedConfig - The configuration for the core contracts to be updated.
    * @returns An array of Ethereum transactions that were executed to update the contract.
