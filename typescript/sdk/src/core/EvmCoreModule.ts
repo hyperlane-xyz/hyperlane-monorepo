@@ -94,7 +94,7 @@ export class EvmCoreModule extends HyperlaneModule<
 
     transactions.push(
       ...(await this.createUpdateDefaultIsmTx(actualConfig, expectedConfig)),
-      ...this.createMailboxOwnershipTransferTx(actualConfig, expectedConfig),
+      ...this.createUpdateMailboxOwnerTx(actualConfig, expectedConfig),
     );
 
     return transactions;
@@ -190,7 +190,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @param expectedConfig - The expected token core configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  createMailboxOwnershipTransferTx(
+  createUpdateMailboxOwnerTx(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {

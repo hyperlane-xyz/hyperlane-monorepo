@@ -93,22 +93,22 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const transactions = [];
 
     transactions.push(
-      ...(await this.updateIsm(actualConfig, expectedConfig)),
-      ...this.updateRemoteRouters(actualConfig, expectedConfig),
-      ...this.updateOwnership(actualConfig, expectedConfig),
+      ...(await this.createUpdateIsmTx(actualConfig, expectedConfig)),
+      ...this.createUpdateRemoteRoutersTx(actualConfig, expectedConfig),
+      ...this.createUpdateOwnershipTx(actualConfig, expectedConfig),
     );
 
     return transactions;
   }
 
   /**
-   * Updates the remote routers for the Warp Route contract.
+   * Create a transaction to update the remote routers for the Warp Route contract.
    *
    * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
-  updateRemoteRouters(
+  createUpdateRemoteRoutersTx(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
@@ -153,13 +153,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Updates an existing Warp route ISM with a given config.
+   * Create transactions to update an existing ISM config, or deploy a new ISM and return a tx to setInterchainSecurityModule
    *
    * @param actualConfig - The on-chain router configuration, including the ISM configuration, and address.
    * @param expectedConfig - The expected token router configuration, including the ISM configuration.
    * @returns Ethereum transaction that need to be executed to update the ISM configuration.
    */
-  async updateIsm(
+  async createUpdateIsmTx(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
@@ -210,7 +210,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  updateOwnership(
+  createUpdateOwnershipTx(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
