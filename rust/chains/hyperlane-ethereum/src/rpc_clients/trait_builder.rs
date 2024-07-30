@@ -230,7 +230,6 @@ pub trait BuildableWithProvider {
 
             self.build_with_provider(nonce_manager_provider, conn, locator)
         } else {
-            println!("Building provider without siger");
             self.build_with_provider(provider, conn, locator)
         }
         .await)
