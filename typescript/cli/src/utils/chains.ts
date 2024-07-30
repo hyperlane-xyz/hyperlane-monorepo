@@ -1,10 +1,10 @@
-import { Separator, checkbox } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import chalk from 'chalk';
+import prompts from 'prompts';
 
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
-import { log, logRed, logTip } from '../logger.js';
+import { log, logTip } from '../logger.js';
 
 import { calculatePageSize } from './cli-options.js';
 
@@ -33,33 +33,34 @@ export async function runMultiChainSelectionStep(
 ) {
   const choices = getChainChoices(chainMetadata);
   while (true) {
-    logTip('Use SPACE key to select chains, then press ENTER');
-    const chains = (await checkbox({
+    logTip('Use SPACE key to select chains, then press ENTER to confirm');
+    const chains = (await prompts({
+      type: 'multiselect',
+      name: 'chains',
       message,
       choices,
-      pageSize: calculatePageSize(2),
+      limit: calculatePageSize(2),
+      min: requireMultiple ? 2 : 1,
     })) as string[];
     handleNewChain(chains);
-    if (requireMultiple && chains?.length < 2) {
-      logRed('Please select at least 2 chains');
-      continue;
-    }
     return chains;
   }
 }
 
-function getChainChoices(chainMetadata: ChainMap<ChainMetadata>) {
-  const chainsToChoices = (chains: ChainMetadata[]) =>
-    chains.map((c) => ({ name: c.name, value: c.name }));
+function getChainChoices(
+  chainMetadata: ChainMap<ChainMetadata>,
+): prompts.Choice[] {
+  const chainsToChoices = (chains: ChainMetadata[]): prompts.Choice[] =>
+    chains.map((c) => ({ title: c.name, value: c.name }));
 
   const chains = Object.values(chainMetadata);
   const testnetChains = chains.filter((c) => !!c.isTestnet);
   const mainnetChains = chains.filter((c) => !c.isTestnet);
-  const choices: Parameters<typeof select>['0']['choices'] = [
-    { name: '(New custom chain)', value: NEW_CHAIN_MARKER },
-    new Separator('--Mainnet Chains--'),
+  const choices: prompts.Choice[] = [
+    { title: '(New custom chain)', value: NEW_CHAIN_MARKER },
+    { title: '--Mainnet Chains--', value: '', disable: true },
     ...chainsToChoices(mainnetChains),
-    new Separator('--Testnet Chains--'),
+    { title: '--Testnet Chains--', value: '', disable: true },
     ...chainsToChoices(testnetChains),
   ];
   return choices;
