@@ -4,24 +4,29 @@ pragma solidity >=0.8.0;
 import {IXERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20} from "../HypERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 
 contract HypERC20Rebasing is HypERC20 {
     using Math for uint256;
+    using Message for bytes;
     using TokenMessage for bytes;
 
     uint256 public constant PRECISION = 1e10;
+    uint32 public immutable COLLATERAL_DOMAIN;
     uint256 public exchangeRate; // 1e10
 
     constructor(
         uint8 _decimals,
-        address _mailbox
+        address _mailbox,
+        uint32 _collateralDomain
     ) HypERC20(_decimals, _mailbox) {
-        _disableInitializers();
+        COLLATERAL_DOMAIN = _collateralDomain;
         exchangeRate = 1e10;
+        _disableInitializers();
     }
 
-    // Gotta override to send shares instead of assets
+    // Override to send shares instead of assets from synthetic
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
@@ -49,18 +54,28 @@ contract HypERC20Rebasing is HypERC20 {
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }
 
-    // Override so that we update the exchange rate
-    function _transferTo(
-        address _recipient,
-        uint256 _amount,
-        bytes calldata metadata
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes calldata _message
     ) internal virtual override {
-        super._transferTo(_recipient, _amount, metadata);
-        uint256 _exchangeRate = abi.decode(metadata, (uint256));
+        uint256 _exchangeRate = abi.decode(_message.metadata(), (uint256));
         exchangeRate = _exchangeRate;
+        super._handle(_origin, _sender, _message);
     }
 
-    // Override to send shares instead of assets
+    // Override so that we update the exchange rate
+    // function _transferTo(
+    //     address _recipient,
+    //     uint256 _amount,
+    //     bytes calldata metadata
+    // ) internal virtual override {
+    //     super._transferTo(_recipient, _amount, metadata);
+    //     uint256 _exchangeRate = abi.decode(metadata, (uint256));
+    //     exchangeRate = _exchangeRate;
+    // }
+
+    // Override to send shares locally instead of assets
     function transfer(
         address to,
         uint256 amount

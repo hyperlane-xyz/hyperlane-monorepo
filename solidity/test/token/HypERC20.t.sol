@@ -18,7 +18,6 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 
 import {Mailbox} from "../../contracts/Mailbox.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
-import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {XERC20LockboxTest, XERC20Test, FiatTokenTest, ERC20Test} from "../../contracts/test/ERC20Test.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
@@ -26,6 +25,7 @@ import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGas
 import {GasRouter} from "../../contracts/client/GasRouter.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
+import {Router} from "../../contracts/client/Router.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypXERC20Lockbox} from "../../contracts/token/extensions/HypXERC20Lockbox.sol";
@@ -134,7 +134,34 @@ abstract contract HypTokenTest is Test {
         );
     }
 
-    function _expectRemoteBalance(address _user, uint256 _balance) internal {
+    function _connectRouters(
+        uint32[] memory _domains,
+        bytes32[] memory _addresses
+    ) internal {
+        uint256 n = _domains.length;
+        for (uint256 i = 0; i < n; i++) {
+            uint32[] memory complementDomains = new uint32[](n - 1);
+            bytes32[] memory complementAddresses = new bytes32[](n - 1);
+
+            uint256 j = 0;
+            for (uint256 k = 0; k < n; k++) {
+                if (k != i) {
+                    complementDomains[j] = _domains[k];
+                    complementAddresses[j] = _addresses[k];
+                    j++;
+                }
+            }
+
+            // Enroll complement routers into the current router
+            Router(TypeCasts.bytes32ToAddress(_addresses[i]))
+                .enrollRemoteRouters(complementDomains, complementAddresses);
+        }
+    }
+
+    function _expectRemoteBalance(
+        address _user,
+        uint256 _balance
+    ) internal view {
         assertEq(remoteToken.balanceOf(_user), _balance);
     }
 
@@ -307,11 +334,11 @@ contract HypERC20Test is HypTokenTest {
         );
     }
 
-    function testTotalSupply() public {
+    function testTotalSupply() public view {
         assertEq(erc20Token.totalSupply(), TOTAL_SUPPLY);
     }
 
-    function testDecimals() public {
+    function testDecimals() public view {
         assertEq(erc20Token.decimals(), DECIMALS);
     }
 

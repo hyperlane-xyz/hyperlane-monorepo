@@ -8,7 +8,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault
- * @author ltyu
+ * @author Abacus Works
  */
 contract HypERC20RebasingCollateral is HypERC20Collateral {
     using TypeCasts for address;

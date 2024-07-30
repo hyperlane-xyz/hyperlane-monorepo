@@ -20,7 +20,8 @@ import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {MockERC4626YieldSharing} from "../../contracts/mock/MockERC4626YieldSharing.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
-
+import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
+import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20RebasingCollateral} from "../../contracts/token/extensions/HypERC20RebasingCollateral.sol";
 import {HypERC20Rebasing} from "../../contracts/token/extensions/HypERC20Rebasing.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
@@ -28,16 +29,30 @@ import "../../contracts/test/ERC4626/ERC4626Test.sol";
 contract HypERC20RebasingCollateralTest is HypTokenTest {
     using TypeCasts for address;
 
+    uint32 internal constant PEER_DESTINATION = 13;
     uint256 constant YIELD = 1e11;
     uint256 constant YIELD_FEES = 1e17; // 10% of yield goes to the vault owner
     HypERC20RebasingCollateral internal rebasingCollateral;
     MockERC4626YieldSharing vault;
 
+    MockMailbox internal peerMailbox; // mailbox for second synthetic token
+    HypERC20 internal peerToken;
+
     HypERC20RebasingCollateral localRebasingToken;
     HypERC20Rebasing remoteRebasingToken;
+    HypERC20Rebasing peerRebasingToken;
 
     function setUp() public override {
         super.setUp();
+
+        // multi-synthetic setup
+        peerMailbox = new MockMailbox(PEER_DESTINATION);
+        localMailbox.addRemoteMailbox(PEER_DESTINATION, peerMailbox);
+        remoteMailbox.addRemoteMailbox(PEER_DESTINATION, peerMailbox);
+        peerMailbox.addRemoteMailbox(DESTINATION, remoteMailbox);
+        peerMailbox.addRemoteMailbox(ORIGIN, localMailbox);
+        peerMailbox.setDefaultHook(address(noopHook));
+        peerMailbox.setRequiredHook(address(noopHook));
 
         vm.prank(DANIEL); // daniel will be the owner of the vault and accrue yield fees
         vault = new MockERC4626YieldSharing(
@@ -61,21 +76,44 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
                 address(this)
             )
         );
+        localToken = HypERC20RebasingCollateral(address(proxy));
 
         remoteToken = new HypERC20Rebasing(
             primaryToken.decimals(),
-            address(remoteMailbox)
+            address(remoteMailbox),
+            localToken.localDomain()
+        );
+        peerToken = new HypERC20Rebasing(
+            primaryToken.decimals(),
+            address(peerMailbox),
+            localToken.localDomain()
         );
 
-        localToken = HypERC20RebasingCollateral(address(proxy));
-        remoteToken = HypERC20Rebasing(address(remoteToken));
+        // remoteToken = HypERC20Rebasing(address(remoteToken));
 
         localRebasingToken = HypERC20RebasingCollateral(address(proxy));
         remoteRebasingToken = HypERC20Rebasing(address(remoteToken));
+        peerRebasingToken = HypERC20Rebasing(address(peerToken));
 
         primaryToken.transfer(ALICE, 1000e18);
-        _enrollLocalTokenRouter();
-        _enrollRemoteTokenRouter();
+
+        uint32[] memory domains = new uint32[](3);
+        domains[0] = ORIGIN;
+        domains[1] = DESTINATION;
+        domains[2] = PEER_DESTINATION;
+
+        bytes32[] memory addresses = new bytes32[](3);
+        addresses[0] = address(localToken).addressToBytes32();
+        addresses[1] = address(remoteToken).addressToBytes32();
+        addresses[2] = address(peerToken).addressToBytes32();
+        _connectRouters(domains, addresses);
+    }
+
+    function test_collateralDomain() public view {
+        assertEq(
+            remoteRebasingToken.COLLATERAL_DOMAIN(),
+            localToken.localDomain()
+        );
     }
 
     function testRemoteTransfer_rebaseAfter() public {
@@ -328,6 +366,15 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
             0
         );
     }
+
+    // test not allowed by anyone synthetic to set the exchange rate, only allow collateral
+
+    // function
+    // test syn <-> transfers
+    // test syn <-> transfer different exchange rate in flight
+    // fuzz test vault <> syn <> syn - inv => user gets the compounding yield always
+
+    // function test_
 
     function testTransfer_withHookSpecified(
         uint256,
