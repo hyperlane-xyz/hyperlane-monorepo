@@ -9,6 +9,7 @@ use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
+    broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
@@ -21,8 +22,8 @@ use hyperlane_core::{
 };
 use tokio::{
     sync::{
-        broadcast::{Receiver, Sender},
-        mpsc::{self, UnboundedSender},
+        broadcast::Sender as BroadcastSender,
+        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
         RwLock,
     },
     task::JoinHandle,
@@ -309,7 +310,7 @@ impl BaseAgent for Relayer {
                 }));
             tasks.push(console_server.instrument(info_span!("Tokio console server")));
         }
-        let sender = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let sender = BroadcastSender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
@@ -358,7 +359,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_interchain_gas_payment_sync(
                     origin,
-                    maybe_broadcaster.clone().map(|b| b.subscribe()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,
@@ -366,7 +367,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_merkle_tree_hook_syncs(
                     origin,
-                    maybe_broadcaster.map(|b| b.subscribe()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,
@@ -428,7 +429,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
-        tx_id_receiver: Option<Receiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
@@ -453,7 +454,7 @@ impl Relayer {
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
-        tx_id_receiver: Option<Receiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
