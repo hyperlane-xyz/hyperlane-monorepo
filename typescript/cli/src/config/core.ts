@@ -4,7 +4,11 @@ import { CoreConfigSchema, HookConfig, IsmConfig } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
-import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
 import {
@@ -68,4 +72,9 @@ export async function createCoreDeployConfig({
     errorRed(`Core deployment config is invalid.`);
     throw e;
   }
+}
+
+export async function readCoreDeployConfigs(filePath: string) {
+  const config = readYamlOrJson(filePath);
+  return CoreConfigSchema.parse(config);
 }
