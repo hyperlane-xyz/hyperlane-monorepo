@@ -7319,6 +7319,7 @@ dependencies = [
  "ethers-core",
  "eyre",
  "hex 0.4.3",
+ "hyperlane-base",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
