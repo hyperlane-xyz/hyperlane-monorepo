@@ -13,7 +13,6 @@ COPY .yarn/releases ./.yarn/releases
 COPY .yarn/patches ./.yarn/patches
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/sdk/package.json ./typescript/sdk/
-COPY typescript/widgets/package.json ./typescript/widgets/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/cli/package.json ./typescript/cli/
 COPY typescript/infra/package.json ./typescript/infra/
