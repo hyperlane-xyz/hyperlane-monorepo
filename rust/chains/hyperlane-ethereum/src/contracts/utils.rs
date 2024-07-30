@@ -22,7 +22,7 @@ where
         .await
         .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
     let Some(receipt) = receipt else {
-        return Err(eyre::eyre!("No receipt found for tx hash").into());
+        return Err(eyre::eyre!("No receipt found for tx hash {:?}", tx_hash).into());
     };
 
     let logs: Vec<(T, LogMeta)> = receipt
