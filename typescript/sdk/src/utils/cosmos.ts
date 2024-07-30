@@ -442,7 +442,7 @@ export const CosmosChainSchema = z
     keywords: z.array(z.string()).optional(),
     extra_codecs: z.array(z.enum(['ethermint', 'injective'])).optional(),
   })
-  .strict()
+  .passthrough()
   .describe(
     'Cosmos Chain.json is a metadata file that contains information about a cosmos sdk based chain.',
   );
