@@ -23,6 +23,7 @@ pub struct AggregationIsmBuilder {}
 #[async_trait]
 impl BuildableWithProvider for AggregationIsmBuilder {
     type Output = Box<dyn AggregationIsm>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

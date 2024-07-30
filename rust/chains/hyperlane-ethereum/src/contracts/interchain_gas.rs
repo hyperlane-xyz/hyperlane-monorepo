@@ -39,6 +39,7 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<InterchainGasPayment>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -181,6 +182,7 @@ pub struct InterchainGasPaymasterBuilder {}
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterBuilder {
     type Output = Box<dyn InterchainGasPaymaster>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
