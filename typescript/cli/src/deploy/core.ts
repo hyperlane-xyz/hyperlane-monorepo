@@ -38,7 +38,9 @@ interface ApplyParams extends DeployParams {
  * Executes the core deploy command.
  */
 export async function runCoreDeploy(params: DeployParams) {
-  let { context, chain, config } = params;
+  const { context, config } = params;
+  let chain = params.chain;
+
   const {
     signer,
     isDryRun,

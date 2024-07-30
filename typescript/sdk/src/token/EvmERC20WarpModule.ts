@@ -214,7 +214,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    return EvmERC20WarpModule.transferOwnership({
+    return EvmERC20WarpModule.createTransferOwnershipTx({
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
       deployedAddress: this.args.addresses.deployedTokenRoute,

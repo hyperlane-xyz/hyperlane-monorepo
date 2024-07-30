@@ -87,23 +87,23 @@ export class EvmCoreModule extends HyperlaneModule<
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions = [];
+    const transactions: AnnotatedEV5Transaction[] = [];
 
     transactions.push(
-      ...this.updateMailOwnership(actualConfig, expectedConfig),
+      ...this.createMailboxOwnershipTransferTx(actualConfig, expectedConfig),
     );
 
     return transactions;
   }
 
   /**
-   * Transfer ownership of an existing mailbox with a given config.
+   * Create a transaction to transfer ownership of an existing mailbox with a given config.
    *
    * @param actualConfig - The on-chain core configuration.
    * @param expectedConfig - The expected token core configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  updateMailOwnership(
+  createMailboxOwnershipTransferTx(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
@@ -112,7 +112,7 @@ export class EvmCoreModule extends HyperlaneModule<
       'Mailbox not provided for update ownership',
     );
 
-    return EvmCoreModule.transferOwnership({
+    return EvmCoreModule.createTransferOwnershipTx({
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
       deployedAddress: this.args.addresses.mailbox,

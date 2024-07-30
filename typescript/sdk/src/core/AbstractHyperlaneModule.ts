@@ -52,7 +52,7 @@ export abstract class HyperlaneModule<
    * @param chainId - The chain ID of the network the contract is deployed on.
    * @returns An array of annotated EV5 transactions that need to be executed to update the owner.
    */
-  static transferOwnership(params: {
+  static createTransferOwnershipTx(params: {
     actualOwner: Address;
     expectedOwner: Address;
     deployedAddress: Address;
