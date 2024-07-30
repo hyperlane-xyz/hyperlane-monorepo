@@ -26,7 +26,8 @@ impl BroadcastMpscSender<H512> {
     /// Send a message to all the receiving channels.
     // This will block if at least of the receiving channels is full
     pub async fn send(&self, txid: H512) -> Result<()> {
-        let senders = self.sender.lock().await;
+        // Clone here to avoid holding the lock while sending
+        let senders = { self.sender.lock().await.clone() };
         for sender in &*senders {
             sender.send(txid).await?
         }
