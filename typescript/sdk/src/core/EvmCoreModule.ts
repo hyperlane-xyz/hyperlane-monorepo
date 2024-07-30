@@ -79,7 +79,7 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Updates the core contracts with the provided configuration
+   * Updates the core contracts with the provided configuration.
    *
    * @param expectedConfig - The configuration for the core contracts to be updated.
    * @returns An array of Ethereum transactions that were executed to update the contract.
@@ -101,7 +101,7 @@ export class EvmCoreModule extends HyperlaneModule<
   }
 
   /**
-   * Create a transaction to update an existing default ISM with a given config.
+   * Create a transaction to update an existing ISM config, or deploy a new ISM and return a tx to setDefaultIsm
    *
    * @param actualConfig - The on-chain router configuration, including the ISM configuration, and address.
    * @param expectedConfig - The expected token router configuration, including the ISM configuration.
