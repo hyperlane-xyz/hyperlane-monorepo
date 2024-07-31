@@ -13,7 +13,7 @@ contract HypERC20Rebasing is HypERC20 {
     using TokenMessage for bytes;
 
     uint256 public constant PRECISION = 1e10;
-    uint32 public immutable COLLATERAL_DOMAIN;
+    uint32 public immutable collateralDomain;
     uint256 public exchangeRate; // 1e10
 
     constructor(
@@ -21,7 +21,7 @@ contract HypERC20Rebasing is HypERC20 {
         address _mailbox,
         uint32 _collateralDomain
     ) HypERC20(_decimals, _mailbox) {
-        COLLATERAL_DOMAIN = _collateralDomain;
+        collateralDomain = _collateralDomain;
         exchangeRate = 1e10;
         _disableInitializers();
     }
@@ -59,21 +59,12 @@ contract HypERC20Rebasing is HypERC20 {
         bytes32 _sender,
         bytes calldata _message
     ) internal virtual override {
-        uint256 _exchangeRate = abi.decode(_message.metadata(), (uint256));
-        exchangeRate = _exchangeRate;
+        if (_origin == collateralDomain) {
+            uint256 _exchangeRate = abi.decode(_message.metadata(), (uint256));
+            exchangeRate = _exchangeRate;
+        }
         super._handle(_origin, _sender, _message);
     }
-
-    // Override so that we update the exchange rate
-    // function _transferTo(
-    //     address _recipient,
-    //     uint256 _amount,
-    //     bytes calldata metadata
-    // ) internal virtual override {
-    //     super._transferTo(_recipient, _amount, metadata);
-    //     uint256 _exchangeRate = abi.decode(metadata, (uint256));
-    //     exchangeRate = _exchangeRate;
-    // }
 
     // Override to send shares locally instead of assets
     function transfer(

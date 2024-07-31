@@ -152,7 +152,7 @@ abstract contract HypTokenTest is Test {
                 }
             }
 
-            // Enroll complement routers into the current router
+            // Enroll complement routers into the current router, Routers - router_i
             Router(TypeCasts.bytes32ToAddress(_addresses[i]))
                 .enrollRemoteRouters(complementDomains, complementAddresses);
         }
