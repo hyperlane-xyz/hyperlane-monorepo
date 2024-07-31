@@ -18,6 +18,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { ProxyFactoryFactoriesAddresses } from '../deploy/schemas.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
@@ -35,16 +36,14 @@ import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
-import { CoreArtifactsSchema, CoreConfigSchema } from './schemas.js';
+import { CoreConfigSchema } from './schemas.js';
 
-type DeployedCoreAddresses = Partial<
-  HyperlaneAddresses<CoreFactories> & {
-    testRecipient: Address;
-    timelockController: Address;
-    interchainAccountRouter: Address;
-    interchainAccountIsm: Address;
-  } & HyperlaneAddresses<ProxyFactoryFactories>
->;
+type DeployedCoreAddresses = HyperlaneAddresses<CoreFactories> & {
+  testRecipient: Address;
+  timelockController?: Address;
+  interchainAccountRouter: Address;
+  interchainAccountIsm: Address;
+} & ProxyFactoryFactoriesAddresses;
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -157,22 +156,12 @@ export class EvmCoreModule extends HyperlaneModule<
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedEV5Transaction[];
   }> {
-    const addresses = this.serialize();
-    CoreArtifactsSchema.parse(addresses);
-
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
       config: expectDefaultIsmConfig,
       addresses: {
         deployedIsm: actualDefaultIsmConfig.address,
-        mailbox: addresses.mailbox!,
-        staticAggregationIsmFactory: addresses.staticAggregationIsmFactory!,
-        staticMerkleRootMultisigIsmFactory:
-          addresses.staticMerkleRootMultisigIsmFactory!,
-        staticMessageIdMultisigIsmFactory:
-          addresses.staticMessageIdMultisigIsmFactory!,
-        staticAggregationHookFactory: addresses.staticAggregationHookFactory!,
-        domainRoutingIsmFactory: addresses.domainRoutingIsmFactory!,
+        ...this.serialize(),
       },
     });
     this.logger.info(
