@@ -784,6 +784,12 @@ function transformIsmConfigForDisplay(ismConfig: IsmConfig): any[] {
   }
 }
 
+/**
+ * Helper function to get warp apply specific submitter.
+ *
+ * NOTE: ICA transform functionality can be enabled here in the future.
+ * @returns the warp apply submitter
+ */
 async function getWarpApplySubmitter({
   chain,
   context,
