@@ -1,5 +1,5 @@
+import { TransactionReceipt } from '@ethersproject/providers';
 import { confirm } from '@inquirer/prompts';
-import { ContractReceipt } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -30,9 +30,13 @@ import {
   ProxyFactoryFactoriesAddresses,
   RemoteRouters,
   RoutingIsmConfig,
+  SubmissionStrategy,
+  SubmitterMetadata,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TrustedRelayerIsmConfig,
+  TxSubmitterBuilder,
+  TxSubmitterType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
@@ -67,6 +71,7 @@ import {
   logRed,
   logTable,
 } from '../logger.js';
+import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
   isFile,
@@ -84,8 +89,9 @@ interface DeployParams {
   warpDeployConfig: WarpRouteDeployConfig;
 }
 
-interface ApplyParams extends DeployParams {
+interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
+  safeAddress?: Address;
 }
 
 export async function runWarpRouteDeploy({
@@ -424,7 +430,9 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
   }
 }
 
-export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
+export async function runWarpRouteApply(
+  params: WarpApplyParams,
+): Promise<void> {
   const { warpDeployConfig, warpCoreConfig, context } = params;
   const { registry, multiProvider, chainMetadata, skipConfirmation } = context;
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
@@ -458,6 +466,12 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
     await promiseObjAll(
       objMap(warpDeployConfig, async (chain, config) => {
         try {
+          const submitter: TxSubmitterBuilder<ProtocolType> =
+            await getWarpApplySubmitter({
+              chain,
+              context,
+              warpApplyParams: params,
+            });
           config.ismFactoryAddresses = addresses[
             chain
           ] as ProxyFactoryFactoriesAddresses;
@@ -475,15 +489,25 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
           );
           const transactions = await evmERC20WarpModule.update(config);
 
-          if (transactions.length) {
-            for (const transaction of transactions) {
-              await multiProvider.sendTransaction(chain, transaction);
-            }
-
-            logGreen(`Warp config updated on ${chain}.`);
-          } else {
+          if (transactions.length == 0)
             logGreen(
               `Warp config on ${chain} is the same as target. No updates needed.`,
+            );
+
+          const transactionReceipts = await submitter.submit(...transactions);
+
+          if (params.safeAddress) {
+            logGreen(
+              `✅ Warp config update successfully submitted to safe (${params.safeAddress}) on ${chain}:\n\n`,
+              indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+            );
+          } else {
+            const transactionHashes = transactionReceipts!.map(
+              (receipt) => (receipt as TransactionReceipt).transactionHash,
+            );
+            logGreen(
+              `✅ Warp config successfully updated on ${chain}:\n\n`,
+              indentYamlOrJson(yamlStringify(transactionHashes, null, 2), 4),
             );
           }
         } catch (e) {
@@ -539,7 +563,7 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
       ...newExtensionContracts,
     } as HyperlaneContractsMap<HypERC20Factories>;
 
-    await enrollRemoteRouters(mergedRouters, multiProvider);
+    await enrollRemoteRouters(mergedRouters, context, params);
 
     const updatedWarpCoreConfig = await getWarpCoreConfig(
       params,
@@ -560,9 +584,11 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
  */
 async function enrollRemoteRouters(
   deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
-  multiProvider: MultiProvider,
+  context: WriteCommandContext,
+  warpApplyParams: WarpApplyParams,
 ): Promise<void> {
   logBlue(`Enrolling deployed routers with each other (if not already)...`);
+  const { multiProvider } = context;
   const deployedRouters: ChainMap<Address> = objMap(
     deployedContractsMap,
     (_, contracts) => getRouter(contracts).address,
@@ -571,6 +597,12 @@ async function enrollRemoteRouters(
 
   await promiseObjAll(
     objMap(deployedContractsMap, async (chain, contracts) => {
+      const submitter: TxSubmitterBuilder<ProtocolType> =
+        await getWarpApplySubmitter({
+          chain,
+          context,
+          warpApplyParams,
+        });
       const router = getRouter(contracts); // Assume deployedContract always has 1 value
 
       // Mutate the config.remoteRouters by setting it to all other routers to update
@@ -597,13 +629,20 @@ async function enrollRemoteRouters(
       );
       const mutatedConfigTxs: AnnotatedEV5Transaction[] =
         await evmERC20WarpModule.update(mutatedWarpRouteConfig);
-      for (const transaction of mutatedConfigTxs) {
-        const receipt: ContractReceipt = await multiProvider.sendTransaction(
-          chain,
-          transaction,
+      const transactionReceipts = await submitter.submit(...mutatedConfigTxs);
+
+      if (warpApplyParams.safeAddress) {
+        logGreen(
+          `✅ Router enrollment update successfully submitted to safe (${warpApplyParams.safeAddress}) on ${chain}:\n\n`,
+          indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+        );
+      } else {
+        const transactionHashes = transactionReceipts!.map(
+          (receipt) => (receipt as TransactionReceipt).transactionHash,
         );
         logGreen(
-          `Successfully enrolled routers on ${chain}: ${receipt.transactionHash}`,
+          `✅ Routers enrolled successfully on ${chain}:\n\n`,
+          indentYamlOrJson(yamlStringify(transactionHashes, null, 2), 4),
         );
       }
     }),
@@ -743,4 +782,46 @@ function transformIsmConfigForDisplay(ismConfig: IsmConfig): any[] {
     default:
       return [ismConfig];
   }
+}
+
+async function getWarpApplySubmitter({
+  chain,
+  context,
+  warpApplyParams,
+}: {
+  chain: ChainName;
+  context: WriteCommandContext;
+  warpApplyParams: WarpApplyParams;
+}): Promise<TxSubmitterBuilder<ProtocolType>> {
+  const { safeAddress } = warpApplyParams;
+  const { chainMetadata, multiProvider, isDryRun, key } = context;
+
+  let submitter: SubmitterMetadata;
+  if (safeAddress) {
+    submitter = {
+      type: TxSubmitterType.GNOSIS_SAFE,
+      chain,
+      safeAddress,
+    };
+  } else if (isDryRun) {
+    submitter = {
+      type: TxSubmitterType.IMPERSONATED_ACCOUNT,
+      userAddress: key,
+    };
+  } else {
+    submitter = {
+      type: TxSubmitterType.JSON_RPC,
+    };
+  }
+
+  const protocol = chainMetadata[chain].protocol;
+  const submissionStrategy: SubmissionStrategy = {
+    chain,
+    submitter,
+  };
+
+  return getSubmitterBuilder<typeof protocol>({
+    submissionStrategy,
+    multiProvider,
+  });
 }

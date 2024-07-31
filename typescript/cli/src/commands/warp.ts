@@ -66,6 +66,7 @@ export const apply: CommandModuleWithWriteContext<{
   config: string;
   symbol?: string;
   warp: string;
+  safe?: string;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -79,8 +80,14 @@ export const apply: CommandModuleWithWriteContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
+    safe: {
+      ...addressCommandOption(
+        'Address of the gnosis safe to submit apply transactions to.',
+      ),
+      demandOption: false,
+    },
   },
-  handler: async ({ context, config, symbol, warp }) => {
+  handler: async ({ context, config, symbol, warp, safe }) => {
     logGray(`Hyperlane Warp Apply`);
     logGray('--------------------'); // @TODO consider creating a helper function for these dashes
     let warpCoreConfig: WarpCoreConfig;
@@ -97,6 +104,7 @@ export const apply: CommandModuleWithWriteContext<{
       context,
       warpDeployConfig,
       warpCoreConfig,
+      safeAddress: safe,
     });
     process.exit(0);
   },
