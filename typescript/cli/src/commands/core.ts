@@ -156,8 +156,8 @@ export const init: CommandModuleWithContext<{
 
 export const read: CommandModuleWithContext<{
   chain: string;
-  mailbox: string;
   config: string;
+  mailbox?: string;
 }> = {
   command: 'read',
   describe: 'Reads onchain Core configuration for a given mailbox address',
@@ -169,7 +169,6 @@ export const read: CommandModuleWithContext<{
     mailbox: {
       type: 'string',
       description: 'Mailbox address used to derive the core config',
-      demandOption: true,
     },
     config: outputFileCommandOption(
       './configs/core-config.yaml',
@@ -178,6 +177,16 @@ export const read: CommandModuleWithContext<{
     ),
   },
   handler: async ({ context, chain, mailbox, config: configFilePath }) => {
+    if (!mailbox) {
+      const addresses = await context.registry.getChainAddresses(chain);
+      mailbox = addresses?.mailbox;
+      if (!mailbox) {
+        throw new Error(
+          `${chain} mailbox not provided and none found in registry ${context.registry.getUri()}`,
+        );
+      }
+    }
+
     logGray('Hyperlane Core Read');
     logGray('-------------------');
 
