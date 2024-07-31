@@ -6,6 +6,7 @@ import type {
   ChainMap,
   ChainMetadata,
   MultiProvider,
+  SubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
@@ -15,6 +16,7 @@ export interface ContextSettings {
   fromAddress?: string;
   requiresKey?: boolean;
   skipConfirmation?: boolean;
+  submissionStrategy?: SubmissionStrategy;
 }
 
 export interface CommandContext {
@@ -22,6 +24,7 @@ export interface CommandContext {
   chainMetadata: ChainMap<ChainMetadata>;
   multiProvider: MultiProvider;
   skipConfirmation: boolean;
+  submissionStrategy?: SubmissionStrategy;
   key?: string;
   signer?: ethers.Signer;
 }

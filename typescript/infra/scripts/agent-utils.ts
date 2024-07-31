@@ -109,6 +109,20 @@ export function withChainRequired<T>(args: Argv<T>) {
   return withChain(args).demandOption('chain');
 }
 
+export function withSafeHomeUrlRequired<T>(args: Argv<T>) {
+  return args
+    .string('safeHomeUrl')
+    .describe('safeHomeUrl', 'Custom safe home url')
+    .demandOption('safeHomeUrl');
+}
+
+export function withThreshold<T>(args: Argv<T>) {
+  return args
+    .describe('threshold', 'threshold for multisig')
+    .number('threshold')
+    .default('threshold', 4);
+}
+
 export function withChain<T>(args: Argv<T>) {
   return args
     .describe('chain', 'chain name')

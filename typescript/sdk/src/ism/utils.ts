@@ -14,7 +14,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  configDeepEquals,
+  deepEquals,
   eqAddress,
   formatMessage,
   normalizeAddress,
@@ -49,7 +49,7 @@ export function calculateDomainRoutingDelta(
     if (!current.domains[origin]) {
       domainsToEnroll.push(origin);
     } else {
-      const subModuleMatches = configDeepEquals(
+      const subModuleMatches = deepEquals(
         current.domains[origin],
         target.domains[origin],
       );

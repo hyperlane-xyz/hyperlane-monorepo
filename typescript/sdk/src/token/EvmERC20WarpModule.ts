@@ -1,9 +1,18 @@
-import { MailboxClient__factory } from '@hyperlane-xyz/core';
+import {
+  MailboxClient__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
   ProtocolType,
+  addressToBytes32,
   assert,
+  deepEquals,
+  isObjEmpty,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -44,10 +53,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         deployedTokenRoute: Address;
       }
     >,
+    protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.contractVerifier ??= new ContractVerifier(
+      multiProvider,
+      {},
+      coreBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
   }
 
   /**
@@ -74,7 +90,66 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     TokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    return this.updateIsm(actualConfig, expectedConfig);
+    const transactions = [];
+
+    transactions.push(
+      ...(await this.updateIsm(actualConfig, expectedConfig)),
+      ...this.updateRemoteRouters(actualConfig, expectedConfig),
+      ...this.updateOwnership(actualConfig, expectedConfig),
+    );
+
+    return transactions;
+  }
+
+  /**
+   * Updates the remote routers for the Warp Route contract.
+   *
+   * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
+   */
+  updateRemoteRouters(
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.remoteRouters) {
+      return [];
+    }
+
+    // We normalize the addresses for comparison
+    actualConfig.remoteRouters = normalizeConfig(actualConfig.remoteRouters);
+    expectedConfig.remoteRouters = normalizeConfig(
+      expectedConfig.remoteRouters,
+    );
+    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+    assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
+
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    if (!deepEquals(actualRemoteRouters, expectedRemoteRouters)) {
+      const contractToUpdate = TokenRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
+
+      updateTransactions.push({
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        chainId: this.domainId,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'enrollRemoteRouters',
+          [
+            Object.keys(expectedRemoteRouters).map((k) => Number(k)),
+            Object.values(expectedRemoteRouters).map((a) =>
+              addressToBytes32(a),
+            ),
+          ],
+        ),
+      });
+    }
+    return updateTransactions;
   }
 
   /**
@@ -89,37 +164,62 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
-    const actualDeployedIsm = (
-      actualConfig.interchainSecurityModule as DerivedIsmConfig
-    ).address;
+    if (!expectedConfig.interchainSecurityModule) {
+      return [];
+    }
 
-    // Try to update (may also deploy) Ism with the expected config
-    const {
-      deployedIsm: expectedDeployedIsm,
-      updateTransactions: ismUpdateTransactions,
-    } = await this.deployOrUpdateIsm(actualConfig, expectedConfig);
+    if (expectedConfig.ismFactoryAddresses) {
+      const actualDeployedIsm = (
+        actualConfig.interchainSecurityModule as DerivedIsmConfig
+      ).address;
 
-    // If an ISM is updated in-place, push the update txs
-    updateTransactions.push(...ismUpdateTransactions);
+      // Try to update (may also deploy) Ism with the expected config
+      const {
+        deployedIsm: expectedDeployedIsm,
+        updateTransactions: ismUpdateTransactions,
+      } = await this.deployOrUpdateIsm(actualConfig, expectedConfig);
 
-    // If a new ISM is deployed, push the setInterchainSecurityModule tx
-    if (actualDeployedIsm !== expectedDeployedIsm) {
-      const contractToUpdate = MailboxClient__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.args.chain),
-      );
-      updateTransactions.push({
-        annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        chainId: this.domainId,
-        to: contractToUpdate.address,
-        data: contractToUpdate.interface.encodeFunctionData(
-          'setInterchainSecurityModule',
-          [expectedDeployedIsm],
-        ),
-      });
+      // If an ISM is updated in-place, push the update txs
+      updateTransactions.push(...ismUpdateTransactions);
+
+      // If a new ISM is deployed, push the setInterchainSecurityModule tx
+      if (actualDeployedIsm !== expectedDeployedIsm) {
+        const contractToUpdate = MailboxClient__factory.connect(
+          this.args.addresses.deployedTokenRoute,
+          this.multiProvider.getProvider(this.domainId),
+        );
+        updateTransactions.push({
+          annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
+          chainId: this.domainId,
+          to: contractToUpdate.address,
+          data: contractToUpdate.interface.encodeFunctionData(
+            'setInterchainSecurityModule',
+            [expectedDeployedIsm],
+          ),
+        });
+      }
     }
 
     return updateTransactions;
+  }
+
+  /**
+   * Transfer ownership of an existing Warp route with a given config.
+   *
+   * @param actualConfig - The on-chain router configuration.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns Ethereum transaction that need to be executed to update the owner.
+   */
+  updateOwnership(
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    return EvmERC20WarpModule.createTransferOwnershipTx({
+      actualOwner: actualConfig.owner,
+      expectedOwner: expectedConfig.owner,
+      deployedAddress: this.args.addresses.deployedTokenRoute,
+      chainId: this.domainId,
+    });
   }
 
   /**
@@ -143,16 +243,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       'Ism Factories addresses not provided',
     );
 
-    const ismModule = new EvmIsmModule(this.multiProvider, {
-      chain: this.args.chain,
-      config: expectedConfig.interchainSecurityModule,
-      addresses: {
-        ...expectedConfig.ismFactoryAddresses,
-        mailbox: expectedConfig.mailbox,
-        deployedIsm: (actualConfig.interchainSecurityModule as DerivedIsmConfig)
-          .address,
+    const ismModule = new EvmIsmModule(
+      this.multiProvider,
+      {
+        chain: this.args.chain,
+        config: expectedConfig.interchainSecurityModule,
+        addresses: {
+          ...expectedConfig.ismFactoryAddresses,
+          mailbox: expectedConfig.mailbox,
+          deployedIsm: (
+            actualConfig.interchainSecurityModule as DerivedIsmConfig
+          ).address,
+        },
       },
-    });
+      this.contractVerifier,
+    );
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
@@ -176,18 +281,31 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: TokenRouterConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmERC20WarpModule> {
-    const { chain, config, multiProvider } = params;
+    const { chain, config, multiProvider, contractVerifier } = params;
     const chainName = multiProvider.getChainName(chain);
     const deployer = new HypERC20Deployer(multiProvider);
     const deployedContracts = await deployer.deployContracts(chainName, config);
 
-    return new EvmERC20WarpModule(multiProvider, {
-      addresses: {
-        deployedTokenRoute: deployedContracts[config.type].address,
+    const warpModule = new EvmERC20WarpModule(
+      multiProvider,
+      {
+        addresses: {
+          deployedTokenRoute: deployedContracts[config.type].address,
+        },
+        chain,
+        config,
       },
-      chain,
-      config,
-    });
+      contractVerifier,
+    );
+
+    if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
+      const enrollRemoteTxs = await warpModule.update(config); // @TODO Remove when EvmERC20WarpModule.create can be used
+      const onlyTxIndex = 0;
+      await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
+    }
+
+    return warpModule;
   }
 }
