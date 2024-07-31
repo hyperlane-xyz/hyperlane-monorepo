@@ -17,6 +17,9 @@
       "**/.git/**": true,
       "**/node_modules/*/**": true
     },
+    "search.exclude": {
+      "ROOT": true
+    },
   },
   "folders": [
     {
