@@ -21,6 +21,7 @@ import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor.js';
 import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
+import { logViolationDetails } from '../src/utils/violation.js';
 
 import {
   Modules,
@@ -173,6 +174,9 @@ async function check() {
         'actual',
         'expected',
       ]);
+
+      logViolationDetails(violations);
+
       if (!fork) {
         throw new Error(
           `Checking ${module} deploy yielded ${violations.length} violations`,
