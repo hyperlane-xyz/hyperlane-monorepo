@@ -3,7 +3,6 @@ import {
   Address,
   Domain,
   ProtocolType,
-  assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -73,7 +72,6 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns The core config.
    */
   public async read(): Promise<CoreConfig> {
-    assert(this.args.addresses.mailbox, 'Mailbox not provided for read');
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
@@ -128,11 +126,11 @@ export class EvmCoreModule extends HyperlaneModule<
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       const contractToUpdate = Mailbox__factory.connect(
-        mailbox!,
+        mailbox,
         this.multiProvider.getProvider(this.domainId),
       );
       updateTransactions.push({
-        annotation: `Setting default ISM for Mailbox ${mailbox!} to ${deployedIsm}`,
+        annotation: `Setting default ISM for Mailbox ${mailbox} to ${deployedIsm}`,
         chainId: this.domainId,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData('setDefaultIsm', [
@@ -156,12 +154,26 @@ export class EvmCoreModule extends HyperlaneModule<
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedEV5Transaction[];
   }> {
+    const {
+      mailbox,
+      domainRoutingIsmFactory,
+      staticAggregationIsmFactory,
+      staticAggregationHookFactory,
+      staticMessageIdMultisigIsmFactory,
+      staticMerkleRootMultisigIsmFactory,
+    } = this.serialize();
+
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
       config: expectDefaultIsmConfig,
       addresses: {
+        mailbox,
+        domainRoutingIsmFactory,
+        staticAggregationIsmFactory,
+        staticAggregationHookFactory,
+        staticMessageIdMultisigIsmFactory,
+        staticMerkleRootMultisigIsmFactory,
         deployedIsm: actualDefaultIsmConfig.address,
-        ...this.serialize(),
       },
     });
     this.logger.info(
@@ -184,11 +196,6 @@ export class EvmCoreModule extends HyperlaneModule<
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
-    assert(
-      this.args.addresses.mailbox,
-      'Mailbox not provided for update ownership',
-    );
-
     return EvmCoreModule.createTransferOwnershipTx({
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,

@@ -78,8 +78,8 @@ export const apply: CommandModuleWithWriteContext<{
     await runCoreApply({
       context,
       chain,
-      coreArtifacts: addresses,
       config,
+      coreArtifacts: addresses,
     });
     process.exit(0);
   },
