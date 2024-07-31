@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
+import { MockArbBridge__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   assert,
@@ -34,9 +35,7 @@ import {
   ProtocolFeeHookConfig,
 } from './types.js';
 
-const hookTypes = Object.values(HookType).filter(
-  (hook) => hook !== HookType.ARB_L2_TO_L1,
-);
+const hookTypes = Object.values(HookType);
 
 function randomHookType(): HookType {
   // OP_STACK filtering is temporary until we have a way to deploy the required contracts
@@ -126,6 +125,15 @@ function randomHookConfig(
         type: hookType,
         nativeBridge: randomAddress(),
         destinationChain: 'testChain',
+      };
+
+    case HookType.ARB_L2_TO_L1:
+      return {
+        type: hookType,
+        arbSys: randomAddress(),
+        arbBridge: randomAddress(),
+        destinationChain: 'test1',
+        gasOverhead: 200_000,
       };
 
     case HookType.ROUTING:
@@ -267,8 +275,18 @@ describe('EvmHookModule', async () => {
   async function createHook(
     config: HookConfig,
   ): Promise<{ hook: EvmHookModule; initialHookAddress: Address }> {
-    if (config.type === HookType.ARB_L2_TO_L1) {
+    console.log('CHEESECAKE', config);
+    if (typeof config != 'string' && config.type === HookType.ARB_L2_TO_L1) {
+      console.log('CHEESECAKE', config);
       // deploy
+      const bridge = await multiProvider.handleDeploy(
+        chain,
+        new MockArbBridge__factory(),
+        [],
+      );
+
+      config.arbBridge = bridge.address;
+      console.log('CHEESECAKE1', config);
     }
     const hook = await EvmHookModule.create({
       chain,

@@ -3,6 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   ArbL2ToL1Hook,
+  ArbL2ToL1Ism__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -830,12 +831,9 @@ export class EvmHookModule extends HyperlaneModule<
 
     console.log('MP', this.multiProvider.getKnownChainNames());
 
-    console.log('config destination', config.destinationChain, this.chain);
-
     const destinationDomain = this.multiProvider.getDomainId(
       config.destinationChain,
     );
-
     const bridge =
       config.arbBridge ??
       getArbitrumNetwork(destinationDomain).ethBridge.bridge;
@@ -857,7 +855,7 @@ export class EvmHookModule extends HyperlaneModule<
     ).serialize().deployedIsm;
 
     // connect to ISM
-    const arbL2ToL1Ism = OPStackIsm__factory.connect(
+    const arbL2ToL1Ism = ArbL2ToL1Ism__factory.connect(
       arbL2ToL1IsmAddress,
       this.multiProvider.getSignerOrProvider(config.destinationChain),
     );
@@ -869,12 +867,13 @@ export class EvmHookModule extends HyperlaneModule<
       constructorArgs: [
         mailbox,
         this.multiProvider.getDomainId(config.destinationChain),
-        addressToBytes32(arbL2ToL1Ism.address),
+        addressToBytes32(arbL2ToL1IsmAddress),
         config.arbSys,
         BigNumber.from(config.gasOverhead),
       ],
     });
 
+    console.log('CHEESECAKE', hook.address, ethers.constants.AddressZero);
     // set authorized hook on arbL2ToL1 ism
     const authorizedHook = await arbL2ToL1Ism.authorizedHook();
     if (authorizedHook === addressToBytes32(hook.address)) {
