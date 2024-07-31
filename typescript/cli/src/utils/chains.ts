@@ -3,6 +3,7 @@ import select from '@inquirer/select';
 import chalk from 'chalk';
 
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { toTitleCase } from '@hyperlane-xyz/utils';
 
 import { log, logRed, logTip } from '../logger.js';
 
@@ -74,11 +75,7 @@ function getChainChoices(
   );
   const choices: Parameters<typeof select>['0']['choices'] = [
     { name: '(New custom chain)', value: NEW_CHAIN_MARKER },
-    new Separator(
-      `--${
-        networkType.charAt(0).toUpperCase() + networkType.slice(1)
-      } Chains--`,
-    ),
+    new Separator(`--${toTitleCase(networkType)} Chains--`),
     ...chainsToChoices(filteredChains),
   ];
   return choices;
