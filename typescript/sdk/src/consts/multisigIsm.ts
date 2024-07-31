@@ -351,6 +351,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  solana: {
+    threshold: 2,
+    validators: [
+      '0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415',
+      '0x6b8329718c1d69c72649ae8aeb3a884c1ad3abef',
+      '0x2303df68b05f8e9c7dbb25139fe10d677c4cbd90',
+    ],
+  },
+
   solanadevnet: {
     threshold: 2,
     validators: [

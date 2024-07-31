@@ -400,6 +400,18 @@ export const validatorChainConfig = (
         'scroll',
       ),
     },
+    solana: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solana'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['', '', ''],
+          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.Neutron]: [],
+        },
+        'solana',
+      ),
+    },
     taiko: {
       interval: 5,
       reorgPeriod: getReorgPeriod('taiko'),

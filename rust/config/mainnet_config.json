@@ -1866,6 +1866,49 @@
       },
       "validatorAnnounce": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
     },
+    "solana": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://api.mainnet-beta.solana.com",
+          "family": "other",
+          "name": "Solscan",
+          "url": "https://solscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 0.4,
+        "reorgPeriod": 0
+      },
+      "chainId": 1399811149,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Solana",
+      "displayNameShort": "Sol",
+      "domainId": 1399811149,
+      "index": {
+        "from": 259915395,
+        "mode": "sequence"
+      },
+      "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
+      "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "name": "solana",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "Sol",
+        "symbol": "SOL"
+      },
+      "protocol": "sealevel",
+      "rpcUrls": [
+        {
+          "http": "https://api.mainnet-beta.solana.com"
+        }
+      ],
+      "validatorAnnounce": ""
+    },
     "taiko": {
       "aggregationHook": "0x1175A31f66C5e3d0ce0ca3B7F80Abe72c6FcE272",
       "blockExplorers": [

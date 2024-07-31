@@ -52,6 +52,7 @@ export const keyFunderConfig: KeyFunderConfig<
     redstone: '0.2',
     scroll: '0.5',
     sei: '10',
+    solana: '0.01',
     taiko: '0.2',
     viction: '3',
     worldchain: '0.2',

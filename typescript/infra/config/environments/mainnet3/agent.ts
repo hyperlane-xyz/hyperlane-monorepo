@@ -83,6 +83,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     redstone: true,
     scroll: true,
     sei: true,
+    solana: true,
     taiko: true,
     viction: true,
     worldchain: true,
@@ -121,6 +122,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     redstone: true,
     scroll: true,
     sei: true,
+    solana: true,
     taiko: true,
     viction: true,
     worldchain: true,
@@ -163,6 +165,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
     scroll: true,
+    solana: true,
     taiko: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
@@ -340,7 +343,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8af226f-20240726-153615',
+      tag: '79f2aed-20240731-172847',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
