@@ -22,26 +22,26 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
-import {HypERC20RebasingCollateral} from "../../contracts/token/extensions/HypERC20RebasingCollateral.sol";
-import {HypERC20Rebasing} from "../../contracts/token/extensions/HypERC20Rebasing.sol";
+import {HypERC4626VaultYieldCollateral} from "../../contracts/token/extensions/HypERC4626VaultYieldCollateral.sol";
+import {HypERC4626VaultYield} from "../../contracts/token/extensions/HypERC4626VaultYield.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
-contract HypERC20RebasingCollateralTest is HypTokenTest {
+contract HypERC4626VaultYieldCollateralTest is HypTokenTest {
     using TypeCasts for address;
 
     uint32 internal constant PEER_DESTINATION = 13;
     uint256 constant YIELD = 5e18;
     uint256 constant YIELD_FEES = 1e17; // 10% of yield goes to the vault owner
     uint256 internal transferAmount = 100e18;
-    HypERC20RebasingCollateral internal rebasingCollateral;
+    HypERC4626VaultYieldCollateral internal rebasingCollateral;
     MockERC4626YieldSharing vault;
 
     MockMailbox internal peerMailbox; // mailbox for second synthetic token
     HypERC20 internal peerToken;
 
-    HypERC20RebasingCollateral localRebasingToken;
-    HypERC20Rebasing remoteRebasingToken;
-    HypERC20Rebasing peerRebasingToken;
+    HypERC4626VaultYieldCollateral localRebasingToken;
+    HypERC4626VaultYield remoteRebasingToken;
+    HypERC4626VaultYield peerRebasingToken;
 
     function setUp() public override {
         super.setUp();
@@ -63,7 +63,7 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
             YIELD_FEES
         );
 
-        HypERC20RebasingCollateral implementation = new HypERC20RebasingCollateral(
+        HypERC4626VaultYieldCollateral implementation = new HypERC4626VaultYieldCollateral(
                 vault,
                 address(localMailbox)
             );
@@ -71,28 +71,28 @@ contract HypERC20RebasingCollateralTest is HypTokenTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC20RebasingCollateral.initialize.selector,
+                HypERC4626VaultYieldCollateral.initialize.selector,
                 address(address(noopHook)),
                 address(0x0),
                 address(this)
             )
         );
-        localToken = HypERC20RebasingCollateral(address(proxy));
+        localToken = HypERC4626VaultYieldCollateral(address(proxy));
 
-        remoteToken = new HypERC20Rebasing(
+        remoteToken = new HypERC4626VaultYield(
             primaryToken.decimals(),
             address(remoteMailbox),
             localToken.localDomain()
         );
-        peerToken = new HypERC20Rebasing(
+        peerToken = new HypERC4626VaultYield(
             primaryToken.decimals(),
             address(peerMailbox),
             localToken.localDomain()
         );
 
-        localRebasingToken = HypERC20RebasingCollateral(address(proxy));
-        remoteRebasingToken = HypERC20Rebasing(address(remoteToken));
-        peerRebasingToken = HypERC20Rebasing(address(peerToken));
+        localRebasingToken = HypERC4626VaultYieldCollateral(address(proxy));
+        remoteRebasingToken = HypERC4626VaultYield(address(remoteToken));
+        peerRebasingToken = HypERC4626VaultYield(address(peerToken));
 
         primaryToken.transfer(ALICE, 1000e18);
 

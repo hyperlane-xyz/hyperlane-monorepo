@@ -12,7 +12,7 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
  * @title Hyperlane ERC20 Rebasing Token
  * @author Abacus Works
  */
-contract HypERC20Rebasing is HypERC20 {
+contract HypERC4626VaultYield is HypERC20 {
     using Math for uint256;
     using Message for bytes;
     using TokenMessage for bytes;

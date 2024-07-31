@@ -7,7 +7,7 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
  * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault
  * @author ltyu
  */
-contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
+contract HypERC4626OwnerYieldCollateral is HypERC20Collateral {
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
 

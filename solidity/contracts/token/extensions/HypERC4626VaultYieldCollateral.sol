@@ -7,10 +7,10 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 /**
- * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault
+ * @title Hyperlane ERC4626 Token Collateral with deposits collateral to a vault
  * @author Abacus Works
  */
-contract HypERC20RebasingCollateral is HypERC20Collateral {
+contract HypERC4626VaultYieldCollateral is HypERC20Collateral {
     using TypeCasts for address;
     using TokenMessage for bytes;
     using Math for uint256;
