@@ -93,8 +93,8 @@ export class EvmCoreModule extends HyperlaneModule<
     const transactions: AnnotatedEV5Transaction[] = [];
 
     transactions.push(
-      ...(await this.createUpdateDefaultIsmTx(actualConfig, expectedConfig)),
-      ...this.createUpdateMailboxOwnerTx(actualConfig, expectedConfig),
+      ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
+      ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
     );
 
     return transactions;
@@ -107,7 +107,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration, including the ISM configuration.
    * @returns Transaction that need to be executed to update the ISM configuration.
    */
-  async createUpdateDefaultIsmTx(
+  async createDefaultIsmUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
@@ -157,21 +157,53 @@ export class EvmCoreModule extends HyperlaneModule<
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedEV5Transaction[];
   }> {
-    const addresses = this.serialize();
+    const {
+      mailbox,
+      staticAggregationIsmFactory,
+      staticMerkleRootMultisigIsmFactory,
+      staticMessageIdMultisigIsmFactory,
+      staticAggregationHookFactory,
+      domainRoutingIsmFactory,
+    } = this.serialize();
+
+    assert(mailbox, 'mailbox is undefined in this.args.addresses');
+    assert(
+      staticAggregationIsmFactory,
+      'staticAggregationIsmFactory is undefined in this.args.addresses',
+    );
+    assert(
+      staticMerkleRootMultisigIsmFactory,
+      'staticMerkleRootMultisigIsmFactory is undefined in this.args.addresses',
+    );
+    assert(
+      staticMessageIdMultisigIsmFactory,
+      'staticMessageIdMultisigIsmFactory is undefined in this.args.addresses',
+    );
+    assert(
+      staticMessageIdMultisigIsmFactory,
+      'staticMessageIdMultisigIsmFactory is undefined in this.args.addresses',
+    );
+    assert(
+      domainRoutingIsmFactory,
+      'domainRoutingIsmFactory is undefined in this.args.addresses',
+    );
+
+    assert(
+      staticAggregationHookFactory,
+      'staticAggregationHookFactory is undefined in this.args.addresses',
+    );
 
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
       config: expectDefaultIsmConfig,
       addresses: {
         deployedIsm: actualDefaultIsmConfig.address,
-        mailbox: addresses.mailbox!,
-        staticAggregationIsmFactory: addresses.staticAggregationIsmFactory!,
-        staticMerkleRootMultisigIsmFactory:
-          addresses.staticMerkleRootMultisigIsmFactory!,
-        staticMessageIdMultisigIsmFactory:
-          addresses.staticMessageIdMultisigIsmFactory!,
-        domainRoutingIsmFactory: addresses.domainRoutingIsmFactory!,
-        staticAggregationHookFactory: addresses.staticAggregationHookFactory!,
+        mailbox,
+        staticAggregationIsmFactory,
+        staticMerkleRootMultisigIsmFactory,
+        staticMessageIdMultisigIsmFactory,
+        domainRoutingIsmFactory,
+        staticAggregationHookFactory,
       },
     });
     this.logger.info(
@@ -190,7 +222,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @param expectedConfig - The expected token core configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  createUpdateMailboxOwnerTx(
+  createMailboxOwnerUpdateTxs(
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {

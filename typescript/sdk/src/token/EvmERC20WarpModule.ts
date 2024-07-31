@@ -93,9 +93,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const transactions = [];
 
     transactions.push(
-      ...(await this.createUpdateIsmTx(actualConfig, expectedConfig)),
-      ...this.createUpdateRemoteRoutersTx(actualConfig, expectedConfig),
-      ...this.createUpdateOwnershipTx(actualConfig, expectedConfig),
+      ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
+      ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
     );
 
     return transactions;
@@ -108,7 +108,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
-  createUpdateRemoteRoutersTx(
+  createRemoteRoutersUpdateTxs(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
@@ -159,7 +159,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration, including the ISM configuration.
    * @returns Ethereum transaction that need to be executed to update the ISM configuration.
    */
-  async createUpdateIsmTx(
+  async createIsmUpdateTxs(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
@@ -210,7 +210,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  createUpdateOwnershipTx(
+  createOwnershipUpdateTxs(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
