@@ -7,6 +7,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { CommandContext } from '../context/types.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { stubMerkleTreeConfig } from '../utils/relay.js';
 
 export async function checkMessageStatus({
   context,
@@ -78,6 +79,11 @@ export async function checkMessageStatus({
     }
 
     const relayer = new HyperlaneRelayer({ core });
+
+    const hookAddress = await core.getSenderHookAddress(message);
+    const merkleAddress = chainAddresses[origin].merkleTreeHook;
+    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+
     deliveredTx = await relayer.relayMessage(dispatchedReceipt);
   }
 
