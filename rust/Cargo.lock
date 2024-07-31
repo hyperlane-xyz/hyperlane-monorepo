@@ -2741,7 +2741,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -2755,7 +2755,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -2766,7 +2766,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -2784,7 +2784,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -2808,7 +2808,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -2822,7 +2822,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -2852,7 +2852,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.12",
@@ -2868,7 +2868,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -2916,7 +2916,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "async-trait",
  "auto_impl 1.1.0",
@@ -2952,7 +2952,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-06-27-2#df3510cdfdd18ee6e6e9b0d7bad61f405c8abc49"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-07-31#b2d58a38d8566eb626f1708517f1193127b7d3ad"
 dependencies = [
  "async-trait",
  "coins-bip32",
