@@ -35,7 +35,7 @@ import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
-import { CoreConfigSchema } from './schemas.js';
+import { CoreArtifactsSchema, CoreConfigSchema } from './schemas.js';
 
 type DeployedCoreAddresses = Partial<
   HyperlaneAddresses<CoreFactories> & {
@@ -157,53 +157,22 @@ export class EvmCoreModule extends HyperlaneModule<
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedEV5Transaction[];
   }> {
-    const {
-      mailbox,
-      staticAggregationIsmFactory,
-      staticMerkleRootMultisigIsmFactory,
-      staticMessageIdMultisigIsmFactory,
-      staticAggregationHookFactory,
-      domainRoutingIsmFactory,
-    } = this.serialize();
-
-    assert(mailbox, 'mailbox is undefined in this.args.addresses');
-    assert(
-      staticAggregationIsmFactory,
-      'staticAggregationIsmFactory is undefined in this.args.addresses',
-    );
-    assert(
-      staticMerkleRootMultisigIsmFactory,
-      'staticMerkleRootMultisigIsmFactory is undefined in this.args.addresses',
-    );
-    assert(
-      staticMessageIdMultisigIsmFactory,
-      'staticMessageIdMultisigIsmFactory is undefined in this.args.addresses',
-    );
-    assert(
-      staticMessageIdMultisigIsmFactory,
-      'staticMessageIdMultisigIsmFactory is undefined in this.args.addresses',
-    );
-    assert(
-      domainRoutingIsmFactory,
-      'domainRoutingIsmFactory is undefined in this.args.addresses',
-    );
-
-    assert(
-      staticAggregationHookFactory,
-      'staticAggregationHookFactory is undefined in this.args.addresses',
-    );
+    const addresses = this.serialize();
+    CoreArtifactsSchema.parse(addresses);
 
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
       config: expectDefaultIsmConfig,
       addresses: {
         deployedIsm: actualDefaultIsmConfig.address,
-        mailbox,
-        staticAggregationIsmFactory,
-        staticMerkleRootMultisigIsmFactory,
-        staticMessageIdMultisigIsmFactory,
-        domainRoutingIsmFactory,
-        staticAggregationHookFactory,
+        mailbox: addresses.mailbox!,
+        staticAggregationIsmFactory: addresses.staticAggregationIsmFactory!,
+        staticMerkleRootMultisigIsmFactory:
+          addresses.staticMerkleRootMultisigIsmFactory!,
+        staticMessageIdMultisigIsmFactory:
+          addresses.staticMessageIdMultisigIsmFactory!,
+        staticAggregationHookFactory: addresses.staticAggregationHookFactory!,
+        domainRoutingIsmFactory: addresses.domainRoutingIsmFactory!,
       },
     });
     this.logger.info(
