@@ -11,8 +11,14 @@ export const CoreConfigSchema = OwnableSchema.extend({
   requiredHook: HookConfigSchema,
 });
 
-export const CoreArtifactsSchema = ProxyFactoryFactoriesSchema.extend({
+export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   mailbox: z.string(),
+  validatorAnnounce: z.string(),
+  proxyAdmin: z.string(),
+  testRecipient: z.string(),
+  timelockController: z.string().optional(),
+  interchainAccountRouter: z.string(),
+  interchainAccountIsm: z.string(),
 });
 
-export type CoreArtifacts = z.infer<typeof CoreArtifactsSchema>;
+export type DeployedCoreAddresses = z.infer<typeof DeployedCoreAddressesSchema>;

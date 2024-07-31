@@ -69,8 +69,8 @@ export {
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export {
   CoreConfigSchema,
-  CoreArtifacts,
-  CoreArtifactsSchema,
+  DeployedCoreAddressesSchema,
+  DeployedCoreAddresses,
 } from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';

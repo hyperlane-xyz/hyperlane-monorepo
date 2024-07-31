@@ -1,8 +1,8 @@
 import { CommandModule } from 'yargs';
 
 import {
-  CoreArtifacts,
-  CoreArtifactsSchema,
+  DeployedCoreAddresses,
+  DeployedCoreAddressesSchema,
   EvmCoreReader,
 } from '@hyperlane-xyz/sdk';
 
@@ -70,8 +70,8 @@ export const apply: CommandModuleWithWriteContext<{
 
     const addresses = (await context.registry.getChainAddresses(
       chain,
-    )) as CoreArtifacts;
-    CoreArtifactsSchema.parse(addresses);
+    )) as DeployedCoreAddresses;
+    DeployedCoreAddressesSchema.parse(addresses);
 
     const config = await readCoreDeployConfigs(configFilePath);
 
@@ -79,7 +79,7 @@ export const apply: CommandModuleWithWriteContext<{
       context,
       chain,
       config,
-      coreArtifacts: addresses,
+      deployedCoreAddresses: addresses,
     });
     process.exit(0);
   },

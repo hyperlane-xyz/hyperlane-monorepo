@@ -11,13 +11,13 @@ import {
   serializeContractsMap,
 } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
+import { DeployedCoreAddresses } from '../core/schemas.js';
 import { CoreConfig } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { ProxyFactoryFactoriesAddresses } from '../deploy/schemas.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
@@ -34,15 +34,7 @@ import {
 import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
-import { CoreFactories } from './contracts.js';
 import { CoreConfigSchema } from './schemas.js';
-
-type DeployedCoreAddresses = HyperlaneAddresses<CoreFactories> & {
-  testRecipient: Address;
-  timelockController?: Address;
-  interchainAccountRouter: Address;
-  interchainAccountIsm: Address;
-} & ProxyFactoryFactoriesAddresses;
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,

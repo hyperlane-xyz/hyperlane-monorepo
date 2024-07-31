@@ -1,7 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { CoreArtifacts } from '@hyperlane-xyz/sdk';
+import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
@@ -32,7 +32,7 @@ interface DeployParams {
 }
 
 interface ApplyParams extends DeployParams {
-  coreArtifacts: CoreArtifacts;
+  deployedCoreAddresses: DeployedCoreAddresses;
 }
 /**
  * Executes the core deploy command.
@@ -113,12 +113,12 @@ export async function runCoreDeploy(params: DeployParams) {
 }
 
 export async function runCoreApply(params: ApplyParams) {
-  const { context, chain, coreArtifacts, config } = params;
+  const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider } = context;
   const evmCoreModule = new EvmCoreModule(multiProvider, {
     chain,
     config,
-    addresses: coreArtifacts,
+    addresses: deployedCoreAddresses,
   });
 
   const transactions = await evmCoreModule.update(config);
