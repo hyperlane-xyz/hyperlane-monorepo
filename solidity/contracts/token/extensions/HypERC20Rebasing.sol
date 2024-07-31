@@ -6,7 +6,12 @@ import {HypERC20} from "../HypERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 
+/**
+ * @title Hyperlane ERC20 Rebasing Token
+ * @author Abacus Works
+ */
 contract HypERC20Rebasing is HypERC20 {
     using Math for uint256;
     using Message for bytes;
@@ -26,7 +31,8 @@ contract HypERC20Rebasing is HypERC20 {
         _disableInitializers();
     }
 
-    // Override to send shares instead of assets from synthetic
+    /// Override to send shares instead of assets from synthetic
+    /// @inheritdoc TokenRouter
     function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,

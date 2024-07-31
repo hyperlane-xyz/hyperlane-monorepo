@@ -18,6 +18,8 @@ contract HypERC20RebasingCollateral is HypERC20Collateral {
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
     uint256 public constant PRECISION = 1e10;
+    bytes32 public constant NULL_RECIPIENT =
+        0x0000000000000000000000000000000000000000000000000000000000000001;
 
     constructor(
         ERC4626 _vault,
@@ -31,7 +33,6 @@ contract HypERC20RebasingCollateral is HypERC20Collateral {
         address _interchainSecurityModule,
         address _owner
     ) public override initializer {
-        wrappedToken.approve(address(vault), type(uint256).max);
         _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
     }
 
@@ -92,11 +93,15 @@ contract HypERC20RebasingCollateral is HypERC20Collateral {
         vault.redeem(_amount, _recipient, address(this));
     }
 
+    /**
+     * @dev Update the exchange rate on the synthetic token by accounting for additional yield accrued to the underlying vault
+     * @param _destinationDomain domain of the vault
+     */
     function rebase(uint32 _destinationDomain) public payable {
         // force a rebase with an empty transfer to 0x1
         _transferRemote(
             _destinationDomain,
-            address(0x1).addressToBytes32(),
+            NULL_RECIPIENT,
             0,
             msg.value,
             bytes(""),
