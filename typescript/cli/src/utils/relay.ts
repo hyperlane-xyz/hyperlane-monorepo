@@ -1,8 +1,8 @@
 import { HookType, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 
 /**
-* Workaround helper for bypassing bad hook derivation when self-relaying.
-*/
+ * Workaround helper for bypassing bad hook derivation when self-relaying.
+ */
 export function stubMerkleTreeConfig(
   relayer: HyperlaneRelayer,
   chain: string,
