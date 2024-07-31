@@ -3,6 +3,7 @@ import {
   Address,
   Domain,
   ProtocolType,
+  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -114,7 +115,10 @@ export class EvmCoreModule extends HyperlaneModule<
       updateTransactions.push(...ismUpdateTxs);
     }
 
-    const newIsmDeployed = actualDefaultIsmConfig.address !== deployedIsm;
+    const newIsmDeployed = !eqAddress(
+      actualDefaultIsmConfig.address,
+      deployedIsm,
+    );
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       const contractToUpdate = Mailbox__factory.connect(
