@@ -1,7 +1,7 @@
-import { deepStrictEqual } from 'node:assert/strict';
+import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
-import { ethersBigNumberSerializer, rootLogger } from './logging.js';
+import { ethersBigNumberSerializer } from './logging.js';
 import { WithAddress } from './types.js';
 import { assert } from './validation.js';
 
@@ -10,11 +10,11 @@ export function isObject(item: any) {
 }
 
 export function deepEquals(v1: any, v2: any) {
-  return JSON.stringify(v1) === JSON.stringify(v2);
+  return isEqual(v1, v2);
 }
 
 export function deepCopy(v: any) {
-  return JSON.parse(JSON.stringify(v));
+  return cloneDeep(v);
 }
 
 export type ValueOf<T> = T[keyof T];
@@ -174,14 +174,4 @@ export function normalizeConfig(obj: WithAddress<any>): any {
   }
 
   return obj;
-}
-
-export function configDeepEquals(v1: any, v2: any): boolean {
-  try {
-    deepStrictEqual(v1, v2);
-    return true;
-  } catch (error) {
-    rootLogger.info((error as Error).message);
-    return false;
-  }
 }

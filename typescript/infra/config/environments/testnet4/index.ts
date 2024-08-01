@@ -1,5 +1,4 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { objMerge } from '@hyperlane-xyz/utils';
 
 import {
   getKeysForRole,

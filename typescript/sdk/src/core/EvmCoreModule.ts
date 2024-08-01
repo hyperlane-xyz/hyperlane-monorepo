@@ -1,5 +1,11 @@
 import { Mailbox } from '@hyperlane-xyz/core';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import {
   attachContractsMap,
@@ -12,6 +18,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -25,30 +32,38 @@ import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
+import { CoreConfigSchema } from './schemas.js';
 
-export type DeployedCoreAdresses = HyperlaneAddresses<CoreFactories> & {
-  testRecipient: Address;
-  timelockController?: Address; // Can be optional because it is only deployed if config.upgrade = true
-  interchainAccountRouter: Address;
-  interchainAccountIsm: Address;
-} & HyperlaneAddresses<ProxyFactoryFactories>;
+type DeployedCoreAddresses = Partial<
+  HyperlaneAddresses<CoreFactories> & {
+    testRecipient: Address;
+    timelockController: Address;
+    interchainAccountRouter: Address;
+    interchainAccountIsm: Address;
+  } & HyperlaneAddresses<ProxyFactoryFactories>
+>;
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   CoreConfig,
-  DeployedCoreAdresses
+  DeployedCoreAddresses
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
   public readonly chainName: string;
 
-  protected constructor(
+  // We use domainId here because MultiProvider.getDomainId() will always
+  // return a number, and EVM the domainId and chainId are the same.
+  public readonly domainId: Domain;
+
+  constructor(
     protected readonly multiProvider: MultiProvider,
-    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAdresses>,
+    args: HyperlaneModuleParams<CoreConfig, DeployedCoreAddresses>,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
     this.chainName = this.multiProvider.getChainName(this.args.chain);
+    this.domainId = multiProvider.getDomainId(args.chain);
   }
 
   /**
@@ -56,11 +71,53 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns The core config.
    */
   public async read(): Promise<CoreConfig> {
+    assert(this.args.addresses.mailbox, 'Mailbox not provided for read');
     return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
   }
 
-  public async update(_config: CoreConfig): Promise<AnnotatedEV5Transaction[]> {
-    throw new Error('Method not implemented.');
+  /**
+   * Updates the core contracts with the provided configuration.
+   *
+   * @param expectedConfig - The configuration for the core contracts to be updated.
+   * @returns An array of Ethereum transactions that were executed to update the contract.
+   */
+  public async update(
+    expectedConfig: CoreConfig,
+  ): Promise<AnnotatedEV5Transaction[]> {
+    CoreConfigSchema.parse(expectedConfig);
+    const actualConfig = await this.read();
+
+    const transactions: AnnotatedEV5Transaction[] = [];
+
+    transactions.push(
+      ...this.createMailboxOwnershipTransferTx(actualConfig, expectedConfig),
+    );
+
+    return transactions;
+  }
+
+  /**
+   * Create a transaction to transfer ownership of an existing mailbox with a given config.
+   *
+   * @param actualConfig - The on-chain core configuration.
+   * @param expectedConfig - The expected token core configuration.
+   * @returns Ethereum transaction that need to be executed to update the owner.
+   */
+  createMailboxOwnershipTransferTx(
+    actualConfig: CoreConfig,
+    expectedConfig: CoreConfig,
+  ): AnnotatedEV5Transaction[] {
+    assert(
+      this.args.addresses.mailbox,
+      'Mailbox not provided for update ownership',
+    );
+
+    return EvmCoreModule.createTransferOwnershipTx({
+      actualOwner: actualConfig.owner,
+      expectedOwner: expectedConfig.owner,
+      deployedAddress: this.args.addresses.mailbox,
+      chainId: this.domainId,
+    });
   }
 
   /**
@@ -72,12 +129,14 @@ export class EvmCoreModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmCoreModule> {
-    const { chain, config, multiProvider } = params;
+    const { chain, config, multiProvider, contractVerifier } = params;
     const addresses = await EvmCoreModule.deploy({
       config,
       multiProvider,
       chain,
+      contractVerifier,
     });
 
     // Create CoreModule and deploy the Core contracts
@@ -98,18 +157,18 @@ export class EvmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
-  }): Promise<DeployedCoreAdresses> {
-    const { config, multiProvider, chain } = params;
+    contractVerifier?: ContractVerifier;
+  }): Promise<DeployedCoreAddresses> {
+    const { config, multiProvider, chain, contractVerifier } = params;
     const chainName = multiProvider.getChainName(chain);
 
-    // Deploy Ism Factories
     const ismFactoryFactories = await EvmCoreModule.deployIsmFactories({
       chainName,
       config,
       multiProvider,
+      contractVerifier,
     });
 
-    // Deploy IsmFactory to be used in CoreDeployer
     const ismFactory = new HyperlaneIsmFactory(
       attachContractsMap(
         { [chainName]: ismFactoryFactories },
@@ -118,8 +177,11 @@ export class EvmCoreModule extends HyperlaneModule<
       multiProvider,
     );
 
-    // Initialize Deployer
-    const coreDeployer = new HyperlaneCoreDeployer(multiProvider, ismFactory);
+    const coreDeployer = new HyperlaneCoreDeployer(
+      multiProvider,
+      ismFactory,
+      contractVerifier,
+    );
 
     // Deploy proxyAdmin
     const proxyAdmin = (
@@ -144,6 +206,7 @@ export class EvmCoreModule extends HyperlaneModule<
           mailbox: mailbox.address,
           owner: await multiProvider.getSigner(chain).getAddress(),
         },
+        contractVerifier,
       })
     ).serialize();
 
@@ -160,7 +223,7 @@ export class EvmCoreModule extends HyperlaneModule<
       ).address;
     }
 
-    // Deploy Test Receipient
+    // Deploy Test Recipient
     const testRecipient = (
       await coreDeployer.deployTestRecipient(
         chainName,
@@ -189,12 +252,13 @@ export class EvmCoreModule extends HyperlaneModule<
     chainName: string;
     config: CoreConfig;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<HyperlaneAddresses<ProxyFactoryFactories>> {
-    const { chainName, config, multiProvider } = params;
+    const { chainName, config, multiProvider, contractVerifier } = params;
 
-    // ChainMap is still needed for HyperlaneIsmFactory
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
+      contractVerifier,
     );
     const ismFactoriesFactory = await proxyFactoryDeployer.deploy({
       [chainName]: config,

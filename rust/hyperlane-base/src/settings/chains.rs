@@ -782,7 +782,10 @@ impl ChainConf {
     where
         B: BuildableWithProvider + Sync,
     {
-        let signer = self.ethereum_signer().await?;
+        let mut signer = None;
+        if B::NEEDS_SIGNER {
+            signer = self.ethereum_signer().await?;
+        }
         let metrics_conf = self.metrics_conf();
         let rpc_metrics = Some(metrics.json_rpc_client_metrics());
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));

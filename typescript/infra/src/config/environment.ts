@@ -2,7 +2,6 @@ import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   BridgeAdapterConfig,
   ChainMap,
-  ChainMetadata,
   ChainName,
   CoreConfig,
   IgpConfig,
@@ -60,7 +59,7 @@ export type EnvironmentConfig = {
     role?: Role,
   ) => Promise<ChainMap<CloudAgentKey>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
-  keyFunderConfig?: KeyFunderConfig;
+  keyFunderConfig?: KeyFunderConfig<string[]>;
   liquidityLayerConfig?: {
     bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;

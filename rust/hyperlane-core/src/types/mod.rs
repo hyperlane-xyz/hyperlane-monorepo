@@ -140,6 +140,18 @@ pub struct InterchainGasPayment {
     pub gas_amount: U256,
 }
 
+impl InterchainGasPayment {
+    /// Create a new InterchainGasPayment from a GasPaymentKey
+    pub fn from_gas_payment_key(key: GasPaymentKey) -> Self {
+        Self {
+            message_id: key.message_id,
+            destination: key.destination,
+            payment: Default::default(),
+            gas_amount: Default::default(),
+        }
+    }
+}
+
 /// Amount of gas spent attempting to send the message.
 #[derive(Debug, Copy, Clone)]
 pub struct InterchainGasExpenditure {

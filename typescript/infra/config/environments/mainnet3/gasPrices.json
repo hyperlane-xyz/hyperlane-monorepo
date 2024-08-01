@@ -19,6 +19,10 @@
     "amount": "0.5",
     "decimals": 9
   },
+  "bob": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "bsc": {
     "amount": "5.0",
     "decimals": 9
@@ -27,12 +31,24 @@
     "amount": "10.0",
     "decimals": 9
   },
+  "cheesechain": {
+    "amount": "1.0",
+    "decimals": 9
+  },
+  "endurance": {
+    "amount": "1.500000007",
+    "decimals": 9
+  },
   "ethereum": {
     "amount": "20",
     "decimals": 9
   },
   "fraxtal": {
     "amount": "0.001000253",
+    "decimals": 9
+  },
+  "fusemainnet": {
+    "amount": "11.0",
     "decimals": 9
   },
   "gnosis": {
@@ -52,7 +68,11 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.101967574",
+    "amount": "0.101416541",
+    "decimals": 9
+  },
+  "mantle": {
+    "amount": "0.02",
     "decimals": 9
   },
   "mode": {
@@ -95,12 +115,28 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "taiko": {
+    "amount": "0.050000001",
+    "decimals": 9
+  },
   "viction": {
     "amount": "0.25",
     "decimals": 9
   },
+  "worldchain": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
+  "xlayer": {
+    "amount": "5.0",
+    "decimals": 9
+  },
   "zetachain": {
     "amount": "10.1",
+    "decimals": 9
+  },
+  "zoramainnet": {
+    "amount": "0.001000252",
     "decimals": 9
   }
 }
