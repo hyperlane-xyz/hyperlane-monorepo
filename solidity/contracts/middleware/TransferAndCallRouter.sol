@@ -21,17 +21,16 @@ contract TransferAndCall {
         IERC20 asset, // not derivable from TokenRouter
         TokenRouter warpRoute,
         CallLib.Call[] calldata calls
-    ) public {
+    ) external payable {
         asset.transferFrom(msg.sender, address(this), amount);
-        address recipient = interchainAccountRouter.getRemoteInterchainAccount(
+        bytes32 self = interchainAccountRouter
+            .getRemoteInterchainAccount(destination, address(this))
+            .addressToBytes32();
+        uint256 warpFee = warpRoute.quoteGasPayment(destination);
+        warpRoute.transferRemote{value: warpFee}(destination, self, amount);
+        interchainAccountRouter.callRemote{value: msg.value - warpFee}(
             destination,
-            msg.sender
+            calls
         );
-        warpRoute.transferRemote(
-            destination,
-            recipient.addressToBytes32(),
-            amount
-        );
-        interchainAccountRouter.callRemote(destination, calls);
     }
 }
