@@ -263,6 +263,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "eclipse",
+        token: "ETH",
+        domain: 9571022593,
+        chain_id: 9571022593,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "taiko",
         token: "ETH",
         domain: 167000,

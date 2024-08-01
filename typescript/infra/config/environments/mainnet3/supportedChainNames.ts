@@ -10,6 +10,7 @@ export const mainnet3SupportedChainNames = [
   'bsc',
   'celo',
   'cheesechain',
+  'eclipse',
   'endurance',
   'ethereum',
   'fraxtal',

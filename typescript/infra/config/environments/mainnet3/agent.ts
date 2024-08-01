@@ -63,6 +63,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsc: true,
     celo: true,
     cheesechain: true,
+    eclipse: true,
     endurance: true,
     ethereum: true,
     fraxtal: true,
@@ -101,6 +102,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsc: true,
     celo: true,
     cheesechain: true,
+    eclipse: true,
     endurance: true,
     ethereum: true,
     fraxtal: true,
@@ -140,6 +142,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bsc: true,
     celo: true,
     cheesechain: true,
+    eclipse: false,
     endurance: false,
     ethereum: true,
     fraxtal: true,
@@ -165,7 +168,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
     scroll: true,
-    solana: true,
+    solana: false,
     taiko: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,

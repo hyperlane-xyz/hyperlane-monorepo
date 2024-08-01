@@ -1909,6 +1909,48 @@
       ],
       "validatorAnnounce": ""
     },
+    "eclipse": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://mainnetbeta-rpc.eclipse.xyz",
+          "family": "other",
+          "name": "Eclipse Explorer",
+          "url": "https://explorer.eclipse.xyz/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 0.4,
+        "reorgPeriod": 0
+      },
+      "chainId": 9571022593,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Eclipse",
+      "domainId": 9571022593,
+      "index": {
+        "from": 727595,
+        "mode": "sequence"
+      },
+      "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
+      "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "name": "eclipse",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "sealevel",
+      "rpcUrls": [
+        {
+          "http": "https://mainnetbeta-rpc.eclipse.xyz"
+        }
+      ],
+      "validatorAnnounce": ""
+    },
     "taiko": {
       "aggregationHook": "0x1175A31f66C5e3d0ce0ca3B7F80Abe72c6FcE272",
       "blockExplorers": [

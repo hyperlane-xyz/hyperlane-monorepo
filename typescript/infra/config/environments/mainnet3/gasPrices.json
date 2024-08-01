@@ -35,6 +35,10 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "eclipse": {
+    "amount": "0.00000005",
+    "decimals": 9
+  },
   "endurance": {
     "amount": "1.500000007",
     "decimals": 9

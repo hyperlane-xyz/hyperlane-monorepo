@@ -54,6 +54,13 @@
       "0x478fb53c6860ae8fc35235ba0d38d49b13128226"
     ]
   },
+  "eclipse": {
+    "validators": [
+      "0x54c96aa1666596c043b07d694da552aa4b596306",
+      "0xb6c6f6e2aa92dc586ea7a7b4c303ef9a6f4dd4a4",
+      "0x9bfaef2d5c1b6617fa47548b09a7dd4efc3cf1e9"
+    ]
+  },
   "endurance": {
     "validators": [
       "0x28c5b322da06f184ebf68693c5d19df4d4af13e5"

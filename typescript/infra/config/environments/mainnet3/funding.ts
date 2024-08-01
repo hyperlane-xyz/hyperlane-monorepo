@@ -35,6 +35,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bsc: '5',
     celo: '3',
     cheesechain: '50',
+    eclipse: '0.2',
     endurance: '20',
     ethereum: '0.5',
     fraxtal: '0.2',
