@@ -490,22 +490,26 @@ export async function runWarpRouteApply(
           const transactions = await evmERC20WarpModule.update(config);
 
           if (transactions.length == 0)
-            logGreen(
+            return logGreen(
               `Warp config on ${chain} is the same as target. No updates needed.`,
             );
 
           const transactionReceipts = await submitter.submit(...transactions);
 
-          if (params.safeAddress) {
-            logGreen(
-              `✅ Warp config update successfully submitted to safe (${params.safeAddress}) on ${chain}:\n\n`,
-              indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-            );
-          } else {
-            const transactionHashes = transactionReceipts!.map(
+          if (transactionReceipts && transactionReceipts.length > 0) {
+            if (params.safeAddress)
+              return logGreen(
+                `✅ Warp config update successfully submitted to safe (${params.safeAddress}) on ${chain}:\n\n`,
+                indentYamlOrJson(
+                  yamlStringify(transactionReceipts, null, 2),
+                  4,
+                ),
+              );
+
+            const transactionHashes = transactionReceipts.map(
               (receipt) => (receipt as TransactionReceipt).transactionHash,
             );
-            logGreen(
+            return logGreen(
               `✅ Warp config successfully updated on ${chain}:\n\n`,
               indentYamlOrJson(yamlStringify(transactionHashes, null, 2), 4),
             );
@@ -629,14 +633,21 @@ async function enrollRemoteRouters(
       );
       const mutatedConfigTxs: AnnotatedEV5Transaction[] =
         await evmERC20WarpModule.update(mutatedWarpRouteConfig);
+
+      if (mutatedConfigTxs.length == 0)
+        return logGreen(
+          `Mutated warp config on ${chain} is the same as target. No updates needed.`,
+        );
+
       const transactionReceipts = await submitter.submit(...mutatedConfigTxs);
 
-      if (warpApplyParams.safeAddress) {
-        logGreen(
-          `✅ Router enrollment update successfully submitted to safe (${warpApplyParams.safeAddress}) on ${chain}:\n\n`,
-          indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-        );
-      } else {
+      if (transactionReceipts && transactionReceipts.length > 0) {
+        if (warpApplyParams.safeAddress)
+          return logGreen(
+            `✅ Router enrollment update successfully submitted to safe (${warpApplyParams.safeAddress}) on ${chain}:\n\n`,
+            indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+          );
+
         const transactionHashes = transactionReceipts!.map(
           (receipt) => (receipt as TransactionReceipt).transactionHash,
         );
