@@ -34,7 +34,7 @@ export class EV5InterchainAccountTxTransformer
   ) {
     assert(
       this.props.config.localRouter,
-      'Invalid AccountConfig: Cannot retrieve InterchainAccount.',
+      'Cannot retrieve InterchainAccount: localRouter not specified',
     );
   }
 

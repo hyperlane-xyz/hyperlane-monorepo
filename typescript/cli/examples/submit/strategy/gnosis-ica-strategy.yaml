@@ -8,4 +8,8 @@ transforms:
     chain: ethereum
     config:
       origin: avalanche
-      owner: '0x16F4898F47c085C41d7Cc6b1dc72B91EA617dcBb'
+      owner: '0xF84844c87b02279Eb8c15B0791f03C5E84220A76'
+      localRouter: '0xeA79A260432f85c225211875d12A7C77FB7B24EF'
+
+# interchainAccountIsm: "0x9cBC4a1Aeb79e2447DfD15886F7a98F49C630572"
+# interchainAccountRouter: "0xeA79A260432f85c225211875d12A7C77FB7B24EF"
