@@ -5,6 +5,7 @@ import { fromError } from 'zod-validation-error';
 
 import {
   CheckerViolation,
+  ConnectionClientViolationType,
   CoreViolationType,
   IsmConfigSchema,
   MailboxViolation,
@@ -14,6 +15,18 @@ import {
 interface AnyObject {
   [key: string]: any;
 }
+
+const enum ChangeType {
+  Added = 'Added',
+  Deleted = 'Deleted',
+  Updated = 'Updated',
+}
+
+const changeTypeMapping: Record<ChangeType, string> = {
+  [ChangeType.Added]: '+ Added to config',
+  [ChangeType.Deleted]: '- Deleted from config',
+  [ChangeType.Updated]: '~ Updated config',
+};
 
 const ignoreFields = ['address', 'ownerOverrides'];
 
@@ -41,6 +54,25 @@ function updatePath(json: AnyObject, path: string): string {
   }
 
   return newPathParts.join('.');
+}
+
+function getElement(config: AnyObject | undefined, path: string) {
+  const parts = path.split('.');
+  let currentObject: AnyObject | undefined = config;
+
+  for (const part of parts) {
+    if (currentObject && typeof currentObject === 'object') {
+      if (part in currentObject) {
+        currentObject = currentObject[part];
+      } else {
+        return undefined;
+      }
+    } else {
+      return undefined;
+    }
+  }
+
+  return currentObject;
 }
 
 function toLowerCaseValues(obj: any): any {
@@ -110,15 +142,16 @@ function logDiff(expected: AnyObject, actual: AnyObject): void {
   const parsedSortedExpected = JSON.parse(sortedExpectedJson);
   const parsedSortedActual = JSON.parse(sortedActualJson);
 
-  const added = addedDiff(parsedSortedExpected, parsedSortedActual);
-  const deleted = deletedDiff(parsedSortedExpected, parsedSortedActual);
-  const updated = updatedDiff(parsedSortedExpected, parsedSortedActual);
+  const added = addedDiff(parsedSortedActual, parsedSortedExpected);
+  const deleted = deletedDiff(parsedSortedActual, parsedSortedExpected);
+  const updated = updatedDiff(parsedSortedActual, parsedSortedExpected);
 
   const logChanges = (
     changes: AnyObject,
-    changeType: string,
+    changeType: ChangeType,
     color: (text: string) => string,
     config: AnyObject,
+    otherConfig?: AnyObject,
   ) => {
     const logChange = (obj: AnyObject, path: string = '') => {
       Object.keys(obj).forEach((key) => {
@@ -130,77 +163,96 @@ function logDiff(expected: AnyObject, actual: AnyObject): void {
         ) {
           logChange(obj[key], currentPath);
         } else {
-          console.log(
-            color(
-              `${changeType} ${updatePath(config, currentPath)}: ${stringify(
-                obj[key],
-                {
+          if (changeType !== ChangeType.Updated) {
+            console.log(
+              color(
+                `${changeTypeMapping[changeType]} ${updatePath(
+                  config,
+                  currentPath,
+                )}: ${stringify(obj[key], {
                   space: 2,
-                },
-              )}`,
-            ),
-          );
+                })}`,
+              ),
+            );
+          } else {
+            console.log(
+              color(
+                `${changeTypeMapping[changeType]} ${updatePath(
+                  config,
+                  currentPath,
+                )}: ${stringify(getElement(otherConfig, currentPath), {
+                  space: 2,
+                })} -> ${stringify(obj[key], { space: 2 })}`,
+              ),
+            );
+          }
         }
       });
     };
     logChange(changes);
   };
 
-  logChanges(added, '+ Added to config:', chalk.green, parsedSortedActual);
+  logChanges(added, ChangeType.Added, chalk.green, parsedSortedActual);
+  logChanges(deleted, ChangeType.Deleted, chalk.red, parsedSortedActual);
   logChanges(
-    deleted,
-    '- Deleted from config:',
-    chalk.red,
+    updated,
+    ChangeType.Updated,
+    chalk.yellow,
     parsedSortedExpected,
+    parsedSortedActual,
   );
-  logChanges(updated, '~ Updated config:', chalk.yellow, parsedSortedExpected);
 }
 
 function preProcessConfig(config: any) {
   return removeFields(toLowerCaseValues(config));
 }
 
+function logViolationDetail(violation: CheckerViolation): void {
+  const preProcessedExpectedConfig = preProcessConfig(violation.expected);
+  const preProcessedActualConfig = preProcessConfig(violation.actual);
+
+  const expectedConfigResult = IsmConfigSchema.safeParse(
+    preProcessedExpectedConfig,
+  );
+
+  const actualConfigResult = IsmConfigSchema.safeParse(
+    preProcessedActualConfig,
+  );
+
+  if (!expectedConfigResult.success || !actualConfigResult.success) {
+    if (!expectedConfigResult.success) {
+      console.error(
+        'Failed to parse expected config',
+        fromError(expectedConfigResult.error).toString(),
+      );
+    }
+    if (!actualConfigResult.success) {
+      console.error(
+        'Failed to parse actual config',
+        fromError(actualConfigResult.error).toString(),
+      );
+    }
+    return;
+  }
+
+  logDiff(preProcessedExpectedConfig, preProcessedActualConfig);
+}
+
 export function logViolationDetails(violations: CheckerViolation[]): void {
   for (const violation of violations) {
     if (violation.type === CoreViolationType.Mailbox) {
       const mailboxViolation = violation as MailboxViolation;
-
-      console.log(`Mailbox violation ${mailboxViolation.subType} details:`);
-
-      const preProcessedExpectedConfig = preProcessConfig(
-        mailboxViolation.expected,
-      );
-      const preProcessedActualConfig = preProcessConfig(
-        mailboxViolation.actual,
-      );
-
-      const expectedConfigResult = IsmConfigSchema.safeParse(
-        preProcessedExpectedConfig,
-      );
-
-      const actualConfigResult = IsmConfigSchema.safeParse(
-        preProcessedActualConfig,
-      );
-
-      if (!expectedConfigResult.success || !actualConfigResult.success) {
-        if (!expectedConfigResult.success) {
-          console.error(
-            'Failed to parse expected config',
-            fromError(expectedConfigResult.error).toString(),
-          );
-        }
-        if (!actualConfigResult.success) {
-          console.error(
-            'Failed to parse actual config',
-            fromError(actualConfigResult.error).toString(),
-          );
-        }
-        return;
-      }
-
       if (mailboxViolation.subType === MailboxViolationType.DefaultIsm) {
-        logDiff(preProcessedExpectedConfig, preProcessedActualConfig);
+        console.log(`Mailbox violation ${mailboxViolation.subType} details:`);
+        logViolationDetail(violation);
       }
+    }
+
+    if (
+      violation.type === ConnectionClientViolationType.InterchainSecurityModule
+    ) {
+      console.log(`Connection client violation ${violation.type} details:`);
+      logViolationDetail(violation);
     }
   }
 }
