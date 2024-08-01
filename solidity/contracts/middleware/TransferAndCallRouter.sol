@@ -16,10 +16,10 @@ contract TransferAndCall {
     }
 
     function transferAndCall(
-        IERC20 asset, // not derivable from TokenRouter
-        TokenRouter warpRoute,
         uint32 destination,
         uint256 amount,
+        IERC20 asset, // not derivable from TokenRouter
+        TokenRouter warpRoute,
         CallLib.Call[] calldata calls
     ) public {
         asset.transferFrom(msg.sender, address(this), amount);
