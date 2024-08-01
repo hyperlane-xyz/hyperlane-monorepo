@@ -35,7 +35,9 @@ abstract contract AbstractStaticWeightedMultisigIsm is
     IStaticWeightedMultisigIsm
 {
     // ============ Constants ============
-    uint96 public constant BASIS_POINTS = 10000;
+
+    // total weight of all validators
+    uint96 public constant TOTAL_WEIGHT = 1e10;
 
     /**
      * @inheritdoc IStaticWeightedMultisigIsm
@@ -58,7 +60,7 @@ abstract contract AbstractStaticWeightedMultisigIsm is
         ) = validatorsAndThresholdWeight(_message);
 
         require(
-            _thresholdWeight > 0 && _thresholdWeight <= BASIS_POINTS,
+            _thresholdWeight > 0 && _thresholdWeight <= TOTAL_WEIGHT,
             "Invalid threshold weight"
         );
 

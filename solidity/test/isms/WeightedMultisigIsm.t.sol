@@ -28,7 +28,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
     StaticWeightedValidatorSetFactory weightedFactory;
     AbstractStaticWeightedMultisigIsm weightedIsm;
 
-    uint96 public constant BASIS_POINTS = 10000;
+    uint96 public constant TOTAL_WEIGHT = 1e10;
 
     function addValidators(
         uint96 threshold,
@@ -41,14 +41,14 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
             IStaticWeightedMultisigIsm.ValidatorInfo[] memory
         )
     {
-        bound(threshold, 0, BASIS_POINTS);
+        bound(threshold, 0, TOTAL_WEIGHT);
         uint256[] memory keys = new uint256[](n);
         IStaticWeightedMultisigIsm.ValidatorInfo[]
             memory validators = new IStaticWeightedMultisigIsm.ValidatorInfo[](
                 n
             );
 
-        uint256 remainingWeight = BASIS_POINTS;
+        uint256 remainingWeight = TOTAL_WEIGHT;
         for (uint256 i = 0; i < n; i++) {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
@@ -97,7 +97,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         }
 
         uint96 threshold = uint96(
-            (uint256(m)).mulDiv(BASIS_POINTS, type(uint8).max)
+            (uint256(m)).mulDiv(TOTAL_WEIGHT, type(uint8).max)
         );
 
         (

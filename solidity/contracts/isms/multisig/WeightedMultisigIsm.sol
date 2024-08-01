@@ -21,7 +21,7 @@ import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {StaticWeightedValidatorSetFactory} from "../../libs/StaticWeightedValidatorSetFactory.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
-abstract contract AbstractMetaProxyMultisigIsm is
+abstract contract AbstractMetaProxyWeightedMultisigIsm is
     AbstractStaticWeightedMultisigIsm
 {
     /**
@@ -36,7 +36,7 @@ abstract contract AbstractMetaProxyMultisigIsm is
 
 contract StaticMerkleRootWeightedMultisigIsm is
     AbstractMerkleRootMultisigIsm,
-    AbstractMetaProxyMultisigIsm
+    AbstractMetaProxyWeightedMultisigIsm
 {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.WEIGHT_MERKLE_ROOT_MULTISIG);
@@ -44,7 +44,7 @@ contract StaticMerkleRootWeightedMultisigIsm is
 
 contract StaticMessageIdWeightedMultisigIsm is
     AbstractMessageIdMultisigIsm,
-    AbstractMetaProxyMultisigIsm
+    AbstractMetaProxyWeightedMultisigIsm
 {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
