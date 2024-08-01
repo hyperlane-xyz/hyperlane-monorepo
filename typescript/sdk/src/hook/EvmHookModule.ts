@@ -859,6 +859,7 @@ export class EvmHookModule extends HyperlaneModule<
       arbL2ToL1IsmAddress,
       this.multiProvider.getSignerOrProvider(config.destinationChain),
     );
+    console.log('CHEESECAKE4', arbL2ToL1Ism.address);
 
     // deploy arbL1ToL1 hook
     const hook = await this.deployer.deployContract({
@@ -882,9 +883,7 @@ export class EvmHookModule extends HyperlaneModule<
         arbL2ToL1Ism.address,
       );
       return hook;
-    } else if (
-      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
-    ) {
+    } else if (authorizedHook !== ethers.constants.HashZero) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         arbL2ToL1Ism.address,
@@ -901,6 +900,7 @@ export class EvmHookModule extends HyperlaneModule<
       arbL2ToL1Ism.address,
       config.destinationChain,
     );
+    console.log('CHEESECAKE2:', hook.address);
     await this.multiProvider.handleTx(
       config.destinationChain,
       arbL2ToL1Ism.setAuthorizedHook(
