@@ -41,6 +41,12 @@ export type AnnotatedCallData = CallData & {
   description: string;
 };
 
+export type InferredCall = {
+  type: SubmissionType;
+  chain: ChainName;
+  call: AnnotatedCallData;
+};
+
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
   Config extends OwnableConfig,
@@ -80,7 +86,7 @@ export abstract class HyperlaneAppGovernor<
 
   protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
     const calls = this.calls[chain];
-    console.log(`\nFound ${calls.length} transactions for ${chain}`);
+    console.log(`\nFound ${calls.length} transactions for ${chain}`, calls);
     const filterCalls = (submissionType: SubmissionType) =>
       calls.filter((call) => call.submissionType == submissionType);
     const summarizeCalls = async (
@@ -120,6 +126,7 @@ export abstract class HyperlaneAppGovernor<
             `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
           try {
+            console.log('multiSending calls', calls);
             await multiSend.sendTransactions(
               calls.map((call) => ({
                 to: call.to,
@@ -161,9 +168,9 @@ export abstract class HyperlaneAppGovernor<
     this.calls[chain].push(call);
   }
 
-  protected popCall(chain: ChainName): AnnotatedCallData | undefined {
-    return this.calls[chain].pop();
-  }
+  // protected popCall(chain: ChainName): AnnotatedCallData | undefined {
+  //   return this.calls[chain].pop();
+  // }
 
   protected async mapViolationsToCalls(): Promise<void> {
     const callObjs = await Promise.all(
@@ -184,37 +191,48 @@ export abstract class HyperlaneAppGovernor<
   ): Promise<{ chain: string; call: AnnotatedCallData } | undefined>;
 
   protected async inferCallSubmissionTypes() {
-    await Promise.all(
-      Object.keys(this.calls).map(async (chain) => {
-        try {
-          await Promise.all(
-            this.calls[chain].map(async (call) => {
-              let submissionType = await this.inferCallSubmissionType(
-                chain,
-                call,
-              );
-              if (submissionType === SubmissionType.MANUAL) {
-                submissionType = await this.inferICAEncodedSubmissionType(
-                  chain,
-                  call,
-                );
-              }
-              call.submissionType = submissionType;
-            }),
-          );
-        } catch (error) {
-          console.error(
-            `Error inferring call submission types for chain ${chain}: ${error}`,
-          );
+    const newCalls: ChainMap<AnnotatedCallData[]> = {};
+
+    for (const chain of Object.keys(this.calls)) {
+      try {
+        for (const call of this.calls[chain]) {
+          // if (call.submissionType !== undefined) {
+          //   continue;
+          // }
+          let inferredCall: InferredCall;
+
+          inferredCall = await this.inferCallSubmissionType(chain, call);
+          console.log('just inferred call', inferredCall);
+          if (inferredCall.type === SubmissionType.MANUAL) {
+            console.log('about to infer ICA call', inferredCall);
+            inferredCall = await this.inferICAEncodedSubmissionType(
+              chain,
+              call,
+            );
+          }
+          console.log('inferred call', inferredCall);
+          // call.submissionType = InferredCall.;
+          // newCalls[InferredCall.chain] = newCalls[InferredCall.chain] || [];
+          newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
+          newCalls[inferredCall.chain].push({
+            submissionType: inferredCall.type,
+            ...inferredCall.call,
+          });
         }
-      }),
-    );
+      } catch (error) {
+        console.error(
+          `Error inferring call submission types for chain ${chain}: ${error}`,
+        );
+      }
+    }
+
+    this.calls = newCalls;
   }
 
   protected async inferICAEncodedSubmissionType(
     chain: ChainName,
     call: AnnotatedCallData,
-  ): Promise<SubmissionType> {
+  ): Promise<InferredCall> {
     const multiProvider = this.checker.multiProvider;
     const signer = multiProvider.getSigner(chain);
     if (this.interchainAccount) {
@@ -248,7 +266,11 @@ export abstract class HyperlaneAppGovernor<
           config: accountConfig,
         });
         if (!callRemote.to || !callRemote.data) {
-          return SubmissionType.MANUAL;
+          return {
+            type: SubmissionType.MANUAL,
+            chain,
+            call,
+          };
         }
         const encodedCall: AnnotatedCallData = {
           to: callRemote.to,
@@ -256,23 +278,65 @@ export abstract class HyperlaneAppGovernor<
           value: callRemote.value,
           description: `${call.description} - interchain account call from ${origin} to ${chain}`,
         };
-        const subType = await this.inferCallSubmissionType(origin, encodedCall);
+        const { type: subType } = await this.inferCallSubmissionType(
+          origin,
+          encodedCall,
+          async (chain: ChainName, submitterAddress: Address) => {
+            if (encodedCall.value !== undefined) {
+              const submitterBalance = await multiProvider
+                .getProvider(chain)
+                .getBalance(submitterAddress);
+              if (submitterBalance.lt(encodedCall.value)) {
+                console.warn(
+                  `Submitter ${submitterAddress} has an insufficient balance and is likely to fail. Balance:`,
+                  submitterBalance,
+                  'balance required:',
+                  encodedCall.value,
+                );
+              }
+            }
+            console.log(
+              'accountConfig',
+              accountConfig,
+              'chain',
+              chain,
+              'submitterAddress',
+              submitterAddress,
+            );
+            return (
+              chain === origin &&
+              eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
+            );
+          },
+        );
         if (subType !== SubmissionType.MANUAL) {
-          this.popCall(chain);
-          this.pushCall(origin, encodedCall);
-          return subType;
+          // this.popCall(chain);
+          // this.pushCall(origin, encodedCall);
+          return {
+            type: subType,
+            chain: origin,
+            call: encodedCall,
+          };
         }
       } else {
         console.log(`Account's owner ${localOwner} is not ICA router`);
       }
     }
-    return SubmissionType.MANUAL;
+    return {
+      type: SubmissionType.MANUAL,
+      chain,
+      call,
+    };
   }
 
   protected async inferCallSubmissionType(
     chain: ChainName,
     call: AnnotatedCallData,
-  ): Promise<SubmissionType> {
+    additionalTxSuccessCriteria?: (
+      chain: ChainName,
+      submitterAddress: Address,
+    ) => Promise<boolean>,
+  ): Promise<InferredCall> {
     const multiProvider = this.checker.multiProvider;
     const signer = multiProvider.getSigner(chain);
     const signerAddress = await signer.getAddress();
@@ -282,20 +346,51 @@ export abstract class HyperlaneAppGovernor<
       submitterAddress: Address,
     ): Promise<boolean> => {
       try {
-        await multiProvider.estimateGas(chain, call, submitterAddress);
+        const provider = multiProvider.getProvider(chain);
+        const result = await provider.call({
+          from: submitterAddress,
+          ...call,
+        });
+        if (result.includes('0x08c379a0')) {
+          console.log('Call reverted', result);
+          console.log('Call reverted', result, chain, submitterAddress, call);
+          return false;
+        }
+        // const call =
+        // await multiProvider.estimateGas(chain, call, submitterAddress);
+        if (additionalTxSuccessCriteria) {
+          const r = await additionalTxSuccessCriteria(chain, submitterAddress);
+          console.log(
+            'additionalTxSuccessCriteria',
+            r,
+            chain,
+            submitterAddress,
+            call,
+          );
+          return r;
+        }
+        console.log('Call succeeded', result, chain, submitterAddress, call);
         return true;
-      } catch (e) {} // eslint-disable-line no-empty
+      } catch (e) {
+        console.log('Call failed with err', e, chain, submitterAddress, call);
+      } // eslint-disable-line no-empty
+      console.log('Call failed', chain, submitterAddress, call);
       return false;
     };
 
     if (await transactionSucceedsFromSender(chain, signerAddress)) {
-      return SubmissionType.SIGNER;
+      return {
+        type: SubmissionType.SIGNER,
+        chain,
+        call,
+      };
     }
 
     // 2. Check if the call will succeed via Gnosis Safe.
     const safeAddress = this.checker.configMap[chain].owner;
 
     if (typeof safeAddress === 'string') {
+      console.log('trying safeAddress', safeAddress);
       // 2a. Confirm that the signer is a Safe owner or delegate.
       // This should implicitly check whether or not the owner is a gnosis
       // safe.
@@ -308,6 +403,7 @@ export abstract class HyperlaneAppGovernor<
             safeAddress,
           );
           this.canPropose[chain].set(safeAddress, canPropose);
+          console.log('canPropose', this.canPropose[chain]);
         } catch (error) {
           // if we hit this error, it's likely a custom safe chain
           // so let's fallback to a manual submission
@@ -319,7 +415,11 @@ export abstract class HyperlaneAppGovernor<
               ))
           ) {
             console.warn(`${error.message}: Setting submission type to MANUAL`);
-            return SubmissionType.MANUAL;
+            return {
+              type: SubmissionType.MANUAL,
+              chain,
+              call,
+            };
           } else {
             console.error(
               `Failed to determine if signer can propose safe transactions: ${error}`,
@@ -328,16 +428,29 @@ export abstract class HyperlaneAppGovernor<
         }
       }
 
+      console.log(
+        'this.canPropose[chain].get(safeAddress)',
+        this.canPropose[chain].get(safeAddress),
+      );
+
       // 2b. Check if calling from the owner/safeAddress will succeed.
       if (
         this.canPropose[chain].get(safeAddress) &&
         (await transactionSucceedsFromSender(chain, safeAddress))
       ) {
-        return SubmissionType.SAFE;
+        return {
+          type: SubmissionType.SAFE,
+          chain,
+          call,
+        };
       }
     }
 
-    return SubmissionType.MANUAL;
+    return {
+      type: SubmissionType.MANUAL,
+      chain,
+      call,
+    };
   }
 
   handleOwnerViolation(violation: OwnerViolation) {

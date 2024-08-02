@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 // @ts-ignore
 import { getSafe, getSafeService } from '@hyperlane-xyz/sdk';
@@ -58,7 +60,12 @@ export class SafeMultiSend extends MultiSend {
     const safeService = getSafeService(this.chain, this.multiProvider);
 
     const safeTransactionData = calls.map((call) => {
-      return { to: call.to, data: call.data.toString(), value: '0' };
+      console.log('call.value?.toString()', call.value?.toString());
+      return {
+        to: call.to,
+        data: call.data.toString(),
+        value: call.value?.toString(),
+      };
     });
     const nextNonce = await safeService.getNextNonce(this.safeAddress);
     const safeTransaction = await safeSdk.createTransaction({
