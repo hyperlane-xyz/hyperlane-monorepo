@@ -1,14 +1,8 @@
 {
-  "alfajores": {
-    "HypERC20": "0x81472259b2D7749baDD7F7b5D3b76Ec5Eb8C0908",
-    "proxyAdmin": "0xC489e02DF7369229b63D0bc56dC2f3e65D9912Da",
-    "synthetic": "0x81472259b2D7749baDD7F7b5D3b76Ec5Eb8C0908",
-    "timelockController": "0x0000000000000000000000000000000000000000"
+  "plumetestnet": {
+    "synthetic": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f"
   },
   "sepolia": {
-    "HypNative": "0x17EC9F025EB45bB07873a96Ab337c83Afcc53eFd",
-    "native": "0x17EC9F025EB45bB07873a96Ab337c83Afcc53eFd",
-    "proxyAdmin": "0x2Eb5BBef28509FBceB1099E97A30ABA5d99A0556",
-    "timelockController": "0x0000000000000000000000000000000000000000"
+    "native": "0xd99eA1D8b9542D35252504DDd59EDe8C43FB15fd"
   }
 }
