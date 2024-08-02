@@ -35,7 +35,6 @@ export const keyFunderConfig: KeyFunderConfig<
     bsc: '5',
     celo: '3',
     cheesechain: '50',
-    eclipse: '0.2',
     endurance: '20',
     ethereum: '0.5',
     fraxtal: '0.2',
@@ -53,17 +52,18 @@ export const keyFunderConfig: KeyFunderConfig<
     redstone: '0.2',
     scroll: '0.5',
     sei: '10',
-    solana: '0.01',
     taiko: '0.2',
     viction: '3',
     worldchain: '0.2',
     xlayer: '0.5',
     zetachain: '20',
     zoramainnet: '0.2',
-    // ignore cosmos chains
+    // ignore non-evm chains
     injective: '0',
     neutron: '0',
     osmosis: '0',
+    solana: '0',
+    eclipse: '0',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
