@@ -90,7 +90,7 @@ pub(crate) fn declare_all(
             "hyperlane_starknet_merkle_tree_hook" => declared_classes.hpl_hook_merkle = class_hash,
             "hyperlane_starknet_mailbox" => declared_classes.hpl_mailbox = class_hash,
             "hyperlane_starknet_ism" => declared_classes.hpl_test_mock_ism = class_hash,
-            "hyperlane_starknet_pausable" => declared_classes.hpl_ism_pausable = class_hash,
+            "hyperlane_starknet_pausable_ism" => declared_classes.hpl_ism_pausable = class_hash,
             "hyperlane_starknet_hook" => declared_classes.hpl_test_mock_hook = class_hash,
             "hyperlane_starknet_aggregation" => declared_classes.hpl_ism_aggregate = class_hash,
             "hyperlane_starknet_message_recipient" => {
@@ -112,6 +112,9 @@ pub(crate) fn declare_all(
     declared_classes
 }
 
+const VALIDATOR_ADDRESS: &str = "3";
+const THRESHOLD: &str = "1";
+
 #[apply(as_task)]
 pub(crate) fn deploy_all(
     cli: StarknetCLI,
@@ -131,8 +134,16 @@ pub(crate) fn deploy_all(
     );
 
     // deploy ism - multisig ism with no enrolled validators
-    println!("Deploying multisig ism");
-    let ism_multisig = cli.deploy(declarations.hpl_ism_multisig, vec![deployer.clone()]);
+    println!("Deploying message id multisig ism");
+    let ism_multisig = cli.deploy(
+        declarations.hpl_ism_multisig,
+        vec![
+            deployer.clone(),
+            "1".to_string(),
+            VALIDATOR_ADDRESS.to_string(),
+            THRESHOLD.to_string(),
+        ],
+    );
 
     // deploy pausable ism
     println!("Deploying pausable ism");
@@ -140,17 +151,19 @@ pub(crate) fn deploy_all(
 
     // deploy ism - aggregation
     println!("Deploying aggregation ism");
-    let ism_aggregate = cli.deploy(declarations.hpl_ism_aggregate, vec![deployer.clone()]);
-    cli.invoke(
-        ism_aggregate.clone(),
-        "set_threshold",
-        vec!["2".to_string()],
+    let ism_aggregate = cli.deploy(
+        declarations.hpl_ism_aggregate,
+        vec![
+            deployer.clone(),
+            "2".to_string(),
+            ism_multisig.clone(),
+            ism_pausable,
+            THRESHOLD.to_string(),
+        ],
     );
-    cli.invoke(
-        ism_aggregate.clone(),
-        "set_modules",
-        vec!["2".to_string(), ism_multisig.clone(), ism_pausable],
-    );
+    // deploy mock hook
+    println!("Deploying mock hook");
+    let mock_hook = cli.deploy(declarations.hpl_test_mock_hook, vec![]);
 
     // deploy mailbox
     println!("Deploying mailbox");
@@ -160,8 +173,8 @@ pub(crate) fn deploy_all(
             domain.to_string(),
             deployer.clone(),
             ism_multisig.clone(),
-            "0".to_string(),
-            "0".to_string(),
+            mock_hook.clone(),
+            mock_hook.clone(),
         ],
     );
 
@@ -183,10 +196,6 @@ pub(crate) fn deploy_all(
         vec![ism_multisig.clone()],
     );
 
-    // deploy mock hook
-    println!("Deploying mock hook");
-    let mock_hook = cli.deploy(declarations.hpl_test_mock_hook, vec![]);
-
     let mock_ism = cli.deploy(declarations.hpl_test_mock_ism, vec![]);
 
     println!("Setting default/required hook");
@@ -205,7 +214,10 @@ pub(crate) fn deploy_all(
 
     // deploy va
     println!("Deploying validator announce");
-    let va = cli.deploy(declarations.hpl_validator_announce, vec![mailbox.clone()]);
+    let va = cli.deploy(
+        declarations.hpl_validator_announce,
+        vec![mailbox.clone(), deployer.clone()],
+    );
 
     Deployments {
         mailbox,
