@@ -31,6 +31,10 @@
     "amount": "10.0",
     "decimals": 9
   },
+  "cheesechain": {
+    "amount": "1.0",
+    "decimals": 9
+  },
   "endurance": {
     "amount": "1.500000007",
     "decimals": 9
@@ -117,6 +121,14 @@
   },
   "viction": {
     "amount": "0.25",
+    "decimals": 9
+  },
+  "worldchain": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
+  "xlayer": {
+    "amount": "5.0",
     "decimals": 9
   },
   "zetachain": {

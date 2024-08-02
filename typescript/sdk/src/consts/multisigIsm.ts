@@ -100,6 +100,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  cheesechain: {
+    threshold: 1,
+    validators: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
+  },
+
   chiado: {
     threshold: 2,
     validators: [
@@ -381,6 +386,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xa3f93fe365bf99f431d8fde740b140615e24f99b', // rockx
       '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
     ],
+  },
+
+  worldchain: {
+    threshold: 1,
+    validators: ['0x31048785845325b22817448b68d08f8a8fe36854'],
+  },
+
+  xlayer: {
+    threshold: 1,
+    validators: ['0xa2ae7c594703e988f23d97220717c513db638ea3'],
   },
 
   zetachain: {
