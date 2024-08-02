@@ -202,6 +202,10 @@ export abstract class HyperlaneAppGovernor<
           let inferredCall: InferredCall;
 
           inferredCall = await this.inferCallSubmissionType(chain, call);
+          // If it's a manual call, it means that we're not able to make the call
+          // from a signer or Safe. In this case, we try to infer if it must be sent
+          // from an ICA controlled by a remote owner. This new inferred call will be
+          // unchanged if the call is not an ICA call after all.
           if (inferredCall.type === SubmissionType.MANUAL) {
             inferredCall = await this.inferICAEncodedSubmissionType(
               chain,
