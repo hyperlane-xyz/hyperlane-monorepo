@@ -1,7 +1,11 @@
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
-import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  IRegistry,
+  warpConfigToWarpAddresses,
+} from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -47,7 +51,6 @@ import {
   filterRemoteDomainMetadata,
   getInfraPath,
   inCIMode,
-  readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
@@ -140,6 +143,10 @@ export function withChains<T>(args: Argv<T>) {
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
   );
+}
+
+export function withWarpRouteId<T>(args: Argv<T>) {
+  return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -428,7 +435,11 @@ function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
   return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
-export function getAddresses(environment: DeployEnvironment, module: Modules) {
+export function getAddresses(
+  environment: DeployEnvironment,
+  module: Modules,
+  warpRouteId?: string,
+) {
   if (isRegistryModule(environment, module)) {
     const allAddresses = getChainAddresses();
     const envChains = getEnvChains(environment);
@@ -436,7 +447,18 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
       return envChains.includes(chain);
     });
   } else {
-    return readJSONAtPath(getInfraLandfillPath(environment, module));
+    if (!warpRouteId) {
+      throw new Error('Warp route id required for warp module');
+    }
+
+    const registry = getRegistry();
+    const warpRouteConfig = registry.getWarpRoute(warpRouteId);
+
+    if (!warpRouteConfig) {
+      throw new Error(`Warp route config for ${warpRouteId} not found`);
+    }
+
+    return warpConfigToWarpAddresses(warpRouteConfig);
   }
 }
 
