@@ -276,7 +276,7 @@ export abstract class HyperlaneAppGovernor<
         const { type: subType } = await this.inferCallSubmissionType(
           origin,
           encodedCall,
-          async (chain: ChainName, submitterAddress: Address) => {
+          (chain: ChainName, submitterAddress: Address) => {
             // Require the submitter to be the owner of the ICA on the origin chain.
             return (
               chain === origin &&
@@ -308,7 +308,7 @@ export abstract class HyperlaneAppGovernor<
     additionalTxSuccessCriteria?: (
       chain: ChainName,
       submitterAddress: Address,
-    ) => Promise<boolean>,
+    ) => boolean,
   ): Promise<InferredCall> {
     const multiProvider = this.checker.multiProvider;
     const signer = multiProvider.getSigner(chain);
@@ -320,8 +320,8 @@ export abstract class HyperlaneAppGovernor<
     ): Promise<boolean> => {
       // The submitter needs to have enough balance to pay for the call.
       // Surface a warning if the submitter's balance is insufficient, as this
-      // can result in fooling the tooling into thinking thinking otherwise valid
-      // submission types are invalid.
+      // can result in fooling the tooling into thinking otherwise valid submission
+      // types are invalid.
       if (call.value !== undefined) {
         const submitterBalance = await multiProvider
           .getProvider(chain)
@@ -337,11 +337,14 @@ export abstract class HyperlaneAppGovernor<
       }
 
       try {
-        await multiProvider.estimateGas(chain, call, submitterAddress);
-
-        if (additionalTxSuccessCriteria) {
-          return await additionalTxSuccessCriteria(chain, submitterAddress);
+        if (
+          additionalTxSuccessCriteria &&
+          !additionalTxSuccessCriteria(chain, submitterAddress)
+        ) {
+          return false;
         }
+        // Will throw if the transaction fails
+        await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
       } catch (e) {} // eslint-disable-line no-empty
       return false;
