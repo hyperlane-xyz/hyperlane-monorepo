@@ -227,7 +227,7 @@ impl KnownHyperlaneDomain {
             Mainnet: [
                 Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
                 Fraxtal, FuseMainnet, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam,
-                Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Starknet, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet
+                Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, StarknetMainnet, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,

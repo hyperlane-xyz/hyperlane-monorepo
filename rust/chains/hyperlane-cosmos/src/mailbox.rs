@@ -10,12 +10,12 @@ use std::{
 use crate::payloads::{general, mailbox};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::CosmosProvider;
-use crate::{grpc::WasmProvider, HyperlaneCosmosError};
 use crate::{
+    address::CosmosAddress,
     payloads::mailbox::{GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner},
     utils::execute_and_parse_log_futures,
-    address::CosmosAddress,
 };
+use crate::{grpc::WasmProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, utils::get_block_height_for_lag, ConnectionConf};
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;

@@ -6954,9 +6954,9 @@ checksum = "9554e3ab233f0a932403704f1a1d08c30d5ccd931adfdfa1e8b5a19b52c1d55a"
 dependencies = [
  "anyhow",
  "itertools 0.12.0",
- "proc-macro2 1.0.76",
+ "proc-macro2 1.0.81",
  "quote 1.0.35",
- "syn 2.0.48",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -7615,8 +7615,8 @@ dependencies = [
  "macro_rules_attribute",
  "maplit",
  "nix 0.26.4",
- "phf",
  "once_cell",
+ "phf",
  "regex",
  "relayer",
  "ripemd",
@@ -10107,7 +10107,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
 dependencies = [
  "heck 0.5.0",
- "proc-macro2 1.0.76",
+ "proc-macro2 1.0.81",
  "quote 1.0.35",
  "rustversion",
  "syn 2.0.60",
@@ -11119,9 +11119,9 @@ version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac73887f47b9312552aa90ef477927ff014d63d1920ca8037c6c1951eab64bb1"
 dependencies = [
- "proc-macro2 1.0.76",
+ "proc-macro2 1.0.81",
  "quote 1.0.35",
- "syn 2.0.48",
+ "syn 2.0.60",
 ]
 
 [[package]]

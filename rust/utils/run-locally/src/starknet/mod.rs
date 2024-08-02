@@ -32,7 +32,7 @@ const STARKNET_CLI_GIT: &str = "https://github.com/xJonathanLEI/starkli";
 const STARKNET_CLI_VERSION: &str = "0.2.8";
 
 const CAIRO_HYPERLANE_GIT: &str = "https://github.com/astraly-labs/hyperlane_starknet";
-const CAIRO_HYPERLANE_VERSION: &str = "0.0.11";
+const CAIRO_HYPERLANE_VERSION: &str = "0.1.0";
 
 #[allow(dead_code)]
 pub fn install_starknet(
@@ -153,7 +153,7 @@ fn launch_starknet_node(config: StarknetConfig) -> StarknetResp {
         .arg("host", config.node_addr_base.clone())
         .arg("port", config.node_port_base.to_string())
         .arg("block-time", "1000".to_string())
-        .spawn("STARKNET");
+        .spawn("STARKNET", None);
 
     let endpoint: StarknetEndpoint = StarknetEndpoint {
         rpc_addr: format!("http://{}:{}", config.node_addr_base, config.node_port_base),
@@ -200,7 +200,7 @@ fn launch_starknet_validator(
         .hyp_env("SIGNER_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env("SIGNER_KEY", agent_config.signer.key)
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
-        .spawn("VAL");
+        .spawn("VAL", None);
 
     validator
 }
@@ -226,7 +226,7 @@ fn launch_starknet_relayer(
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]")
         .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("RLY");
+        .spawn("RLY", None);
 
     relayer
 }

@@ -121,7 +121,7 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
@@ -199,7 +199,7 @@ impl Indexer<H256> for StarknetMailboxIndexer {
 
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
@@ -288,7 +288,7 @@ impl StarknetMerkleTreeHookIndexer {
 impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
@@ -386,7 +386,7 @@ pub struct StarknetInterchainGasPaymasterIndexer {}
 
 #[async_trait]
 impl Indexer<InterchainGasPayment> for StarknetInterchainGasPaymasterIndexer {
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
