@@ -213,10 +213,6 @@ export abstract class HyperlaneAppChecker<
     for (const [name, contract] of Object.entries(ownableContracts)) {
       const expectedOwner = ownableOverrides?.[name] ?? owner;
       const actual = await contract.owner();
-      console.log(
-        `chain ${chain} name ${name} actual ${actual} expected ${expectedOwner}`,
-        ownableOverrides,
-      );
       if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
           chain,

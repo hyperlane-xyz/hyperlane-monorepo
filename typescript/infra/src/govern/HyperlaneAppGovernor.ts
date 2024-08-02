@@ -167,10 +167,6 @@ export abstract class HyperlaneAppGovernor<
     this.calls[chain].push(call);
   }
 
-  // protected popCall(chain: ChainName): AnnotatedCallData | undefined {
-  //   return this.calls[chain].pop();
-  // }
-
   protected async mapViolationsToCalls(): Promise<void> {
     const callObjs = await Promise.all(
       this.checker.violations.map((violation) =>
@@ -277,19 +273,7 @@ export abstract class HyperlaneAppGovernor<
           origin,
           encodedCall,
           async (chain: ChainName, submitterAddress: Address) => {
-            if (encodedCall.value !== undefined) {
-              const submitterBalance = await multiProvider
-                .getProvider(chain)
-                .getBalance(submitterAddress);
-              if (submitterBalance.lt(encodedCall.value)) {
-                console.warn(
-                  `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance:`,
-                  submitterBalance,
-                  'Balance required:',
-                  encodedCall.value,
-                );
-              }
-            }
+            // Require the submitter to be the owner of the ICA on the origin chain.
             return (
               chain === origin &&
               eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
@@ -297,8 +281,6 @@ export abstract class HyperlaneAppGovernor<
           },
         );
         if (subType !== SubmissionType.MANUAL) {
-          // this.popCall(chain);
-          // this.pushCall(origin, encodedCall);
           return {
             type: subType,
             chain: origin,
@@ -332,6 +314,24 @@ export abstract class HyperlaneAppGovernor<
       chain: ChainName,
       submitterAddress: Address,
     ): Promise<boolean> => {
+      // The submitter needs to have enough balance to pay for the call.
+      // Surface a warning if the submitter's balance is insufficient, as this
+      // can result in fooling the tooling into thinking thinking otherwise valid
+      // submission types are invalid.
+      if (call.value !== undefined) {
+        const submitterBalance = await multiProvider
+          .getProvider(chain)
+          .getBalance(submitterAddress);
+        if (submitterBalance.lt(call.value)) {
+          console.warn(
+            `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance:`,
+            submitterBalance,
+            'Balance required:',
+            call.value,
+          );
+        }
+      }
+
       try {
         await multiProvider.estimateGas(chain, call, submitterAddress);
 

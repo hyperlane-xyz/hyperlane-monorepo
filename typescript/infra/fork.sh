@@ -15,8 +15,8 @@ set -e
 
 RPC_URL=`LOG_LEVEL=error yarn tsx ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
 
-# anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
-# ANVIL_PID=$!
+anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
+ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
   sleep 1

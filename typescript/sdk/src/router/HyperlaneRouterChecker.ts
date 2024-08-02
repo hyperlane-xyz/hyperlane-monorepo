@@ -33,12 +33,6 @@ export class HyperlaneRouterChecker<
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkMailboxClient(chain);
     await this.checkEnrolledRouters(chain);
-    console.log(
-      `chain ${chain}`,
-      this.configMap[chain].owner,
-      this.configMap[chain].ownerOverrides,
-      this.configMap[chain],
-    );
     await super.checkOwnership(
       chain,
       this.configMap[chain].owner,

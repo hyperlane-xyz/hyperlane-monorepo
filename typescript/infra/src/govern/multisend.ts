@@ -63,7 +63,7 @@ export class SafeMultiSend extends MultiSend {
       return {
         to: call.to,
         data: call.data.toString(),
-        value: call.value?.toString(),
+        value: call.value?.toString() || '0',
       };
     });
     const nextNonce = await safeService.getNextNonce(this.safeAddress);
