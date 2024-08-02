@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 // @ts-ignore
 import { getSafe, getSafeService } from '@hyperlane-xyz/sdk';
