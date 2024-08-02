@@ -7324,7 +7324,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:2.3.0"
+    "@hyperlane-xyz/registry": "npm:2.4.0"
     "@hyperlane-xyz/sdk": "npm:4.1.0"
     "@hyperlane-xyz/utils": "npm:4.1.0"
     "@inquirer/prompts": "npm:^3.0.0"
@@ -7401,7 +7401,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/core": "npm:4.1.0"
-    "@hyperlane-xyz/registry": "npm:2.3.0"
+    "@hyperlane-xyz/registry": "npm:2.4.0"
     "@hyperlane-xyz/sdk": "npm:4.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7450,7 +7450,7 @@ __metadata:
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:4.1.0"
-    "@hyperlane-xyz/registry": "npm:2.3.0"
+    "@hyperlane-xyz/registry": "npm:2.4.0"
     "@hyperlane-xyz/sdk": "npm:4.1.0"
     "@hyperlane-xyz/utils": "npm:4.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -7505,13 +7505,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:2.3.0":
-  version: 2.3.0
-  resolution: "@hyperlane-xyz/registry@npm:2.3.0"
+"@hyperlane-xyz/registry@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@hyperlane-xyz/registry@npm:2.4.0"
   dependencies:
     yaml: "npm:^2"
     zod: "npm:^3.21.2"
-  checksum: c74a7201ef3114f7ff8e055e31592612cb881c6945d498afbe906f45e3d25acd73ee785f3101f6b2dc2bcd3a625142611ad4c5424ab59a5783b4c15d3253e4d6
+  checksum: 18541e1b2d20a0e750d58e37e043bc22b9683cfc68de7865d2c8d269c50d3ee2255029530b15b61f93e854a18d36a3e367011286c3c1456730fb3362d74f31ac
   languageName: node
   linkType: hard
 
@@ -7587,7 +7587,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/widgets@workspace:typescript/widgets"
   dependencies:
-    "@hyperlane-xyz/registry": "npm:2.3.0"
+    "@hyperlane-xyz/registry": "npm:2.4.0"
     "@hyperlane-xyz/sdk": "npm:4.1.0"
     "@storybook/addon-essentials": "npm:^7.6.14"
     "@storybook/addon-interactions": "npm:^7.6.14"
