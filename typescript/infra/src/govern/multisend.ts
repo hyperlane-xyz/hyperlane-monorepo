@@ -19,10 +19,11 @@ export class SignerMultiSend extends MultiSend {
 
   async sendTransactions(calls: CallData[]) {
     for (const call of calls) {
-      const receipt = await this.multiProvider.sendTransaction(
-        this.chain,
-        call,
-      );
+      const estimate = await this.multiProvider.estimateGas(this.chain, call);
+      const receipt = await this.multiProvider.sendTransaction(this.chain, {
+        gasLimit: estimate.mul(11).div(10), // 10% buffer
+        ...call,
+      });
       console.log(`confirmed tx ${receipt.transactionHash}`);
     }
   }

@@ -83,7 +83,7 @@ async function check() {
       envConfig.core,
       ismFactory,
     );
-    governor = new HyperlaneCoreGovernor(checker);
+    governor = new HyperlaneCoreGovernor(checker, ica);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
