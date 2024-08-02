@@ -8,6 +8,11 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const demandOption = (option: Options): Options => ({
+  ...option,
+  demandOption: true,
+});
+
 export const logFormatCommandOption: Options = {
   type: 'string',
   description: 'Log output format',
@@ -84,15 +89,13 @@ export const warpDeploymentConfigCommandOption: Options = {
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
   default: './configs/warp-route-deployment.yaml',
-  alias: 'w',
+  alias: 'wd',
 };
 
 export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
-  alias: 'w',
-  // TODO make this optional and have the commands get it from the registry
-  demandOption: true,
+  alias: 'wc',
 };
 
 export const agentConfigCommandOption = (
@@ -106,11 +109,22 @@ export const agentConfigCommandOption = (
   default: defaultPath,
 });
 
-export const outputFileCommandOption = (defaultPath?: string): Options => ({
+export const chainTargetsCommandOption: Options = {
   type: 'string',
-  description: 'Output file path',
+  description: 'Comma-separated list of chain names',
+  alias: 'c',
+};
+
+export const outputFileCommandOption = (
+  defaultPath?: string,
+  demandOption = false,
+  description = 'Output file path',
+): Options => ({
+  type: 'string',
+  description,
   default: defaultPath,
   alias: 'o',
+  demandOption,
 });
 
 export const inputFileCommandOption: Options = {
@@ -138,6 +152,31 @@ export const chainCommandOption: Options = {
   description: 'The specific chain to perform operations with.',
 };
 
+export const symbolCommandOption: Options = {
+  type: 'string',
+  description: 'Token symbol (e.g. ETH, USDC)',
+};
+
+export const validatorCommandOption: Options = {
+  type: 'string',
+  description: 'Comma separated list of validator addresses',
+  demandOption: true,
+};
+
+export const transactionsCommandOption: Options = {
+  type: 'string',
+  description: 'The transaction input file path.',
+  alias: ['t', 'txs', 'txns'],
+  demandOption: true,
+};
+
+export const strategyCommandOption: Options = {
+  type: 'string',
+  description: 'The submission strategy input file path.',
+  alias: 's',
+  demandOption: true,
+};
+
 export const addressCommandOption = (
   description: string,
   demandOption = false,
@@ -146,3 +185,47 @@ export const addressCommandOption = (
   description,
   demandOption,
 });
+
+/* Validator options */
+export const awsAccessKeyCommandOption: Options = {
+  type: 'string',
+  description: 'AWS access key of IAM user associated with validator',
+  default: ENV.AWS_ACCESS_KEY_ID,
+  defaultDescription: 'process.env.AWS_ACCESS_KEY_ID',
+};
+
+export const awsSecretKeyCommandOption: Options = {
+  type: 'string',
+  description: 'AWS secret access key of IAM user associated with validator',
+  default: ENV.AWS_SECRET_ACCESS_KEY,
+  defaultDescription: 'process.env.AWS_SECRET_ACCESS_KEY',
+};
+
+export const awsRegionCommandOption: Options = {
+  type: 'string',
+  describe: 'AWS region associated with validator',
+  default: ENV.AWS_REGION,
+  defaultDescription: 'process.env.AWS_REGION',
+};
+
+export const awsBucketCommandOption: Options = {
+  type: 'string',
+  describe: 'AWS S3 bucket containing validator signatures and announcement',
+};
+
+export const awsKeyIdCommandOption: Options = {
+  type: 'string',
+  describe: 'Key ID from AWS KMS',
+};
+
+export const operatorKeyPathCommandOption: Options = {
+  type: 'string',
+  description: 'Path to the operator key file',
+};
+
+export const avsChainCommandOption: Options = {
+  type: 'string',
+  description: 'Chain to interact with the AVS on',
+  demandOption: true,
+  choices: ['holesky', 'ethereum'],
+};

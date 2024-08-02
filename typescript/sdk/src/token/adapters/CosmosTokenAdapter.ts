@@ -1,12 +1,11 @@
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
-import Long from 'long';
 
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseCosmosAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { MinimalTokenMetadata } from '../config.js';
+import { TokenMetadata } from '../types.js';
 
 import { CwHypCollateralAdapter } from './CosmWasmTokenAdapter.js';
 import {
@@ -43,7 +42,7 @@ export class CosmNativeTokenAdapter
     return BigInt(coin.amount);
   }
 
-  getMetadata(): Promise<MinimalTokenMetadata> {
+  getMetadata(): Promise<TokenMetadata> {
     throw new Error('Metadata not available to native tokens');
   }
 
@@ -128,9 +127,8 @@ export class CosmIbcTokenAdapter
       sender: transferParams.fromAccountOwner,
       receiver: transferParams.recipient,
       // Represented as nano-seconds
-      timeoutTimestamp: Long.fromNumber(
-        new Date().getTime() + COSMOS_IBC_TRANSFER_TIMEOUT,
-      ).multiply(1_000_000),
+      timeoutTimestamp:
+        BigInt(new Date().getTime() + COSMOS_IBC_TRANSFER_TIMEOUT) * 1000000n,
       memo,
     };
     return {

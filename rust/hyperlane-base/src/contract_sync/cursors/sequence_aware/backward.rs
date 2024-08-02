@@ -9,12 +9,14 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceIndexed,
 };
 use itertools::Itertools;
-use tracing::{debug, warn};
+use tokio::time::sleep;
+use tracing::{debug, instrument, warn};
 
 use super::{LastIndexedSnapshot, TargetSnapshot};
 
+const MAX_BACKWARD_SYNC_BLOCKING_TIME: Duration = Duration::from_secs(5);
+
 /// A sequence-aware cursor that syncs backward until there are no earlier logs to index.
-#[derive(Debug)]
 pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// The max chunk size to query for logs.
     /// If in sequence mode, this is the max number of sequences to query.
@@ -33,7 +35,23 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     index_mode: IndexMode,
 }
 
+impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BackwardSequenceAwareSyncCursor")
+            .field("chunk_size", &self.chunk_size)
+            .field("last_indexed_snapshot", &self.last_indexed_snapshot)
+            .field("current_indexing_snapshot", &self.current_indexing_snapshot)
+            .field("index_mode", &self.index_mode)
+            .finish()
+    }
+}
+
 impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
+    #[instrument(
+        skip(db),
+        fields(chunk_size, next_sequence, start_block, index_mode),
+        ret
+    )]
     pub fn new(
         chunk_size: u32,
         db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
@@ -61,9 +79,14 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     /// Gets the next range of logs to query.
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
+    #[instrument(ret)]
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
         // Skip any already indexed logs.
-        self.skip_indexed().await?;
+        tokio::select! {
+            res = self.skip_indexed() => res?,
+            // return early to allow the forward cursor to also make progress
+            _ = sleep(MAX_BACKWARD_SYNC_BLOCKING_TIME) => { return Ok(None); }
+        };
 
         // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
         // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
@@ -129,6 +152,11 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
                 // If the sequence hasn't been indexed, break out of the loop.
                 break;
             }
+            // We've noticed that this loop can run for a long time because the `await`
+            // points never yield.
+            // So, to avoid starving other futures in this task, yield to the runtime
+            // on each iteration
+            tokio::task::yield_now().await;
         }
 
         Ok(())
@@ -329,6 +357,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     /// ## logs
     /// The logs to ingest. If any logs are duplicated or their sequence is higher than the current indexing snapshot,
     /// they are filtered out.
+    #[instrument(err, ret, skip(logs), fields(range=?range, logs=?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>()))]
     async fn update(
         &mut self,
         logs: Vec<(Indexed<T>, LogMeta)>,

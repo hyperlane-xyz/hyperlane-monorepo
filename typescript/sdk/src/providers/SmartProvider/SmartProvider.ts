@@ -1,5 +1,5 @@
-import { providers } from 'ethers';
-import { Logger } from 'pino';
+import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
+import pino, { Logger } from 'pino';
 
 import {
   raceWithContext,
@@ -27,6 +27,16 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
+export const getSmartProviderErrorMessage = (errorMsg: string) =>
+  `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+
+// This is a partial list. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
+const RPC_SERVER_ERRORS = [
+  EthersError.NOT_IMPLEMENTED,
+  EthersError.SERVER_ERROR,
+  EthersError.UNKNOWN_ERROR,
+  EthersError.UNSUPPORTED_OPERATION,
+];
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
@@ -95,6 +105,44 @@ export class HyperlaneSmartProvider
     }
 
     this.supportedMethods = [...supportedMethods.values()];
+  }
+
+  setLogLevel(level: pino.LevelWithSilentOrString): void {
+    this.logger.level = level;
+  }
+
+  async getPriorityFee(): Promise<BigNumber> {
+    try {
+      return BigNumber.from(await this.perform('maxPriorityFeePerGas', {}));
+    } catch (error) {
+      return BigNumber.from('1500000000');
+    }
+  }
+
+  async getFeeData(): Promise<providers.FeeData> {
+    // override hardcoded getFeedata
+    // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
+    const { block, gasPrice } = await utils.resolveProperties({
+      block: this.getBlock('latest'),
+      gasPrice: this.getGasPrice().catch(() => {
+        return null;
+      }),
+    });
+
+    let lastBaseFeePerGas: BigNumber | null = null,
+      maxFeePerGas: BigNumber | null = null,
+      maxPriorityFeePerGas: BigNumber | null = null;
+
+    if (block?.baseFeePerGas) {
+      // We may want to compute this more accurately in the future,
+      // using the formula "check if the base fee is correct".
+      // See: https://eips.ethereum.org/EIPS/eip-1559
+      lastBaseFeePerGas = block.baseFeePerGas;
+      maxPriorityFeePerGas = await this.getPriorityFee();
+      maxFeePerGas = block.baseFeePerGas.mul(2).add(maxPriorityFeePerGas);
+    }
+
+    return { lastBaseFeePerGas, maxFeePerGas, maxPriorityFeePerGas, gasPrice };
   }
 
   static fromChainMetadata(
@@ -226,26 +274,40 @@ export class HyperlaneSmartProvider
         );
         const result = await Promise.race([resultPromise, timeoutPromise]);
 
+        const providerMetadata = {
+          providerIndex: pIndex,
+          rpcUrl: provider.getBaseUrl(),
+          method: `${method}(${JSON.stringify(params)})`,
+          chainId: this.network.chainId,
+        };
+
         if (result.status === ProviderStatus.Success) {
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.logger.debug(
-            `Slow response from provider #${pIndex}.${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+            { ...providerMetadata },
+            `Slow response from provider:`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
-          this.logger.warn(
-            `Error from provider #${pIndex}: ${result.error} - ${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+          this.logger.debug(
+            {
+              error: result.error,
+              ...providerMetadata,
+            },
+            `Error from provider.`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
           pIndex += 1;
         } else {
-          throw new Error('Unexpected result from provider');
+          throw new Error(
+            `Unexpected result from provider: ${JSON.stringify(
+              providerMetadata,
+            )}`,
+          );
         }
 
         // All providers already triggered, wait for one to complete or all to fail/timeout
@@ -263,7 +325,7 @@ export class HyperlaneSmartProvider
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.throwCombinedProviderErrors(
-            providerResultErrors,
+            [result, ...providerResultErrors],
             `All providers timed out for method ${method}`,
           );
         } else if (result.status === ProviderStatus.Error) {
@@ -353,13 +415,25 @@ export class HyperlaneSmartProvider
   }
 
   protected throwCombinedProviderErrors(
-    errors: unknown[],
+    errors: any[],
     fallbackMsg: string,
   ): void {
     this.logger.error(fallbackMsg);
-    // TODO inspect the errors in some clever way to choose which to throw
-    if (errors.length > 0) throw errors[0];
-    else throw new Error(fallbackMsg);
+    if (errors.length === 0) throw new Error(fallbackMsg);
+
+    const rpcServerError = errors.find((e) =>
+      RPC_SERVER_ERRORS.includes(e.code),
+    );
+    const timedOutError = errors.find(
+      (e) => e.status === ProviderStatus.Timeout,
+    );
+    if (rpcServerError) {
+      throw Error(getSmartProviderErrorMessage(rpcServerError.code));
+    } else if (timedOutError) {
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
+    } else {
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Error)); // Assumes that all errors are of ProviderStatus.Error
+    }
   }
 }
 

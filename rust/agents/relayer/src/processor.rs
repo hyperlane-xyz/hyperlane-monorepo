@@ -5,6 +5,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
+use tokio_metrics::TaskMonitor;
 use tracing::{instrument, warn};
 
 #[async_trait]
@@ -20,11 +21,15 @@ pub trait ProcessorExt: Send + Debug {
 #[derive(new)]
 pub struct Processor {
     ticker: Box<dyn ProcessorExt>,
+    task_monitor: TaskMonitor,
 }
 
 impl Processor {
     pub fn spawn(self) -> JoinHandle<()> {
-        tokio::spawn(async move { self.main_loop().await })
+        let task_monitor = self.task_monitor.clone();
+        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            self.main_loop().await
+        }))
     }
 
     #[instrument(ret, skip(self), level = "info", fields(domain=%self.ticker.domain()))]

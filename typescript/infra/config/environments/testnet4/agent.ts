@@ -15,7 +15,10 @@ import { Contexts } from '../../contexts.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
-import { supportedChainNames } from './supportedChainNames.js';
+import {
+  supportedChainNames,
+  testnet4SupportedChainNames,
+} from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
@@ -30,44 +33,55 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 //
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.
-export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+export const hyperlaneContextAgentChainConfig: AgentChainConfig<
+  typeof testnet4SupportedChainNames
+> = {
   [Role.Validator]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: true,
     eclipsetestnet: false,
     fuji: true,
+    holesky: true,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
+    superpositiontestnet: true,
   },
   [Role.Relayer]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: true,
     eclipsetestnet: false,
     fuji: true,
+    holesky: true,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
+    superpositiontestnet: true,
   },
   [Role.Scraper]: {
     alfajores: true,
     bsctestnet: true,
+    connextsepolia: false,
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     fuji: true,
+    holesky: true,
     plumetestnet: true,
     scrollsepolia: true,
     sepolia: true,
     // Cannot scrape non-EVM chains
     solanatestnet: false,
+    superpositiontestnet: false,
   },
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
-  supportedChainNames,
+  testnet4SupportedChainNames,
 );
 
 const contextBase = {
@@ -86,6 +100,28 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
 ];
 
+// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+const relayerResources = {
+  requests: {
+    cpu: '1000m',
+    memory: '4Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '250m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '1Gi',
+  },
+};
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   contextChainNames: hyperlaneContextAgentChainNames,
@@ -95,7 +131,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '64cdc5f-20240715-212733',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -119,21 +155,24 @@ const hyperlane: RootAgentConfig = {
         matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
       },
     ],
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '64cdc5f-20240715-212733',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: 'd962e36-20240716-132121',
     },
+    resources: scraperResources,
   },
 };
 
@@ -146,19 +185,21 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '0d12ff3-20240620-173353',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 

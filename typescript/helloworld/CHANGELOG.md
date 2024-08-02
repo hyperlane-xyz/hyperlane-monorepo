@@ -1,5 +1,84 @@
 # @hyperlane-xyz/helloworld
 
+## 4.1.0
+
+### Patch Changes
+
+- Updated dependencies [36e75af4e]
+- Updated dependencies [d31677224]
+- Updated dependencies [4cc9327e5]
+- Updated dependencies [1687fca93]
+  - @hyperlane-xyz/sdk@4.1.0
+  - @hyperlane-xyz/core@4.1.0
+
+## 4.0.0
+
+### Minor Changes
+
+- 6398aab72: Upgrade registry to 2.1.1
+- bf7ad09da: feat(cli): add `warp --symbol` flag
+
+### Patch Changes
+
+- Updated dependencies [44cc9bf6b]
+- Updated dependencies [b05ae38ac]
+- Updated dependencies [9304fe241]
+- Updated dependencies [bdcbe1d16]
+- Updated dependencies [6b63c5d82]
+- Updated dependencies [e38d31685]
+- Updated dependencies [e0f226806]
+- Updated dependencies [6db9fa9ad]
+  - @hyperlane-xyz/core@4.0.0
+  - @hyperlane-xyz/sdk@4.0.0
+
+## 3.16.0
+
+### Patch Changes
+
+- Updated dependencies [f9bbdde76]
+- Updated dependencies [5cc64eb09]
+  - @hyperlane-xyz/sdk@3.16.0
+  - @hyperlane-xyz/core@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- 6620fe636: fix: `TokenRouter.transferRemote` with hook overrides
+- Updated dependencies [6620fe636]
+- Updated dependencies [acaa22cd9]
+- Updated dependencies [921e449b4]
+  - @hyperlane-xyz/core@3.15.1
+  - @hyperlane-xyz/sdk@3.15.1
+
+## 3.15.0
+
+### Patch Changes
+
+- Updated dependencies [51bfff683]
+  - @hyperlane-xyz/sdk@3.15.0
+  - @hyperlane-xyz/core@3.15.0
+
+## 3.14.0
+
+### Patch Changes
+
+- Updated dependencies [a8a68f6f6]
+  - @hyperlane-xyz/core@3.14.0
+  - @hyperlane-xyz/sdk@3.14.0
+
+## 3.13.0
+
+### Patch Changes
+
+- b6b26e2bb: fix: minor change was breaking in registry export
+- Updated dependencies [39ea7cdef]
+- Updated dependencies [babe816f8]
+- Updated dependencies [b440d98be]
+- Updated dependencies [0cf692e73]
+  - @hyperlane-xyz/sdk@3.13.0
+  - @hyperlane-xyz/core@3.13.0
+
 ## 3.12.0
 
 ### Patch Changes

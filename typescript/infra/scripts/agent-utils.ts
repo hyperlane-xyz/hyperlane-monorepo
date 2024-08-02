@@ -1,14 +1,13 @@
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
-  ChainMetadata,
   ChainName,
   CoreConfig,
+  MultiProtocolProvider,
   MultiProvider,
-  RpcConsensusType,
   collectValidators,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -35,7 +34,6 @@ import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
 import { CloudAgentKey } from '../src/agents/keys.js';
 import { RootAgentConfig } from '../src/config/agent/agent.js';
-import { fetchProvider } from '../src/config/chain.js';
 import {
   AgentEnvironment,
   DeployEnvironment,
@@ -46,7 +44,9 @@ import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
+  filterRemoteDomainMetadata,
   getInfraPath,
+  inCIMode,
   readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
@@ -96,13 +96,6 @@ export function withModuleAndFork<T>(args: Argv<T>) {
     .alias('f', 'fork');
 }
 
-export function withNetwork<T>(args: Argv<T>) {
-  return args
-    .describe('network', 'network to target')
-    .choices('network', getChains())
-    .alias('n', 'network');
-}
-
 export function withContext<T>(args: Argv<T>) {
   return args
     .describe('context', 'deploy context')
@@ -110,6 +103,43 @@ export function withContext<T>(args: Argv<T>) {
     .coerce('context', assertContext)
     .alias('x', 'context')
     .demandOption('context');
+}
+
+export function withChainRequired<T>(args: Argv<T>) {
+  return withChain(args).demandOption('chain');
+}
+
+export function withSafeHomeUrlRequired<T>(args: Argv<T>) {
+  return args
+    .string('safeHomeUrl')
+    .describe('safeHomeUrl', 'Custom safe home url')
+    .demandOption('safeHomeUrl');
+}
+
+export function withThreshold<T>(args: Argv<T>) {
+  return args
+    .describe('threshold', 'threshold for multisig')
+    .number('threshold')
+    .default('threshold', 4);
+}
+
+export function withChain<T>(args: Argv<T>) {
+  return args
+    .describe('chain', 'chain name')
+    .choices('chain', getChains())
+    .alias('c', 'chain');
+}
+
+export function withChains<T>(args: Argv<T>) {
+  return (
+    args
+      .describe('chains', 'Set of chains to perform actions on.')
+      .array('chains')
+      .choices('chains', getChains())
+      // Ensure chains are unique
+      .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
+      .alias('c', 'chains')
+  );
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -162,6 +192,24 @@ export function withBuildArtifactPath<T>(args: Argv<T>) {
     .describe('buildArtifactPath', 'path to hardhat build artifact')
     .string('buildArtifactPath')
     .alias('b', 'buildArtifactPath');
+}
+
+export function withConcurrentDeploy<T>(args: Argv<T>) {
+  return args
+    .describe('concurrentDeploy', 'If enabled, runs all deploys concurrently')
+    .boolean('concurrentDeploy')
+    .default('concurrentDeploy', false);
+}
+
+export function withRpcUrls<T>(args: Argv<T>) {
+  return args
+    .describe(
+      'rpcUrls',
+      'rpc urls in a comma separated list, in order of preference',
+    )
+    .string('rpcUrls')
+    .demandOption('rpcUrls')
+    .alias('r', 'rpcUrls');
 }
 
 // not requiring to build coreConfig to get agentConfig
@@ -276,8 +324,8 @@ export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
 export function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
-  chain: ChainName,
   role: Role,
+  chain?: ChainName,
   index?: number,
 ): CloudAgentKey {
   debugLog(`Getting key for ${role} role`);
@@ -285,33 +333,32 @@ export function getKeyForRole(
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
+export async function getMultiProtocolProvider(
+  registry: IRegistry,
+): Promise<MultiProtocolProvider> {
+  const chainMetadata = await registry.getMetadata();
+  return new MultiProtocolProvider(chainMetadata);
+}
+
 export async function getMultiProviderForRole(
-  txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
+  registry: IRegistry,
   context: Contexts,
   role: Role,
   index?: number,
-  // TODO: rename to consensusType?
-  connectionType?: RpcConsensusType,
 ): Promise<MultiProvider> {
+  const chainMetadata = await registry.getMetadata();
   debugLog(`Getting multiprovider for ${role} role`);
-  const multiProvider = new MultiProvider(txConfigs);
-  if (process.env.CI === 'true') {
-    debugLog('Returning multiprovider with default RPCs in CI');
-    // Return the multiProvider with default RPCs
+  const multiProvider = new MultiProvider(chainMetadata);
+  if (inCIMode()) {
+    debugLog('Running in CI, returning multiprovider without secret keys');
     return multiProvider;
   }
   await promiseObjAll(
-    objMap(txConfigs, async (chain, _) => {
+    objMap(chainMetadata, async (chain, _) => {
       if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-        const provider = await fetchProvider(
-          environment,
-          chain,
-          connectionType,
-        );
-        const key = getKeyForRole(environment, context, chain, role, index);
-        const signer = await key.getSigner(provider);
-        multiProvider.setProvider(chain, provider);
+        const key = getKeyForRole(environment, context, role, chain, index);
+        const signer = await key.getSigner();
         multiProvider.setSigner(chain, signer);
       }
     }),
@@ -323,23 +370,22 @@ export async function getMultiProviderForRole(
 // Note: this will only work for keystores that allow key's to be extracted.
 // I.e. GCP will work but AWS HSMs will not.
 export async function getKeysForRole(
-  txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
+  supportedChainNames: ChainName[],
   context: Contexts,
   role: Role,
   index?: number,
 ): Promise<ChainMap<CloudAgentKey>> {
-  if (process.env.CI === 'true') {
+  if (inCIMode()) {
     debugLog('No keys to return in CI');
     return {};
   }
 
-  const keys = await promiseObjAll(
-    objMap(txConfigs, async (chain, _) =>
-      getKeyForRole(environment, context, chain, role, index),
-    ),
-  );
-  return keys;
+  const keyEntries = supportedChainNames.map((chain) => [
+    chain,
+    getKeyForRole(environment, context, role, chain, index),
+  ]);
+  return Object.fromEntries(keyEntries);
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
@@ -399,6 +445,8 @@ export function writeAddresses(
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
 ) {
+  addressesMap = filterRemoteDomainMetadata(addressesMap);
+
   if (isRegistryModule(environment, module)) {
     for (const [chainName, addresses] of Object.entries(addressesMap)) {
       getRegistry().updateChain({ chainName, addresses });

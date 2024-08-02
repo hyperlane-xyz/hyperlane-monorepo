@@ -12,12 +12,12 @@ import {
 } from '../src/deployment/verify.js';
 import { readJSONAtPath } from '../src/utils/utils.js';
 
-import { getArgs, withBuildArtifactPath, withNetwork } from './agent-utils.js';
+import { getArgs, withBuildArtifactPath, withChain } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
 
 async function main() {
-  const { environment, buildArtifactPath, verificationArtifactPath, network } =
-    await withNetwork(withBuildArtifactPath(getArgs()))
+  const { environment, buildArtifactPath, verificationArtifactPath, chain } =
+    await withChain(withBuildArtifactPath(getArgs()))
       .string('verificationArtifactPath')
       .describe(
         'verificationArtifactPath',
@@ -54,7 +54,7 @@ async function main() {
 
   // verify all the things
   const failedResults = (
-    await verifier.verify(network ? [network] : undefined)
+    await verifier.verify(chain ? [chain] : undefined)
   ).filter((result) => result.status === 'rejected');
 
   // only log the failed verifications to console

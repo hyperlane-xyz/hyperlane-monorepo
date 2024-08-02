@@ -1,12 +1,16 @@
-// These chains may be any protocol type.
 // Placing them here instead of adjacent chains file to avoid circular dep
-export const supportedChainNames = [
+export const testnet4SupportedChainNames = [
   'alfajores',
   'bsctestnet',
+  'connextsepolia',
   'eclipsetestnet',
+  'holesky',
   'fuji',
   'plumetestnet',
   'scrollsepolia',
   'sepolia',
   'solanatestnet',
-];
+  'superpositiontestnet',
+] as const;
+
+export const supportedChainNames = [...testnet4SupportedChainNames];

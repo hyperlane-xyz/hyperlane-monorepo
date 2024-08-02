@@ -6,7 +6,7 @@ import * as path from 'path';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { getChains } from '../config/registry.js';
-import { S3Validator } from '../src/agents/aws/validator.js';
+import { InfraS3Validator } from '../src/agents/aws/validator.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
@@ -47,10 +47,10 @@ async function main() {
     chains.push(chain!);
 
     if (location.startsWith('s3://')) {
-      const validator = await S3Validator.fromStorageLocation(location);
+      const validator = await InfraS3Validator.fromStorageLocation(location);
       announcements.push({
         storageLocation: validator.storageLocation(),
-        announcement: await validator.getAnnouncement(),
+        announcement: await validator.getSignedAnnouncement(),
       });
     } else if (location.startsWith('file://')) {
       const announcementFilepath = path.join(
@@ -87,17 +87,17 @@ async function main() {
             ) {
               const contracts = core.getContracts(validatorChain);
               const localDomain = multiProvider.getDomainId(validatorChain);
-              const validator = new S3Validator(
-                validatorBaseConfig.address,
-                localDomain,
-                contracts.mailbox.address,
-                validatorBaseConfig.checkpointSyncer.bucket,
-                validatorBaseConfig.checkpointSyncer.region,
-                undefined,
+              const validator = new InfraS3Validator(
+                {
+                  localDomain,
+                  address: validatorBaseConfig.address,
+                  mailbox: contracts.mailbox.address,
+                },
+                validatorBaseConfig.checkpointSyncer,
               );
               announcements.push({
                 storageLocation: validator.storageLocation(),
-                announcement: await validator.getAnnouncement(),
+                announcement: await validator.getSignedAnnouncement(),
               });
               chains.push(validatorChain);
             }

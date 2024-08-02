@@ -81,63 +81,11 @@ export type NativeToken = z.infer<typeof NativeTokenSchema>;
  * Specified as a Zod schema
  */
 export const ChainMetadataSchemaObject = z.object({
-  name: ZChainName.describe(
-    'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
-  ),
-  protocol: z
-    .nativeEnum(ProtocolType)
-    .describe(
-      'The type of protocol used by this chain. See ProtocolType for valid values.',
-    ),
-  chainId: z
-    .union([ZNzUint, z.string()])
-    .describe(`The chainId of the chain. Uses EIP-155 for EVM chains`),
-  domainId: ZNzUint.optional().describe(
-    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
-  ),
-  displayName: z
+  bech32Prefix: z
     .string()
     .optional()
-    .describe('Human-readable name of the chain.'),
-  displayNameShort: z
-    .string()
-    .optional()
-    .describe(
-      'A shorter human-readable name of the chain for use in user interfaces.',
-    ),
-  technicalStack: z
-    .nativeEnum(ChainTechnicalStack)
-    .optional()
-    .describe(
-      'The technical stack of the chain. See ChainTechnicalStack for valid values.',
-    ),
-  logoURI: z
-    .string()
-    .optional()
-    .describe(
-      'A URI to a logo image for this chain for use in user interfaces.',
-    ),
-  nativeToken: NativeTokenSchema.optional().describe(
-    'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
-  ),
-  rpcUrls: z
-    .array(RpcUrlSchema)
-    .nonempty()
-    .describe('The list of RPC endpoints for interacting with the chain.'),
-  restUrls: z
-    .array(RpcUrlSchema)
-    .describe('For cosmos chains only, a list of Rest API URLs')
-    .optional(),
-  grpcUrls: z
-    .array(RpcUrlSchema)
-    .describe('For cosmos chains only, a list of gRPC API URLs')
-    .optional(),
-  customGrpcUrls: z
-    .string()
-    .optional()
-    .describe(
-      'Specify a comma separated list of custom GRPC URLs to use for this chain. If not specified, the default GRPC urls will be used.',
-    ),
+    .describe('The human readable address prefix for the chains using bech32.'),
+
   blockExplorers: z
     .array(
       z.object({
@@ -163,6 +111,7 @@ export const ChainMetadataSchemaObject = z.object({
     )
     .optional()
     .describe('A list of block explorers with data for this chain'),
+
   blocks: z
     .object({
       confirmations: ZUint.describe(
@@ -180,27 +129,64 @@ export const ChainMetadataSchemaObject = z.object({
     })
     .optional()
     .describe('Block settings for the chain/deployment.'),
-  transactionOverrides: z
-    .record(z.any())
+
+  chainId: z
+    .union([ZNzUint, z.string()])
+    .describe(`The chainId of the chain. Uses EIP-155 for EVM chains`),
+
+  customGrpcUrls: z
+    .string()
     .optional()
-    .describe('Properties to include when forming transaction requests.'),
+    .describe(
+      'Specify a comma separated list of custom GRPC URLs to use for this chain. If not specified, the default GRPC urls will be used.',
+    ),
+
+  deployer: z
+    .object({
+      name: z.string().describe('The name of the deployer.'),
+      email: z
+        .string()
+        .email()
+        .optional()
+        .describe('The email address of the deployer.'),
+      url: z.string().url().optional().describe('The URL of the deployer.'),
+    })
+    .optional()
+    .describe(
+      'Identity information of the deployer of a Hyperlane instance to this chain',
+    ),
+
+  displayName: z
+    .string()
+    .optional()
+    .describe('Human-readable name of the chain.'),
+
+  displayNameShort: z
+    .string()
+    .optional()
+    .describe(
+      'A shorter human-readable name of the chain for use in user interfaces.',
+    ),
+
+  domainId: ZNzUint.optional().describe(
+    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+  ),
+
   gasCurrencyCoinGeckoId: z
     .string()
     .optional()
     .describe('The ID on CoinGecko of the token used for gas payments.'),
+
   gnosisSafeTransactionServiceUrl: z
     .string()
     .optional()
     .describe('The URL of the gnosis safe transaction service.'),
-  bech32Prefix: z
-    .string()
-    .optional()
-    .describe('The human readable address prefix for the chains using bech32.'),
-  slip44: z.number().optional().describe('The SLIP-0044 coin type.'),
-  isTestnet: z
-    .boolean()
-    .optional()
-    .describe('Whether the chain is considered a testnet or a mainnet.'),
+
+  grpcUrls: z
+    .array(RpcUrlSchema)
+    .describe('For cosmos chains only, a list of gRPC API URLs')
+    .optional(),
+
   index: z
     .object({
       from: z
@@ -210,6 +196,56 @@ export const ChainMetadataSchemaObject = z.object({
     })
     .optional()
     .describe('Indexing settings for the chain.'),
+
+  isTestnet: z
+    .boolean()
+    .optional()
+    .describe('Whether the chain is considered a testnet or a mainnet.'),
+
+  logoURI: z
+    .string()
+    .optional()
+    .describe(
+      'A URI to a logo image for this chain for use in user interfaces.',
+    ),
+
+  name: ZChainName.describe(
+    'The unique string identifier of the chain, used as the key in ChainMap dictionaries.',
+  ),
+
+  nativeToken: NativeTokenSchema.optional().describe(
+    'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
+  ),
+
+  protocol: z
+    .nativeEnum(ProtocolType)
+    .describe(
+      'The type of protocol used by this chain. See ProtocolType for valid values.',
+    ),
+
+  restUrls: z
+    .array(RpcUrlSchema)
+    .describe('For cosmos chains only, a list of Rest API URLs')
+    .optional(),
+
+  rpcUrls: z
+    .array(RpcUrlSchema)
+    .nonempty()
+    .describe('The list of RPC endpoints for interacting with the chain.'),
+
+  slip44: z.number().optional().describe('The SLIP-0044 coin type.'),
+
+  technicalStack: z
+    .nativeEnum(ChainTechnicalStack)
+    .optional()
+    .describe(
+      'The technical stack of the chain. See ChainTechnicalStack for valid values.',
+    ),
+
+  transactionOverrides: z
+    .record(z.any())
+    .optional()
+    .describe('Properties to include when forming transaction requests.'),
 });
 
 // Add refinements to the object schema to conditionally validate certain fields

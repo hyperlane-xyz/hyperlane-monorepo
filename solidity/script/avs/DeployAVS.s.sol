@@ -10,8 +10,10 @@ import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDeleg
 
 import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
+import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
+import {ECDSAServiceManagerBase} from "../../contracts/avs/ECDSAServiceManagerBase.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
 
 import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
@@ -34,6 +36,8 @@ contract DeployAVS is Script {
     Quorum quorum;
     uint256 thresholdWeight = 6667;
 
+    address KILN_OPERATOR_ADDRESS = 0x1f8C8b1d78d01bCc42ebdd34Fae60181bD697662;
+
     function _loadEigenlayerAddresses(string memory targetEnv) internal {
         string memory root = vm.projectRoot();
         string memory path = string.concat(
@@ -42,6 +46,11 @@ contract DeployAVS is Script {
         );
         string memory json = vm.readFile(path);
 
+        proxyAdmin = ProxyAdmin(
+            json.readAddress(
+                string(abi.encodePacked(".", targetEnv, ".proxyAdmin"))
+            )
+        );
         avsDirectory = IAVSDirectory(
             json.readAddress(
                 string(abi.encodePacked(".", targetEnv, ".avsDirectory"))
@@ -88,14 +97,13 @@ contract DeployAVS is Script {
         }
     }
 
-    function run(string memory network) external {
+    function run(string memory network, string memory metadataUri) external {
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployerAddress = vm.addr(deployerPrivateKey);
 
         _loadEigenlayerAddresses(network);
 
         vm.startBroadcast(deployerPrivateKey);
-
-        proxyAdmin = new ProxyAdmin();
 
         ECDSAStakeRegistry stakeRegistryImpl = new ECDSAStakeRegistry(
             delegationManager
@@ -118,7 +126,7 @@ contract DeployAVS is Script {
             address(proxyAdmin),
             abi.encodeWithSelector(
                 HyperlaneServiceManager.initialize.selector,
-                msg.sender
+                address(deployerAddress)
             )
         );
 
@@ -131,7 +139,24 @@ contract DeployAVS is Script {
                 quorum
             )
         );
+
+        HyperlaneServiceManager hsm = HyperlaneServiceManager(
+            address(hsmProxy)
+        );
+
         require(success, "Failed to initialize ECDSAStakeRegistry");
+        require(
+            ECDSAStakeRegistry(address(stakeRegistryProxy)).owner() ==
+                address(deployerAddress),
+            "Owner of ECDSAStakeRegistry is not the deployer"
+        );
+        require(
+            HyperlaneServiceManager(address(hsmProxy)).owner() ==
+                address(deployerAddress),
+            "Owner of HyperlaneServiceManager is not the deployer"
+        );
+
+        hsm.updateAVSMetadataURI(metadataUri);
 
         console.log(
             "ECDSAStakeRegistry Implementation: ",
@@ -145,5 +170,60 @@ contract DeployAVS is Script {
         console.log("HyperlaneServiceManager Proxy: ", address(hsmProxy));
 
         vm.stopBroadcast();
+    }
+
+    // upgrade for https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/4090
+    function upgradeHsm4090(
+        string memory network,
+        address hsmProxy,
+        address stakeRegistryProxy
+    ) external {
+        deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+
+        _loadEigenlayerAddresses(network);
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        // check original behavior
+        HyperlaneServiceManager hsm = HyperlaneServiceManager(hsmProxy);
+
+        address[] memory strategies = hsm.getOperatorRestakedStrategies(
+            KILN_OPERATOR_ADDRESS
+        );
+        require(strategies.length > 0, "No strategies found for operator"); // actual length is 13
+        // for (uint256 i = 0; i < strategies.length; i++) {
+        //     vm.expectRevert(); // all strategies are expected to be 0x0..0
+        //     require(strategies[i] != address(0), "Strategy address is 0");
+        // }
+
+        HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
+                address(avsDirectory),
+                stakeRegistryProxy,
+                address(paymentCoordinator),
+                address(delegationManager)
+            );
+        console.log("Deployed new impl at", address(strategyManagerImpl));
+
+        bytes memory encodedUpgradeCalldata = abi.encodeCall(
+            ProxyAdmin.upgrade,
+            (
+                ITransparentUpgradeableProxy(payable(hsmProxy)),
+                address(strategyManagerImpl)
+            )
+        );
+        console.log("Encoded upgrade call: ");
+        console.logBytes(encodedUpgradeCalldata);
+
+        vm.stopBroadcast();
+
+        // only meant for simulating the call on mainnet as the actual caller needs to the gnosis safe
+        address(proxyAdmin).call(encodedUpgradeCalldata);
+
+        // check upgraded behavior
+        strategies = hsm.getOperatorRestakedStrategies(KILN_OPERATOR_ADDRESS);
+        require(strategies.length > 0, "No strategies found for operator"); // actual length is 13
+        for (uint256 i = 0; i < strategies.length; i++) {
+            require(strategies[i] != address(0), "Strategy address is 0");
+        }
     }
 }

@@ -11,12 +11,16 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::interfaces::merkle_tree_hook::{MerkleTreeHook as MerkleTreeHookContract, Tree};
+use crate::interfaces::merkle_tree_hook::{
+    InsertedIntoTreeFilter, MerkleTreeHook as MerkleTreeHookContract, Tree,
+};
 use crate::tx::call_with_lag;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
+
+use super::utils::fetch_raw_logs_and_log_meta;
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
@@ -40,6 +44,7 @@ pub struct MerkleTreeHookBuilder {}
 #[async_trait]
 impl BuildableWithProvider for MerkleTreeHookBuilder {
     type Output = Box<dyn MerkleTreeHook>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -58,6 +63,7 @@ pub struct MerkleTreeHookIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -108,7 +114,7 @@ where
 {
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
@@ -141,6 +147,27 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.reorg_period))
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+        let logs = fetch_raw_logs_and_log_meta::<InsertedIntoTreeFilter, M>(
+            tx_hash,
+            self.provider.clone(),
+            self.contract.address(),
+        )
+        .await?
+        .into_iter()
+        .map(|(log, log_meta)| {
+            (
+                MerkleTreeInsertion::new(log.index, H256::from(log.message_id)).into(),
+                log_meta,
+            )
+        })
+        .collect();
+        Ok(logs)
     }
 }
 

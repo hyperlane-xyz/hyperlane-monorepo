@@ -7,7 +7,7 @@ use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
     InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
-    MerkleTreeInsertion, H256,
+    MerkleTreeInsertion, PendingOperationStatus, H256,
 };
 
 use super::{
@@ -23,9 +23,11 @@ const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_"
 const MESSAGE: &str = "message_";
 const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_BY_SEQUENCE: &str = "gas_payment_by_sequence_";
+const HIGHEST_SEEN_MESSAGE_NONCE: &str = "highest_seen_message_nonce_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
+const STATUS_BY_MESSAGE_ID: &str = "status_by_message_id_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
@@ -34,7 +36,8 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
-type DbResult<T> = std::result::Result<T, DbError>;
+/// Rocks DB result type
+pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
@@ -94,6 +97,8 @@ impl HyperlaneRocksDB {
         self.store_message_by_id(&id, message)?;
         // - `nonce` --> `id`
         self.store_message_id_by_nonce(&message.nonce, &id)?;
+        // Update the max seen nonce to allow forward-backward iteration in the processor
+        self.try_update_max_seen_message_nonce(message.nonce)?;
         // - `nonce` --> `dispatched block number`
         self.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)?;
         Ok(true)
@@ -106,6 +111,22 @@ impl HyperlaneRocksDB {
             None => Ok(None),
             Some(id) => self.retrieve_message_by_id(&id),
         }
+    }
+
+    /// Update the nonce of the highest processed message we're aware of
+    pub fn try_update_max_seen_message_nonce(&self, nonce: u32) -> DbResult<()> {
+        let current_max = self
+            .retrieve_highest_seen_message_nonce()?
+            .unwrap_or_default();
+        if nonce >= current_max {
+            self.store_highest_seen_message_nonce_number(&Default::default(), &nonce)?;
+        }
+        Ok(())
+    }
+
+    /// Retrieve the nonce of the highest processed message we're aware of
+    pub fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_seen_message_nonce_number(&Default::default())
     }
 
     /// If the provided gas payment, identified by its metadata, has not been
@@ -208,7 +229,11 @@ impl HyperlaneRocksDB {
     /// Update the total gas payment for a message to include gas_payment
     fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
         let gas_payment_key = event.into();
-        let existing_payment = self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
+        let existing_payment =
+            match self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)? {
+                Some(payment) => payment,
+                None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
+            };
         let total = existing_payment + event;
 
         debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
@@ -222,10 +247,10 @@ impl HyperlaneRocksDB {
         &self,
         event: InterchainGasExpenditure,
     ) -> DbResult<()> {
-        let existing_payment = self.retrieve_gas_expenditure_by_message_id(event.message_id)?;
-        let total = existing_payment + event;
+        let existing_expenditure = self.retrieve_gas_expenditure_by_message_id(event.message_id)?;
+        let total = existing_expenditure + event;
 
-        debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
+        debug!(?event, new_total_gas_expenditure=?total, "Storing gas expenditure");
         self.store_interchain_gas_expenditure_data_by_message_id(
             &total.message_id,
             &InterchainGasExpenditureData {
@@ -240,11 +265,12 @@ impl HyperlaneRocksDB {
     pub fn retrieve_gas_payment_by_gas_payment_key(
         &self,
         gas_payment_key: GasPaymentKey,
-    ) -> DbResult<InterchainGasPayment> {
+    ) -> DbResult<Option<InterchainGasPayment>> {
         Ok(self
             .retrieve_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key)?
-            .unwrap_or_default()
-            .complete(gas_payment_key.message_id, gas_payment_key.destination))
+            .map(|payment| {
+                payment.complete(gas_payment_key.message_id, gas_payment_key.destination)
+            }))
     }
 
     /// Retrieve the total gas payment for a message
@@ -416,6 +442,39 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     }
 }
 
+/// Database interface required for processing messages
+pub trait ProcessMessage: Send + Sync {
+    /// Retrieve the nonce of the highest processed message we're aware of
+    fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
+
+    /// Retrieve a message by its nonce
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
+
+    /// Retrieve whether a message has been processed
+    fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>>;
+
+    /// Get the origin domain of the database
+    fn domain(&self) -> &HyperlaneDomain;
+}
+
+impl ProcessMessage for HyperlaneRocksDB {
+    fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
+        self.retrieve_highest_seen_message_nonce()
+    }
+
+    fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
+        self.retrieve_message_by_nonce(nonce)
+    }
+
+    fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>> {
+        self.retrieve_processed_by_nonce(&nonce)
+    }
+
+    fn domain(&self) -> &HyperlaneDomain {
+        self.domain()
+    }
+}
+
 /// Generate a call to ChainSetup for the given builder
 macro_rules! make_store_and_retrieve {
     ($vis:vis, $name_suffix:ident, $key_prefix: ident, $key_ty:ty, $val_ty:ty$(,)?) => {
@@ -448,6 +507,13 @@ make_store_and_retrieve!(pub(self), dispatched_block_number_by_nonce, MESSAGE_DI
 make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
 make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
 make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
+make_store_and_retrieve!(
+    pub,
+    status_by_message_id,
+    STATUS_BY_MESSAGE_ID,
+    H256,
+    PendingOperationStatus
+);
 make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_gas_payment_key, GAS_PAYMENT_FOR_MESSAGE_ID, GasPaymentKey, InterchainGasPaymentData);
 make_store_and_retrieve!(pub(self), gas_payment_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, InterchainGasPayment);
 make_store_and_retrieve!(pub(self), gas_payment_block_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, u64);
@@ -479,3 +545,6 @@ make_store_and_retrieve!(
     u32,
     u64
 );
+// There's no unit struct Encode/Decode impl, so just use `bool`, have visibility be private (by omitting the first argument), and wrap
+// with a function that always uses the `Default::default()` key
+make_store_and_retrieve!(, highest_seen_message_nonce_number, HIGHEST_SEEN_MESSAGE_NONCE, bool, u32);

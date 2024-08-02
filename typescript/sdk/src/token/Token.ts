@@ -41,6 +41,8 @@ import {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypXERC20Adapter,
+  EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
@@ -205,17 +207,20 @@ export class Token implements IToken {
       return new EvmHypNativeAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
-    } else if (
-      standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypCollateralVault ||
-      standard === TokenStandard.EvmHypXERC20Collateral ||
-      standard === TokenStandard.EvmHypFiatCollateral
-    ) {
+    } else if (standard === TokenStandard.EvmHypCollateral) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmHypSynthetic) {
       return new EvmHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypXERC20) {
+      return new EvmHypXERC20Adapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypXERC20Lockbox) {
+      return new EvmHypXERC20LockboxAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.SealevelHypNative) {

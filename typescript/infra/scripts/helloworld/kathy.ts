@@ -11,15 +11,14 @@ import {
   MultiProtocolCore,
   MultiProvider,
   ProviderType,
-  RpcConsensusType,
   TypedTransactionReceipt,
-  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
   ensure0x,
   objMap,
+  pick,
   retryAsync,
   rootLogger,
   sleep,
@@ -28,7 +27,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { testnetConfigs } from '../../config/environments/testnet4/chains.js';
 import {
   hyperlaneHelloworld,
   releaseCandidateHelloworld,
@@ -128,16 +126,6 @@ function getKathyArgs() {
       chainStrs.map((chainStr: string) => assertChain(chainStr)),
     )
 
-    .string('connection-type')
-    .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', RpcConsensusType.Single)
-    .choices('connection-type', [
-      RpcConsensusType.Single,
-      RpcConsensusType.Quorum,
-      RpcConsensusType.Fallback,
-    ])
-    .demandOption('connection-type')
-
     .number('cycles-between-ethereum-messages')
     .describe(
       'cycles-between-ethereum-messages',
@@ -156,7 +144,6 @@ async function main(): Promise<boolean> {
     fullCycleTime,
     messageSendTimeout,
     messageReceiptTimeout,
-    connectionType,
     cyclesBetweenEthereumMessages,
   } = await getKathyArgs();
 
@@ -166,7 +153,6 @@ async function main(): Promise<boolean> {
   logger.debug('Starting up', { environment });
 
   const coreConfig = getEnvironmentConfig(environment);
-  // const coreConfig = getCoreConfigStub(environment);
 
   const { app, core, igp, multiProvider, keys } =
     await getHelloWorldMultiProtocolApp(
@@ -174,7 +160,6 @@ async function main(): Promise<boolean> {
       context,
       Role.Kathy,
       undefined,
-      connectionType,
     );
 
   const appChains = app.chains();
@@ -248,12 +233,11 @@ async function main(): Promise<boolean> {
   }
 
   chains.map(async (chain) => {
-    const owner = await resolveOrDeployAccountOwner(
-      multiProvider,
+    return updateWalletBalanceMetricFor(
+      app,
       chain,
       coreConfig.owners[chain].owner,
     );
-    return updateWalletBalanceMetricFor(app, chain, owner);
   });
 
   // Incremented each time an entire cycle has occurred
@@ -372,11 +356,7 @@ async function main(): Promise<boolean> {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       errorOccurred = true;
     }
-    const owner = await resolveOrDeployAccountOwner(
-      multiProvider,
-      origin,
-      coreConfig.owners[origin].owner,
-    );
+    const owner = coreConfig.owners[origin].owner;
     updateWalletBalanceMetricFor(app, origin, owner).catch((e) => {
       logger.warn('Failed to update wallet balance for chain', {
         chain: origin,
@@ -550,7 +530,14 @@ async function updateWalletBalanceMetricFor(
 }
 
 // Get a core config intended for testing Kathy without secret access
-export function getCoreConfigStub(environment: DeployEnvironment) {
+export async function getCoreConfigStub(environment: DeployEnvironment) {
+  const environmentConfig = getEnvironmentConfig(environment);
+  // Don't fetch any secrets.
+  const registry = await environmentConfig.getRegistry(false);
+  const testnetConfigs = pick(
+    await registry.getMetadata(),
+    environmentConfig.supportedChainNames,
+  );
   const multiProvider = new MultiProvider({
     // Desired chains here. Key must have funds on these chains
     ...testnetConfigs,

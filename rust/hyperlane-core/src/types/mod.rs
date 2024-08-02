@@ -8,8 +8,6 @@ pub use self::primitive_types::*;
 pub use ::primitive_types as ethers_core_types;
 pub use announcement::*;
 pub use chain_data::*;
-#[cfg(feature = "async")]
-pub use channel::*;
 pub use checkpoint::*;
 pub use indexing::*;
 pub use log_metadata::*;
@@ -21,8 +19,6 @@ use crate::{Decode, Encode, HyperlaneProtocolError};
 
 mod announcement;
 mod chain_data;
-#[cfg(feature = "async")]
-mod channel;
 mod checkpoint;
 mod indexing;
 mod log_metadata;
@@ -142,6 +138,18 @@ pub struct InterchainGasPayment {
     pub payment: U256,
     /// Amount of destination gas paid for.
     pub gas_amount: U256,
+}
+
+impl InterchainGasPayment {
+    /// Create a new InterchainGasPayment from a GasPaymentKey
+    pub fn from_gas_payment_key(key: GasPaymentKey) -> Self {
+        Self {
+            message_id: key.message_id,
+            destination: key.destination,
+            payment: Default::default(),
+            gas_amount: Default::default(),
+        }
+    }
 }
 
 /// Amount of gas spent attempting to send the message.
