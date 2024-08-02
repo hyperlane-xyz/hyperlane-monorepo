@@ -22,26 +22,26 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
-import {HypERC4626VaultYieldCollateral} from "../../contracts/token/extensions/HypERC4626VaultYieldCollateral.sol";
-import {HypERC4626VaultYield} from "../../contracts/token/extensions/HypERC4626VaultYield.sol";
+import {HypERC4626Collateral} from "../../contracts/token/extensions/HypERC4626Collateral.sol";
+import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
-contract HypERC4626VaultYieldCollateralTest is HypTokenTest {
+contract HypERC4626CollateralTest is HypTokenTest {
     using TypeCasts for address;
 
     uint32 internal constant PEER_DESTINATION = 13;
     uint256 constant YIELD = 5e18;
     uint256 constant YIELD_FEES = 1e17; // 10% of yield goes to the vault owner
     uint256 internal transferAmount = 100e18;
-    HypERC4626VaultYieldCollateral internal rebasingCollateral;
+    HypERC4626Collateral internal rebasingCollateral;
     MockERC4626YieldSharing vault;
 
     MockMailbox internal peerMailbox; // mailbox for second synthetic token
     HypERC20 internal peerToken;
 
-    HypERC4626VaultYieldCollateral localRebasingToken;
-    HypERC4626VaultYield remoteRebasingToken;
-    HypERC4626VaultYield peerRebasingToken;
+    HypERC4626Collateral localRebasingToken;
+    HypERC4626 remoteRebasingToken;
+    HypERC4626 peerRebasingToken;
 
     function setUp() public override {
         super.setUp();
@@ -63,36 +63,36 @@ contract HypERC4626VaultYieldCollateralTest is HypTokenTest {
             YIELD_FEES
         );
 
-        HypERC4626VaultYieldCollateral implementation = new HypERC4626VaultYieldCollateral(
-                vault,
-                address(localMailbox)
-            );
+        HypERC4626Collateral implementation = new HypERC4626Collateral(
+            vault,
+            address(localMailbox)
+        );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC4626VaultYieldCollateral.initialize.selector,
+                HypERC4626Collateral.initialize.selector,
                 address(address(noopHook)),
                 address(0x0),
                 address(this)
             )
         );
-        localToken = HypERC4626VaultYieldCollateral(address(proxy));
+        localToken = HypERC4626Collateral(address(proxy));
 
-        remoteToken = new HypERC4626VaultYield(
+        remoteToken = new HypERC4626(
             primaryToken.decimals(),
             address(remoteMailbox),
             localToken.localDomain()
         );
-        peerToken = new HypERC4626VaultYield(
+        peerToken = new HypERC4626(
             primaryToken.decimals(),
             address(peerMailbox),
             localToken.localDomain()
         );
 
-        localRebasingToken = HypERC4626VaultYieldCollateral(address(proxy));
-        remoteRebasingToken = HypERC4626VaultYield(address(remoteToken));
-        peerRebasingToken = HypERC4626VaultYield(address(peerToken));
+        localRebasingToken = HypERC4626Collateral(address(proxy));
+        remoteRebasingToken = HypERC4626(address(remoteToken));
+        peerRebasingToken = HypERC4626(address(peerToken));
 
         primaryToken.transfer(ALICE, 1000e18);
 
@@ -331,12 +331,12 @@ contract HypERC4626VaultYieldCollateralTest is HypTokenTest {
         peerMailbox.processNextInboundMessage();
 
         assertEq(remoteRebasingToken.exchangeRate(), 1045e7); // 5 * 0.9 = 4.5% yield
-        assertEq(peerRebasingToken.exchangeRate(), 1e10);
+        assertEq(peerRebasingToken.exchangeRate(), 1e10); // assertingthat transfers by the synthetic variant don't impact the exchang rate
 
         localRebasingToken.rebase(PEER_DESTINATION);
         peerMailbox.processNextInboundMessage();
 
-        assertEq(peerRebasingToken.exchangeRate(), 1045e7);
+        assertEq(peerRebasingToken.exchangeRate(), 1045e7); // asserting that the exchange rate is set finally by the collateral variant
     }
 
     function test_cyclicTransfers() public {
