@@ -265,8 +265,8 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "eclipse",
         token: "ETH",
-        domain: 9571022593,
-        chain_id: 9571022593,
+        domain: 1408864445,
+        chain_id: 1408864445,
         is_test_net: false,
         is_deprecated: false,
     },

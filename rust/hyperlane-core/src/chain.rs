@@ -79,7 +79,7 @@ pub enum KnownHyperlaneDomain {
     Redstone = 690,
     Sei = 1329,
     Solana = 1399811149,
-    Eclipse = 9571022593,
+    Eclipse = 1408864445,
     Taiko = 167000,
     Viction = 88,
     Worldchain = 480,
