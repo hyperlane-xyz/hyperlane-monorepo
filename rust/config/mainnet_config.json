@@ -1892,9 +1892,9 @@
         "from": 1,
         "mode": "sequence"
       },
-      "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
-      "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
-      "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "interchainGasPaymaster": "HkqbGqRX7Fi5pwqi8HkDaUhHK6mGWsy7Rt17fpgBrbP5",
+      "mailbox": "4rRZgaC1DaCqtWYLzg14ftuXKPuHe1nGEM6ZtNpim3Wz",
+      "merkleTreeHook": "4rRZgaC1DaCqtWYLzg14ftuXKPuHe1nGEM6ZtNpim3Wz",
       "name": "solana",
       "nativeToken": {
         "decimals": 9,
@@ -1907,7 +1907,7 @@
           "http": "https://api.mainnet-beta.solana.com"
         }
       ],
-      "validatorAnnounce": ""
+      "validatorAnnounce": "bn63TQYrzzK9H3XQwZ1gzGdNS91xkt5YaTinFPWyahR"
     },
     "eclipse": {
       "blockExplorers": [
