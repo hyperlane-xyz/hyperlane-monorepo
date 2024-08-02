@@ -136,9 +136,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         data: l2ToL1TxEvent.data,
       };
 
-      const encodedMetadata =
-        ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(metadata);
-      return encodedMetadata;
+      return ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(metadata);
     }
 
     return '0x';

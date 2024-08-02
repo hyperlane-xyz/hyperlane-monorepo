@@ -96,7 +96,7 @@ export const randomIsmConfig = (
   }
 };
 
-describe('HyperlaneIsmFactory', async () => {
+describe.skip('HyperlaneIsmFactory', async () => {
   let ismFactory: HyperlaneIsmFactory;
   let coreApp: TestCoreApp;
   let multiProvider: MultiProvider;

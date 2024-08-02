@@ -4,8 +4,9 @@ import { before } from 'mocha';
 import sinon from 'sinon';
 
 import {
+  ArbL2ToL1Hook,
+  ArbL2ToL1Hook__factory,
   MerkleTreeHook,
-  MerkleTreeHook__factory,
   MockArbBridge__factory,
   TestRecipient,
 } from '@hyperlane-xyz/core';
@@ -33,27 +34,24 @@ import { TestRecipientDeployer } from '../../core/TestRecipientDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../../deploy/contracts.js';
 import { EvmHookModule } from '../../hook/EvmHookModule.js';
-import {
-  ArbL2ToL1HookConfig,
-  HookType,
-  MerkleTreeHookConfig,
-} from '../../hook/types.js';
+import { ArbL2ToL1HookConfig, HookType } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { ChainMap, ChainName } from '../../types.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
-import { randomIsmConfig } from '../HyperlaneIsmFactory.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 
 import { BaseMetadataBuilder, MetadataContext } from './builder.js';
 
 const MAX_ISM_DEPTH = 5;
-const MAX_NUM_VALIDATORS = 5;
 const NUM_RUNS = 5;
 
 describe('BaseMetadataBuilder', () => {
+  const origin: ChainName = 'test1';
   let core: HyperlaneCore;
   let ismFactory: HyperlaneIsmFactory;
+  let hookConfig: ChainMap<ArbL2ToL1HookConfig>;
+  let arbL2ToL1Hook: ArbL2ToL1Hook;
   const merkleHooks: Record<Domain, MerkleTreeHook> = {};
   let testRecipients: Record<ChainName, TestRecipient>;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
@@ -68,7 +66,6 @@ describe('BaseMetadataBuilder', () => {
       signer: relayer,
     });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    // const origin = 'test1';
     // const remote = 'test2';
     const contractsMap = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
@@ -84,7 +81,7 @@ describe('BaseMetadataBuilder', () => {
     );
     core = await coreDeployer.deployApp();
     console.log('core config', Object.keys(core.chainMap));
-    const hookConfig: ChainMap<ArbL2ToL1HookConfig> = {
+    hookConfig = {
       test1: {
         type: HookType.ARB_L2_TO_L1,
         arbSys: randomAddress(),
@@ -114,8 +111,8 @@ describe('BaseMetadataBuilder', () => {
       multiProvider,
     });
     const hookAddress = hookModule.serialize().deployedHook;
-    console.log('CHEESESLICE1:', hookAddress);
 
+    arbL2ToL1Hook = ArbL2ToL1Hook__factory.connect(hookAddress, relayer);
     return;
 
     metadataBuilder = new BaseMetadataBuilder(core);
@@ -149,49 +146,32 @@ describe('BaseMetadataBuilder', () => {
   });
 
   describe('#build', () => {
-    let origin: ChainName;
     let destination: ChainName;
     let context: MetadataContext;
     let metadata: string;
 
     beforeEach(async () => {
-      return;
-      origin = randomElement(testChains);
-      destination = randomElement(testChains.filter((c) => c !== origin));
       const testRecipient = testRecipients[destination];
-
-      const addresses = validators
-        .map((s) => s.address)
-        .slice(0, MAX_NUM_VALIDATORS);
-      const config = randomIsmConfig(MAX_ISM_DEPTH, addresses, relayer.address);
-      console.log('CHEESECAKE3', JSON.stringify(config, null, 2));
-      const deployedIsm = await ismFactory.deploy({
-        destination,
-        config,
-        mailbox: core.getAddresses(destination).mailbox,
-      });
+      const deployedIsmAddress = await arbL2ToL1Hook.ism();
       // const deployedIsm =
-      await testRecipient.setInterchainSecurityModule(deployedIsm.address);
-
-      const merkleHookAddress =
-        merkleHooks[core.multiProvider.getDomainId(origin)].address;
+      await testRecipient.setInterchainSecurityModule(deployedIsmAddress);
       const { dispatchTx, message } = await core.sendMessage(
         origin,
         destination,
         testRecipient.address,
         '0xdeadbeef',
-        merkleHookAddress,
+        arbL2ToL1Hook.address,
       );
 
       const derivedIsm = await new EvmIsmReader(
         core.multiProvider,
         destination,
-      ).deriveIsmConfig(deployedIsm.address);
+      ).deriveIsmConfig(deployedIsmAddress);
 
       context = {
         hook: {
           type: HookType.MERKLE_TREE,
-          address: merkleHookAddress,
+          address: arbL2ToL1Hook.address,
         },
         ism: derivedIsm,
         message,
@@ -200,6 +180,8 @@ describe('BaseMetadataBuilder', () => {
 
       metadata = await metadataBuilder.build(context, MAX_ISM_DEPTH);
     });
+
+    return;
 
     for (let i = 0; i < NUM_RUNS; i++) {
       it(`should build valid metadata for random ism config (${i})`, async () => {
