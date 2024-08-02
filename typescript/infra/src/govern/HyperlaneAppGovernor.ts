@@ -86,7 +86,7 @@ export abstract class HyperlaneAppGovernor<
 
   protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
     const calls = this.calls[chain];
-    console.log(`\nFound ${calls.length} transactions for ${chain}`, calls);
+    console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
       calls.filter((call) => call.submissionType == submissionType);
     const summarizeCalls = async (
@@ -126,7 +126,6 @@ export abstract class HyperlaneAppGovernor<
             `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
           try {
-            console.log('multiSending calls', calls);
             await multiSend.sendTransactions(
               calls.map((call) => ({
                 to: call.to,
@@ -193,31 +192,27 @@ export abstract class HyperlaneAppGovernor<
   protected async inferCallSubmissionTypes() {
     const newCalls: ChainMap<AnnotatedCallData[]> = {};
 
+    const pushNewCall = (inferredCall: InferredCall) => {
+      newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
+      newCalls[inferredCall.chain].push({
+        submissionType: inferredCall.type,
+        ...inferredCall.call,
+      });
+    };
+
     for (const chain of Object.keys(this.calls)) {
       try {
         for (const call of this.calls[chain]) {
-          // if (call.submissionType !== undefined) {
-          //   continue;
-          // }
           let inferredCall: InferredCall;
 
           inferredCall = await this.inferCallSubmissionType(chain, call);
-          console.log('just inferred call', inferredCall);
           if (inferredCall.type === SubmissionType.MANUAL) {
-            console.log('about to infer ICA call', inferredCall);
             inferredCall = await this.inferICAEncodedSubmissionType(
               chain,
               call,
             );
           }
-          console.log('inferred call', inferredCall);
-          // call.submissionType = InferredCall.;
-          // newCalls[InferredCall.chain] = newCalls[InferredCall.chain] || [];
-          newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
-          newCalls[inferredCall.chain].push({
-            submissionType: inferredCall.type,
-            ...inferredCall.call,
-          });
+          pushNewCall(inferredCall);
         }
       } catch (error) {
         console.error(
@@ -288,21 +283,13 @@ export abstract class HyperlaneAppGovernor<
                 .getBalance(submitterAddress);
               if (submitterBalance.lt(encodedCall.value)) {
                 console.warn(
-                  `Submitter ${submitterAddress} has an insufficient balance and is likely to fail. Balance:`,
+                  `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance:`,
                   submitterBalance,
-                  'balance required:',
+                  'Balance required:',
                   encodedCall.value,
                 );
               }
             }
-            console.log(
-              'accountConfig',
-              accountConfig,
-              'chain',
-              chain,
-              'submitterAddress',
-              submitterAddress,
-            );
             return (
               chain === origin &&
               eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
@@ -346,35 +333,13 @@ export abstract class HyperlaneAppGovernor<
       submitterAddress: Address,
     ): Promise<boolean> => {
       try {
-        const provider = multiProvider.getProvider(chain);
-        const result = await provider.call({
-          from: submitterAddress,
-          ...call,
-        });
-        if (result.includes('0x08c379a0')) {
-          console.log('Call reverted', result);
-          console.log('Call reverted', result, chain, submitterAddress, call);
-          return false;
-        }
-        // const call =
-        // await multiProvider.estimateGas(chain, call, submitterAddress);
+        await multiProvider.estimateGas(chain, call, submitterAddress);
+
         if (additionalTxSuccessCriteria) {
-          const r = await additionalTxSuccessCriteria(chain, submitterAddress);
-          console.log(
-            'additionalTxSuccessCriteria',
-            r,
-            chain,
-            submitterAddress,
-            call,
-          );
-          return r;
+          return await additionalTxSuccessCriteria(chain, submitterAddress);
         }
-        console.log('Call succeeded', result, chain, submitterAddress, call);
         return true;
-      } catch (e) {
-        console.log('Call failed with err', e, chain, submitterAddress, call);
-      } // eslint-disable-line no-empty
-      console.log('Call failed', chain, submitterAddress, call);
+      } catch (e) {} // eslint-disable-line no-empty
       return false;
     };
 
@@ -390,7 +355,6 @@ export abstract class HyperlaneAppGovernor<
     const safeAddress = this.checker.configMap[chain].owner;
 
     if (typeof safeAddress === 'string') {
-      console.log('trying safeAddress', safeAddress);
       // 2a. Confirm that the signer is a Safe owner or delegate.
       // This should implicitly check whether or not the owner is a gnosis
       // safe.
@@ -403,7 +367,6 @@ export abstract class HyperlaneAppGovernor<
             safeAddress,
           );
           this.canPropose[chain].set(safeAddress, canPropose);
-          console.log('canPropose', this.canPropose[chain]);
         } catch (error) {
           // if we hit this error, it's likely a custom safe chain
           // so let's fallback to a manual submission
@@ -427,11 +390,6 @@ export abstract class HyperlaneAppGovernor<
           }
         }
       }
-
-      console.log(
-        'this.canPropose[chain].get(safeAddress)',
-        this.canPropose[chain].get(safeAddress),
-      );
 
       // 2b. Check if calling from the owner/safeAddress will succeed.
       if (

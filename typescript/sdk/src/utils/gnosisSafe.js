@@ -44,22 +44,13 @@ export async function canProposeSafeTransactions(
   safeAddress,
 ) {
   let safeService;
-  console.log(
-    'canProposeSafeTransactions 1',
-    chain,
-    multiProvider,
-    proposer,
-    safeAddress,
-  );
   try {
     safeService = getSafeService(chain, multiProvider);
   } catch (e) {
-    console.warn(`Could not get safe service for chain ${chain}`, e);
     return false;
   }
   const safe = await getSafe(chain, multiProvider, safeAddress);
   const delegates = await getSafeDelegates(safeService, safeAddress);
   const owners = await safe.getOwners();
-  console.log('canProposeSafeTransactions 2', proposer, delegates, owners);
   return delegates.includes(proposer) || owners.includes(proposer);
 }

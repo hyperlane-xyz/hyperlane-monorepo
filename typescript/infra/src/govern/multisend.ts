@@ -60,7 +60,6 @@ export class SafeMultiSend extends MultiSend {
     const safeService = getSafeService(this.chain, this.multiProvider);
 
     const safeTransactionData = calls.map((call) => {
-      console.log('call.value?.toString()', call.value?.toString());
       return {
         to: call.to,
         data: call.data.toString(),
