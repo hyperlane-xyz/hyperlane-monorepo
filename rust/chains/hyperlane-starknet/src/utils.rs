@@ -131,13 +131,17 @@ pub fn to_hpl_module_type(module_type: StarknetModuleType) -> ModuleType {
 pub fn try_parse_hyperlane_message_from_event(
     event: &EmittedEvent,
 ) -> ChainResult<HyperlaneMessage> {
-    let sender = event.data[0].into();
-    let destination = event.data[1]
+    let sender = (event.data[0], event.data[1])
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
-    let recipient = event.data[2].into();
+    let destination = event.data[2]
+        .try_into()
+        .map_err(Into::<HyperlaneStarknetError>::into)?;
+    let recipient = (event.data[3], event.data[4])
+        .try_into()
+        .map_err(Into::<HyperlaneStarknetError>::into)?;
     let message =
-        Message::cairo_deserialize(&event.data, 3).map_err(Into::<HyperlaneStarknetError>::into)?;
+        Message::cairo_deserialize(&event.data, 5).map_err(Into::<HyperlaneStarknetError>::into)?;
 
     Ok(HyperlaneMessage {
         version: message.version,

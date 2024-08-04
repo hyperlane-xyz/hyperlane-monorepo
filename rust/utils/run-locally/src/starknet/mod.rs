@@ -238,7 +238,7 @@ const ENV_HYPERLANE_STARKNET_PATH_KEY: &str = "E2E_HYPERLANE_STARKNET_PATH";
 #[allow(dead_code)]
 fn run_locally() {
     const TIMEOUT_SECS: u64 = 60 * 10;
-    let debug = false;
+    let debug = true;
 
     log!("Building rust...");
     Program::new("cargo")
@@ -462,7 +462,6 @@ fn run_locally() {
                 format!("u256:{}", target.deployments.mock_receiver.clone()),
                 strk_msg_len.to_string(),
                 strk_msg_str.len().to_string(),
-                fee_amount.to_string(),
             ];
 
             // we set the options to `None` for now
@@ -472,6 +471,7 @@ fn run_locally() {
             let args = initial_args
                 .into_iter()
                 .chain(strk_msg_str)
+                .chain(vec![format!("u256:{}", fee_amount)])
                 .chain(options_args)
                 .collect();
 
