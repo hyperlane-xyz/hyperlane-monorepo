@@ -135,6 +135,10 @@ pub fn generate_bindings(
             String::from("openzeppelin::upgrades::upgradeable::UpgradeableComponent::Event"),
             String::from("UpgradeableCptEvent"),
         );
+        aliases.insert(
+            String::from("hyperlane_starknet::contracts::client::mailboxclient_component::MailboxclientComponent::Event"),
+            String::from("MailboxclientCptEvent")
+        );
 
         let abigen =
             cainome::rs::Abigen::new(contract_name, abi_source).with_types_aliases(aliases);

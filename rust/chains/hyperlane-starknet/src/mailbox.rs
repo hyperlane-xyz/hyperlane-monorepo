@@ -94,19 +94,9 @@ impl StarknetMailbox {
                 version: message.version,
                 nonce: message.nonce,
                 origin: message.origin,
-                sender: cainome::cairo_serde::ContractAddress(
-                    message
-                        .sender
-                        .try_into()
-                        .map_err(Into::<HyperlaneStarknetError>::into)?,
-                ),
+                sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
                 destination: message.destination,
-                recipient: cainome::cairo_serde::ContractAddress(
-                    message
-                        .recipient
-                        .try_into()
-                        .map_err(Into::<HyperlaneStarknetError>::into)?,
-                ),
+                recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
                 body: StarknetBytes {
                     size: message.body.len() as u32,
                     data: message.body.iter().map(|b| *b as u128).collect(),
@@ -213,11 +203,7 @@ impl Mailbox for StarknetMailbox {
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let address = self
             .contract
-            .recipient_ism(&cainome::cairo_serde::ContractAddress(
-                recipient
-                    .try_into()
-                    .map_err(Into::<HyperlaneStarknetError>::into)?,
-            ))
+            .recipient_ism(&StarknetU256::from_bytes_be(&recipient.to_fixed_bytes()))
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
@@ -104,19 +105,9 @@ impl MultisigIsm for StarknetMultisigIsm {
             version: message.version,
             nonce: message.nonce,
             origin: message.origin,
-            sender: cainome::cairo_serde::ContractAddress(
-                message
-                    .sender
-                    .try_into()
-                    .map_err(Into::<HyperlaneStarknetError>::into)?,
-            ),
+            sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
             destination: message.destination,
-            recipient: cainome::cairo_serde::ContractAddress(
-                message
-                    .recipient
-                    .try_into()
-                    .map_err(Into::<HyperlaneStarknetError>::into)?,
-            ),
+            recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
             body: StarknetBytes {
                 size: message.body.len() as u32,
                 data: message.body.iter().map(|b| *b as u128).collect(),

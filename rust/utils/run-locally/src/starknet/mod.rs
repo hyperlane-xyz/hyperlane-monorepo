@@ -455,11 +455,14 @@ fn run_locally() {
                 .map(|v| format!("0x{:x}", v))
                 .collect::<Vec<String>>();
 
+            let fee_amount = 0u32;
+
             let initial_args = vec![
                 target.domain.to_string(),
-                target.deployments.mock_receiver.clone(),
+                format!("u256:{}", target.deployments.mock_receiver.clone()),
                 strk_msg_len.to_string(),
                 strk_msg_str.len().to_string(),
+                fee_amount.to_string(),
             ];
 
             // we set the options to `None` for now

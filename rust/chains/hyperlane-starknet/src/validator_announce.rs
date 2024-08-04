@@ -135,7 +135,7 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
         let validators_calldata: Vec<EthAddress> = validators
-            .into_iter()
+            .iter()
             .map(|v| {
                 TryInto::<FieldElement>::try_into(*v).map_err(Into::<HyperlaneStarknetError>::into)
             })
@@ -153,17 +153,25 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
 
         let storage_locations = storage_locations_res
             .into_iter()
-            .map(|inner_vec| {
-                inner_vec
+            .map(|validator_vec| {
+                validator_vec
                     .into_iter()
-                    .map(|element| parse_cairo_short_string(&element))
-                    .collect()
+                    .map(|inner_vec| {
+                        inner_vec
+                            .into_iter()
+                            .map(|element| parse_cairo_short_string(&element))
+                            .collect::<Result<Vec<String>, ParseCairoShortStringError>>()
+                    })
+                    .collect::<Result<Vec<Vec<String>>, ParseCairoShortStringError>>()
+                    .map(|strings_vec| {
+                        strings_vec
+                            .into_iter()
+                            .map(|inner_vec| inner_vec.join(""))
+                            .collect::<Vec<String>>()
+                    })
             })
             .collect::<Result<Vec<Vec<String>>, ParseCairoShortStringError>>()
-            .map_err(Into::<HyperlaneStarknetError>::into)?
-            .into_iter()
-            .map(|inner_vec| vec![inner_vec.join("")]) // Concatenate strings in each inner vector
-            .collect();
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok(storage_locations)
     }

@@ -161,7 +161,7 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
         let mut branch = tree
             .branch
             .iter()
-            .map(|b| H256::from_slice(b.to_bytes_be().as_slice()))
+            .map(|b| H256::from_slice(b.value.to_bytes_be().as_slice()))
             .collect::<Vec<H256>>();
         branch.resize(TREE_DEPTH, H256::zero());
 
