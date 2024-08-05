@@ -80,7 +80,7 @@ describe('BaseMetadataBuilder', () => {
       (_, { testRecipient }) => testRecipient,
     );
     core = await coreDeployer.deployApp();
-    console.log('core config', Object.keys(core.chainMap));
+    console.log('core config', Object.keys(testRecipients));
     hookConfig = {
       test1: {
         type: HookType.ARB_L2_TO_L1,
@@ -113,9 +113,11 @@ describe('BaseMetadataBuilder', () => {
     const hookAddress = hookModule.serialize().deployedHook;
 
     arbL2ToL1Hook = ArbL2ToL1Hook__factory.connect(hookAddress, relayer);
-    return;
 
     metadataBuilder = new BaseMetadataBuilder(core);
+    return;
+
+    // deploy
 
     sinon
       .stub(metadataBuilder.multisigMetadataBuilder, 'getS3Checkpoints')
@@ -152,6 +154,7 @@ describe('BaseMetadataBuilder', () => {
 
     beforeEach(async () => {
       const testRecipient = testRecipients[destination];
+      console.log('CHEESECAKE testRecipient', testRecipient.address);
       const deployedIsmAddress = await arbL2ToL1Hook.ism();
       // const deployedIsm =
       await testRecipient.setInterchainSecurityModule(deployedIsmAddress);
@@ -179,9 +182,11 @@ describe('BaseMetadataBuilder', () => {
       };
 
       metadata = await metadataBuilder.build(context, MAX_ISM_DEPTH);
+
+      console.log('ARBL2TOL1 metadata', metadata);
     });
 
-    return;
+    // return;
 
     for (let i = 0; i < NUM_RUNS; i++) {
       it(`should build valid metadata for random ism config (${i})`, async () => {
@@ -192,9 +197,9 @@ describe('BaseMetadataBuilder', () => {
           .mailbox.process(metadata, context.message.message);
       });
 
-      // it(`should decode metadata for random ism config (${i})`, async () => {
-      //   BaseMetadataBuilder.decode(metadata, context);
-      // });
+      it(`should decode metadata for random ism config (${i})`, async () => {
+        BaseMetadataBuilder.decode(metadata, context);
+      });
     }
   });
 });
