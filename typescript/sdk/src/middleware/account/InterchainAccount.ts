@@ -50,7 +50,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 
   async deployAccount(
-    chain: ChainName,
+    destinationChain: ChainName,
     config: AccountConfig,
     routerOverride?: Address,
     ismOverride?: Address,
@@ -61,29 +61,39 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Origin chain (${config.origin}) metadata needed for deploying ICAs ...`,
       );
     }
-    const localRouter = this.router(this.contractsMap[chain]);
-    const routerAddress =
+    const destinationRouter = this.router(this.contractsMap[destinationChain]);
+    const originRouterAddress =
       routerOverride ??
-      bytes32ToAddress(await localRouter.routers(originDomain));
-    const ismAddress =
-      ismOverride ?? bytes32ToAddress(await localRouter.isms(originDomain));
-    const account = await localRouter[
+      bytes32ToAddress(await destinationRouter.routers(originDomain));
+    const destinationIsmAddress =
+      ismOverride ??
+      bytes32ToAddress(await destinationRouter.isms(originDomain));
+    const destinationAccount = await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, routerAddress, ismAddress);
+    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
     if (
-      (await this.multiProvider.getProvider(chain).getCode(account)) === '0x'
+      (await this.multiProvider
+        .getProvider(destinationChain)
+        .getCode(destinationAccount)) === '0x'
     ) {
       await this.multiProvider.handleTx(
-        chain,
-        localRouter[
+        destinationChain,
+        destinationRouter[
           'getDeployedInterchainAccount(uint32,address,address,address)'
-        ](originDomain, config.owner, routerAddress, ismAddress),
+        ](
+          originDomain,
+          config.owner,
+          originRouterAddress,
+          destinationIsmAddress,
+        ),
       );
-      this.logger.debug(`Interchain account deployed at ${account}`);
+      this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
     } else {
-      this.logger.debug(`Interchain account recovered at ${account}`);
+      this.logger.debug(
+        `Interchain account recovered at ${destinationAccount}`,
+      );
     }
-    return account;
+    return destinationAccount;
   }
 
   // meant for ICA governance to return the populatedTx

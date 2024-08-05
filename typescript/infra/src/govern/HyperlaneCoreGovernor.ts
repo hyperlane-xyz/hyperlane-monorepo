@@ -7,6 +7,7 @@ import {
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneCoreDeployer,
+  InterchainAccount,
   MailboxViolation,
   MailboxViolationType,
   OwnerViolation,
@@ -19,8 +20,11 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
 > {
-  constructor(readonly checker: HyperlaneCoreChecker) {
-    super(checker);
+  constructor(
+    readonly checker: HyperlaneCoreChecker,
+    readonly ica?: InterchainAccount,
+  ) {
+    super(checker, ica);
   }
 
   protected async handleMailboxViolation(violation: MailboxViolation) {
