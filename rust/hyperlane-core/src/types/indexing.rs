@@ -1,6 +1,6 @@
 use derive_new::new;
 
-use crate::{HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, Sequenced};
+use crate::{HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, Sequenced, H256};
 
 /// Wrapper struct that adds indexing information to a type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, new)]
@@ -64,6 +64,12 @@ impl From<HyperlaneMessage> for Indexed<HyperlaneMessage> {
     fn from(value: HyperlaneMessage) -> Self {
         let nonce = value.nonce;
         Indexed::new(value).with_sequence(nonce as _)
+    }
+}
+
+impl From<H256> for Indexed<H256> {
+    fn from(value: H256) -> Self {
+        Indexed::new(value)
     }
 }
 

@@ -36,9 +36,17 @@ tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
 tendermint-rpc = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tonic = { workspace = true, features = ["transport", "tls", "tls-roots","tls-roots-common"] }
+tonic = { workspace = true, features = [
+    "transport",
+    "tls",
+    "tls-roots",
+    "tls-roots-common",
+] }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 url = { workspace = true }
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["async"]}
+hyperlane-core = { path = "../../hyperlane-core", features = [
+    "async",
+    "cosmos",
+] }

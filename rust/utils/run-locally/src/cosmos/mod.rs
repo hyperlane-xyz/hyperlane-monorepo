@@ -58,7 +58,7 @@ fn default_keys<'a>() -> [(&'a str, &'a str); 6] {
 }
 
 const CW_HYPERLANE_GIT: &str = "https://github.com/hyperlane-xyz/cosmwasm";
-const CW_HYPERLANE_VERSION: &str = "v0.0.6";
+const CW_HYPERLANE_VERSION: &str = "0.0.6";
 
 fn make_target() -> String {
     let os = if cfg!(target_os = "linux") {
@@ -92,50 +92,12 @@ pub struct MockDispatchInner {
     pub metadata: String,
 }
 
-pub fn install_codes(dir: Option<PathBuf>, local: bool) -> BTreeMap<String, PathBuf> {
-    let dir_path = match dir {
-        Some(path) => path,
-        None => tempdir().unwrap().into_path(),
-    };
-
-    if !local {
-        let dir_path_str = dir_path.to_str().unwrap();
-
-        let release_comp = "wasm_codes.zip";
-
-        log!(
-            "Downloading {} @ {}",
-            CW_HYPERLANE_GIT,
-            CW_HYPERLANE_VERSION
-        );
-        let uri =
-            format!("{CW_HYPERLANE_GIT}/releases/download/{CW_HYPERLANE_VERSION}/{release_comp}");
-        download(release_comp, &uri, dir_path_str);
-
-        log!("Uncompressing {} release", CW_HYPERLANE_GIT);
-        unzip(release_comp, dir_path_str);
-    }
-
-    log!("Installing {} in Path: {:?}", CW_HYPERLANE_GIT, dir_path);
-
-    // make contract_name => path map
-    fs::read_dir(dir_path)
-        .unwrap()
-        .map(|v| {
-            let entry = v.unwrap();
-            (entry.file_name().into_string().unwrap(), entry.path())
-        })
-        .filter(|(filename, _)| filename.ends_with(".wasm"))
-        .map(|v| (v.0.replace(".wasm", ""), v.1))
-        .collect()
-}
-
 #[allow(dead_code)]
 pub fn install_cosmos(
     cli_dir: Option<PathBuf>,
     cli_src: Option<CLISource>,
     codes_dir: Option<PathBuf>,
-    _codes_src: Option<CodeSource>,
+    codes_src: Option<CodeSource>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
     let osmosisd = cli_src
         .unwrap_or(CLISource::Remote {
@@ -143,7 +105,12 @@ pub fn install_cosmos(
             version: OSMOSIS_CLI_VERSION.to_string(),
         })
         .install(cli_dir);
-    let codes = install_codes(codes_dir, false);
+    let codes = codes_src
+        .unwrap_or(CodeSource::Remote {
+            url: CW_HYPERLANE_GIT.to_string(),
+            version: CW_HYPERLANE_VERSION.to_string(),
+        })
+        .install(codes_dir);
 
     (osmosisd, codes)
 }
@@ -225,6 +192,7 @@ fn launch_cosmos_node(config: CosmosConfig) -> CosmosResp {
     cli.init(&config.moniker, &config.chain_id);
 
     let (node, endpoint) = cli.start(config.node_addr_base, config.node_port_base);
+
     let codes = cli.store_codes(&endpoint, "validator", config.codes);
 
     CosmosResp {

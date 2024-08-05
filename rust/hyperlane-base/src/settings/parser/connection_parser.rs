@@ -4,6 +4,8 @@ use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
 use url::Url;
 
+use hyperlane_starknet as h_starknet;
+
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
 
@@ -180,5 +182,8 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Starknet => rpcs.iter().next().map(|url| {
+            ChainConnectionConf::Starknet(h_starknet::ConnectionConf { url: url.clone() })
+        }),
     }
 }

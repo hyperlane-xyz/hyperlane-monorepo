@@ -17,8 +17,10 @@ bigdecimal.workspace = true
 borsh.workspace = true
 bs58.workspace = true
 bytes = { workspace = true, features = ["serde"] }
+cainome = { workspace = true, optional = true }
 config = { workspace = true, optional = true }
 convert_case.workspace = true
+cosmrs = { worksapce = true, optional = true }
 derive-new.workspace = true
 derive_more.workspace = true
 ethers-contract = { workspace = true, optional = true }
@@ -36,6 +38,7 @@ num-traits.workspace = true
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
+starknet = { workspace = true, optional = true }
 strum = { workspace = true, optional = true, features = ["derive"] }
 strum_macros = { workspace = true, optional = true }
 thiserror = { workspace = true }
@@ -44,7 +47,7 @@ tracing.workspace = true
 typetag.workspace = true
 primitive-types = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
-tiny-keccak = { workspace = true, features = ["keccak"]}
+tiny-keccak = { workspace = true, features = ["keccak"] }
 uint.workspace = true
 
 [dev-dependencies]
@@ -56,6 +59,13 @@ float = []
 test-utils = ["dep:config"]
 agent = ["ethers", "strum"]
 strum = ["dep:strum"]
-ethers = ["dep:ethers-core", "dep:ethers-contract", "dep:ethers-providers", "dep:primitive-types"]
+ethers = [
+    "dep:ethers-core",
+    "dep:ethers-contract",
+    "dep:ethers-providers",
+    "dep:primitive-types",
+]
 solana = ["dep:solana-sdk"]
+cosmos = ["dep:cosmrs"]
+starknet = ["dep:starknet", "dep:cainome"]
 async = ["tokio", "futures"]

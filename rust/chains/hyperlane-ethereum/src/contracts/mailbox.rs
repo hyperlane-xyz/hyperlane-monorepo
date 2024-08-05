@@ -224,7 +224,7 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (Indexed::new(H256::from(event.message_id)), meta.into()))
+            .map(|(event, meta)| (H256::from(event.message_id).into(), meta.into()))
             .collect())
     }
 }

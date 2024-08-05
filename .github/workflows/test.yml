@@ -192,7 +192,7 @@ jobs:
     needs: [yarn-build]
     strategy:
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [starknet, cosmwasm, non-cosmwasm]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -260,7 +260,14 @@ jobs:
         env:
           RUST_BACKTRACE: 'full'
 
-      - name: agent tests (EVM and Sealevel)
+      - name: agent tests with Starknet
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        if: matrix.e2e-type == 'starknet'
+        working-directory: ./rust
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests excluding CosmWasm
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
