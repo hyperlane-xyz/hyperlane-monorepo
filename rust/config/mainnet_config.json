@@ -1934,9 +1934,9 @@
         "from": 1,
         "mode": "sequence"
       },
-      "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy",
-      "mailbox": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
-      "merkleTreeHook": "75HBBLae3ddeneJVrZeyrDfv6vb7SMC3aCpBucSXS5aR",
+      "interchainGasPaymaster": "AgjedtgQKTWGR77ULJ9j9AhLjNDk1D3BTtuxKmcZrJqE",
+      "mailbox": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
+      "merkleTreeHook": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
       "name": "eclipse",
       "nativeToken": {
         "decimals": 9,
@@ -1949,7 +1949,7 @@
           "http": "https://mainnetbeta-rpc.eclipse.xyz"
         }
       ],
-      "validatorAnnounce": ""
+      "validatorAnnounce": "2ze9YMXcoHiuTCAhzDNvKK4E5zXoKpJtyD5iUdEP392Y"
     },
     "taiko": {
       "aggregationHook": "0x1175A31f66C5e3d0ce0ca3B7F80Abe72c6FcE272",
