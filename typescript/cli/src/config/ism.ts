@@ -229,6 +229,7 @@ export const createRoutingConfig = callWithConfigCreationLogs(
     const chains = await runMultiChainSelectionStep(
       context.chainMetadata,
       'Select chains to configure routing ISM for',
+      1,
     );
 
     const domainsMap: ChainMap<IsmConfig> = {};
