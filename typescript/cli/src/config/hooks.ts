@@ -265,7 +265,11 @@ export const createRoutingConfig = callWithConfigCreationLogs(
       message: 'Enter owner address for routing ISM',
     });
     const ownerAddress = owner;
-    const chains = await runMultiChainSelectionStep(context.chainMetadata);
+    const chains = await runMultiChainSelectionStep(
+      context.chainMetadata,
+      'Select chains for routing ISM',
+      1,
+    );
 
     const domainsMap: ChainMap<HookConfig> = {};
     for (const chain of chains) {

@@ -119,7 +119,7 @@ export async function createWarpRouteDeployConfig({
   const warpChains = await runMultiChainSelectionStep(
     context.chainMetadata,
     'Select chains to connect',
-    true, // require multiple
+    1,
   );
 
   const result: WarpRouteDeployConfig = {};
