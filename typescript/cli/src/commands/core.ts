@@ -65,7 +65,7 @@ export const apply: CommandModuleWithWriteContext<{
     ),
   },
   handler: async ({ context, chain, config: configFilePath }) => {
-    logGray(`Hyperlane Warp Apply`);
+    logGray(`Hyperlane Core Apply`);
     logGray('--------------------');
 
     const addresses = (await context.registry.getChainAddresses(
