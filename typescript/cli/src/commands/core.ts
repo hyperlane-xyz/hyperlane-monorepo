@@ -1,6 +1,10 @@
 import { CommandModule } from 'yargs';
 
-import { EvmCoreReader } from '@hyperlane-xyz/sdk';
+import {
+  DeployedCoreAddresses,
+  DeployedCoreAddressesSchema,
+  EvmCoreReader,
+} from '@hyperlane-xyz/sdk';
 
 import {
   createCoreDeployConfig,
@@ -44,7 +48,6 @@ export const coreCommand: CommandModule = {
 };
 export const apply: CommandModuleWithWriteContext<{
   chain: string;
-  mailbox: string;
   config: string;
 }> = {
   command: 'apply',
@@ -55,26 +58,28 @@ export const apply: CommandModuleWithWriteContext<{
       ...chainCommandOption,
       demandOption: true,
     },
-    mailbox: {
-      type: 'string',
-      description: 'Mailbox address used to derive the core config',
-      demandOption: true,
-    },
     config: outputFileCommandOption(
       './configs/core-config.yaml',
       true,
       'The path to output a Core Config JSON or YAML file.',
     ),
   },
-  handler: async ({ context, chain, mailbox, config: configFilePath }) => {
-    logGray(`Hyperlane Warp Apply`);
+  handler: async ({ context, chain, config: configFilePath }) => {
+    logGray(`Hyperlane Core Apply`);
     logGray('--------------------');
-    const expectedCoreConfig = await readCoreDeployConfigs(configFilePath);
+
+    const addresses = (await context.registry.getChainAddresses(
+      chain,
+    )) as DeployedCoreAddresses;
+    DeployedCoreAddressesSchema.parse(addresses);
+
+    const config = await readCoreDeployConfigs(configFilePath);
+
     await runCoreApply({
       context,
       chain,
-      mailbox,
-      config: expectedCoreConfig,
+      config,
+      deployedCoreAddresses: addresses,
     });
     process.exit(0);
   },

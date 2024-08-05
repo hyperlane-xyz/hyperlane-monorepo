@@ -2,6 +2,7 @@ import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -74,7 +75,7 @@ export class HyperlaneRouterChecker<
     }
 
     if (config.interchainSecurityModule) {
-      const actual = await router.interchainSecurityModule();
+      const actualIsmAddress = await router.interchainSecurityModule();
       if (
         typeof config.interchainSecurityModule !== 'string' &&
         !this.ismFactory
@@ -86,18 +87,21 @@ export class HyperlaneRouterChecker<
 
       const matches = await moduleMatchesConfig(
         chain,
-        actual,
+        actualIsmAddress,
         config.interchainSecurityModule,
         this.multiProvider,
         this.ismFactory?.chainMap[chain] ?? ({} as any),
       );
 
       if (!matches) {
+        const ismReader = new EvmIsmReader(this.multiProvider, chain);
+        const derivedConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
+
         const violation: ClientViolation = {
           chain,
           type: ClientViolationType.InterchainSecurityModule,
           contract: router,
-          actual,
+          actual: derivedConfig,
           expected: config.interchainSecurityModule,
           description: `ISM config does not match deployed ISM`,
         };

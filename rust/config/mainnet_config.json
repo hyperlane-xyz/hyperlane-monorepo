@@ -1999,7 +1999,7 @@
           "apiUrl": "https://worldchain-mainnet-explorer.alchemy.com/api",
           "family": "blockscout",
           "name": "World Chain explorer",
-          "url": "https://worldchain-mainnet-explorer.alchemy.com/"
+          "url": "https://worldchain-mainnet-explorer.alchemy.com"
         }
       ],
       "blocks": {
@@ -2163,7 +2163,7 @@
           "http": "https://zetachain-evm.blockpi.network/v1/rpc/public"
         },
         {
-          "http": "https://zetachain-athens-evm.blockpi.network/v1/rpc/public"
+          "http": "https://zetachain-mainnet.g.allthatnode.com/archive/evm"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",

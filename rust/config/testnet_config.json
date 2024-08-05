@@ -504,6 +504,7 @@
       "domainRoutingIsm": "0xfa9a26cCc5417d1C1D03C949b5013Bb5898dA905",
       "domainRoutingIsmFactory": "0x3F100cBBE5FD5466BdB4B3a15Ac226957e7965Ad",
       "fallbackRoutingHook": "0x17Dc724B7a2F09141C13b8AC33B396073785c2BC",
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-sepolia.safe.global",
       "index": {
         "from": 4517401
       },

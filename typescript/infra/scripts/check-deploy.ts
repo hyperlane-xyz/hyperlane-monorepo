@@ -21,6 +21,7 @@ import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor.js';
 import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
+import { logViolationDetails } from '../src/utils/violation.js';
 
 import {
   Modules,
@@ -83,7 +84,7 @@ async function check() {
       envConfig.core,
       ismFactory,
     );
-    governor = new HyperlaneCoreGovernor(checker);
+    governor = new HyperlaneCoreGovernor(checker, ica);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
@@ -173,6 +174,9 @@ async function check() {
         'actual',
         'expected',
       ]);
+
+      logViolationDetails(violations);
+
       if (!fork) {
         throw new Error(
           `Checking ${module} deploy yielded ${violations.length} violations`,
