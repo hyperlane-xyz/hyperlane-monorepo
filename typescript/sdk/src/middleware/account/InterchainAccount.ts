@@ -49,7 +49,38 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
 
+  async getAccount(
+    destinationChain: ChainName,
+    config: AccountConfig,
+    routerOverride?: Address,
+    ismOverride?: Address,
+  ): Promise<Address> {
+    return this.getOrDeployAccount(
+      false,
+      destinationChain,
+      config,
+      routerOverride,
+      ismOverride,
+    );
+  }
+
   async deployAccount(
+    destinationChain: ChainName,
+    config: AccountConfig,
+    routerOverride?: Address,
+    ismOverride?: Address,
+  ): Promise<Address> {
+    return this.getOrDeployAccount(
+      true,
+      destinationChain,
+      config,
+      routerOverride,
+      ismOverride,
+    );
+  }
+
+  async getOrDeployAccount(
+    deployIfNotExists: boolean,
     destinationChain: ChainName,
     config: AccountConfig,
     routerOverride?: Address,
@@ -71,6 +102,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     const destinationAccount = await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
     ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+
+    // If not deploying anything, return the account address.
+    if (!deployIfNotExists) {
+      return destinationAccount;
+    }
+
+    // If the account does not exist, deploy it.
     if (
       (await this.multiProvider
         .getProvider(destinationChain)
