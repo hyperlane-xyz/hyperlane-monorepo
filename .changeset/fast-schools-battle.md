@@ -2,4 +2,4 @@
 "@hyperlane-xyz/cli": patch
 ---
 
-Require multiple chains in warp init
+Require at least 1 chain selection in warp init
