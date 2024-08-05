@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
@@ -9,7 +10,6 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { getOrRequestApiKeys } from '../context/context.js';
@@ -32,7 +32,7 @@ interface DeployParams {
 }
 
 interface ApplyParams extends DeployParams {
-  mailbox: Address;
+  deployedCoreAddresses: DeployedCoreAddresses;
 }
 /**
  * Executes the core deploy command.
@@ -113,14 +113,12 @@ export async function runCoreDeploy(params: DeployParams) {
 }
 
 export async function runCoreApply(params: ApplyParams) {
-  const { context, chain, mailbox, config } = params;
+  const { context, chain, deployedCoreAddresses, config } = params;
   const { multiProvider } = context;
   const evmCoreModule = new EvmCoreModule(multiProvider, {
     chain,
     config,
-    addresses: {
-      mailbox,
-    },
+    addresses: deployedCoreAddresses,
   });
 
   const transactions = await evmCoreModule.update(config);
