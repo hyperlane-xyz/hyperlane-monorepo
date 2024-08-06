@@ -119,6 +119,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
   },
 
+  eclipse: {
+    threshold: 1,
+    validators: ['0x54c96aa1666596c043b07d694da552aa4b596306'],
+  },
+
   eclipsetestnet: {
     threshold: 1,
     validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
@@ -351,10 +356,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  eclipse: {
-    threshold: 1,
-    validators: ['0x54c96aa1666596c043b07d694da552aa4b596306'],
-  },
   solana: {
     threshold: 1,
     validators: ['0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415'],
