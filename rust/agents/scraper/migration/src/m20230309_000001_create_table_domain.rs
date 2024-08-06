@@ -329,7 +329,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "test1",
         token: "ETH",
-        domain: 133711,
+        domain: 9913371,
         chain_id: 0,
         is_test_net: true,
         is_deprecated: false,
@@ -337,7 +337,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "test2",
         token: "ETH",
-        domain: 13372,
+        domain: 9913372,
         chain_id: 0,
         is_test_net: true,
         is_deprecated: false,
@@ -345,7 +345,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "test3",
         token: "ETH",
-        domain: 13373,
+        domain: 9913373,
         chain_id: 0,
         is_test_net: true,
         is_deprecated: false,
