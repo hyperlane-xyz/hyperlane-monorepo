@@ -60,6 +60,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       (chain, contracts): RouterConfig => ({
         mailbox: contracts.mailbox.address,
         owner: typeof owners === 'string' ? owners : owners[chain].owner,
+        proxyAdmin: contracts.proxyAdmin.address,
       }),
     );
     // filter for EVM chains
