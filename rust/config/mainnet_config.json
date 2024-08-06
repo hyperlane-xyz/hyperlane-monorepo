@@ -558,7 +558,7 @@
       "fallbackRoutingHook": "0x03E20381530F2D50A0c9Ef153C19E74695c03433",
       "gasCurrencyCoinGeckoId": "cheese-2",
       "index": {
-        "from": 20390325
+        "from": 50650
       },
       "interchainGasPaymaster": "0x7E27456a839BFF31CA642c060a2b68414Cb6e503",
       "interchainSecurityModule": "0xD3bd8f20e169364d14c7dBFE698258D780FC71e3",
@@ -586,6 +586,7 @@
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "storageGasOracle": "0xe4057c5B0c43Dc18E36b08C39B419F190D29Ac2d",
+      "technicalStack": "arbitrumnitro",
       "testRecipient": "0x4848d54987ffc732aD313827cdC25DF2eedD79d8",
       "validatorAnnounce": "0x047ba6c9949baB22d13C347B40819b7A20C4C53a"
     },
@@ -938,7 +939,7 @@
       "fallbackRoutingHook": "0xA376b27212D608324808923Add679A2c9FAFe9Da",
       "gasCurrencyCoinGeckoId": "injective-protocol",
       "index": {
-        "from": 18972465
+        "from": 37
       },
       "interchainAccountIsm": "0x31894E7a734540B343d67E491148EB4FC9f7A45B",
       "interchainAccountRouter": "0x4E55aDA3ef1942049EA43E904EB01F4A0a9c39bd",
@@ -968,6 +969,7 @@
       "staticMerkleRootMultisigIsmFactory": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "staticMessageIdMultisigIsmFactory": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "storageGasOracle": "0x6119E37Bd66406A1Db74920aC79C15fB8411Ba76",
+      "technicalStack": "arbitrumnitro",
       "testRecipient": "0x28291a7062afA569104bEd52F7AcCA3dD2FafD11",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x15ab173bDB6832f9b64276bA128659b0eD77730B"
@@ -2084,7 +2086,7 @@
           "apiUrl": "https://worldchain-mainnet-explorer.alchemy.com/api",
           "family": "blockscout",
           "name": "World Chain explorer",
-          "url": "https://worldchain-mainnet-explorer.alchemy.com/"
+          "url": "https://worldchain-mainnet-explorer.alchemy.com"
         }
       ],
       "blocks": {
@@ -2248,7 +2250,7 @@
           "http": "https://zetachain-evm.blockpi.network/v1/rpc/public"
         },
         {
-          "http": "https://zetachain-athens-evm.blockpi.network/v1/rpc/public"
+          "http": "https://zetachain-mainnet.g.allthatnode.com/archive/evm"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",

@@ -179,19 +179,21 @@ impl MetricsUpdater {
             return;
         };
         let chain = self.conf.domain.name();
-        debug!(?chain, "Updating metrics");
+        debug!(chain, "Updating metrics");
         let chain_metrics = match self.provider.get_chain_metrics().await {
             Ok(Some(chain_metrics)) => chain_metrics,
             Err(err) => {
-                trace!(?chain, ?err, "Failed to get chain metrics");
+                trace!(chain, ?err, "Failed to get chain metrics");
                 return;
             }
-            // This is the case hit by chains with an empty impl, no need to log an error
-            _ => return,
+            _ => {
+                trace!(chain, "No chain metrics available");
+                return;
+            }
         };
 
         let height = chain_metrics.latest_block.number as i64;
-        trace!("Block height for chain {chain} is {height}");
+        trace!(chain, height, "Fetched block height for metrics");
         block_height
             .with(&hashmap! { "chain" => chain })
             .set(height);
@@ -201,7 +203,7 @@ impl MetricsUpdater {
             let gas = u256_as_scaled_f64(chain_metrics.min_gas_price.unwrap_or_default(), protocol)
                 * decimals_scale;
             trace!(
-                ?chain,
+                chain,
                 gas = format!("{gas:.2}"),
                 "Gas price updated for chain (using lowest denomination)"
             );

@@ -262,10 +262,14 @@ export const createRoutingConfig = callWithConfigCreationLogs(
     advanced: boolean = false,
   ): Promise<HookConfig> => {
     const owner = await input({
-      message: 'Enter owner address for routing ISM',
+      message: 'Enter owner address for routing Hook',
     });
     const ownerAddress = owner;
-    const chains = await runMultiChainSelectionStep(context.chainMetadata);
+    const chains = await runMultiChainSelectionStep(
+      context.chainMetadata,
+      'Select chains for routing Hook',
+      1,
+    );
 
     const domainsMap: ChainMap<HookConfig> = {};
     for (const chain of chains) {

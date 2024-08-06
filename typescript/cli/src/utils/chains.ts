@@ -31,20 +31,22 @@ export async function runSingleChainSelectionStep(
 export async function runMultiChainSelectionStep(
   chainMetadata: ChainMap<ChainMetadata>,
   message = 'Select chains',
-  requireMultiple = false,
+  requireNumber = 0,
 ) {
   const networkType = await selectNetworkType();
   const choices = getChainChoices(chainMetadata, networkType);
   while (true) {
-    logTip('Use SPACE key to select chains, then press ENTER');
+    logTip(
+      `Use SPACE key to select at least ${requireNumber} chains, then press ENTER`,
+    );
     const chains = (await checkbox({
       message,
       choices,
       pageSize: calculatePageSize(2),
     })) as string[];
     handleNewChain(chains);
-    if (requireMultiple && chains?.length < 2) {
-      logRed('Please select at least 2 chains');
+    if (chains?.length < requireNumber) {
+      logRed(`Please select at least ${requireNumber} chains`);
       continue;
     }
     return chains;

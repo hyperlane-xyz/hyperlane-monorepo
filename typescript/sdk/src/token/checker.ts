@@ -44,7 +44,7 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
       for (const check of checks) {
         const actual = await token[check.method]();
         const expected = config[check.method];
-        if (actual !== expected) {
+        if (expected !== undefined && actual !== expected) {
           const violation: TokenMismatchViolation = {
             type: check.violationType,
             chain,
