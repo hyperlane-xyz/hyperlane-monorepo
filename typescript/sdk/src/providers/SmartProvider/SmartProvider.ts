@@ -446,7 +446,7 @@ export class HyperlaneSmartProvider
 
     if (rpcServerError) {
       throw Error(
-        rpcServerError.error?.message ?? // Server errors will not have a message if it's a connection issue
+        rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
           getSmartProviderErrorMessage(rpcServerError.code),
       );
     } else if (timedOutError) {
