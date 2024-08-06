@@ -78,6 +78,8 @@ pub enum KnownHyperlaneDomain {
     Polygon = 137,
     Redstone = 690,
     Sei = 1329,
+    Solana = 1399811149,
+    Eclipse = 1408864445,
     Taiko = 167000,
     Viction = 88,
     Worldchain = 480,
@@ -219,7 +221,7 @@ impl KnownHyperlaneDomain {
             Mainnet: [
                 Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum,
                 Fraxtal, FuseMainnet, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam,
-                Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet
+                Neutron, Optimism, Osmosis, Polygon, Redstone, Sei, Solana, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet, Eclipse
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
@@ -250,7 +252,7 @@ impl KnownHyperlaneDomain {
 
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
-            HyperlaneDomainProtocol::Sealevel: [SealevelTest1, SealevelTest2],
+            HyperlaneDomainProtocol::Sealevel: [Eclipse, Solana, SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [
                 Injective, Neutron, Osmosis,
 
@@ -268,7 +270,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::Other: [
                 Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Endurance, Ethereum, Fraxtal, FuseMainnet,
                 Fuji, Gnosis, InEvm, Injective, Linea, MantaPacific, Mantle, Mode, Moonbeam, Neutron,
-                Optimism, Osmosis, Polygon, Redstone, Sei, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet,
+                Optimism, Osmosis, Polygon, Redstone, Sei, Solana, Taiko, Viction, Worldchain, Xlayer, Zetachain, ZoraMainnet, Eclipse,
 
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,

@@ -58,10 +58,12 @@ export const keyFunderConfig: KeyFunderConfig<
     xlayer: '0.5',
     zetachain: '20',
     zoramainnet: '0.2',
-    // ignore cosmos chains
+    // ignore non-evm chains
     injective: '0',
     neutron: '0',
     osmosis: '0',
+    solana: '0',
+    eclipse: '0',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
@@ -96,10 +98,12 @@ export const keyFunderConfig: KeyFunderConfig<
     xlayer: '0',
     zetachain: '0',
     zoramainnet: '0',
-    // ignore cosmos chains
+    // ignore non-evm chains
     injective: '0',
     neutron: '0',
     osmosis: '0',
+    eclipse: '0',
+    solana: '0',
   },
   igpClaimThresholdPerChain: {
     arbitrum: '0.1',
@@ -134,9 +138,11 @@ export const keyFunderConfig: KeyFunderConfig<
     zoramainnet: '0.1',
     worldchain: '0.1',
     xlayer: '0.25',
-    // ignore cosmos chains
+    // ignore non-evm chains
     injective: '0',
     neutron: '0',
     osmosis: '0',
+    eclipse: '0',
+    solana: '0',
   },
 };

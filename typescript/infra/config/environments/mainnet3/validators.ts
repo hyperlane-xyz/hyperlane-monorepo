@@ -400,6 +400,30 @@ export const validatorChainConfig = (
         'scroll',
       ),
     },
+    solana: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solana'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415'],
+          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.Neutron]: [],
+        },
+        'solana',
+      ),
+    },
+    eclipse: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('eclipse'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x54c96aa1666596c043b07d694da552aa4b596306'],
+          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.Neutron]: [],
+        },
+        'eclipse',
+      ),
+    },
     taiko: {
       interval: 5,
       reorgPeriod: getReorgPeriod('taiko'),
