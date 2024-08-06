@@ -87,9 +87,9 @@ pub enum KnownHyperlaneDomain {
 
     // -- Local chains --
     //
-    Test1 = 13371,
-    Test2 = 13372,
-    Test3 = 13373,
+    Test1 = 9913371,
+    Test2 = 9913372,
+    Test3 = 9913373,
     FuelTest1 = 13374,
     SealevelTest1 = 13375,
     SealevelTest2 = 13376,
