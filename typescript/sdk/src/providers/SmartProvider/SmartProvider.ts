@@ -436,12 +436,18 @@ export class HyperlaneSmartProvider
       RPC_SERVER_ERRORS.includes(e.code),
     );
 
+    const timedOutError = errors.find(
+      (e) => e.status === ProviderStatus.Timeout,
+    );
+
     const rpcBlockchainError = errors.find((e) =>
       RPC_BLOCKCHAIN_ERRORS.includes(e.code),
     );
 
     if (rpcServerError) {
       throw Error(getSmartProviderErrorMessage(rpcServerError.code));
+    } else if (timedOutError) {
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
     } else if (rpcBlockchainError) {
       throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code);
     } else {

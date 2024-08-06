@@ -3,6 +3,8 @@ import { errors as EthersError, Wallet, constants } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 
+import { randomAddress } from '../../test/testUtils.js';
+
 import {
   HyperlaneSmartProvider,
   getSmartProviderErrorMessage,
@@ -173,6 +175,25 @@ describe('SmartProvider', async () => {
     } catch (e: any) {
       expect(e.error.message).to.equal(
         'execution reverted: revert: ERC20: transfer amount exceeds balance',
+      );
+    }
+  });
+
+  it('returns the blockchain error reason: "insufficient funds for intrinsic transaction cost"', async () => {
+    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
+      maxRetries: 1,
+    });
+    const signer = new Wallet(PK, smartProvider);
+
+    try {
+      const balance = await signer.getBalance();
+      await signer.sendTransaction({
+        to: randomAddress(),
+        value: balance.add(1),
+      });
+    } catch (e: any) {
+      expect(e.message).to.equal(
+        'insufficient funds for intrinsic transaction cost',
       );
     }
   });
