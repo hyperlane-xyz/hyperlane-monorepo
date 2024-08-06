@@ -374,13 +374,6 @@ export abstract class HyperlaneAppGovernor<
             safeAddress,
           );
           this.canPropose[chain].set(safeAddress, canPropose);
-          console.log(
-            'Can propose:',
-            canPropose,
-            this.canPropose[chain],
-            safeAddress,
-            signerAddress,
-          );
         } catch (error) {
           // if we hit this error, it's likely a custom safe chain
           // so let's fallback to a manual submission

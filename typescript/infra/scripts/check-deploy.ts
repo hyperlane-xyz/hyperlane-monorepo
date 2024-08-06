@@ -105,8 +105,7 @@ async function check() {
       ica,
       objFilter(
         routerConfig,
-        (chain, config): config is InterchainAccountConfig =>
-          !!chainAddresses[chain]?.interchainAccountRouter,
+        (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
       ),
     );
     governor = new ProxiedRouterGovernor(checker);
