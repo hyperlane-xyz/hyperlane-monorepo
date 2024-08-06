@@ -1,6 +1,6 @@
 {
   "arbitrum": {
-    "amount": "0.5",
+    "amount": "0.01",
     "decimals": 9
   },
   "ancient8": {
@@ -8,15 +8,15 @@
     "decimals": 9
   },
   "avalanche": {
-    "amount": "43.212830197",
+    "amount": "25.0",
     "decimals": 9
   },
   "base": {
-    "amount": "0.116871685",
+    "amount": "0.011964874",
     "decimals": 9
   },
   "blast": {
-    "amount": "0.5",
+    "amount": "0.002541951",
     "decimals": 9
   },
   "bob": {
@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "bsc": {
-    "amount": "5.0",
+    "amount": "1.0",
     "decimals": 9
   },
   "celo": {
@@ -36,7 +36,7 @@
     "decimals": 9
   },
   "eclipse": {
-    "amount": "0.00000005",
+    "amount": "0.001",
     "decimals": 9
   },
   "endurance": {
@@ -44,7 +44,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "20",
+    "amount": "5.9313167",
     "decimals": 9
   },
   "fraxtal": {
@@ -56,7 +56,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "5.877696928",
+    "amount": "2.000000008",
     "decimals": 9
   },
   "inevm": {
@@ -68,11 +68,11 @@
     "decimals": 1
   },
   "linea": {
-    "amount": "0.110844655",
+    "amount": "0.062846378",
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.107021819",
+    "amount": "0.106134186",
     "decimals": 9
   },
   "mantle": {
@@ -80,7 +80,7 @@
     "decimals": 9
   },
   "mode": {
-    "amount": "0.1",
+    "amount": "0.001000933",
     "decimals": 9
   },
   "moonbeam": {
@@ -92,7 +92,7 @@
     "decimals": 1
   },
   "optimism": {
-    "amount": "0.25",
+    "amount": "0.001568315",
     "decimals": 9
   },
   "osmosis": {
@@ -100,19 +100,19 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "101.76455238",
+    "amount": "71.996263202",
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "3.95",
+    "amount": "0.0944",
     "decimals": 9
   },
   "redstone": {
-    "amount": "0.0003",
+    "amount": "0.00010005",
     "decimals": 9
   },
   "scroll": {
-    "amount": "1.3231",
+    "amount": "0.062269615",
     "decimals": 9
   },
   "sei": {
@@ -120,7 +120,7 @@
     "decimals": 9
   },
   "solana": {
-    "amount": "0.000000001",
+    "amount": "0.001",
     "decimals": 9
   },
   "taiko": {
@@ -132,11 +132,11 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001998223",
+    "amount": "0.002002589",
     "decimals": 9
   },
   "xlayer": {
-    "amount": "8.62",
+    "amount": "5.162265625",
     "decimals": 9
   },
   "zetachain": {

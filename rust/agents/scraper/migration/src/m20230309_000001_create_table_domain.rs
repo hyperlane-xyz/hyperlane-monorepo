@@ -319,6 +319,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "zircuit",
+        token: "ETH",
+        domain: 48900,
+        chain_id: 48900,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "zoramainnet",
         token: "ETH",
         domain: 7777777,
