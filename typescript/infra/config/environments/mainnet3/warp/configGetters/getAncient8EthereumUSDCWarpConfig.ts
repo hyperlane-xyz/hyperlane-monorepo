@@ -9,7 +9,7 @@ import {
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { tokens } from '../../../../src/config/warp.js';
+import { tokens } from '../../../../../src/config/warp.js';
 
 export const getAncient8EthereumUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
