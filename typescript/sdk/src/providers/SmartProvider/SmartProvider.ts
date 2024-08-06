@@ -445,7 +445,10 @@ export class HyperlaneSmartProvider
     );
 
     if (rpcServerError) {
-      throw Error(getSmartProviderErrorMessage(rpcServerError.code));
+      throw Error(
+        rpcServerError.error?.message ?? // Server errors will not have a message if it's a connection issue
+          getSmartProviderErrorMessage(rpcServerError.code),
+      );
     } else if (timedOutError) {
       throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
     } else if (rpcBlockchainError) {
