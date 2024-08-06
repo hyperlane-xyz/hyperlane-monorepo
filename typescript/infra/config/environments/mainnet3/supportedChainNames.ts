@@ -37,6 +37,7 @@ export const mainnet3SupportedChainNames = [
   'worldchain',
   'xlayer',
   'zetachain',
+  'zircuit',
   'zoramainnet',
 ] as const;
 

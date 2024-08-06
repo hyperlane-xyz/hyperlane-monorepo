@@ -604,5 +604,17 @@ export const validatorChainConfig = (
         'zoramainnet',
       ),
     },
+    zircuit: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zircuit'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'zircuit',
+      ),
+    },
   };
 };
