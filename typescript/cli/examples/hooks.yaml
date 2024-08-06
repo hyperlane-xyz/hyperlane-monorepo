@@ -1,0 +1,70 @@
+# A config to define the hooks for core contract deployments
+# Ideally, use the `hyperlane config create hooks` command to generate this file
+# but you we can refer to https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/hook/types.ts for the matching types
+
+# HooksConfig:
+#  required: HookConfig
+#  default: HookConfig
+
+# HookConfig:
+#   type: HookType
+#   ... hook-specific config
+
+# HookType:
+#  - merkleTreeHook
+#  - domainRoutingHook
+#  - interchainGasPaymaster
+#  - protocolFee
+#  - aggregationHook
+#  - opStack (not yet supported)
+
+anvil1:
+  required:
+    type: protocolFee
+    maxProtocolFee: '1000000000000000000' # in wei (string)
+    protocolFee: '200000000000000' # in wei (string)
+    beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  default:
+    type: domainRoutingHook
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    domains:
+      anvil2:
+        type: aggregationHook
+        hooks:
+          - type: merkleTreeHook
+          - type: interchainGasPaymaster
+            beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            overhead:
+              anvil2: 50000 # gas amount (number)
+            oracleConfig:
+              anvil2:
+                gasPrice: '100'
+                tokenExchangeRate: '100'
+anvil2:
+  required:
+    type: protocolFee
+    maxProtocolFee: '1000000000000000000'
+    protocolFee: '200000000000000'
+    beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  default:
+    type: domainRoutingHook
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    domains:
+      anvil1:
+        type: aggregationHook
+        hooks:
+          - type: merkleTreeHook
+          - type: interchainGasPaymaster
+            beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            overhead:
+              anvil1: 50000
+            oracleConfig:
+              anvil1:
+                gasPrice: '100'
+                tokenExchangeRate: '100'

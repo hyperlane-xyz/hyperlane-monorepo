@@ -1,24 +1,14 @@
 import { BigNumber } from 'ethers';
+import { z } from 'zod';
 
-import { InterchainGasPaymaster, OverheadIgp } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
+import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
+import type { Address } from '@hyperlane-xyz/utils';
 
-import type { CheckerViolation } from '../deploy/types';
-import { ChainMap } from '../types';
+import type { CheckerViolation } from '../deploy/types.js';
+import { IgpSchema } from '../hook/schemas.js';
+import { ChainMap } from '../types.js';
 
-export enum GasOracleContractType {
-  StorageGasOracle = 'StorageGasOracle',
-}
-
-export type IgpConfig = {
-  owner: types.Address;
-  beneficiary: types.Address;
-  gasOracleType: ChainMap<GasOracleContractType>;
-};
-
-export type OverheadIgpConfig = IgpConfig & {
-  overhead: ChainMap<number>;
-};
+export type IgpConfig = z.infer<typeof IgpSchema>;
 
 export enum IgpViolationType {
   Beneficiary = 'Beneficiary',
@@ -34,20 +24,20 @@ export interface IgpViolation extends CheckerViolation {
 export interface IgpBeneficiaryViolation extends IgpViolation {
   subType: IgpViolationType.Beneficiary;
   contract: InterchainGasPaymaster;
-  actual: types.Address;
-  expected: types.Address;
+  actual: Address;
+  expected: Address;
 }
 
 export interface IgpGasOraclesViolation extends IgpViolation {
   subType: IgpViolationType.GasOracles;
   contract: InterchainGasPaymaster;
-  actual: ChainMap<types.Address>;
-  expected: ChainMap<types.Address>;
+  actual: ChainMap<Address>;
+  expected: ChainMap<Address>;
 }
 
 export interface IgpOverheadViolation extends IgpViolation {
   subType: IgpViolationType.Overhead;
-  contract: OverheadIgp;
+  contract: InterchainGasPaymaster;
   actual: ChainMap<BigNumber>;
   expected: ChainMap<BigNumber>;
 }

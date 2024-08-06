@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "hyperlane-ethereum"
 documentation.workspace = true
@@ -15,8 +17,12 @@ ethers-contract.workspace = true
 ethers-core.workspace = true
 ethers-signers.workspace = true
 ethers.workspace = true
-hex = "0.4.3"
-num = "0.4"
+eyre.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+itertools.workspace = true
+num.workspace = true
+num-traits.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -26,9 +32,8 @@ tracing-futures.workspace = true
 tracing.workspace = true
 url.workspace = true
 
-hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"]}
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
-num-traits.workspace = true
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["ethers"] }

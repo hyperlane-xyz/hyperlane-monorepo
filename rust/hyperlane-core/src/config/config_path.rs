@@ -1,6 +1,8 @@
-use std::fmt::{Display, Formatter};
-use std::ops::Add;
-use std::sync::Arc;
+use std::{
+    fmt::{Display, Formatter},
+    ops::Add,
+    sync::Arc,
+};
 
 use convert_case::{Case, Casing};
 use itertools::Itertools;
@@ -44,6 +46,10 @@ impl ConfigPath {
     pub fn join(&self, part: impl Into<String>) -> Self {
         let part = part.into();
         debug_assert!(!part.contains('.'));
+        debug_assert!(!part.contains('['));
+        debug_assert!(!part.contains(']'));
+        debug_assert!(!part.is_empty());
+        debug_assert!(part.to_ascii_lowercase() == part);
         let mut new = self.clone();
         new.0.push(Arc::new(part));
         new
@@ -70,10 +76,10 @@ impl ConfigPath {
 
     /// Get the environment variable formatted path.
     pub fn env_name(&self) -> String {
-        ["HYP", "BASE"]
+        ["HYP"]
             .into_iter()
             .chain(self.0.iter().map(|s| s.as_str()))
-            .map(|s| s.to_uppercase())
+            .map(|s| s.to_case(Case::UpperFlat))
             .join("_")
     }
 

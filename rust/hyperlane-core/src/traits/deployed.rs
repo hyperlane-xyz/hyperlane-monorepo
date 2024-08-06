@@ -42,19 +42,37 @@ pub trait HyperlaneAbi {
 impl fmt::Debug for dyn HyperlaneChain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let domain = self.domain();
-        write!(f, "HyperlaneChain({} ({}))", domain, domain.id())
+        #[cfg(feature = "strum")]
+        {
+            write!(f, "HyperlaneChain({domain} ({}))", domain.id())
+        }
+        #[cfg(not(feature = "strum"))]
+        {
+            write!(f, "HyperlaneChain({})", domain.id())
+        }
     }
 }
 
 impl fmt::Debug for dyn HyperlaneContract {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let domain = self.domain();
-        write!(
-            f,
-            "HyperlaneContract({:?} @ {} ({}))",
-            self.address(),
-            domain,
-            domain.id(),
-        )
+        #[cfg(feature = "strum")]
+        {
+            write!(
+                f,
+                "HyperlaneContract({:?} @ {domain} ({}))",
+                self.address(),
+                domain.id(),
+            )
+        }
+        #[cfg(not(feature = "strum"))]
+        {
+            write!(
+                f,
+                "HyperlaneContract({:?} @ {})",
+                self.address(),
+                domain.id(),
+            )
+        }
     }
 }

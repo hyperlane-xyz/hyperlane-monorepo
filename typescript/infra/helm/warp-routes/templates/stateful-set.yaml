@@ -1,0 +1,24 @@
+{{- if not .Values.hyperlane.cycleOnce }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "hyperlane.fullname" . }}
+  labels: &metadata_labels
+    hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
+    hyperlane/context: {{ .Values.hyperlane.context | quote }}
+    app.kubernetes.io/component: warp-routes
+spec:
+  selector:
+    matchLabels: *metadata_labels
+  replicas: 1
+  serviceName: {{ include "hyperlane.fullname" . }}
+  template:
+    metadata:
+      labels: *metadata_labels
+      annotations:
+        prometheus.io/port: "9090"
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+{{- include "hyperlane.warp-routes.container" . | indent 6 }}
+{{- end }}

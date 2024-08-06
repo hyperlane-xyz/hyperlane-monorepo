@@ -3,13 +3,17 @@ pragma solidity >=0.6.11;
 
 interface IInterchainSecurityModule {
     enum Types {
-        NULL, // used with relayer carrying no metadata
+        UNUSED,
         ROUTING,
         AGGREGATION,
         LEGACY_MULTISIG,
         MERKLE_ROOT_MULTISIG,
         MESSAGE_ID_MULTISIG,
-        OPTIMISM
+        NULL, // used with relayer carrying no metadata
+        CCIP_READ,
+        ARB_L2_TO_L1,
+        WEIGHT_MERKLE_ROOT_MULTISIG,
+        WEIGHT_MESSAGE_ID_MULTISIG
     }
 
     /**
@@ -27,9 +31,10 @@ interface IInterchainSecurityModule {
      * @param _message Hyperlane encoded interchain message
      * @return True if the message was verified
      */
-    function verify(bytes calldata _metadata, bytes calldata _message)
-        external
-        returns (bool);
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) external returns (bool);
 }
 
 interface ISpecifiesInterchainSecurityModule {

@@ -1,30 +1,20 @@
 use async_trait::async_trait;
-use std::ops::Deref;
-
+use derive_more::Deref;
 use derive_new::new;
 use eyre::Context;
+use hyperlane_core::{HyperlaneMessage, H256};
 use tracing::instrument;
 
-use hyperlane_core::{HyperlaneMessage, H256};
+use super::{MessageMetadataBuilder, MetadataBuilder};
 
-use super::{BaseMetadataBuilder, MetadataBuilder};
-
-#[derive(Clone, Debug, new)]
+#[derive(Clone, Debug, new, Deref)]
 pub struct RoutingIsmMetadataBuilder {
-    base: BaseMetadataBuilder,
-}
-
-impl Deref for RoutingIsmMetadataBuilder {
-    type Target = BaseMetadataBuilder;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
+    base: MessageMetadataBuilder,
 }
 
 #[async_trait]
 impl MetadataBuilder for RoutingIsmMetadataBuilder {
-    #[instrument(err, skip(self))]
+    #[instrument(err, skip(self), ret)]
     async fn build(
         &self,
         ism_address: H256,

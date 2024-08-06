@@ -17,12 +17,11 @@ mock! {
         fn _announce(
             &self,
             announcement: SignedType<Announcement>,
-            tx_gas_limit: Option<U256>,
         ) -> ChainResult<TxOutcome>;
         fn _announce_tokens_needed(
             &self,
             announcement: SignedType<Announcement>,
-        ) -> ChainResult<U256>;
+        ) -> Option<U256>;
     }
 }
 
@@ -57,17 +56,10 @@ impl ValidatorAnnounce for MockValidatorAnnounceContract {
         self._get_announced_storage_locations(validators)
     }
 
-    async fn announce(
-        &self,
-        announcement: SignedType<Announcement>,
-        tx_gas_limit: Option<U256>,
-    ) -> ChainResult<TxOutcome> {
-        self._announce(announcement, tx_gas_limit)
+    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
+        self._announce(announcement)
     }
-    async fn announce_tokens_needed(
-        &self,
-        announcement: SignedType<Announcement>,
-    ) -> ChainResult<U256> {
+    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
         self._announce_tokens_needed(announcement)
     }
 }

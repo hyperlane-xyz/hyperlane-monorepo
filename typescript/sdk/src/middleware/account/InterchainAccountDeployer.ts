@@ -1,107 +1,93 @@
-import {
-  InterchainAccountRouter,
-  Router,
-  TransparentUpgradeableProxy__factory,
-} from '@hyperlane-xyz/core';
+import { ethers } from 'ethers';
 
-import { HyperlaneContracts } from '../../contracts';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer';
-import { RouterConfig } from '../../router/types';
-import { ChainName } from '../../types';
+import { Router } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
+
+import { HyperlaneContracts } from '../../contracts/types.js';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
+import { ProxiedRouterConfig, RouterConfig } from '../../router/types.js';
+import { ChainName } from '../../types.js';
 
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
-} from './contracts';
+} from './contracts.js';
 
-export type InterchainAccountConfig = RouterConfig;
+export type InterchainAccountConfig = ProxiedRouterConfig;
 
-export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
+export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   InterchainAccountConfig,
   InterchainAccountFactories
 > {
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, interchainAccountFactories, {});
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+    concurrentDeploy?: boolean,
+  ) {
+    super(multiProvider, interchainAccountFactories, {
+      contractVerifier,
+      concurrentDeploy,
+    });
+  }
+  routerContractName(): string {
+    return 'interchainAccountRouter';
+  }
+
+  routerContractKey<K extends keyof InterchainAccountFactories>(): K {
+    return 'interchainAccountRouter' as K;
   }
 
   router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {
     return contracts.interchainAccountRouter;
   }
 
-  // The OwnableMulticall implementation has an immutable owner address that
-  // must be set to the InterchainAccountRouter proxy address. To achieve this, we
-  // 1. deploy the proxy first with a dummy implementation
-  // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
-  // 3. upgrade the proxy to the real implementation and initialize
+  async constructorArgs<K extends keyof InterchainAccountFactories>(
+    _: string,
+    config: RouterConfig,
+  ): Promise<Parameters<InterchainAccountFactories[K]['deploy']>> {
+    return [config.mailbox] as any;
+  }
+
+  async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
+    const owner = await this.multiProvider.getSignerAddress(chain);
+    if (config.interchainSecurityModule) {
+      assert(
+        typeof config.interchainSecurityModule === 'string',
+        'ISM objects not supported in ICA deployer',
+      );
+    }
+
+    return [
+      config.hook ?? ethers.constants.AddressZero,
+      config.interchainSecurityModule!,
+      owner,
+    ];
+  }
+
   async deployContracts(
     chain: ChainName,
     config: InterchainAccountConfig,
   ): Promise<HyperlaneContracts<InterchainAccountFactories>> {
     if (config.interchainSecurityModule) {
-      throw new Error(
-        'Configuration of ISM address not supported in ICA deployer',
-      );
+      throw new Error('Configuration of ISM not supported in ICA deployer');
     }
 
-    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
     const interchainAccountIsm = await this.deployContract(
       chain,
       'interchainAccountIsm',
       [config.mailbox],
     );
-
-    let interchainAccountRouter: InterchainAccountRouter;
-    // adapted from HyperlaneDeployer.deployProxiedContract
-    const cachedRouter = this.readCache(
-      chain,
-      this.factories['interchainAccountRouter'],
-      'interchainAccountRouter',
-    );
-
-    if (cachedRouter) {
-      interchainAccountRouter = cachedRouter;
-    } else {
-      const deployer = await this.multiProvider.getSignerAddress(chain);
-      // 1. deploy the proxy first with a dummy implementation (proxy admin contract)
-      const proxy = await this.deployContractFromFactory(
-        chain,
-        new TransparentUpgradeableProxy__factory(),
-        'TransparentUpgradeableProxy',
-        [proxyAdmin.address, deployer, '0x'],
-      );
-
-      // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
-      const domainId = this.multiProvider.getDomainId(chain);
-      const implementation = await this.deployContract(
-        chain,
-        'interchainAccountRouter',
-        [domainId, proxy.address],
-      );
-
-      // 3. upgrade the proxy to the real implementation and initialize
-      const owner = deployer;
-      await super.upgradeAndInitialize(chain, proxy, implementation, [
-        config.mailbox,
-        config.interchainGasPaymaster,
-        interchainAccountIsm.address,
-        owner,
-      ]);
-      interchainAccountRouter = implementation.attach(proxy.address);
-      this.writeCache(chain, 'interchainAccountRouter', proxy.address);
-    }
-
-    const proxy = TransparentUpgradeableProxy__factory.connect(
-      interchainAccountRouter.address,
-      this.multiProvider.getSignerOrProvider(chain),
-    );
-
-    await super.changeAdmin(chain, proxy, proxyAdmin.address);
+    const modifiedConfig = {
+      ...config,
+      interchainSecurityModule: interchainAccountIsm.address,
+    };
+    const contracts = await super.deployContracts(chain, modifiedConfig);
 
     return {
-      proxyAdmin,
+      ...contracts,
       interchainAccountIsm,
-      interchainAccountRouter,
     };
   }
 }

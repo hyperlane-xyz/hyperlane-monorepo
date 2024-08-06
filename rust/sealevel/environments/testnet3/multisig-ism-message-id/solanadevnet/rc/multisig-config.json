@@ -1,0 +1,27 @@
+{
+  "alfajores": {
+    "type": 3,
+    "threshold": 1,
+    "validators": ["0x45e5c228b38e1cf09e9a3423ed0cf4862c4bf3de"]
+  },
+  "fuji": {
+    "type": 3,
+    "threshold": 1,
+    "validators": ["0xd81ba169170a9b582812cf0e152d2c168572e21f"]
+  },
+  "bsctestnet": {
+    "type": 3,
+    "threshold": 1,
+    "validators": ["0x77f80ef5b18977e15d81aea8dd3a88e7df4bc0eb"]
+  },
+  "sepolia": {
+    "type": 3,
+    "threshold": 1,
+    "validators": ["0x183f15924f3a464c54c9393e8d268eb44d2b208c"]
+  },
+  "moonbasealpha": {
+    "type": 3,
+    "threshold": 1,
+    "validators": ["0xbeaf158f85d7b64ced36b8aea0bbc4cd0f2d1a5d"]
+  }
+}

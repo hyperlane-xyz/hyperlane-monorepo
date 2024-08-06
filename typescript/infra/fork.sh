@@ -1,42 +1,49 @@
 ENVIRONMENT=$1
 MODULE=$2
+CHAIN=$3
 
-if [ -z "$ENVIRONMENT" ]; then
-  echo "Usage: fork.sh <environment> <module>"
+if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
+  echo "Usage: fork.sh <environment> <module> <chain>"
   exit 1
 fi
 
-if [ "$ENVIRONMENT" == "testnet3" ]; then
-  FORK_CHAIN="goerli"
-  RPC_URL="https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-elif [ "$ENVIRONMENT" == "mainnet2" ]; then
-  FORK_CHAIN="ethereum"
-  RPC_URL="https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-else
-  echo "Unknown environment $ENVIRONMENT"
-  exit 1
-fi
+# kill all child processes on exit
+trap 'jobs -p | xargs -r kill' EXIT
 
-anvil --fork-url $RPC_URL --block-time 1 --silent > /dev/null &
+# exit 1 on any subsequent failures
+set -e
+
+RPC_URL=`LOG_LEVEL=error yarn tsx ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
+
+anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
   sleep 1
 done
 
-# exit 1 on any subsequent failures
-set -e
+# echo all subsequent commands
+set -x
 
-echo "=== Run $MODULE checker against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+echo "Checking deploy"
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
 
-echo "=== Run $MODULE deployer against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+echo "Getting balance"
+DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 
-echo "=== Run $MODULE govern against forked $ENVIRONMENT ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -m $MODULE
+echo "Deploying"
+yarn tsx ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
 
-echo "=== Run $MODULE checker against forked $ENVIRONMENT after governance ==="
-DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+DEPLOY_DELTA="$((BEFORE-AFTER))"
 
-kill $ANVIL_PID
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+echo "Checking deploy with --govern"
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE
+
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GOVERN_DELTA="$((BEFORE-AFTER))"
+
+echo "Checking deploy without --govern"
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE

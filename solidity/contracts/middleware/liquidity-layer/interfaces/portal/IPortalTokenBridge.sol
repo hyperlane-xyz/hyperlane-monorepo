@@ -69,19 +69,18 @@ interface IPortalTokenBridge {
         bytes memory payload
     ) external payable returns (uint64 sequence);
 
-    function completeTransferWithPayload(bytes memory encodedVm)
-        external
-        returns (bytes memory);
+    function completeTransferWithPayload(
+        bytes memory encodedVm
+    ) external returns (bytes memory);
 
-    function parseTransferWithPayload(bytes memory encoded)
-        external
-        pure
-        returns (TransferWithPayload memory transfer);
+    function parseTransferWithPayload(
+        bytes memory encoded
+    ) external pure returns (TransferWithPayload memory transfer);
 
-    function wrappedAsset(uint16 tokenChainId, bytes32 tokenAddress)
-        external
-        view
-        returns (address);
+    function wrappedAsset(
+        uint16 tokenChainId,
+        bytes32 tokenAddress
+    ) external view returns (address);
 
     function isWrappedAsset(address token) external view returns (bool);
 }

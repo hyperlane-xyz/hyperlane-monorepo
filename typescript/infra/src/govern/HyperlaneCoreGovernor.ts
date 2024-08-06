@@ -1,33 +1,85 @@
+import { BigNumber } from 'ethers';
+
 import {
-  ChainMap,
+  CheckerViolation,
   CoreConfig,
+  CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  HyperlaneCoreDeployer,
+  InterchainAccount,
+  MailboxViolation,
+  MailboxViolationType,
   OwnerViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor';
+import { HyperlaneAppGovernor } from '../govern/HyperlaneAppGovernor.js';
 
 export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
 > {
-  constructor(checker: HyperlaneCoreChecker, owners: ChainMap<types.Address>) {
-    super(checker, owners);
+  constructor(
+    readonly checker: HyperlaneCoreChecker,
+    readonly ica?: InterchainAccount,
+  ) {
+    super(checker, ica);
   }
 
-  protected async mapViolationsToCalls() {
-    for (const violation of this.checker.violations) {
-      switch (violation.type) {
-        case ViolationType.Owner: {
-          this.handleOwnerViolation(violation as OwnerViolation);
-          break;
+  protected async handleMailboxViolation(violation: MailboxViolation) {
+    switch (violation.subType) {
+      case MailboxViolationType.DefaultIsm: {
+        let ismAddress: string;
+        if (typeof violation.expected === 'object') {
+          // hack to bind the ISM factory to the deployer for verification
+          new HyperlaneCoreDeployer(
+            this.checker.multiProvider,
+            this.checker.ismFactory,
+          );
+          const ism = await this.checker.ismFactory.deploy({
+            destination: violation.chain,
+            config: violation.expected,
+          });
+          ismAddress = ism.address;
+        } else if (typeof violation.expected === 'string') {
+          ismAddress = violation.expected;
+        } else {
+          throw new Error('Invalid mailbox violation expected value');
         }
-        default:
-          throw new Error(`Unsupported violation type ${violation.type}`);
+
+        return {
+          chain: violation.chain,
+          call: {
+            to: violation.contract.address,
+            data: violation.contract.interface.encodeFunctionData(
+              'setDefaultIsm',
+              [ismAddress],
+            ),
+            value: BigNumber.from(0),
+            description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
+          },
+        };
       }
+      default:
+        throw new Error(`Unsupported mailbox violation type ${violation.type}`);
+    }
+  }
+
+  protected async mapViolationToCall(violation: CheckerViolation) {
+    switch (violation.type) {
+      case ViolationType.Owner: {
+        return this.handleOwnerViolation(violation as OwnerViolation);
+      }
+      case CoreViolationType.Mailbox: {
+        return this.handleMailboxViolation(violation as MailboxViolation);
+      }
+      case CoreViolationType.ValidatorAnnounce: {
+        console.warn('Ignoring ValidatorAnnounce violation');
+        return undefined;
+      }
+      default:
+        throw new Error(`Unsupported violation type ${violation.type}`);
     }
   }
 }

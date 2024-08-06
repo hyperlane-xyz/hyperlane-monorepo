@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
+use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
+use hyperlane_core::Indexed;
 use tracing::instrument;
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, utils::fmt_bytes, ChainCommunicationError,
-    ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexer, LogMeta, Mailbox,
-    TxCostEstimate, TxOutcome, H256, U256,
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Indexer, LogMeta, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
@@ -81,36 +82,8 @@ impl Mailbox for FuelMailbox {
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        todo!()
-    }
-
-    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         todo!()
-    }
-
-    #[instrument(level = "debug", err, ret, skip(self))]
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        assert!(
-            lag.is_none(),
-            "Fuel does not support querying point-in-time"
-        );
-        let (root, index) = self
-            .contract
-            .methods()
-            .latest_checkpoint()
-            .simulate()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value;
-
-        Ok(Checkpoint {
-            mailbox_address: self.address(),
-            mailbox_domain: self.domain.id(),
-            root: root.into_h256(),
-            index,
-        })
     }
 
     #[instrument(err, ret, skip(self))]
@@ -133,7 +106,7 @@ impl Mailbox for FuelMailbox {
         todo!()
     }
 
-    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -153,11 +126,10 @@ pub struct FuelMailboxIndexer {}
 
 #[async_trait]
 impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
-        from: u32,
-        to: u32,
-    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         todo!()
     }
 
@@ -168,7 +140,10 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
 
 #[async_trait]
 impl Indexer<H256> for FuelMailboxIndexer {
-    async fn fetch_logs(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {
+    async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         todo!()
     }
 

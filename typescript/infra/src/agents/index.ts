@@ -1,37 +1,54 @@
 import fs from 'fs';
+import { join } from 'path';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
+import { Contexts } from '../../config/contexts.js';
+import { getChain } from '../../config/registry.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
-  DeployEnvironment,
+  DockerConfig,
   HelmRootAgentValues,
-  RelayerConfigHelper,
+  KubernetesResources,
   RootAgentConfig,
-  ScraperConfigHelper,
-  ValidatorConfigHelper,
-} from '../config';
-import { Role } from '../roles';
-import { fetchGCPSecret } from '../utils/gcloud';
+} from '../config/agent/agent.js';
+import { RelayerConfigHelper } from '../config/agent/relayer.js';
+import { ScraperConfigHelper } from '../config/agent/scraper.js';
+import { ValidatorConfigHelper } from '../config/agent/validator.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { AgentRole, Role } from '../roles.js';
+import {
+  fetchGCPSecret,
+  gcpSecretExistsUsingClient,
+  getGcpSecretLatestVersionName,
+  setGCPSecretUsingClient,
+} from '../utils/gcloud.js';
 import {
   HelmCommand,
   buildHelmChartDependencies,
   helmifyValues,
-} from '../utils/helm';
-import { execCmd } from '../utils/utils';
+} from '../utils/helm.js';
+import {
+  execCmd,
+  getInfraPath,
+  isEthereumProtocolChain,
+} from '../utils/utils.js';
 
-import { AgentGCPKey } from './gcp';
+import { AgentGCPKey } from './gcp.js';
 
-const HELM_CHART_PATH = __dirname + '/../../../../rust/helm/hyperlane-agent/';
+const HELM_CHART_PATH = join(
+  getInfraPath(),
+  '/../../rust/helm/hyperlane-agent/',
+);
+
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
   console.warn(
     `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
   );
 
 export abstract class AgentHelmManager {
-  abstract readonly role: Role;
+  abstract readonly role: AgentRole;
   abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
@@ -101,22 +118,41 @@ export abstract class AgentHelmManager {
   }
 
   async helmValues(): Promise<HelmRootAgentValues> {
+    const dockerImage = this.dockerImage();
     return {
       image: {
-        repository: this.config.docker.repo,
-        tag: this.config.docker.tag,
+        repository: dockerImage.repo,
+        tag: dockerImage.tag,
       },
       hyperlane: {
         runEnv: this.environment,
         context: this.context,
         aws: !!this.config.aws,
-        chains: this.config.environmentChainNames.map((name) => ({
-          name,
-          disabled: !this.config.contextChainNames.includes(name),
-          connection: { type: this.config.connectionType },
-        })),
+        chains: this.config.contextChainNames[this.role].map((chain) => {
+          const metadata = getChain(chain);
+          const reorgPeriod = metadata.blocks?.reorgPeriod;
+          if (reorgPeriod === undefined) {
+            throw new Error(`No reorg period found for chain ${chain}`);
+          }
+          return {
+            name: chain,
+            rpcConsensusType: this.rpcConsensusType(chain),
+            protocol: metadata.protocol,
+            blocks: { reorgPeriod },
+            maxBatchSize: 32,
+          };
+        }),
       },
     };
+  }
+
+  rpcConsensusType(chain: ChainName): RpcConsensusType {
+    // Non-Ethereum chains only support Single
+    if (!isEthereumProtocolChain(chain)) {
+      return RpcConsensusType.Single;
+    }
+
+    return this.config.agentRoleConfig.rpcConsensusType;
   }
 
   async doesAgentReleaseExist() {
@@ -131,6 +167,14 @@ export abstract class AgentHelmManager {
     } catch (error) {
       return false;
     }
+  }
+
+  dockerImage(): DockerConfig {
+    return this.config.agentRoleConfig.docker;
+  }
+
+  kubernetesResources(): KubernetesResources | undefined {
+    return this.config.agentRoleConfig.resources;
   }
 }
 
@@ -156,6 +200,10 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
     if (this.context != Contexts.Hyperlane) parts.push(this.context);
     return parts.join('-');
   }
+
+  dockerImage(): DockerConfig {
+    return this.config.dockerImageForChain(this.chainName);
+  }
 }
 
 export class RelayerHelmManager extends OmniscientAgentHelmManager {
@@ -173,15 +221,14 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
 
     const signers = await this.config.signers();
-    values.hyperlane.relayerChains = this.config.environmentChainNames.map(
-      (name) => ({
-        name,
-        signer: signers[name],
-      }),
-    );
+    values.hyperlane.relayerChains = this.config.relayChains.map((name) => ({
+      name,
+      signer: signers[name],
+    }));
 
     return values;
   }
@@ -203,6 +250,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
@@ -217,12 +265,10 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
   constructor(config: RootAgentConfig, chainName: ChainName) {
     super(chainName);
     this.config = new ValidatorConfigHelper(config, chainName);
-    if (!this.config.contextChainNames.includes(chainName))
+    if (!this.config.contextChainNames[this.role].includes(chainName))
       throw Error('Context does not support chain');
     if (!this.config.environmentChainNames.includes(chainName))
       throw Error('Environment does not support chain');
-    if (this.context != Contexts.Hyperlane)
-      throw Error('Context does not support validator');
   }
 
   get length(): number {
@@ -231,13 +277,34 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const helmValues = await super.helmValues();
+    const cfg = await this.config.buildConfig();
+
     helmValues.hyperlane.validator = {
       enabled: true,
-      configs: await this.config.buildConfig(),
+      configs: cfg.validators.map((c) => ({
+        ...c,
+        originChainName: cfg.originChainName,
+        interval: cfg.interval,
+      })),
+      resources: this.kubernetesResources(),
     };
+
+    // The name of the helm release for agents is `hyperlane-agent`.
+    // This causes the name of the S3 bucket to exceed the 63 character limit in helm.
+    // To work around this, we shorten the name of the helm release to `agent`
+    if (this.config.context !== Contexts.Hyperlane) {
+      helmValues.nameOverride = 'agent';
+    }
 
     return helmValues;
   }
+}
+
+export function getSecretName(
+  environment: string,
+  chainName: ChainName,
+): string {
+  return `${environment}-rpc-endpoints-${chainName}`;
 }
 
 export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
@@ -253,20 +320,14 @@ export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
   };
 }
 
-export async function getSecretRpcEndpoint(
+export async function getSecretRpcEndpoints(
   environment: string,
   chainName: ChainName,
-  quorum = false,
 ): Promise<string[]> {
-  const secret = await fetchGCPSecret(
-    `${environment}-rpc-endpoint${quorum ? 's' : ''}-${chainName}`,
-    quorum,
-  );
-  if (typeof secret != 'string' && !Array.isArray(secret)) {
-    throw Error(`Expected secret for ${chainName} rpc endpoint`);
-  }
+  const secret = await fetchGCPSecret(getSecretName(environment, chainName));
+
   if (!Array.isArray(secret)) {
-    return [secret.trimEnd()];
+    throw Error(`Expected secret for ${chainName} rpc endpoint`);
   }
 
   return secret.map((i) => {
@@ -274,6 +335,29 @@ export async function getSecretRpcEndpoint(
       throw new Error(`Expected string in rpc endpoint array for ${chainName}`);
     return i.trimEnd();
   });
+}
+
+export async function getSecretRpcEndpointsLatestVersionName(
+  environment: string,
+  chainName: ChainName,
+) {
+  return getGcpSecretLatestVersionName(getSecretName(environment, chainName));
+}
+
+export async function secretRpcEndpointsExist(
+  environment: string,
+  chainName: ChainName,
+): Promise<boolean> {
+  return gcpSecretExistsUsingClient(getSecretName(environment, chainName));
+}
+
+export async function setSecretRpcEndpoints(
+  environment: string,
+  chainName: ChainName,
+  endpoints: string,
+) {
+  const secretName = getSecretName(environment, chainName);
+  await setGCPSecretUsingClient(secretName, endpoints);
 }
 
 export async function getSecretDeployerKey(

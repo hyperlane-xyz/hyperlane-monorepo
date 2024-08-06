@@ -1,13 +1,13 @@
 import { ethers } from 'ethers';
 
 import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { messageId } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts';
-import { ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
-import { coreFactories } from './contracts';
+import { HyperlaneCore } from './HyperlaneCore.js';
+import { coreFactories } from './contracts.js';
 
 export const testCoreFactories = {
   ...coreFactories,
@@ -28,7 +28,8 @@ export class TestCoreApp extends HyperlaneCore {
     for (const origin of this.chains()) {
       const outbound = await this.processOutboundMessages(origin);
       const originResponses = new Map();
-      this.remoteChains(origin).forEach((destination) =>
+      const remoteChains = await this.remoteChains(origin);
+      remoteChains.forEach((destination) =>
         originResponses.set(destination, outbound.get(destination)),
       );
       responses.set(origin, originResponses);
@@ -52,7 +53,7 @@ export class TestCoreApp extends HyperlaneCore {
       }
       const destinationChain = this.multiProvider.getChainName(destination);
       const inbox = this.getContracts(destinationChain).mailbox;
-      const id = utils.messageId(dispatch.args.message);
+      const id = messageId(dispatch.args.message);
       const delivered = await inbox.delivered(id);
       if (!delivered) {
         const response = await inbox.process('0x', dispatch.args.message);

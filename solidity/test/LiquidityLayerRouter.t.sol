@@ -41,33 +41,30 @@ contract LiquidityLayerRouterTest is Test {
 
         tokenMessenger = new MockCircleTokenMessenger(token);
         messageTransmitter = new MockCircleMessageTransmitter(token);
-        originBridgeAdapter = new CircleBridgeAdapter();
-        destinationBridgeAdapter = new CircleBridgeAdapter();
 
         recipient = new TestTokenRecipient();
-
-        originLiquidityLayerRouter = new LiquidityLayerRouter();
-        destinationLiquidityLayerRouter = new LiquidityLayerRouter();
 
         testEnvironment = new MockHyperlaneEnvironment(
             originDomain,
             destinationDomain
         );
 
-        address owner = address(this);
-        originLiquidityLayerRouter.initialize(
-            address(testEnvironment.mailboxes(originDomain)),
-            address(testEnvironment.igps(originDomain)),
-            address(testEnvironment.isms(originDomain)),
-            owner
+        address originMailbox = address(
+            testEnvironment.mailboxes(originDomain)
         );
-        destinationLiquidityLayerRouter.initialize(
-            address(testEnvironment.mailboxes(destinationDomain)),
-            address(testEnvironment.igps(destinationDomain)),
-            address(testEnvironment.isms(destinationDomain)),
-            owner
+        address destinationMailbox = address(
+            testEnvironment.mailboxes(destinationDomain)
         );
 
+        originBridgeAdapter = new CircleBridgeAdapter(originMailbox);
+        destinationBridgeAdapter = new CircleBridgeAdapter(destinationMailbox);
+
+        originLiquidityLayerRouter = new LiquidityLayerRouter(originMailbox);
+        destinationLiquidityLayerRouter = new LiquidityLayerRouter(
+            destinationMailbox
+        );
+
+        address owner = address(this);
         originLiquidityLayerRouter.enrollRemoteRouter(
             destinationDomain,
             TypeCasts.addressToBytes32(address(destinationLiquidityLayerRouter))

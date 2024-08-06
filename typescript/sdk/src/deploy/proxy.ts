@@ -1,12 +1,22 @@
 import { ethers } from 'ethers';
 
-import type { types } from '@hyperlane-xyz/utils';
-import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
+
+export type UpgradeConfig = {
+  timelock: {
+    delay: number;
+    // canceller inherited from proposer and admin not supported
+    roles: {
+      executor: Address;
+      proposer: Address;
+    };
+  };
+};
 
 export async function proxyImplementation(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
-): Promise<types.Address> {
+  proxy: Address,
+): Promise<Address> {
   // Hardcoded storage slot for implementation per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
@@ -15,10 +25,22 @@ export async function proxyImplementation(
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
+export async function isInitialized(
+  provider: ethers.providers.Provider,
+  contract: Address,
+): Promise<boolean> {
+  // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
+  const storageValue = await provider.getStorageAt(contract, '0x0');
+  return (
+    storageValue ===
+    '0x00000000000000000000000000000000000000000000000000000000000000ff'
+  );
+}
+
 export async function proxyAdmin(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
-): Promise<types.Address> {
+  proxy: Address,
+): Promise<Address> {
   // Hardcoded storage slot for admin per EIP-1967
   const storageValue = await provider.getStorageAt(
     proxy,
@@ -27,9 +49,20 @@ export async function proxyAdmin(
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
+export function proxyConstructorArgs<C extends ethers.Contract>(
+  implementation: C,
+  proxyAdmin: string,
+  initializeArgs?: Parameters<C['initialize']>,
+): [string, string, string] {
+  const initData = initializeArgs
+    ? implementation.interface.encodeFunctionData('initialize', initializeArgs)
+    : '0x';
+  return [implementation.address, proxyAdmin, initData];
+}
+
 export async function isProxy(
   provider: ethers.providers.Provider,
-  proxy: types.Address,
+  proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
   return !eqAddress(admin, ethers.constants.AddressZero);

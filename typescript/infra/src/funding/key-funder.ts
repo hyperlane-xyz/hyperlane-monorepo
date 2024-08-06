@@ -1,15 +1,15 @@
-import { AgentContextConfig, EnvironmentConfig } from '../config';
-import { KeyFunderConfig } from '../config/funding';
-import { HelmCommand, helmifyValues } from '../utils/helm';
-import { execCmd } from '../utils/utils';
+import { AgentContextConfig } from '../config/agent/agent.js';
+import { EnvironmentConfig } from '../config/environment.js';
+import { KeyFunderConfig } from '../config/funding.js';
+import { HelmCommand, helmifyValues } from '../utils/helm.js';
+import { execCmd } from '../utils/utils.js';
 
 export async function runKeyFunderHelmCommand(
   helmCommand: HelmCommand,
   agentConfig: AgentContextConfig,
-  keyFunderConfig: KeyFunderConfig,
+  keyFunderConfig: KeyFunderConfig<string[]>,
 ) {
   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
-
   if (helmCommand === HelmCommand.InstallOrUpgrade) {
     // Delete secrets to avoid them being stale
     try {
@@ -36,7 +36,7 @@ export async function runKeyFunderHelmCommand(
 
 function getKeyFunderHelmValues(
   agentConfig: AgentContextConfig,
-  keyFunderConfig: KeyFunderConfig,
+  keyFunderConfig: KeyFunderConfig<string[]>,
 ) {
   const values = {
     cronjob: {
@@ -45,10 +45,12 @@ function getKeyFunderHelmValues(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
-      chains: agentConfig.contextChainNames,
+      chains: agentConfig.environmentChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
-      connectionType: keyFunderConfig.connectionType,
+      desiredBalancePerChain: keyFunderConfig.desiredBalancePerChain,
+      desiredKathyBalancePerChain: keyFunderConfig.desiredKathyBalancePerChain,
+      igpClaimThresholdPerChain: keyFunderConfig.igpClaimThresholdPerChain,
     },
     image: {
       repository: keyFunderConfig.docker.repo,
@@ -63,7 +65,7 @@ function getKeyFunderHelmValues(
 
 export function getKeyFunderConfig(
   coreConfig: EnvironmentConfig,
-): KeyFunderConfig {
+): KeyFunderConfig<string[]> {
   const keyFunderConfig = coreConfig.keyFunderConfig;
   if (!keyFunderConfig) {
     throw new Error(

@@ -2,38 +2,52 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import "../contracts/test/TestGasRouter.sol";
+import "../contracts/test/TestMailbox.sol";
+import "../contracts/test/TestIsm.sol";
+import "../contracts/test/TestInterchainGasPaymaster.sol";
+import "../contracts/test/TestMerkleTreeHook.sol";
 
 contract GasRouterTest is Test {
     event DestinationGasSet(uint32 indexed domain, uint256 gas);
-
-    MockHyperlaneEnvironment environment;
 
     uint32 originDomain = 1;
     uint32 remoteDomain = 2;
 
     uint256 gasPrice; // The gas price used in IGP.quoteGasPayment
 
+    TestMailbox originMailbox;
+    TestMailbox remoteMailbox;
+
     TestGasRouter originRouter;
     TestGasRouter remoteRouter;
 
     function setUp() public {
-        environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
+        originMailbox = new TestMailbox(originDomain);
+        TestIsm ism = new TestIsm();
+        TestInterchainGasPaymaster igp = new TestInterchainGasPaymaster();
+        TestMerkleTreeHook _requiredHook = new TestMerkleTreeHook(
+            address(originMailbox)
+        );
+        originMailbox.initialize(
+            address(this),
+            address(ism),
+            address(igp),
+            address(_requiredHook)
+        );
+        remoteMailbox = new TestMailbox(remoteDomain);
+        remoteMailbox.initialize(
+            address(this),
+            address(ism),
+            address(igp),
+            address(_requiredHook)
+        );
+
         // Same for origin and remote
-        gasPrice = environment.igps(originDomain).gasPrice();
+        gasPrice = igp.gasPrice();
 
-        originRouter = new TestGasRouter();
-        remoteRouter = new TestGasRouter();
-
-        originRouter.initialize(
-            address(environment.mailboxes(originDomain)),
-            address(environment.igps(originDomain))
-        );
-        remoteRouter.initialize(
-            address(environment.mailboxes(remoteDomain)),
-            address(environment.igps(remoteDomain))
-        );
+        originRouter = new TestGasRouter(address(originMailbox));
+        remoteRouter = new TestGasRouter(address(remoteMailbox));
 
         originRouter.enrollRemoteRouter(
             remoteDomain,
@@ -50,20 +64,13 @@ contract GasRouterTest is Test {
         uint32 domain,
         uint256 gas
     ) public {
-        GasRouter.GasRouterConfig[]
-            memory gasConfigs = new GasRouter.GasRouterConfig[](1);
-        gasConfigs[0] = GasRouter.GasRouterConfig(domain, gas);
-        gasRouter.setDestinationGas(gasConfigs);
+        gasRouter.setDestinationGas(domain, gas);
     }
 
     function testSetDestinationGas(uint256 gas) public {
-        vm.expectEmit(true, false, false, true, address(remoteRouter));
-        emit DestinationGasSet(originDomain, gas);
         setDestinationGas(remoteRouter, originDomain, gas);
         assertEq(remoteRouter.destinationGas(originDomain), gas);
 
-        vm.expectEmit(true, false, false, true, address(originRouter));
-        emit DestinationGasSet(remoteDomain, gas);
         setDestinationGas(originRouter, remoteDomain, gas);
         assertEq(originRouter.destinationGas(remoteDomain), gas);
     }
@@ -86,35 +93,28 @@ contract GasRouterTest is Test {
         assert(passRefund);
     }
 
-    function testDispatchWithGas(uint256 gas) public {
+    function testDispatch(uint256 gas) public {
         vm.assume(gas > 0 && type(uint256).max / gas > gasPrice);
         vm.deal(address(this), gas * gasPrice);
 
         setDestinationGas(originRouter, remoteDomain, gas);
 
         uint256 requiredPayment = gas * gasPrice;
-        vm.expectRevert("insufficient interchain gas payment");
-        originRouter.dispatchWithGas{value: requiredPayment - 1}(
-            remoteDomain,
-            ""
-        );
+        vm.expectRevert("IGP: insufficient interchain gas payment");
+        originRouter.dispatch{value: requiredPayment - 1}(remoteDomain, "");
 
         vm.deal(address(this), requiredPayment + 1);
-        originRouter.dispatchWithGas{value: requiredPayment + 1}(
-            remoteDomain,
-            ""
-        );
+        originRouter.dispatch{value: requiredPayment + 1}(remoteDomain, "");
         assertEq(refund, 1);
 
         // Reset the IGP balance to avoid a balance overflow
-        vm.deal(address(environment.igps(originDomain)), 0);
+        vm.deal(address(originMailbox.defaultHook()), 0);
 
         vm.deal(address(this), requiredPayment + 1);
         passRefund = false;
-        vm.expectRevert("Interchain gas payment refund failed");
-        originRouter.dispatchWithGas{value: requiredPayment + 1}(
-            remoteDomain,
-            ""
+        vm.expectRevert(
+            "Address: unable to send value, recipient may have reverted"
         );
+        originRouter.dispatch{value: requiredPayment + 1}(remoteDomain, "");
     }
 }

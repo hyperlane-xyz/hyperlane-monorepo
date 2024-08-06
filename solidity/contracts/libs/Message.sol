@@ -101,11 +101,9 @@ library Message {
      * @param _message ABI encoded Hyperlane message.
      * @return Sender of `_message` as address
      */
-    function senderAddress(bytes calldata _message)
-        internal
-        pure
-        returns (address)
-    {
+    function senderAddress(
+        bytes calldata _message
+    ) internal pure returns (address) {
         return sender(_message).bytes32ToAddress();
     }
 
@@ -114,11 +112,9 @@ library Message {
      * @param _message ABI encoded Hyperlane message.
      * @return Destination domain of `_message`
      */
-    function destination(bytes calldata _message)
-        internal
-        pure
-        returns (uint32)
-    {
+    function destination(
+        bytes calldata _message
+    ) internal pure returns (uint32) {
         return uint32(bytes4(_message[DESTINATION_OFFSET:RECIPIENT_OFFSET]));
     }
 
@@ -127,11 +123,9 @@ library Message {
      * @param _message ABI encoded Hyperlane message.
      * @return Recipient of `_message` as bytes32
      */
-    function recipient(bytes calldata _message)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function recipient(
+        bytes calldata _message
+    ) internal pure returns (bytes32) {
         return bytes32(_message[RECIPIENT_OFFSET:BODY_OFFSET]);
     }
 
@@ -140,11 +134,9 @@ library Message {
      * @param _message ABI encoded Hyperlane message.
      * @return Recipient of `_message` as address
      */
-    function recipientAddress(bytes calldata _message)
-        internal
-        pure
-        returns (address)
-    {
+    function recipientAddress(
+        bytes calldata _message
+    ) internal pure returns (address) {
         return recipient(_message).bytes32ToAddress();
     }
 
@@ -153,11 +145,9 @@ library Message {
      * @param _message ABI encoded Hyperlane message.
      * @return Body of `_message`
      */
-    function body(bytes calldata _message)
-        internal
-        pure
-        returns (bytes calldata)
-    {
+    function body(
+        bytes calldata _message
+    ) internal pure returns (bytes calldata) {
         return bytes(_message[BODY_OFFSET:]);
     }
 }

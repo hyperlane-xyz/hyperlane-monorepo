@@ -1,49 +1,66 @@
+import { z } from 'zod';
+
 import {
-  HyperlaneConnectionClient,
+  MailboxClient,
   ProxyAdmin__factory,
+  Router,
+  TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneFactories } from '../contracts';
-import { CheckerViolation } from '../deploy/types';
+import { HyperlaneFactories } from '../contracts/types.js';
+import { UpgradeConfig } from '../deploy/proxy.js';
+import { CheckerViolation } from '../deploy/types.js';
 
-export type OwnableConfig = {
-  owner: types.Address;
+import {
+  GasRouterConfigSchema,
+  MailboxClientConfigSchema,
+  RemoteRoutersSchema,
+  RouterConfigSchema,
+} from './schemas.js';
+
+export type RouterAddress = {
+  router: Address;
 };
 
-export type ForeignDeploymentConfig = {
-  foreignDeployment?: types.Address;
-};
+export type MailboxClientConfig = z.infer<typeof MailboxClientConfigSchema>;
+export type RouterConfig = z.infer<typeof RouterConfigSchema>;
+export type GasRouterConfig = z.infer<typeof GasRouterConfigSchema>;
 
-export type RouterConfig = ConnectionClientConfig &
-  OwnableConfig &
-  ForeignDeploymentConfig;
-
-export type GasConfig = {
-  gas: number;
-};
-
-export type GasRouterConfig = RouterConfig & GasConfig;
-
+export type ProxiedRouterConfig = RouterConfig & Partial<UpgradeConfig>;
 export type ProxiedFactories = HyperlaneFactories & {
   proxyAdmin: ProxyAdmin__factory;
+  timelockController: TimelockController__factory;
 };
 
-export type ConnectionClientConfig = {
-  mailbox: types.Address;
-  interchainGasPaymaster: types.Address;
-  interchainSecurityModule?: types.Address;
+export const proxiedFactories: ProxiedFactories = {
+  proxyAdmin: new ProxyAdmin__factory(),
+  timelockController: new TimelockController__factory(),
 };
 
-export enum ConnectionClientViolationType {
-  InterchainSecurityModule = 'ConnectionClientIsm',
-  Mailbox = 'ConnectionClientMailbox',
-  InterchainGasPaymaster = 'ConnectionClientIgp',
+export enum ClientViolationType {
+  InterchainSecurityModule = 'ClientIsm',
+  Mailbox = 'ClientMailbox',
+  Hook = 'ClientHook',
 }
 
-export interface ConnectionClientViolation extends CheckerViolation {
-  type: ConnectionClientViolationType;
-  contract: HyperlaneConnectionClient;
+export interface ClientViolation extends CheckerViolation {
+  type: ClientViolationType;
+  contract: MailboxClient;
+  description?: string;
+}
+
+export enum RouterViolationType {
+  EnrolledRouter = 'EnrolledRouter',
+}
+
+export interface RouterViolation extends CheckerViolation {
+  type: RouterViolationType.EnrolledRouter;
+  remoteChain: string;
+  contract: Router;
   actual: string;
   expected: string;
+  description?: string;
 }
+
+export type RemoteRouters = z.infer<typeof RemoteRoutersSchema>;

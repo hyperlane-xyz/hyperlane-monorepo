@@ -1,11 +1,12 @@
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterChecker } from '../../router/ProxiedRouterChecker';
-import { ChainMap } from '../../types';
-import { objMap } from '../../utils/objects';
+import { objMap } from '@hyperlane-xyz/utils';
 
-import { InterchainAccount } from './InterchainAccount';
-import { InterchainAccountConfig } from './InterchainAccountDeployer';
-import { InterchainAccountFactories } from './contracts';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterChecker } from '../../router/ProxiedRouterChecker.js';
+import { ChainMap } from '../../types.js';
+
+import { InterchainAccount } from './InterchainAccount.js';
+import { InterchainAccountConfig } from './InterchainAccountDeployer.js';
+import { InterchainAccountFactories } from './contracts.js';
 
 export class InterchainAccountChecker extends ProxiedRouterChecker<
   InterchainAccountFactories,

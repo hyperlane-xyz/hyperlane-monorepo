@@ -3,28 +3,15 @@ pragma solidity >=0.8.0;
 
 import {Mailbox} from "../Mailbox.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {Message} from "../libs/Message.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 
 contract TestMailbox is Mailbox {
     using TypeCasts for bytes32;
 
-    constructor(uint32 _localDomain) Mailbox(_localDomain) {} // solhint-disable-line no-empty-blocks
-
-    function proof() external view returns (bytes32[32] memory) {
-        bytes32[32] memory _zeroes = MerkleLib.zeroHashes();
-        uint256 _index = tree.count - 1;
-        bytes32[32] memory _proof;
-
-        for (uint256 i = 0; i < 32; i++) {
-            uint256 _ithBit = (_index >> i) & 0x01;
-            if (_ithBit == 1) {
-                _proof[i] = tree.branch[i];
-            } else {
-                _proof[i] = _zeroes[i];
-            }
-        }
-        return _proof;
+    constructor(uint32 _localDomain) Mailbox(_localDomain) {
+        _transferOwnership(msg.sender);
     }
 
     function testHandle(
@@ -38,5 +25,35 @@ contract TestMailbox is Mailbox {
             _sender,
             _body
         );
+    }
+
+    function buildOutboundMessage(
+        uint32 destinationDomain,
+        bytes32 recipientAddress,
+        bytes calldata body
+    ) external view returns (bytes memory) {
+        return _buildMessage(destinationDomain, recipientAddress, body);
+    }
+
+    function buildInboundMessage(
+        uint32 originDomain,
+        bytes32 recipientAddress,
+        bytes32 senderAddress,
+        bytes calldata body
+    ) external view returns (bytes memory) {
+        return
+            Message.formatMessage(
+                VERSION,
+                nonce,
+                originDomain,
+                senderAddress,
+                localDomain,
+                recipientAddress,
+                body
+            );
+    }
+
+    function updateLatestDispatchedId(bytes32 _id) external {
+        latestDispatchedId = _id;
     }
 }

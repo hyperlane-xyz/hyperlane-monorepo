@@ -9,24 +9,26 @@ import {
   MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { debug } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HelloWorld } from '../types';
+import { HelloWorld } from '../types/index.js';
 
-import { HelloWorldFactories } from './contracts';
-
-type Counts = {
-  sent: number;
-  received: number;
-};
+import { HelloWorldFactories } from './contracts.js';
+import { StatCounts } from './types.js';
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(
     public readonly core: HyperlaneCore,
     contractsMap: HyperlaneContractsMap<HelloWorldFactories>,
     multiProvider: MultiProvider,
+    foreignDeployments: ChainMap<Address> = {},
   ) {
-    super(contractsMap, multiProvider);
+    super(
+      contractsMap,
+      multiProvider,
+      rootLogger.child({ module: 'HelloWorldApp' }),
+      foreignDeployments,
+    );
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
@@ -52,18 +54,19 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
     const gasLimit = estimated.mul(12).div(10);
 
+    const quote = await sender.quoteDispatch(toDomain, message);
     const tx = await sender.sendHelloWorld(toDomain, message, {
       ...transactionOverrides,
       gasLimit,
-      value,
+      value: value.add(quote),
     });
-    debug('Sending hello message', {
+    this.logger.info('Sending hello message', {
       from,
       to,
       message,
       tx,
     });
-    return tx.wait(blocks?.confirmations || 1);
+    return tx.wait(blocks?.confirmations ?? 1);
   }
 
   async waitForMessageReceipt(
@@ -78,7 +81,7 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     return this.core.waitForMessageProcessed(receipt);
   }
 
-  async channelStats(from: ChainName, to: ChainName): Promise<Counts> {
+  async channelStats(from: ChainName, to: ChainName): Promise<StatCounts> {
     const sent = await this.getContracts(from).router.sentTo(
       this.multiProvider.getDomainId(to),
     );
@@ -89,11 +92,12 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 
-  async stats(): Promise<ChainMap<ChainMap<Counts>>> {
-    const entries: Array<[ChainName, ChainMap<Counts>]> = await Promise.all(
+  async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {
+    const entries: Array<[ChainName, ChainMap<StatCounts>]> = await Promise.all(
       this.chains().map(async (source) => {
+        const remoteChains = await this.remoteChains(source);
         const destinationEntries = await Promise.all(
-          this.remoteChains(source).map(async (destination) => [
+          remoteChains.map(async (destination) => [
             destination,
             await this.channelStats(source, destination),
           ]),

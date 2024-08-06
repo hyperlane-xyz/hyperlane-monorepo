@@ -1,0 +1,40 @@
+anvil1:
+  required:
+    type: protocolFee
+    maxProtocolFee: '1000000000000000000'
+    protocolFee: '200000000000000'
+    beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  default:
+    type: domainRoutingHook
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    domains:
+      anvil2:
+        type: aggregationHook
+        hooks:
+          - type: merkleTreeHook
+          - type: interchainGasPaymaster
+            beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            overhead:
+              anvil2: 50000
+anvil2:
+  required:
+    type: protocolFee
+    maxProtocolFee: '1000000000000000000'
+    protocolFee: '200000000000000'
+    beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  default:
+    type: domainRoutingHook
+    owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+    domains:
+      anvil1:
+        type: aggregationHook
+        hooks:
+          - type: merkleTreeHook
+          - type: interchainGasPaymaster
+            beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            owner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+            oracleKey: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'

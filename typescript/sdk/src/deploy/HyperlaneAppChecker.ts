@@ -1,23 +1,31 @@
-import { keccak256 } from 'ethers/lib/utils';
+import { utils } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
-import { utils } from '@hyperlane-xyz/utils';
-
-import { HyperlaneApp } from '../HyperlaneApp';
-import { filterOwnableContracts } from '../contracts';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
-
-import { isProxy, proxyAdmin } from './proxy';
+import { Ownable, TimelockController__factory } from '@hyperlane-xyz/core';
 import {
+  Address,
+  ProtocolType,
+  assert,
+  eqAddress,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
+
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { filterOwnableContracts } from '../contracts/contracts.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
+
+import { UpgradeConfig, isProxy, proxyAdmin } from './proxy.js';
+import {
+  AccessControlViolation,
   BytecodeMismatchViolation,
   CheckerViolation,
   OwnerViolation,
   ProxyAdminViolation,
+  TimelockControllerViolation,
   ViolationType,
-} from './types';
+} from './types.js';
 
 export abstract class HyperlaneAppChecker<
   App extends HyperlaneApp<any>,
@@ -43,7 +51,11 @@ export abstract class HyperlaneAppChecker<
 
   async check(): Promise<void[]> {
     Object.keys(this.configMap)
-      .filter((_) => !this.app.chains().includes(_))
+      .filter(
+        (chain) =>
+          this.multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Ethereum && !this.app.chains().includes(chain),
+      )
       .forEach((chain: string) =>
         this.addViolation({
           type: ViolationType.NotDeployed,
@@ -54,6 +66,7 @@ export abstract class HyperlaneAppChecker<
       );
 
     return Promise.all(
+      // this.app.chains() will only return Ethereum chains that can be interacted with.
       this.app.chains().map((chain) => this.checkChain(chain)),
     );
   }
@@ -77,7 +90,7 @@ export abstract class HyperlaneAppChecker<
         if (await isProxy(provider, contract.address)) {
           // Check the ProxiedContract's admin matches expectation
           const actualAdmin = await proxyAdmin(provider, contract.address);
-          if (!utils.eqAddress(actualAdmin, expectedAdmin)) {
+          if (!eqAddress(actualAdmin, expectedAdmin)) {
             this.addViolation({
               type: ViolationType.ProxyAdmin,
               chain,
@@ -89,6 +102,59 @@ export abstract class HyperlaneAppChecker<
         }
       }),
     );
+  }
+
+  async checkUpgrade(
+    chain: ChainName,
+    upgradeConfig: UpgradeConfig,
+  ): Promise<void> {
+    const proxyOwner = await this.app.getContracts(chain).proxyAdmin.owner();
+    const timelockController = TimelockController__factory.connect(
+      proxyOwner,
+      this.multiProvider.getProvider(chain),
+    );
+
+    const minDelay = (await timelockController.getMinDelay()).toNumber();
+
+    if (minDelay !== upgradeConfig.timelock.delay) {
+      const violation: TimelockControllerViolation = {
+        type: ViolationType.TimelockController,
+        chain,
+        actual: minDelay,
+        expected: upgradeConfig.timelock.delay,
+        contract: timelockController,
+      };
+      this.addViolation(violation);
+    }
+
+    const roleIds = {
+      executor: await timelockController.EXECUTOR_ROLE(),
+      proposer: await timelockController.PROPOSER_ROLE(),
+      canceller: await timelockController.CANCELLER_ROLE(),
+      admin: await timelockController.TIMELOCK_ADMIN_ROLE(),
+    };
+
+    const accountHasRole = await promiseObjAll(
+      objMap(upgradeConfig.timelock.roles, async (role, account) => ({
+        hasRole: await timelockController.hasRole(roleIds[role], account),
+        account,
+      })),
+    );
+
+    for (const [role, { hasRole, account }] of Object.entries(accountHasRole)) {
+      if (!hasRole) {
+        const violation: AccessControlViolation = {
+          type: ViolationType.AccessControl,
+          chain,
+          account,
+          actual: false,
+          expected: true,
+          contract: timelockController,
+          role,
+        };
+        this.addViolation(violation);
+      }
+    }
   }
 
   private removeBytecodeMetadata(bytecode: string): string {
@@ -107,7 +173,7 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const provider = this.multiProvider.getProvider(chain);
     const bytecode = await provider.getCode(address);
-    const bytecodeHash = keccak256(
+    const bytecodeHash = utils.keccak256(
       modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
     );
     if (!expectedBytecodeHashes.includes(bytecodeHash)) {
@@ -121,23 +187,39 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
+  protected async checkProxy(
+    chain: ChainName,
+    name: string,
+    address: string,
+  ): Promise<void> {
+    return this.checkBytecode(chain, name, address, [
+      BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH,
+      BytecodeHash.TRANSPARENT_PROXY_4_9_3_BYTECODE_HASH,
+      BytecodeHash.OPT_TRANSPARENT_PROXY_BYTECODE_HASH,
+    ]);
+  }
+
   async ownables(chain: ChainName): Promise<{ [key: string]: Ownable }> {
     const contracts = this.app.getContracts(chain);
     return filterOwnableContracts(contracts);
   }
 
-  // TODO: Require owner in config if ownables is non-empty
-  async checkOwnership(chain: ChainName, owner: types.Address): Promise<void> {
+  protected async checkOwnership(
+    chain: ChainName,
+    owner: Address,
+    ownableOverrides?: Record<string, Address>,
+  ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
+      const expectedOwner = ownableOverrides?.[name] ?? owner;
       const actual = await contract.owner();
-      if (!utils.eqAddress(actual, owner)) {
+      if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {
           chain,
           name,
           type: ViolationType.Owner,
           actual,
-          expected: owner,
+          expected: expectedOwner,
           contract,
         };
         this.addViolation(violation);
@@ -149,7 +231,7 @@ export abstract class HyperlaneAppChecker<
     // Every type should have exactly the number of expected matches.
     objMap(violationCounts, (type, count) => {
       const actual = this.violations.filter((v) => v.type === type).length;
-      utils.assert(
+      assert(
         actual == count,
         `Expected ${count} ${type} violations, got ${actual}`,
       );
@@ -157,12 +239,32 @@ export abstract class HyperlaneAppChecker<
     this.violations
       .filter((v) => !(v.type in violationCounts))
       .map((v) => {
-        utils.assert(false, `Unexpected violation: ${JSON.stringify(v)}`);
+        assert(false, `Unexpected violation: ${JSON.stringify(v)}`);
       });
   }
 
   expectEmpty(): void {
     const count = this.violations.length;
-    utils.assert(count === 0, `Found ${count} violations`);
+    assert(count === 0, `Found ${count} violations`);
+  }
+
+  logViolationsTable(): void {
+    const violations = this.violations;
+    if (violations.length > 0) {
+      // eslint-disable-next-line no-console
+      console.table(violations, [
+        'chain',
+        'remote',
+        'name',
+        'type',
+        'subType',
+        'actual',
+        'expected',
+        'description',
+      ]);
+    } else {
+      // eslint-disable-next-line no-console
+      console.info(`${module} Checker found no violations`);
+    }
   }
 }

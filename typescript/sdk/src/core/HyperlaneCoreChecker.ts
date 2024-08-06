@@ -1,25 +1,24 @@
-import { utils as ethersUtils } from 'ethers';
+import { ethers, utils as ethersUtils } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { BytecodeHash } from '../consts/bytecode';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
-import { proxyImplementation } from '../deploy/proxy';
-import {
-  HyperlaneIsmFactory,
-  collectValidators,
-} from '../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+import { BytecodeHash } from '../consts/bytecode.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { proxyImplementation } from '../deploy/proxy.js';
+import { EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
+import { HyperlaneCore } from './HyperlaneCore.js';
 import {
   CoreConfig,
   CoreViolationType,
   MailboxViolation,
   MailboxViolationType,
   ValidatorAnnounceViolation,
-} from './types';
+} from './types.js';
 
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,
@@ -41,46 +40,53 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       return;
     }
 
-    await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    if (config.upgrade) {
+      await this.checkUpgrade(chain, config.upgrade);
+    }
+    await this.checkDomainOwnership(chain);
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    if (config.owner) {
-      return this.checkOwnership(chain, config.owner);
-    }
+    return this.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
   async checkMailbox(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
-    utils.assert(localDomain === this.multiProvider.getDomainId(chain));
+    assert(
+      localDomain === this.multiProvider.getDomainId(chain),
+      `local domain ${localDomain} does not match expected domain ${this.multiProvider.getDomainId(
+        chain,
+      )} for ${chain}`,
+    );
 
-    const actualIsm = await mailbox.defaultIsm();
+    const actualIsmAddress = await mailbox.defaultIsm();
+
     const config = this.configMap[chain];
-    /*
-    TODO: Add this back in once the new ISM factories are adopted
-    const matches = await moduleMatches(
+    const matches = await moduleMatchesConfig(
       chain,
-      actualIsm,
+      actualIsmAddress,
       config.defaultIsm,
       this.ismFactory.multiProvider,
       this.ismFactory.getContracts(chain),
     );
-    */
-    const matches = true;
+
     if (!matches) {
+      const ismReader = new EvmIsmReader(this.ismFactory.multiProvider, chain);
+      const derivedConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
+
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
-        mailboxType: MailboxViolationType.DefaultIsm,
+        subType: MailboxViolationType.DefaultIsm,
         contract: mailbox,
         chain,
-        actual: actualIsm,
+        actual: derivedConfig,
         expected: config.defaultIsm,
       };
       this.addViolation(violation);
@@ -96,39 +102,64 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       mailbox.address,
     );
 
-    await this.checkBytecode(
-      chain,
-      'Mailbox implementation',
-      implementation,
-      [
-        BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
-        BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,
-      ],
-      (bytecode) =>
-        // This is obviously super janky but basically we are searching
-        //  for the ocurrences of localDomain in the bytecode and remove
-        //  that to compare, but some coincidental ocurrences of
-        // localDomain in the bytecode should be not be removed which
-        // are just done via an offset guard
-        bytecode.replaceAll(
-          ethersUtils.defaultAbiCoder
-            .encode(['uint32'], [localDomain])
-            .slice(2),
-          (match, offset) => (offset > 8000 ? match : ''),
-        ),
-    );
+    if (implementation === ethers.constants.AddressZero) {
+      const violation: MailboxViolation = {
+        type: CoreViolationType.Mailbox,
+        subType: MailboxViolationType.NotProxied,
+        contract: mailbox,
+        chain,
+        actual: implementation,
+        expected: 'non-zero address',
+      };
+      this.addViolation(violation);
+    } else {
+      await this.checkBytecode(
+        chain,
+        'Mailbox implementation',
+        implementation,
+        [
+          BytecodeHash.V3_MAILBOX_BYTECODE_HASH,
+          BytecodeHash.OPT_V3_MAILBOX_BYTECODE_HASH,
+        ],
+        (bytecode) =>
+          // This is obviously super janky but basically we are searching
+          //  for the occurrences of localDomain in the bytecode and remove
+          //  that to compare, but some coincidental occurrences of
+          // localDomain in the bytecode should be not be removed which
+          // are just done via an offset guard
+          bytecode
+            .replaceAll(
+              ethersUtils.defaultAbiCoder
+                .encode(['uint32'], [localDomain])
+                .slice(2),
+              (match, offset) => (offset > 8000 ? match : ''),
+            )
+            // We persist the block number in the bytecode now too, so we have to strip it
+            .replaceAll(
+              /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            )
+            .replaceAll(
+              /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            )
+            .replaceAll(
+              /(f167f00000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})338989898/g,
+              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+            ),
+      );
+    }
 
-    await this.checkBytecode(
-      chain,
-      'Mailbox proxy',
-      contracts.mailbox.address,
-      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
-    );
+    await this.checkProxy(chain, 'Mailbox proxy', contracts.mailbox.address);
+
     await this.checkBytecode(
       chain,
       'ProxyAdmin',
       contracts.proxyAdmin.address,
-      [BytecodeHash.PROXY_ADMIN_BYTECODE_HASH],
+      [
+        BytecodeHash.PROXY_ADMIN_BYTECODE_HASH,
+        BytecodeHash.V2_PROXY_ADMIN_BYTECODE_HASH,
+      ],
     );
   }
 
@@ -147,7 +178,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       await validatorAnnounce.getAnnouncedValidators();
     [...validators].forEach((validator) => {
       const matches = announcedValidators.filter((x) =>
-        utils.eqAddress(x, validator),
+        eqAddress(x, validator),
       );
       if (matches.length == 0) {
         const violation: ValidatorAnnounceViolation = {

@@ -1,0 +1,6 @@
+{
+  "rules": {
+    // TODO use utils rootLogger in widgets lib
+    "no-console": ["off"]
+  }
+}

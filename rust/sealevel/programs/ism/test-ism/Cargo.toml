@@ -1,0 +1,29 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-test-ism"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+test-client = ["dep:solana-program-test", "dep:solana-sdk", "dep:hyperlane-test-transaction-utils"]
+
+[dependencies]
+borsh.workspace = true
+solana-program.workspace = true
+solana-program-test = { workspace = true, optional = true }
+solana-sdk = { workspace = true, optional = true }
+
+account-utils = { path = "../../../libraries/account-utils" }
+hyperlane-core = { path = "../../../../hyperlane-core" }
+hyperlane-sealevel-interchain-security-module-interface = { path = "../../../libraries/interchain-security-module-interface" }
+hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
+serializable-account-meta = { path = "../../../libraries/serializable-account-meta" }
+hyperlane-test-transaction-utils = { path = "../../../libraries/test-transaction-utils", optional = true }
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

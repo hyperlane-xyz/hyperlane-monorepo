@@ -1,21 +1,32 @@
+import { ethers } from 'ethers';
+
 import {
   ChainName,
+  ContractVerifier,
   HyperlaneContracts,
+  HyperlaneIsmFactory,
   HyperlaneRouterDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldFactories, helloWorldFactories } from '../app/contracts';
-import { HelloWorld } from '../types';
+import { HelloWorldFactories, helloWorldFactories } from '../app/contracts.js';
+import { HelloWorld } from '../types/index.js';
 
-import { HelloWorldConfig } from './config';
+import { HelloWorldConfig } from './config.js';
 
 export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   HelloWorldConfig,
   HelloWorldFactories
 > {
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, helloWorldFactories, {});
+  constructor(
+    multiProvider: MultiProvider,
+    readonly ismFactory?: HyperlaneIsmFactory,
+    readonly contractVerifier?: ContractVerifier,
+  ) {
+    super(multiProvider, helloWorldFactories, {
+      ismFactory,
+      contractVerifier,
+    });
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
@@ -27,8 +38,9 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   async deployContracts(chain: ChainName, config: HelloWorldConfig) {
     const router = await this.deployContract(chain, 'router', [
       config.mailbox,
-      config.interchainGasPaymaster,
+      ethers.constants.AddressZero,
     ]);
+    await super.configureClient(chain, router, config);
     return {
       router,
     };

@@ -1,10 +1,10 @@
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { types } from '@hyperlane-xyz/utils';
-
-import { getSafe, getSafeService } from '../utils/safe';
+// @ts-ignore
+import { getSafe, getSafeService } from '@hyperlane-xyz/sdk';
+import { CallData } from '@hyperlane-xyz/utils';
 
 export abstract class MultiSend {
-  abstract sendTransactions(calls: types.CallData[]): Promise<void>;
+  abstract sendTransactions(calls: CallData[]): Promise<void>;
 }
 
 export class SignerMultiSend extends MultiSend {
@@ -15,12 +15,13 @@ export class SignerMultiSend extends MultiSend {
     super();
   }
 
-  async sendTransactions(calls: types.CallData[]) {
+  async sendTransactions(calls: CallData[]) {
     for (const call of calls) {
-      const receipt = await this.multiProvider.sendTransaction(
-        this.chain,
-        call,
-      );
+      const estimate = await this.multiProvider.estimateGas(this.chain, call);
+      const receipt = await this.multiProvider.sendTransaction(this.chain, {
+        gasLimit: estimate.mul(11).div(10), // 10% buffer
+        ...call,
+      });
       console.log(`confirmed tx ${receipt.transactionHash}`);
     }
   }
@@ -34,7 +35,7 @@ export class ManualMultiSend extends MultiSend {
     this.chain = chain;
   }
 
-  async sendTransactions(calls: types.CallData[]) {
+  async sendTransactions(calls: CallData[]) {
     console.log(`Please submit the following manually to ${this.chain}:`);
     console.log(JSON.stringify(calls));
   }
@@ -49,7 +50,7 @@ export class SafeMultiSend extends MultiSend {
     super();
   }
 
-  async sendTransactions(calls: types.CallData[]) {
+  async sendTransactions(calls: CallData[]) {
     const safeSdk = await getSafe(
       this.chain,
       this.multiProvider,
@@ -58,7 +59,11 @@ export class SafeMultiSend extends MultiSend {
     const safeService = getSafeService(this.chain, this.multiProvider);
 
     const safeTransactionData = calls.map((call) => {
-      return { to: call.to, data: call.data.toString(), value: '0' };
+      return {
+        to: call.to,
+        data: call.data.toString(),
+        value: call.value?.toString() || '0',
+      };
     });
     const nextNonce = await safeService.getNextNonce(this.safeAddress);
     const safeTransaction = await safeSdk.createTransaction({

@@ -1,13 +1,9 @@
 import CoinGecko from 'coingecko-api';
 
-import { warn } from '@hyperlane-xyz/utils';
+import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import {
-  ChainMetadata,
-  chainMetadata as defaultChainMetadata,
-} from '../consts/chainMetadata';
-import { CoreChainName, Mainnets } from '../consts/chains';
-import { ChainMap, ChainName } from '../types';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
@@ -72,23 +68,33 @@ class TokenPriceCache {
 export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   protected coinGecko: CoinGeckoInterface;
   protected cache: TokenPriceCache;
+  protected sleepMsBetweenRequests: number;
   protected metadata: ChainMap<ChainMetadata>;
 
   constructor(
     coinGecko: CoinGeckoInterface,
+    chainMetadata: ChainMap<ChainMetadata>,
     expirySeconds?: number,
-    chainMetadata = defaultChainMetadata,
+    sleepMsBetweenRequests = 5000,
   ) {
     this.coinGecko = coinGecko;
     this.cache = new TokenPriceCache(expirySeconds);
     this.metadata = chainMetadata;
+    this.sleepMsBetweenRequests = sleepMsBetweenRequests;
   }
 
   static withDefaultCoinGecko(
+    chainMetadata: ChainMap<ChainMetadata>,
     expirySeconds?: number,
+    sleepMsBetweenRequests = 5000,
   ): CoinGeckoTokenPriceGetter {
     const coinGecko = new CoinGecko();
-    return new CoinGeckoTokenPriceGetter(coinGecko, expirySeconds);
+    return new CoinGeckoTokenPriceGetter(
+      coinGecko,
+      chainMetadata,
+      expirySeconds,
+      sleepMsBetweenRequests,
+    );
   }
 
   async getTokenPrice(chain: ChainName): Promise<number> {
@@ -105,8 +111,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   }
 
   private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
-    // TODO improve PI support here?
-    const isMainnet = chains.map((c) => Mainnets.includes(c as CoreChainName));
+    const isMainnet = chains.map((c) => !this.metadata[c].isTestnet);
     const allMainnets = isMainnet.every((v) => v === true);
     const allTestnets = isMainnet.every((v) => v === false);
     if (allTestnets) {
@@ -125,7 +130,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       try {
         await this.queryTokenPrices(toQuery);
       } catch (e) {
-        warn('Failed to query token prices', e);
+        rootLogger.warn('Failed to query token prices', e);
       }
     }
     return chains.map((chain) => this.cache.fetch(chain));
@@ -138,6 +143,8 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     const ids = chains.map(
       (chain) => this.metadata[chain].gasCurrencyCoinGeckoId || chain,
     );
+    // Coingecko rate limits, so we are adding this sleep
+    await sleep(this.sleepMsBetweenRequests);
     const response = await this.coinGecko.simple.price({
       ids,
       vs_currencies: [currency],

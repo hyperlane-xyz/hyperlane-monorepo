@@ -1,0 +1,28 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "multisig-ism"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+test-data = ["dep:hex"]
+
+[dependencies]
+borsh.workspace = true
+hex = { workspace = true, optional = true }
+solana-program.workspace = true
+spl-type-length-value.workspace = true
+thiserror.workspace = true
+
+hyperlane-core = { path = "../../../hyperlane-core" }
+ecdsa-signature = { path = "../ecdsa-signature" }
+
+[dev-dependencies]
+hex.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

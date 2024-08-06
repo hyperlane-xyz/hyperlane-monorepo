@@ -41,6 +41,7 @@ async fn test_gas_payment_policy_minimum() {
     // If the payment is less than the minimum, returns false
     let current_payment = InterchainGasPayment {
         message_id: H256::zero(),
+        destination: message.destination,
         payment: U256::from(999u32),
         gas_amount: U256::zero(),
     };
@@ -58,7 +59,7 @@ async fn test_gas_payment_policy_minimum() {
                 &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
-                    gas_price: U256::from(100000u32),
+                    gas_price: U256::from(100000u32).try_into().unwrap(),
                     l2_gas_limit: None,
                 },
             )
@@ -70,6 +71,7 @@ async fn test_gas_payment_policy_minimum() {
     // If the payment is at least the minimum, returns false
     let current_payment = InterchainGasPayment {
         message_id: H256::zero(),
+        destination: message.destination,
         payment: U256::from(1000u32),
         gas_amount: U256::zero(),
     };
@@ -81,7 +83,7 @@ async fn test_gas_payment_policy_minimum() {
                 &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
-                    gas_price: U256::from(100001u32),
+                    gas_price: U256::from(100001u32).try_into().unwrap(),
                     l2_gas_limit: None,
                 },
             )
@@ -99,7 +101,7 @@ async fn test_gas_payment_policy_minimum() {
                 &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
-                    gas_price: U256::from(100001u32),
+                    gas_price: U256::from(100001u32).try_into().unwrap(),
                     l2_gas_limit: Some(U256::from(22222u32)),
                 },
             )

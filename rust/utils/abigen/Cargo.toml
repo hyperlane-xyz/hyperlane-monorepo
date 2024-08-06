@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "abigen"
 documentation.workspace = true
@@ -9,11 +11,11 @@ version.workspace = true
 
 
 [dependencies]
-Inflector = "0.11"
+Inflector.workspace = true
 ethers = { workspace = true, optional = true }
 fuels = { workspace = true, optional = true }
 fuels-code-gen = { workspace = true, optional = true }
-which = { version =  "4.3", optional = true }
+which = { workspace = true, optional = true }
 
 [features]
 default = []

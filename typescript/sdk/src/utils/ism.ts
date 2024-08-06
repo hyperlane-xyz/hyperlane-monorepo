@@ -1,4 +1,4 @@
-import multisigIsmVerifyCosts from '../consts/multisigIsmVerifyCosts.json';
+import { multisigIsmVerifyCosts } from '../consts/multisigIsmVerifyCosts.js';
 
 export function multisigIsmVerificationCost(m: number, n: number): number {
   if (

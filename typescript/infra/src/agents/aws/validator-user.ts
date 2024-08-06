@@ -1,18 +1,22 @@
 import {
   CreateBucketCommand,
+  DeletePublicAccessBlockCommand,
+  GetPublicAccessBlockCommand,
   ListBucketsCommand,
+  PublicAccessBlockConfiguration,
   PutBucketPolicyCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../../config/contexts';
-import { AgentContextConfig, DeployEnvironment } from '../../config';
-import { Role } from '../../roles';
+import { Contexts } from '../../../config/contexts.js';
+import { AgentContextConfig } from '../../config/agent/agent.js';
+import { DeployEnvironment } from '../../config/environment.js';
+import { Role } from '../../roles.js';
 
-import { AgentAwsKey } from './key';
-import { AgentAwsUser } from './user';
+import { AgentAwsKey } from './key.js';
+import { AgentAwsUser } from './user.js';
 
 export class ValidatorAgentAwsUser extends AgentAwsUser {
   private adminS3Client: S3Client;
@@ -53,6 +57,10 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
   }
 
   async putBucketAccessPolicy() {
+    // First ensure there is no public access block, which
+    // will prevent the following put bocket policy command.
+    await this.removePublicAccessBlock();
+
     const policy = {
       Statement: [
         // Make the bucket publicly readable
@@ -81,6 +89,42 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
       Policy: JSON.stringify(policy),
     });
     await this.adminS3Client.send(cmd);
+  }
+
+  async removePublicAccessBlock() {
+    // By default, a public access block is placed on all buckets,
+    // which prevents the bucket from being made publicly readable by a bucket access policy.
+    // This ensures the block is removed.
+
+    const getCmd = new GetPublicAccessBlockCommand({
+      Bucket: this.bucket,
+    });
+    let accessBlockConfiguration: PublicAccessBlockConfiguration | undefined;
+    try {
+      const { PublicAccessBlockConfiguration: configuration } =
+        await this.adminS3Client.send(getCmd);
+      accessBlockConfiguration = configuration;
+    } catch (e) {
+      if (
+        e instanceof Error &&
+        e.message.includes('NoSuchPublicAccessBlockConfiguration')
+      ) {
+        // No public access block exists
+        return;
+      }
+    }
+    const blockExists =
+      accessBlockConfiguration?.BlockPublicAcls ||
+      accessBlockConfiguration?.BlockPublicPolicy ||
+      accessBlockConfiguration?.IgnorePublicAcls ||
+      accessBlockConfiguration?.RestrictPublicBuckets ||
+      false;
+    if (blockExists) {
+      const deleteCmd = new DeletePublicAccessBlockCommand({
+        Bucket: this.bucket,
+      });
+      await this.adminS3Client.send(deleteCmd);
+    }
   }
 
   key(agentConfig: AgentContextConfig): AgentAwsKey {

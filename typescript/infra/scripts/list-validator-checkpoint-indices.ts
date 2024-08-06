@@ -1,19 +1,14 @@
-import { HyperlaneCore } from '@hyperlane-xyz/sdk';
+import { concurrentMap } from '@hyperlane-xyz/utils';
 
-import { S3Validator } from '../src/agents/aws/validator';
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { concurrentMap } from '../src/utils/utils';
+import { InfraS3Validator } from '../src/agents/aws/validator.js';
 
-import { getArgs, getEnvironmentConfig, getValidatorsByChain } from './utils';
+import { getArgs, getValidatorsByChain } from './agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 async function main() {
   const { environment } = await getArgs().argv;
   const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
+  const { core } = await getHyperlaneCore(environment);
 
   const validators = Object.entries(getValidatorsByChain(config.core)).flatMap(
     ([chain, set]) => [...set].map((validator) => ({ chain, validator })),
@@ -31,7 +26,7 @@ async function main() {
       let identifier = validator;
       if (storageLocations.length == 1 && storageLocations[0].length == 1) {
         try {
-          const s3Validator = await S3Validator.fromStorageLocation(
+          const s3Validator = await InfraS3Validator.fromStorageLocation(
             storageLocations[0][0],
           );
           identifier = storageLocations[0][0];

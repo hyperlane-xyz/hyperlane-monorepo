@@ -1,3 +1,4 @@
+use serde::Serialize;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Display, Formatter};
 
@@ -21,7 +22,7 @@ impl From<&HyperlaneMessage> for RawHyperlaneMessage {
 }
 
 /// A full Hyperlane message between chains
-#[derive(Default, Clone)]
+#[derive(Clone, Eq, PartialEq, Hash, Serialize)]
 pub struct HyperlaneMessage {
     /// 1   Hyperlane version number
     pub version: u8,
@@ -37,6 +38,21 @@ pub struct HyperlaneMessage {
     pub recipient: H256,
     /// 0+  Message contents
     pub body: Vec<u8>,
+}
+
+impl Default for HyperlaneMessage {
+    fn default() -> Self {
+        Self {
+            // Use version 3 now that Hyperlane V3 is the default
+            version: 3,
+            nonce: 0,
+            origin: 0,
+            sender: H256::zero(),
+            destination: 0,
+            recipient: H256::zero(),
+            body: vec![],
+        }
+    }
 }
 
 impl Debug for HyperlaneMessage {

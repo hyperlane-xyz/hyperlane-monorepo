@@ -1,34 +1,155 @@
-pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
+use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::io::{Read, Write};
 use std::ops::Add;
 
+pub use self::primitive_types::*;
+#[cfg(feature = "ethers")]
+pub use ::primitive_types as ethers_core_types;
 pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
+pub use indexing::*;
 pub use log_metadata::*;
+pub use merkle_tree::*;
 pub use message::*;
+pub use transaction::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
 
 mod announcement;
 mod chain_data;
 mod checkpoint;
+mod indexing;
 mod log_metadata;
+mod merkle_tree;
 mod message;
+mod serialize;
+mod transaction;
 
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
+mod primitive_types;
+
+// Copied from https://github.com/hyperlane-xyz/ethers-rs/blob/hyperlane/ethers-core/src/types/signature.rs#L54
+// To avoid depending on the `ethers` type
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy, Hash)]
+/// An ECDSA signature
+pub struct Signature {
+    /// R value
+    pub r: U256,
+    /// S Value
+    pub s: U256,
+    /// V value
+    pub v: u64,
+}
+
+impl Signature {
+    /// Copies and serializes `self` into a new `Vec` with the recovery id included
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.into()
+    }
+}
+
+impl fmt::Display for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sig = <[u8; 65]>::from(self);
+        write!(f, "{}", hex::encode(&sig[..]))
+    }
+}
+
+impl From<&Signature> for [u8; 65] {
+    fn from(src: &Signature) -> [u8; 65] {
+        let mut sig = [0u8; 65];
+        src.r.to_big_endian(&mut sig[0..32]);
+        src.s.to_big_endian(&mut sig[32..64]);
+        sig[64] = src.v as u8;
+        sig
+    }
+}
+
+impl From<Signature> for [u8; 65] {
+    fn from(src: Signature) -> [u8; 65] {
+        <[u8; 65]>::from(&src)
+    }
+}
+
+impl From<&Signature> for Vec<u8> {
+    fn from(src: &Signature) -> Vec<u8> {
+        <[u8; 65]>::from(src).to_vec()
+    }
+}
+
+impl From<Signature> for Vec<u8> {
+    fn from(src: Signature) -> Vec<u8> {
+        <[u8; 65]>::from(&src).to_vec()
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<ethers_core::types::Signature> for Signature {
+    fn from(value: ethers_core::types::Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
+
+#[cfg(feature = "ethers")]
+impl From<Signature> for ethers_core::types::Signature {
+    fn from(value: Signature) -> Self {
+        Self {
+            r: value.r.into(),
+            s: value.s.into(),
+            v: value.v,
+        }
+    }
+}
+
+/// Key for the gas payment
+#[derive(Debug, Copy, Clone)]
+pub struct GasPaymentKey {
+    /// Id of the message
+    pub message_id: H256,
+    /// Destination domain paid for.
+    pub destination: u32,
+}
+
+impl From<InterchainGasPayment> for GasPaymentKey {
+    fn from(value: InterchainGasPayment) -> Self {
+        Self {
+            message_id: value.message_id,
+            destination: value.destination,
+        }
+    }
+}
 
 /// A payment of a message's gas costs.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, Hash)]
 pub struct InterchainGasPayment {
     /// Id of the message
     pub message_id: H256,
+    /// Destination domain paid for.
+    pub destination: u32,
     /// Amount of native tokens paid.
     pub payment: U256,
     /// Amount of destination gas paid for.
     pub gas_amount: U256,
+}
+
+impl InterchainGasPayment {
+    /// Create a new InterchainGasPayment from a GasPaymentKey
+    pub fn from_gas_payment_key(key: GasPaymentKey) -> Self {
+        Self {
+            message_id: key.message_id,
+            destination: key.destination,
+            payment: Default::default(),
+            gas_amount: Default::default(),
+        }
+    }
 }
 
 /// Amount of gas spent attempting to send the message.
@@ -50,8 +171,13 @@ impl Add for InterchainGasPayment {
             self.message_id, rhs.message_id,
             "Cannot add interchain gas payments for different messages"
         );
+        assert_eq!(
+            self.destination, rhs.destination,
+            "Cannot add interchain gas payments for different destinations"
+        );
         Self {
             message_id: self.message_id,
+            destination: self.destination,
             payment: self.payment + rhs.payment,
             gas_amount: self.gas_amount + rhs.gas_amount,
         }
@@ -77,8 +203,8 @@ impl Add for InterchainGasExpenditure {
 /// Uniquely identifying metadata for an InterchainGasPayment
 #[derive(Debug)]
 pub struct InterchainGasPaymentMeta {
-    /// The transaction hash in which the GasPayment log was emitted
-    pub transaction_hash: H256,
+    /// The transaction id/hash in which the GasPayment log was emitted
+    pub transaction_id: H512,
     /// The index of the GasPayment log within the transaction's logs
     pub log_index: u64,
 }
@@ -89,7 +215,7 @@ impl Encode for InterchainGasPaymentMeta {
         W: Write,
     {
         let mut written = 0;
-        written += self.transaction_hash.write_to(writer)?;
+        written += self.transaction_id.write_to(writer)?;
         written += self.log_index.write_to(writer)?;
         Ok(written)
     }
@@ -102,7 +228,7 @@ impl Decode for InterchainGasPaymentMeta {
         Self: Sized,
     {
         Ok(Self {
-            transaction_hash: H256::read_from(reader)?,
+            transaction_id: H512::read_from(reader)?,
             log_index: u64::read_from(reader)?,
         })
     }
@@ -111,7 +237,7 @@ impl Decode for InterchainGasPaymentMeta {
 impl From<&LogMeta> for InterchainGasPaymentMeta {
     fn from(meta: &LogMeta) -> Self {
         Self {
-            transaction_hash: meta.transaction_hash,
+            transaction_id: meta.transaction_id,
             log_index: meta.log_index.as_u64(),
         }
     }
@@ -123,13 +249,13 @@ pub struct TxCostEstimate {
     /// The gas limit for the transaction.
     pub gas_limit: U256,
     /// The gas price for the transaction.
-    pub gas_price: U256,
+    pub gas_price: FixedPointNumber,
     /// The amount of L2 gas for the transaction.
     /// If Some, `gas_limit` is the sum of the gas limit
     /// covering L1 costs and the L2 gas limit.
     /// Only present for Arbitrum Nitro chains, where the gas amount
     /// is used to cover L1 and L2 costs. For details:
-    /// https://medium.com/offchainlabs/understanding-arbitrum-2-dimensional-fees-fd1d582596c9
+    /// `<https://medium.com/offchainlabs/understanding-arbitrum-2-dimensional-fees-fd1d582596c9>`
     pub l2_gas_limit: Option<U256>,
 }
 

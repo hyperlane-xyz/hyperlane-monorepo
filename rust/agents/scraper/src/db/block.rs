@@ -6,6 +6,7 @@ use sea_orm::{
 use tracing::{debug, trace};
 
 use hyperlane_core::{BlockInfo, H256};
+use migration::OnConflict;
 
 use crate::conversions::{address_to_bytes, h256_to_bytes};
 use crate::date_time;
@@ -21,7 +22,6 @@ pub struct BasicBlock {
     /// the database id of this block
     pub id: i64,
     pub hash: H256,
-    pub timestamp: TimeDateTime,
 }
 
 impl FromQueryResult for BasicBlock {
@@ -29,7 +29,6 @@ impl FromQueryResult for BasicBlock {
         Ok(Self {
             id: res.try_get::<i64>(pre, "id")?,
             hash: H256::from_slice(&res.try_get::<Vec<u8>>(pre, "hash")?),
-            timestamp: res.try_get::<TimeDateTime>(pre, "timestamp")?,
         })
     }
 }
@@ -68,7 +67,6 @@ impl ScraperDb {
             // these must align with the custom impl of FromQueryResult
             .column_as(block::Column::Id, "id")
             .column_as(block::Column::Hash, "hash")
-            .column_as(block::Column::Timestamp, "timestamp")
             .into_model::<BasicBlock>()
             .all(&self.0)
             .await
@@ -83,7 +81,7 @@ impl ScraperDb {
         &self,
         domain: u32,
         blocks: impl Iterator<Item = BlockInfo>,
-    ) -> Result<i64> {
+    ) -> Result<()> {
         let models = blocks
             .map(|info| block::ActiveModel {
                 id: NotSet,
@@ -96,11 +94,20 @@ impl ScraperDb {
             .collect::<Vec<_>>();
 
         debug_assert!(!models.is_empty());
-        let id_offset = models.len() as i64 - 1;
         debug!(blocks = models.len(), "Writing blocks to database");
         trace!(?models, "Writing blocks to database");
-        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id - id_offset;
-        debug_assert!(first_id > 0);
-        Ok(first_id)
+        match Insert::many(models)
+            .on_conflict(
+                OnConflict::column(block::Column::Hash)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(DbErr::RecordNotInserted) => Ok(()),
+            Err(e) => Err(e).context("When inserting blocks"),
+        }
     }
 }

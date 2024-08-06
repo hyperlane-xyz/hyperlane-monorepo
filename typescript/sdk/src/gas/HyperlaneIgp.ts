@@ -1,31 +1,17 @@
 import { BigNumber } from 'ethers';
 
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../HyperlaneApp';
-import {
-  HyperlaneEnvironment,
-  hyperlaneEnvironments,
-} from '../consts/environments';
-import { HyperlaneAddressesMap, appFromAddressesMapHelper } from '../contracts';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts';
+import { IgpFactories, igpFactories } from './contracts.js';
 
 export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
-  static fromEnvironment<Env extends HyperlaneEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider,
-  ): HyperlaneIgp {
-    const envAddresses = hyperlaneEnvironments[env];
-    if (!envAddresses) {
-      throw new Error(`No addresses found for ${env}`);
-    }
-    return HyperlaneIgp.fromAddressesMap(envAddresses, multiProvider);
-  }
-
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
@@ -83,7 +69,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     destination: ChainName,
     gasAmount: BigNumber,
   ): Promise<BigNumber> {
-    const igp = this.getContracts(origin).defaultIsmInterchainGasPaymaster;
+    const igp = this.getContracts(origin).interchainGasPaymaster;
     return this.quoteGasPaymentForIgp(
       origin,
       destination,
@@ -109,7 +95,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
     origin: ChainName,
     destination: ChainName,
     gasAmount: BigNumber,
-    interchainGasPaymasterAddress: types.Address,
+    interchainGasPaymasterAddress: Address,
   ): Promise<BigNumber> {
     const originProvider = this.multiProvider.getProvider(origin);
     const igp = InterchainGasPaymaster__factory.connect(

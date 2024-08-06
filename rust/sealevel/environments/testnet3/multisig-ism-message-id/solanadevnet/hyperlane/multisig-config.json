@@ -1,0 +1,56 @@
+{
+  "alfajores": {
+    "type": 3,
+    "threshold": 2,
+    "validators": [
+      "0xe6072396568e73ce6803b12b7e04164e839f1e54",
+      "0x9f177f51289b22515f41f95872e1511391b8e105",
+      "0x15f77400845eb1c971ad08de050861d5508cad6c"
+    ]
+  },
+  "fuji": {
+    "type": 3,
+    "threshold": 2,
+    "validators": [
+      "0x9fa19ead5ec76e437948b35e227511b106293c40",
+      "0x227e7d6507762ece0c94678f8c103eff9d682476",
+      "0x2379e43740e4aa4fde48cf4f00a3106df1d8420d"
+    ]
+  },
+  "bsctestnet": {
+    "type": 3,
+    "threshold": 2,
+    "validators": [
+      "0x23338c8714976dd4a57eaeff17cbd26d7e275c08",
+      "0x85a618d7450ebc37e0d682371f08dac94eec7a76",
+      "0x95b76562e4ba1791a27ba4236801271c9115b141"
+    ]
+  },
+  "sepolia": {
+    "type": 3,
+    "threshold": 2,
+    "validators": [
+      "0xbc748ee311f5f2d1975d61cdf531755ce8ce3066",
+      "0xc4233b2bfe5aec08964a94b403052abb3eafcf07",
+      "0x6b36286c19f5c10bdc139ea9ee7f82287303f61d"
+    ]
+  },
+  "moonbasealpha": {
+    "type": 3,
+    "threshold": 2,
+    "validators": [
+      "0x890c2aeac157c3f067f3e42b8afc797939c59a32",
+      "0x1b06d6fe69b972ed7420c83599d5a5c0fc185904",
+      "0xe70b85206a968a99a597581f0fa09c99e7681093"
+    ]
+  },
+  "proteustestnet": {
+    "type": 3,
+    "threshold": 2,
+    "validators": [
+      "0x79fc73656abb9eeaa5ee853c4569124f5bdaf9d8",
+      "0x72840388d5ab57323bc4f6e6d3ddedfd5cc911f0",
+      "0xd4b2a50c53fc6614bb3cd3198e0fdc03f5da973f"
+    ]
+  }
+}

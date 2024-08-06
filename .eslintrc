@@ -11,7 +11,7 @@
     "sourceType": "module",
     "project": "./tsconfig.json"
   },
-  "plugins": ["@typescript-eslint"],
+  "plugins": ["@typescript-eslint","jest"],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
@@ -23,11 +23,36 @@
     "no-extra-boolean-cast": ["error"],
     "no-ex-assign": ["error"],
     "no-constant-condition": ["off"],
+    "no-return-await": ["error"],
+    "guard-for-in": ["error"],
     "@typescript-eslint/ban-ts-comment": ["off"],
     "@typescript-eslint/explicit-module-boundary-types": ["off"],
     "@typescript-eslint/no-explicit-any": ["off"],
     "@typescript-eslint/no-floating-promises": ["error"],
     "@typescript-eslint/no-non-null-assertion": ["off"],
     "@typescript-eslint/no-require-imports": ["warn"],
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/ban-types": [
+      "error",
+      {
+        "types": {
+          // Unban the {} type which is a useful shorthand for non-nullish value
+          "{}": false
+        },
+        "extendDefaults": true
+      }
+    ],
+    "jest/no-disabled-tests": "warn",
+    "jest/no-focused-tests": "error",
+    "jest/no-identical-title": "error",
+    "jest/prefer-to-have-length": "warn",
+    "jest/valid-expect": "error"
   }
 }

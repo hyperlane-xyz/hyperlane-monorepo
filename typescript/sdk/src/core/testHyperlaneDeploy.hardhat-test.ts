@@ -2,19 +2,21 @@ import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains';
-import { MultiProvider } from '../providers/MultiProvider';
+import { TestChainName } from '../consts/testChains.js';
+import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { TestCoreApp } from './TestCoreApp';
-import { TestCoreDeployer } from './TestCoreDeployer';
+import { TestCoreApp } from './TestCoreApp.js';
+import { TestCoreDeployer } from './TestCoreDeployer.js';
 
-const localChain = Chains.test1;
-const remoteChain = Chains.test2;
+const localChain = TestChainName.test1;
+const remoteChain = TestChainName.test2;
 const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
@@ -24,19 +26,34 @@ describe('TestCoreDeployer', async () => {
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    const deployer = new TestCoreDeployer(multiProvider);
+
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
+      multiProvider,
+    );
+    const deployer = new TestCoreDeployer(multiProvider, ismFactory);
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
     localMailbox = testCoreApp.getContracts(localChain).mailbox;
 
-    const dispatchResponse = localMailbox.dispatch(
+    const interchainGasPayment = await localMailbox[
+      'quoteDispatch(uint32,bytes32,bytes)'
+    ](
       multiProvider.getDomainId(remoteChain),
-      utils.addressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       message,
+    );
+
+    const dispatchResponse = localMailbox['dispatch(uint32,bytes32,bytes)'](
+      multiProvider.getDomainId(remoteChain),
+      addressToBytes32(recipient.address),
+      message,
+      { value: interchainGasPayment },
     );
     await expect(dispatchResponse).to.emit(localMailbox, 'Dispatch');
     dispatchReceipt = await testCoreApp.multiProvider.handleTx(
@@ -45,10 +62,11 @@ describe('TestCoreDeployer', async () => {
     );
     remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox;
     await expect(
-      remoteMailbox.dispatch(
+      remoteMailbox['dispatch(uint32,bytes32,bytes)'](
         multiProvider.getDomainId(localChain),
-        utils.addressToBytes32(recipient.address),
+        addressToBytes32(recipient.address),
         message,
+        { value: interchainGasPayment },
       ),
     ).to.emit(remoteMailbox, 'Dispatch');
   });

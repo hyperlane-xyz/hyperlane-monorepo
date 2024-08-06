@@ -10,12 +10,13 @@
         "tabWidth": 4,
         "useTabs": false,
         "singleQuote": false,
-        "bracketSpacing": false,
-        "explicitTypes": "always"
+        "bracketSpacing": false
       }
     }
   ],
   "importOrder": ["^@hyperlane-xyz/(.*)$", "^../(.*)$", "^./(.*)$"],
   "importOrderSeparation": true,
-  "importOrderSortSpecifiers": true
+  "importOrderSortSpecifiers": true,
+  "importOrderParserPlugins": ["importAssertions", "typescript", "jsx"],
+  "plugins": ["prettier-plugin-solidity", "@trivago/prettier-plugin-sort-imports"]
 }

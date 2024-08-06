@@ -6,5 +6,5 @@ interface IMessageRecipient {
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) external;
+    ) external payable;
 }

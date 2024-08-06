@@ -1,192 +1,418 @@
-import { ModuleType, MultisigIsmConfig } from '../ism/types';
-import { ChainMap } from '../types';
+import { MultisigConfig } from '../ism/types.js';
+import { ChainMap } from '../types.js';
 
-export const defaultMultisigIsmConfigs: ChainMap<MultisigIsmConfig> = {
-  // ----------------- Mainnets -----------------
-  celo: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 4,
-    validators: [
-      '0x1f20274b1210046769d48174c2f0e7c25ca7d5c5', // abacus
-      '0x3bc014bafa43f93d534aed34f750997cdffcf007', // dsrv
-      '0xd79d506d741fa735938f7b7847a926e34a6fe6b0', // everstake
-      '0xe4a258bc61e65914c2a477b2a8a433ab4ebdf44b', // zee prime
-      '0x6aea63b0be4679c1385c26a92a3ff8aa6a8379f2', // staked
-      '0xc0085e1a49bcc69e534272adb82c74c0e007e1ca', // zkv
-    ],
-  },
-  ethereum: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 4,
-    validators: [
-      '0x4c327ccb881a7542be77500b2833dc84c839e7b7', // abacus
-      '0x84cb373148ef9112b277e68acf676fefa9a9a9a0', // dsrv
-      '0x0d860c2b28bec3af4fd3a5997283e460ff6f2789', // everstake
-      '0xd4c1211f0eefb97a846c4e6d6589832e52fc03db', // zee prime
-      '0x600c90404d5c9df885404d2cc5350c9b314ea3a2', // staked
-      '0x892DC66F5B2f8C438E03f6323394e34A9C24F2D6', // zkv
-    ],
-  },
-  avalanche: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 4,
-    validators: [
-      '0xa7aa52623fe3d78c343008c95894be669e218b8d', // abacus
-      '0xb6004433fb04f643e2d48ae765c0e7f890f0bc0c', // dsrv
-      '0xa07e213e0985b21a6128e6c22ab5fb73948b0cc2', // everstake
-      '0x73853ed9a5f6f2e4c521970a94d43469e3cdaea6', // zee prime
-      '0xbd2e136cda02ba627ca882e49b184cbe976081c8', // staked
-      '0x1418126f944a44dad9edbab32294a8c890e7a9e3', // zkv
-    ],
-  },
-  polygon: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 4,
-    validators: [
-      '0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1', // abacus
-      '0x009fb042d28944017177920c1d40da02bfebf474', // dsrv
-      '0xba4b13e23705a5919c1901150d9697e8ffb3ea71', // everstake
-      '0x2faa4071b718972f9b4beec1d8cbaa4eb6cca6c6', // zee prime
-      '0x5ae9b0f833dfe09ef455562a1f603f1634504dd6', // staked
-      '0x6a163d312f7352a95c9b81dca15078d5bf77a442', // zkv
-    ],
-  },
-  bsc: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 4,
-    validators: [
-      '0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e', // abacus
-      '0xefe34eae2bca1846b895d2d0762ec21796aa196a', // dsrv
-      '0x662674e80e189b0861d6835c287693f50ee0c2ff', // everstake
-      '0x8a0f59075af466841808c529624807656309c9da', // zee prime
-      '0xdd2ff046ccd748a456b4757a73d47f165469669f', // staked
-      '0x034c4924c30ec4aa1b7f3ad58548988f0971e1bf', // zkv
-    ],
-  },
-  arbitrum: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 4,
-    validators: [
-      '0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7', // abacus
-      '0xd839424e2e5ace0a81152298dc2b1e3bb3c7fb20', // dsrv
-      '0xb8085c954b75b7088bcce69e61d12fcef797cd8d', // everstake
-      '0x9856dcb10fd6e5407fa74b5ab1d3b96cc193e9b7', // zee prime
-      '0x505dff4e0827aa5065f5e001db888e0569d46490', // staked
-      '0x25c6779d4610f940bf2488732e10bcffb9d36f81', // ZKV
-    ],
-  },
-  optimism: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 4,
-    validators: [
-      '0x9f2296d5cfc6b5176adc7716c7596898ded13d35', // abacus
-      '0x9c10bbe8efa03a8f49dfdb5c549258e3a8dca097', // dsrv
-      '0x62144d4a52a0a0335ea5bb84392ef9912461d9dd', // everstake
-      '0xaff4718d5d637466ad07441ee3b7c4af8e328dbd', // zee prime
-      '0xc64d1efeab8ae222bc889fe669f75d21b23005d9', // staked
-      '0xfa174eb2b4921bb652bc1ada3e8b00e7e280bf3c', // ZKV
-    ],
-  },
-  moonbeam: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 3,
-    validators: [
-      '0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea', // abacus
-      '0x9509c8cf0a06955f27342262af501b74874e98fb', // dsrv
-      '0xb7113c999e4d587b162dd1a28c73f3f51c6bdcdc', // everstake
-      '0x26725501597d47352a23cd26f122709f69ad53bc', // staked
-    ],
-  },
-  gnosis: {
-    type: ModuleType.LEGACY_MULTISIG,
-    threshold: 3,
-    validators: [
-      '0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6', // abacus
-      '0x8a72ff8571c53c62c7ca02e8c97a443cd5674383', // dsrv
-      '0x4075c2f6bd6d9562067cfe551d49c2bcafa7d692', // everstake
-      '0xa18580444eaeb1c5957e7b66a6bf84b6519f904d', // staked
-    ],
-  },
-  // ----------------- Testnets -----------------
+// TODO: consider migrating these to the registry too
+export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alfajores: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0xe6072396568e73ce6803b12b7e04164e839f1e54',
-      '0x9f177f51289b22515f41f95872e1511391b8e105',
-      '0x15f77400845eb1c971ad08de050861d5508cad6c',
+      '0x2233a5ce12f814bd64c9cdd73410bb8693124d40',
+      '0xba279f965489d90f90490e3c49e860e0b43c2ae6',
+      '0x86485dcec5f7bb8478dd251676372d054dea6653',
     ],
   },
-  fuji: {
-    type: ModuleType.LEGACY_MULTISIG,
+
+  ancient8: {
     threshold: 2,
     validators: [
-      '0x9fa19ead5ec76e437948b35e227511b106293c40',
-      '0x227e7d6507762ece0c94678f8c103eff9d682476',
-      '0x2379e43740e4aa4fde48cf4f00a3106df1d8420d',
+      '0xbb5842ae0e05215b53df4787a29144efb7e67551',
+      '0xa5a56e97fb46f0ac3a3d261e404acb998d9a6969', // coin98
+      '0x95c7bf235837cb5a609fe6c95870410b9f68bcff', // ancient8
     ],
   },
-  mumbai: {
-    type: ModuleType.LEGACY_MULTISIG,
+
+  arbitrum: {
+    threshold: 3,
+    validators: [
+      '0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1',
+      '0xec68258a7c882ac2fc46b81ce80380054ffb4ef2', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+    ],
+  },
+
+  avalanche: {
     threshold: 2,
     validators: [
-      '0x0a664ea799447da6b15645cf8b9e82072a68343f',
-      '0x6ae6f12929a960aba24ba74ea310e3d37d0ac045',
-      '0x51f70c047cd73bc7873273707501568857a619c4',
+      '0x3fb8263859843bffb02950c492d492cae169f4cf',
+      '0x402e0f8c6e4210d408b6ac00d197d4a099fcd25a', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
     ],
   },
+
+  base: {
+    threshold: 2,
+    validators: [
+      '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+    ],
+  },
+
+  blast: {
+    threshold: 2,
+    validators: [
+      '0xf20c0b09f597597c8d2430d3d72dfddaf09177d1',
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+      '0xae53467a5c2a9d9420c188d10fef5e1d9b9a5b80', // superform
+    ],
+  },
+
+  bob: {
+    threshold: 2,
+    validators: [
+      '0x20f283be1eb0e81e22f51705dcb79883cfdd34aa',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
+  bsc: {
+    threshold: 2,
+    validators: [
+      '0x570af9b7b36568c8877eebba6c6727aa9dab7268',
+      '0x8292b1a53907ece0f76af8a50724e9492bcdc8a3', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+    ],
+  },
+
   bsctestnet: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0x23338c8714976dd4a57eaeff17cbd26d7e275c08',
-      '0x85a618d7450ebc37e0d682371f08dac94eec7a76',
-      '0x95b76562e4ba1791a27ba4236801271c9115b141',
+      '0x242d8a855a8c932dec51f7999ae7d1e48b10c95e',
+      '0xf620f5e3d25a3ae848fec74bccae5de3edcd8796',
+      '0x1f030345963c54ff8229720dd3a711c15c554aeb',
     ],
   },
-  goerli: {
-    type: ModuleType.LEGACY_MULTISIG,
+
+  celo: {
     threshold: 2,
     validators: [
-      '0xf43fbd072fd38e1121d4b3b0b8a35116bbb01ea9',
-      '0xa33020552a21f35e75bd385c6ab95c3dfa82d930',
-      '0x0bba4043ff242f8bf3f39bafa8930a84d644d947',
+      '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
+      '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
   },
+
+  cheesechain: {
+    threshold: 1,
+    validators: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
+  },
+
+  chiado: {
+    threshold: 2,
+    validators: [
+      '0x06c3757a4b7a912828e523bb8a5f980ddc297356',
+      '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
+      '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
+    ],
+  },
+
+  connextsepolia: {
+    threshold: 1,
+    validators: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
+  },
+
+  eclipsetestnet: {
+    threshold: 1,
+    validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+  },
+
+  endurance: {
+    threshold: 2,
+    validators: [
+      '0x28c5b322da06f184ebf68693c5d19df4d4af13e5',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x7419021c0de2772b763e554480158a82a291c1f2', // fusionist
+    ],
+  },
+
+  ethereum: {
+    threshold: 3,
+    validators: [
+      '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
+      '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+      '0xb683b742b378632a5f73a2a5a45801b3489bba44', // avs: luganodes
+      '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de', // avs: pier two
+    ],
+  },
+
+  fraxtal: {
+    threshold: 2,
+    validators: [
+      '0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
+  },
+
+  fuji: {
+    threshold: 2,
+    validators: [
+      '0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e',
+      '0x895ae30bc83ff1493b9cf7781b0b813d23659857',
+      '0x43e915573d9f1383cbf482049e4a012290759e7f',
+    ],
+  },
+
+  fusemainnet: {
+    threshold: 2,
+    validators: [
+      '0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9',
+      '0x6760226b34213d262D41D5291Ed57E81a68b4E0b', // fuse
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
+  },
+
+  gnosis: {
+    threshold: 2,
+    validators: [
+      '0xd4df66a859585678f2ea8357161d896be19cc1ca',
+      '0x19fb7e04a1be6b39b6966a0b0c60b929a93ed672', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+    ],
+  },
+
+  holesky: {
+    threshold: 1,
+    validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
+  },
+
+  inevm: {
+    threshold: 2,
+    validators: [
+      '0xf9e35ee88e4448a3673b4676a4e153e3584a08eb',
+      '0x6B1d09A97b813D53e9D4b7523DA36604C0B52242', // caldera
+      '0x9ab11f38a609940153850df611c9a2175dcffe0f', // imperator
+    ],
+  },
+
+  injective: {
+    threshold: 2,
+    validators: [
+      '0xbfb8911b72cfb138c7ce517c57d9c691535dc517',
+      '0x6B1d09A97b813D53e9D4b7523DA36604C0B52242', // caldera
+      '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9', // imperator
+    ],
+  },
+
+  linea: {
+    threshold: 2,
+    validators: [
+      '0xf2d5409a59e0f5ae7635aff73685624904a77d94',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
+  mantapacific: {
+    threshold: 5,
+    validators: [
+      '0x8e668c97ad76d0e28375275c41ece4972ab8a5bc', //abacusworks
+      '0x521a3e6bf8d24809fde1c1fd3494a859a16f132c', //cosmostation
+      '0x14025fe092f5f8a401dd9819704d9072196d2125', //p2p
+      '0x25b9a0961c51e74fd83295293bc029131bf1e05a', //neutron
+      '0xa0eE95e280D46C14921e524B075d0C341e7ad1C8', //cosmos spaces
+      '0xcc9a0b6de7fe314bd99223687d784730a75bb957', //dsrv
+      '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', //sg-1
+    ],
+  },
+
+  mantle: {
+    threshold: 2,
+    validators: [
+      '0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
+  mode: {
+    threshold: 2,
+    validators: [
+      '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
+  moonbeam: {
+    threshold: 2,
+    validators: [
+      '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
+      '0x645428d198d2e76cbd9c1647f5c80740bb750b97', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+    ],
+  },
+
+  neutron: {
+    threshold: 4,
+    validators: [
+      '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
+      '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460', // cosmostation
+      '0x42fa752defe92459370a052b6387a87f7de9b80c', // p2p
+      '0xc79503a3e3011535a9c60f6d21f76f59823a38bd', // neutron
+      '0x47aa126e05933b95c5eb90b26e6b668d84f4b25a', // dsrv
+      '0x54b2cca5091b098a1a993dec03c4d1ee9af65999', // cosmos spaces
+      '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf', // sg-1
+    ],
+  },
+
+  optimism: {
+    threshold: 2,
+    validators: [
+      '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
+      '0x5b7d47b76c69740462432f6a5a0ca5005e014157', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+    ],
+  },
+
+  osmosis: {
+    threshold: 1,
+    validators: ['0xea483af11c19fa41b16c31d1534c2a486a92bcac'],
+  },
+
+  plumetestnet: {
+    threshold: 1,
+    validators: ['0xe765a214849f3ecdf00793b97d00422f2d408ea6'],
+  },
+
+  polygon: {
+    threshold: 2,
+    validators: [
+      '0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac',
+      '0x008f24cbb1cc30ad0f19f2516ca75730e37efb5f', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+    ],
+  },
+
+  polygonzkevm: {
+    threshold: 2,
+    validators: [
+      '0x86f2a44592bb98da766e880cfd70d3bbb295e61a',
+      '0x865818fe1db986036d5fd0466dcd462562436d1a', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+    ],
+  },
+
+  redstone: {
+    threshold: 2,
+    validators: [
+      '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
+  },
+
+  scroll: {
+    threshold: 2,
+    validators: [
+      '0xad557170a9f2f21c35e03de07cb30dcbcc3dff63',
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xbac4ac39f1d8b5ef15f26fdb1294a7c9aba3f948', // dsrv
+    ],
+  },
+
+  scrollsepolia: {
+    threshold: 2,
+    validators: [
+      '0xbe18dbd758afb367180260b524e6d4bcd1cb6d05',
+      '0x9a11ed23ae962974018ab45bc133caabff7b3271',
+      '0x7867bea3c9761fe64e6d124b171f91fd5dd79644',
+    ],
+  },
+
+  sei: {
+    threshold: 2,
+    validators: [
+      '0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
+  },
+
   sepolia: {
-    type: ModuleType.LEGACY_MULTISIG,
     threshold: 2,
     validators: [
-      '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
-      '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
-      '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+      '0xb22b65f202558adf86a8bb2847b76ae1036686a5',
+      '0x469f0940684d147defc44f3647146cb90dd0bc8e',
+      '0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83',
     ],
   },
-  moonbasealpha: {
-    type: ModuleType.LEGACY_MULTISIG,
+
+  solanadevnet: {
     threshold: 2,
     validators: [
-      '0x890c2aeac157c3f067f3e42b8afc797939c59a32',
-      '0x1b06d6fe69b972ed7420c83599d5a5c0fc185904',
-      '0xe70b85206a968a99a597581f0fa09c99e7681093',
+      '0xec0f73dbc5b1962a20f7dcbe07c98414025b0c43',
+      '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
+      '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
     ],
   },
-  optimismgoerli: {
-    type: ModuleType.LEGACY_MULTISIG,
+
+  solanatestnet: {
+    threshold: 1,
+    validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+  },
+
+  superpositiontestnet: {
+    threshold: 1,
+    validators: ['0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a'],
+  },
+
+  taiko: {
     threshold: 2,
     validators: [
-      '0xbb8d77eefbecc55db6e5a19b0fc3dc290776f189',
-      '0x69792508b4ddaa3ca52241ccfcd1e0b119a1ee65',
-      '0x11ddb46c6b653e0cdd7ad5bee32ae316e18f8453',
+      '0xa930073c8f2d0b2f7423ea32293e0d1362e65d79',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
-  arbitrumgoerli: {
-    type: ModuleType.LEGACY_MULTISIG,
+
+  viction: {
     threshold: 2,
     validators: [
-      '0xce798fa21e323f6b24d9838a10ffecdefdfc4f30',
-      '0xa792d39dca4426927e0f00c1618d61c9cb41779d',
-      '0xdf181fcc11dfac5d01467e4547101a856dd5aa04',
+      '0x4E53dA92cD5Bf0a032b6B4614b986926456756A7', // blockpi
+      '0xa3f93fe365bf99f431d8fde740b140615e24f99b', // rockx
+      '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
+    ],
+  },
+
+  worldchain: {
+    threshold: 1,
+    validators: ['0x31048785845325b22817448b68d08f8a8fe36854'],
+  },
+
+  xlayer: {
+    threshold: 1,
+    validators: ['0xa2ae7c594703e988f23d97220717c513db638ea3'],
+  },
+
+  zetachain: {
+    threshold: 2,
+    validators: [
+      '0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
+  },
+
+  zoramainnet: {
+    threshold: 3,
+    validators: [
+      '0x35130945b625bb69b28aee902a3b9a76fa67125f',
+      '0x7089b6352d37d23fb05a7fee4229c78e038fba09', // imperator
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 };

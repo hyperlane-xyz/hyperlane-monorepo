@@ -1,0 +1,56 @@
+{
+  "alfajores": {
+    "validators": [
+      "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
+      "0xba279f965489d90f90490e3c49e860e0b43c2ae6",
+      "0x86485dcec5f7bb8478dd251676372d054dea6653"
+    ]
+  },
+  "bsctestnet": {
+    "validators": [
+      "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
+      "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
+      "0x1f030345963c54ff8229720dd3a711c15c554aeb"
+    ]
+  },
+  "connextsepolia": {
+    "validators": ["0xffbbec8c499585d80ef69eb613db624d27e089ab"]
+  },
+  "fuji": {
+    "validators": [
+      "0xd8154f73d04cc7f7f0c332793692e6e6f6b2402e",
+      "0x895ae30bc83ff1493b9cf7781b0b813d23659857",
+      "0x43e915573d9f1383cbf482049e4a012290759e7f"
+    ]
+  },
+  "holesky": {
+    "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
+  },
+  "plumetestnet": {
+    "validators": [
+      "0xe765a214849f3ecdf00793b97d00422f2d408ea6",
+      "0xb59998f71efc65190a85ac5e81b66bd72a192a3b",
+      "0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c"
+    ]
+  },
+  "scrollsepolia": {
+    "validators": [
+      "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
+      "0x9a11ed23ae962974018ab45bc133caabff7b3271",
+      "0x7867bea3c9761fe64e6d124b171f91fd5dd79644"
+    ]
+  },
+  "sepolia": {
+    "validators": [
+      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
+      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
+      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
+    ]
+  },
+  "solanatestnet": {
+    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
+  "superpositiontestnet": {
+    "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
+  }
+}

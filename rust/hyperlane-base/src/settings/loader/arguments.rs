@@ -1,10 +1,10 @@
 use std::ffi::{OsStr, OsString};
 
 use config::{ConfigError, Map, Source, Value, ValueKind};
+use hyperlane_core::unwrap_or_none_result;
+use itertools::Itertools;
 
 /// A source for loading configuration from command line arguments.
-/// Command line argument keys are case-insensitive, and the following forms are
-/// supported:
 ///
 /// * `--key=value`
 /// * `--key="value"`
@@ -77,13 +77,7 @@ impl Source for CommandLineArguments {
                 continue;
             }
 
-            let mut key = key.to_lowercase();
-
-            // If separator is given replace with `.`
-            if !separator.is_empty() && separator != "." {
-                key = key.replace(separator, ".");
-            }
-
+            let key = key.split(separator).join(".");
             m.insert(key, Value::new(Some(&uri), ValueKind::String(value)));
         }
 
@@ -161,9 +155,7 @@ impl Iterator for ArgumentParser {
 impl ArgumentParser {
     #[inline(never)]
     fn find_next_kv_pair(&mut self) -> Result<Option<(String, String, PairKind, usize)>, Error> {
-        let Some(idx) = self.index_of_next_key() else {
-            return Ok(None);
-        };
+        let idx = unwrap_or_none_result!(self.index_of_next_key());
         // full term without leading '--'
         let term = &os_to_str(&self.0[idx])?[2..];
         if term.is_empty() {
@@ -283,7 +275,8 @@ mod test {
                 Some(Value::new(
                     Some(&origin),
                     ValueKind::String($value.to_owned())
-                ))
+                )),
+                $key
             );
         };
     }
@@ -291,11 +284,12 @@ mod test {
     const ARGUMENTS: &[&str] = &[
         "--key-a",
         "value-a",
-        "--keY-b=value-b",
-        "--key-c=\"value c\"",
-        "--KEY-d='valUE d'",
+        "--key-b=value-b",
+        "--key-c-partA=\"value c a\"",
+        "--key-c-PartB=\"value c b\"",
+        "--key-d='valUE d'",
         "--key-e=''",
-        "--key-F",
+        "--key-f",
         "--key-g=value-g",
         "--key-h",
     ];
@@ -309,7 +303,8 @@ mod test {
 
         assert_arg!(config, "key.a", "value-a");
         assert_arg!(config, "key.b", "value-b");
-        assert_arg!(config, "key.c", "value c");
+        assert_arg!(config, "key.c.partA", "value c a");
+        assert_arg!(config, "key.c.PartB", "value c b");
         assert_arg!(config, "key.d", "valUE d");
         assert_arg!(config, "key.e", "");
         assert_arg!(config, "key.f", "");
@@ -329,7 +324,8 @@ mod test {
 
         assert_arg!(config, "key.a", "value-a");
         assert_arg!(config, "key.b", "value-b");
-        assert_arg!(config, "key.c", "value c");
+        assert_arg!(config, "key.c.partA", "value c a");
+        assert_arg!(config, "key.c.PartB", "value c b");
         assert_arg!(config, "key.d", "valUE d");
         assert_arg!(config, "key.g", "value-g");
 

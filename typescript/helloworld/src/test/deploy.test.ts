@@ -1,20 +1,21 @@
 import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import {
   ChainMap,
   HyperlaneContractsMap,
+  HyperlaneIsmFactory,
+  HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
-  deployTestIgpsAndGetRouterConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldApp } from '../app/app';
-import { HelloWorldFactories } from '../app/contracts';
-import { HelloWorldChecker } from '../deploy/check';
-import { HelloWorldConfig } from '../deploy/config';
-import { HelloWorldDeployer } from '../deploy/deploy';
+import { HelloWorldApp } from '../app/app.js';
+import { HelloWorldFactories } from '../app/contracts.js';
+import { HelloWorldChecker } from '../deploy/check.js';
+import { HelloWorldConfig } from '../deploy/config.js';
+import { HelloWorldDeployer } from '../deploy/deploy.js';
 
 describe('deploy', async () => {
   let multiProvider: MultiProvider;
@@ -25,16 +26,16 @@ describe('deploy', async () => {
   let app: HelloWorldApp;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    core = await coreDeployer.deployApp();
-    config = await deployTestIgpsAndGetRouterConfig(
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
-      signer.address,
-      core.contractsMap,
     );
+    const coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    core = await coreDeployer.deployApp();
+    config = core.getRouterConfig(signer.address);
     deployer = new HelloWorldDeployer(multiProvider);
   });
 

@@ -6,22 +6,24 @@ use derive_new::new;
 
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
+use tracing::debug;
 
-use crate::msg::metadata::BaseMetadataBuilder;
+use crate::msg::metadata::MessageMetadataBuilder;
 
 use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
-pub struct MerkleRootMultisigMetadataBuilder(BaseMetadataBuilder);
+pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
         vec![
-            MetadataToken::CheckpointMailbox,
-            MetadataToken::CheckpointIndex,
+            MetadataToken::CheckpointMerkleTreeHook,
+            MetadataToken::MessageMerkleLeafIndex,
             MetadataToken::MessageId,
             MetadataToken::MerkleProof,
+            MetadataToken::CheckpointIndex,
             MetadataToken::Signatures,
         ]
     }
@@ -34,27 +36,43 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
-        let highest_nonce = self.highest_known_nonce().await;
-        let Some(quorum_checkpoint) = checkpoint_syncer
-            .fetch_checkpoint_in_range(validators, threshold as usize, message.nonce, highest_nonce)
+        let highest_leaf_index = unwrap_or_none_result!(
+            self.highest_known_leaf_index().await,
+            debug!("Couldn't get highest known leaf index")
+        );
+        let leaf_index = unwrap_or_none_result!(
+            self.get_merkle_leaf_id_by_message_id(message.id())
+                .await
+                .context(CTX)?,
+            debug!(
+                ?message,
+                "No merkle leaf found for message id, must have not been enqueued in the tree"
+            )
+        );
+        let quorum_checkpoint = unwrap_or_none_result!(
+            checkpoint_syncer
+                .fetch_checkpoint_in_range(
+                    validators,
+                    threshold as usize,
+                    leaf_index,
+                    highest_leaf_index,
+                    self.origin_domain(),
+                    self.destination_domain(),
+                )
+                .await
+                .context(CTX)?,
+            debug!(
+                leaf_index,
+                highest_leaf_index, "Couldn't get checkpoint in range"
+            )
+        );
+        let proof = self
+            .get_proof(leaf_index, quorum_checkpoint.checkpoint.checkpoint)
             .await
-            .context(CTX)?
-        else {
-            return Ok(None);
-        };
-
-        let Some(proof) = self
-            .get_proof(message.nonce, quorum_checkpoint.checkpoint.checkpoint)
-            .await
-            .context(CTX)?
-        else {
-            return Ok(None);
-        };
-
+            .context(CTX)?;
         Ok(Some(MultisigMetadata::new(
-            quorum_checkpoint.checkpoint.checkpoint,
-            quorum_checkpoint.signatures,
-            Some(quorum_checkpoint.checkpoint.message_id),
+            quorum_checkpoint,
+            leaf_index,
             Some(proof),
         )))
     }

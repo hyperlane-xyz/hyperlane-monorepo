@@ -5,14 +5,22 @@
 - install `rustup`
   - [link here](https://rustup.rs/)
 
-Note: You should be running >= version `1.69.0` of the rustc compiler, you can see that version with this command and
+Note: You should be running >= version `1.72.1` of the rustc compiler, you can see that version with this command and
 should see similar output:
 
 ```
 $ rustup --version
 rustup 1.26.0 (5af9b9484 2023-04-05)
 info: This is the version for the rustup toolchain manager, not the rustc compiler.
-info: The currently active `rustc` version is `rustc 1.69.0 (84c898d65 2023-04-16)`
+info: The currently active `rustc` version is `rustc 1.72.1 (d5c2e9c34 2023-09-13)`
+```
+
+#### Apple Silicon
+
+If your device has an Apple Silicon processor, you may need to install Rosetta 2:
+
+```bash
+softwareupdate --install-rosetta --agree-to-license
 ```
 
 ### Running Locally
@@ -43,7 +51,7 @@ cargo build --release --bin relayer
 ./target/release/relayer
 ```
 
-### Running local binary against cloud resources (AWS KMS, S3, Postgresql etc)
+### Running local binary against cloud resources (AWS KMS, S3, Postgresql, Google Cloud Storage, etc)
 
 Building the docker image and upgrading the pod is a **slow** process. To speed up the development cycle, you can run a local binary against cloud resources.
 This workflow is useful for testing local changes against cloud resources. It is also useful for debugging issues in production.
@@ -63,9 +71,12 @@ kubectl cp testnet3/fuji-hyperlane-agent-validator-0:/usr/share/hyperlane /tmp/f
 Configure additional env variables appropriately:
 
 ```bash
-HYP_BASE_DB=/tmp/fuji-validator-db
+HYP_DB=/tmp/fuji-validator-db
 CONFIG_FILES=./config/testnet_config.json
-HYP_BASE_TRACING_FMT=pretty
+HYP_TRACING_FMT=pretty
+GCS_USER_SECRET=./path/to/file
+# or if service account used
+GCS_SERVICE_ACCOUNT_KEY=./path/to/file
 DATABASE_URL=<READ_REPLICA_POSTGRES_URL> # for scraper
 ```
 
@@ -85,6 +96,12 @@ cargo run --release --bin run-locally
 
 This will automatically build the agents, start a local node, build and deploy the contracts, and run a relayer and
 validator. By default, this test will run indefinitely, but can be stopped with `ctrl-c`.
+
+To run the tests for a specific VM, use the `--features` flag.
+
+```bash
+cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+```
 
 ### Building Agent Docker Images
 

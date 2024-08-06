@@ -1,16 +1,20 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
-import { ChainMetadata, etherToken } from '../consts/chainMetadata';
+import { test1 } from '../consts/testChains.js';
+import {
+  ChainMetadata,
+  getChainIdNumber,
+} from '../metadata/chainMetadataTypes.js';
 
 export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
   return {
-    id: metadata.chainId,
+    id: getChainIdNumber(metadata),
     name: metadata.displayName || metadata.name,
-    network: metadata.name as string,
-    nativeCurrency: metadata.nativeToken || etherToken,
+    network: metadata.name,
+    nativeCurrency: metadata.nativeToken || test1.nativeToken!,
     rpcUrls: {
-      public: { http: [metadata.publicRpcUrls[0].http] },
-      default: { http: [metadata.publicRpcUrls[0].http] },
+      public: { http: [metadata.rpcUrls[0].http] },
+      default: { http: [metadata.rpcUrls[0].http] },
     },
     blockExplorers: metadata.blockExplorers?.length
       ? {

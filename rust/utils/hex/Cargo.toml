@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "hex"
 version = "0.1.0"
@@ -6,4 +8,4 @@ license-file.workspace = true
 publish.workspace = true
 
 [dependencies]
-crunchy = "0.2"
+crunchy.workspace = true

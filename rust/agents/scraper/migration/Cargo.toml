@@ -1,3 +1,5 @@
+cargo-features = ["workspace-inheritance"]
+
 [package]
 name = "migration"
 documentation.workspace = true
@@ -12,13 +14,11 @@ name = "migration"
 path = "src/lib.rs"
 
 [dependencies]
-sea-orm = {version = "0.11.1", features = ["macros", "with-bigdecimal", "with-time"]}
-sea-orm-migration = { version = "0.11.1", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
 serde.workspace = true
-time = "0.3"
-tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
-
-hyperlane-core = { path = "../../../hyperlane-core" }
+time.workspace = true
+tokio = { workspace = true, features = ["rt", "process", "macros", "parking_lot"] }
 
 # bin-only deps
 tracing-subscriber.workspace = true

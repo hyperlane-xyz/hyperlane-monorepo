@@ -8,6 +8,9 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_new::new;
 use ethers::prelude::JsonRpcClient;
+use ethers_core::types::U64;
+use hyperlane_core::rpc_clients::BlockNumberGetter;
+use hyperlane_core::ChainCommunicationError;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
 use serde::{de::DeserializeOwned, Serialize};
@@ -111,6 +114,16 @@ pub struct PrometheusJsonRpcClient<C> {
     config: PrometheusJsonRpcClientConfig,
 }
 
+impl<C: Clone> Clone for PrometheusJsonRpcClient<C> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            metrics: self.metrics.clone(),
+            config: self.config.clone(),
+        }
+    }
+}
+
 impl<C> Debug for PrometheusJsonRpcClient<C>
 where
     C: JsonRpcClient,
@@ -170,5 +183,36 @@ where
                 .inc_by((Instant::now() - start).as_secs_f64())
         };
         res
+    }
+}
+
+impl<C: JsonRpcClient + 'static> From<PrometheusJsonRpcClient<C>>
+    for JsonRpcBlockGetter<PrometheusJsonRpcClient<C>>
+{
+    fn from(val: PrometheusJsonRpcClient<C>) -> Self {
+        JsonRpcBlockGetter::new(val)
+    }
+}
+
+/// Utility struct for implementing `BlockNumberGetter`
+#[derive(Debug, new)]
+pub struct JsonRpcBlockGetter<T: JsonRpcClient>(T);
+
+/// RPC method for getting the latest block number
+pub const BLOCK_NUMBER_RPC: &str = "eth_blockNumber";
+
+#[async_trait]
+impl<C> BlockNumberGetter for JsonRpcBlockGetter<C>
+where
+    C: JsonRpcClient,
+{
+    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+        let res = self
+            .0
+            .request(BLOCK_NUMBER_RPC, ())
+            .await
+            .map(|r: U64| r.as_u64())
+            .map_err(Into::into)?;
+        Ok(res)
     }
 }

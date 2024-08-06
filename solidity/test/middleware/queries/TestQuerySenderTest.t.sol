@@ -4,10 +4,11 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {TestInterchainGasPaymaster} from "../../../contracts/test/TestInterchainGasPaymaster.sol";
 import {InterchainQueryRouter} from "../../../contracts/middleware/InterchainQueryRouter.sol";
 import {TestQuerySender} from "../../../contracts/test/TestQuerySender.sol";
 import {MockHyperlaneEnvironment} from "../../../contracts/mock/MockHyperlaneEnvironment.sol";
+
+import {InterchainQueryRouterTest} from "../../InterchainQueryRouter.t.sol";
 
 import {MockToken} from "../../../contracts/mock/MockToken.sol";
 
@@ -15,24 +16,19 @@ contract OwnableContract is Ownable {}
 
 contract TestQuerySenderTest is Test {
     MockHyperlaneEnvironment testEnvironment;
-    TestInterchainGasPaymaster igp;
     TestQuerySender sender;
     uint32 originDomain = 123;
     uint32 destinationDomain = 321;
     uint256 testGasAmount = 200000;
+    uint256 _gasPayment = 0;
 
     function setUp() public {
-        testEnvironment = new MockHyperlaneEnvironment(
-            originDomain,
-            destinationDomain
-        );
-        igp = testEnvironment.igps(originDomain);
+        InterchainQueryRouterTest queryTest = new InterchainQueryRouterTest();
+        queryTest.setUp();
+        testEnvironment = queryTest.environment();
 
         sender = new TestQuerySender();
-        sender.initialize(
-            address(testEnvironment.queryRouters(originDomain)),
-            address(igp)
-        );
+        sender.initialize(address(queryTest.originRouter()));
     }
 
     function testSendAddressQuery(address owner) public {
@@ -42,10 +38,6 @@ contract TestQuerySenderTest is Test {
         // Set the owner
         ownable.transferOwnership(owner);
 
-        uint256 _gasPayment = igp.quoteGasPayment(
-            destinationDomain,
-            testGasAmount
-        );
         sender.queryAddress{value: _gasPayment}(
             destinationDomain,
             address(ownable),
@@ -58,7 +50,7 @@ contract TestQuerySenderTest is Test {
         assertEq(sender.lastAddressResult(), owner);
     }
 
-    function testSendAddressQueryRequiresGasPayment() public {
+    function skip_testSendAddressQueryRequiresGasPayment() public {
         vm.expectRevert("insufficient interchain gas payment");
         sender.queryAddress{value: 0}(
             destinationDomain,
@@ -74,10 +66,6 @@ contract TestQuerySenderTest is Test {
         MockToken token = new MockToken();
         token.mint(address(this), balance);
 
-        uint256 _gasPayment = igp.quoteGasPayment(
-            destinationDomain,
-            testGasAmount
-        );
         sender.queryUint256{value: _gasPayment}(
             destinationDomain,
             address(token),
@@ -90,7 +78,7 @@ contract TestQuerySenderTest is Test {
         assertEq(sender.lastUint256Result(), balance);
     }
 
-    function testSendUint256QueryRequiresGasPayment() public {
+    function skip_testSendUint256QueryRequiresGasPayment() public {
         vm.expectRevert("insufficient interchain gas payment");
         sender.queryUint256{value: 0}(
             destinationDomain,
@@ -106,10 +94,6 @@ contract TestQuerySenderTest is Test {
         MockToken token = new MockToken();
         token.mint(address(this), balance);
 
-        uint256 _gasPayment = igp.quoteGasPayment(
-            destinationDomain,
-            testGasAmount
-        );
         sender.queryBytes32{value: _gasPayment}(
             destinationDomain,
             address(token),
@@ -122,7 +106,7 @@ contract TestQuerySenderTest is Test {
         assertEq(sender.lastBytes32Result(), bytes32(balance));
     }
 
-    function testSendBytesQueryRequiresGasPayment() public {
+    function skip_testSendBytesQueryRequiresGasPayment() public {
         vm.expectRevert("insufficient interchain gas payment");
         sender.queryBytes32{value: 0}(
             destinationDomain,

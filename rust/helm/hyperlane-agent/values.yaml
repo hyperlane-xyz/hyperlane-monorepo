@@ -42,25 +42,37 @@ hyperlane:
     format: json
     # Set the log level
     level: debug
-    uri: ''
   metrics:
     port: 9090
   aws: # true | false
 
   # -- Chain overrides, a sequence
+  # This should mirror @hyperlane-xyz/sdk AgentChainMetadata
   chains:
-    - name: 'alfajores'
-      disabled: false
+    - name: examplechain
+      rpcConsensusType: fallback
       signer:
-        # aws:
-      addresses:
-        mailbox:
-        multisigIsm:
-        interchainGasPaymaster:
-      domain:
-      protocol: # "ethereum"
-      connection:
-        type: # "http"
+        type: # aws
+      index:
+        from:
+        chunk:
+        mode:
+      mailbox:
+      multisigIsm:
+      interchainGasPaymaster:
+      interchainSecurityModule:
+      protocol: ethereum
+      chainId:
+      domainId:
+      customRpcUrls:
+        - example:
+            url: https://example.com
+            priority: 1
+      blocks:
+        confirmations:
+        reorgPeriod:
+        estimatedBlockTime:
+      isTestnet: false
 
   # Hyperlane Agent Roles
   # Individually Switchable via <role>.enabled
@@ -80,11 +92,11 @@ hyperlane:
         cpu: 100m
         memory: 256Mi
     # -- How long to wait between checking for updates
-    configs:
-      - interval:
-        reorgPeriod:
-        checkpointSyncers:
-        originChainName:
+    configs: []
+      # - interval:
+      #   checkpointSyncers:
+      #   originChainName:
+      #   type: # "hexKey"
 
   relayer:
     enabled: false
@@ -100,11 +112,15 @@ hyperlane:
         name: ''
     resources:
       requests:
-        cpu: 500m
-        memory: 256Mi
+        cpu: 1000m
+        memory: 1024Mi
     config:
+      relayChains: ''
       multisigCheckpointSyncer:
         checkpointSyncers:
+    # -- Specify whether a default signer key is used for all chains in Values.hyperlane.relayerChains list.
+    # It affects chains whose signer type is hexKey.
+    usingDefaultSignerKey: true
 
   relayerChains:
     - name: 'alfajores'
@@ -127,6 +143,7 @@ hyperlane:
         cpu: 250m
         memory: 256Mi
     config:
+      chainsToScrape: ''
 
   kathy:
     enabled: false

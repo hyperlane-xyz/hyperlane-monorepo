@@ -4,6 +4,8 @@ import {
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 
+import { HyperlaneAddresses } from '../contracts/types.js';
+
 export const coreFactories = {
   validatorAnnounce: new ValidatorAnnounce__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
@@ -11,3 +13,5 @@ export const coreFactories = {
 };
 
 export type CoreFactories = typeof coreFactories;
+
+export type CoreAddresses = HyperlaneAddresses<CoreFactories>;

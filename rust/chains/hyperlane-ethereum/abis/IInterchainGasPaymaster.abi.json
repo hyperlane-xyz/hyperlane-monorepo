@@ -9,6 +9,12 @@
         "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "destinationDomain",
+        "type": "uint32"
+      },
+      {
         "indexed": false,
         "internalType": "uint256",
         "name": "gasAmount",

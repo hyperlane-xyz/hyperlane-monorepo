@@ -72,14 +72,6 @@ impl Mailbox for MockMailboxContract {
         self._count(maybe_lag)
     }
 
-    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        self._tree(maybe_lag)
-    }
-
-    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        self._latest_checkpoint(maybe_lag)
-    }
-
     async fn default_ism(&self) -> ChainResult<H256> {
         self._default_ism()
     }
@@ -99,6 +91,13 @@ impl Mailbox for MockMailboxContract {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         self.process(message, metadata, tx_gas_limit)
+    }
+
+    async fn process_batch(
+        &self,
+        messages: &[BatchItem<HyperlaneMessage>],
+    ) -> ChainResult<BatchResult> {
+        self.process_batch(messages).await
     }
 
     async fn process_estimate_costs(

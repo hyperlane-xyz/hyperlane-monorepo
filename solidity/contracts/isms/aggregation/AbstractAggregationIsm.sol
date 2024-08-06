@@ -7,7 +7,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IAggregationIsm} from "../../interfaces/isms/IAggregationIsm.sol";
-import {AggregationIsmMetadata} from "../../libs/isms/AggregationIsmMetadata.sol";
+import {AggregationIsmMetadata} from "../../isms/libs/AggregationIsmMetadata.sol";
 
 /**
  * @title AggregationIsm
@@ -32,11 +32,9 @@ abstract contract AbstractAggregationIsm is IAggregationIsm {
      * @return modules The array of ISM addresses
      * @return threshold The number of ISMs needed to verify
      */
-    function modulesAndThreshold(bytes calldata _message)
-        public
-        view
-        virtual
-        returns (address[] memory, uint8);
+    function modulesAndThreshold(
+        bytes calldata _message
+    ) public view virtual returns (address[] memory, uint8);
 
     // ============ Public Functions ============
 
@@ -45,10 +43,10 @@ abstract contract AbstractAggregationIsm is IAggregationIsm {
      * @param _metadata ABI encoded module metadata (see AggregationIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function verify(bytes calldata _metadata, bytes calldata _message)
-        public
-        returns (bool)
-    {
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) public returns (bool) {
         (address[] memory _isms, uint8 _threshold) = modulesAndThreshold(
             _message
         );

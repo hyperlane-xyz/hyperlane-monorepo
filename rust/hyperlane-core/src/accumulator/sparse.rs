@@ -140,10 +140,7 @@ mod tests {
 
     fn tree_and_roots() -> (MerkleTree, Vec<H256>) {
         const LEAF_COUNT: usize = 47;
-        let all_leaves: Vec<H256> = (0..LEAF_COUNT)
-            .into_iter()
-            .map(|_| H256::from([0xAA; 32]))
-            .collect();
+        let all_leaves: Vec<H256> = (0..LEAF_COUNT).map(|_| H256::from([0xAA; 32])).collect();
         let mut roots = [H256::zero(); LEAF_COUNT];
         let mut tree = MerkleTree::create(&[], TREE_DEPTH);
         for i in 0..LEAF_COUNT {
@@ -157,7 +154,7 @@ mod tests {
     fn as_latest() {
         let (tree, roots) = tree_and_roots();
 
-        for i in 0..roots.len() {
+        for (i, root) in roots.iter().enumerate() {
             let current_proof_i = tree.prove_against_current(i);
             let latest_proof_i = current_proof_i.as_latest();
             assert!(verify_merkle_proof(
@@ -165,7 +162,7 @@ mod tests {
                 &latest_proof_i.path,
                 TREE_DEPTH,
                 i,
-                roots[i]
+                *root,
             ));
         }
     }
@@ -174,7 +171,7 @@ mod tests {
     fn prove_against_previous() {
         let (tree, roots) = tree_and_roots();
         for i in 0..roots.len() {
-            for j in i..roots.len() {
+            for (j, root) in roots.iter().enumerate().skip(i) {
                 let proof = tree.prove_against_previous(i, j);
                 assert_eq!(proof.root(), roots[j]);
                 assert!(verify_merkle_proof(
@@ -182,7 +179,7 @@ mod tests {
                     &proof.path,
                     TREE_DEPTH,
                     i,
-                    roots[j]
+                    *root,
                 ));
             }
         }

@@ -30,9 +30,10 @@ interface ICircleMessageTransmitter {
      * of the attester address recovered from signatures.
      * @return success bool, true if successful
      */
-    function receiveMessage(bytes memory _message, bytes calldata _attestation)
-        external
-        returns (bool success);
+    function receiveMessage(
+        bytes memory _message,
+        bytes calldata _attestation
+    ) external returns (bool success);
 
     function usedNonces(bytes32 _nonceId) external view returns (bool);
 }

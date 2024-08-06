@@ -1,0 +1,34 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-token-lib"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+solana-program.workspace = true
+thiserror.workspace = true
+spl-associated-token-account.workspace = true
+spl-noop.workspace = true
+spl-token.workspace = true
+spl-token-2022.workspace = true # FIXME Should we actually use 2022 here or try normal token program?
+
+access-control = { path = "../access-control" }
+account-utils = { path = "../account-utils" }
+hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connection-client" }
+hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
+hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-interface" }
+serializable-account-meta = { path = "../serializable-account-meta" }
+
+[dev-dependencies]
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

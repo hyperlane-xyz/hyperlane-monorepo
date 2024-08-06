@@ -1,5 +1,4 @@
-import { AllDeprecatedChains } from '../consts/chains';
-import { ChainMap, ChainName } from '../types';
+import { ChainMap, ChainName } from '../types.js';
 
 // Generalized map container for chain name to some value
 export class MultiGeneric<Value> {
@@ -35,9 +34,7 @@ export class MultiGeneric<Value> {
   }
 
   chains(): ChainName[] {
-    return Object.keys(this.chainMap).filter(
-      (chain) => !AllDeprecatedChains.includes(chain),
-    );
+    return Object.keys(this.chainMap);
   }
 
   forEach(fn: (n: ChainName, dc: Value) => void): void {
@@ -46,9 +43,7 @@ export class MultiGeneric<Value> {
     }
   }
 
-  map<Output>(
-    fn: (n: ChainName, dc: Value) => Output,
-  ): Record<ChainName, Output> {
+  map<Output>(fn: (n: ChainName, dc: Value) => Output): ChainMap<Output> {
     const entries: [ChainName, Output][] = [];
     for (const chain of this.chains()) {
       entries.push([chain, fn(chain, this.chainMap[chain])]);
@@ -56,7 +51,7 @@ export class MultiGeneric<Value> {
     return Object.fromEntries(entries);
   }
 
-  remoteChains(name: ChainName): ChainName[] {
+  async remoteChains(name: ChainName): Promise<ChainName[]> {
     return this.chains().filter((key) => key !== name);
   }
 

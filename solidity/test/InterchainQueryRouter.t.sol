@@ -2,16 +2,14 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {InterchainQueryRouter} from "../contracts/middleware/InterchainQueryRouter.sol";
-import {IInterchainQueryRouter} from "../contracts/interfaces/middleware/IInterchainQueryRouter.sol";
+import {CallLib, InterchainQueryRouter} from "../contracts/middleware/InterchainQueryRouter.sol";
 import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {MockToken} from "../contracts/mock/MockToken.sol";
+import {PausableHook} from "../contracts/hooks/PausableHook.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
-import {TestHyperlaneConnectionClient} from "../contracts/test/TestHyperlaneConnectionClient.sol";
-import {CallLib} from "../contracts/libs/Call.sol";
 
 contract InterchainQueryRouterTest is Test {
     using TypeCasts for address;
@@ -26,10 +24,10 @@ contract InterchainQueryRouterTest is Test {
         address indexed sender
     );
 
-    MockHyperlaneEnvironment environment;
+    MockHyperlaneEnvironment public environment;
 
-    InterchainQueryRouter originRouter;
-    InterchainQueryRouter remoteRouter;
+    InterchainQueryRouter public originRouter;
+    InterchainQueryRouter public remoteRouter;
 
     TestRecipient recipient;
 
@@ -47,22 +45,11 @@ contract InterchainQueryRouterTest is Test {
 
         recipient = new TestRecipient();
 
-        originRouter = new InterchainQueryRouter();
-        remoteRouter = new InterchainQueryRouter();
+        address originMailbox = address(environment.mailboxes(originDomain));
+        address remoteMailbox = address(environment.mailboxes(remoteDomain));
 
-        address owner = address(this);
-        originRouter.initialize(
-            address(environment.mailboxes(originDomain)),
-            address(environment.igps(originDomain)),
-            address(environment.isms(originDomain)),
-            owner
-        );
-        remoteRouter.initialize(
-            address(environment.mailboxes(remoteDomain)),
-            address(environment.igps(remoteDomain)),
-            address(environment.isms(remoteDomain)),
-            owner
-        );
+        originRouter = new InterchainQueryRouter(originMailbox);
+        remoteRouter = new InterchainQueryRouter(remoteMailbox);
 
         originRouter.enrollRemoteRouter(
             remoteDomain,
@@ -81,11 +68,7 @@ contract InterchainQueryRouterTest is Test {
     ) public {
         vm.expectEmit(true, true, false, true, address(originRouter));
         emit QueryDispatched(remoteDomain, address(this));
-
-        CallLib.StaticCallWithCallback[]
-            memory calls = new CallLib.StaticCallWithCallback[](1);
-        calls[0] = CallLib.build(target, call, callback);
-        originRouter.query(remoteDomain, calls);
+        originRouter.query(remoteDomain, target, call, callback);
     }
 
     function processQuery() public {
@@ -109,7 +92,7 @@ contract InterchainQueryRouterTest is Test {
 
     function testCannotQueryReverting() public {
         // Deploy a random ownable contract
-        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
+        PausableHook ownable = new PausableHook();
         dispatchQuery(
             address(ownable),
             abi.encodeWithSelector(
@@ -124,7 +107,7 @@ contract InterchainQueryRouterTest is Test {
 
     function testCannotCallbackReverting() public {
         // Deploy a random ownable contract
-        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
+        PausableHook ownable = new PausableHook();
 
         dispatchQuery(
             address(ownable),
@@ -139,7 +122,7 @@ contract InterchainQueryRouterTest is Test {
     function testSingleQueryAddress(address owner) public {
         vm.assume(owner != address(0x0));
         // Deploy a random ownable contract
-        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
+        PausableHook ownable = new PausableHook();
         // Set the routers owner
         ownable.transferOwnership(owner);
 
@@ -159,7 +142,7 @@ contract InterchainQueryRouterTest is Test {
     function testQueryAddress(address owner) public {
         vm.assume(owner != address(0x0));
         // Deploy a random ownable contract
-        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
+        PausableHook ownable = new PausableHook();
         // Set the routers owner
         ownable.transferOwnership(owner);
 

@@ -2,10 +2,18 @@
 name: rust
 
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'rust/**'
+      - .github/workflows/rust.yml
   pull_request:
     branches: [main]
     paths-ignore:
       - 'rust/**'
+      - .github/workflows/rust.yml
+  # Support for merge queues
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,12 +21,10 @@ env:
 jobs:
   test-rs:
     runs-on: ubuntu-latest
-
     steps:
       - run: 'echo "No test required" '
 
   lint-rs:
     runs-on: ubuntu-latest
-
     steps:
       - run: 'echo "No lint required" '

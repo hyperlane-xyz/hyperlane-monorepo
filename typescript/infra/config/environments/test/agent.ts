@@ -1,21 +1,21 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
-
 import {
   GasPaymentEnforcementPolicyType,
-  RootAgentConfig,
-} from '../../../src/config';
-import { ALL_KEY_ROLES } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+  RpcConsensusType,
+} from '@hyperlane-xyz/sdk';
 
-import { chainNames } from './chains';
-import { validators } from './validators';
+import { RootAgentConfig } from '../../../src/config/agent/agent.js';
+import { ALL_KEY_ROLES } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
+
+import { agentChainNames, testChainNames } from './chains.js';
+import { validators } from './validators.js';
 
 const roleBase = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
-  connectionType: AgentConnectionType.Http,
+  rpcConsensusType: RpcConsensusType.Single,
 } as const;
 
 const hyperlane: RootAgentConfig = {
@@ -23,8 +23,8 @@ const hyperlane: RootAgentConfig = {
   runEnv: 'test',
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
-  contextChainNames: chainNames,
-  environmentChainNames: chainNames,
+  contextChainNames: agentChainNames,
+  environmentChainNames: testChainNames,
   relayer: {
     ...roleBase,
     gasPaymentEnforcement: [

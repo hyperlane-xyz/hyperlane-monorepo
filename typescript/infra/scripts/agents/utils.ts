@@ -3,19 +3,19 @@ import {
   RelayerHelmManager,
   ScraperHelmManager,
   ValidatorHelmManager,
-} from '../../src/agents';
-import { EnvironmentConfig, RootAgentConfig } from '../../src/config';
-import { Role } from '../../src/roles';
-import { HelmCommand } from '../../src/utils/helm';
+} from '../../src/agents/index.js';
+import { RootAgentConfig } from '../../src/config/agent/agent.js';
+import { EnvironmentConfig } from '../../src/config/environment.js';
+import { Role } from '../../src/roles.js';
+import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
   getArgs,
-  getConfigsBasedOnArgs,
   withAgentRole,
+  withChains,
   withContext,
-} from '../utils';
-
-type GetConfigsArgv = NonNullable<Parameters<typeof getConfigsBasedOnArgs>[0]>;
+} from '../agent-utils.js';
+import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 export class AgentCli {
   roles!: Role[];
@@ -23,6 +23,7 @@ export class AgentCli {
   agentConfig!: RootAgentConfig;
   initialized = false;
   dryRun = false;
+  chains?: string[];
 
   public async runHelmCommand(command: HelmCommand) {
     await this.init();
@@ -31,12 +32,19 @@ export class AgentCli {
     // make all the managers first to ensure config validity
     for (const role of this.roles) {
       switch (role) {
-        case Role.Validator:
-          for (const chain of this.agentConfig.contextChainNames) {
+        case Role.Validator: {
+          const contextChainNames = this.agentConfig.contextChainNames[role];
+          const validatorChains = !this.chains
+            ? contextChainNames
+            : contextChainNames.filter((chain: string) =>
+                this.chains!.includes(chain),
+              );
+          for (const chain of validatorChains) {
             const key = `${role}-${chain}`;
             managers[key] = new ValidatorHelmManager(this.agentConfig, chain);
           }
           break;
+        }
         case Role.Relayer:
           managers[role] = new RelayerHelmManager(this.agentConfig);
           break;
@@ -48,28 +56,39 @@ export class AgentCli {
       }
     }
 
-    await Promise.all(
-      Object.values(managers).map((m) =>
-        m.runHelmCommand(command, this.dryRun),
-      ),
-    );
+    if (this.dryRun) {
+      const values = await Promise.all(
+        Object.values(managers).map(async (m) => m.helmValues()),
+      );
+      console.log('Dry run values:\n', JSON.stringify(values, null, 2));
+    }
+
+    for (const m of Object.values(managers)) {
+      await m.runHelmCommand(command, this.dryRun);
+    }
   }
 
-  protected async init(
-    argv?: GetConfigsArgv & { role: Role[]; 'dry-run'?: boolean },
-  ) {
+  protected async init() {
     if (this.initialized) return;
-    if (!argv)
-      argv = await withAgentRole(withContext(getArgs()))
-        .describe('dry-run', 'Run through the steps without making any changes')
-        .boolean('dry-run').argv;
+    const argv = await withChains(withAgentRole(withContext(getArgs())))
+      .describe('dry-run', 'Run through the steps without making any changes')
+      .boolean('dry-run').argv;
+
+    if (
+      argv.chains &&
+      argv.chains.length > 0 &&
+      !argv.role.includes(Role.Validator)
+    ) {
+      console.warn('Chain argument applies to validator role only. Ignoring.');
+    }
 
     const { envConfig, agentConfig } = await getConfigsBasedOnArgs(argv);
     await assertCorrectKubeContext(envConfig);
     this.roles = argv.role;
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
-    this.dryRun = argv['dry-run'] || false;
+    this.dryRun = argv.dryRun || false;
     this.initialized = true;
+    this.chains = argv.chains;
   }
 }

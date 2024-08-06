@@ -1,7 +1,9 @@
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, Indexer, InterchainGasPaymaster,
+    ChainResult, HyperlaneChain, HyperlaneContract, Indexed, Indexer, InterchainGasPaymaster,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 
@@ -33,11 +35,10 @@ pub struct FuelInterchainGasPaymasterIndexer {}
 
 #[async_trait]
 impl Indexer<InterchainGasPayment> for FuelInterchainGasPaymasterIndexer {
-    async fn fetch_logs(
+    async fn fetch_logs_in_range(
         &self,
-        from_block: u32,
-        to_block: u32,
-    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>> {
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         todo!()
     }
 

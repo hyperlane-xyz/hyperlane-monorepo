@@ -1,0 +1,18 @@
+{
+  "bsc": {
+    "type": 3,
+    "threshold": 1,
+    "validators": [
+      "0x0000000000000000000000000000000000000001"
+    ]
+  },
+  "nautilus": {
+    "type": 3,
+    "threshold": 2,
+    "validators": [
+      "0x9c920af9467595a23cb3433adefc3854d498a437",
+      "0x87611503e37ce041527c11c24263e8760fccf81f",
+      "0x573443248cf9929af0001b88f62131f2de29fe9f"
+    ]
+  }
+}

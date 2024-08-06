@@ -1,19 +1,77 @@
-//! Configuration
+//! Relayer configuration
+//!
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the exact shape
+//! and validations it defines are not applied here, we should mirror them.
+//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
+use convert_case::Case;
+use derive_more::{AsMut, AsRef, Deref, DerefMut};
+use ethers::utils::hex;
 use eyre::{eyre, Context};
+use hyperlane_base::{
+    impl_loadable_from_settings,
+    settings::{
+        parser::{recase_json_value, RawAgentConf, ValueParser},
+        Settings,
+    },
+};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, U256};
+use itertools::Itertools;
 use serde::Deserialize;
-use tracing::warn;
-
-use hyperlane_base::{decl_settings, Settings};
-use hyperlane_core::config::*;
-use hyperlane_core::{HyperlaneDomain, U256};
+use serde_json::Value;
 
 use crate::settings::matching_list::MatchingList;
 
 pub mod matching_list;
+
+/// Settings for `Relayer`
+#[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
+pub struct RelayerSettings {
+    #[as_ref]
+    #[as_mut]
+    #[deref]
+    #[deref_mut]
+    base: Settings,
+
+    /// Database path
+    pub db: PathBuf,
+    /// The chain to relay messages from
+    pub origin_chains: HashSet<HyperlaneDomain>,
+    /// Chains to relay messages to
+    pub destination_chains: HashSet<HyperlaneDomain>,
+    /// The gas payment enforcement policies
+    pub gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
+    /// Filter for what messages to relay.
+    pub whitelist: MatchingList,
+    /// Filter for what messages to block.
+    pub blacklist: MatchingList,
+    /// Filter for what addresses to block interactions with.
+    /// This is intentionally not an H256 to allow for addresses of any length without
+    /// adding any padding.
+    pub address_blacklist: Vec<Vec<u8>>,
+    /// This is optional. If not specified, any amount of gas will be valid, otherwise this
+    /// is the max allowed gas in wei to relay a transaction.
+    pub transaction_gas_limit: Option<U256>,
+    /// List of domain ids to skip transaction gas for.
+    pub skip_transaction_gas_limit_for: HashSet<u32>,
+    /// If true, allows local storage based checkpoint syncers.
+    /// Not intended for production use.
+    pub allow_local_checkpoint_syncers: bool,
+    /// App contexts used for metrics.
+    pub metric_app_contexts: Vec<(MatchingList, String)>,
+}
+
+/// Config for gas payment enforcement
+#[derive(Debug, Clone, Default)]
+pub struct GasPaymentEnforcementConf {
+    /// The gas payment enforcement policy
+    pub policy: GasPaymentEnforcementPolicy,
+    /// An optional matching list, any message that matches will use this
+    /// policy. By default all messages will match.
+    pub matching_list: MatchingList,
+}
 
 /// Config for a GasPaymentEnforcementPolicy
 #[derive(Debug, Clone, Default)]
@@ -32,161 +90,12 @@ pub enum GasPaymentEnforcementPolicy {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-enum RawGasPaymentEnforcementPolicy {
-    None,
-    Minimum {
-        payment: Option<StrOrInt>,
-    },
-    OnChainFeeQuoting {
-        /// Optional fraction of gas which must be paid before attempting to run
-        /// the transaction. Must be written as `"numerator /
-        /// denominator"` where both are integers.
-        #[serde(default = "default_gasfraction")]
-        gasfraction: String,
-    },
-    #[serde(other)]
-    Unknown,
-}
+#[serde(transparent)]
+struct RawRelayerSettings(Value);
 
-impl FromRawConf<'_, RawGasPaymentEnforcementPolicy> for GasPaymentEnforcementPolicy {
-    fn from_config_filtered(
-        raw: RawGasPaymentEnforcementPolicy,
-        cwp: &ConfigPath,
-        _filter: (),
-    ) -> ConfigResult<Self> {
-        use RawGasPaymentEnforcementPolicy::*;
-        match raw {
-            None => Ok(Self::None),
-            Minimum { payment } => Ok(Self::Minimum {
-                payment: payment
-                    .ok_or_else(|| {
-                        eyre!("Missing `payment` for Minimum gas payment enforcement policy")
-                    })
-                    .into_config_result(|| cwp + "payment")?
-                    .try_into()
-                    .into_config_result(|| cwp + "payment")?,
-            }),
-            OnChainFeeQuoting { gasfraction } => {
-                let (numerator, denominator) =
-                    gasfraction
-                        .replace(' ', "")
-                        .split_once('/')
-                        .map(|(a, b)| (a.to_owned(), b.to_owned()))
-                        .ok_or_else(|| eyre!("Invalid `gasfraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`"))
-                        .into_config_result(|| cwp + "gasfraction")?;
+impl_loadable_from_settings!(Relayer, RawRelayerSettings -> RelayerSettings);
 
-                Ok(Self::OnChainFeeQuoting {
-                    gas_fraction_numerator: numerator
-                        .parse()
-                        .into_config_result(|| cwp + "gasfraction")?,
-                    gas_fraction_denominator: denominator
-                        .parse()
-                        .into_config_result(|| cwp + "gasfraction")?,
-                })
-            }
-            Unknown => Err(eyre!("Unknown gas payment enforcement policy"))
-                .into_config_result(|| cwp.clone()),
-        }
-    }
-}
-
-/// Config for gas payment enforcement
-#[derive(Debug, Clone, Default)]
-pub struct GasPaymentEnforcementConf {
-    /// The gas payment enforcement policy
-    pub policy: GasPaymentEnforcementPolicy,
-    /// An optional matching list, any message that matches will use this
-    /// policy. By default all messages will match.
-    pub matching_list: MatchingList,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawGasPaymentEnforcementConf {
-    #[serde(flatten)]
-    policy: Option<RawGasPaymentEnforcementPolicy>,
-    #[serde(default)]
-    matching_list: Option<MatchingList>,
-}
-
-impl FromRawConf<'_, RawGasPaymentEnforcementConf> for GasPaymentEnforcementConf {
-    fn from_config_filtered(
-        raw: RawGasPaymentEnforcementConf,
-        cwp: &ConfigPath,
-        _filter: (),
-    ) -> ConfigResult<Self> {
-        let mut err = ConfigParsingError::default();
-        let policy = raw.policy
-            .ok_or_else(|| eyre!("Missing policy for gas payment enforcement config; required if a matching list is provided"))
-            .take_err(&mut err, || cwp.clone()).and_then(|r| {
-                r.parse_config(cwp).take_config_err(&mut err)
-            });
-
-        let matching_list = raw.matching_list.unwrap_or_default();
-        err.into_result()?;
-        Ok(Self {
-            policy: policy.unwrap(),
-            matching_list,
-        })
-    }
-}
-
-decl_settings!(Relayer,
-    Parsed {
-        /// Database path
-        db: PathBuf,
-        /// The chain to relay messages from
-        origin_chains: HashSet<HyperlaneDomain>,
-        /// Chains to relay messages to
-        destination_chains: HashSet<HyperlaneDomain>,
-        /// The gas payment enforcement policies
-        gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
-        /// Filter for what messages to relay.
-        whitelist: MatchingList,
-        /// Filter for what messages to block.
-        blacklist: MatchingList,
-        /// This is optional. If not specified, any amount of gas will be valid, otherwise this
-        /// is the max allowed gas in wei to relay a transaction.
-        transaction_gas_limit: Option<U256>,
-        /// List of domain ids to skip transaction gas for.
-        skip_transaction_gas_limit_for: HashSet<u32>,
-        /// If true, allows local storage based checkpoint syncers.
-        /// Not intended for production use.
-        allow_local_checkpoint_syncers: bool,
-    },
-    Raw {
-        /// Database path (path on the fs)
-        db: Option<String>,
-        // Comma separated list of chains to relay between.
-        relaychains: Option<String>,
-        // Comma separated list of origin chains.
-        #[deprecated(note = "Use `relaychains` instead")]
-        originchainname: Option<String>,
-        // Comma separated list of destination chains.
-        #[deprecated(note = "Use `relaychains` instead")]
-        destinationchainnames: Option<String>,
-        /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
-        gaspaymentenforcement: Option<String>,
-        /// This is optional. If no whitelist is provided ALL messages will be considered on the
-        /// whitelist.
-        whitelist: Option<String>,
-        /// This is optional. If no blacklist is provided ALL will be considered to not be on
-        /// the blacklist.
-        blacklist: Option<String>,
-        /// This is optional. If not specified, any amount of gas will be valid, otherwise this
-        /// is the max allowed gas in wei to relay a transaction.
-        transactiongaslimit: Option<StrOrInt>,
-        /// Comma separated List of domain ids to skip transaction gas for.
-        skiptransactiongaslimitfor: Option<String>,
-        /// If true, allows local storage based checkpoint syncers.
-        /// Not intended for production use. Defaults to false.
-        #[serde(default)]
-        allowlocalcheckpointsyncers: bool,
-    }
-);
-
-impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
+impl FromRawConf<RawRelayerSettings> for RelayerSettings {
     fn from_config_filtered(
         raw: RawRelayerSettings,
         cwp: &ConfigPath,
@@ -194,200 +103,275 @@ impl FromRawConf<'_, RawRelayerSettings> for RelayerSettings {
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let gas_payment_enforcement = raw
-            .gaspaymentenforcement
-            .and_then(|j| {
-                serde_json::from_str::<Vec<RawGasPaymentEnforcementConf>>(&j)
-                    .take_err(&mut err, || cwp + "gaspaymentenforcement")
-            })
-            .map(|rv| {
-                let cwp = cwp + "gaspaymentenforcement";
-                rv.into_iter()
-                    .enumerate()
-                    .filter_map(|(i, r)| {
-                        r.parse_config(&cwp.join(i.to_string()))
-                            .take_config_err(&mut err)
-                    })
-                    .collect()
-            })
-            .unwrap_or_else(|| vec![Default::default()]);
+        let p = ValueParser::new(cwp.clone(), &raw.0);
 
-        let whitelist = raw
-            .whitelist
-            .and_then(|j| {
-                serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "whitelist")
-            })
-            .unwrap_or_default();
+        let relay_chain_names: Option<HashSet<&str>> = p
+            .chain(&mut err)
+            .get_key("relayChains")
+            .parse_string()
+            .end()
+            .map(|v| v.split(',').collect());
 
-        let blacklist = raw
-            .blacklist
-            .and_then(|j| {
-                serde_json::from_str::<MatchingList>(&j).take_err(&mut err, || cwp + "blacklist")
-            })
-            .unwrap_or_default();
-
-        let transaction_gas_limit = raw.transactiongaslimit.and_then(|r| {
-            r.try_into()
-                .take_err(&mut err, || cwp + "transactiongaslimit")
-        });
-
-        let skip_transaction_gas_limit_for = raw
-            .skiptransactiongaslimitfor
-            .and_then(|r| {
-                r.split(',')
-                    .map(str::parse)
-                    .collect::<Result<_, _>>()
-                    .context("Error parsing domain id")
-                    .take_err(&mut err, || cwp + "skiptransactiongaslimitfor")
-            })
-            .unwrap_or_default();
-
-        let mut origin_chain_names = {
-            #[allow(deprecated)]
-            raw.originchainname
-        }
-        .map(|s| s.split(',').map(str::to_owned).collect::<Vec<_>>());
-
-        if origin_chain_names.is_some() {
-            warn!(
-                path = (cwp + "originchainname").json_name(),
-                "`originchainname` is deprecated, use `relaychains` instead"
-            );
-        }
-
-        let mut destination_chain_names = {
-            #[allow(deprecated)]
-            raw.destinationchainnames
-        }
-        .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>());
-
-        if destination_chain_names.is_some() {
-            warn!(
-                path = (cwp + "destinationchainnames").json_name(),
-                "`destinationchainnames` is deprecated, use `relaychains` instead"
-            );
-        }
-
-        if let Some(relay_chain_names) = raw
-            .relaychains
-            .map(|r| r.split(',').map(str::to_owned).collect::<Vec<_>>())
-        {
-            if origin_chain_names.is_some() {
-                err.push(
-                    cwp + "originchainname",
-                    eyre!("Cannot use `relaychains` and `originchainname` at the same time"),
-                );
-            }
-            if destination_chain_names.is_some() {
-                err.push(
-                    cwp + "destinationchainnames",
-                    eyre!("Cannot use `relaychains` and `destinationchainnames` at the same time"),
-                );
-            }
-
-            if relay_chain_names.len() < 2 {
-                err.push(
-                    cwp + "relaychains",
-                    eyre!(
-                        "The relayer must be configured with at least two chains to relay between"
-                    ),
-                )
-            }
-            origin_chain_names = Some(relay_chain_names.clone());
-            destination_chain_names = Some(relay_chain_names);
-        } else if origin_chain_names.is_none() && destination_chain_names.is_none() {
-            err.push(
-                cwp + "relaychains",
-                eyre!("The relayer must be configured with at least two chains to relay between"),
-            );
-        } else if origin_chain_names.is_none() {
-            err.push(
-                cwp + "originchainname",
-                eyre!("The relayer must be configured with an origin chain (alternatively use `relaychains`)"),
-            );
-        } else if destination_chain_names.is_none() {
-            err.push(
-                cwp + "destinationchainnames",
-                eyre!("The relayer must be configured with at least one destination chain (alternatively use `relaychains`)"),
-            );
-        }
-
-        let db = raw
-            .db
-            .and_then(|r| r.parse().take_err(&mut err, || cwp + "db"))
-            .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
-
-        let (Some(origin_chain_names), Some(destination_chain_names)) =
-            (origin_chain_names, destination_chain_names)
-        else { return Err(err) };
-
-        let chain_filter = origin_chain_names
-            .iter()
-            .chain(&destination_chain_names)
-            .map(String::as_str)
-            .collect();
-
-        let base = raw
-            .base
-            .parse_config_with_filter::<Settings>(cwp, Some(&chain_filter))
+        let base = p
+            .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
+                relay_chain_names.as_ref(),
+                "Parsing base config",
+            )
             .take_config_err(&mut err);
 
-        let origin_chains = base
-            .as_ref()
-            .map(|base| {
-                origin_chain_names
-                    .iter()
-                    .filter_map(|origin| {
-                        base.lookup_domain(origin)
-                            .context("Missing configuration for an origin chain")
-                            .take_err(&mut err, || cwp + "chains" + origin)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let db = p
+            .chain(&mut err)
+            .get_opt_key("db")
+            .parse_from_str("Expected database path")
+            .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
 
-        // validate all destination chains are present and get their HyperlaneDomain.
-        let destination_chains: HashSet<_> = base
-            .as_ref()
-            .map(|base| {
-                destination_chain_names
-                    .iter()
-                    .filter_map(|destination| {
-                        base.lookup_domain(destination)
-                            .context("Missing configuration for a destination chain")
-                            .take_err(&mut err, || cwp + "chains" + destination)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let (raw_gas_payment_enforcement_path, raw_gas_payment_enforcement) = p
+            .get_opt_key("gasPaymentEnforcement")
+            .take_config_err_flat(&mut err)
+            .and_then(parse_json_array)
+            .unwrap_or_else(|| (&p.cwp + "gas_payment_enforcement", Value::Array(vec![])));
 
-        if let Some(base) = &base {
-            for domain in destination_chains.iter() {
-                base.chain_setup(domain)
-                    .unwrap()
-                    .signer
-                    .as_ref()
-                    .ok_or_else(|| eyre!("Signer is required for destination chains"))
-                    .take_err(&mut err, || cwp + "chains" + domain.name() + "signer");
-            }
+        let gas_payment_enforcement_parser = ValueParser::new(
+            raw_gas_payment_enforcement_path,
+            &raw_gas_payment_enforcement,
+        );
+        let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
+            itr.filter_map(|policy| {
+                let policy_type = policy.chain(&mut err).get_opt_key("type").parse_string().end();
+                let minimum_is_defined = matches!(policy.get_opt_key("minimum"), Ok(Some(_)));
+
+                let matching_list = policy.chain(&mut err).get_opt_key("matchingList").and_then(parse_matching_list).unwrap_or_default();
+
+                let parse_minimum = |p| GasPaymentEnforcementPolicy::Minimum { payment: p };
+                match policy_type {
+                    Some("minimum") => policy.chain(&mut err).get_opt_key("payment").parse_u256().end().map(parse_minimum),
+                    None if minimum_is_defined => policy.chain(&mut err).get_opt_key("payment").parse_u256().end().map(parse_minimum),
+                    Some("none") | None => Some(GasPaymentEnforcementPolicy::None),
+                    Some("onChainFeeQuoting") => {
+                        let gas_fraction = policy.chain(&mut err)
+                            .get_opt_key("gasFraction")
+                            .parse_string()
+                            .map(|v| v.replace(' ', ""))
+                            .unwrap_or_else(|| "1/2".to_owned());
+                        let (numerator, denominator) = gas_fraction
+                            .split_once('/')
+                            .ok_or_else(|| eyre!("Invalid `gas_fraction` for OnChainFeeQuoting gas payment enforcement policy; expected `numerator / denominator`"))
+                            .take_err(&mut err, || &policy.cwp + "gas_fraction")
+                            .unwrap_or(("1", "1"));
+
+                        Some(GasPaymentEnforcementPolicy::OnChainFeeQuoting {
+                            gas_fraction_numerator: numerator
+                                .parse()
+                                .context("Error parsing gas fraction numerator")
+                                .take_err(&mut err, || &policy.cwp + "gas_fraction")
+                                .unwrap_or(1),
+                            gas_fraction_denominator: denominator
+                                .parse()
+                                .context("Error parsing gas fraction denominator")
+                                .take_err(&mut err, || &policy.cwp + "gas_fraction")
+                                .unwrap_or(1),
+                        })
+                    }
+                    Some(pt) => Err(eyre!("Unknown gas payment enforcement policy type `{pt}`"))
+                        .take_err(&mut err, || cwp + "type"),
+                }.map(|policy| GasPaymentEnforcementConf {
+                    policy,
+                    matching_list,
+                })
+            }).collect_vec()
+        }).unwrap_or_default();
+
+        if gas_payment_enforcement.is_empty() {
+            gas_payment_enforcement.push(GasPaymentEnforcementConf::default());
         }
 
-        err.into_result()?;
-        Ok(Self {
-            base: base.unwrap(),
+        let whitelist = p
+            .chain(&mut err)
+            .get_opt_key("whitelist")
+            .and_then(parse_matching_list)
+            .unwrap_or_default();
+        let blacklist = p
+            .chain(&mut err)
+            .get_opt_key("blacklist")
+            .and_then(parse_matching_list)
+            .unwrap_or_default();
+
+        let address_blacklist = p
+            .chain(&mut err)
+            .get_opt_key("addressBlacklist")
+            .parse_string()
+            .end()
+            .map(|str| parse_address_list(str, &mut err, || &p.cwp + "address_blacklist"))
+            .unwrap_or_default();
+
+        let transaction_gas_limit = p
+            .chain(&mut err)
+            .get_opt_key("transactionGasLimit")
+            .parse_u256()
+            .end();
+
+        let skip_transaction_gas_limit_for_names: HashSet<&str> = p
+            .chain(&mut err)
+            .get_opt_key("skipTransactionGasLimitFor")
+            .parse_string()
+            .map(|v| v.split(',').collect())
+            .unwrap_or_default();
+
+        let allow_local_checkpoint_syncers = p
+            .chain(&mut err)
+            .get_opt_key("allowLocalCheckpointSyncers")
+            .parse_bool()
+            .unwrap_or(false);
+
+        cfg_unwrap_all!(cwp, err: [base]);
+
+        let skip_transaction_gas_limit_for = skip_transaction_gas_limit_for_names
+            .into_iter()
+            .filter_map(|chain| {
+                base.lookup_domain(chain)
+                    .context("Missing configuration for a chain in `skipTransactionGasLimitFor`")
+                    .into_config_result(|| cwp + "skip_transaction_gas_limit_for")
+                    .take_config_err(&mut err)
+            })
+            .map(|d| d.id())
+            .collect();
+
+        let relay_chains: HashSet<HyperlaneDomain> = relay_chain_names
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|chain| {
+                base.lookup_domain(chain)
+                    .context("Missing configuration for a chain in `relayChains`")
+                    .into_config_result(|| cwp + "relayChains")
+                    .take_config_err(&mut err)
+            })
+            .collect();
+
+        let (raw_metric_app_contexts_path, raw_metric_app_contexts) = p
+            .get_opt_key("metricAppContexts")
+            .take_config_err_flat(&mut err)
+            .and_then(parse_json_array)
+            .unwrap_or_else(|| (&p.cwp + "metric_app_contexts", Value::Array(vec![])));
+
+        let metric_app_contexts_parser =
+            ValueParser::new(raw_metric_app_contexts_path, &raw_metric_app_contexts);
+        let metric_app_contexts = metric_app_contexts_parser
+            .into_array_iter()
+            .map(|itr| {
+                itr.filter_map(|policy| {
+                    let name = policy.chain(&mut err).get_key("name").parse_string().end();
+
+                    let matching_list = policy
+                        .chain(&mut err)
+                        .get_key("matchingList")
+                        .and_then(parse_matching_list)
+                        .unwrap_or_default();
+
+                    name.map(|name| (matching_list, name.to_owned()))
+                })
+                .collect_vec()
+            })
+            .unwrap_or_default();
+
+        err.into_result(RelayerSettings {
+            base,
             db,
-            origin_chains,
-            destination_chains,
+            origin_chains: relay_chains.clone(),
+            destination_chains: relay_chains,
             gas_payment_enforcement,
             whitelist,
             blacklist,
+            address_blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
-            allow_local_checkpoint_syncers: raw.allowlocalcheckpointsyncers,
+            allow_local_checkpoint_syncers,
+            metric_app_contexts,
         })
     }
 }
 
-fn default_gasfraction() -> String {
-    "1/2".into()
+fn parse_json_array(p: ValueParser) -> Option<(ConfigPath, Value)> {
+    let mut err = ConfigParsingError::default();
+
+    match p {
+        ValueParser {
+            val: Value::String(array_str),
+            cwp,
+        } => serde_json::from_str::<Value>(array_str)
+            .context("Expected JSON string")
+            .take_err(&mut err, || cwp.clone())
+            .map(|v| (cwp, recase_json_value(v, Case::Flat))),
+        ValueParser {
+            val: value @ Value::Array(_),
+            cwp,
+        } => Some((cwp, value.clone())),
+        _ => Err(eyre!("Expected JSON array or stringified JSON"))
+            .take_err(&mut err, || p.cwp.clone()),
+    }
+}
+
+fn parse_matching_list(p: ValueParser) -> ConfigResult<MatchingList> {
+    let mut err = ConfigParsingError::default();
+
+    let raw_list = parse_json_array(p.clone()).map(|(_, v)| v);
+    let Some(raw_list) = raw_list else {
+        return err.into_result(MatchingList::default());
+    };
+    let p = ValueParser::new(p.cwp.clone(), &raw_list);
+    let ml = p
+        .parse_value::<MatchingList>("Expected matching list")
+        .take_config_err(&mut err)
+        .unwrap_or_default();
+
+    err.into_result(ml)
+}
+
+fn parse_address_list(
+    str: &str,
+    err: &mut ConfigParsingError,
+    err_path: impl Fn() -> ConfigPath,
+) -> Vec<Vec<u8>> {
+    str.split(',')
+        .filter_map(|s| {
+            let mut s = s.trim().to_owned();
+            if let Some(stripped) = s.strip_prefix("0x") {
+                s = stripped.to_owned();
+            }
+            hex::decode(s).take_err(err, &err_path)
+        })
+        .collect_vec()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use hyperlane_core::H160;
+
+    #[test]
+    fn test_parse_address_blacklist() {
+        let valid_address1 = b"valid".to_vec();
+        let valid_address2 = H160::random().as_bytes().to_vec();
+
+        // Successful parsing
+        let input = format!(
+            "0x{}, {}",
+            hex::encode(&valid_address1),
+            hex::encode(&valid_address2)
+        );
+        let mut err = ConfigParsingError::default();
+        let res = parse_address_list(&input, &mut err, ConfigPath::default);
+        assert_eq!(res, vec![valid_address1.clone(), valid_address2.clone()]);
+        assert!(err.is_ok());
+
+        // An error in the final address provided
+        let input = format!(
+            "0x{}, {}, 0xaazz",
+            hex::encode(&valid_address1),
+            hex::encode(&valid_address2)
+        );
+        let mut err = ConfigParsingError::default();
+        let res = parse_address_list(&input, &mut err, ConfigPath::default);
+        assert_eq!(res, vec![valid_address1, valid_address2]);
+        assert!(!err.is_ok());
+    }
 }

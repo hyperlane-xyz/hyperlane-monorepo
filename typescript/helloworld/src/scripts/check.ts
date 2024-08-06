@@ -1,18 +1,19 @@
+import { chainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
   HyperlaneCore,
-  HyperlaneIgp,
   MultiProvider,
   attachContractsMap,
-  createRouterConfigMap,
 } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 
-import { HelloWorldApp } from '../app/app';
-import { helloWorldFactories } from '../app/contracts';
-import { HelloWorldChecker } from '../deploy/check';
-import { prodConfigs } from '../deploy/config';
+import { HelloWorldApp } from '../app/app.js';
+import { helloWorldFactories } from '../app/contracts.js';
+import { HelloWorldChecker } from '../deploy/check.js';
+import { prodConfigs } from '../deploy/config.js';
 
 // COPY FROM OUTPUT OF DEPLOYMENT SCRIPT OR IMPORT FROM ELSEWHERE
-const deploymentAddresses = {};
+const deploymentAddresses: ChainMap<Record<string, Address>> = {};
 
 // SET CONTRACT OWNER ADDRESS HERE
 const ownerAddress = '0x123...';
@@ -26,14 +27,11 @@ async function check() {
     helloWorldFactories,
   );
 
-  const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
-  const igp = HyperlaneIgp.fromEnvironment('testnet', multiProvider);
+  // If the default registry does not contain the core contract addresses you need,
+  // Replace `chainAddresses` with a custom map of addresses
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
-  const config = createRouterConfigMap(
-    ownerAddress,
-    core.contractsMap,
-    igp.contractsMap,
-  );
+  const config = core.getRouterConfig(ownerAddress);
 
   console.info('Starting check');
   const helloWorldChecker = new HelloWorldChecker(multiProvider, app, config);

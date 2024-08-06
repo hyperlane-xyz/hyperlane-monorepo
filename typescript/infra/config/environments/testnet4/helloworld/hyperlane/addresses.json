@@ -1,0 +1,17 @@
+{
+  "scrollsepolia": {
+    "router": "0x66b71A4e18FbE09a6977A6520B47fEDdffA82a1c"
+  },
+  "alfajores": {
+    "router": "0xD0Ef694E96Bb695DC829f71956227eD141e3089F"
+  },
+  "fuji": {
+    "router": "0x0B1C1B54f45e02552331D3106e71f5e0b573D5D4"
+  },
+  "sepolia": {
+    "router": "0x37590302D4E60fbCAdF708E8Fc1DCd903a5880F8"
+  },
+  "bsctestnet": {
+    "router": "0xEF6DE81100B9314B45A1bdfA5C9148aFC4DdbDeE"
+  }
+}

@@ -24,11 +24,9 @@ abstract contract AbstractRoutingIsm is IRoutingIsm {
      * @param _message Formatted Hyperlane message (see Message.sol).
      * @return module The ISM to use to verify _message
      */
-    function route(bytes calldata _message)
-        public
-        view
-        virtual
-        returns (IInterchainSecurityModule);
+    function route(
+        bytes calldata _message
+    ) public view virtual returns (IInterchainSecurityModule);
 
     // ============ Public Functions ============
 
@@ -37,10 +35,10 @@ abstract contract AbstractRoutingIsm is IRoutingIsm {
      * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function verify(bytes calldata _metadata, bytes calldata _message)
-        public
-        returns (bool)
-    {
+    function verify(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) public returns (bool) {
         return route(_message).verify(_metadata, _message);
     }
 }

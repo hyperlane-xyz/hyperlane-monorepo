@@ -1,10 +1,7 @@
-import { AgentConnectionType } from '@hyperlane-xyz/sdk';
-
-import { DockerConfig } from './agent';
+import { DockerConfig } from './agent/agent.js';
 
 export interface LiquidityLayerRelayerConfig {
   docker: DockerConfig;
   namespace: string;
-  connectionType: AgentConnectionType.Http | AgentConnectionType.HttpQuorum;
   prometheusPushGateway: string;
 }

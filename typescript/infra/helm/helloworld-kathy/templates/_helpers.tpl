@@ -66,7 +66,7 @@ The helloworld-kathy container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   command:
-  - ./node_modules/.bin/ts-node
+  - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/helloworld/kathy.ts
   - -e
   - {{ .Values.hyperlane.runEnv }}
@@ -90,10 +90,6 @@ The helloworld-kathy container
 {{- end }}
 {{- if .Values.hyperlane.cycleOnce }}
   - --cycle-once
-{{- end }}
-{{- if .Values.hyperlane.connectionType }}
-  - --connection-type
-  - {{ .Values.hyperlane.connectionType }}
 {{- end }}
 {{- if .Values.hyperlane.cyclesBetweenEthereumMessages }}
   - --cycles-between-ethereum-messages

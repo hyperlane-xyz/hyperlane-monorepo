@@ -1,0 +1,16 @@
+{
+    "solana": {
+        "type": "collateral",
+        "decimals": 9,
+        "remoteDecimals": 9,
+        "token": "wzbcJyhGhQDLTV1S99apZiiBdE4jmYfbw99saMMdP59",
+        "splTokenProgram": "token",
+        "interchainSecurityModule": "9k74DkJvS2x9QhG4XfnKsLkqaCDyVfaj8s6FyJyhAeEP",
+        "owner": "EzppBFV2taxWw8kEjxNYvby6q7W1biJEqwP3iC7YgRe3"
+    },
+    "nautilus": {
+        "type": "native",
+        "decimals": 18,
+        "foreignDeployment": "0x4501bBE6e731A4bC5c60C03A77435b2f6d5e9Fe7"
+    }
+}

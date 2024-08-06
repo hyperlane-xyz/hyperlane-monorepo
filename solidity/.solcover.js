@@ -1,5 +1,5 @@
 module.exports = {
-  skipFiles: ['test', 'mock'],
+  skipFiles: ['test', 'mock', 'upgrade', 'interfaces'],
   istanbulReporter: ['lcov'],
   mocha: {
     enableTimeouts: false,

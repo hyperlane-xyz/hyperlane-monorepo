@@ -1,0 +1,17 @@
+{
+  "solanadevnet": {
+    "type": "collateral",
+    "token": "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+    "splTokenProgram": "token",
+    "decimals": 6,
+    "name": "USD Coin Dev",
+    "symbol": "USDC"
+  },
+  "fuji": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "USD Coin Dev",
+    "symbol": "USDC",
+    "foreignDeployment": "0xa97F4eACbc363f82D25a540440AFC6F78920299b"
+  }
+}

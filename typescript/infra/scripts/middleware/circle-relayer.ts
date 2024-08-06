@@ -1,19 +1,16 @@
-import path from 'path';
+import { join } from 'path';
 
 import {
   LiquidityLayerApp,
+  LiquidityLayerConfig,
   attachContractsMap,
   liquidityLayerFactories,
-  objFilter,
 } from '@hyperlane-xyz/sdk';
-import { LiquidityLayerConfig } from '@hyperlane-xyz/sdk/dist/middleware/liquidity-layer/LiquidityLayerRouterDeployer';
+import { objFilter, sleep } from '@hyperlane-xyz/utils';
 
-import { readJSON, sleep } from '../../src/utils/utils';
-import {
-  getArgs,
-  getEnvironmentConfig,
-  getEnvironmentDirectory,
-} from '../utils';
+import { getInfraPath, readJSON } from '../../src/utils/utils.js';
+import { getArgs, getEnvironmentDirectory } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 async function check() {
   const { environment } = await getArgs().argv;
@@ -24,9 +21,8 @@ async function check() {
   }
 
   const multiProvider = await config.getMultiProvider();
-  const dir = path.join(
-    __dirname,
-    '../../',
+  const dir = join(
+    getInfraPath(),
     getEnvironmentDirectory(environment),
     'middleware/liquidity-layer',
   );

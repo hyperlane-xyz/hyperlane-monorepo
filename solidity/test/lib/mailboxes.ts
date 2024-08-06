@@ -1,13 +1,28 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { Validator, types, utils } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  MerkleProof,
+  Validator,
+  addressToBytes32,
+  ensure0x,
+  formatLegacyMultisigIsmMetadata,
+  formatMessage,
+  messageId,
+  parseMessage,
+} from '@hyperlane-xyz/utils';
 
-import { LegacyMultisigIsm, TestMailbox } from '../../types';
+import {
+  LegacyMultisigIsm,
+  TestMailbox,
+  TestMerkleTreeHook,
+} from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';
 
 export type MessageAndProof = {
-  proof: types.MerkleProof;
+  proof: MerkleProof;
   message: string;
 };
 
@@ -23,7 +38,7 @@ export const dispatchMessage = async (
   messageStr: string,
   utf8 = true,
 ) => {
-  const tx = await mailbox.dispatch(
+  const tx = await mailbox['dispatch(uint32,bytes32,bytes)'](
     destination,
     recipient,
     utf8 ? ethers.utils.toUtf8Bytes(messageStr) : messageStr,
@@ -36,25 +51,26 @@ export const dispatchMessage = async (
 
 export const dispatchMessageAndReturnProof = async (
   mailbox: TestMailbox,
+  merkleHook: TestMerkleTreeHook,
   destination: number,
   recipient: string,
   messageStr: string,
   utf8 = true,
 ): Promise<MessageAndProof> => {
-  const nonce = await mailbox.count();
+  const nonce = await mailbox.nonce();
   const { message } = await dispatchMessage(
     mailbox,
     destination,
-    utils.addressToBytes32(recipient),
+    addressToBytes32(recipient),
     messageStr,
     utf8,
   );
-  const messageId = utils.messageId(message);
-  const proof = await mailbox.proof();
+  const mid = messageId(message);
+  const proof = await merkleHook.proof();
   return {
     proof: {
       branch: proof,
-      leaf: messageId,
+      leaf: mid,
       index: nonce,
     },
     message,
@@ -64,9 +80,9 @@ export const dispatchMessageAndReturnProof = async (
 // Signs a checkpoint with the provided validators and returns
 // the signatures ordered by validator index
 export async function signCheckpoint(
-  root: types.HexString,
+  root: HexString,
   index: number,
-  mailbox: types.Address,
+  mailbox: Address,
   orderedValidators: Validator[],
 ): Promise<string[]> {
   const signedCheckpoints = await Promise.all(
@@ -79,6 +95,7 @@ export async function signCheckpoint(
 
 export async function dispatchMessageAndReturnMetadata(
   mailbox: TestMailbox,
+  merkleHook: TestMerkleTreeHook,
   multisigIsm: LegacyMultisigIsm,
   destination: number,
   recipient: string,
@@ -89,23 +106,24 @@ export async function dispatchMessageAndReturnMetadata(
 ): Promise<MessageAndMetadata> {
   // Checkpoint indices are 0 indexed, so we pull the count before
   // we dispatch the message.
-  const index = await mailbox.count();
+  const index = await mailbox.nonce();
   const proofAndMessage = await dispatchMessageAndReturnProof(
     mailbox,
+    merkleHook,
     destination,
     recipient,
     messageStr,
     utf8,
   );
-  const root = await mailbox.root();
+  const root = await merkleHook.root();
   const signatures = await signCheckpoint(
     root,
     index,
     mailbox.address,
     orderedValidators,
   );
-  const origin = utils.parseMessage(proofAndMessage.message).origin;
-  const metadata = utils.formatLegacyMultisigIsmMetadata({
+  const origin = parseMessage(proofAndMessage.message).origin;
+  const metadata = formatLegacyMultisigIsmMetadata({
     checkpointRoot: root,
     checkpointIndex: index,
     originMailbox: mailbox.address,
@@ -118,7 +136,7 @@ export async function dispatchMessageAndReturnMetadata(
 
 export function getCommitment(
   threshold: number,
-  validators: types.Address[],
+  validators: Address[],
 ): string {
   const packed = ethers.utils.solidityPack(
     ['uint8', 'address[]'],
@@ -135,12 +153,12 @@ export const inferMessageValues = async (
   messageStr: string,
   version?: number,
 ) => {
-  const body = utils.ensure0x(
+  const body = ensure0x(
     Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
   );
-  const nonce = await mailbox.count();
+  const nonce = await mailbox.nonce();
   const localDomain = await mailbox.localDomain();
-  const message = utils.formatMessage(
+  const message = formatMessage(
     version ?? (await mailbox.VERSION()),
     nonce,
     localDomain,
@@ -149,7 +167,7 @@ export const inferMessageValues = async (
     recipient,
     body,
   );
-  const id = utils.messageId(message);
+  const id = messageId(message);
   return {
     message,
     id,

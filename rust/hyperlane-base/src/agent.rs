@@ -1,14 +1,16 @@
-use std::env;
-use std::fmt::Debug;
-use std::sync::Arc;
+use std::{env, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use eyre::{Report, Result};
-use futures_util::future::select_all;
-use tokio::task::JoinHandle;
-use tracing::{debug_span, instrument::Instrumented, Instrument};
+use eyre::Result;
+use hyperlane_core::config::*;
+use tracing::info;
 
-use crate::{cancel_task, metrics::CoreMetrics, settings::Settings};
+use crate::{
+    create_chain_metrics,
+    metrics::{create_agent_metrics, AgentMetrics, CoreMetrics},
+    settings::Settings,
+    ChainMetrics,
+};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
@@ -19,11 +21,11 @@ pub struct HyperlaneAgentCore {
     pub settings: Settings,
 }
 
-/// Settings of an agent.
-pub trait NewFromSettings: AsRef<Settings> + Sized {
+/// Settings of an agent defined from configuration
+pub trait LoadableFromSettings: AsRef<Settings> + Sized {
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
-    fn new() -> hyperlane_core::config::ConfigResult<Self>;
+    fn load() -> ConfigResult<Self>;
 }
 
 /// A fundamental agent which does not make any assumptions about the tools
@@ -34,16 +36,22 @@ pub trait BaseAgent: Send + Sync + Debug {
     const AGENT_NAME: &'static str;
 
     /// The settings object for this agent
-    type Settings: NewFromSettings;
+    type Settings: LoadableFromSettings;
 
     /// Instantiate the agent from the standard settings object
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+        agent_metrics: AgentMetrics,
+        chain_metrics: ChainMetrics,
+        tokio_console_server: console_subscriber::Server,
+    ) -> Result<Self>
     where
         Self: Sized;
 
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
-    async fn run(self) -> Instrumented<JoinHandle<Result<()>>>;
+    async fn run(self);
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire
@@ -64,32 +72,24 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         color_eyre::install()?;
     }
 
-    let settings = A::Settings::new()?;
+    let settings = A::Settings::load()?;
     let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
-    core_settings.tracing.start_tracing(&metrics)?;
-    let agent = A::from_settings(settings, metrics.clone()).await?;
-    metrics.run_http_server();
+    let tokio_server = core_settings.tracing.start_tracing(&metrics)?;
+    let agent_metrics = create_agent_metrics(&metrics)?;
+    let chain_metrics = create_chain_metrics(&metrics)?;
+    let agent = A::from_settings(
+        settings,
+        metrics.clone(),
+        agent_metrics,
+        chain_metrics,
+        tokio_server,
+    )
+    .await?;
 
-    agent.run().await.await?
-}
-
-/// Utility to run multiple tasks and shutdown if any one task ends.
-#[allow(clippy::unit_arg, unused_must_use)]
-pub fn run_all(
-    tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
-) -> Instrumented<JoinHandle<Result<()>>> {
-    debug_assert!(!tasks.is_empty(), "No tasks submitted");
-    let span = debug_span!("run_all");
-    tokio::spawn(async move {
-        let (res, _, remaining) = select_all(tasks).await;
-
-        for task in remaining.into_iter() {
-            cancel_task!(task);
-        }
-
-        res?
-    })
-    .instrument(span)
+    // This await will only end if a panic happens. We won't crash, but instead gracefully shut down
+    agent.run().await;
+    info!(agent = A::AGENT_NAME, "Shutting down agent...");
+    Ok(())
 }

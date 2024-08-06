@@ -14,11 +14,9 @@ library MinimalProxy {
         }
     }
 
-    function bytecode(address implementation)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function bytecode(
+        address implementation
+    ) internal pure returns (bytes memory) {
         return abi.encodePacked(PREFIX, bytes20(implementation), SUFFIX);
     }
 }

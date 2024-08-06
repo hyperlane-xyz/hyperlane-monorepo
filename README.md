@@ -1,10 +1,20 @@
 # Hyperlane
 
+[![GitHub Actions][gha-badge]][gha] [![codecov](https://codecov.io/gh/hyperlane-xyz/hyperlane-monorepo/branch/main/graph/badge.svg?token=APC7C3Q2GS)](https://codecov.io/gh/hyperlane-xyz/hyperlane-monorepo) [![Foundry][foundry-badge]][foundry] [![License: MIT][license-badge]][license]
+
+[gha]: https://github.com/hyperlane-xyz/hyperlane-monorepo/actions
+[gha-badge]: https://github.com/PaulRBerg/prb-math/actions/workflows/ci.yml/badge.svg
+[codecov-badge]: https://img.shields.io/codecov/c/github/hyperlane-xyz/hyperlane-monorepo
+[foundry]: https://getfoundry.sh/
+[foundry-badge]: https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg
+[license]: https://www.apache.org/licenses/LICENSE-2.0
+[license-badge]: https://img.shields.io/badge/License-Apache-blue.svg
+
 ## Versioning
 
-Note this is the branch for Hyperlane v2.
+Note this is the branch for Hyperlane v3.
 
-V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+V2 is deprecated in favor of V3. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch. For V1 code, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
 ## Overview
 
@@ -12,9 +22,46 @@ Hyperlane is an interchain messaging protocol that allows applications to commun
 
 Developers can use Hyperlane to share state between blockchains, allowing them to build interchain applications that live natively across multiple chains.
 
-To read more about interchain applications, how the protocol works, and how to integrate with Hyperlane, please see the [documentation](https://docs.hyperlane.xyz/).
+To read more about interchain applications, how the protocol works, and how to integrate with Hyperlane, please see the [documentation](https://docs.hyperlane.xyz).
 
 ## Working on Hyperlane
+
+### Foundry
+
+First ensure you have Foundry installed on your machine.
+
+Run the following to install `foundryup`:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+```
+
+Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
+
+```bash
+foundryup
+```
+
+Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
+
+### Node
+
+This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+
+To install nvm
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+```
+
+To install version 20
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+You should change versions automatically with the `.nvmrc` file.
 
 ### Workspaces
 
@@ -34,45 +81,19 @@ This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). I
 
 If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
 
+### Logging
+
+The typescript tooling uses [Pino](https://github.com/pinojs/pino) based logging, which outputs structured JSON logs by default.
+The verbosity level and style can be configured with environment variables:
+
+```sh
+LOG_LEVEL=DEBUG|INFO|WARN|ERROR|OFF
+LOG_FORMAT=PRETTY|JSON
+```
+
 ### Rust
 
 See [`rust/README.md`](rust/README.md)
-
-### Publishing JS/TS Packages
-
-Packages can be versioned and published all at once with commands from the root.
-
-First, increment the version to the desired value:
-
-```bash
-# An example of a prerelease version
-yarn version:prepare 1.1.0-beta0
-# Or a release version
-yarn version:prepare 1.1.0
-```
-
-Commit this preparation so that it is clear which commit the release is from.
-
-Next, ensure packages are cleaned and rebuilt:
-
-```bash
-yarn clean && yarn build
-```
-
-Finally, publish the packages to NPM
-
-```bash
-# Note: If you have not yet logged in, first run yarn npm login
-yarn publish:all --otp YOUR_OTP_HERE
-# Or for a pre-release, include the tag
-yarn publish:all --otp YOUR_OTP_HERE --tag beta
-```
-
-For the git submodules, you will have to undo the removal of the `yarn.lock` files, `yarn install` and check in the yarn.lock changes on the submodule as well. Then checkin the updated commits on the monorepo itself.
-
-Make PRs for the monorepo and the submodules.
-
-Tag the commit with the appropriate version, and then create a github release with a changelog against the previous version https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new
 
 ### Release Agents
 
@@ -82,3 +103,9 @@ Tag the commit with the appropriate version, and then create a github release wi
 - Create a summary of change highlights
 - Create a "breaking changes" section with any changes required
 - Deploy agents with the new image tag (if it makes sense to)
+
+### Releasing packages to NPM
+
+We use [changesets](https://github.com/changesets/changesets) to release to NPM. You can use the `release` script in `package.json` to publish.
+
+For an alpha or beta version, follow the directions [here](https://github.com/changesets/changesets/blob/main/docs/prereleases.md).

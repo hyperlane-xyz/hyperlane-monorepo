@@ -1,21 +1,21 @@
+import { Ownable, Router } from '@hyperlane-xyz/core';
 import {
-  IInterchainGasPaymaster__factory,
-  Mailbox__factory,
-  Router,
-} from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+  Address,
+  addressToBytes32,
+  objFilter,
+  objMap,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
+import { filterOwnableContracts } from '../contracts/contracts.js';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-  filterOwnableContracts,
-} from '../contracts';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { moduleCanCertainlyVerify } from '../ism/HyperlaneIsmFactory';
-import { RouterConfig } from '../router/types';
-import { ChainMap } from '../types';
-import { objFilter, objMap, objMerge } from '../utils/objects';
+} from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap } from '../types.js';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
@@ -23,78 +23,30 @@ export abstract class HyperlaneRouterDeployer<
 > extends HyperlaneDeployer<Config, Factories> {
   abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
-  // The ISM check does not appropriately handle ISMs that have sender,
-  // recipient, or body-specific logic. Folks that wish to deploy using
-  // such ISMs *may* need to override checkConfig to disable this check.
-  async checkConfig(configMap: ChainMap<Config>): Promise<void> {
-    const chains = Object.keys(configMap);
-    for (const [chain, config] of Object.entries(configMap)) {
-      const signerOrProvider = this.multiProvider.getSignerOrProvider(chain);
-      const igp = IInterchainGasPaymaster__factory.connect(
-        config.interchainGasPaymaster,
-        signerOrProvider,
-      );
-      const mailbox = Mailbox__factory.connect(
-        config.mailbox,
-        signerOrProvider,
-      );
-      const ism =
-        config.interchainSecurityModule ?? (await mailbox.defaultIsm());
-      const remotes = chains.filter((c) => c !== chain);
-      for (const remote of remotes) {
-        // Try to confirm that the IGP supports delivery to all remotes
-        try {
-          await igp.quoteGasPayment(this.multiProvider.getDomainId(remote), 1);
-        } catch (e) {
-          throw new Error(
-            `The specified or default IGP with address ${igp.address} on ` +
-              `${chain} is not configured to deliver messages to ${remote}, ` +
-              `did you mean to specify a different one?`,
-          );
-        }
-
-        // Try to confirm that the specified or default ISM can verify messages to all remotes
-        const canVerify = await moduleCanCertainlyVerify(
-          ism,
-          this.multiProvider,
-          chain,
-          remote,
-        );
-        if (!canVerify) {
-          throw new Error(
-            `The specified or default ISM with address ${ism} on ${chain} ` +
-              `cannot verify messages from ${remote}, did you forget to ` +
-              `specify an ISM, or mean to specify a different one?`,
-          );
-        }
-      }
-    }
-  }
-
-  async initConnectionClients(
+  async configureClients(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
       const config = configMap[chain];
-      await super.initConnectionClient(chain, this.router(contracts), config);
+      await super.configureClient(chain, this.router(contracts), config);
     }
   }
 
   async enrollRemoteRouters(
     deployedContractsMap: HyperlaneContractsMap<Factories>,
     _: ChainMap<Config>,
-    foreignRouters: ChainMap<types.Address> = {},
+    foreignRouters: ChainMap<Address> = {},
   ): Promise<void> {
-    this.logger(
+    this.logger.debug(
       `Enrolling deployed routers with each other (if not already)...`,
     );
 
     // Make all routers aware of each other.
 
     // Routers that were deployed.
-    const deployedRouters: ChainMap<types.Address> = objMap(
+    const deployedRouters: ChainMap<Address> = objMap(
       deployedContractsMap,
       (_, contracts) => this.router(contracts).address,
     );
@@ -111,7 +63,7 @@ export abstract class HyperlaneRouterDeployer<
         allRemoteChains.map(async (remote) => {
           const remoteDomain = this.multiProvider.getDomainId(remote);
           const current = await this.router(contracts).routers(remoteDomain);
-          const expected = utils.addressToBytes32(allRouters[remote]);
+          const expected = addressToBytes32(allRouters[remote]);
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
       );
@@ -128,7 +80,7 @@ export abstract class HyperlaneRouterDeployer<
 
       await super.runIfOwner(chain, this.router(contracts), async () => {
         const chains = domains.map((id) => this.multiProvider.getChainName(id));
-        this.logger(
+        this.logger.debug(
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );
         await this.multiProvider.handleTx(
@@ -147,12 +99,17 @@ export abstract class HyperlaneRouterDeployer<
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
-    this.logger(`Transferring ownership of ownables...`);
+    this.logger.debug(`Transferring ownership of ownables...`);
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
-      const owner = configMap[chain].owner;
-      const ownables = await filterOwnableContracts(contracts);
-      await this.transferOwnershipOfContracts(chain, owner, ownables);
+      const ownables = (await filterOwnableContracts(contracts)) as Partial<
+        Record<keyof Factories, Ownable>
+      >;
+      await this.transferOwnershipOfContracts(
+        chain,
+        configMap[chain],
+        ownables,
+      );
     }
   }
 
@@ -166,7 +123,7 @@ export abstract class HyperlaneRouterDeployer<
     );
 
     // Create a map of chains that have foreign deployments.
-    const foreignDeployments: ChainMap<types.Address> = objFilter(
+    const foreignDeployments: ChainMap<Address> = objFilter(
       objMap(configMap, (_, config) => config.foreignDeployment),
       (_chainName, foreignDeployment): foreignDeployment is string =>
         foreignDeployment !== undefined,
@@ -179,8 +136,9 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       foreignDeployments,
     );
-    await this.initConnectionClients(deployedContractsMap, configMap);
+    await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
+    this.logger.debug(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
   }

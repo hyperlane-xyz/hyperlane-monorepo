@@ -1,12 +1,18 @@
-use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
-use std::marker::PhantomData;
+//! The correct settings shape is defined in the TypeScript SDK metadata. While the exact shape
+//! and validations it defines are not applied here, we should mirror them.
+//! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use serde::de::{Error, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use std::{
+    fmt,
+    fmt::{Debug, Display, Formatter},
+    marker::PhantomData,
+};
 
-use hyperlane_core::config::StrOrInt;
-use hyperlane_core::{HyperlaneMessage, H160, H256};
+use hyperlane_core::{config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, H256};
+use serde::{
+    de::{Error, SeqAccess, Visitor},
+    Deserialize, Deserializer,
+};
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or
@@ -16,8 +22,7 @@ use hyperlane_core::{HyperlaneMessage, H160, H256};
 /// - wildcard "*"
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
-#[derive(Debug, Deserialize, Default, Clone)]
-#[serde(transparent)]
+#[derive(Debug, Default, Clone)]
 pub struct MatchingList(Option<Vec<ListElement>>);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +59,55 @@ impl<T: Debug> Display for Filter<T> {
                 write!(f, "]")
             }
         }
+    }
+}
+
+struct MatchingListVisitor;
+impl<'de> Visitor<'de> for MatchingListVisitor {
+    type Value = MatchingList;
+
+    fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(fmt, "an optional list of matching rules")
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(MatchingList(None))
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let list: Vec<ListElement> = deserializer.deserialize_seq(MatchingListArrayVisitor)?;
+        Ok(if list.is_empty() {
+            // this allows for empty matching lists to be treated as if no matching list was set
+            MatchingList(None)
+        } else {
+            MatchingList(Some(list))
+        })
+    }
+}
+
+struct MatchingListArrayVisitor;
+impl<'de> Visitor<'de> for MatchingListArrayVisitor {
+    type Value = Vec<ListElement>;
+
+    fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
+        write!(fmt, "a list of matching rules")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut rules = seq.size_hint().map(Vec::with_capacity).unwrap_or_default();
+        while let Some(rule) = seq.next_element::<ListElement>()? {
+            rules.push(rule);
+        }
+        Ok(rules)
     }
 }
 
@@ -112,7 +166,7 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     fn expecting(&self, fmt: &mut Formatter) -> fmt::Result {
         write!(
             fmt,
-            "Expecting either a wildcard \"*\", hex address string, or list of hex address strings"
+            "Expecting either a wildcard \"*\", hex/base58 address string, or list of hex/base58 address strings"
         )
     }
 
@@ -132,10 +186,19 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
         A: SeqAccess<'de>,
     {
         let mut values = Vec::new();
-        while let Some(i) = seq.next_element::<&str>()? {
-            values.push(parse_addr(i)?)
+        while let Some(i) = seq.next_element::<String>()? {
+            values.push(parse_addr(&i)?)
         }
         Ok(Self::Value::Enumerated(values))
+    }
+}
+
+impl<'de> Deserialize<'de> for MatchingList {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        d.deserialize_option(MatchingListVisitor)
     }
 }
 
@@ -160,13 +223,13 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 struct ListElement {
-    #[serde(default, rename = "originDomain")]
+    #[serde(default, rename = "origindomain")]
     origin_domain: Filter<u32>,
-    #[serde(default, rename = "senderAddress")]
+    #[serde(default, rename = "senderaddress")]
     sender_address: Filter<H256>,
-    #[serde(default, rename = "destinationDomain")]
+    #[serde(default, rename = "destinationdomain")]
     destination_domain: Filter<u32>,
-    #[serde(default, rename = "recipientAddress")]
+    #[serde(default, rename = "recipientaddress")]
     recipient_address: Filter<H256>,
 }
 
@@ -204,13 +267,13 @@ impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
 
 impl MatchingList {
     /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the the matching list is empty.
+    /// - `default`: What to return if the matching list is empty.
     pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
         self.matches(msg.into(), default)
     }
 
     /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the the matching list is empty.
+    /// - `default`: What to return if the matching list is empty.
     fn matches(&self, info: MatchInfo, default: bool) -> bool {
         if let Some(rules) = &self.0 {
             matches_any_rule(rules.iter(), info)
@@ -248,25 +311,19 @@ fn to_serde_err<IE: ToString, OE: Error>(e: IE) -> OE {
 }
 
 fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
-    if addr_str.len() <= 42 {
-        addr_str.parse::<H160>().map(H256::from)
-    } else {
-        addr_str.parse::<H256>()
-    }
-    .map_err(to_serde_err)
+    hex_or_base58_to_h256(addr_str).map_err(to_serde_err)
 }
 
 #[cfg(test)]
 mod test {
     use hyperlane_core::{H160, H256};
 
-    use crate::settings::matching_list::MatchInfo;
-
     use super::{Filter::*, MatchingList};
+    use crate::settings::matching_list::MatchInfo;
 
     #[test]
     fn basic_config() {
-        let list: MatchingList = serde_json::from_str(r#"[{"originDomain": "*", "senderAddress": "*", "destinationDomain": "*", "recipientAddress": "*"}, {}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"origindomain": "*", "senderaddress": "*", "destinationdomain": "*", "recipientaddress": "*"}, {}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 2);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -307,7 +364,7 @@ mod test {
 
     #[test]
     fn config_with_address() {
-        let list: MatchingList = serde_json::from_str(r#"[{"senderAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"senderaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "recipientaddress": "0x9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
@@ -361,14 +418,20 @@ mod test {
     #[test]
     fn config_with_multiple_domains() {
         let whitelist: MatchingList =
-            serde_json::from_str(r#"[{"destinationDomain": ["13372", "13373"]}]"#).unwrap();
+            serde_json::from_str(r#"[{"destinationdomain": ["9913372", "9913373"]}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
-        assert_eq!(elem.destination_domain, Enumerated(vec![13372, 13373]));
+        assert_eq!(elem.destination_domain, Enumerated(vec![9913372, 9913373]));
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
+    }
+
+    #[test]
+    fn config_with_empty_list_is_none() {
+        let whitelist: MatchingList = serde_json::from_str(r#"[]"#).unwrap();
+        assert!(whitelist.0.is_none());
     }
 
     #[test]
@@ -383,5 +446,27 @@ mod test {
         assert!(MatchingList(None).matches(info, true));
         // blacklist use
         assert!(!MatchingList(None).matches(info, false));
+    }
+
+    #[test]
+    fn supports_base58() {
+        serde_json::from_str::<MatchingList>(
+            r#"[{"origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
+        ).unwrap();
+    }
+
+    #[test]
+    fn supports_sequence_h256s() {
+        let json_str = r#"[{"origindomain":1399811151,"senderaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"],"destinationdomain":11155111,"recipientaddress":["0x6AD4DEBA8A147d000C09de6465267a9047d1c217","0x6AD4DEBA8A147d000C09de6465267a9047d1c218"]}]"#;
+
+        // Test parsing directly into MatchingList
+        serde_json::from_str::<MatchingList>(json_str).unwrap();
+
+        // Test parsing into a Value and then into MatchingList, which is the path used
+        // by the agent config parser.
+        let val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let value_parser =
+            hyperlane_base::settings::parser::ValueParser::new(Default::default(), &val);
+        crate::settings::parse_matching_list(value_parser).unwrap();
     }
 }

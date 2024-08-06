@@ -1,25 +1,15 @@
 use eyre::Result;
-use tracing_opentelemetry::OpenTelemetryLayer;
+pub use span_metrics::TimeSpanLifetime;
 use tracing_subscriber::{
     filter::{LevelFilter, Targets},
     prelude::*,
 };
 
-pub use span_metrics::TimeSpanLifetime;
-
-use crate::settings::trace::fmt::Style;
-use crate::CoreMetrics;
-
-use self::{fmt::LogOutputLayer, jaeger::JaegerConfig, zipkin::ZipkinConfig};
+use self::fmt::LogOutputLayer;
+use crate::{settings::trace::fmt::Style, CoreMetrics};
 
 /// Configure a `tracing_subscriber::fmt` Layer outputting to stdout
 pub mod fmt;
-
-/// Configure a Layer using `tracing_opentelemtry` + `opentelemetry-jaeger`
-pub mod jaeger;
-
-/// Configure a Layer using `tracing_opentelemtry` + `opentelemetry-zipkin`
-pub mod zipkin;
 
 mod span_metrics;
 
@@ -34,13 +24,15 @@ pub enum Level {
     /// Warn
     Warn = 2,
     /// Debug
-    Debug = 3,
+    Debug = 4,
     /// Trace
     Trace = 5,
+    /// Trace + Additional logs from dependencies
+    DependencyTrace = 6,
     /// Info
     #[serde(other)]
     #[default]
-    Info = 4,
+    Info = 3,
 }
 
 impl From<Level> for LevelFilter {
@@ -50,7 +42,7 @@ impl From<Level> for LevelFilter {
             Level::Error => LevelFilter::ERROR,
             Level::Warn => LevelFilter::WARN,
             Level::Debug => LevelFilter::DEBUG,
-            Level::Trace => LevelFilter::TRACE,
+            Level::Trace | Level::DependencyTrace => LevelFilter::TRACE,
             Level::Info => LevelFilter::INFO,
         }
     }
@@ -59,48 +51,52 @@ impl From<Level> for LevelFilter {
 /// Configuration for the tracing subscribers used by Hyperlane agents
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct TracingConfig {
-    jaeger: Option<JaegerConfig>,
-    zipkin: Option<ZipkinConfig>,
     #[serde(default)]
-    fmt: Style,
+    pub(crate) fmt: Style,
     #[serde(default)]
-    level: Level,
+    pub(crate) level: Level,
 }
 
 impl TracingConfig {
     /// Attempt to instantiate and register a tracing subscriber setup from
     /// settings.
-    pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
+    pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<console_subscriber::Server> {
         let mut target_layer = Targets::new().with_default(self.level);
-        if self.level < Level::Trace {
-            // only show these debug and trace logs at trace level
-            target_layer = target_layer.with_target("hyper", Level::Info);
-            target_layer = target_layer.with_target("rusoto_core", Level::Info);
-            target_layer = target_layer.with_target("reqwest", Level::Info);
 
+        if self.level < Level::DependencyTrace {
+            // Reduce log noise from trusted libraries that we can reasonably assume are working correctly
+            target_layer = target_layer
+                .with_target("hyper::", Level::Info)
+                .with_target("rusoto_core", Level::Info)
+                .with_target("rustls", Level::Info)
+                .with_target("reqwest", Level::Info)
+                .with_target("runtime", Level::Debug)
+                .with_target("h2::", Level::Info)
+                .with_target("tower", Level::Info)
+                .with_target("tendermint", Level::Info)
+                .with_target("tokio", Level::Debug)
+                .with_target("tokio_util", Level::Debug)
+                .with_target("ethers_providers", Level::Debug);
+        }
+
+        if self.level < Level::Trace {
             // only show sqlx query logs at trace level
-            target_layer = target_layer.with_target("sqlx::query", Level::Warn);
+            target_layer = target_layer
+                .with_target("sqlx::query", Level::Warn)
+                .with_target("hyper::", Level::Warn);
         }
         let fmt_layer: LogOutputLayer<_> = self.fmt.into();
         let err_layer = tracing_error::ErrorLayer::default();
 
+        let (tokio_layer, tokio_server) = console_subscriber::ConsoleLayer::new();
         let subscriber = tracing_subscriber::Registry::default()
+            .with(tokio_layer)
             .with(target_layer)
             .with(TimeSpanLifetime::new(metrics))
             .with(fmt_layer)
             .with(err_layer);
 
-        if let Some(jaeger) = &self.jaeger {
-            let layer: OpenTelemetryLayer<_, _> = jaeger.try_into_layer()?;
-            subscriber.with(layer).try_init()?;
-            return Ok(());
-        }
-        if let Some(zipkin) = &self.zipkin {
-            let layer: OpenTelemetryLayer<_, _> = zipkin.try_into_layer()?;
-            subscriber.with(layer).try_init()?;
-            return Ok(());
-        }
         subscriber.try_init()?;
-        Ok(())
+        Ok(tokio_server)
     }
 }

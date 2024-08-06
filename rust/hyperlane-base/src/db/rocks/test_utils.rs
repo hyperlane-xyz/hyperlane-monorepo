@@ -31,8 +31,8 @@ where
 #[cfg(test)]
 mod test {
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, LogMeta, RawHyperlaneMessage, H256,
-        U256,
+        HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta,
+        RawHyperlaneMessage, H256, H512, U256,
     };
 
     use crate::db::HyperlaneRocksDB;
@@ -49,7 +49,7 @@ mod test {
 
             let m = HyperlaneMessage {
                 nonce: 100,
-                version: 0,
+                version: 3,
                 origin: 10,
                 sender: H256::from_low_u64_be(4),
                 destination: 12,
@@ -60,12 +60,14 @@ mod test {
                 address: H256::from_low_u64_be(1),
                 block_number: 1,
                 block_hash: H256::from_low_u64_be(1),
-                transaction_hash: H256::from_low_u64_be(1),
+                transaction_id: H512::from_low_u64_be(1),
                 transaction_index: 0,
                 log_index: U256::from(0),
             };
 
-            db.store_logs(&vec![(m.clone(), meta)]).await.unwrap();
+            db.store_logs(&vec![(Indexed::new(m.clone()), meta)])
+                .await
+                .unwrap();
 
             let by_nonce = db.retrieve_message_by_nonce(m.nonce).unwrap().unwrap();
             assert_eq!(

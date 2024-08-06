@@ -1,29 +1,39 @@
-import debug from 'debug';
+import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
-  OverheadIgp,
   ProxyAdmin,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts, filterOwnableContracts } from '../contracts';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
-import { pick } from '../utils/objects';
+import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts';
-import { IgpConfig, OverheadIgpConfig } from './types';
+import { IgpFactories, igpFactories } from './contracts.js';
+import {
+  oracleConfigToOracleData,
+  serializeDifference,
+} from './oracle/types.js';
+import { IgpConfig } from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
-  OverheadIgpConfig,
+  IgpConfig,
   IgpFactories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
+  ) {
     super(multiProvider, igpFactories, {
-      logger: debug('hyperlane:IgpDeployer'),
+      logger: rootLogger.child({ module: 'IgpDeployer' }),
+      contractVerifier,
+      concurrentDeploy,
     });
   }
 
@@ -33,124 +43,162 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     storageGasOracle: StorageGasOracle,
     config: IgpConfig,
   ): Promise<InterchainGasPaymaster> {
-    const owner = config.owner;
-    const beneficiary = config.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
+      'interchainGasPaymaster',
       proxyAdmin.address,
       [],
-      [owner, beneficiary],
+      [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
-    const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
-      [];
+    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
+      // TODO: add back support for non-EVM remotes.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      const remoteId = this.multiProvider.tryGetDomainId(remote);
+      if (remoteId === null) {
+        this.logger.warn(
+          `Skipping overhead ${chain} -> ${remote}. Expected if the remote is a non-EVM chain.`,
+        );
+        continue;
+      }
 
-    const remotes = Object.keys(config.gasOracleType);
-    for (const remote of remotes) {
-      const remoteId = this.multiProvider.getDomainId(remote);
-      const currentGasOracle = await igp.gasOracles(remoteId);
-      if (!utils.eqAddress(currentGasOracle, storageGasOracle.address)) {
-        gasOracleConfigsToSet.push({
+      const currentGasConfig = await igp.destinationGasConfigs(remoteId);
+      if (
+        !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
+        !currentGasConfig.gasOverhead.eq(newGasOverhead)
+      ) {
+        this.logger.debug(
+          `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
+        );
+        gasParamsToSet.push({
           remoteDomain: remoteId,
-          gasOracle: storageGasOracle.address,
+          config: {
+            gasOverhead: newGasOverhead,
+            gasOracle: storageGasOracle.address,
+          },
         });
       }
     }
 
-    if (gasOracleConfigsToSet.length > 0) {
+    if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () =>
         this.multiProvider.handleTx(
           chain,
-          igp.setGasOracles(gasOracleConfigsToSet),
-        ),
-      );
-    }
-    return igp;
-  }
-
-  async deployOverheadIgp(
-    chain: ChainName,
-    interchainGasPaymasterAddress: types.Address,
-    config: OverheadIgpConfig,
-  ): Promise<OverheadIgp> {
-    const overheadInterchainGasPaymaster = await this.deployContract(
-      chain,
-      'defaultIsmInterchainGasPaymaster',
-      [interchainGasPaymasterAddress],
-    );
-
-    // Only set gas overhead configs if they differ from what's on chain
-    const configs: OverheadIgp.DomainConfigStruct[] = [];
-    const remotes = Object.keys(config.overhead);
-    for (const remote of remotes) {
-      const remoteDomain = this.multiProvider.getDomainId(remote);
-      const gasOverhead = config.overhead[remote];
-      const existingOverhead =
-        await overheadInterchainGasPaymaster.destinationGasOverhead(
-          remoteDomain,
-        );
-      if (!existingOverhead.eq(gasOverhead)) {
-        configs.push({ domain: remoteDomain, gasOverhead });
-      }
-    }
-
-    if (configs.length > 0) {
-      await this.runIfOwner(chain, overheadInterchainGasPaymaster, () =>
-        this.multiProvider.handleTx(
-          chain,
-          overheadInterchainGasPaymaster.setDestinationGasOverheads(
-            configs,
+          igp.setDestinationGasConfigs(
+            gasParamsToSet,
             this.multiProvider.getTransactionOverrides(chain),
           ),
         ),
       );
     }
 
-    return overheadInterchainGasPaymaster;
+    return igp;
   }
 
-  async deployStorageGasOracle(chain: ChainName): Promise<StorageGasOracle> {
-    return this.deployContract(chain, 'storageGasOracle', []);
+  async deployStorageGasOracle(
+    chain: ChainName,
+    config: IgpConfig,
+  ): Promise<StorageGasOracle> {
+    const gasOracle = await this.deployContract(chain, 'storageGasOracle', []);
+
+    if (!config.oracleConfig) {
+      this.logger.debug('No oracle config provided, skipping...');
+      return gasOracle;
+    }
+
+    this.logger.info(`Configuring gas oracle from ${chain}...`);
+    const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+
+    // For each remote, check if the gas oracle has the correct data
+    for (const [remote, desired] of Object.entries(config.oracleConfig)) {
+      // TODO: add back support for non-EVM remotes.
+      // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
+      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
+      if (remoteDomain === null) {
+        this.logger.warn(
+          `Skipping gas oracle ${chain} -> ${remote}. Expected if the remote is a non-EVM chain.`,
+        );
+        continue;
+      }
+
+      const actual = await gasOracle.remoteGasData(remoteDomain);
+
+      const desiredData = oracleConfigToOracleData(desired);
+
+      if (
+        !actual.gasPrice.eq(desired.gasPrice) ||
+        !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
+      ) {
+        this.logger.info(
+          `${chain} -> ${remote}: ${serializeDifference(actual, desiredData)}`,
+        );
+        configsToSet.push({
+          remoteDomain,
+          ...desiredData,
+        });
+      }
+
+      const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
+      const exampleRemoteGasCost = desiredData.tokenExchangeRate
+        .mul(desiredData.gasPrice)
+        .mul(exampleRemoteGas)
+        .div(TOKEN_EXCHANGE_RATE_SCALE);
+      this.logger.info(
+        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
+          exampleRemoteGasCost,
+        )}`,
+      );
+    }
+
+    if (configsToSet.length > 0) {
+      await this.runIfOwner(chain, gasOracle, async () =>
+        this.multiProvider.handleTx(
+          chain,
+          gasOracle.setRemoteGasDataConfigs(
+            configsToSet,
+            this.multiProvider.getTransactionOverrides(chain),
+          ),
+        ),
+      );
+    }
+
+    return gasOracle;
   }
 
   async deployContracts(
     chain: ChainName,
-    config: OverheadIgpConfig,
+    config: IgpConfig,
   ): Promise<HyperlaneContracts<IgpFactories>> {
     // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
     // is loaded into the contract cache.
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-    const storageGasOracle = await this.deployStorageGasOracle(chain);
+
+    const storageGasOracle = await this.deployStorageGasOracle(chain, config);
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,
       storageGasOracle,
       config,
     );
-    const overheadIgp = await this.deployOverheadIgp(
-      chain,
-      interchainGasPaymaster.address,
-      config,
-    );
+
     const contracts = {
       proxyAdmin,
       storageGasOracle,
       interchainGasPaymaster,
-      defaultIsmInterchainGasPaymaster: overheadIgp,
     };
-    // Do not transfer ownership of StorageGasOracle, as it should be
-    // owned by a "hot" key so that prices can be updated regularly
-    const ownables = await filterOwnableContracts(contracts);
-    const filteredOwnables = pick(
-      ownables,
-      Object.keys(contracts).filter((name) => name !== 'storageGasOracle'),
-    );
-    await this.transferOwnershipOfContracts(
-      chain,
-      config.owner,
-      filteredOwnables,
-    );
+
+    const ownerConfig = {
+      ...config,
+      ownerOverrides: {
+        ...config.ownerOverrides,
+        storageGasOracle: config.oracleKey,
+      },
+    };
+
+    await this.transferOwnershipOfContracts(chain, ownerConfig, contracts);
+
     return contracts;
   }
 }

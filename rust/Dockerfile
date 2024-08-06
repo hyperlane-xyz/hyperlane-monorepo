@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.69 as builder
+FROM rust:1.72.1 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
@@ -17,6 +17,7 @@ COPY hyperlane-core ./hyperlane-core
 COPY hyperlane-test ./hyperlane-test
 COPY ethers-prometheus ./ethers-prometheus
 COPY utils ./utils
+COPY sealevel ./sealevel
 
 COPY Cargo.toml .
 COPY Cargo.lock .
@@ -26,14 +27,14 @@ RUN \
   --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
   --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
   --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
-    cargo build --release --bin validator --bin relayer --bin scraper && \
+    RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
     cp /usr/src/target/release/validator /release && \
     cp /usr/src/target/release/relayer /release && \
     cp /usr/src/target/release/scraper /release
 
 ## 2: Copy the binaries to release image
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 RUN apt-get update && \
     apt-get install -y \
         openssl \
@@ -47,7 +48,9 @@ COPY --from=builder /release/* .
 
 RUN chmod 777 /app &&  \
     mkdir /usr/share/hyperlane/ && \
-    chmod 1000 /usr/share/hyperlane
+    chmod 1000 /usr/share/hyperlane && \
+    mkdir /data/ && \
+    chown -R 1000 /data/
 
 USER 1000
 ENTRYPOINT ["tini", "--"]

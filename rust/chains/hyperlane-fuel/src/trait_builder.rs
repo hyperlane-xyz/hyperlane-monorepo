@@ -1,20 +1,12 @@
-use fuels::client::FuelClient;
-use fuels::prelude::Provider;
+use fuels::{client::FuelClient, prelude::Provider};
+use hyperlane_core::{ChainCommunicationError, ChainResult};
 use url::Url;
-
-use hyperlane_core::{config::*, ChainCommunicationError, ChainResult};
 
 /// Fuel connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
-    url: Url,
-}
-
-/// Raw fuel connection configuration used for better deserialization errors.
-#[derive(Debug, serde::Deserialize)]
-pub struct RawConnectionConf {
-    url: Option<String>,
+    pub url: Url,
 }
 
 /// An error type when parsing a connection configuration.
@@ -26,27 +18,6 @@ pub enum ConnectionConfError {
     /// Invalid `url` for connection configuration
     #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
     InvalidConnectionUrl(String, url::ParseError),
-}
-
-impl FromRawConf<'_, RawConnectionConf> for ConnectionConf {
-    fn from_config_filtered(
-        raw: RawConnectionConf,
-        cwp: &ConfigPath,
-        _filter: (),
-    ) -> ConfigResult<Self> {
-        use ConnectionConfError::*;
-        match raw {
-            RawConnectionConf { url: Some(url) } => Ok(Self {
-                url: url
-                    .parse()
-                    .map_err(|e| InvalidConnectionUrl(url, e))
-                    .into_config_result(|| cwp.join("url"))?,
-            }),
-            RawConnectionConf { url: None } => {
-                Err(MissingConnectionUrl).into_config_result(|| cwp.join("url"))
-            }
-        }
-    }
 }
 
 #[derive(thiserror::Error, Debug)]

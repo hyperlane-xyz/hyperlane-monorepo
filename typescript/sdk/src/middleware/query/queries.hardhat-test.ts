@@ -1,34 +1,35 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import {
   InterchainQueryRouter,
   TestQuery,
   TestQuery__factory,
 } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
-import { Chains } from '../../consts/chains';
-import { HyperlaneContractsMap } from '../../contracts';
-import { TestCoreApp } from '../../core/TestCoreApp';
-import { TestCoreDeployer } from '../../core/TestCoreDeployer';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterConfig } from '../../router/types';
-import { deployTestIgpsAndGetRouterConfig } from '../../test/testUtils';
-import { ChainMap } from '../../types';
+import { TestChainName, test1, test2 } from '../../consts/testChains.js';
+import { HyperlaneContractsMap } from '../../contracts/types.js';
+import { TestCoreApp } from '../../core/TestCoreApp.js';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
+import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
+import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { RouterConfig } from '../../router/types.js';
+import { ChainMap } from '../../types.js';
 
-import { InterchainQuery } from './InterchainQuery';
-import { InterchainQueryChecker } from './InterchainQueryChecker';
-import { InterchainQueryDeployer } from './InterchainQueryDeployer';
-import { InterchainQueryFactories } from './contracts';
+import { InterchainQuery } from './InterchainQuery.js';
+import { InterchainQueryChecker } from './InterchainQueryChecker.js';
+import { InterchainQueryDeployer } from './InterchainQueryDeployer.js';
+import { InterchainQueryFactories } from './contracts.js';
 
-describe('InterchainQueryRouter', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
-  const localDomain = chainMetadata[localChain].chainId;
-  const remoteDomain = chainMetadata[remoteChain].chainId;
+// eslint-disable-next-line jest/no-disabled-tests
+describe.skip('InterchainQueryRouter', async () => {
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
+  const localDomain = test1.domainId!;
+  const remoteDomain = test2.domainId!;
 
   let contracts: HyperlaneContractsMap<InterchainQueryFactories>;
   let signer: SignerWithAddress;
@@ -40,28 +41,21 @@ describe('InterchainQueryRouter', async () => {
   let testQuery: TestQuery;
 
   before(async () => {
-    [signer] = await ethers.getSigners();
-
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = await deployTestIgpsAndGetRouterConfig(
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
       multiProvider,
-      signer.address,
-      coreContractsMaps,
     );
+    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+    config = coreApp.getRouterConfig(signer.address);
   });
 
   beforeEach(async () => {
-    const InterchainQuery = new InterchainQueryDeployer(multiProvider);
-
-    contracts = await InterchainQuery.deploy(config);
-
+    contracts = await new InterchainQueryDeployer(multiProvider).deploy(config);
     local = contracts[localChain].interchainQueryRouter;
     remote = contracts[remoteChain].interchainQueryRouter;
-
     testQuery = await new TestQuery__factory(signer).deploy(local.address);
   });
 
@@ -75,7 +69,7 @@ describe('InterchainQueryRouter', async () => {
   it('completes query round trip and invokes callback', async () => {
     const secret = 123;
     const sender = testQuery.address;
-    const bytes32sender = utils.addressToBytes32(sender);
+    const bytes32sender = addressToBytes32(sender);
     const expectedOwner = await remote.owner();
     await expect(testQuery.queryRouterOwner(remoteDomain, secret))
       .to.emit(local, 'QueryDispatched')

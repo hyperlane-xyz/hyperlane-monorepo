@@ -1,0 +1,23 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "hyperlane-sealevel-connection-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh.workspace = true
+solana-program.workspace = true
+
+access-control = { path = "../access-control" }
+hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
+hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
+
+[dev-dependencies]
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

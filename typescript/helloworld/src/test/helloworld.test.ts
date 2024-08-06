@@ -1,53 +1,47 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import {
   ChainMap,
-  Chains,
+  HyperlaneIsmFactory,
+  HyperlaneProxyFactoryDeployer,
   MultiProvider,
+  TestChainName,
   TestCoreApp,
   TestCoreDeployer,
-  deployTestIgpsAndGetRouterConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldConfig } from '../deploy/config';
-import { HelloWorldDeployer } from '../deploy/deploy';
-import {
-  HelloWorld,
-  IInterchainGasPaymaster,
-  IInterchainGasPaymaster__factory,
-} from '../types';
+import { HelloWorldConfig } from '../deploy/config.js';
+import { HelloWorldDeployer } from '../deploy/deploy.js';
+import { HelloWorld } from '../types/index.js';
 
 describe('HelloWorld', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
   let localDomain: number;
   let remoteDomain: number;
 
   let signer: SignerWithAddress;
   let local: HelloWorld;
   let remote: HelloWorld;
-  let localIgp: IInterchainGasPaymaster;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let config: ChainMap<HelloWorldConfig>;
 
   before(async () => {
-    [signer] = await ethers.getSigners();
-
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    const ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
+      multiProvider,
+    );
+    coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+    config = coreApp.getRouterConfig(signer.address);
+
     localDomain = multiProvider.getDomainId(localChain);
     remoteDomain = multiProvider.getDomainId(remoteChain);
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = await deployTestIgpsAndGetRouterConfig(
-      multiProvider,
-      signer.address,
-      coreContractsMaps,
-    );
   });
 
   beforeEach(async () => {
@@ -56,10 +50,6 @@ describe('HelloWorld', async () => {
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
-    localIgp = IInterchainGasPaymaster__factory.connect(
-      config[localChain].interchainGasPaymaster,
-      multiProvider.getProvider(localChain),
-    );
 
     // The all counts start empty
     expect(await local.sent()).to.equal(0);
@@ -68,19 +58,15 @@ describe('HelloWorld', async () => {
     expect(await remote.received()).to.equal(0);
   });
 
-  async function quoteGasPayment(
-    fromRouter: HelloWorld,
-    destinationDomain: number,
-    igp: IInterchainGasPaymaster,
-  ) {
-    const handleGasAmount = await fromRouter.HANDLE_GAS_AMOUNT();
-    return igp.quoteGasPayment(destinationDomain, handleGasAmount);
-  }
-
   it('sends a message', async () => {
+    const body = 'Hello';
+    const payment = await local['quoteDispatch(uint32,bytes)'](
+      remoteDomain,
+      Buffer.from(body),
+    );
     await expect(
-      local.sendHelloWorld(remoteDomain, 'Hello', {
-        value: await quoteGasPayment(local, remoteDomain, localIgp),
+      local.sendHelloWorld(remoteDomain, body, {
+        value: payment,
       }),
     ).to.emit(local, 'SentHelloWorld');
     // The sent counts are correct
@@ -91,16 +77,22 @@ describe('HelloWorld', async () => {
   });
 
   it('reverts if there is insufficient payment', async () => {
+    const body = 'Hello';
     await expect(
-      local.sendHelloWorld(remoteDomain, 'Hello', {
+      local.sendHelloWorld(remoteDomain, body, {
         value: 0,
       }),
-    ).to.be.revertedWith('insufficient interchain gas payment');
+    ).to.be.revertedWith('ProtocolFee: insufficient protocol fee');
   });
 
   it('handles a message', async () => {
-    await local.sendHelloWorld(remoteDomain, 'World', {
-      value: await quoteGasPayment(local, remoteDomain, localIgp),
+    const body = 'World';
+    const payment = await local['quoteDispatch(uint32,bytes)'](
+      remoteDomain,
+      Buffer.from(body),
+    );
+    await local.sendHelloWorld(remoteDomain, body, {
+      value: payment,
     });
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);

@@ -1,6 +1,10 @@
-export { HelloWorldApp } from './app/app';
-export { HelloWorldFactories, helloWorldFactories } from './app/contracts';
-export { HelloWorldChecker } from './deploy/check';
-export { HelloWorldConfig } from './deploy/config';
-export { HelloWorldDeployer } from './deploy/deploy';
-export * as types from './types';
+export { HelloWorldApp } from './app/app.js';
+export { HelloWorldFactories, helloWorldFactories } from './app/contracts.js';
+export { HelloWorldChecker } from './deploy/check.js';
+export { HelloWorldConfig } from './deploy/config.js';
+export { HelloWorldDeployer } from './deploy/deploy.js';
+export { EvmHelloWorldAdapter } from './multiProtocolApp/evmAdapter.js';
+export { HelloMultiProtocolApp } from './multiProtocolApp/multiProtocolApp.js';
+export { SealevelHelloWorldAdapter } from './multiProtocolApp/sealevelAdapter.js';
+export { IHelloWorldAdapter } from './multiProtocolApp/types.js';
+export * as types from './types/index.js';
