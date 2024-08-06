@@ -171,7 +171,6 @@ describe('SmartProvider', async () => {
     try {
       await token.transfer(signer.address, 1000000);
     } catch (e: any) {
-      console.log('ERROR:', e);
       expect(e.error.message).to.equal(
         'execution reverted: revert: ERC20: transfer amount exceeds balance',
       );
