@@ -630,7 +630,7 @@
       "estimateBlockTime": 1,
       "reorgPeriod": 10
     },
-    "chainId": "injective-1",
+    "chainId": 6909546,
     "deployer": {
       "name": "Abacus Works",
       "url": "https://www.hyperlane.xyz"
@@ -865,7 +865,7 @@
       "estimateBlockTime": 3,
       "reorgPeriod": 1
     },
-    "chainId": "neutron-1",
+    "chainId": 1853125230,
     "deployer": {
       "name": "Abacus Works",
       "url": "https://www.hyperlane.xyz"
@@ -953,7 +953,7 @@
       "estimateBlockTime": 3,
       "reorgPeriod": 1
     },
-    "chainId": "osmosis-1",
+    "chainId": 875,
     "deployer": {
       "name": "Mitosis",
       "url": "https://mitosis.org"
