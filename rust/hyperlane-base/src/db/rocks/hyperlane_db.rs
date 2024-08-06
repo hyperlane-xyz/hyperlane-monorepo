@@ -7,7 +7,7 @@ use hyperlane_core::{
     GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
     InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
-    MerkleTreeInsertion, H256,
+    MerkleTreeInsertion, PendingOperationStatus, H256,
 };
 
 use super::{
@@ -27,6 +27,7 @@ const HIGHEST_SEEN_MESSAGE_NONCE: &str = "highest_seen_message_nonce_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
+const STATUS_BY_MESSAGE_ID: &str = "status_by_message_id_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
@@ -228,7 +229,11 @@ impl HyperlaneRocksDB {
     /// Update the total gas payment for a message to include gas_payment
     fn update_gas_payment_by_gas_payment_key(&self, event: InterchainGasPayment) -> DbResult<()> {
         let gas_payment_key = event.into();
-        let existing_payment = self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
+        let existing_payment =
+            match self.retrieve_gas_payment_by_gas_payment_key(gas_payment_key)? {
+                Some(payment) => payment,
+                None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
+            };
         let total = existing_payment + event;
 
         debug!(?event, new_total_gas_payment=?total, "Storing gas payment");
@@ -260,11 +265,12 @@ impl HyperlaneRocksDB {
     pub fn retrieve_gas_payment_by_gas_payment_key(
         &self,
         gas_payment_key: GasPaymentKey,
-    ) -> DbResult<InterchainGasPayment> {
+    ) -> DbResult<Option<InterchainGasPayment>> {
         Ok(self
             .retrieve_interchain_gas_payment_data_by_gas_payment_key(&gas_payment_key)?
-            .unwrap_or_default()
-            .complete(gas_payment_key.message_id, gas_payment_key.destination))
+            .map(|payment| {
+                payment.complete(gas_payment_key.message_id, gas_payment_key.destination)
+            }))
     }
 
     /// Retrieve the total gas payment for a message
@@ -501,6 +507,13 @@ make_store_and_retrieve!(pub(self), dispatched_block_number_by_nonce, MESSAGE_DI
 make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
 make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
 make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
+make_store_and_retrieve!(
+    pub,
+    status_by_message_id,
+    STATUS_BY_MESSAGE_ID,
+    H256,
+    PendingOperationStatus
+);
 make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_gas_payment_key, GAS_PAYMENT_FOR_MESSAGE_ID, GasPaymentKey, InterchainGasPaymentData);
 make_store_and_retrieve!(pub(self), gas_payment_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, InterchainGasPayment);
 make_store_and_retrieve!(pub(self), gas_payment_block_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, u64);

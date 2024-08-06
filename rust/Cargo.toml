@@ -80,6 +80,7 @@ curve25519-dalek = { version = "~3.2", features = ["serde"] }
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
+dhat = "0.3.3"
 ed25519-dalek = "~1.0"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
@@ -164,15 +165,15 @@ spl-token = { version = "=3.5.0", features = ["no-entrypoint"] }
 spl-token-2022 = { version = "=0.5.0", features = ["no-entrypoint"] }
 spl-type-length-value = "=0.1.0"
 static_assertions = "1.1"
-strum = "0.25.0"
-strum_macros = "0.25.2"
+strum = "0.26.2"
+strum_macros = "0.26.2"
 tempfile = "3.3"
 tendermint = "0.32.2"
 tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"] }
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
-tokio = { version = "1", features = ["parking_lot", "tracing"] }
+tokio = { version = "1.37", features = ["parking_lot", "tracing"] }
 tokio-metrics = { version = "0.3.1", default-features = false }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
@@ -182,6 +183,7 @@ tracing-error = "0.2"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 tracing-test = "0.2.2"
+typetag = "0.2"
 uint = "0.9.5"
 ureq = { version = "2.4", default-features = false }
 url = "2.3"

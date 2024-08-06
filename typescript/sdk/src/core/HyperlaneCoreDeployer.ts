@@ -1,5 +1,6 @@
 import {
   IPostDispatchHook,
+  IPostDispatchHook__factory,
   Mailbox,
   TestRecipient,
   ValidatorAnnounce,
@@ -139,7 +140,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       await this.configureHook(
         chain,
         mailbox,
-        defaultHook,
+        defaultHook.address,
         (_mailbox) => _mailbox.defaultHook(),
         (_mailbox, _hook) =>
           _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
@@ -148,7 +149,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       await this.configureHook(
         chain,
         mailbox,
-        requiredHook,
+        requiredHook.address,
         (_mailbox) => _mailbox.requiredHook(),
         (_mailbox, _hook) =>
           _mailbox.populateTransaction.setRequiredHook(_hook, { ...overrides }),
@@ -184,6 +185,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     config: HookConfig,
     coreAddresses: Partial<CoreAddresses>,
   ): Promise<IPostDispatchHook> {
+    if (typeof config === 'string') {
+      return IPostDispatchHook__factory.connect(
+        config,
+        this.multiProvider.getProvider(chain),
+      );
+    }
+
     const hooks = await this.hookDeployer.deployContracts(
       chain,
       config,
@@ -194,7 +202,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       this.hookDeployer.deployedContracts[chain],
       this.hookDeployer.verificationInputs[chain],
     );
-    return hooks[config.type];
+    if (typeof config === 'string') {
+      return Object.values(hooks)[0];
+    } else {
+      return hooks[config.type];
+    }
   }
 
   async deployIsm(

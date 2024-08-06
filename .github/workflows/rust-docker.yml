@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'rust/**'
+      - '.github/workflows/rust-docker.yml'
 concurrency:
   group: build-push-agents-${{ github.ref }}
   cancel-in-progress: true
@@ -40,7 +41,7 @@ jobs:
         id: taggen
         run: |
           echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-          echo "TAG_SHA=$(echo '${{ github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=$(echo '${{ github.event.pull_request.head.sha || github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5

@@ -1,21 +1,35 @@
 import { z } from 'zod';
 
-import { OwnableConfigSchema } from '../deploy/schemas.js';
+import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
+import { HookConfigSchema } from '../hook/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { ZHash } from '../metadata/customZodTypes.js';
+import { OwnableSchema } from '../schemas.js';
 
-export const MailboxClientConfigSchema = OwnableConfigSchema.extend({
+export const MailboxClientConfigSchema = OwnableSchema.extend({
   mailbox: ZHash,
-  hook: ZHash.optional(),
+  hook: HookConfigSchema.optional(),
   interchainSecurityModule: IsmConfigSchema.optional(),
+  ismFactoryAddresses: ProxyFactoryFactoriesSchema.optional(),
 });
 
 export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
 
+const RemoteRouterDomain = z.string();
+const RemoteRouterRouter = z.string().startsWith('0x');
+export const RemoteRoutersSchema = z.record(
+  RemoteRouterDomain,
+  RemoteRouterRouter,
+);
+
 export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   ForeignDeploymentConfigSchema,
+).merge(
+  z.object({
+    remoteRouters: RemoteRoutersSchema.optional(),
+  }),
 );
 
 export const GasRouterConfigSchema = RouterConfigSchema.extend({

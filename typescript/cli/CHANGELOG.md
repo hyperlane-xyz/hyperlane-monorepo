@@ -1,5 +1,119 @@
 # @hyperlane-xyz/cli
 
+## 5.0.0
+
+### Major Changes
+
+- f1d70a5e8: refactor: select chain now become 2 step, select mainnet/testnet type first, then select chain
+
+### Minor Changes
+
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+- d0f7f21fd: Fix logging for hyperlane core apply
+- d00f2ffc0: Displays formatted deployment plan to confirm warp deploy.
+- 40255575c: Adds blockExplorers option on registry init.
+- 708999433: Adds hyperlane warp apply
+- 0e1a80e6e: Improve chain metadata and address fetching from github registries
+- 5529d98d0: Add hyperlane core apply with update ownership
+- 62d71fad3: Add hyperlane warp update to extend a warp config
+- 49986aa92: Add collateralAddressOrDenom for collateralVault
+- ded5718a0: Update hyperlane core read to log the config terminal "preview", only if the number of lines is < 250
+- 5125b798d: Prompt for chain testnet/mainnet during chain definition flow
+- bb470aec2: Add 'submit' command to CLI.
+
+### Patch Changes
+
+- 80ac5d28e: Display token symbol when balance is insufficient for command
+- 6341edf2a: fix: use merkle tree hook address from registry for self relay hook derivations
+- c539775d7: Default to mailbox address in registry
+- c2a2897d7: Update CLI verbiage to ask for vault and not token when initiating collateralVault warp route.
+- Updated dependencies [2c0ae3cf3]
+- Updated dependencies [0dedbf5a0]
+- Updated dependencies [388d25517]
+- Updated dependencies [69a39da1c]
+- Updated dependencies [4907b510c]
+- Updated dependencies [488f949ef]
+- Updated dependencies [c7f5a35e8]
+- Updated dependencies [7265a4087]
+- Updated dependencies [0a40dcb8b]
+- Updated dependencies [f83b492de]
+- Updated dependencies [79740755b]
+- Updated dependencies [8533f9e66]
+- Updated dependencies [ed65556aa]
+- Updated dependencies [ab827a3fa]
+- Updated dependencies [dfa908796]
+- Updated dependencies [ed63e04c4]
+- Updated dependencies [dfa908796]
+- Updated dependencies [5aa24611b]
+- Updated dependencies [cfb890dc6]
+- Updated dependencies [708999433]
+- Updated dependencies [5529d98d0]
+- Updated dependencies [62d71fad3]
+- Updated dependencies [49986aa92]
+- Updated dependencies [7fdd3958d]
+- Updated dependencies [8e942d3c6]
+- Updated dependencies [fef629673]
+- Updated dependencies [be4617b18]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/sdk@5.0.0
+  - @hyperlane-xyz/utils@5.0.0
+
+## 4.1.0
+
+### Minor Changes
+
+- 4cc9327e5: Update warp deploy to handle xerc20, initializerArgs to be the signer, update deploy gas constants
+
+### Patch Changes
+
+- 46652c62a: Fix the missing sorting in the YAML file generated
+- 56be527d6: Fix typo in core read command
+- 378a5b79f: Remove extra fields from warp core config
+- Updated dependencies [36e75af4e]
+- Updated dependencies [d31677224]
+- Updated dependencies [4cc9327e5]
+- Updated dependencies [1687fca93]
+  - @hyperlane-xyz/sdk@4.1.0
+  - @hyperlane-xyz/utils@4.1.0
+
+## 4.0.0
+
+### Major Changes
+
+- df6a18053: Release CLI v4.0.0.
+
+### Minor Changes
+
+- 44cc9bf6b: Add CLI command to support AVS validator status check
+- b05ae38ac: Gracefully handle RPC failures during warp send & fix deriving hook error that prevents warp and core test messages on the cli.
+- 9304fe241: Use metadata builders in message relaying
+- 6398aab72: Upgrade registry to 2.1.1
+- 5c8ba0b85: Rename hyperlane config create chain -> hyperlane registry init. Rename all `configure` to `init`
+- cd419c98a: Add a validator preFlightCheck command verifying that the validator has been announced for a given chain
+- 35f869950: Add command to support creating agent configs
+- bf7ad09da: feat(cli): add `warp --symbol` flag
+- b0828b3d0: Reintroduce `ism read` and `hook read` commands
+- 129bd871d: Add chain displayName prompt with default
+- 4040db723: Fix createDefaultWarpIsmConfig to default to trusted relayer and fallback routing without prompts
+- 6db9fa9ad: Implement hyperlane warp deploy
+- bd3ca9195: Updates ci-test.sh to ci-advanced-test.sh.
+- b7003cf35: Add stdout.rows to pagesize calculation with DEFAULT_PAGE_SIZE
+
+### Patch Changes
+
+- 3283eefd6: Removes default pattern for chain name when creating a new chain.
+- 4dd2651ee: Add xerc20 limit lookups to warp read
+- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
+- Updated dependencies [b05ae38ac]
+- Updated dependencies [9304fe241]
+- Updated dependencies [bdcbe1d16]
+- Updated dependencies [6b63c5d82]
+- Updated dependencies [e38d31685]
+- Updated dependencies [e0f226806]
+- Updated dependencies [6db9fa9ad]
+  - @hyperlane-xyz/sdk@4.0.0
+  - @hyperlane-xyz/utils@4.0.0
+
 ## 3.16.0
 
 ### Patch Changes

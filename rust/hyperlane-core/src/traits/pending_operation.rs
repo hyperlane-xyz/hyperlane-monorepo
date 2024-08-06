@@ -1,15 +1,19 @@
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
+    io::Write,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use crate::{
-    ChainResult, FixedPointNumber, HyperlaneDomain, HyperlaneMessage, TryBatchAs, TxOutcome, H256,
-    U256,
+    ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
+use strum::Display;
 use tracing::warn;
 
 /// Boxed operation that can be stored in an operation queue
@@ -35,6 +39,7 @@ pub type QueueOperation = Box<dyn PendingOperation>;
 /// responsible for checking if the operation has reached a point at which we
 /// consider it safe from reorgs.
 #[async_trait]
+#[typetag::serialize(tag = "type")]
 pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Get the unique identifier for this operation.
     fn id(&self) -> H256;
@@ -49,11 +54,21 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// The domain this originates from.
     fn origin_domain_id(&self) -> u32;
 
+    /// Get the operation status from the local db, if there is one
+    fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus>;
+
     /// The domain this operation will take place on.
     fn destination_domain(&self) -> &HyperlaneDomain;
 
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
+
+    /// The status of the operation, which should explain why it is in the
+    /// queue.
+    fn status(&self) -> PendingOperationStatus;
+
+    /// Set the status of the operation.
+    fn set_status(&mut self, status: PendingOperationStatus);
 
     /// Get tuple of labels for metrics.
     fn get_operation_labels(&self) -> (String, String) {
@@ -104,6 +119,115 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the number of times this operation has been retried.
     #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
+
+    /// If this operation points to a mailbox contract, return it
+    fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+        None
+    }
+}
+
+#[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
+/// Status of a pending operation
+/// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
+/// Adding new variants is fine.
+pub enum PendingOperationStatus {
+    /// The operation is ready to be prepared for the first time, or has just been loaded from storage
+    FirstPrepareAttempt,
+    /// The operation is ready to be prepared again, with the given reason
+    #[strum(to_string = "Retry({0})")]
+    Retry(ReprepareReason),
+    /// The operation is ready to be submitted
+    ReadyToSubmit,
+    /// The operation has been submitted and is awaiting confirmation
+    #[strum(to_string = "Confirm({0})")]
+    Confirm(ConfirmReason),
+}
+
+impl Encode for PendingOperationStatus {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: Write,
+    {
+        // Serialize to JSON and write to the writer, to avoid having to implement the encoding manually
+        let serialized = serde_json::to_vec(self)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize"))?;
+        writer.write(&serialized)
+    }
+}
+
+impl Decode for PendingOperationStatus {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        // Deserialize from JSON and read from the reader, to avoid having to implement the encoding / decoding manually
+        serde_json::from_reader(reader).map_err(|err| {
+            HyperlaneProtocolError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to deserialize. Error: {}", err),
+            ))
+        })
+    }
+}
+
+#[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Reasons for repreparing an operation
+/// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
+/// Adding new variants is fine.
+pub enum ReprepareReason {
+    #[strum(to_string = "Error checking message delivery status")]
+    /// Error checking message delivery status
+    ErrorCheckingDeliveryStatus,
+    #[strum(to_string = "Error checking if message recipient is a contract")]
+    /// Error checking if message recipient is a contract
+    ErrorCheckingIfRecipientIsContract,
+    #[strum(to_string = "Error fetching ISM address")]
+    /// Error fetching ISM address
+    ErrorFetchingIsmAddress,
+    #[strum(to_string = "Error getting message metadata builder")]
+    /// Error getting message metadata builder
+    ErrorGettingMetadataBuilder,
+    #[strum(to_string = "Error building metadata")]
+    /// Error building metadata
+    ErrorBuildingMetadata,
+    #[strum(to_string = "Could not fetch metadata")]
+    /// Could not fetch metadata
+    CouldNotFetchMetadata,
+    #[strum(to_string = "Error estimating costs for process call")]
+    /// Error estimating costs for process call
+    ErrorEstimatingGas,
+    #[strum(to_string = "Error checking if message meets gas payment requirement")]
+    /// Error checking if message meets gas payment requirement
+    ErrorCheckingGasRequirement,
+    #[strum(to_string = "Gas payment requirement not met")]
+    /// Gas payment requirement not met
+    GasPaymentRequirementNotMet,
+    /// Gas payment not found
+    GasPaymentNotFound,
+    #[strum(to_string = "Message delivery estimated gas exceeds max gas limit")]
+    /// Message delivery estimated gas exceeds max gas limit
+    ExceedsMaxGasLimit,
+    #[strum(to_string = "Delivery transaction reverted or reorged")]
+    /// Delivery transaction reverted or reorged
+    RevertedOrReorged,
+}
+
+#[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Reasons for repreparing an operation
+/// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
+/// Adding new variants is fine.
+pub enum ConfirmReason {
+    #[strum(to_string = "Submitted by this relayer")]
+    /// Operation was submitted by this relayer
+    SubmittedBySelf,
+    #[strum(to_string = "Already submitted, awaiting confirmation")]
+    /// Operation was already submitted (either by another relayer, or by a previous run of this relayer), awaiting confirmation
+    AlreadySubmitted,
+    /// Error checking message delivery status
+    ErrorConfirmingDelivery,
+    /// Error storing delivery outcome
+    ErrorRecordingProcessSuccess,
 }
 
 /// Utility fn to calculate the total estimated cost of an operation batch
@@ -192,40 +316,22 @@ pub enum PendingOperationResult {
     /// This operation is not ready to be attempted again yet
     NotReady,
     /// Operation needs to be started from scratch again
-    Reprepare,
+    Reprepare(ReprepareReason),
     /// Do not attempt to run the operation again, forget about it
     Drop,
     /// Send this message straight to the confirm queue
-    Confirm,
+    Confirm(ConfirmReason),
 }
 
-/// create a `op_try!` macro for the `on_retry` handler.
-#[macro_export]
-macro_rules! make_op_try {
-    ($on_retry:expr) => {
-        /// Handle a result and either return early with retry or a critical failure on
-        /// error.
-        macro_rules! op_try {
-                            (critical: $e:expr, $ctx:literal) => {
-                                match $e {
-                                    Ok(v) => v,
-                                    Err(e) => {
-                                        error!(error=?e, concat!("Critical error when ", $ctx));
-                                        #[allow(clippy::redundant_closure_call)]
-                                        return $on_retry();
-                                    }
-                                }
-                            };
-                            ($e:expr, $ctx:literal) => {
-                                match $e {
-                                    Ok(v) => v,
-                                    Err(e) => {
-                                        warn!(error=?e, concat!("Error when ", $ctx));
-                                        #[allow(clippy::redundant_closure_call)]
-                                        return $on_retry();
-                                    }
-                                }
-                            };
-                        }
-    };
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_encoding_pending_operation_status() {
+        let status = PendingOperationStatus::Retry(ReprepareReason::CouldNotFetchMetadata);
+        let encoded = status.to_vec();
+        let decoded = PendingOperationStatus::read_from(&mut &encoded[..]).unwrap();
+        assert_eq!(status, decoded);
+    }
 }

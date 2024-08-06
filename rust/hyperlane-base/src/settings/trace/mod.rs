@@ -66,12 +66,12 @@ impl TracingConfig {
         if self.level < Level::DependencyTrace {
             // Reduce log noise from trusted libraries that we can reasonably assume are working correctly
             target_layer = target_layer
-                .with_target("hyper", Level::Info)
+                .with_target("hyper::", Level::Info)
                 .with_target("rusoto_core", Level::Info)
                 .with_target("rustls", Level::Info)
                 .with_target("reqwest", Level::Info)
                 .with_target("runtime", Level::Debug)
-                .with_target("h2", Level::Info)
+                .with_target("h2::", Level::Info)
                 .with_target("tower", Level::Info)
                 .with_target("tendermint", Level::Info)
                 .with_target("tokio", Level::Debug)
@@ -81,7 +81,9 @@ impl TracingConfig {
 
         if self.level < Level::Trace {
             // only show sqlx query logs at trace level
-            target_layer = target_layer.with_target("sqlx::query", Level::Warn);
+            target_layer = target_layer
+                .with_target("sqlx::query", Level::Warn)
+                .with_target("hyper::", Level::Warn);
         }
         let fmt_layer: LogOutputLayer<_> = self.fmt.into();
         let err_layer = tracing_error::ErrorLayer::default();

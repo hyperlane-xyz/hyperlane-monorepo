@@ -9,6 +9,7 @@ export const CosmosChainSchema = z
       .regex(new RegExp('^(\\.\\./)+chain\\.schema\\.json$'))
       .optional(),
     chain_name: z.string().regex(new RegExp('[a-z0-9]+')),
+    chain_type: z.string().regex(new RegExp('[a-z0-9]+')),
     chain_id: z.string(),
     pre_fork_chain_name: z.string().regex(new RegExp('[a-z0-9]+')).optional(),
     pretty_name: z.string().optional(),
@@ -274,7 +275,15 @@ export const CosmosChainSchema = z
               .object({
                 primary_color_hex: z
                   .string()
-                  .regex(new RegExp('^#[0-9a-fA-F]{6}$'))
+                  .min(1)
+                  .regex(new RegExp('^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$'))
+                  .optional(),
+                background_color_hex: z
+                  .string()
+                  .min(1)
+                  .regex(
+                    new RegExp('^(#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})|none)$'),
+                  )
                   .optional(),
                 circle: z.boolean().optional(),
                 dark_mode: z.boolean().optional(),
@@ -433,7 +442,7 @@ export const CosmosChainSchema = z
     keywords: z.array(z.string()).optional(),
     extra_codecs: z.array(z.enum(['ethermint', 'injective'])).optional(),
   })
-  .strict()
+  .passthrough()
   .describe(
     'Cosmos Chain.json is a metadata file that contains information about a cosmos sdk based chain.',
   );
@@ -448,7 +457,9 @@ export async function getCosmosRegistryChain(chain: string) {
     const errorMessages = result.error.issues.map(
       (issue: any) => `${issue.path} => ${issue.message}`,
     );
-    throw new Error(`Invalid Cosmos chain:\n ${errorMessages.join('\n')}`);
+    throw new Error(
+      `Invalid Cosmos chain ${chain}:\n ${errorMessages.join('\n')}`,
+    );
   }
   return result.data;
 }

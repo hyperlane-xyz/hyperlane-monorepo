@@ -1,12 +1,14 @@
 use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 
 use derive_new::new;
-use hyperlane_core::{PendingOperation, QueueOperation};
+use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
 
 use crate::server::MessageRetryRequest;
+
+pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
 /// Queue of generic operations that can be submitted to a destination chain.
 /// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
@@ -16,13 +18,20 @@ pub struct OpQueue {
     queue_metrics_label: String,
     retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
-    queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
+    pub queue: OperationPriorityQueue,
 }
 
 impl OpQueue {
     /// Push an element onto the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
-    pub async fn push(&self, op: QueueOperation) {
+    /// Arguments:
+    /// - `op`: the operation to push onto the queue
+    /// - `new_status`: optional new status to set for the operation. When an operation is added to a queue,
+    /// it's very likely that its status has just changed, so this forces the caller to consider the new status
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
+    pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
+        if let Some(new_status) = new_status {
+            op.set_status(new_status);
+        }
         // increment the metric before pushing onto the queue, because we lose ownership afterwards
         self.get_operation_metric(op.as_ref()).inc();
 
@@ -30,7 +39,7 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn pop(&mut self) -> Option<QueueOperation> {
         let pop_attempt = self.pop_many(1).await;
         pop_attempt.into_iter().next()
@@ -98,33 +107,38 @@ impl OpQueue {
     /// Get the metric associated with this operation
     fn get_operation_metric(&self, operation: &dyn PendingOperation) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
-        self.metrics
-            .with_label_values(&[&destination, &self.queue_metrics_label, &app_context])
+        self.metrics.with_label_values(&[
+            &destination,
+            &self.queue_metrics_label,
+            &operation.status().to_string(),
+            &app_context,
+        ])
     }
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
         TryBatchAs, TxOutcome, H256, U256,
     };
+    use serde::Serialize;
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
     };
     use tokio::sync;
 
-    #[derive(Debug, Clone)]
-    struct MockPendingOperation {
+    #[derive(Debug, Clone, Serialize)]
+    pub struct MockPendingOperation {
         id: H256,
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
     }
 
     impl MockPendingOperation {
-        fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
+        pub fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
             Self {
                 id: H256::random(),
                 seconds_to_next_attempt,
@@ -136,16 +150,27 @@ mod test {
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
 
     #[async_trait::async_trait]
+    #[typetag::serialize]
     impl PendingOperation for MockPendingOperation {
         fn id(&self) -> H256 {
             self.id
         }
+
+        fn status(&self) -> PendingOperationStatus {
+            PendingOperationStatus::FirstPrepareAttempt
+        }
+
+        fn set_status(&mut self, _status: PendingOperationStatus) {}
 
         fn reset_attempts(&mut self) {
             self.seconds_to_next_attempt = 0;
         }
 
         fn priority(&self) -> u32 {
+            todo!()
+        }
+
+        fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
             todo!()
         }
 
@@ -215,11 +240,16 @@ mod test {
         }
     }
 
-    fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
+    pub fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
         (
             IntGaugeVec::new(
                 prometheus::Opts::new("op_queue", "OpQueue metrics"),
-                &["destination", "queue_metrics_label", "app_context"],
+                &[
+                    "destination",
+                    "queue_metrics_label",
+                    "operation_status",
+                    "app_context",
+                ],
             )
             .unwrap(),
             "queue_metrics_label".to_string(),
@@ -256,12 +286,22 @@ mod test {
 
         // push to queue 1
         for _ in 0..=2 {
-            op_queue_1.push(ops.pop_front().unwrap()).await;
+            op_queue_1
+                .push(
+                    ops.pop_front().unwrap(),
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
         }
 
         // push to queue 2
         for _ in 3..messages_to_send {
-            op_queue_2.push(ops.pop_front().unwrap()).await;
+            op_queue_2
+                .push(
+                    ops.pop_front().unwrap(),
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
         }
 
         // Retry by message ids
@@ -320,7 +360,9 @@ mod test {
 
         // push to queue
         for op in ops {
-            op_queue.push(op).await;
+            op_queue
+                .push(op, Some(PendingOperationStatus::FirstPrepareAttempt))
+                .await;
         }
 
         // Retry by domain

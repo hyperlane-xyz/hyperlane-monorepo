@@ -7,7 +7,7 @@ import { execCmd } from '../utils/utils.js';
 export async function runKeyFunderHelmCommand(
   helmCommand: HelmCommand,
   agentConfig: AgentContextConfig,
-  keyFunderConfig: KeyFunderConfig,
+  keyFunderConfig: KeyFunderConfig<string[]>,
 ) {
   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
   if (helmCommand === HelmCommand.InstallOrUpgrade) {
@@ -36,7 +36,7 @@ export async function runKeyFunderHelmCommand(
 
 function getKeyFunderHelmValues(
   agentConfig: AgentContextConfig,
-  keyFunderConfig: KeyFunderConfig,
+  keyFunderConfig: KeyFunderConfig<string[]>,
 ) {
   const values = {
     cronjob: {
@@ -50,6 +50,7 @@ function getKeyFunderHelmValues(
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
       desiredBalancePerChain: keyFunderConfig.desiredBalancePerChain,
       desiredKathyBalancePerChain: keyFunderConfig.desiredKathyBalancePerChain,
+      igpClaimThresholdPerChain: keyFunderConfig.igpClaimThresholdPerChain,
     },
     image: {
       repository: keyFunderConfig.docker.repo,
@@ -64,7 +65,7 @@ function getKeyFunderHelmValues(
 
 export function getKeyFunderConfig(
   coreConfig: EnvironmentConfig,
-): KeyFunderConfig {
+): KeyFunderConfig<string[]> {
   const keyFunderConfig = coreConfig.keyFunderConfig;
   if (!keyFunderConfig) {
     throw new Error(

@@ -1,5 +1,32 @@
 # @hyperlane-xyz/core
 
+## 5.0.0
+
+### Patch Changes
+
+- 90598ad44: Removed outbox as param for ArbL2ToL1Ism
+- Updated dependencies [388d25517]
+- Updated dependencies [488f949ef]
+- Updated dependencies [dfa908796]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/utils@5.0.0
+
+## 4.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.1.0
+
+## 4.0.0
+
+### Minor Changes
+
+- 44cc9bf6b: Add CLI command to support AVS validator status check
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.0.0
+
 ## 3.16.0
 
 ### Patch Changes

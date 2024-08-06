@@ -126,6 +126,7 @@ where
                 ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
             })?
         else {
+            tracing::trace!(domain=?self.domain, "Latest block not found");
             return Ok(None);
         };
 
@@ -170,6 +171,7 @@ pub struct HyperlaneProviderBuilder {}
 #[async_trait]
 impl BuildableWithProvider for HyperlaneProviderBuilder {
     type Output = Box<dyn HyperlaneProvider>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

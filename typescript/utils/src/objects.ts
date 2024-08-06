@@ -1,6 +1,8 @@
+import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
+import { WithAddress } from './types.js';
 import { assert } from './validation.js';
 
 export function isObject(item: any) {
@@ -8,11 +10,11 @@ export function isObject(item: any) {
 }
 
 export function deepEquals(v1: any, v2: any) {
-  return JSON.stringify(v1) === JSON.stringify(v2);
+  return isEqual(v1, v2);
 }
 
 export function deepCopy(v: any) {
-  return JSON.parse(JSON.stringify(v));
+  return cloneDeep(v);
 }
 
 export type ValueOf<T> = T[keyof T];
@@ -142,7 +144,7 @@ export function arrayToObject(keys: Array<string>, val = true) {
 }
 
 export function stringifyObject(
-  object: object,
+  object: any,
   format: 'json' | 'yaml' = 'yaml',
   space?: number,
 ): string {
@@ -153,4 +155,23 @@ export function stringifyObject(
     return json;
   }
   return yamlStringify(JSON.parse(json), null, space);
+}
+
+// Function to recursively remove 'address' properties and lowercase string properties
+export function normalizeConfig(obj: WithAddress<any>): any {
+  if (Array.isArray(obj)) {
+    return obj.map(normalizeConfig);
+  } else if (obj !== null && typeof obj === 'object') {
+    const newObj: any = {};
+    for (const key in obj) {
+      if (key !== 'address') {
+        newObj[key] = key === 'type' ? obj[key] : normalizeConfig(obj[key]);
+      }
+    }
+    return newObj;
+  } else if (typeof obj === 'string') {
+    return obj.toLowerCase();
+  }
+
+  return obj;
 }

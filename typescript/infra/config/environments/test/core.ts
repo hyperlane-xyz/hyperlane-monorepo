@@ -6,7 +6,6 @@ import {
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
-  IgpHookConfig,
   IsmType,
   MerkleTreeHookConfig,
   ProtocolFeeHookConfig,
@@ -34,10 +33,7 @@ export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
     type: HookType.MERKLE_TREE,
   };
 
-  const igpHook: IgpHookConfig = {
-    type: HookType.INTERCHAIN_GAS_PAYMASTER,
-    ...igp[local],
-  };
+  const igpHook = igp[local];
 
   const aggregationHook: AggregationHookConfig = {
     type: HookType.AGGREGATION,

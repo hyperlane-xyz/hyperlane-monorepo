@@ -1,4 +1,3 @@
-import { PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -6,10 +5,11 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
+import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-import { EV5GnosisSafeTxSubmitterProps } from './EV5TxSubmitterTypes.js';
+import { EV5GnosisSafeTxSubmitterProps } from './types.js';
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =
@@ -24,7 +24,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     public readonly props: EV5GnosisSafeTxSubmitterProps,
   ) {}
 
-  public async submit(...txs: PopulatedTransaction[]): Promise<void> {
+  public async submit(...txs: PopulatedTransactions): Promise<void> {
     const safe = await getSafe(
       this.props.chain,
       this.multiProvider,
@@ -39,9 +39,6 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
     const safeTransactionBatch: any[] = txs.map(
       ({ to, data, value, chainId }: PopulatedTransaction) => {
-        assert(to, 'Invalid PopulatedTransaction: Missing to field');
-        assert(data, 'Invalid PopulatedTransaction: Missing data field');
-        assert(chainId, 'Invalid PopulatedTransaction: Missing chainId field');
         const txChain = this.multiProvider.getChainName(chainId);
         assert(
           txChain === this.props.chain,

@@ -1,11 +1,12 @@
 name: test
 
 on:
-  # Triggers the workflow on push or pull request against main
+  # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
     paths-ignore:
       - '*.md'
+  # Triggers on pull requests ignoring md files
   pull_request:
     branches:
       - '*' # run against all branches
@@ -187,7 +188,7 @@ jobs:
 
   e2e-matrix:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
       matrix:
@@ -252,14 +253,14 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: agent tests with CosmWasm
+      - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'
 
-      - name: agent tests excluding CosmWasm
+      - name: agent tests (EVM and Sealevel)
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust
@@ -281,7 +282,7 @@ jobs:
 
   prebuild-cli-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -328,9 +329,9 @@ jobs:
         env:
           RUST_BACKTRACE: 'full'
 
-  cli-e2e:
+  cli-advanced-e2e:
     runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'merge_group'
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build, prebuild-cli-e2e]
     strategy:
       matrix:
@@ -399,10 +400,11 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: cli e2e tests
-        run: ./typescript/cli/ci-test.sh ${{ matrix.test-type }}
+        run: ./typescript/cli/ci-advanced-test.sh ${{ matrix.test-type }}
 
   env-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     needs: [yarn-build]
     strategy:
       fail-fast: false
