@@ -153,8 +153,10 @@ abstract contract Router is MailboxClient, IMessageRecipient {
         uint32 _domain
     ) internal view returns (bytes32) {
         (bool contained, bytes32 _router) = _routers.tryGet(_domain);
-        require(contained, _domainNotFoundError(_domain));
-        return _router;
+        if (contained) {
+            return _router;
+        }
+        revert(_domainNotFoundError(_domain));
     }
 
     function _domainNotFoundError(
