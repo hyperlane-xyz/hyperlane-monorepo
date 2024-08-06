@@ -17,16 +17,17 @@ contract CheckpointFraudProofs {
     // merkle tree hook => root => index
     mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
 
-    modifier onlyStored(
-        bytes32 messageId,
-        address merkleTreeHook,
-        uint32 index,
-        bytes32[TREE_DEPTH] calldata proof
+    modifier onlyLeafOfStored(
+        Checkpoint calldata checkpoint,
+        bytes32[TREE_DEPTH] calldata proof,
+        bytes32 messageId
     ) {
-        bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
+        address merkleTreeHook = checkpoint.merkleTreeHook.bytes32ToAddress();
+        bytes32 root = MerkleLib.branchRoot(messageId, proof, checkpoint.index);
         uint32 storedIndex = storedCheckpoint[merkleTreeHook][root];
+
         require(
-            storedIndex >= index,
+            storedIndex >= checkpoint.index,
             "message must be member of stored checkpoint"
         );
         _;
@@ -51,9 +52,10 @@ contract CheckpointFraudProofs {
      *  @param merkleTreeHook Address of the merkle tree hook to store the latest checkpoint of.
      *  @dev Must be called before proving fraud to circumvent race on message insertion and merkle proof construction.
      */
-    function storeLatestCheckpoint(address merkleTreeHook) external {
-        (bytes32 root, uint32 index) = MerkleTreeHook(merkleTreeHook)
-            .latestCheckpoint();
+    function storeLatestCheckpoint(
+        address merkleTreeHook
+    ) external returns (bytes32 root, uint32 index) {
+        (root, index) = MerkleTreeHook(merkleTreeHook).latestCheckpoint();
         storedCheckpoint[merkleTreeHook][root] = index;
     }
 
@@ -91,12 +93,7 @@ contract CheckpointFraudProofs {
         external
         view
         onlyLocal(checkpoint)
-        onlyStored(
-            actualMessageId,
-            checkpoint.merkleTreeHook.bytes32ToAddress(),
-            checkpoint.index,
-            proof
-        )
+        onlyLeafOfStored(checkpoint, proof, actualMessageId)
         returns (bool)
     {
         return actualMessageId != checkpoint.messageId;
@@ -116,22 +113,17 @@ contract CheckpointFraudProofs {
         external
         view
         onlyLocal(checkpoint)
-        onlyStored(
-            checkpoint.messageId,
-            checkpoint.merkleTreeHook.bytes32ToAddress(),
-            checkpoint.index,
-            proof
-        )
+        onlyLeafOfStored(checkpoint, proof, checkpoint.messageId)
         returns (bool)
     {
         // proof of checkpoint.messageId at checkpoint.index is the list of siblings from the leaf node to some stored root
         // once verifying the proof, we can reconstruct the specific root at checkpoint.index by replacing siblings greater
         // than the index (right subtrees) with zeroes
-        bytes32 reconstructedRoot = MerkleLib.reconstructRoot(
+        bytes32 root = MerkleLib.reconstructRoot(
             checkpoint.messageId,
             proof,
             checkpoint.index
         );
-        return reconstructedRoot != checkpoint.root;
+        return root != checkpoint.root;
     }
 }
