@@ -18,7 +18,7 @@ function getArgs() {
     .option('owner', {
       type: 'string',
       description:
-        "Address of the owner on the owner chain. Defaults to the environment's configured owner for the ownerChain.",
+        "Address of the owner on the ownerChain. Defaults to the environment's configured owner for the ownerChain.",
       demandOption: false,
     })
     .option('deploy', {
