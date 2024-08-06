@@ -142,4 +142,39 @@ describe('SmartProvider', async () => {
 
     expect(erc20.address).to.not.be.empty;
   });
+
+  it('returns the blockchain error reason: "ERC20: transfer to zero address"', async () => {
+    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
+      maxRetries: 1,
+    });
+    const signer = new Wallet(PK, smartProvider);
+
+    const factory = new ERC20__factory(signer);
+    const token = await factory.deploy('fake', 'FAKE');
+    try {
+      await token.transfer(constants.AddressZero, 1000000);
+    } catch (e: any) {
+      expect(e.error.message).to.equal(
+        'execution reverted: revert: ERC20: transfer to the zero address',
+      );
+    }
+  });
+
+  it('returns the blockchain error reason: "ERC20: transfer amount exceeds balance"', async () => {
+    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
+      maxRetries: 1,
+    });
+    const signer = new Wallet(PK, smartProvider);
+
+    const factory = new ERC20__factory(signer);
+    const token = await factory.deploy('fake', 'FAKE');
+    try {
+      await token.transfer(signer.address, 1000000);
+    } catch (e: any) {
+      console.log('ERROR:', e);
+      expect(e.error.message).to.equal(
+        'execution reverted: revert: ERC20: transfer amount exceeds balance',
+      );
+    }
+  });
 });
