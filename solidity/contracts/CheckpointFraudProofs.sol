@@ -1,70 +1,60 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+
+import {TypeCasts} from "./libs/TypeCasts.sol";
 import {Checkpoint, CheckpointLib} from "./libs/CheckpointLib.sol";
-import {MerkleLib} from "./libs/Merkle.sol";
+import {MerkleLib, TREE_DEPTH} from "./libs/Merkle.sol";
+import {MerkleTreeHook} from "./hooks/MerkleTreeHook.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
 
 contract CheckpointFraudProofs {
-    // copied from MerkleLib.sol
-    uint256 internal constant TREE_DEPTH = 32;
+    using CheckpointLib for Checkpoint;
+    using Address for address;
+    using TypeCasts for bytes32;
 
-    // mailbox => root => index
+    // merkle tree hook => root => index
     mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
 
-    function requireMemberOfStoredCheckpoint(
+    modifier onlyStored(
         bytes32 messageId,
-        address mailbox,
+        address merkleTreeHook,
         uint32 index,
         bytes32[TREE_DEPTH] calldata proof
-    ) internal view {
+    ) {
         bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
-        uint32 storedIndex = storedCheckpoint[mailbox][root];
+        uint32 storedIndex = storedCheckpoint[merkleTreeHook][root];
         require(
             storedIndex >= index,
             "message must be member of stored checkpoint"
         );
+        _;
     }
 
-    function isLocal(Checkpoint calldata checkpoint)
-        internal
-        view
-        returns (bool)
-    {
-        uint32 mailboxDomain = IMailbox(CheckpointLib.mailbox(checkpoint))
-            .localDomain();
-        return checkpoint.origin == mailboxDomain;
+    function isLocal(
+        Checkpoint calldata checkpoint
+    ) public view returns (bool) {
+        address merkleTreeHook = checkpoint.merkleTreeHook.bytes32ToAddress();
+        return
+            merkleTreeHook.isContract() &&
+            MerkleTreeHook(merkleTreeHook).localDomain() == checkpoint.origin;
     }
 
-    function requireLocalCheckpoint(Checkpoint calldata checkpoint)
-        internal
-        view
-    {
+    modifier onlyLocal(Checkpoint calldata checkpoint) {
         require(isLocal(checkpoint), "must be local checkpoint");
+        _;
     }
 
     /**
-     *  @notice Stores the latest checkpoint of the provided mailbox
-     *  @param mailbox Address of the mailbox to store the latest checkpoint of.
-     *  @dev Must be called before proving fraud to circumvent race on mailbox insertion and merkle proof construction.
+     *  @notice Stores the latest checkpoint of the provided merkle tree hook
+     *  @param merkleTreeHook Address of the merkle tree hook to store the latest checkpoint of.
+     *  @dev Must be called before proving fraud to circumvent race on message insertion and merkle proof construction.
      */
-    function storeLatestCheckpoint(address mailbox) external {
-        (bytes32 root, uint32 index) = IMailbox(mailbox).latestCheckpoint();
-        storedCheckpoint[mailbox][root] = index;
-    }
-
-    /**
-     *  @notice Checks whether the provided checkpoint is local.
-     *  @param checkpoint Checkpoint to check.
-     *  @dev Checks whether checkpoint.origin == checkpoint.mailbox.localDomain()
-     *  @return Whether the provided checkpoint is local.
-     */
-    function isNonLocal(Checkpoint calldata checkpoint)
-        external
-        view
-        returns (bool)
-    {
-        return !isLocal(checkpoint);
+    function storeLatestCheckpoint(address merkleTreeHook) external {
+        (bytes32 root, uint32 index) = MerkleTreeHook(merkleTreeHook)
+            .latestCheckpoint();
+        storedCheckpoint[merkleTreeHook][root] = index;
     }
 
     /**
@@ -73,15 +63,13 @@ contract CheckpointFraudProofs {
      *  @dev Checks whether checkpoint.index is greater than or equal to mailbox count
      *  @return Whether the provided checkpoint is premature.
      */
-    function isPremature(Checkpoint calldata checkpoint)
-        external
-        view
-        returns (bool)
-    {
-        requireLocalCheckpoint(checkpoint);
-
+    function isPremature(
+        Checkpoint calldata checkpoint
+    ) external view onlyLocal(checkpoint) returns (bool) {
         // count is the number of messages in the mailbox (i.e. the latest index + 1)
-        uint32 count = IMailbox(CheckpointLib.mailbox(checkpoint)).count();
+        uint32 count = MerkleTreeHook(
+            checkpoint.merkleTreeHook.bytes32ToAddress()
+        ).count();
 
         // index >= count is equivalent to index > latest index
         return checkpoint.index >= count;
@@ -99,15 +87,18 @@ contract CheckpointFraudProofs {
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof,
         bytes32 actualMessageId
-    ) external view returns (bool) {
-        requireLocalCheckpoint(checkpoint);
-        requireMemberOfStoredCheckpoint(
+    )
+        external
+        view
+        onlyLocal(checkpoint)
+        onlyStored(
             actualMessageId,
-            CheckpointLib.mailbox(checkpoint),
+            checkpoint.merkleTreeHook.bytes32ToAddress(),
             checkpoint.index,
             proof
-        );
-
+        )
+        returns (bool)
+    {
         return actualMessageId != checkpoint.messageId;
     }
 
@@ -121,15 +112,18 @@ contract CheckpointFraudProofs {
     function isFraudulentRoot(
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof
-    ) external view returns (bool) {
-        requireLocalCheckpoint(checkpoint);
-        requireMemberOfStoredCheckpoint(
+    )
+        external
+        view
+        onlyLocal(checkpoint)
+        onlyStored(
             checkpoint.messageId,
-            CheckpointLib.mailbox(checkpoint),
+            checkpoint.merkleTreeHook.bytes32ToAddress(),
             checkpoint.index,
             proof
-        );
-
+        )
+        returns (bool)
+    {
         // proof of checkpoint.messageId at checkpoint.index is the list of siblings from the leaf node to some stored root
         // once verifying the proof, we can reconstruct the specific root at checkpoint.index by replacing siblings greater
         // than the index (right subtrees) with zeroes

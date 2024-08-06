@@ -3,22 +3,33 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
+import "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestMailbox.sol";
 import "../contracts/CheckpointFraudProofs.sol";
+import "../contracts/test/TestMerkleTreeHook.sol";
+import "../contracts/test/TestPostDispatchHook.sol";
 
 contract CheckpointFraudProofsTest is Test {
+    using TypeCasts for address;
+
     uint32 localDomain = 1000;
     uint32 remoteDomain = 2000;
     uint256 msgCount = 65;
 
-    TestMailbox mailbox;
-    bytes32 mailboxBytes;
+    TestMerkleTreeHook merkleTreeHook;
+    TestPostDispatchHook postDispatchHook;
     Checkpoint latestCheckpoint;
     CheckpointFraudProofs cfp;
 
     function setUp() public {
-        mailbox = new TestMailbox(localDomain);
-        mailboxBytes = TypeCasts.addressToBytes32(address(mailbox));
+        TestMailbox mailbox = new TestMailbox(localDomain);
+
+        postDispatchHook = new TestPostDispatchHook();
+        mailbox.setRequiredHook(address(postDispatchHook));
+
+        merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
+        mailbox.setDefaultHook(address(merkleTreeHook));
+        bytes32 merkleBytes = address(merkleTreeHook).addressToBytes32();
 
         bytes memory msgBody = bytes("0xc0ffee");
 
@@ -28,10 +39,10 @@ contract CheckpointFraudProofsTest is Test {
                 bytes32(0),
                 msgBody
             );
-            (bytes32 root, uint32 index) = mailbox.latestCheckpoint();
+            (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
             latestCheckpoint = Checkpoint(
                 localDomain,
-                mailboxBytes,
+                merkleBytes,
                 root,
                 index,
                 messageId
@@ -42,10 +53,10 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_isLocal() public {
-        assertFalse(cfp.isNonLocal(latestCheckpoint));
+        assertTrue(cfp.isLocal(latestCheckpoint));
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.origin = remoteDomain;
-        assertTrue(cfp.isNonLocal(checkpoint));
+        assertFalse(cfp.isLocal(checkpoint));
     }
 
     function test_isPremature() public {
@@ -63,8 +74,8 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_isFraudulentMessageId() public {
-        bytes32[32] memory proof = mailbox.proof();
-        cfp.storeLatestCheckpoint(address(mailbox));
+        bytes32[32] memory proof = merkleTreeHook.proof();
+        cfp.storeLatestCheckpoint(address(merkleTreeHook));
         assertFalse(
             cfp.isFraudulentMessageId(
                 latestCheckpoint,
@@ -82,7 +93,7 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_RevertWhenNotStored_isFraudulentMessageId() public {
-        bytes32[32] memory proof = mailbox.proof();
+        bytes32[32] memory proof = merkleTreeHook.proof();
         vm.expectRevert("message must be member of stored checkpoint");
         cfp.isFraudulentMessageId(
             latestCheckpoint,
@@ -92,7 +103,7 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_RevertWhenNotLocal_isFraudulentMessageId() public {
-        bytes32[32] memory proof = mailbox.proof();
+        bytes32[32] memory proof = merkleTreeHook.proof();
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.origin = remoteDomain;
         vm.expectRevert("must be local checkpoint");
@@ -104,9 +115,9 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_IsFraudulentRoot() public {
-        bytes32[32] memory proof = mailbox.proof();
+        bytes32[32] memory proof = merkleTreeHook.proof();
 
-        cfp.storeLatestCheckpoint(address(mailbox));
+        cfp.storeLatestCheckpoint(address(merkleTreeHook));
         assertFalse(cfp.isFraudulentRoot(latestCheckpoint, proof));
 
         Checkpoint memory checkpoint = latestCheckpoint;
@@ -115,13 +126,13 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_RevertWhenNotStored_isFraudulentRoot() public {
-        bytes32[32] memory proof = mailbox.proof();
+        bytes32[32] memory proof = merkleTreeHook.proof();
         vm.expectRevert("message must be member of stored checkpoint");
         cfp.isFraudulentRoot(latestCheckpoint, proof);
     }
 
     function test_RevertWhenNotLocal_isFraudulentRoot() public {
-        bytes32[32] memory proof = mailbox.proof();
+        bytes32[32] memory proof = merkleTreeHook.proof();
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.origin = remoteDomain;
         vm.expectRevert("must be local checkpoint");

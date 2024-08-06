@@ -3,15 +3,15 @@ pragma solidity >=0.6.11;
 
 // work based on eth2 deposit contract, which is used under CC0-1.0
 
+uint256 constant TREE_DEPTH = 32;
+uint256 constant MAX_LEAVES = 2 ** TREE_DEPTH - 1;
+
 /**
  * @title MerkleLib
  * @author Celo Labs Inc.
  * @notice An incremental merkle tree modeled on the eth2 deposit contract.
  **/
 library MerkleLib {
-    uint256 internal constant TREE_DEPTH = 32;
-    uint256 internal constant MAX_LEAVES = 2 ** TREE_DEPTH - 1;
-
     /**
      * @notice Struct representing incremental merkle tree. Contains current
      * branch and the number of inserted leaves in the tree.
