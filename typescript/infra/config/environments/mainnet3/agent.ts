@@ -131,7 +131,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zetachain: true,
-    zircuit: false,
+    zircuit: true,
     zoramainnet: true,
   },
   [Role.Scraper]: {
@@ -179,7 +179,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zetachain: true,
-    zircuit: false,
+    zircuit: true,
     zoramainnet: false,
   },
 };
@@ -317,7 +317,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c3174f8-20240805-164341',
+      tag: '0e509a8-20240806-173913',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -326,7 +326,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd0a142b-20240806-161007',
+      tag: '0e509a8-20240806-173913',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -336,7 +336,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8af226f-20240726-153615',
+      tag: '0e509a8-20240806-173913',
     },
     resources: scraperResources,
   },
