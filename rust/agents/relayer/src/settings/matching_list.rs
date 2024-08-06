@@ -418,11 +418,11 @@ mod test {
     #[test]
     fn config_with_multiple_domains() {
         let whitelist: MatchingList =
-            serde_json::from_str(r#"[{"destinationdomain": ["13372", "13373"]}]"#).unwrap();
+            serde_json::from_str(r#"[{"destinationdomain": ["9913372", "9913373"]}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
-        assert_eq!(elem.destination_domain, Enumerated(vec![13372, 13373]));
+        assert_eq!(elem.destination_domain, Enumerated(vec![9913372, 9913373]));
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);

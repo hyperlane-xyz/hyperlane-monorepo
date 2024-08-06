@@ -151,6 +151,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "immutablezkevm",
+        token: "IMX",
+        domain: 13371,
+        chain_id: 13371,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "linea",
         token: "ETH",
         domain: 59144,
@@ -337,7 +345,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "test1",
         token: "ETH",
-        domain: 13371,
+        domain: 9913371,
         chain_id: 0,
         is_test_net: true,
         is_deprecated: false,
@@ -345,7 +353,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "test2",
         token: "ETH",
-        domain: 13372,
+        domain: 9913372,
         chain_id: 0,
         is_test_net: true,
         is_deprecated: false,
@@ -353,7 +361,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "test3",
         token: "ETH",
-        domain: 13373,
+        domain: 9913373,
         chain_id: 0,
         is_test_net: true,
         is_deprecated: false,

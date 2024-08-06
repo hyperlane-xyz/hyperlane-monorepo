@@ -31,7 +31,7 @@ export async function runKurtosisAgentDeploy({
     const selectedRelayChains = await runMultiChainSelectionStep(
       context.chainMetadata,
       'Select chains to relay between',
-      true,
+      2,
     );
     relayChains = selectedRelayChains.join(',');
   }

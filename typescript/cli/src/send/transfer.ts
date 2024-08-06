@@ -20,6 +20,7 @@ import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
+import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export async function sendTestTransfer({
@@ -171,6 +172,11 @@ async function executeDelivery({
 
   if (selfRelay) {
     const relayer = new HyperlaneRelayer({ core });
+
+    const hookAddress = await core.getSenderHookAddress(message);
+    const merkleAddress = chainAddresses[origin].merkleTreeHook;
+    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+
     log('Attempting self-relay of transfer...');
     await relayer.relayMessage(transferTxReceipt, messageIndex, message);
     logGreen('Transfer was self-relayed!');

@@ -27,7 +27,11 @@ export class ProxiedRouterGovernor<
       case ViolationType.Owner:
         return this.handleOwnerViolation(violation as OwnerViolation);
       default:
-        throw new Error(`Unsupported violation type ${violation.type}`);
+        throw new Error(
+          `Unsupported violation type ${violation.type}: ${JSON.stringify(
+            violation,
+          )}`,
+        );
     }
   }
 
