@@ -1,8 +1,6 @@
 {
   "ancient8": {
-    "validators": [
-      "0xbb5842ae0e05215b53df4787a29144efb7e67551"
-    ]
+    "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
   "arbitrum": {
     "validators": [
@@ -26,14 +24,10 @@
     ]
   },
   "blast": {
-    "validators": [
-      "0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"
-    ]
+    "validators": ["0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"]
   },
   "bob": {
-    "validators": [
-      "0x20f283be1eb0e81e22f51705dcb79883cfdd34aa"
-    ]
+    "validators": ["0x20f283be1eb0e81e22f51705dcb79883cfdd34aa"]
   },
   "bsc": {
     "validators": [
@@ -50,19 +44,13 @@
     ]
   },
   "cheesechain": {
-    "validators": [
-      "0x478fb53c6860ae8fc35235ba0d38d49b13128226"
-    ]
+    "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
   },
   "eclipse": {
-    "validators": [
-      "0x54c96aa1666596c043b07d694da552aa4b596306"
-    ]
+    "validators": ["0x54c96aa1666596c043b07d694da552aa4b596306"]
   },
   "endurance": {
-    "validators": [
-      "0x28c5b322da06f184ebf68693c5d19df4d4af13e5"
-    ]
+    "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
   },
   "ethereum": {
     "validators": [
@@ -72,14 +60,10 @@
     ]
   },
   "fraxtal": {
-    "validators": [
-      "0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"
-    ]
+    "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
   },
   "fusemainnet": {
-    "validators": [
-      "0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9"
-    ]
+    "validators": ["0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9"]
   },
   "gnosis": {
     "validators": [
@@ -96,14 +80,10 @@
     ]
   },
   "injective": {
-    "validators": [
-      "0xbfb8911b72cfb138c7ce517c57d9c691535dc517"
-    ]
+    "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
   },
   "linea": {
-    "validators": [
-      "0xf2d5409a59e0f5ae7635aff73685624904a77d94"
-    ]
+    "validators": ["0xf2d5409a59e0f5ae7635aff73685624904a77d94"]
   },
   "mantapacific": {
     "validators": [
@@ -113,14 +93,10 @@
     ]
   },
   "mantle": {
-    "validators": [
-      "0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52"
-    ]
+    "validators": ["0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52"]
   },
   "mode": {
-    "validators": [
-      "0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"
-    ]
+    "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
   },
   "moonbeam": {
     "validators": [
@@ -144,9 +120,7 @@
     ]
   },
   "osmosis": {
-    "validators": [
-      "0xea483af11c19fa41b16c31d1534c2a486a92bcac"
-    ]
+    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
   },
   "polygon": {
     "validators": [
@@ -163,9 +137,7 @@
     ]
   },
   "redstone": {
-    "validators": [
-      "0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"
-    ]
+    "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
   },
   "scroll": {
     "validators": [
@@ -175,43 +147,27 @@
     ]
   },
   "sei": {
-    "validators": [
-      "0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"
-    ]
+    "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
   },
   "solana": {
-    "validators": [
-      "0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415"
-    ]
+    "validators": ["0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415"]
   },
   "taiko": {
-    "validators": [
-      "0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"
-    ]
+    "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },
   "viction": {
-    "validators": [
-      "0x1f87c368f8e05a85ef9126d984a980a20930cb9c"
-    ]
+    "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
   },
   "worldchain": {
-    "validators": [
-      "0x31048785845325b22817448b68d08f8a8fe36854"
-    ]
+    "validators": ["0x31048785845325b22817448b68d08f8a8fe36854"]
   },
   "xlayer": {
-    "validators": [
-      "0xa2ae7c594703e988f23d97220717c513db638ea3"
-    ]
+    "validators": ["0xa2ae7c594703e988f23d97220717c513db638ea3"]
   },
   "zetachain": {
-    "validators": [
-      "0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"
-    ]
+    "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
   },
   "zoramainnet": {
-    "validators": [
-      "0x35130945b625bb69b28aee902a3b9a76fa67125f"
-    ]
+    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   }
 }
