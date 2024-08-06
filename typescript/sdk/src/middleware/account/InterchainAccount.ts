@@ -79,7 +79,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     );
   }
 
-  async getOrDeployAccount(
+  protected async getOrDeployAccount(
     deployIfNotExists: boolean,
     destinationChain: ChainName,
     config: AccountConfig,

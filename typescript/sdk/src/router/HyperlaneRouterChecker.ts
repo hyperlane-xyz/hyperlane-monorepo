@@ -42,9 +42,12 @@ export class HyperlaneRouterChecker<
   }
 
   async checkMailboxClient(chain: ChainName): Promise<void> {
+    console.log('checking mailbox client for', chain);
     const router = this.app.router(this.app.getContracts(chain));
+    console.log('router', router, 'chain', chain);
 
     const config = this.configMap[chain];
+    console.log('config', config, 'chain', chain);
 
     const mailboxAddr = await router.mailbox();
     if (!eqAddress(mailboxAddr, config.mailbox)) {

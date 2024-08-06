@@ -8,9 +8,11 @@ import {
   HyperlaneIsmFactory,
   InterchainAccount,
   InterchainAccountChecker,
+  InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
 } from '@hyperlane-xyz/sdk';
+import { objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
@@ -74,7 +76,15 @@ async function check() {
     multiProvider,
   );
   const routerConfig = core.getRouterConfig(envConfig.owners);
-  const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
+  const icaChainAddresses = objFilter(
+    chainAddresses,
+    (chain, addresses): addresses is Record<string, string> =>
+      !!chainAddresses[chain]?.interchainAccountRouter,
+  );
+  const ica = InterchainAccount.fromAddressesMap(
+    icaChainAddresses,
+    multiProvider,
+  );
 
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
@@ -93,7 +103,11 @@ async function check() {
     const checker = new InterchainAccountChecker(
       multiProvider,
       ica,
-      routerConfig,
+      objFilter(
+        routerConfig,
+        (chain, config): config is InterchainAccountConfig =>
+          !!chainAddresses[chain]?.interchainAccountRouter,
+      ),
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {

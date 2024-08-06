@@ -11,7 +11,11 @@ export abstract class ProxiedRouterChecker<
 > extends HyperlaneRouterChecker<Factories, App, Config> {
   async checkOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
-    let ownableOverrides = {};
+    let ownableOverrides = config.ownerOverrides;
+    if (chain === 'arbitrum') {
+      console.log('arbitrum config', config);
+      console.log('arbitrum ownableOverrides', ownableOverrides);
+    }
     if (config.timelock) {
       ownableOverrides = {
         proxyAdmin: this.app.getAddresses(chain).timelockController,
