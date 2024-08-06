@@ -26,6 +26,10 @@ To read more about interchain applications, how the protocol works, and how to i
 
 ## Working on Hyperlane
 
+### Prerequisites
+
+- Install `jq`
+
 ### Foundry
 
 First ensure you have Foundry installed on your machine.
