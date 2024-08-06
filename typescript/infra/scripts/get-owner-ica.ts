@@ -10,10 +10,16 @@ import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 function getArgs() {
   return withChainRequired(getEnvArgs())
-    .option('governChain', {
+    .option('ownerChain', {
       type: 'string',
       description: 'Origin chain where the governing owner lives',
       demandOption: true,
+    })
+    .option('owner', {
+      type: 'string',
+      description:
+        'Address of the governing owner. Defaults to the owner of the owner chain',
+      demandOption: false,
     })
     .option('deploy', {
       type: 'boolean',
@@ -24,22 +30,28 @@ function getArgs() {
 }
 
 async function main() {
-  const { environment, governChain, chain, deploy } = await getArgs();
+  const {
+    environment,
+    ownerChain,
+    chain,
+    deploy,
+    owner: ownerOverride,
+  } = await getArgs();
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const originOwner = config.owners[governChain]?.owner;
+  const originOwner = ownerOverride ?? config.owners[ownerChain]?.owner;
   if (!originOwner) {
-    throw new Error(`No owner found for ${governChain}`);
+    throw new Error(`No owner found for ${ownerChain}`);
   }
 
-  rootLogger.info(`Governance owner on ${governChain}: ${originOwner}`);
+  rootLogger.info(`Governance owner on ${ownerChain}: ${originOwner}`);
 
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
   const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
 
   const ownerConfig: AccountConfig = {
-    origin: governChain,
+    origin: ownerChain,
     owner: originOwner,
   };
 
