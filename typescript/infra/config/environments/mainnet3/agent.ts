@@ -90,7 +90,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xlayer: true,
     zetachain: true,
-    zircuit: false,
+    zircuit: true,
     zoramainnet: true,
   },
   [Role.Relayer]: {
@@ -326,7 +326,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'c3174f8-20240805-164341',
+      tag: 'd0a142b-20240806-161007',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
