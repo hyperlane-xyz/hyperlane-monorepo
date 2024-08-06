@@ -17,45 +17,38 @@ contract CheckpointFraudProofsTest is Test {
 
     TestMailbox mailbox;
     TestMerkleTreeHook merkleTreeHook;
-    TestPostDispatchHook postDispatchHook;
+
+    bytes32[] leaves = [
+        bytes32(abi.encode("0xc0ffee")),
+        bytes32(abi.encode("0xdeadbeef")),
+        bytes32(abi.encode("0xfeedface"))
+    ];
 
     Checkpoint latestCheckpoint;
     CheckpointFraudProofs cfp;
 
     function setUp() public {
         mailbox = new TestMailbox(localDomain);
-
-        postDispatchHook = new TestPostDispatchHook();
-        mailbox.setRequiredHook(address(postDispatchHook));
-
         cfp = new CheckpointFraudProofs();
-    }
 
-    function setupTree(bytes memory msgBody, uint8 msgCount) internal {
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
-        mailbox.setDefaultHook(address(merkleTreeHook));
         bytes32 merkleBytes = address(merkleTreeHook).addressToBytes32();
 
-        for (uint8 i = 0; i < msgCount; i++) {
-            bytes32 messageId = mailbox.dispatch(
-                remoteDomain,
-                bytes32(0),
-                msgBody
-            );
+        for (uint256 i = 0; i < leaves.length; i++) {
+            bytes32 leaf = leaves[i];
+            merkleTreeHook.insert(leaf);
             (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
             latestCheckpoint = Checkpoint(
                 localDomain,
                 merkleBytes,
                 root,
                 index,
-                messageId
+                leaf
             );
         }
     }
 
     function test_isLocal() public {
-        setupTree("0xc0ffee", 1);
-
         assertTrue(cfp.isLocal(latestCheckpoint));
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.origin = remoteDomain;
@@ -63,8 +56,6 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_isPremature() public {
-        setupTree("0xc0ffee", 1);
-
         assertFalse(cfp.isPremature(latestCheckpoint));
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.index += 1;
@@ -72,21 +63,13 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_RevertWhenNotLocal_isPremature() public {
-        setupTree("0xc0ffee", 1);
-
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.origin = remoteDomain;
         vm.expectRevert("must be local checkpoint");
         cfp.isPremature(checkpoint);
     }
 
-    function test_isFraudulentMessageId(
-        bytes memory msgBody,
-        uint8 msgCount
-    ) public {
-        vm.assume(msgCount > 0);
-        setupTree(msgBody, msgCount);
-
+    function test_isFraudulentMessageId() public {
         bytes32[32] memory proof = merkleTreeHook.proof();
         cfp.storeLatestCheckpoint(address(merkleTreeHook));
         assertFalse(
@@ -105,14 +88,7 @@ contract CheckpointFraudProofsTest is Test {
         );
     }
 
-    function test_RevertWhenNotStored_isFraudulentMessageId(
-        bytes memory msgBody,
-        uint8 msgCount
-    ) public {
-        // does not work with 1 insertion because index is 0
-        vm.assume(msgCount > 1);
-        setupTree(msgBody, msgCount);
-
+    function test_RevertWhenNotStored_isFraudulentMessageId() public {
         bytes32[32] memory proof = merkleTreeHook.proof();
         vm.expectRevert("message must be member of stored checkpoint");
         cfp.isFraudulentMessageId(
@@ -123,8 +99,6 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function test_RevertWhenNotLocal_isFraudulentMessageId() public {
-        setupTree("0xc0ffee", 1);
-
         bytes32[32] memory proof = merkleTreeHook.proof();
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.origin = remoteDomain;
@@ -136,13 +110,7 @@ contract CheckpointFraudProofsTest is Test {
         );
     }
 
-    function test_IsFraudulentRoot(
-        bytes memory msgBody,
-        uint8 msgCount
-    ) public {
-        vm.assume(msgCount > 0);
-        setupTree(msgBody, msgCount);
-
+    function test_IsFraudulentRoot() public {
         bytes32[32] memory proof = merkleTreeHook.proof();
 
         cfp.storeLatestCheckpoint(address(merkleTreeHook));
@@ -153,26 +121,13 @@ contract CheckpointFraudProofsTest is Test {
         assertTrue(cfp.isFraudulentRoot(checkpoint, proof));
     }
 
-    function test_RevertWhenNotStored_isFraudulentRoot(
-        bytes memory msgBody,
-        uint8 msgCount
-    ) public {
-        // does not work with 1 insertion because index is 0
-        vm.assume(msgCount > 1);
-        setupTree(msgBody, msgCount);
-
+    function test_RevertWhenNotStored_isFraudulentRoot() public {
         bytes32[32] memory proof = merkleTreeHook.proof();
         vm.expectRevert("message must be member of stored checkpoint");
         cfp.isFraudulentRoot(latestCheckpoint, proof);
     }
 
-    function test_RevertWhenNotLocal_isFraudulentRoot(
-        bytes memory msgBody,
-        uint8 msgCount
-    ) public {
-        vm.assume(msgCount > 0);
-        setupTree(msgBody, msgCount);
-
+    function test_RevertWhenNotLocal_isFraudulentRoot() public {
         bytes32[32] memory proof = merkleTreeHook.proof();
         Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.origin = remoteDomain;
