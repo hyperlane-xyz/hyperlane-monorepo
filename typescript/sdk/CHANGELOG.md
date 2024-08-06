@@ -30,7 +30,7 @@
 - 69a39da1c: Fix issue with cosmos tx estimation
 - 7265a4087: Add rpcUrl, chainId, and method(params) to smart provider logging.
 - 0a40dcb8b: Update cosmos chain schema
-- ab827a3fa: Removes innacurate contract verification check, resulting in proxy contracts not being marked as proxies during contract verification.
+- ab827a3fa: Removes inaccurate contract verification check, resulting in proxy contracts not being marked as proxies during contract verification.
 - dfa908796: add error message for all calls to assert util
 - ed63e04c4: Creates HyperlaneReader to re-use dyn provider log level & silences provider logs in deriveIsmConfig like deriveHookConfig.
 - 5aa24611b: Add 'isInitialized' check before initializing implementation contract (for contracts that disableInitializers in constructors).
