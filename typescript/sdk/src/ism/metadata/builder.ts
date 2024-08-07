@@ -20,7 +20,7 @@ import {
   AggregationMetadata,
   AggregationMetadataBuilder,
 } from './aggregation.js';
-import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
+import { ArbL2ToL1Metadata, ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadata, NullMetadataBuilder } from './null.js';
 import { RoutingMetadata, RoutingMetadataBuilder } from './routing.js';
@@ -28,6 +28,7 @@ import { RoutingMetadata, RoutingMetadataBuilder } from './routing.js';
 export type StructuredMetadata =
   | NullMetadata
   | MultisigMetadata
+  | ArbL2ToL1Metadata
   | AggregationMetadata<any>
   | RoutingMetadata<any>;
 
@@ -144,6 +145,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
 
       case IsmType.ROUTING:
         return RoutingMetadataBuilder.decode(metadata, { ...context, ism });
+
+      case IsmType.ARB_L2_TO_L1:
+        return ArbL2ToL1MetadataBuilder.decode(metadata, {
+          ...context,
+          ism,
+        });
 
       default:
         throw new Error(`Unsupported ISM type: ${ism.type}`);

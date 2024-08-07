@@ -1,4 +1,6 @@
+import { ChildToParentMessageStatus } from '@arbitrum/sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { BigNumber } from 'ethers';
 import hre from 'hardhat';
 import { before } from 'mocha';
 import sinon from 'sinon';
@@ -6,22 +8,13 @@ import sinon from 'sinon';
 import {
   ArbL2ToL1Hook,
   ArbL2ToL1Hook__factory,
-  MerkleTreeHook,
+  MockArbBridge,
   MockArbBridge__factory,
+  MockArbSys__factory,
   TestRecipient,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  BaseValidator,
-  Checkpoint,
-  CheckpointWithId,
-  Domain,
-  S3CheckpointWithId,
-  addressToBytes32,
-  eqAddress,
-  objMap,
-  randomElement,
-} from '@hyperlane-xyz/utils';
+import { Address, WithAddress, objMap } from '@hyperlane-xyz/utils';
+import { bytes32ToAddress } from '@hyperlane-xyz/utils';
 
 import { testChains } from '../../consts/testChains.js';
 import {
@@ -36,37 +29,39 @@ import { ProxyFactoryFactories } from '../../deploy/contracts.js';
 import { EvmHookModule } from '../../hook/EvmHookModule.js';
 import { ArbL2ToL1HookConfig, HookType } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import { randomAddress } from '../../test/testUtils.js';
 import { ChainMap, ChainName } from '../../types.js';
 import { EvmIsmReader } from '../EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
+import { ArbL2ToL1IsmConfig } from '../types.js';
 
 import { BaseMetadataBuilder, MetadataContext } from './builder.js';
 
-const MAX_ISM_DEPTH = 5;
 const NUM_RUNS = 5;
 
 describe('BaseMetadataBuilder', () => {
   const origin: ChainName = 'test1';
+  const destination: ChainName = 'test2';
   let core: HyperlaneCore;
   let ismFactory: HyperlaneIsmFactory;
   let hookConfig: ChainMap<ArbL2ToL1HookConfig>;
   let arbL2ToL1Hook: ArbL2ToL1Hook;
-  const merkleHooks: Record<Domain, MerkleTreeHook> = {};
+  let arbBridge: MockArbBridge;
   let testRecipients: Record<ChainName, TestRecipient>;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
   let relayer: SignerWithAddress;
-  let validators: SignerWithAddress[];
   let metadataBuilder: BaseMetadataBuilder;
+  let context: MetadataContext<
+    WithAddress<ArbL2ToL1IsmConfig>,
+    WithAddress<ArbL2ToL1HookConfig>
+  >;
 
   before(async () => {
-    [relayer, ...validators] = await hre.ethers.getSigners();
+    [relayer] = await hre.ethers.getSigners();
     const multiProvider = MultiProvider.createTestMultiProvider({
       signer: relayer,
     });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    // const remote = 'test2';
     const contractsMap = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
     );
@@ -80,12 +75,17 @@ describe('BaseMetadataBuilder', () => {
       (_, { testRecipient }) => testRecipient,
     );
     core = await coreDeployer.deployApp();
-    console.log('core config', Object.keys(testRecipients));
+
+    const mockArbSys = await multiProvider.handleDeploy(
+      origin,
+      new MockArbSys__factory(),
+      [],
+    );
     hookConfig = {
       test1: {
         type: HookType.ARB_L2_TO_L1,
-        arbSys: randomAddress(),
-        destinationChain: randomElement(testChains),
+        arbSys: mockArbSys.address,
+        destinationChain: destination,
         gasOverhead: 200_000,
       },
     };
@@ -96,12 +96,12 @@ describe('BaseMetadataBuilder', () => {
         contractsMap[origin][key as keyof ProxyFactoryFactories].address;
       return acc;
     }, {} as Record<string, Address>) as HyperlaneAddresses<ProxyFactoryFactories>;
-    const bridge = await multiProvider.handleDeploy(
+    arbBridge = await multiProvider.handleDeploy(
       origin,
       new MockArbBridge__factory(),
       [],
     );
-    hookConfig.test1.arbBridge = bridge.address;
+    hookConfig.test1.arbBridge = arbBridge.address;
 
     const hookModule = await EvmHookModule.create({
       chain: origin,
@@ -115,48 +115,28 @@ describe('BaseMetadataBuilder', () => {
     arbL2ToL1Hook = ArbL2ToL1Hook__factory.connect(hookAddress, relayer);
 
     metadataBuilder = new BaseMetadataBuilder(core);
-    return;
-
-    // deploy
 
     sinon
-      .stub(metadataBuilder.multisigMetadataBuilder, 'getS3Checkpoints')
-      .callsFake(
-        async (multisigAddresses, match): Promise<S3CheckpointWithId[]> => {
-          const merkleHook = merkleHooks[match.origin];
-          const checkpoint: Checkpoint = {
-            root: await merkleHook.root(),
-            merkle_tree_hook_address: addressToBytes32(merkleHook.address),
-            index: match.index,
-            mailbox_domain: match.origin,
-          };
-          const checkpointWithId: CheckpointWithId = {
-            checkpoint,
-            message_id: match.messageId,
-          };
-          const digest = BaseValidator.messageHash(checkpoint, match.messageId);
-          const checkpoints: S3CheckpointWithId[] = [];
-          for (const validator of multisigAddresses) {
-            const signature = await validators
-              .find((s) => eqAddress(s.address, validator))!
-              .signMessage(digest);
-            checkpoints.push({ value: checkpointWithId, signature });
-          }
-          return checkpoints;
-        },
-      );
+      .stub(metadataBuilder.arbL2ToL1MetadataBuilder, 'getArbitrumBridgeStatus')
+      .callsFake(async (): Promise<ChildToParentMessageStatus> => {
+        return ChildToParentMessageStatus.CONFIRMED;
+      });
+
+    sinon
+      .stub(metadataBuilder.arbL2ToL1MetadataBuilder, 'getArbitrumOutboxProof')
+      .callsFake(async (): Promise<string[]> => {
+        await arbBridge.setL2ToL1Sender(arbL2ToL1Hook.address);
+        return [];
+      });
   });
 
   describe('#build', () => {
-    let destination: ChainName;
-    let context: MetadataContext;
     let metadata: string;
 
     beforeEach(async () => {
       const testRecipient = testRecipients[destination];
-      console.log('CHEESECAKE testRecipient', testRecipient.address);
-      const deployedIsmAddress = await arbL2ToL1Hook.ism();
-      // const deployedIsm =
+      const deployedIsmAddress = bytes32ToAddress(await arbL2ToL1Hook.ism());
+
       await testRecipient.setInterchainSecurityModule(deployedIsmAddress);
       const { dispatchTx, message } = await core.sendMessage(
         origin,
@@ -172,32 +152,45 @@ describe('BaseMetadataBuilder', () => {
       ).deriveIsmConfig(deployedIsmAddress);
 
       context = {
-        hook: {
-          type: HookType.MERKLE_TREE,
-          address: arbL2ToL1Hook.address,
-        },
-        ism: derivedIsm,
+        hook: { ...hookConfig[origin], address: arbL2ToL1Hook.address },
+        ism: derivedIsm as WithAddress<ArbL2ToL1IsmConfig>,
         message,
         dispatchTx,
       };
 
-      metadata = await metadataBuilder.build(context, MAX_ISM_DEPTH);
-
-      console.log('ARBL2TOL1 metadata', metadata);
+      metadata = await metadataBuilder.build(context);
     });
 
-    // return;
-
     for (let i = 0; i < NUM_RUNS; i++) {
-      it(`should build valid metadata for random ism config (${i})`, async () => {
-        // must call process for trusted relayer to be able to verify'
-        return;
+      it(`should build valid metadata using direct executeTransaction call (run #${i})`, async () => {
         await core
           .getContracts(destination)
           .mailbox.process(metadata, context.message.message);
       });
 
-      it(`should decode metadata for random ism config (${i})`, async () => {
+      it(`should build valid metadata if already preverified by 3rd party relayer (run #${i})`, async () => {
+        const calldata =
+          await metadataBuilder.arbL2ToL1MetadataBuilder.buildArbitrumBridgeCalldata(
+            context,
+          );
+        await arbBridge.executeTransaction(
+          calldata.proof,
+          calldata.index,
+          calldata.l2Sender,
+          calldata.to,
+          calldata.l2Block,
+          calldata.l1Block,
+          calldata.l2Timestamp,
+          BigNumber.from(0),
+          calldata.data,
+        );
+        metadata = await metadataBuilder.build(context);
+        await core
+          .getContracts(destination)
+          .mailbox.process(metadata, context.message.message);
+      });
+
+      it(`should decode metadata (run #${i})`, async () => {
         BaseMetadataBuilder.decode(metadata, context);
       });
     }

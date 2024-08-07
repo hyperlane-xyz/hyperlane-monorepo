@@ -1,15 +1,13 @@
 import {
   ArbitrumProvider,
   ChildToParentMessageReader,
+  ChildToParentMessageStatus,
   ChildToParentTransactionEvent,
 } from '@arbitrum/sdk';
 import { assert } from 'console';
 import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
-import {
-  AbstractMessageIdAuthorizedIsm__factory,
-  ArbSys__factory,
-} from '@hyperlane-xyz/core';
+import { AbstractMessageIdAuthorizedIsm__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   WithAddress,
@@ -23,7 +21,7 @@ import { ArbL2ToL1IsmConfig, IsmType } from '../types.js';
 
 import { MetadataBuilder, MetadataContext } from './builder.js';
 
-interface ArbL2ToL1Metadata {
+export interface ArbL2ToL1Metadata {
   proof: BytesLike[];
   index: BigNumber;
   l2Sender: Address;
@@ -33,8 +31,6 @@ interface ArbL2ToL1Metadata {
   l2Timestamp: BigNumber;
   data: BytesLike;
 }
-
-const ArbSys = ArbSys__factory.createInterface();
 
 export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   constructor(
@@ -67,11 +63,21 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     }
 
     // else build the metadata for outbox.executeTransaction call
+    const metadata = await this.buildArbitrumBridgeCalldata(context);
+
+    return ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(metadata);
+  }
+
+  async buildArbitrumBridgeCalldata(
+    context: MetadataContext<
+      WithAddress<ArbL2ToL1IsmConfig>,
+      WithAddress<ArbL2ToL1HookConfig>
+    >,
+  ): Promise<ArbL2ToL1Metadata> {
     const matchingL2Tx = context.dispatchTx.logs
       .filter((log) => eqAddressEvm(log.address, context.hook.arbSys))
-      .map((log) => ArbSys.parseLog(log))
       .find((log) => {
-        const calldata: string = log.args.data;
+        const calldata: string = log.data;
         const messageIdHex = context.message.id.slice(2);
         return calldata && calldata.includes(messageIdHex);
       });
@@ -81,34 +87,40 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
     if (matchingL2Tx) {
       const l2ToL1TxEvent: ChildToParentTransactionEvent = {
-        ...matchingL2Tx.args,
-        caller: matchingL2Tx.args.caller,
-        destination: matchingL2Tx.args.destination,
-        hash: matchingL2Tx.args.hash,
-        position: matchingL2Tx.args.position,
-        arbBlockNum: matchingL2Tx.args.arbBlockNum,
-        ethBlockNum: matchingL2Tx.args.ethBlockNum,
-        timestamp: matchingL2Tx.args.timestamp,
-        callvalue: matchingL2Tx.args.callvalue,
-        data: matchingL2Tx.args.data,
+        caller: '0x' + matchingL2Tx.data.slice(26, 66),
+        destination: '0x' + matchingL2Tx.topics[1].slice(-40),
+        hash: BigNumber.from(matchingL2Tx.topics[2]),
+        position: BigNumber.from(matchingL2Tx.topics[3]),
+        arbBlockNum: BigNumber.from('0x' + matchingL2Tx.data.slice(66, 130)),
+        ethBlockNum: BigNumber.from('0x' + matchingL2Tx.data.slice(130, 194)),
+        timestamp: BigNumber.from('0x' + matchingL2Tx.data.slice(194, 258)),
+        callvalue: BigNumber.from('0x' + matchingL2Tx.data.slice(258, 322)),
+        data: '0x' + matchingL2Tx.data.slice(450, 522),
       };
+      console.log('CHEESECAKE: L2ToL1TxEvent', l2ToL1TxEvent);
 
       const reader = new ChildToParentMessageReader(
-        this.core.multiProvider.getProvider('sepolia'),
+        this.core.multiProvider.getProvider(context.hook.destinationChain),
         l2ToL1TxEvent,
       );
 
+      const originChainMetadata = this.core.multiProvider.getChainMetadata(
+        context.message.parsed.origin,
+      );
+      if (typeof originChainMetadata.chainId == 'string') {
+        throw new Error(
+          `Invalid chainId for ${originChainMetadata.name}: ${originChainMetadata.chainId}`,
+        );
+      }
       const baseProvider = new providers.JsonRpcProvider(
-        this.core.multiProvider.getChainMetadata(
-          'arbitrumsepolia',
-        ).rpcUrls[0].http,
+        originChainMetadata.rpcUrls[0].http,
       );
       const arbProvider = new ArbitrumProvider(baseProvider, {
-        name: 'arbitrum-sepolia',
-        chainId: 421614,
+        name: originChainMetadata.name,
+        chainId: originChainMetadata.chainId,
       });
 
-      const status = await reader.status(arbProvider);
+      const status = await this.getArbitrumBridgeStatus(reader, arbProvider);
       // need to wait for the challenge period to pass before relaying
       if (!status) {
         throw new Error(
@@ -116,14 +128,10 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         );
       }
 
-      const outboxProofResult =
-        (await reader.getOutboxProof(arbProvider)) ?? [];
-
-      // extract the proof key from MessageBatchProofInfo
-      const outboxProof: string[] =
-        'proof' in outboxProofResult
-          ? outboxProofResult.proof
-          : outboxProofResult ?? [];
+      const outboxProof = await this.getArbitrumOutboxProof(
+        reader,
+        arbProvider,
+      );
 
       const metadata: ArbL2ToL1Metadata = {
         proof: outboxProof,
@@ -136,10 +144,59 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         data: l2ToL1TxEvent.data,
       };
 
-      return ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(metadata);
+      return metadata;
+    } else {
+      throw new Error(
+        'Error in building calldata for Arbitrum native bridge call',
+      );
     }
+  }
 
-    return '0x';
+  async getArbitrumBridgeStatus(
+    reader: ChildToParentMessageReader,
+    provider: ArbitrumProvider,
+  ): Promise<ChildToParentMessageStatus> {
+    return reader.status(provider);
+  }
+
+  async getArbitrumOutboxProof(
+    reader: ChildToParentMessageReader,
+    provider: ArbitrumProvider,
+  ): Promise<string[]> {
+    const proof = (await reader.getOutboxProof(provider)) ?? [];
+    return 'proof' in proof ? proof.proof : proof ?? [];
+  }
+
+  static decode(
+    metadata: string,
+    _: MetadataContext<WithAddress<ArbL2ToL1IsmConfig>>,
+  ): ArbL2ToL1Metadata {
+    const abiCoder = new utils.AbiCoder();
+    const decoded = abiCoder.decode(
+      [
+        'bytes32[]',
+        'uint256',
+        'address',
+        'address',
+        'uint256',
+        'uint256',
+        'uint256',
+        'bytes',
+      ],
+      metadata,
+    );
+
+    return {
+      proof: decoded[0],
+      index: decoded[1],
+      l2Sender: decoded[2],
+      to: decoded[3],
+      l2Block: decoded[4],
+      l1Block: decoded[5],
+      l2Timestamp: decoded[6],
+      data: decoded[7],
+      // ...context,
+    };
   }
 
   static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
