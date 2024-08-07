@@ -41,7 +41,7 @@ export async function setAndVerifyRpcUrls(
     await confirmSetSecrets(environment, chain, secretPayload);
     await testProvidersIfNeeded(chain, rpcUrlsArray);
     await updateSecretAndDisablePrevious(environment, chain, secretPayload);
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       `Error occurred while setting RPC URLs for ${chain}:`,
       error.message,
