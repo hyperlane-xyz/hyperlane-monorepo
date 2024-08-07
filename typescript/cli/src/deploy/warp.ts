@@ -479,7 +479,9 @@ export async function runWarpRouteApply(params: ApplyParams): Promise<void> {
             );
           }
         } catch (e) {
-          logRed(`Warp config on ${chain} failed to update.`, e);
+          const errorMessage = `Warp config on ${chain} failed to update.`;
+          logRed(errorMessage, e);
+          throw new Error(errorMessage);
         }
       }),
     );
