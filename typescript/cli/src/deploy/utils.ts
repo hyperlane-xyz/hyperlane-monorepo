@@ -100,7 +100,7 @@ async function confirmExistingMailbox(
   const addresses = await context.registry.getChainAddresses(chain);
   if (addresses?.mailbox) {
     const isConfirmed = await confirm({
-      message: `Mailbox has already exists at ${addresses.mailbox}, registry artifacts will be overwritten`,
+      message: `Mailbox already exists at ${addresses.mailbox}. Are you sure you want to deploy a new mailbox and overwrite existing registry artifacts?`,
       default: false,
     });
 
