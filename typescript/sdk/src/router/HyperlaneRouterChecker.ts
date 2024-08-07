@@ -78,15 +78,6 @@ export class HyperlaneRouterChecker<
 
     const actualIsmAddress = await router.interchainSecurityModule();
 
-    if (
-      typeof config.interchainSecurityModule !== 'string' &&
-      !this.ismFactory
-    ) {
-      throw Error(
-        'ISM factory not provided to HyperlaneRouterChecker, cannot check object-based ISM config',
-      );
-    }
-
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,
