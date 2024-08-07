@@ -44,22 +44,28 @@ export async function checkMessageStatus({
   );
 
   let dispatchedReceipt: TransactionReceipt;
-  if (!dispatchTx) {
+
+  if (dispatchTx) {
+    dispatchedReceipt = await context.multiProvider
+      .getProvider(origin)
+      .getTransactionReceipt(dispatchTx);
+  } else {
     try {
       dispatchedReceipt = await core.getDispatchTx(origin, messageId);
+      // dispatchTx = dispatchedReceipt.transactionHash
     } catch (e) {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
+
+      dispatchTx = await input({
+        message: 'Provide dispatch transaction hash',
+      });
+      dispatchedReceipt = await context.multiProvider
+        .getProvider(origin)
+        .getTransactionReceipt(dispatchTx);
     }
-    dispatchTx = await input({
-      message: 'Provide dispatch transaction hash',
-    });
   }
 
-  dispatchedReceipt ??= await context.multiProvider
-    .getProvider(origin)
-    .getTransactionReceipt(dispatchTx);
-
-  const messages = core.getDispatchedMessages(dispatchedReceipt);
+  const messages = core.getDispatchedMessages(dispatchedReceipt!);
   const match = messages.find((m) => m.id === messageId);
   assert(match, `Message ${messageId} not found in dispatch tx ${dispatchTx}`);
   const message = match;
