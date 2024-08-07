@@ -52,7 +52,6 @@ export async function checkMessageStatus({
   } else {
     try {
       dispatchedReceipt = await core.getDispatchTx(origin, messageId);
-      // dispatchTx = dispatchedReceipt.transactionHash
     } catch (e) {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
 
