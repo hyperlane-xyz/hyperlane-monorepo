@@ -167,6 +167,9 @@
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
   },
+  "zircuit": {
+    "validators": ["0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb"]
+  },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   }

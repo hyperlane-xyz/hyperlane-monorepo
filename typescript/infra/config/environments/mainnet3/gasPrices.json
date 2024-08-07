@@ -12,7 +12,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.116871685",
+    "amount": "0.011964874",
     "decimals": 9
   },
   "blast": {
@@ -36,7 +36,7 @@
     "decimals": 9
   },
   "eclipse": {
-    "amount": "0.00000005",
+    "amount": "0.001",
     "decimals": 9
   },
   "endurance": {
@@ -52,7 +52,7 @@
     "decimals": 9
   },
   "fusemainnet": {
-    "amount": "11.0",
+    "amount": "22.0",
     "decimals": 9
   },
   "gnosis": {
@@ -72,7 +72,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.101416541",
+    "amount": "0.106134186",
     "decimals": 9
   },
   "mantle": {
@@ -120,7 +120,7 @@
     "decimals": 9
   },
   "solana": {
-    "amount": "0.000000001",
+    "amount": "0.001",
     "decimals": 9
   },
   "taiko": {
@@ -132,15 +132,19 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000251",
+    "amount": "0.002002589",
     "decimals": 9
   },
   "xlayer": {
-    "amount": "5.0",
+    "amount": "5.162265625",
     "decimals": 9
   },
   "zetachain": {
     "amount": "10.1",
+    "decimals": 9
+  },
+  "zircuit": {
+    "amount": "0.001000253",
     "decimals": 9
   },
   "zoramainnet": {

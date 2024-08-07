@@ -416,6 +416,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  zircuit: {
+    threshold: 1,
+    validators: ['0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb'],
+  },
+
   zoramainnet: {
     threshold: 3,
     validators: [
