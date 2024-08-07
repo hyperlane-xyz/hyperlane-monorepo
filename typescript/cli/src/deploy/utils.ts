@@ -12,7 +12,7 @@ import {
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
-import { WriteCommandContext } from '../context/types.js';
+import { CommandContext, WriteCommandContext } from '../context/types.js';
 import {
   log,
   logBlue,
@@ -86,10 +86,28 @@ export async function runDeployPlanStep({
   );
 
   if (skipConfirmation) return;
+  await confirmExistingMailbox(context, chain);
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
   });
   if (!isConfirmed) throw new Error('Deployment cancelled');
+}
+
+async function confirmExistingMailbox(
+  context: CommandContext,
+  chain: ChainName,
+) {
+  const addresses = await context.registry.getChainAddresses(chain);
+  if (addresses?.mailbox) {
+    const isConfirmed = await confirm({
+      message: `Mailbox already exists at ${addresses.mailbox}. Are you sure you want to deploy a new mailbox and overwrite existing registry artifacts?`,
+      default: false,
+    });
+
+    if (!isConfirmed) {
+      throw Error('Deployment cancelled');
+    }
+  }
 }
 
 // from parsed types

@@ -28,6 +28,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
+  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -108,9 +109,10 @@ export const deploy: CommandModuleWithWriteContext<{
     ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
+    'skip-confirmation': skipConfirmationOption,
   },
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
+    logGray(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
 
     try {
