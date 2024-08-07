@@ -136,7 +136,11 @@ async function main() {
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
-    deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
+    deployer = new InterchainAccountDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
     const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
     InterchainAccount.fromAddressesMap(addresses, multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {

@@ -85,8 +85,10 @@ contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
         uint32 origin
     ) public view virtual returns (IInterchainSecurityModule) {
         (bool contained, bytes32 _module) = _modules.tryGet(origin);
-        require(contained, _originNotFoundError(origin));
-        return IInterchainSecurityModule(_module.bytes32ToAddress());
+        if (contained) {
+            return IInterchainSecurityModule(_module.bytes32ToAddress());
+        }
+        revert(_originNotFoundError(origin));
     }
 
     // ============ Public Functions ============

@@ -10,17 +10,19 @@ import {
   TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { normalizeConfig, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
+import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { testCoreConfig } from '../test/testUtils.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
 import { CoreConfig } from './types.js';
 
 describe('EvmCoreModule', async () => {
-  const CHAIN = TestChainName.test1;
+  const CHAIN = TestChainName.test4;
   const DELAY = 1892391283182;
   let config: CoreConfig;
   let signer: SignerWithAddress;
@@ -31,12 +33,17 @@ describe('EvmCoreModule', async () => {
   let validatorAnnounceContract: any;
   let testRecipientContract: any;
   let timelockControllerContract: any;
-
+  async function sendTxs(txs: AnnotatedEV5Transaction[]) {
+    for (const tx of txs) {
+      await multiProvider.sendTransaction(CHAIN, tx);
+    }
+  }
   before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     config = {
       ...testCoreConfig([CHAIN])[CHAIN],
+      owner: signer.address,
       upgrade: {
         timelock: {
           delay: DELAY,
@@ -159,6 +166,125 @@ describe('EvmCoreModule', async () => {
     it('should deploy timelock if upgrade is set', async () => {
       expect(evmCoreModule.serialize().timelockController).to.exist;
       expect(await timelockControllerContract.getMinDelay()).to.equal(DELAY);
+    });
+  });
+
+  describe('Update', async () => {
+    const ismConfigToUpdate: IsmConfig[] = [
+      {
+        type: IsmType.TRUSTED_RELAYER,
+        relayer: randomAddress(),
+      },
+      {
+        type: IsmType.FALLBACK_ROUTING,
+        owner: randomAddress(),
+        domains: {},
+      },
+      {
+        type: IsmType.PAUSABLE,
+        owner: randomAddress(),
+        paused: false,
+      },
+    ];
+    it('should deploy and set a new defaultIsm', async () => {
+      for (const ismConfig of ismConfigToUpdate) {
+        const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
+          chain: CHAIN,
+          config,
+          addresses: {
+            ...evmCoreModule.serialize(),
+          },
+        });
+
+        const expectedConfig: CoreConfig = {
+          ...(await evmCoreModuleInstance.read()),
+          defaultIsm: ismConfig,
+        };
+        await sendTxs(await evmCoreModuleInstance.update(expectedConfig));
+        const updatedDefaultIsm = normalizeConfig(
+          (await evmCoreModuleInstance.read()).defaultIsm,
+        );
+
+        expect(updatedDefaultIsm).to.deep.equal(ismConfig);
+      }
+    });
+
+    it('should not deploy and set a new Ism if the config is the same', async () => {
+      const evmCoreModuleInstance = new EvmCoreModule(multiProvider, {
+        chain: CHAIN,
+        config,
+        addresses: {
+          ...evmCoreModule.serialize(),
+        },
+      });
+
+      const existingConfig: CoreConfig = await evmCoreModuleInstance.read();
+      const updateTxs = await evmCoreModuleInstance.update(existingConfig);
+
+      expect(updateTxs.length).to.equal(0);
+    });
+
+    it('should update a mutable Ism', async () => {
+      const evmCoreModule = await EvmCoreModule.create({
+        multiProvider,
+        chain: CHAIN,
+        config: {
+          ...config,
+          defaultIsm: {
+            type: IsmType.ROUTING,
+            owner: signer.address,
+            domains: {},
+          },
+        },
+      });
+
+      const defaultIsmToUpdate: IsmConfig = normalizeConfig({
+        type: IsmType.ROUTING,
+        owner: signer.address,
+        domains: {
+          test2: { type: IsmType.TEST_ISM },
+        },
+      });
+      const updates = await evmCoreModule.update({
+        ...config,
+        defaultIsm: defaultIsmToUpdate,
+      });
+
+      expect(updates.length).to.equal(1);
+      await sendTxs(updates);
+
+      const latestDefaultIsmConfig = normalizeConfig(
+        (await evmCoreModule.read()).defaultIsm,
+      );
+      expect(latestDefaultIsmConfig).to.deep.equal(defaultIsmToUpdate);
+    });
+
+    it('should update the owner only if they are different', async () => {
+      const evmCoreModule = await EvmCoreModule.create({
+        chain: CHAIN,
+        config,
+        multiProvider,
+      });
+      const newOwner = randomAddress();
+      let latestConfig = normalizeConfig(await evmCoreModule.read());
+      expect(latestConfig.owner).to.not.equal(newOwner);
+
+      await sendTxs(
+        await evmCoreModule.update({
+          ...config,
+          owner: newOwner,
+        }),
+      );
+
+      latestConfig = normalizeConfig(await evmCoreModule.read());
+      expect(latestConfig.owner).to.equal(newOwner);
+
+      // No op if the same owner
+      const txs = await evmCoreModule.update({
+        ...config,
+        owner: newOwner,
+      });
+      expect(txs.length).to.equal(0);
     });
   });
 });

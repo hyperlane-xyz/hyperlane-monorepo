@@ -119,6 +119,7 @@ export async function createWarpRouteDeployConfig({
   const warpChains = await runMultiChainSelectionStep(
     context.chainMetadata,
     'Select chains to connect',
+    1,
   );
 
   const result: WarpRouteDeployConfig = {};
@@ -154,7 +155,6 @@ export async function createWarpRouteDeployConfig({
       case TokenType.collateralFiat:
       case TokenType.collateralUri:
       case TokenType.fastCollateral:
-      case TokenType.collateralVault:
         result[chain] = {
           mailbox,
           type,
@@ -163,6 +163,18 @@ export async function createWarpRouteDeployConfig({
           interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
+          }),
+        };
+        break;
+      case TokenType.collateralVault:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
         };
         break;

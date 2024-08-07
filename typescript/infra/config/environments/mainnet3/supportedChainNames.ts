@@ -9,6 +9,8 @@ export const mainnet3SupportedChainNames = [
   'bob',
   'bsc',
   'celo',
+  'cheesechain',
+  'eclipse',
   'endurance',
   'ethereum',
   'fraxtal',
@@ -29,9 +31,13 @@ export const mainnet3SupportedChainNames = [
   'redstone',
   'scroll',
   'sei',
+  'solana',
   'taiko',
   'viction',
+  'worldchain',
+  'xlayer',
   'zetachain',
+  'zircuit',
   'zoramainnet',
 ] as const;
 

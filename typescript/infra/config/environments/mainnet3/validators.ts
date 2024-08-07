@@ -84,6 +84,52 @@ export const validatorChainConfig = (
         'avalanche',
       ),
     },
+
+    cheesechain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('cheesechain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
+          [Contexts.ReleaseCandidate]: [
+            '0x5f3baa27d61d3ed5fa7606616b8fef443d0a77a4',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'cheesechain',
+      ),
+    },
+
+    worldchain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('worldchain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x31048785845325b22817448b68d08f8a8fe36854'],
+          [Contexts.ReleaseCandidate]: [
+            '0x385a2452930a0681d3ea4e40fb7722095142afcc',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'worldchain',
+      ),
+    },
+
+    xlayer: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('xlayer'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa2ae7c594703e988f23d97220717c513db638ea3'],
+          [Contexts.ReleaseCandidate]: [
+            '0xa68e98cb98190485847581c8004b40ee81cbc723',
+          ],
+          [Contexts.Neutron]: [],
+        },
+        'xlayer',
+      ),
+    },
+
     polygon: {
       interval: 5,
       reorgPeriod: getReorgPeriod('polygon'),
@@ -354,6 +400,30 @@ export const validatorChainConfig = (
         'scroll',
       ),
     },
+    solana: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solana'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415'],
+          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.Neutron]: [],
+        },
+        'solana',
+      ),
+    },
+    eclipse: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('eclipse'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x54c96aa1666596c043b07d694da552aa4b596306'],
+          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.Neutron]: [],
+        },
+        'eclipse',
+      ),
+    },
     taiko: {
       interval: 5,
       reorgPeriod: getReorgPeriod('taiko'),
@@ -532,6 +602,18 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'zoramainnet',
+      ),
+    },
+    zircuit: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zircuit'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'zircuit',
       ),
     },
   };

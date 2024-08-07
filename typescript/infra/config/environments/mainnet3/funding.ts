@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'd962e36-20240716-132119',
+    tag: '0e509a8-20240806-173924',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -34,6 +34,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0.2',
     bsc: '5',
     celo: '3',
+    cheesechain: '50',
     endurance: '20',
     ethereum: '0.5',
     fraxtal: '0.2',
@@ -53,12 +54,17 @@ export const keyFunderConfig: KeyFunderConfig<
     sei: '10',
     taiko: '0.2',
     viction: '3',
+    worldchain: '0.2',
+    xlayer: '0.5',
     zetachain: '20',
+    zircuit: '0.1',
     zoramainnet: '0.2',
-    // ignore cosmos chains
+    // ignore non-evm chains
     injective: '0',
     neutron: '0',
     osmosis: '0',
+    solana: '0',
+    eclipse: '0',
   },
   desiredKathyBalancePerChain: {
     arbitrum: '0.1',
@@ -69,6 +75,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0',
     bsc: '0.35',
     celo: '150',
+    cheesechain: '0',
     endurance: '0',
     ethereum: '0.4',
     fraxtal: '0',
@@ -88,12 +95,17 @@ export const keyFunderConfig: KeyFunderConfig<
     sei: '0',
     taiko: '0',
     viction: '0.05',
+    worldchain: '0',
+    xlayer: '0',
     zetachain: '0',
+    zircuit: '0',
     zoramainnet: '0',
-    // ignore cosmos chains
+    // ignore non-evm chains
     injective: '0',
     neutron: '0',
     osmosis: '0',
+    eclipse: '0',
+    solana: '0',
   },
   igpClaimThresholdPerChain: {
     arbitrum: '0.1',
@@ -104,6 +116,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0.1',
     bsc: '0.3',
     celo: '5',
+    cheesechain: '25',
     endurance: '10',
     ethereum: '0.2',
     fraxtal: '0.1',
@@ -123,11 +136,16 @@ export const keyFunderConfig: KeyFunderConfig<
     sei: '2',
     taiko: '0.1',
     viction: '2',
+    worldchain: '0.1',
+    xlayer: '0.25',
     zetachain: '20',
+    zircuit: '0.05',
     zoramainnet: '0.1',
-    // ignore cosmos chains
+    // ignore non-evm chains
     injective: '0',
     neutron: '0',
     osmosis: '0',
+    eclipse: '0',
+    solana: '0',
   },
 };

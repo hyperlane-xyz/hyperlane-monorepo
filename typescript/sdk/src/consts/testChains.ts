@@ -30,9 +30,9 @@ export const test1: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 0,
   },
-  chainId: 13371,
+  chainId: 9913371,
   displayName: 'Test 1',
-  domainId: 13371,
+  domainId: 9913371,
   isTestnet: true,
   name: 'test1',
   nativeToken: { decimals: 18, name: 'Ether', symbol: 'ETH' },
@@ -47,9 +47,9 @@ export const test2: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 1,
   },
-  chainId: 13372,
+  chainId: 9913372,
   displayName: 'Test 2',
-  domainId: 13372,
+  domainId: 9913372,
   name: 'test2',
 };
 
@@ -60,9 +60,9 @@ export const test3: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 2,
   },
-  chainId: 13373,
+  chainId: 9913373,
   displayName: 'Test 3',
-  domainId: 13373,
+  domainId: 9913373,
   name: 'test3',
 };
 

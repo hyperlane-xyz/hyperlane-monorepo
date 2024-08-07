@@ -100,6 +100,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  cheesechain: {
+    threshold: 1,
+    validators: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
+  },
+
   chiado: {
     threshold: 2,
     validators: [
@@ -112,6 +117,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   connextsepolia: {
     threshold: 1,
     validators: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
+  },
+
+  eclipse: {
+    threshold: 1,
+    validators: ['0x54c96aa1666596c043b07d694da552aa4b596306'],
   },
 
   eclipsetestnet: {
@@ -346,6 +356,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  solana: {
+    threshold: 1,
+    validators: ['0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415'],
+  },
+
   solanadevnet: {
     threshold: 2,
     validators: [
@@ -383,12 +398,27 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  worldchain: {
+    threshold: 1,
+    validators: ['0x31048785845325b22817448b68d08f8a8fe36854'],
+  },
+
+  xlayer: {
+    threshold: 1,
+    validators: ['0xa2ae7c594703e988f23d97220717c513db638ea3'],
+  },
+
   zetachain: {
     threshold: 2,
     validators: [
       '0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
     ],
+  },
+
+  zircuit: {
+    threshold: 1,
+    validators: ['0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb'],
   },
 
   zoramainnet: {

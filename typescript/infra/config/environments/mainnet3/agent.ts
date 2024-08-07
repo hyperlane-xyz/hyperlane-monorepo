@@ -32,9 +32,7 @@ import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
-import merklyErc20Addresses from './warp/merkly-erc20-addresses.json';
 import merklyEthAddresses from './warp/merkly-eth-addresses.json';
-import merklyNftAddresses from './warp/merkly-nft-addresses.json';
 import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
@@ -64,6 +62,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    cheesechain: true,
+    eclipse: true,
     endurance: true,
     ethereum: true,
     fraxtal: true,
@@ -84,9 +84,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     redstone: true,
     scroll: true,
     sei: true,
+    solana: true,
     taiko: true,
     viction: true,
+    worldchain: true,
+    xlayer: true,
     zetachain: true,
+    zircuit: true,
     zoramainnet: true,
   },
   [Role.Relayer]: {
@@ -98,6 +102,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    cheesechain: true,
+    eclipse: true,
     endurance: true,
     ethereum: true,
     fraxtal: true,
@@ -119,9 +125,13 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     redstone: true,
     scroll: true,
     sei: true,
+    solana: true,
     taiko: true,
     viction: true,
+    worldchain: true,
+    xlayer: true,
     zetachain: true,
+    zircuit: true,
     zoramainnet: true,
   },
   [Role.Scraper]: {
@@ -133,6 +143,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     bsc: true,
     celo: true,
+    cheesechain: true,
+    // Cannot scrape non-EVM chains
+    eclipse: false,
     endurance: false,
     ethereum: true,
     fraxtal: true,
@@ -158,10 +171,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
     scroll: true,
+    // Cannot scrape non-EVM chains
+    solana: false,
     taiko: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
+    worldchain: true,
+    xlayer: true,
     zetachain: true,
+    zircuit: true,
     zoramainnet: false,
   },
 };
@@ -299,7 +317,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd962e36-20240716-132121',
+      tag: '0e509a8-20240806-173913',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -308,7 +326,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd962e36-20240716-132121',
+      tag: '0e509a8-20240806-173913',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -318,7 +336,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd962e36-20240716-132121',
+      tag: '0e509a8-20240806-173913',
     },
     resources: scraperResources,
   },
@@ -333,7 +351,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd962e36-20240716-132121',
+      tag: '79f2aed-20240731-172847',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.

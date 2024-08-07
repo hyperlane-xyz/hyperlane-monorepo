@@ -67,7 +67,11 @@ export {
   RelayerCacheSchema,
 } from './core/HyperlaneRelayer.js';
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
-export { CoreConfigSchema } from './core/schemas.js';
+export {
+  CoreConfigSchema,
+  DeployedCoreAddressesSchema,
+  DeployedCoreAddresses,
+} from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
 export {
@@ -505,8 +509,11 @@ export { isCompliant } from './utils/schemas.js';
 // @ts-ignore
 export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
 
-export { DeployedCoreAdresses, EvmCoreModule } from './core/EvmCoreModule.js';
+export { EvmCoreModule } from './core/EvmCoreModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-export { ProxyFactoryFactoriesAddresses } from './deploy/schemas.js';
+export {
+  ProxyFactoryFactoriesSchema,
+  ProxyFactoryFactoriesAddresses,
+} from './deploy/schemas.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';

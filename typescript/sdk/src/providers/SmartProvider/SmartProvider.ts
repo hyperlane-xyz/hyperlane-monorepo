@@ -1,4 +1,4 @@
-import { BigNumber, providers, utils } from 'ethers';
+import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import pino, { Logger } from 'pino';
 
 import {
@@ -27,6 +27,16 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
+export const getSmartProviderErrorMessage = (errorMsg: string) =>
+  `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+
+// This is a partial list. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
+const RPC_SERVER_ERRORS = [
+  EthersError.NOT_IMPLEMENTED,
+  EthersError.SERVER_ERROR,
+  EthersError.UNKNOWN_ERROR,
+  EthersError.UNSUPPORTED_OPERATION,
+];
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
@@ -97,7 +107,7 @@ export class HyperlaneSmartProvider
     this.supportedMethods = [...supportedMethods.values()];
   }
 
-  setLogLevel(level: pino.LevelWithSilentOrString) {
+  setLogLevel(level: pino.LevelWithSilentOrString): void {
     this.logger.level = level;
   }
 
@@ -315,7 +325,7 @@ export class HyperlaneSmartProvider
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.throwCombinedProviderErrors(
-            providerResultErrors,
+            [result, ...providerResultErrors],
             `All providers timed out for method ${method}`,
           );
         } else if (result.status === ProviderStatus.Error) {
@@ -405,13 +415,25 @@ export class HyperlaneSmartProvider
   }
 
   protected throwCombinedProviderErrors(
-    errors: unknown[],
+    errors: any[],
     fallbackMsg: string,
   ): void {
     this.logger.error(fallbackMsg);
-    // TODO inspect the errors in some clever way to choose which to throw
-    if (errors.length > 0) throw errors[0];
-    else throw new Error(fallbackMsg);
+    if (errors.length === 0) throw new Error(fallbackMsg);
+
+    const rpcServerError = errors.find((e) =>
+      RPC_SERVER_ERRORS.includes(e.code),
+    );
+    const timedOutError = errors.find(
+      (e) => e.status === ProviderStatus.Timeout,
+    );
+    if (rpcServerError) {
+      throw Error(getSmartProviderErrorMessage(rpcServerError.code));
+    } else if (timedOutError) {
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
+    } else {
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Error)); // Assumes that all errors are of ProviderStatus.Error
+    }
   }
 }
 

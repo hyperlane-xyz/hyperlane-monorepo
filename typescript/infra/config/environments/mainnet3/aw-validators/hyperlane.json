@@ -43,6 +43,12 @@
       "0x7bf30afcb6a7d92146d5a910ea4c154fba38d25e"
     ]
   },
+  "cheesechain": {
+    "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
+  },
+  "eclipse": {
+    "validators": ["0x54c96aa1666596c043b07d694da552aa4b596306"]
+  },
   "endurance": {
     "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
   },
@@ -143,14 +149,26 @@
   "sei": {
     "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
   },
+  "solana": {
+    "validators": ["0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415"]
+  },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
   },
+  "worldchain": {
+    "validators": ["0x31048785845325b22817448b68d08f8a8fe36854"]
+  },
+  "xlayer": {
+    "validators": ["0xa2ae7c594703e988f23d97220717c513db638ea3"]
+  },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
+  },
+  "zircuit": {
+    "validators": ["0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb"]
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]

@@ -1,6 +1,5 @@
 import {
   MailboxClient__factory,
-  Ownable__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -12,7 +11,6 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
-  eqAddress,
   isObjEmpty,
   normalizeConfig,
   rootLogger,
@@ -95,22 +93,22 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const transactions = [];
 
     transactions.push(
-      ...(await this.updateIsm(actualConfig, expectedConfig)),
-      ...this.updateRemoteRouters(actualConfig, expectedConfig),
-      ...this.updateOwnership(actualConfig, expectedConfig),
+      ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
+      ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
     );
 
     return transactions;
   }
 
   /**
-   * Updates the remote routers for the Warp Route contract.
+   * Create a transaction to update the remote routers for the Warp Route contract.
    *
    * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
-  updateRemoteRouters(
+  createRemoteRoutersUpdateTxs(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
@@ -155,13 +153,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Updates an existing Warp route ISM with a given config.
+   * Create transactions to update an existing ISM config, or deploy a new ISM and return a tx to setInterchainSecurityModule
    *
    * @param actualConfig - The on-chain router configuration, including the ISM configuration, and address.
    * @param expectedConfig - The expected token router configuration, including the ISM configuration.
    * @returns Ethereum transaction that need to be executed to update the ISM configuration.
    */
-  async updateIsm(
+  async createIsmUpdateTxs(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
@@ -212,26 +210,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
-  updateOwnership(
+  createOwnershipUpdateTxs(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
-    if (!eqAddress(actualConfig.owner, expectedConfig.owner)) {
-      const { deployedTokenRoute } = this.args.addresses;
-      const { owner: newOwner } = expectedConfig;
-      updateTransactions.push({
-        annotation: `Transferring ownership of Warp route ${deployedTokenRoute} to ${newOwner}`,
-        chainId: this.domainId,
-        to: deployedTokenRoute,
-        data: Ownable__factory.createInterface().encodeFunctionData(
-          'transferOwnership(address)',
-          [newOwner],
-        ),
-      });
-    }
-
-    return updateTransactions;
+    return EvmERC20WarpModule.createTransferOwnershipTx({
+      actualOwner: actualConfig.owner,
+      expectedOwner: expectedConfig.owner,
+      deployedAddress: this.args.addresses.deployedTokenRoute,
+      chainId: this.domainId,
+    });
   }
 
   /**
