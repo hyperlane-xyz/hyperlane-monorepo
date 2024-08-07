@@ -21,8 +21,9 @@ import { ArbL2ToL1IsmConfig, IsmType } from '../types.js';
 
 import { MetadataBuilder, MetadataContext } from './builder.js';
 
+// type for the executeTransaction call to the Arbitrum bridge on the L1
 export interface ArbL2ToL1Metadata {
-  proof: BytesLike[];
+  proof: BytesLike[]; // bytes32[16]
   index: BigNumber;
   l2Sender: Address;
   to: Address;
@@ -64,7 +65,6 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
     // else build the metadata for outbox.executeTransaction call
     const metadata = await this.buildArbitrumBridgeCalldata(context);
-
     return ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(metadata);
   }
 
@@ -74,7 +74,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1HookConfig>
     >,
   ): Promise<ArbL2ToL1Metadata> {
-    const matchingL2Tx = context.dispatchTx.logs
+    const matchingL2TxEvent = context.dispatchTx.logs
       .filter((log) => eqAddressEvm(log.address, context.hook.arbSys))
       .find((log) => {
         const calldata: string = log.data;
@@ -82,22 +82,30 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         return calldata && calldata.includes(messageIdHex);
       });
 
-    assert(matchingL2Tx, 'No matching L2ToL1Tx event found');
-    this.logger.debug({ matchingL2Tx }, 'Found matching L2ToL1Tx event');
+    assert(matchingL2TxEvent, 'No matching L2ToL1Tx event found');
+    this.logger.debug({ matchingL2TxEvent }, 'Found matching L2ToL1Tx event');
 
-    if (matchingL2Tx) {
+    if (matchingL2TxEvent) {
+      // decoding the L2ToL1TxEvent manually as the ArbSys.parseLog isn't working as expected
       const l2ToL1TxEvent: ChildToParentTransactionEvent = {
-        caller: '0x' + matchingL2Tx.data.slice(26, 66),
-        destination: '0x' + matchingL2Tx.topics[1].slice(-40),
-        hash: BigNumber.from(matchingL2Tx.topics[2]),
-        position: BigNumber.from(matchingL2Tx.topics[3]),
-        arbBlockNum: BigNumber.from('0x' + matchingL2Tx.data.slice(66, 130)),
-        ethBlockNum: BigNumber.from('0x' + matchingL2Tx.data.slice(130, 194)),
-        timestamp: BigNumber.from('0x' + matchingL2Tx.data.slice(194, 258)),
-        callvalue: BigNumber.from('0x' + matchingL2Tx.data.slice(258, 322)),
-        data: '0x' + matchingL2Tx.data.slice(450, 522),
+        caller: '0x' + matchingL2TxEvent.data.slice(26, 66),
+        destination: '0x' + matchingL2TxEvent.topics[1].slice(-40),
+        hash: BigNumber.from(matchingL2TxEvent.topics[2]),
+        position: BigNumber.from(matchingL2TxEvent.topics[3]),
+        arbBlockNum: BigNumber.from(
+          '0x' + matchingL2TxEvent.data.slice(66, 130),
+        ),
+        ethBlockNum: BigNumber.from(
+          '0x' + matchingL2TxEvent.data.slice(130, 194),
+        ),
+        timestamp: BigNumber.from(
+          '0x' + matchingL2TxEvent.data.slice(194, 258),
+        ),
+        callvalue: BigNumber.from(
+          '0x' + matchingL2TxEvent.data.slice(258, 322),
+        ),
+        data: '0x' + matchingL2TxEvent.data.slice(450, 522),
       };
-      console.log('CHEESECAKE: L2ToL1TxEvent', l2ToL1TxEvent);
 
       const reader = new ChildToParentMessageReader(
         this.core.multiProvider.getProvider(context.hook.destinationChain),
