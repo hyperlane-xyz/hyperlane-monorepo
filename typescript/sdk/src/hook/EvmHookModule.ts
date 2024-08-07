@@ -829,8 +829,6 @@ export class EvmHookModule extends HyperlaneModule<
     const chain = this.chain;
     const mailbox = this.args.addresses.mailbox;
 
-    console.log('MP', this.multiProvider.getKnownChainNames());
-
     const destinationDomain = this.multiProvider.getDomainId(
       config.destinationChain,
     );
@@ -859,7 +857,6 @@ export class EvmHookModule extends HyperlaneModule<
       arbL2ToL1IsmAddress,
       this.multiProvider.getSignerOrProvider(config.destinationChain),
     );
-    console.log('CHEESECAKE4', arbL2ToL1Ism.address);
 
     // deploy arbL1ToL1 hook
     const hook = await this.deployer.deployContract({
@@ -873,8 +870,6 @@ export class EvmHookModule extends HyperlaneModule<
         BigNumber.from(config.gasOverhead),
       ],
     });
-
-    console.log('CHEESECAKE', hook.address, ethers.constants.AddressZero);
     // set authorized hook on arbL2ToL1 ism
     const authorizedHook = await arbL2ToL1Ism.authorizedHook();
     if (authorizedHook === addressToBytes32(hook.address)) {
@@ -900,7 +895,6 @@ export class EvmHookModule extends HyperlaneModule<
       arbL2ToL1Ism.address,
       config.destinationChain,
     );
-    console.log('CHEESECAKE2:', hook.address);
     await this.multiProvider.handleTx(
       config.destinationChain,
       arbL2ToL1Ism.setAuthorizedHook(
