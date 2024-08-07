@@ -27,6 +27,7 @@ import {
   chainCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
 } from './options.js';
 
@@ -49,6 +50,7 @@ export const coreCommand: CommandModule = {
 export const apply: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
+  out: string;
 }> = {
   command: 'apply',
   describe:
@@ -58,13 +60,23 @@ export const apply: CommandModuleWithWriteContext<{
       ...chainCommandOption,
       demandOption: true,
     },
-    config: outputFileCommandOption(
-      './configs/core-config.yaml',
-      true,
+    config: {
+      ...inputFileCommandOption,
+      default: './configs/core-config.yaml',
+      description: 'The path to input a Core Config JSON or YAML file.',
+    },
+    out: outputFileCommandOption(
+      undefined,
+      false,
       'The path to output a Core Config JSON or YAML file.',
     ),
   },
-  handler: async ({ context, chain, config: configFilePath }) => {
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    out: coreConfigOutputFilePath,
+  }) => {
     logGray(`Hyperlane Core Apply`);
     logGray('--------------------');
 
@@ -81,6 +93,14 @@ export const apply: CommandModuleWithWriteContext<{
       config,
       deployedCoreAddresses: addresses,
     });
+
+    if (coreConfigOutputFilePath) {
+      writeYamlOrJson(coreConfigOutputFilePath, config, 'yaml');
+      logGreen(
+        `✅ Core deploy config written successfully to ${coreConfigOutputFilePath}:\n`,
+      );
+      logYamlIfUnderMaxLines(config);
+    }
     process.exit(0);
   },
 };
