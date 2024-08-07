@@ -282,6 +282,15 @@ where
                 tx = tx.gas_price(gas_price);
             }
         }
+        if self.domain.id() == 56 {
+            if let Ok(gas_price) = std::env::var("BSC_GAS_PRICE")
+                .unwrap_or_default()
+                .parse::<U256>()
+            {
+                debug!(%gas_price, "Using custom gas price for BSC");
+                tx = tx.gas_price(gas_price);
+            }
+        }
         Ok(tx)
     }
 }
