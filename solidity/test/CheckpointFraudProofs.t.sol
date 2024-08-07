@@ -3,14 +3,34 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 import "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestMailbox.sol";
 import "../contracts/CheckpointFraudProofs.sol";
 import "../contracts/test/TestMerkleTreeHook.sol";
 import "../contracts/test/TestPostDispatchHook.sol";
 
+// must have keys ordered alphabetically
+struct Proof {
+    uint32 index;
+    bytes32 leaf;
+    bytes32[] path; // cannot be static length or json parsing breaks
+}
+
+// must have keys ordered alphabetically
+struct Fixture {
+    bytes32 expectedRoot;
+    string[] leaves;
+    Proof[] proofs;
+    string testName;
+}
+
+uint8 constant FIXTURE_COUNT = 1;
+
 contract CheckpointFraudProofsTest is Test {
     using TypeCasts for address;
+    using stdJson for string;
 
     uint32 localDomain = 1000;
     uint32 remoteDomain = 2000;
@@ -18,69 +38,102 @@ contract CheckpointFraudProofsTest is Test {
     TestMailbox mailbox;
     TestMerkleTreeHook merkleTreeHook;
 
-    bytes32[] leaves = [
-        bytes32(abi.encode("0xc0ffee")),
-        bytes32(abi.encode("0xdeadbeef")),
-        bytes32(abi.encode("0xfeedface"))
-    ];
-
-    Checkpoint latestCheckpoint;
     CheckpointFraudProofs cfp;
 
     function setUp() public {
         mailbox = new TestMailbox(localDomain);
         cfp = new CheckpointFraudProofs();
+    }
 
+    function loadFixture(
+        Fixture memory fixture
+    )
+        internal
+        returns (Checkpoint memory checkpoint, bytes32[32] memory proof)
+    {
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         bytes32 merkleBytes = address(merkleTreeHook).addressToBytes32();
 
-        for (uint256 i = 0; i < leaves.length; i++) {
-            bytes32 leaf = leaves[i];
+        for (uint32 index = 0; index < fixture.leaves.length; index++) {
+            bytes32 leaf = ECDSA.toEthSignedMessageHash(
+                abi.encodePacked(fixture.leaves[index])
+            );
             merkleTreeHook.insert(leaf);
-            (bytes32 root, uint32 index) = merkleTreeHook.latestCheckpoint();
-            latestCheckpoint = Checkpoint(
+            checkpoint = Checkpoint(
                 localDomain,
                 merkleBytes,
-                root,
+                fixture.expectedRoot,
                 index,
                 leaf
             );
         }
+        proof = parseProof(fixture.proofs[fixture.proofs.length - 1]);
     }
 
-    function test_isLocal() public {
-        assertTrue(cfp.isLocal(latestCheckpoint));
-        Checkpoint memory checkpoint = latestCheckpoint;
+    function parseProof(
+        Proof memory proof
+    ) internal pure returns (bytes32[32] memory path) {
+        for (uint8 i = 0; i < proof.path.length; i++) {
+            path[i] = proof.path[i];
+        }
+    }
+
+    function readFixture(
+        uint8 index
+    ) internal returns (Fixture memory fixture) {
+        string memory json = vm.readFile("../vectors/merkle.json");
+        bytes memory data = json.parseRaw(
+            string.concat(".[", vm.toString(index), "]")
+        );
+        fixture = abi.decode(data, (Fixture));
+        console.log(fixture.testName);
+    }
+
+    function test_isLocal(uint8 fixtureIndex) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+
+        (Checkpoint memory checkpoint, ) = loadFixture(
+            readFixture(fixtureIndex)
+        );
+
+        assertTrue(cfp.isLocal(checkpoint));
         checkpoint.origin = remoteDomain;
         assertFalse(cfp.isLocal(checkpoint));
     }
 
-    function test_isPremature() public {
-        assertFalse(cfp.isPremature(latestCheckpoint));
-        Checkpoint memory checkpoint = latestCheckpoint;
+    function test_isPremature(uint8 fixtureIndex) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+        (Checkpoint memory checkpoint, ) = loadFixture(
+            readFixture(fixtureIndex)
+        );
+        assertFalse(cfp.isPremature(checkpoint));
         checkpoint.index += 1;
         assertTrue(cfp.isPremature(checkpoint));
     }
 
-    function test_RevertWhenNotLocal_isPremature() public {
-        Checkpoint memory checkpoint = latestCheckpoint;
+    function test_RevertWhenNotLocal_isPremature(uint8 fixtureIndex) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+        (Checkpoint memory checkpoint, ) = loadFixture(
+            readFixture(fixtureIndex)
+        );
         checkpoint.origin = remoteDomain;
         vm.expectRevert("must be local checkpoint");
         cfp.isPremature(checkpoint);
     }
 
-    function test_isFraudulentMessageId() public {
-        bytes32[32] memory proof = merkleTreeHook.proof();
-        cfp.storeLatestCheckpoint(address(merkleTreeHook));
-        assertFalse(
-            cfp.isFraudulentMessageId(
-                latestCheckpoint,
-                proof,
-                latestCheckpoint.messageId
-            )
+    function test_isFraudulentMessageId(uint8 fixtureIndex) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+
+        (Checkpoint memory checkpoint, bytes32[32] memory proof) = loadFixture(
+            readFixture(fixtureIndex)
         );
 
-        Checkpoint memory checkpoint = latestCheckpoint;
+        cfp.storeLatestCheckpoint(address(merkleTreeHook));
+
+        assertFalse(
+            cfp.isFraudulentMessageId(checkpoint, proof, checkpoint.messageId)
+        );
+
         bytes32 actualMessageId = checkpoint.messageId;
         checkpoint.messageId = ~checkpoint.messageId;
         assertTrue(
@@ -88,48 +141,69 @@ contract CheckpointFraudProofsTest is Test {
         );
     }
 
-    function test_RevertWhenNotStored_isFraudulentMessageId() public {
-        bytes32[32] memory proof = merkleTreeHook.proof();
-        vm.expectRevert("message must be member of stored checkpoint");
-        cfp.isFraudulentMessageId(
-            latestCheckpoint,
-            proof,
-            latestCheckpoint.messageId
+    function test_RevertWhenNotStored_isFraudulentMessageId(
+        uint8 fixtureIndex
+    ) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+
+        (Checkpoint memory checkpoint, bytes32[32] memory proof) = loadFixture(
+            readFixture(fixtureIndex)
         );
+
+        vm.expectRevert("message must be member of stored checkpoint");
+        cfp.isFraudulentMessageId(checkpoint, proof, checkpoint.messageId);
     }
 
-    function test_RevertWhenNotLocal_isFraudulentMessageId() public {
-        bytes32[32] memory proof = merkleTreeHook.proof();
-        Checkpoint memory checkpoint = latestCheckpoint;
+    function test_RevertWhenNotLocal_isFraudulentMessageId(
+        uint8 fixtureIndex
+    ) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+
+        (Checkpoint memory checkpoint, bytes32[32] memory proof) = loadFixture(
+            readFixture(fixtureIndex)
+        );
+
         checkpoint.origin = remoteDomain;
         vm.expectRevert("must be local checkpoint");
-        cfp.isFraudulentMessageId(
-            checkpoint,
-            proof,
-            latestCheckpoint.messageId
-        );
+        cfp.isFraudulentMessageId(checkpoint, proof, checkpoint.messageId);
     }
 
-    function test_IsFraudulentRoot() public {
-        bytes32[32] memory proof = merkleTreeHook.proof();
+    function test_IsFraudulentRoot(uint8 fixtureIndex) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+
+        (Checkpoint memory checkpoint, bytes32[32] memory proof) = loadFixture(
+            readFixture(fixtureIndex)
+        );
 
         cfp.storeLatestCheckpoint(address(merkleTreeHook));
-        assertFalse(cfp.isFraudulentRoot(latestCheckpoint, proof));
+        assertFalse(cfp.isFraudulentRoot(checkpoint, proof));
 
-        Checkpoint memory checkpoint = latestCheckpoint;
         checkpoint.root = ~checkpoint.root;
         assertTrue(cfp.isFraudulentRoot(checkpoint, proof));
     }
 
-    function test_RevertWhenNotStored_isFraudulentRoot() public {
-        bytes32[32] memory proof = merkleTreeHook.proof();
+    function test_RevertWhenNotStored_isFraudulentRoot(
+        uint8 fixtureIndex
+    ) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+
+        (Checkpoint memory checkpoint, bytes32[32] memory proof) = loadFixture(
+            readFixture(fixtureIndex)
+        );
+
         vm.expectRevert("message must be member of stored checkpoint");
-        cfp.isFraudulentRoot(latestCheckpoint, proof);
+        cfp.isFraudulentRoot(checkpoint, proof);
     }
 
-    function test_RevertWhenNotLocal_isFraudulentRoot() public {
-        bytes32[32] memory proof = merkleTreeHook.proof();
-        Checkpoint memory checkpoint = latestCheckpoint;
+    function test_RevertWhenNotLocal_isFraudulentRoot(
+        uint8 fixtureIndex
+    ) public {
+        vm.assume(fixtureIndex < FIXTURE_COUNT);
+
+        (Checkpoint memory checkpoint, bytes32[32] memory proof) = loadFixture(
+            readFixture(fixtureIndex)
+        );
+
         checkpoint.origin = remoteDomain;
         vm.expectRevert("must be local checkpoint");
         cfp.isFraudulentRoot(checkpoint, proof);

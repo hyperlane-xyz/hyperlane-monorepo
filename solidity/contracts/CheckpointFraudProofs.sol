@@ -17,17 +17,29 @@ contract CheckpointFraudProofs {
     // merkle tree hook => root => index
     mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
 
-    modifier onlyLeafOfStored(
+    function storedCheckpointContainsMessage(
+        address merkleTreeHook,
+        uint32 index,
+        bytes32 messageId,
+        bytes32[TREE_DEPTH] calldata proof
+    ) public view returns (bool) {
+        bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
+        uint32 storedIndex = storedCheckpoint[merkleTreeHook][root];
+        return storedIndex >= index;
+    }
+
+    modifier onlyMessageInStoredCheckpoint(
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof,
         bytes32 messageId
     ) {
-        address merkleTreeHook = checkpoint.merkleTreeHook.bytes32ToAddress();
-        bytes32 root = MerkleLib.branchRoot(messageId, proof, checkpoint.index);
-        uint32 storedIndex = storedCheckpoint[merkleTreeHook][root];
-
         require(
-            storedIndex >= checkpoint.index,
+            storedCheckpointContainsMessage(
+                checkpoint.merkleTreeHook.bytes32ToAddress(),
+                checkpoint.index,
+                messageId,
+                proof
+            ),
             "message must be member of stored checkpoint"
         );
         _;
@@ -93,7 +105,7 @@ contract CheckpointFraudProofs {
         external
         view
         onlyLocal(checkpoint)
-        onlyLeafOfStored(checkpoint, proof, actualMessageId)
+        onlyMessageInStoredCheckpoint(checkpoint, proof, actualMessageId)
         returns (bool)
     {
         return actualMessageId != checkpoint.messageId;
@@ -113,7 +125,7 @@ contract CheckpointFraudProofs {
         external
         view
         onlyLocal(checkpoint)
-        onlyLeafOfStored(checkpoint, proof, checkpoint.messageId)
+        onlyMessageInStoredCheckpoint(checkpoint, proof, checkpoint.messageId)
         returns (bool)
     {
         // proof of checkpoint.messageId at checkpoint.index is the list of siblings from the leaf node to some stored root
