@@ -35,6 +35,8 @@ contract CheckpointFraudProofsTest is Test {
     uint32 localDomain = 1000;
     uint32 remoteDomain = 2000;
 
+    string json = vm.readFile("../vectors/merkle.json");
+
     TestMailbox mailbox;
     TestMerkleTreeHook merkleTreeHook;
 
@@ -46,7 +48,7 @@ contract CheckpointFraudProofsTest is Test {
     }
 
     function loadFixture(
-        Fixture memory fixture
+        uint32 fixtureIndex
     )
         internal
         returns (
@@ -54,6 +56,12 @@ contract CheckpointFraudProofsTest is Test {
             bytes32[TREE_DEPTH][] memory proofs
         )
     {
+        bytes memory data = json.parseRaw(
+            string.concat(".[", vm.toString(fixtureIndex), "]")
+        );
+        Fixture memory fixture = abi.decode(data, (Fixture));
+        console.log(fixture.testName);
+
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         bytes32 merkleBytes = address(merkleTreeHook).addressToBytes32();
 
@@ -86,23 +94,10 @@ contract CheckpointFraudProofsTest is Test {
         }
     }
 
-    function readFixture(
-        uint8 index
-    ) internal returns (Fixture memory fixture) {
-        string memory json = vm.readFile("../vectors/merkle.json");
-        bytes memory data = json.parseRaw(
-            string.concat(".[", vm.toString(index), "]")
-        );
-        fixture = abi.decode(data, (Fixture));
-        console.log(fixture.testName);
-    }
-
     function test_isLocal(uint8 fixtureIndex) public {
         vm.assume(fixtureIndex < FIXTURE_COUNT);
 
-        (Checkpoint[] memory checkpoints, ) = loadFixture(
-            readFixture(fixtureIndex)
-        );
+        (Checkpoint[] memory checkpoints, ) = loadFixture(fixtureIndex);
 
         for (uint32 i = 0; i < checkpoints.length; i++) {
             assertTrue(cfp.isLocal(checkpoints[i]));
@@ -113,9 +108,7 @@ contract CheckpointFraudProofsTest is Test {
 
     function test_isPremature(uint8 fixtureIndex) public {
         vm.assume(fixtureIndex < FIXTURE_COUNT);
-        (Checkpoint[] memory checkpoints, ) = loadFixture(
-            readFixture(fixtureIndex)
-        );
+        (Checkpoint[] memory checkpoints, ) = loadFixture(fixtureIndex);
 
         for (uint32 i = 0; i < checkpoints.length; i++) {
             assertFalse(cfp.isPremature(checkpoints[i]));
@@ -136,9 +129,7 @@ contract CheckpointFraudProofsTest is Test {
 
     function test_RevertWhenNotLocal_isPremature(uint8 fixtureIndex) public {
         vm.assume(fixtureIndex < FIXTURE_COUNT);
-        (Checkpoint[] memory checkpoints, ) = loadFixture(
-            readFixture(fixtureIndex)
-        );
+        (Checkpoint[] memory checkpoints, ) = loadFixture(fixtureIndex);
         for (uint32 i = 0; i < checkpoints.length; i++) {
             checkpoints[i].origin = remoteDomain;
             vm.expectRevert("must be local checkpoint");
@@ -152,7 +143,7 @@ contract CheckpointFraudProofsTest is Test {
         (
             Checkpoint[] memory checkpoints,
             bytes32[32][] memory proofs
-        ) = loadFixture(readFixture(fixtureIndex));
+        ) = loadFixture(fixtureIndex);
 
         // cannot store checkpoint when count is 0
         if (checkpoints.length != 0) {
@@ -187,7 +178,7 @@ contract CheckpointFraudProofsTest is Test {
         (
             Checkpoint[] memory checkpoints,
             bytes32[32][] memory proofs
-        ) = loadFixture(readFixture(fixtureIndex));
+        ) = loadFixture(fixtureIndex);
 
         // stored checkpoint with index 0 is unfortunately not fraud provable
         uint32 index = 1;
@@ -209,7 +200,7 @@ contract CheckpointFraudProofsTest is Test {
         (
             Checkpoint[] memory checkpoints,
             bytes32[32][] memory proofs
-        ) = loadFixture(readFixture(fixtureIndex));
+        ) = loadFixture(fixtureIndex);
 
         for (uint32 i = 0; i < checkpoints.length; i++) {
             checkpoints[i].origin = remoteDomain;
@@ -228,7 +219,7 @@ contract CheckpointFraudProofsTest is Test {
         (
             Checkpoint[] memory checkpoints,
             bytes32[32][] memory proofs
-        ) = loadFixture(readFixture(fixtureIndex));
+        ) = loadFixture(fixtureIndex);
 
         // cannot store checkpoint when count is 0
         if (checkpoints.length != 0) {
@@ -251,7 +242,7 @@ contract CheckpointFraudProofsTest is Test {
         (
             Checkpoint[] memory checkpoints,
             bytes32[32][] memory proofs
-        ) = loadFixture(readFixture(fixtureIndex));
+        ) = loadFixture(fixtureIndex);
 
         // stored checkpoint with index 0 is unfortunately not fraud provable
         uint32 index = 1;
@@ -269,7 +260,7 @@ contract CheckpointFraudProofsTest is Test {
         (
             Checkpoint[] memory checkpoints,
             bytes32[32][] memory proofs
-        ) = loadFixture(readFixture(fixtureIndex));
+        ) = loadFixture(fixtureIndex);
 
         for (uint32 i = 0; i < checkpoints.length; i++) {
             checkpoints[i].origin = remoteDomain;
