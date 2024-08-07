@@ -17,6 +17,13 @@ contract CheckpointFraudProofs {
     // merkle tree hook => root => index
     mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
 
+    // checkpoint digest => is fraud proven
+    mapping(bytes32 => bool) public fraudulentCheckpoints;
+
+    function _markFraudulent(Checkpoint calldata checkpoint) internal {
+        fraudulentCheckpoints[checkpoint.digest()] = true;
+    }
+
     function storedCheckpointContainsMessage(
         address merkleTreeHook,
         uint32 index,
@@ -79,7 +86,7 @@ contract CheckpointFraudProofs {
      */
     function isPremature(
         Checkpoint calldata checkpoint
-    ) external view onlyLocal(checkpoint) returns (bool) {
+    ) public view onlyLocal(checkpoint) returns (bool) {
         // count is the number of messages in the mailbox (i.e. the latest index + 1)
         uint32 count = MerkleTreeHook(
             checkpoint.merkleTreeHook.bytes32ToAddress()
@@ -92,8 +99,8 @@ contract CheckpointFraudProofs {
     /**
      *  @notice Checks whether the provided checkpoint has a fraudulent message ID.
      *  @param checkpoint Checkpoint to check.
-     *  @param proof Merkle proof of the actual message ID at checkpoint.index on checkpoint.mailbox
-     *  @param actualMessageId Actual message ID at checkpoint.index on checkpoint.mailbox
+     *  @param proof Merkle proof of the actual message ID at checkpoint.index on checkpoint.merkleTree
+     *  @param actualMessageId Actual message ID at checkpoint.index on checkpoint.merkleTree
      *  @dev Must produce proof of inclusion for actualMessageID against some stored checkpoint.
      *  @return Whether the provided checkpoint has a fraudulent message ID.
      */
@@ -102,7 +109,7 @@ contract CheckpointFraudProofs {
         bytes32[TREE_DEPTH] calldata proof,
         bytes32 actualMessageId
     )
-        external
+        public
         view
         onlyLocal(checkpoint)
         onlyMessageInStoredCheckpoint(checkpoint, proof, actualMessageId)
@@ -114,7 +121,7 @@ contract CheckpointFraudProofs {
     /**
      *  @notice Checks whether the provided checkpoint has a fraudulent root.
      *  @param checkpoint Checkpoint to check.
-     *  @param proof Merkle proof of the checkpoint.messageId at checkpoint.index on checkpoint.mailbox
+     *  @param proof Merkle proof of the checkpoint.messageId at checkpoint.index on checkpoint.merkleTree
      *  @dev Must produce proof of inclusion for checkpoint.messageId against some stored checkpoint.
      *  @return Whether the provided checkpoint has a fraudulent message ID.
      */
@@ -122,7 +129,7 @@ contract CheckpointFraudProofs {
         Checkpoint calldata checkpoint,
         bytes32[TREE_DEPTH] calldata proof
     )
-        external
+        public
         view
         onlyLocal(checkpoint)
         onlyMessageInStoredCheckpoint(checkpoint, proof, checkpoint.messageId)
@@ -137,5 +144,30 @@ contract CheckpointFraudProofs {
             checkpoint.index
         );
         return root != checkpoint.root;
+    }
+
+    function markPremature(Checkpoint calldata checkpoint) external {
+        require(isPremature(checkpoint), "must be premature");
+        _markFraudulent(checkpoint);
+    }
+
+    function markFraudulentMessageId(
+        Checkpoint calldata checkpoint,
+        bytes32[TREE_DEPTH] calldata proof,
+        bytes32 actualMessageId
+    ) external {
+        require(
+            isFraudulentMessageId(checkpoint, proof, actualMessageId),
+            "must be fraudulent message ID"
+        );
+        _markFraudulent(checkpoint);
+    }
+
+    function markFraudulentRoot(
+        Checkpoint calldata checkpoint,
+        bytes32[TREE_DEPTH] calldata proof
+    ) external {
+        require(isFraudulentRoot(checkpoint, proof), "must be fraudulent root");
+        _markFraudulent(checkpoint);
     }
 }
