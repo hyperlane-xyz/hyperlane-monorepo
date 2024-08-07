@@ -1,6 +1,8 @@
 import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
+import { timeout } from '@hyperlane-xyz/utils';
+
 import {
   getSecretRpcEndpoints,
   getSecretRpcEndpointsLatestVersionName,
@@ -16,7 +18,7 @@ export async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
   for (const url of rpcUrlsArray) {
     const provider = new ethers.providers.StaticJsonRpcProvider(url);
     try {
-      const blockNumber = await provider.getBlockNumber();
+      const blockNumber = await timeout(provider.getBlockNumber(), 5000);
       console.log(`Valid provider for ${url} with block number ${blockNumber}`);
     } catch (e) {
       console.error(`Provider failed: ${url}`);
