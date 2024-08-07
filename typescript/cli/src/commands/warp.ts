@@ -28,7 +28,11 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  logYamlIfUnderMaxLines,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -66,6 +70,7 @@ export const apply: CommandModuleWithWriteContext<{
   config: string;
   symbol?: string;
   warp: string;
+  out: string;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -79,25 +84,47 @@ export const apply: CommandModuleWithWriteContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'The path to output a warp route deployment config JSON or YAML file.',
+    ),
   },
-  handler: async ({ context, config, symbol, warp }) => {
+  handler: async ({
+    context,
+    symbol,
+    config: warpDeployFilePath,
+    warp: warpCoreFilePath,
+    out: warpDeployOutputFilePath,
+  }) => {
     logGray(`Hyperlane Warp Apply`);
     logGray('--------------------'); // @TODO consider creating a helper function for these dashes
     let warpCoreConfig: WarpCoreConfig;
     if (symbol) {
       warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
-    } else if (warp) {
-      warpCoreConfig = readWarpCoreConfig(warp);
+    } else if (warpCoreFilePath) {
+      warpCoreConfig = readWarpCoreConfig(warpCoreFilePath);
     } else {
       logRed(`Please specify either a symbol or warp config`);
       process.exit(0);
     }
-    const warpDeployConfig = await readWarpRouteDeployConfig(config);
+    const warpDeployConfig = await readWarpRouteDeployConfig(
+      warpDeployFilePath,
+    );
     await runWarpRouteApply({
       context,
       warpDeployConfig,
       warpCoreConfig,
     });
+
+    if (warpDeployOutputFilePath) {
+      writeYamlOrJson(warpDeployOutputFilePath, warpDeployConfig, 'yaml');
+      logGreen(
+        `✅ Warp route config written successfully to ${warpDeployOutputFilePath}:\n`,
+      );
+      logYamlIfUnderMaxLines(warpDeployConfig);
+    }
+
     process.exit(0);
   },
 };
