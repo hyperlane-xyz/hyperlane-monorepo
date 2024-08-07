@@ -435,11 +435,7 @@ function getInfraLandfillPath(environment: DeployEnvironment, module: Modules) {
   return path.join(getModuleDirectory(environment, module), 'addresses.json');
 }
 
-export function getAddresses(
-  environment: DeployEnvironment,
-  module: Modules,
-  warpRouteId?: string,
-) {
+export function getAddresses(environment: DeployEnvironment, module: Modules) {
   if (isRegistryModule(environment, module)) {
     const allAddresses = getChainAddresses();
     const envChains = getEnvChains(environment);
@@ -447,19 +443,22 @@ export function getAddresses(
       return envChains.includes(chain);
     });
   } else {
-    if (!warpRouteId) {
-      throw new Error('Warp route id required for warp module');
-    }
-
-    const registry = getRegistry();
-    const warpRouteConfig = registry.getWarpRoute(warpRouteId);
-
-    if (!warpRouteConfig) {
-      throw new Error(`Warp route config for ${warpRouteId} not found`);
-    }
-
-    return warpConfigToWarpAddresses(warpRouteConfig);
+    throw new Error(`Cannot get addresses for module ${module}`);
   }
+}
+
+export function getWarpAddresses(
+  environment: DeployEnvironment,
+  warpRouteId: string,
+) {
+  const registry = getRegistry();
+  const warpRouteConfig = registry.getWarpRoute(warpRouteId);
+
+  if (!warpRouteConfig) {
+    throw new Error(`Warp route config for ${warpRouteId} not found`);
+  }
+
+  return warpConfigToWarpAddresses(warpRouteConfig);
 }
 
 export function writeAddresses(

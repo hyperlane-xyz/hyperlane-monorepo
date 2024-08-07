@@ -29,8 +29,8 @@ import { logViolationDetails } from '../src/utils/violation.js';
 
 import {
   Modules,
-  getAddresses,
   getArgs as getRootArgs,
+  getWarpAddresses,
   withChain,
   withContext,
   withModuleAndFork,
@@ -153,7 +153,7 @@ async function check() {
       throw new Error('Warp route id required for warp module');
     }
     const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    const addresses = getAddresses(environment, Modules.WARP, warpRouteId);
+    const addresses = getWarpAddresses(environment, warpRouteId);
     const filteredAddresses = Object.keys(addresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
