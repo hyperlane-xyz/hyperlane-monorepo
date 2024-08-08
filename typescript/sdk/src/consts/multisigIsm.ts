@@ -101,8 +101,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   cheesechain: {
-    threshold: 1,
-    validators: ['0x478fb53c6860ae8fc35235ba0d38d49b13128226'],
+    threshold: 2,
+    validators: [
+      '0x478fb53c6860ae8fc35235ba0d38d49b13128226',
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   chiado: {
@@ -469,8 +472,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   worldchain: {
-    threshold: 1,
-    validators: ['0x31048785845325b22817448b68d08f8a8fe36854'],
+    threshold: 2,
+    validators: [
+      '0x31048785845325b22817448b68d08f8a8fe36854',
+      '0x11e2a683e83617f186614071e422b857256a9aae', // imperator
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   xai: {
@@ -479,8 +486,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   xlayer: {
-    threshold: 1,
-    validators: ['0xa2ae7c594703e988f23d97220717c513db638ea3'],
+    threshold: 2,
+    validators: [
+      '0xa2ae7c594703e988f23d97220717c513db638ea3',
+      '0xfed056cC0967F5BC9C6350F6C42eE97d3983394d', // imperator
+      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+    ],
   },
 
   zetachain: {
