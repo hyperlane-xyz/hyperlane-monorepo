@@ -1,4 +1,4 @@
-use crate::CheckpointSyncer;
+use crate::{AgentMetadata, CheckpointSyncer};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
@@ -7,6 +7,7 @@ use std::fmt;
 use ya_gcp::{storage::StorageClient, AuthFlow, ClientBuilder, ClientBuilderConfig};
 
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
+const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
 /// Path to GCS users_secret file
 pub const GCS_USER_SECRET: &str = "GCS_USER_SECRET";
@@ -170,6 +171,15 @@ impl CheckpointSyncer for GcsStorageClient {
                 GcsStorageClient::get_checkpoint_key(signed_checkpoint.value.index),
                 serde_json::to_vec(signed_checkpoint)?,
             )
+            .await?;
+        Ok(())
+    }
+
+    /// Write the agent metadata to this syncer
+    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
+        let serialized_metadata = serde_json::to_string_pretty(metadata)?;
+        self.inner
+            .insert_object(&self.bucket, METADATA_KEY, serialized_metadata)
             .await?;
         Ok(())
     }
