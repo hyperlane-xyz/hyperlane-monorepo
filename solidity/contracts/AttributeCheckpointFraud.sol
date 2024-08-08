@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {TREE_DEPTH} from "./libs/Merkle.sol";
@@ -22,6 +23,7 @@ enum FraudType {
  */
 contract AttributeCheckpointFraud is Ownable {
     using CheckpointLib for Checkpoint;
+    using Address for address;
 
     CheckpointFraudProofs public immutable checkpointFraudProofs =
         new CheckpointFraudProofs();
@@ -32,6 +34,10 @@ contract AttributeCheckpointFraud is Ownable {
         public attributions;
 
     function whitelist(address merkleTree) external onlyOwner {
+        require(
+            merkleTree.isContract(),
+            "merkle tree must be a valid contract"
+        );
         merkleTreeWhitelist[merkleTree] = true;
     }
 
