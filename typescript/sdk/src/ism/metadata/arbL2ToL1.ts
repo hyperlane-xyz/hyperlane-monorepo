@@ -3,7 +3,9 @@ import {
   ChildToParentMessageReader,
   ChildToParentMessageStatus,
   ChildToParentTransactionEvent,
+  EventArgs,
 } from '@arbitrum/sdk';
+import { L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
 import { assert } from 'console';
 import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
@@ -11,7 +13,7 @@ import {
   AbstractMessageIdAuthorizedIsm__factory,
   ArbSys__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { ArbL2ToL1HookConfig } from '../../hook/types.js';
@@ -20,17 +22,13 @@ import { ArbL2ToL1IsmConfig, IsmType } from '../types.js';
 
 import { MetadataBuilder, MetadataContext } from './builder.js';
 
-// type for the executeTransaction call to the Arbitrum bridge on the L1
-export interface ArbL2ToL1Metadata {
+export type NitroChildToParentTransactionEvent = EventArgs<L2ToL1TxEvent>;
+export type ArbL2ToL1Metadata = Omit<
+  NitroChildToParentTransactionEvent,
+  'hash' | 'callvalue'
+> & {
   proof: BytesLike[]; // bytes32[16]
-  index: BigNumber;
-  l2Sender: Address;
-  to: Address;
-  l2Block: BigNumber;
-  l1Block: BigNumber;
-  l2Timestamp: BigNumber;
-  data: BytesLike;
-}
+};
 
 const ArbSys = ArbSys__factory.createInterface();
 
@@ -135,10 +133,16 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
       const status = await this.getArbitrumBridgeStatus(reader, arbProvider);
       // need to wait for the challenge period to pass before relaying
-      if (!status) {
-        throw new Error(
-          `Arbitrum L2ToL1 message isn't ready for relay. Wait until the challenge period before relaying again.`,
+      if (status == ChildToParentMessageStatus.UNCONFIRMED) {
+        const waitingPeriod = await this.getWaitingBlocksUntilReady(
+          reader,
+          arbProvider,
         );
+        throw new Error(
+          `Arbitrum L2ToL1 message isn't ready for relay. Wait ${waitingPeriod} blocks until the challenge period before relaying again.`,
+        );
+      } else if (status == ChildToParentMessageStatus.EXECUTED) {
+        throw new Error('Arbitrum L2ToL1 message has already been executed');
       }
 
       const outboxProof = await this.getArbitrumOutboxProof(
@@ -147,14 +151,8 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       );
 
       const metadata: ArbL2ToL1Metadata = {
+        ...l2ToL1TxEvent,
         proof: outboxProof,
-        index: l2ToL1TxEvent.position,
-        l2Sender: l2ToL1TxEvent.caller,
-        to: l2ToL1TxEvent.destination,
-        l2Block: l2ToL1TxEvent.arbBlockNum,
-        l1Block: l2ToL1TxEvent.ethBlockNum,
-        l2Timestamp: l2ToL1TxEvent.timestamp,
-        data: l2ToL1TxEvent.data,
       };
 
       return metadata;
@@ -163,6 +161,24 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         'Error in building calldata for Arbitrum native bridge call',
       );
     }
+  }
+
+  // waiting period left until the challenge period is over
+  async getWaitingBlocksUntilReady(
+    reader: ChildToParentMessageReader,
+    provider: ArbitrumProvider,
+  ): Promise<BigNumber> {
+    const firstBlock = await reader.getFirstExecutableBlock(provider);
+    if (!firstBlock) {
+      throw new Error('No first executable block found');
+    }
+    const currentBlock = BigNumber.from(await provider.getBlockNumber());
+    if (currentBlock.gt(firstBlock)) {
+      throw new Error('First executable block is in the past');
+    }
+    const waitingPeriod = firstBlock.sub(currentBlock);
+
+    return waitingPeriod;
   }
 
   async getArbitrumBridgeStatus(
@@ -177,7 +193,10 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     provider: ArbitrumProvider,
   ): Promise<string[]> {
     const proof = (await reader.getOutboxProof(provider)) ?? [];
-    return 'proof' in proof ? proof.proof : proof ?? [];
+    if (!proof) {
+      throw new Error('No outbox proof found');
+    }
+    return 'proof' in proof ? proof.proof : proof;
   }
 
   static decode(
@@ -201,14 +220,13 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
     return {
       proof: decoded[0],
-      index: decoded[1],
-      l2Sender: decoded[2],
-      to: decoded[3],
-      l2Block: decoded[4],
-      l1Block: decoded[5],
-      l2Timestamp: decoded[6],
+      position: decoded[1],
+      caller: decoded[2],
+      destination: decoded[3],
+      arbBlockNum: decoded[4],
+      ethBlockNum: decoded[5],
+      timestamp: decoded[6],
       data: decoded[7],
-      // ...context,
     };
   }
 
@@ -227,12 +245,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       ],
       [
         metadata.proof,
-        metadata.index,
-        metadata.l2Sender,
-        metadata.to,
-        metadata.l2Block,
-        metadata.l1Block,
-        metadata.l2Timestamp,
+        metadata.position,
+        metadata.caller,
+        metadata.destination,
+        metadata.arbBlockNum,
+        metadata.ethBlockNum,
+        metadata.timestamp,
         metadata.data,
       ],
     );

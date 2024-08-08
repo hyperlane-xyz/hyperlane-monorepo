@@ -1,5 +1,6 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import hre from 'hardhat';
 import { before } from 'mocha';
@@ -57,6 +58,14 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     WithAddress<ArbL2ToL1IsmConfig>,
     WithAddress<ArbL2ToL1HookConfig>
   >;
+
+  function setArbitrumBridgeStatus(status: ChildToParentMessageStatus) {
+    sinon
+      .stub(metadataBuilder, 'getArbitrumBridgeStatus')
+      .callsFake(async (): Promise<ChildToParentMessageStatus> => {
+        return status;
+      });
+  }
 
   before(async () => {
     [relayer] = await hre.ethers.getSigners();
@@ -117,19 +126,6 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     arbL2ToL1Hook = ArbL2ToL1Hook__factory.connect(hookAddress, relayer);
 
     metadataBuilder = new ArbL2ToL1MetadataBuilder(core);
-
-    sinon
-      .stub(metadataBuilder, 'getArbitrumBridgeStatus')
-      .callsFake(async (): Promise<ChildToParentMessageStatus> => {
-        return ChildToParentMessageStatus.CONFIRMED;
-      });
-
-    sinon
-      .stub(metadataBuilder, 'getArbitrumOutboxProof')
-      .callsFake(async (): Promise<string[]> => {
-        await arbBridge.setL2ToL1Sender(arbL2ToL1Hook.address);
-        return [];
-      });
   });
 
   describe('#build', () => {
@@ -163,25 +159,75 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         dispatchTx,
       };
 
-      metadata = await metadataBuilder.build(context);
+      sinon
+        .stub(metadataBuilder, 'getArbitrumOutboxProof')
+        .callsFake(async (): Promise<string[]> => {
+          await arbBridge.setL2ToL1Sender(arbL2ToL1Hook.address);
+          return [];
+        });
     });
 
     it(`should build valid metadata using direct executeTransaction call`, async () => {
+      setArbitrumBridgeStatus(ChildToParentMessageStatus.CONFIRMED);
+      metadata = await metadataBuilder.build(context);
+
       await arbL2ToL1Ism.verify(metadata, context.message.message);
     });
 
+    it(`should throw an error if the message has already been relayed`, async () => {
+      setArbitrumBridgeStatus(ChildToParentMessageStatus.EXECUTED);
+
+      try {
+        await metadataBuilder.build(context);
+        expect.fail('Expected an error to be thrown');
+      } catch (error: any) {
+        expect(error.message).to.include(
+          'Arbitrum L2ToL1 message has already been executed',
+        );
+      }
+      await expect(
+        arbL2ToL1Ism.verify(metadata, context.message.message),
+      ).to.be.revertedWith('ArbL2ToL1Ism: invalid message id');
+    });
+
+    it(`should throw an error if the challenge period hasn't passed`, async () => {
+      setArbitrumBridgeStatus(ChildToParentMessageStatus.UNCONFIRMED);
+
+      // stub waiting period to 10 blocks
+      sinon
+        .stub(metadataBuilder, 'getWaitingBlocksUntilReady')
+        .callsFake(async (): Promise<BigNumber> => {
+          return BigNumber.from(10); // test waiting period
+        });
+
+      try {
+        await metadataBuilder.build(context);
+        expect.fail('Expected an error to be thrown');
+      } catch (error: any) {
+        expect(error.message).to.include(
+          "Arbitrum L2ToL1 message isn't ready for relay. Wait 10 blocks until the challenge period before relaying again",
+        );
+      }
+      await expect(
+        arbL2ToL1Ism.verify(metadata, context.message.message),
+      ).to.be.revertedWith('ArbL2ToL1Ism: invalid message id');
+    });
+
     it(`should build valid metadata if already preverified by 3rd party relayer`, async () => {
+      setArbitrumBridgeStatus(ChildToParentMessageStatus.CONFIRMED);
+
       const calldata = await metadataBuilder.buildArbitrumBridgeCalldata(
         context,
       );
+      metadata = ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(calldata);
       await arbBridge.executeTransaction(
         calldata.proof,
-        calldata.index,
-        calldata.l2Sender,
-        calldata.to,
-        calldata.l2Block,
-        calldata.l1Block,
-        calldata.l2Timestamp,
+        calldata.position,
+        calldata.caller,
+        calldata.destination,
+        calldata.arbBlockNum,
+        calldata.ethBlockNum,
+        calldata.timestamp,
         BigNumber.from(0), // msg.value
         calldata.data,
       );
@@ -190,7 +236,14 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     });
 
     it(`should decode metadata`, async () => {
+      setArbitrumBridgeStatus(ChildToParentMessageStatus.CONFIRMED);
+      metadata = await metadataBuilder.build(context);
+
       ArbL2ToL1MetadataBuilder.decode(metadata, context);
     });
+  });
+
+  afterEach(() => {
+    sinon.restore();
   });
 });
