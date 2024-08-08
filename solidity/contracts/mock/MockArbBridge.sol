@@ -1,6 +1,38 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
+contract MockArbSys {
+    event L2ToL1Tx(
+        address caller,
+        address indexed destination,
+        uint256 indexed hash,
+        uint256 indexed position,
+        uint256 arbBlockNum,
+        uint256 ethBlockNum,
+        uint256 timestamp,
+        uint256 callvalue,
+        bytes data
+    );
+
+    function sendTxToL1(
+        address destination,
+        bytes calldata data
+    ) external payable returns (uint256) {
+        emit L2ToL1Tx(
+            msg.sender,
+            destination,
+            uint256(keccak256(data)),
+            42,
+            block.number * 10,
+            block.number,
+            block.timestamp,
+            msg.value,
+            data
+        );
+        return 0;
+    }
+}
+
 contract MockArbBridge {
     error BridgeCallFailed();
 
@@ -13,6 +45,10 @@ contract MockArbBridge {
 
     function setL2ToL1Sender(address _sender) external {
         l2ToL1Sender = _sender;
+    }
+
+    function bridge() external view returns (address) {
+        return address(this);
     }
 
     function executeTransaction(

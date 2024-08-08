@@ -11,15 +11,8 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {ArbL2ToL1Hook} from "../../contracts/hooks/ArbL2ToL1Hook.sol";
 import {ArbL2ToL1Ism} from "../../contracts/isms/hook/ArbL2ToL1Ism.sol";
-import {MockArbBridge} from "../../contracts/mock/MockArbBridge.sol";
+import {MockArbBridge, MockArbSys} from "../../contracts/mock/MockArbBridge.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
-
-contract MockArbSys {
-    function sendTxToL1(
-        address destination,
-        bytes calldata data
-    ) external payable returns (uint256) {}
-}
 
 contract ArbL2ToL1IsmTest is Test {
     uint8 internal constant HYPERLANE_VERSION = 1;
