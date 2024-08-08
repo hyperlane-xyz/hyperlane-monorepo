@@ -78,9 +78,6 @@
       "0xb93a72cee19402553c9dd7fed2461aebd04e2454"
     ]
   },
-  "immutablezkevm": {
-    "validators": ["0xa787c2952a4d22f776ee6e87e828e6f75de24330"]
-  },
   "inevm": {
     "validators": [
       "0xf9e35ee88e4448a3673b4676a4e153e3584a08eb",
@@ -90,9 +87,6 @@
   },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
-  },
-  "kinto": {
-    "validators": ["0x02ddfb3143d40e32444f1406a6ba9933f14180f1"]
   },
   "kroma": {
     "validators": ["0x71b83c21342787d758199e4b8634d3a15f02dc6e"]

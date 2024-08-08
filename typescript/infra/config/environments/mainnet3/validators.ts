@@ -641,30 +641,6 @@ export const validatorChainConfig = (
         'degenchain',
       ),
     },
-    immutablezkevm: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('immutablezkevm'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xa787c2952a4d22f776ee6e87e828e6f75de24330'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'immutablezkevm',
-      ),
-    },
-    kinto: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('kinto'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x02ddfb3143d40e32444f1406a6ba9933f14180f1'],
-          [Contexts.ReleaseCandidate]: [''],
-          [Contexts.Neutron]: [],
-        },
-        'kinto',
-      ),
-    },
     kroma: {
       interval: 5,
       reorgPeriod: getReorgPeriod('kroma'),

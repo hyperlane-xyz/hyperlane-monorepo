@@ -205,11 +205,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
   },
 
-  immutablezkevm: {
-    threshold: 1,
-    validators: ['0xa787c2952a4d22f776ee6e87e828e6f75de24330'],
-  },
-
   inevm: {
     threshold: 2,
     validators: [
@@ -226,11 +221,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x6B1d09A97b813D53e9D4b7523DA36604C0B52242', // caldera
       '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9', // imperator
     ],
-  },
-
-  kinto: {
-    threshold: 1,
-    validators: ['0x02ddfb3143d40e32444f1406a6ba9933f14180f1'],
   },
 
   kroma: {

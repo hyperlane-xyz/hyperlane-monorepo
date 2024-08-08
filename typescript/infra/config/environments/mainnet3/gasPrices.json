@@ -67,10 +67,6 @@
     "amount": "5.877696928",
     "decimals": 9
   },
-  "immutablezkevm": {
-    "amount": "10.00000005",
-    "decimals": 9
-  },
   "inevm": {
     "amount": "0.1",
     "decimals": 9
@@ -78,10 +74,6 @@
   "injective": {
     "amount": "700000000",
     "decimals": 1
-  },
-  "kinto": {
-    "amount": "0.1",
-    "decimals": 9
   },
   "kroma": {
     "amount": "0.001000252",

@@ -68,10 +68,8 @@ pub enum KnownHyperlaneDomain {
     Fuji = 43113,
     FuseMainnet = 122,
     Gnosis = 100,
-    ImmutableZkEvm = 13371,
     InEvm = 2525,
     Injective = 6909546,
-    Kinto = 7887,
     Kroma = 255,
     Linea = 59144,
     Lisk = 1135,
@@ -236,8 +234,8 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
-                DegenChain, Eclipse, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis, ImmutableZkEvm,
-                InEvm, Injective, Kinto, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
+                DegenChain, Eclipse, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis,
+                InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
                 ReAl, Redstone, Sanko, Sei, Solana, Taiko, Tangle, Viction, Worldchain, Xai,
                 Xlayer, Zetachain, Zircuit, ZoraMainnet,
@@ -259,8 +257,8 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
                 Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
-                DegenChain, Endurance, Ethereum, Fraxtal, Fuji, FuseMainnet, Gnosis, ImmutableZkEvm,
-                InEvm, Kinto, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin, Metis, Mint,
+                DegenChain, Endurance, Ethereum, Fraxtal, Fuji, FuseMainnet, Gnosis,
+                InEvm, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin, Metis, Mint,
                 Mode, Moonbeam, Optimism, Polygon, ProofOfPlay, ReAl, Redstone, Sanko, Sei, Tangle,
                 Taiko, Viction, Worldchain, Xai, Xlayer, Zetachain, Zircuit, ZoraMainnet,
 
@@ -288,14 +286,14 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainTechnicalStack::ArbitrumNitro: [
-                Arbitrum, Cheesechain, DegenChain, InEvm, Kinto, ProofOfPlay, ReAl, Sanko, Xai,
+                Arbitrum, Cheesechain, DegenChain, InEvm, ProofOfPlay, ReAl, Sanko, Xai,
 
                 // Test chains
                 ConnextSepolia, PlumeTestnet, SuperpositionTestnet
             ],
             HyperlaneDomainTechnicalStack::Other: [
                 Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cyber, Eclipse, Endurance, Ethereum,
-                Fraxtal, Fuji, FuseMainnet, Gnosis, ImmutableZkEvm, Injective, Kroma, Linea, Lisk, Lukso,
+                Fraxtal, Fuji, FuseMainnet, Gnosis, Injective, Kroma, Linea, Lisk, Lukso,
                 MantaPacific, Mantle, Merlin, Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis,
                 Polygon, Redstone, Sei, Solana, Taiko, Tangle, Viction, Worldchain, Xlayer, Zetachain,
                 Zircuit, ZoraMainnet,
