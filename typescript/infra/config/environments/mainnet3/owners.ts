@@ -22,7 +22,7 @@ export function localAccountRouters(): ChainMap<Address> {
   );
 }
 
-export const safes: ChainMap<Address | undefined> = {
+export const safes: ChainMap<Address> = {
   mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI
   celo: '0x879038d6Fc9F6D5e2BA73188bd078486d77e1156',
   ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
@@ -55,22 +55,33 @@ export const safes: ChainMap<Address | undefined> = {
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
 };
 
+export const icaOwnerChain = 'ethereum';
+
+// Found by running:
+// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChain <chain>
+export const icas: ChainMap<Address> = {
+  viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
+  // inEVM ownership should be transferred to this ICA, and this should be uncommented
+  // inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
+};
+
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
-// NOTE: if you wanna use ICA governance, you can do the following:
-// const localRouters = localAccountRouters();
-// owner: {origin: <HUB_CHAIN>, owner: <SAFE_ADDRESS>, localRouter: localRouters[chain]}
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
-  ethereumChainNames.map((local) => [
-    local,
-    {
-      owner: safes[local] ?? DEPLOYER,
-      ownerOverrides: {
-        proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
-        validatorAnnounce: DEPLOYER, // unused
-        testRecipient: DEPLOYER,
-        fallbackRoutingHook: DEPLOYER,
+  ethereumChainNames.map((local) => {
+    const owner = icas[local] ?? safes[local] ?? DEPLOYER;
+
+    return [
+      local,
+      {
+        owner,
+        ownerOverrides: {
+          proxyAdmin: timelocks[local] ?? owner,
+          validatorAnnounce: DEPLOYER, // unused
+          testRecipient: DEPLOYER,
+          fallbackRoutingHook: DEPLOYER,
+        },
       },
-    },
-  ]),
+    ];
+  }),
 );
