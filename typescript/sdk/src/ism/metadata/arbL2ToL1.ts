@@ -12,6 +12,7 @@ import { BigNumber, BytesLike, providers, utils } from 'ethers';
 import {
   AbstractMessageIdAuthorizedIsm__factory,
   ArbSys__factory,
+  IOutbox__factory,
 } from '@hyperlane-xyz/core';
 import { WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -204,30 +205,19 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     _: MetadataContext<WithAddress<ArbL2ToL1IsmConfig>>,
   ): ArbL2ToL1Metadata {
     const abiCoder = new utils.AbiCoder();
-    const decoded = abiCoder.decode(
-      [
-        'bytes32[]',
-        'uint256',
-        'address',
-        'address',
-        'uint256',
-        'uint256',
-        'uint256',
-        'bytes',
-      ],
-      metadata,
+    const outboxInterface = IOutbox__factory.createInterface();
+    const executeTransactionInputs =
+      outboxInterface.functions[
+        'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
+      ].inputs;
+    const executeTransactionTypes = executeTransactionInputs.map(
+      (input) => input.type,
     );
+    const decoded = abiCoder.decode(executeTransactionTypes, metadata);
 
-    return {
-      proof: decoded[0],
-      position: decoded[1],
-      caller: decoded[2],
-      destination: decoded[3],
-      arbBlockNum: decoded[4],
-      ethBlockNum: decoded[5],
-      timestamp: decoded[6],
-      data: decoded[7],
-    };
+    return Object.fromEntries(
+      Object.keys({} as ArbL2ToL1Metadata).map((key, i) => [key, decoded[i]]),
+    ) as ArbL2ToL1Metadata;
   }
 
   static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
