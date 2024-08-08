@@ -388,7 +388,7 @@ export class EvmIsmModule extends HyperlaneModule<
         return this.deployer.deployContractFromFactory({
           chain: this.chain,
           factory: new ArbL2ToL1Ism__factory(),
-          contractName: IsmType.OP_STACK,
+          contractName: IsmType.ARB_L2_TO_L1,
           constructorArgs: [config.bridge],
         });
 

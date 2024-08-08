@@ -829,12 +829,17 @@ export class EvmHookModule extends HyperlaneModule<
     const chain = this.chain;
     const mailbox = this.args.addresses.mailbox;
 
-    const destinationDomain = this.multiProvider.getDomainId(
+    const destinationChain = this.multiProvider.getChainId(
       config.destinationChain,
     );
+    if (typeof destinationChain !== 'number') {
+      throw new Error(
+        `Only ethereum chains supported for deploying Arbitrum L2 hook,  given: ${config.destinationChain}`,
+      );
+    }
+
     const bridge =
-      config.arbBridge ??
-      getArbitrumNetwork(destinationDomain).ethBridge.bridge;
+      config.bridge ?? getArbitrumNetwork(destinationChain).ethBridge.bridge;
 
     const ismConfig: ArbL2ToL1IsmConfig = {
       type: IsmType.ARB_L2_TO_L1,

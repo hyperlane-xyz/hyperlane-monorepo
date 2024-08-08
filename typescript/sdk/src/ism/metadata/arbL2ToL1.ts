@@ -7,16 +7,15 @@ import {
 import { assert } from 'console';
 import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
-import { AbstractMessageIdAuthorizedIsm__factory } from '@hyperlane-xyz/core';
 import {
-  Address,
-  WithAddress,
-  eqAddressEvm,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+  AbstractMessageIdAuthorizedIsm__factory,
+  ArbSys__factory,
+} from '@hyperlane-xyz/core';
+import { Address, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { ArbL2ToL1HookConfig } from '../../hook/types.js';
+import { findMatchingLogEvents } from '../../utils/logUtils.js';
 import { ArbL2ToL1IsmConfig, IsmType } from '../types.js';
 
 import { MetadataBuilder, MetadataContext } from './builder.js';
@@ -32,6 +31,8 @@ export interface ArbL2ToL1Metadata {
   l2Timestamp: BigNumber;
   data: BytesLike;
 }
+
+const ArbSys = ArbSys__factory.createInterface();
 
 export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   constructor(
@@ -74,37 +75,41 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1HookConfig>
     >,
   ): Promise<ArbL2ToL1Metadata> {
-    const matchingL2TxEvent = context.dispatchTx.logs
-      .filter((log) => eqAddressEvm(log.address, context.hook.arbSys))
-      .find((log) => {
-        const calldata: string = log.data;
-        const messageIdHex = context.message.id.slice(2);
-        return calldata && calldata.includes(messageIdHex);
-      });
+    const matchingL2TxEvent = findMatchingLogEvents(
+      context.dispatchTx.logs,
+      ArbSys,
+      'L2ToL1Tx',
+    ).find((log) => {
+      const calldata: string = log.args.data;
+      const messageIdHex = context.message.id.slice(2);
+      return calldata && calldata.includes(messageIdHex);
+    });
 
     assert(matchingL2TxEvent, 'No matching L2ToL1Tx event found');
     this.logger.debug({ matchingL2TxEvent }, 'Found matching L2ToL1Tx event');
 
     if (matchingL2TxEvent) {
-      // decoding the L2ToL1TxEvent manually as the ArbSys.parseLog isn't working as expected
+      const [
+        caller,
+        destination,
+        hash,
+        position,
+        arbBlockNum,
+        ethBlockNum,
+        timestamp,
+        callvalue,
+        data,
+      ] = matchingL2TxEvent.args;
       const l2ToL1TxEvent: ChildToParentTransactionEvent = {
-        caller: '0x' + matchingL2TxEvent.data.slice(26, 66),
-        destination: '0x' + matchingL2TxEvent.topics[1].slice(-40),
-        hash: BigNumber.from(matchingL2TxEvent.topics[2]),
-        position: BigNumber.from(matchingL2TxEvent.topics[3]),
-        arbBlockNum: BigNumber.from(
-          '0x' + matchingL2TxEvent.data.slice(66, 130),
-        ),
-        ethBlockNum: BigNumber.from(
-          '0x' + matchingL2TxEvent.data.slice(130, 194),
-        ),
-        timestamp: BigNumber.from(
-          '0x' + matchingL2TxEvent.data.slice(194, 258),
-        ),
-        callvalue: BigNumber.from(
-          '0x' + matchingL2TxEvent.data.slice(258, 322),
-        ),
-        data: '0x' + matchingL2TxEvent.data.slice(450, 522),
+        caller,
+        destination,
+        hash,
+        position,
+        arbBlockNum,
+        ethBlockNum,
+        timestamp,
+        callvalue,
+        data,
       };
 
       const reader = new ChildToParentMessageReader(
