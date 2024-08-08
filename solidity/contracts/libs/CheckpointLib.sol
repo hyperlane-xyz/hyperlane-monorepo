@@ -5,7 +5,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 struct Checkpoint {
     uint32 origin;
-    bytes32 merkleTreeHook;
+    bytes32 merkleTree;
     bytes32 root;
     uint32 index;
     bytes32 messageId;
@@ -54,7 +54,7 @@ library CheckpointLib {
         return
             digest(
                 checkpoint.origin,
-                checkpoint.merkleTreeHook,
+                checkpoint.merkleTree,
                 checkpoint.root,
                 checkpoint.index,
                 checkpoint.messageId

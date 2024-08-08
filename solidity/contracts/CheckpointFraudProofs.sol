@@ -14,24 +14,17 @@ contract CheckpointFraudProofs {
     using Address for address;
     using TypeCasts for bytes32;
 
-    // merkle tree hook => root => index
-    mapping(address => mapping(bytes32 => uint32)) public storedCheckpoint;
-
-    // checkpoint digest => is fraud proven
-    mapping(bytes32 => bool) public fraudulentCheckpoints;
-
-    function _markFraudulent(Checkpoint calldata checkpoint) internal {
-        fraudulentCheckpoints[checkpoint.digest()] = true;
-    }
+    mapping(address merkleTree => mapping(bytes32 root => uint32 index))
+        public storedCheckpoints;
 
     function storedCheckpointContainsMessage(
-        address merkleTreeHook,
+        address merkleTree,
         uint32 index,
         bytes32 messageId,
         bytes32[TREE_DEPTH] calldata proof
     ) public view returns (bool) {
         bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
-        uint32 storedIndex = storedCheckpoint[merkleTreeHook][root];
+        uint32 storedIndex = storedCheckpoints[merkleTree][root];
         return storedIndex >= index;
     }
 
@@ -42,7 +35,7 @@ contract CheckpointFraudProofs {
     ) {
         require(
             storedCheckpointContainsMessage(
-                checkpoint.merkleTreeHook.bytes32ToAddress(),
+                checkpoint.merkleTree.bytes32ToAddress(),
                 checkpoint.index,
                 messageId,
                 proof
@@ -55,10 +48,10 @@ contract CheckpointFraudProofs {
     function isLocal(
         Checkpoint calldata checkpoint
     ) public view returns (bool) {
-        address merkleTreeHook = checkpoint.merkleTreeHook.bytes32ToAddress();
+        address merkleTree = checkpoint.merkleTree.bytes32ToAddress();
         return
-            merkleTreeHook.isContract() &&
-            MerkleTreeHook(merkleTreeHook).localDomain() == checkpoint.origin;
+            merkleTree.isContract() &&
+            MerkleTreeHook(merkleTree).localDomain() == checkpoint.origin;
     }
 
     modifier onlyLocal(Checkpoint calldata checkpoint) {
@@ -68,14 +61,14 @@ contract CheckpointFraudProofs {
 
     /**
      *  @notice Stores the latest checkpoint of the provided merkle tree hook
-     *  @param merkleTreeHook Address of the merkle tree hook to store the latest checkpoint of.
+     *  @param merkleTree Address of the merkle tree hook to store the latest checkpoint of.
      *  @dev Must be called before proving fraud to circumvent race on message insertion and merkle proof construction.
      */
     function storeLatestCheckpoint(
-        address merkleTreeHook
+        address merkleTree
     ) external returns (bytes32 root, uint32 index) {
-        (root, index) = MerkleTreeHook(merkleTreeHook).latestCheckpoint();
-        storedCheckpoint[merkleTreeHook][root] = index;
+        (root, index) = MerkleTreeHook(merkleTree).latestCheckpoint();
+        storedCheckpoints[merkleTree][root] = index;
     }
 
     /**
@@ -88,9 +81,8 @@ contract CheckpointFraudProofs {
         Checkpoint calldata checkpoint
     ) public view onlyLocal(checkpoint) returns (bool) {
         // count is the number of messages in the mailbox (i.e. the latest index + 1)
-        uint32 count = MerkleTreeHook(
-            checkpoint.merkleTreeHook.bytes32ToAddress()
-        ).count();
+        uint32 count = MerkleTreeHook(checkpoint.merkleTree.bytes32ToAddress())
+            .count();
 
         // index >= count is equivalent to index > latest index
         return checkpoint.index >= count;
@@ -144,30 +136,5 @@ contract CheckpointFraudProofs {
             checkpoint.index
         );
         return root != checkpoint.root;
-    }
-
-    function markPremature(Checkpoint calldata checkpoint) external {
-        require(isPremature(checkpoint), "must be premature");
-        _markFraudulent(checkpoint);
-    }
-
-    function markFraudulentMessageId(
-        Checkpoint calldata checkpoint,
-        bytes32[TREE_DEPTH] calldata proof,
-        bytes32 actualMessageId
-    ) external {
-        require(
-            isFraudulentMessageId(checkpoint, proof, actualMessageId),
-            "must be fraudulent message ID"
-        );
-        _markFraudulent(checkpoint);
-    }
-
-    function markFraudulentRoot(
-        Checkpoint calldata checkpoint,
-        bytes32[TREE_DEPTH] calldata proof
-    ) external {
-        require(isFraudulentRoot(checkpoint, proof), "must be fraudulent root");
-        _markFraudulent(checkpoint);
     }
 }
