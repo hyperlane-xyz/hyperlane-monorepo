@@ -189,7 +189,7 @@ export const read: CommandModuleWithContext<{
       mailbox = addresses?.mailbox;
       if (!mailbox) {
         throw new Error(
-          `${chain} mailbox not provided and none found in registry ${context.registry.getUri()}`,
+          `${chain} mailbox not provided and none found in registry.`,
         );
       }
     }
