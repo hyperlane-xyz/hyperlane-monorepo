@@ -52,7 +52,7 @@ library CheckpointLib {
      * @return The digest of the checkpoint.
      */
     function digest(
-        Checkpoint calldata checkpoint
+        Checkpoint memory checkpoint
     ) internal pure returns (bytes32) {
         return
             digest(
