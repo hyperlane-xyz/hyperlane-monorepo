@@ -210,9 +210,9 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       outboxInterface.functions[
         'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
       ].inputs;
-    const executeTransactionTypes = executeTransactionInputs.map(
-      (input) => input.type,
-    );
+    const executeTransactionTypes = executeTransactionInputs
+      .map((input) => input.type)
+      .filter((_, index, array) => index !== array.length - 2); // remove callvalue from types (because the ArbL2ToL1Ism doesn't allow it)
     const decoded = abiCoder.decode(executeTransactionTypes, metadata);
 
     return Object.fromEntries(
@@ -222,27 +222,23 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
   static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
     const abiCoder = new utils.AbiCoder();
-    return abiCoder.encode(
-      [
-        'bytes32[]',
-        'uint256',
-        'address',
-        'address',
-        'uint256',
-        'uint256',
-        'uint256',
-        'bytes',
-      ],
-      [
-        metadata.proof,
-        metadata.position,
-        metadata.caller,
-        metadata.destination,
-        metadata.arbBlockNum,
-        metadata.ethBlockNum,
-        metadata.timestamp,
-        metadata.data,
-      ],
-    );
+    const outboxInterface = IOutbox__factory.createInterface();
+    const executeTransactionInputs =
+      outboxInterface.functions[
+        'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
+      ].inputs;
+    const executeTransactionTypes = executeTransactionInputs
+      .map((input) => input.type)
+      .filter((_, index, array) => index !== array.length - 2); // remove callvalue from types (because the ArbL2ToL1Ism doesn't allow it)
+    return abiCoder.encode(executeTransactionTypes, [
+      metadata.proof,
+      metadata.position,
+      metadata.caller,
+      metadata.destination,
+      metadata.arbBlockNum,
+      metadata.ethBlockNum,
+      metadata.timestamp,
+      metadata.data,
+    ]);
   }
 }
