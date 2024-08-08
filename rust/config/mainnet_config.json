@@ -1080,42 +1080,6 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x87ED6926abc9E38b9C7C19f835B41943b622663c"
     },
-    "immutablezkevm": {
-      "blockExplorers": [
-        {
-          "apiUrl": "https://explorer.immutable.com/api/eth-rpc",
-          "family": "blockscout",
-          "name": "Immutable Explorer",
-          "url": "https://explorer.immutable.com"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 2,
-        "reorgPeriod": 0
-      },
-      "chainId": 13371,
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      },
-      "displayName": "Immutable zkEVM",
-      "domainId": 13371,
-      "gasCurrencyCoinGeckoId": "immutable-x",
-      "index": {},
-      "name": "immutablezkevm",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "IMX",
-        "symbol": "IMX"
-      },
-      "protocol": "ethereum",
-      "rpcUrls": [
-        {
-          "http": "https://rpc.immutable.com"
-        }
-      ]
-    },
     "inevm": {
       "aggregationHook": "0xe0dDb5dE7D52918237cC1Ae131F29dcAbcb0F62B",
       "blockExplorers": [
@@ -1234,43 +1198,6 @@
       ],
       "slip44": 118,
       "validatorAnnounce": "0x1fb225b2fcfbe75e614a1d627de97ff372242eed"
-    },
-    "kinto": {
-      "blockExplorers": [
-        {
-          "apiUrl": "https://explorer.kinto.xyz/api/eth-rpc",
-          "family": "blockscout",
-          "name": "Kinto Explorer",
-          "url": "https://explorer.kinto.xyz"
-        }
-      ],
-      "blocks": {
-        "confirmations": 1,
-        "estimateBlockTime": 5,
-        "reorgPeriod": 0
-      },
-      "chainId": 7887,
-      "deployer": {
-        "name": "Abacus Works",
-        "url": "https://www.hyperlane.xyz"
-      },
-      "displayName": "Kinto",
-      "domainId": 7887,
-      "gasCurrencyCoinGeckoId": "ethereum",
-      "index": {},
-      "name": "kinto",
-      "nativeToken": {
-        "decimals": 18,
-        "name": "Ethereum",
-        "symbol": "ETH"
-      },
-      "protocol": "ethereum",
-      "rpcUrls": [
-        {
-          "http": "https://kinto-mainnet.calderachain.xyz/http"
-        }
-      ],
-      "technicalStack": "arbitrumnitro"
     },
     "kroma": {
       "blockExplorers": [
