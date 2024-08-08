@@ -93,9 +93,10 @@ export async function checkMessageStatus({
   }
 
   logGreen(
-    `Message ${messageId} delivered in ${context.multiProvider.getExplorerTxUrl(
-      message.parsed.destination,
-      { hash: deliveredTx.transactionHash },
-    )}`,
+    `Message ${messageId} delivered in ${
+      context.multiProvider.tryGetExplorerTxUrl(message.parsed.destination, {
+        hash: deliveredTx.transactionHash,
+      }) ?? deliveredTx.transactionHash
+    }`,
   );
 }
