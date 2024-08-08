@@ -9,7 +9,7 @@ export const relayerCommand: CommandModuleWithContext<
   MessageOptionsArgTypes & { chains?: string }
 > = {
   command: 'relayer',
-  describe: 'Run a CLI relayer',
+  describe: 'Run a Hyperlane message self-relayer',
   builder: {
     chains: {
       ...agentTargetsCommandOption,
