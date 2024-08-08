@@ -299,7 +299,9 @@ describe('EvmHookModule', async () => {
         // need to setup deploying/mocking IL1CrossDomainMessenger before this test can be enabled
         .filter(
           (hookType) =>
-            hookType !== HookType.OP_STACK && hookType !== HookType.CUSTOM,
+            hookType !== HookType.OP_STACK &&
+            hookType !== HookType.ARB_L2_TO_L1 &&
+            hookType !== HookType.CUSTOM,
         )
         // generate a random config for each hook type
         .map((hookType) => {
