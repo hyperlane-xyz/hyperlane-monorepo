@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {TypeCasts} from "./TypeCasts.sol";
 
 struct Checkpoint {
     uint32 origin;
@@ -12,6 +13,8 @@ struct Checkpoint {
 }
 
 library CheckpointLib {
+    using TypeCasts for bytes32;
+
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
      * @param _origin The origin domain of the checkpoint.
@@ -59,6 +62,12 @@ library CheckpointLib {
                 checkpoint.index,
                 checkpoint.messageId
             );
+    }
+
+    function merkleTreeAddress(
+        Checkpoint calldata checkpoint
+    ) internal pure returns (address) {
+        return checkpoint.merkleTree.bytes32ToAddress();
     }
 
     /**

@@ -12,7 +12,6 @@ import {IMailbox} from "./interfaces/IMailbox.sol";
 contract CheckpointFraudProofs {
     using CheckpointLib for Checkpoint;
     using Address for address;
-    using TypeCasts for bytes32;
 
     mapping(address merkleTree => mapping(bytes32 root => uint32 index))
         public storedCheckpoints;
@@ -35,7 +34,7 @@ contract CheckpointFraudProofs {
     ) {
         require(
             storedCheckpointContainsMessage(
-                checkpoint.merkleTree.bytes32ToAddress(),
+                checkpoint.merkleTreeAddress(),
                 checkpoint.index,
                 messageId,
                 proof
@@ -48,7 +47,7 @@ contract CheckpointFraudProofs {
     function isLocal(
         Checkpoint calldata checkpoint
     ) public view returns (bool) {
-        address merkleTree = checkpoint.merkleTree.bytes32ToAddress();
+        address merkleTree = checkpoint.merkleTreeAddress();
         return
             merkleTree.isContract() &&
             MerkleTreeHook(merkleTree).localDomain() == checkpoint.origin;
@@ -81,8 +80,7 @@ contract CheckpointFraudProofs {
         Checkpoint calldata checkpoint
     ) public view onlyLocal(checkpoint) returns (bool) {
         // count is the number of messages in the mailbox (i.e. the latest index + 1)
-        uint32 count = MerkleTreeHook(checkpoint.merkleTree.bytes32ToAddress())
-            .count();
+        uint32 count = MerkleTreeHook(checkpoint.merkleTreeAddress()).count();
 
         // index >= count is equivalent to index > latest index
         return checkpoint.index >= count;
