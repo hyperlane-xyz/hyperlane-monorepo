@@ -1,6 +1,7 @@
 import { HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 
 import { CommandModuleWithContext } from '../context/types.js';
+import { log } from '../logger.js';
 
 import { agentTargetsCommandOption } from './options.js';
 import { MessageOptionsArgTypes } from './send.js';
@@ -11,10 +12,7 @@ export const relayerCommand: CommandModuleWithContext<
   command: 'relayer',
   describe: 'Run a Hyperlane message self-relayer',
   builder: {
-    chains: {
-      ...agentTargetsCommandOption,
-      demandOption: false,
-    },
+    chains: agentTargetsCommandOption,
   },
   handler: async ({ context, chains }) => {
     const chainsArray = chains
@@ -28,9 +26,9 @@ export const relayerCommand: CommandModuleWithContext<
 
     const relayer = new HyperlaneRelayer({ core });
     relayer.start(chainsArray);
-    process.once('SIGINT', async () => {
+    process.once('SIGINT', () => {
       relayer.stop(chainsArray);
-      console.log('Stopping relayer ...');
+      log('Stopping relayer ...');
       process.exit(0);
     });
   },
