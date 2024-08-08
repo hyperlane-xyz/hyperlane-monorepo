@@ -16,7 +16,12 @@ async function main() {
     )} in ${environment} environment`,
   );
 
-  const registry = await getRegistryForEnvironment(environment, chains);
+  const registry = await getRegistryForEnvironment(
+    environment,
+    chains,
+    undefined,
+    false,
+  );
 
   for (const chain of chains) {
     console.log(`\nSetting RPC URLs for chain: ${chain}`);
