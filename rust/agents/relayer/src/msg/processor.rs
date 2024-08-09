@@ -258,8 +258,8 @@ impl ProcessorExt for MessageProcessor {
             }
 
             // Skip if the message is blacklisted
-            if self.message_whitelist.msg_matches(&msg, false) {
-                debug!(?msg, blacklist=?self.message_whitelist, "Message blacklisted, skipping");
+            if self.message_blacklist.msg_matches(&msg, false) {
+                debug!(?msg, blacklist=?self.message_blacklist, "Message blacklisted, skipping");
                 return Ok(());
             }
 
