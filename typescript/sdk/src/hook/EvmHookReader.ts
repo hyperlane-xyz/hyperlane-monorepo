@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  ArbL2ToL1Hook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -31,6 +32,7 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationHookConfig,
+  ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -61,6 +63,9 @@ export interface HookReader {
   deriveOpStackConfig(
     address: Address,
   ): Promise<WithAddress<OpStackHookConfig>>;
+  deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1HookConfig>>;
   deriveDomainRoutingConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>>;
@@ -127,6 +132,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         // For now assume it's OP_STACK
         case OnchainHookType.ID_AUTH_ISM:
           derivedHookConfig = await this.deriveOpStackConfig(address);
+          break;
+        case OnchainHookType.ARB_L2_TO_L1:
+          derivedHookConfig = await this.deriveArbL2ToL1Config(address);
           break;
         default:
           throw new Error(
@@ -301,6 +309,23 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       type: HookType.OP_STACK,
       nativeBridge: messengerContract,
       destinationChain: destinationChainName,
+    };
+  }
+
+  async deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
+    const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
+    const arbSys = await hook.arbSys();
+
+    const destinationDomain = await hook.destinationDomain();
+    const destinationChainName =
+      this.multiProvider.getChainName(destinationDomain);
+    return {
+      address,
+      type: HookType.ARB_L2_TO_L1,
+      destinationChain: destinationChainName,
+      arbSys,
     };
   }
 

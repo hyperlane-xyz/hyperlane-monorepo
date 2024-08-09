@@ -4,6 +4,7 @@ import { OwnableConfig } from '../deploy/types.js';
 import { ChainMap } from '../types.js';
 
 import {
+  ArbL2ToL1HookSchema,
   HookConfigSchema,
   IgpSchema,
   MerkleTreeSchema,
@@ -24,6 +25,8 @@ export enum OnchainHookType {
   PAUSABLE,
   PROTOCOL_FEE,
   LAYER_ZERO_V1,
+  RATE_LIMITED,
+  ARB_L2_TO_L1,
 }
 
 export enum HookType {
@@ -36,6 +39,7 @@ export enum HookType {
   ROUTING = 'domainRoutingHook',
   FALLBACK_ROUTING = 'fallbackRoutingHook',
   PAUSABLE = 'pausableHook',
+  ARB_L2_TO_L1 = 'arbL2ToL1Hook',
 }
 
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
@@ -43,6 +47,7 @@ export type IgpHookConfig = z.infer<typeof IgpSchema>;
 export type ProtocolFeeHookConfig = z.infer<typeof ProtocolFeeSchema>;
 export type PausableHookConfig = z.infer<typeof PausableHookSchema>;
 export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
+export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
 
 // explicitly typed to avoid zod circular dependency
 export type AggregationHookConfig = {
