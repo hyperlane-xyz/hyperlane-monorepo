@@ -5,17 +5,17 @@ use hyperlane_base::AgentMetadata;
 
 use crate::DynPath;
 
-pub fn post_startup_invariants(checkpoints_dirs: &Vec<DynPath>) -> bool {
+pub fn post_startup_invariants(checkpoints_dirs: &[DynPath]) -> bool {
     post_startup_validator_metadata_written(checkpoints_dirs)
 }
 
-fn post_startup_validator_metadata_written(checkpoints_dirs: &Vec<DynPath>) -> bool {
+fn post_startup_validator_metadata_written(checkpoints_dirs: &[DynPath]) -> bool {
     let expected_git_sha = env!("VERGEN_GIT_SHA");
 
     let failed_metadata = checkpoints_dirs
         .iter()
         .map(|path| metadata_file_check(expected_git_sha, path))
-        .any(|b| b == false);
+        .any(|b| !b);
 
     !failed_metadata
 }
