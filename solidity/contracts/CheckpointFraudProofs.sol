@@ -9,11 +9,16 @@ import {MerkleLib, TREE_DEPTH} from "./libs/Merkle.sol";
 import {MerkleTreeHook} from "./hooks/MerkleTreeHook.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
 
+struct StoredIndex {
+    uint32 index;
+    bool exists;
+}
+
 contract CheckpointFraudProofs {
     using CheckpointLib for Checkpoint;
     using Address for address;
 
-    mapping(address merkleTree => mapping(bytes32 root => uint32 index))
+    mapping(address merkleTree => mapping(bytes32 root => StoredIndex index))
         public storedCheckpoints;
 
     function storedCheckpointContainsMessage(
@@ -23,8 +28,8 @@ contract CheckpointFraudProofs {
         bytes32[TREE_DEPTH] calldata proof
     ) public view returns (bool) {
         bytes32 root = MerkleLib.branchRoot(messageId, proof, index);
-        uint32 storedIndex = storedCheckpoints[merkleTree][root];
-        return storedIndex >= index;
+        StoredIndex storage storedIndex = storedCheckpoints[merkleTree][root];
+        return storedIndex.exists && storedIndex.index >= index;
     }
 
     modifier onlyMessageInStoredCheckpoint(
@@ -67,7 +72,7 @@ contract CheckpointFraudProofs {
         address merkleTree
     ) external returns (bytes32 root, uint32 index) {
         (root, index) = MerkleTreeHook(merkleTree).latestCheckpoint();
-        storedCheckpoints[merkleTree][root] = index;
+        storedCheckpoints[merkleTree][root] = StoredIndex(index, true);
     }
 
     /**

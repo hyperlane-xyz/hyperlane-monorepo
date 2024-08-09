@@ -180,9 +180,7 @@ contract CheckpointFraudProofsTest is Test {
             bytes32[32][] memory proofs
         ) = loadFixture(fixtureIndex);
 
-        // stored checkpoint with index 0 is unfortunately not fraud provable
-        uint32 index = 1;
-        for (; index < checkpoints.length; index++) {
+        for (uint32 index = 0; index < checkpoints.length; index++) {
             vm.expectRevert("message must be member of stored checkpoint");
             cfp.isFraudulentMessageId(
                 checkpoints[index],
@@ -244,9 +242,7 @@ contract CheckpointFraudProofsTest is Test {
             bytes32[32][] memory proofs
         ) = loadFixture(fixtureIndex);
 
-        // stored checkpoint with index 0 is unfortunately not fraud provable
-        uint32 index = 1;
-        for (; index < checkpoints.length; index++) {
+        for (uint32 index = 0; index < checkpoints.length; index++) {
             vm.expectRevert("message must be member of stored checkpoint");
             cfp.isFraudulentRoot(checkpoints[index], proofs[index]);
         }
