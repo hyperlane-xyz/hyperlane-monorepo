@@ -1,0 +1,14 @@
+{
+  "solana": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "HkqbGqRX7Fi5pwqi8HkDaUhHK6mGWsy7Rt17fpgBrbP5"
+  },
+  "eclipse": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Solana",
+    "symbol": "SOL",
+    "interchainGasPaymaster": "AgjedtgQKTWGR77ULJ9j9AhLjNDk1D3BTtuxKmcZrJqE"
+  }
+}
