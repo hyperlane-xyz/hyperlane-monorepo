@@ -10,7 +10,8 @@ use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use tracing::{instrument, log::trace};
+use tracing::{instrument,trace};
+use anyhow::Result;
 
 use crate::{
     interfaces::i_validator_announce::{
@@ -141,35 +142,51 @@ where
     }
 
     #[instrument(ret, skip(self))]
+    #[instrument(ret, skip(self))]
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
         let validator = announcement.value.validator;
         let eth_h160: ethers::types::H160 = validator.into();
-
+    
         let Ok(contract_call) = self.announce_contract_call(announcement).await else {
             trace!("Unable to get announce contract call");
             return None;
         };
-
-        let Ok(balance) = self.provider.get_balance(eth_h160, None).await else {
-            trace!("Unable to query balance");
-            return None;
-        };
-
+    
         let Some(max_cost) = contract_call.tx.max_cost() else {
             trace!("Unable to get announce max cost");
             return None;
         };
+    
+        let Ok(balance) = self.provider.get_balance(eth_h160, None).await else {
+            trace!("Unable to query balance");
+            return None;
+        };
+    
         Some(max_cost.saturating_sub(balance).into())
     }
-
+    
     #[instrument(err, ret, skip(self))]
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let contract_call = self.announce_contract_call(announcement).await?;
-        let receipt = report_tx(contract_call).await?;
+        let signer_address = self.contract.client.address();
+    
+        let balance = self.provider.get_balance(signer_address, None).await.map_err(|e| ChainCommunicationError::Custom(e.to_string()))?;
+        let max_cost = contract_call.tx.max_cost().expect("Unable to get announce max cost");
+    
+        if balance < max_cost {
+            trace!("Signer does not have enough balance to announce");
+            return Err(ChainCommunicationError::Custom(anyhow::anyhow!("Signer does not have enough balance to announce").to_string()));
+        }
+        let tx = contract_call
+            .from(signer_address)
+            .send()
+            .await?;
+    
+        let receipt = tx.await?;
         Ok(receipt.into())
     }
+    
 }
-
 pub struct EthereumValidatorAnnounceAbi;
 
 impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
