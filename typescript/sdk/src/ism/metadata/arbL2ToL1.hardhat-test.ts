@@ -97,7 +97,6 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         type: HookType.ARB_L2_TO_L1,
         arbSys: mockArbSys.address,
         destinationChain: destination,
-        gasOverhead: 200_000,
       },
     };
 

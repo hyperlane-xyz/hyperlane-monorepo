@@ -727,6 +727,7 @@ export class EvmHookModule extends HyperlaneModule<
     return StaticAggregationHook__factory.connect(address, signer);
   }
 
+  // NOTE: this deploys the ism too on the destination chain if it doesn't exist
   protected async deployOpStackHook({
     config,
   }: {
@@ -821,6 +822,7 @@ export class EvmHookModule extends HyperlaneModule<
     return hook;
   }
 
+  // NOTE: this deploys the ism too on the destination chain if it doesn't exist
   protected async deployArbL1ToL1Hook({
     config,
   }: {
@@ -872,7 +874,7 @@ export class EvmHookModule extends HyperlaneModule<
         this.multiProvider.getDomainId(config.destinationChain),
         addressToBytes32(arbL2ToL1IsmAddress),
         config.arbSys,
-        BigNumber.from(config.gasOverhead),
+        BigNumber.from(200_000), // 2x estimate of executeTransaction call overhead
       ],
     });
     // set authorized hook on arbL2ToL1 ism

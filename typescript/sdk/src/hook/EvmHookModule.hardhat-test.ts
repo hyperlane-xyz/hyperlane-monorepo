@@ -136,7 +136,6 @@ function randomHookConfig(
         arbSys: randomAddress(),
         bridge: randomAddress(),
         destinationChain: 'testChain',
-        gasOverhead: 200_000,
       };
 
     case HookType.ROUTING:

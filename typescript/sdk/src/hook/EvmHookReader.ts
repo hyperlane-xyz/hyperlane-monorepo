@@ -317,7 +317,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
     const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
     const arbSys = await hook.arbSys();
-    const gasOverhead = await hook.GAS_QUOTE();
 
     const destinationDomain = await hook.destinationDomain();
     const destinationChainName =
@@ -327,7 +326,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       type: HookType.ARB_L2_TO_L1,
       destinationChain: destinationChainName,
       arbSys,
-      gasOverhead: gasOverhead.toNumber(),
     };
   }
 

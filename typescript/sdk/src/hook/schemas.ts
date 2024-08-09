@@ -34,10 +34,18 @@ export const OpStackHookSchema = OwnableSchema.extend({
 
 export const ArbL2ToL1HookSchema = z.object({
   type: z.literal(HookType.ARB_L2_TO_L1),
-  arbSys: z.string(),
-  bridge: z.string().optional(),
+  arbSys: z
+    .string()
+    .describe(
+      'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+    ),
+  bridge: z
+    .string()
+    .optional()
+    .describe(
+      'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+    ),
   destinationChain: z.string(),
-  gasOverhead: z.number(),
 });
 
 export const IgpSchema = OwnableSchema.extend({
