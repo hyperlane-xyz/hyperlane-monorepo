@@ -4191,6 +4191,7 @@ dependencies = [
 name = "hyperlane-base"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "axum",
  "backtrace",
@@ -4239,6 +4240,7 @@ dependencies = [
  "tracing-subscriber",
  "tracing-test",
  "url",
+ "vergen",
  "walkdir",
  "warp",
  "ya-gcp",
@@ -7312,6 +7314,7 @@ dependencies = [
 name = "run-locally"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "cosmwasm-schema",
  "ctrlc",
  "ethers",
@@ -7319,6 +7322,7 @@ dependencies = [
  "ethers-core",
  "eyre",
  "hex 0.4.3",
+ "hyperlane-base",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
@@ -7338,6 +7342,7 @@ dependencies = [
  "tokio",
  "toml_edit 0.19.15",
  "ureq",
+ "vergen",
  "which",
 ]
 
@@ -10858,6 +10863,18 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+
+[[package]]
+name = "vergen"
+version = "8.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2990d9ea5967266ea0ccf413a4aa5c42a93dbcfda9cb49a97de6931726b12566"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "rustversion",
+ "time",
+]
 
 [[package]]
 name = "version_check"

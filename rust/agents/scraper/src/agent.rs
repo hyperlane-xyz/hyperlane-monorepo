@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_base::{
-    broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, BaseAgent,
-    ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
+    broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
+    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
     MetricsUpdater, SyncOptions,
 };
 use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
@@ -41,6 +41,7 @@ impl BaseAgent for Scraper {
     type Settings = ScraperSettings;
 
     async fn from_settings(
+        _agent_metadata: AgentMetadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,

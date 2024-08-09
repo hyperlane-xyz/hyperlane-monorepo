@@ -36,7 +36,7 @@ use tempfile::tempdir;
 use crate::{
     config::Config,
     ethereum::start_anvil,
-    invariants::{termination_invariants_met, SOL_MESSAGES_EXPECTED},
+    invariants::{post_startup_invariants, termination_invariants_met, SOL_MESSAGES_EXPECTED},
     metrics::agent_balance_sum,
     solana::*,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
@@ -454,6 +454,14 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
+
+    if !post_startup_invariants(&checkpoints_dirs) {
+        log!("Failure: Post startup invariants are not met");
+        return report_test_result(true);
+    } else {
+        log!("Success: Post startup invariants are met");
+    }
+
     let mut failure_occurred = false;
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
     while !SHUTDOWN.load(Ordering::Relaxed) {
@@ -499,6 +507,10 @@ fn main() -> ExitCode {
         sleep(Duration::from_secs(5));
     }
 
+    report_test_result(failure_occurred)
+}
+
+fn report_test_result(failure_occurred: bool) -> ExitCode {
     if failure_occurred {
         log!("E2E tests failed");
         ExitCode::FAILURE

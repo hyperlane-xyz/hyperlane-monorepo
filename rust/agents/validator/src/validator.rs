@@ -13,8 +13,8 @@ use hyperlane_base::{
     db::{HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
     settings::ChainConf,
-    BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer, CoreMetrics,
-    HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
+    AgentMetadata, BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer,
+    CoreMetrics, HyperlaneAgentCore, MetricsUpdater, SequencedDataContractSync,
 };
 
 use hyperlane_core::{
@@ -50,6 +50,7 @@ pub struct Validator {
     core_metrics: Arc<CoreMetrics>,
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
+    agent_metadata: AgentMetadata,
 }
 
 #[async_trait]
@@ -59,6 +60,7 @@ impl BaseAgent for Validator {
     type Settings = ValidatorSettings;
 
     async fn from_settings(
+        agent_metadata: AgentMetadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -123,6 +125,7 @@ impl BaseAgent for Validator {
             agent_metrics,
             chain_metrics,
             core_metrics: metrics,
+            agent_metadata,
         })
     }
 
@@ -168,6 +171,11 @@ impl BaseAgent for Validator {
             })
             .instrument(info_span!("MetricsUpdater")),
         );
+
+        // report agent metadata
+        self.metadata()
+            .await
+            .expect("Failed to report agent metadata");
 
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
@@ -288,6 +296,14 @@ impl Validator {
                 );
             }
         }
+    }
+
+    async fn metadata(&self) -> Result<()> {
+        self.checkpoint_syncer
+            .write_metadata(&self.agent_metadata)
+            .await?;
+
+        Ok(())
     }
 
     async fn announce(&self) -> Result<()> {
