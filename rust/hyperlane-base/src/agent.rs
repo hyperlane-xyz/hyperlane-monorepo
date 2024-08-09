@@ -1,6 +1,4 @@
-pub use metadata::AgentMetadata;
-
-mod metadata;
+pub use crate::metadata::AgentMetadata;
 
 use std::{env, fmt::Debug, sync::Arc};
 
