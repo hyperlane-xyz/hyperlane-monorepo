@@ -1410,7 +1410,7 @@
       "index": {
         "from": 3088760
       },
-      "interchainGasPaymaster": "0x9844aFFaBE17c37F791ff99ABa58B0FbB75e22AF",
+      "interchainGasPaymaster": "0x441a01Fca2eD731C0Fc4633998332f9FEDB17575",
       "interchainSecurityModule": "0x51C6A5106EF680d11e8fD9EE1d090c07fdaD2e3D",
       "mailbox": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
       "merkleTreeHook": "0x062200d92dF6bB7bA89Ce4D6800110450f94784e",
