@@ -20,20 +20,21 @@ import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 
-import {HypERC20CollateralVaultDeposit} from "../../contracts/token/extensions/HypERC20CollateralVaultDeposit.sol";
+import {HypERC4626OwnerCollateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
-contract HypERC20CollateralVaultDepositTest is HypTokenTest {
+contract HypERC4626OwnerCollateralTest is HypTokenTest {
     using TypeCasts for address;
+
     uint256 constant DUST_AMOUNT = 1e11;
-    HypERC20CollateralVaultDeposit internal erc20CollateralVaultDeposit;
+    HypERC4626OwnerCollateral internal erc20CollateralVaultDeposit;
     ERC4626Test vault;
 
     function setUp() public override {
         super.setUp();
         vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
 
-        HypERC20CollateralVaultDeposit implementation = new HypERC20CollateralVaultDeposit(
+        HypERC4626OwnerCollateral implementation = new HypERC4626OwnerCollateral(
                 vault,
                 address(localMailbox)
             );
@@ -41,14 +42,14 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC20CollateralVaultDeposit.initialize.selector,
+                HypERC4626OwnerCollateral.initialize.selector,
                 address(address(noopHook)),
                 address(igp),
                 address(this)
             )
         );
-        localToken = HypERC20CollateralVaultDeposit(address(proxy));
-        erc20CollateralVaultDeposit = HypERC20CollateralVaultDeposit(
+        localToken = HypERC4626OwnerCollateral(address(proxy));
+        erc20CollateralVaultDeposit = HypERC4626OwnerCollateral(
             address(localToken)
         );
 

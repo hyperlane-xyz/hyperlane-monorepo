@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
+
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 /**
- * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault
+ * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault, the yield goes to the owner
  * @author ltyu
  */
-contract HypERC20CollateralVaultDeposit is HypERC20Collateral {
+contract HypERC4626OwnerCollateral is HypERC20Collateral {
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
 

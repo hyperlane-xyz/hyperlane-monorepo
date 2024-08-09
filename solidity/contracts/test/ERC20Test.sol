@@ -31,6 +31,10 @@ contract ERC20Test is ERC20 {
     function mintTo(address account, uint256 amount) public {
         _mint(account, amount);
     }
+
+    function burnFrom(address account, uint256 amount) public {
+        _burn(account, amount);
+    }
 }
 
 contract FiatTokenTest is ERC20Test, IFiatToken {
