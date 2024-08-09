@@ -7314,6 +7314,7 @@ dependencies = [
 name = "run-locally"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "cosmwasm-schema",
  "ctrlc",
  "ethers",
@@ -7321,6 +7322,7 @@ dependencies = [
  "ethers-core",
  "eyre",
  "hex 0.4.3",
+ "hyperlane-base",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
@@ -7340,6 +7342,7 @@ dependencies = [
  "tokio",
  "toml_edit 0.19.15",
  "ureq",
+ "vergen",
  "which",
 ]
 
