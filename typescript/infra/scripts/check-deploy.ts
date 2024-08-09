@@ -2,6 +2,8 @@ import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   HypERC20App,
   HypERC20Checker,
+  HypERC20Factories,
+  HyperlaneAddressesMap,
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
@@ -27,17 +29,20 @@ import { logViolationDetails } from '../src/utils/violation.js';
 
 import {
   Modules,
-  getAddresses,
   getArgs as getRootArgs,
+  getWarpAddresses,
   withChain,
   withContext,
   withModuleAndFork,
+  withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 import { getHelloWorldApp } from './helloworld/utils.js';
 
 function getArgs() {
-  return withChain(withModuleAndFork(withContext(getRootArgs())))
+  return withChain(
+    withWarpRouteId(withModuleAndFork(withContext(getRootArgs()))),
+  )
     .boolean('asDeployer')
     .default('asDeployer', false)
     .boolean('govern')
@@ -46,8 +51,16 @@ function getArgs() {
 }
 
 async function check() {
-  const { fork, govern, module, environment, context, chain, asDeployer } =
-    await getArgs();
+  const {
+    fork,
+    govern,
+    module,
+    environment,
+    context,
+    chain,
+    asDeployer,
+    warpRouteId,
+  } = await getArgs();
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -136,15 +149,21 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    const config = await getWarpConfig(multiProvider, envConfig);
-    const addresses = getAddresses(environment, Modules.WARP);
+    if (!warpRouteId) {
+      throw new Error('Warp route id required for warp module');
+    }
+    const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
+    const addresses = getWarpAddresses(environment, warpRouteId);
     const filteredAddresses = Object.keys(addresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
         obj[key] = addresses[key];
         return obj;
       }, {} as typeof addresses);
-    const app = HypERC20App.fromAddressesMap(filteredAddresses, multiProvider);
+    const app = HypERC20App.fromAddressesMap(
+      filteredAddresses as HyperlaneAddressesMap<HypERC20Factories>,
+      multiProvider,
+    );
 
     const checker = new HypERC20Checker(
       multiProvider,

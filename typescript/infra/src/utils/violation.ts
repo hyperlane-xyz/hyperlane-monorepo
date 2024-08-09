@@ -208,6 +208,22 @@ function preProcessConfig(config: any) {
 }
 
 function logViolationDetail(violation: CheckerViolation): void {
+  if (
+    typeof violation.expected === 'string' ||
+    typeof violation.actual === 'string'
+  ) {
+    if (typeof violation.expected === 'string') {
+      console.log(
+        `Address provided for expected config: ${violation.expected}`,
+      );
+    }
+    if (typeof violation.actual === 'string') {
+      console.log(`Address provided for actual config: ${violation.actual}`);
+    }
+    console.log('Config comparison not possible');
+    return;
+  }
+
   const preProcessedExpectedConfig = preProcessConfig(violation.expected);
   const preProcessedActualConfig = preProcessConfig(violation.actual);
 
