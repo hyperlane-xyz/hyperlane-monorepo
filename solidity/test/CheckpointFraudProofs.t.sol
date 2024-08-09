@@ -188,6 +188,22 @@ contract CheckpointFraudProofsTest is Test {
                 checkpoints[index].messageId
             );
         }
+
+        // cannot store checkpoint when count is 0
+        if (checkpoints.length != 0) {
+            cfp.storeLatestCheckpoint(address(merkleTreeHook));
+        }
+
+        // providing an invalid merkle proof should revert with not stored
+        for (uint32 index = 0; index < checkpoints.length; index++) {
+            proofs[index][0] = ~proofs[index][0];
+            vm.expectRevert("message must be member of stored checkpoint");
+            cfp.isFraudulentMessageId(
+                checkpoints[index],
+                proofs[index],
+                checkpoints[index].messageId
+            );
+        }
     }
 
     function test_RevertWhenNotLocal_isFraudulentMessageId(
@@ -243,6 +259,18 @@ contract CheckpointFraudProofsTest is Test {
         ) = loadFixture(fixtureIndex);
 
         for (uint32 index = 0; index < checkpoints.length; index++) {
+            vm.expectRevert("message must be member of stored checkpoint");
+            cfp.isFraudulentRoot(checkpoints[index], proofs[index]);
+        }
+
+        // cannot store checkpoint when count is 0
+        if (checkpoints.length != 0) {
+            cfp.storeLatestCheckpoint(address(merkleTreeHook));
+        }
+
+        // providing an invalid merkle proof should revert with not stored
+        for (uint32 index = 0; index < checkpoints.length; index++) {
+            proofs[index][0] = ~proofs[index][0];
             vm.expectRevert("message must be member of stored checkpoint");
             cfp.isFraudulentRoot(checkpoints[index], proofs[index]);
         }
