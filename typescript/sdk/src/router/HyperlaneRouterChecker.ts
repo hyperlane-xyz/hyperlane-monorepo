@@ -94,13 +94,22 @@ export class HyperlaneRouterChecker<
         actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
       }
 
+      let expectedConfig = config.interchainSecurityModule;
+
+      if (typeof expectedConfig === 'string') {
+        expectedConfig = await ismReader.deriveIsmConfig(expectedConfig);
+      }
+
+      if (expectedConfig === undefined) {
+        expectedConfig = ethers.constants.AddressZero;
+      }
+
       const violation: ClientViolation = {
         chain,
         type: ClientViolationType.InterchainSecurityModule,
         contract: router,
         actual: actualConfig,
-        expected:
-          config.interchainSecurityModule ?? ethers.constants.AddressZero,
+        expected: expectedConfig,
         description: `ISM config does not match deployed ISM`,
       };
       this.addViolation(violation);

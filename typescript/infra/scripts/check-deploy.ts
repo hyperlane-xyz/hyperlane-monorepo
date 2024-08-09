@@ -2,8 +2,6 @@ import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   HypERC20App,
   HypERC20Checker,
-  HypERC20Factories,
-  HyperlaneAddressesMap,
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
@@ -13,6 +11,8 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  attachContractsMapAndGetForeignDeployments,
+  hypERC20factories,
 } from '@hyperlane-xyz/sdk';
 import { objFilter } from '@hyperlane-xyz/utils';
 
@@ -153,16 +153,39 @@ async function check() {
       throw new Error('Warp route id required for warp module');
     }
     const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    const addresses = getWarpAddresses(environment, warpRouteId);
+    const addresses = getWarpAddresses(warpRouteId);
     const filteredAddresses = Object.keys(addresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
         obj[key] = addresses[key];
         return obj;
       }, {} as typeof addresses);
-    const app = HypERC20App.fromAddressesMap(
-      filteredAddresses as HyperlaneAddressesMap<HypERC20Factories>,
+
+    const { contractsMap, foreignDeployments } =
+      attachContractsMapAndGetForeignDeployments(
+        filteredAddresses,
+        hypERC20factories,
+        multiProvider,
+      );
+
+    // log error and return is foreign deployment chain is specifically checked
+    if (
+      (chain && foreignDeployments[chain]) ||
+      (fork && foreignDeployments[fork])
+    ) {
+      console.log(
+        `${
+          chain ?? fork
+        } is non evm and it not compatible with warp checker tooling`,
+      );
+      return;
+    }
+
+    const app = new HypERC20App(
+      contractsMap,
       multiProvider,
+      undefined,
+      foreignDeployments,
     );
 
     const checker = new HypERC20Checker(

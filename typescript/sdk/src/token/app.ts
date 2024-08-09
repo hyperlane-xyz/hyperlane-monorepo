@@ -1,5 +1,8 @@
+import { Logger } from 'pino';
+
 import { TokenRouter } from '@hyperlane-xyz/core';
-import { objKeys } from '@hyperlane-xyz/utils';
+import { ChainMap } from '@hyperlane-xyz/sdk';
+import { Address, objKeys } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
 import {
@@ -16,8 +19,10 @@ export class HypERC20App extends GasRouterApp<HypERC20Factories, TokenRouter> {
   constructor(
     contractsMap: HyperlaneContractsMap<HypERC20Factories>,
     multiProvider: MultiProvider,
+    logger?: Logger,
+    foreignDeployments: ChainMap<Address> = {},
   ) {
-    super(contractsMap, multiProvider);
+    super(contractsMap, multiProvider, logger, foreignDeployments);
   }
 
   router(contracts: HyperlaneContracts<HypERC20Factories>): TokenRouter {
