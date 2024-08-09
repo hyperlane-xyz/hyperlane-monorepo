@@ -3,15 +3,15 @@ pragma solidity >=0.6.11;
 
 // work based on eth2 deposit contract, which is used under CC0-1.0
 
+uint256 constant TREE_DEPTH = 32;
+uint256 constant MAX_LEAVES = 2 ** TREE_DEPTH - 1;
+
 /**
  * @title MerkleLib
  * @author Celo Labs Inc.
  * @notice An incremental merkle tree modeled on the eth2 deposit contract.
  **/
 library MerkleLib {
-    uint256 internal constant TREE_DEPTH = 32;
-    uint256 internal constant MAX_LEAVES = 2 ** TREE_DEPTH - 1;
-
     /**
      * @notice Struct representing incremental merkle tree. Contains current
      * branch and the number of inserted leaves in the tree.
@@ -136,6 +136,36 @@ library MerkleLib {
                 _current = keccak256(abi.encodePacked(_next, _current));
             } else {
                 _current = keccak256(abi.encodePacked(_current, _next));
+            }
+        }
+    }
+
+    /**
+     * @notice Calculates and returns the merkle root as if the index is
+     * the topmost leaf in the tree.
+     * @param _item Merkle leaf
+     * @param _branch Merkle proof
+     * @param _index Index of `_item` in tree
+     * @dev Replaces siblings greater than the index (right subtrees) with zeroes.
+     * @return _current Calculated merkle root
+     **/
+    function reconstructRoot(
+        bytes32 _item,
+        bytes32[TREE_DEPTH] memory _branch, // cheaper than calldata indexing
+        uint256 _index
+    ) internal pure returns (bytes32 _current) {
+        _current = _item;
+
+        bytes32[TREE_DEPTH] memory _zeroes = zeroHashes();
+
+        for (uint256 i = 0; i < TREE_DEPTH; i++) {
+            uint256 _ithBit = (_index >> i) & 0x01;
+            // cheaper than calldata indexing _branch[i*32:(i+1)*32];
+            if (_ithBit == 1) {
+                _current = keccak256(abi.encodePacked(_branch[i], _current));
+            } else {
+                // remove right subtree from proof
+                _current = keccak256(abi.encodePacked(_current, _zeroes[i]));
             }
         }
     }
