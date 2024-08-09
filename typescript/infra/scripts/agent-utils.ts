@@ -51,6 +51,7 @@ import {
   filterRemoteDomainMetadata,
   getInfraPath,
   inCIMode,
+  readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
@@ -443,7 +444,7 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
       return envChains.includes(chain);
     });
   } else {
-    throw new Error(`Cannot get addresses for module ${module}`);
+    return readJSONAtPath(getInfraLandfillPath(environment, module));
   }
 }
 
