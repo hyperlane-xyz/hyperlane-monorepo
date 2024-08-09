@@ -57,9 +57,9 @@ abstract contract AbstractMultisig {
      * @param _metadata ABI encoded module metadata
      * @return count The number of signatures
      */
-    function signatureCount(
+    function _signatureCount(
         bytes calldata _metadata
-    ) public pure virtual returns (uint256);
+    ) internal pure virtual returns (uint256);
 }
 
 /**

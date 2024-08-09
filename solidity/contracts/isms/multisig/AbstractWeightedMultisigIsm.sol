@@ -47,6 +47,17 @@ abstract contract AbstractStaticWeightedMultisigIsm is
     ) public view virtual returns (ValidatorInfo[] memory, uint96);
 
     /**
+     * @notice public function for reading number of signatures in metadata
+     * @param _metadata ABI encoded module metadata
+     * @return the number of signatures
+     */
+    function signatureCount(
+        bytes calldata _metadata
+    ) public pure virtual returns (uint256) {
+        return _signatureCount(_metadata);
+    }
+
+    /**
      * @inheritdoc IInterchainSecurityModule
      */
     function verify(
@@ -66,7 +77,7 @@ abstract contract AbstractStaticWeightedMultisigIsm is
 
         uint256 _validatorCount = Math.min(
             _validators.length,
-            signatureCount(_metadata)
+            _signatureCount(_metadata)
         );
         uint256 _validatorIndex = 0;
         uint96 _totalWeight = 0;
