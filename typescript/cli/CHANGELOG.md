@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cli
 
+## 5.1.0
+
+### Minor Changes
+
+- e151b5f9a: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- dd12e93e0: Add output of hyperlane warp read to ./configs/warp-route-deployment.yaml
+- 7d3b5ceac: Add check & confirm for existing mailbox to core deploy to allow users to decide if they want to deploy a new mailbox
+
+### Patch Changes
+
+- 3d4e6436d: Require at least 1 chain selection in warp init
+- Updated dependencies [d408b0d6f]
+- Updated dependencies [103e6b3e1]
+- Updated dependencies [e151b5f9a]
+- Updated dependencies [a49f52cc9]
+  - @hyperlane-xyz/sdk@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
 ## 5.0.0
 
 ### Major Changes

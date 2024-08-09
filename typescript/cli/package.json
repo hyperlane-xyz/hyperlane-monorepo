@@ -1,13 +1,13 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
     "@aws-sdk/client-kms": "^3.577.0",
     "@aws-sdk/client-s3": "^3.577.0",
     "@hyperlane-xyz/registry": "2.4.0",
-    "@hyperlane-xyz/sdk": "5.0.0",
-    "@hyperlane-xyz/utils": "5.0.0",
+    "@hyperlane-xyz/sdk": "5.1.0",
+    "@hyperlane-xyz/utils": "5.1.0",
     "@inquirer/prompts": "^3.0.0",
     "asn1.js": "^5.4.1",
     "bignumber.js": "^9.1.1",

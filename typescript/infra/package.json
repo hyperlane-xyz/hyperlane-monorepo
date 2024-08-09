@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
     "@aws-sdk/client-iam": "^3.74.0",
@@ -13,10 +13,10 @@
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@ethersproject/providers": "^5.7.2",
     "@google-cloud/secret-manager": "^5.5.0",
-    "@hyperlane-xyz/helloworld": "5.0.0",
+    "@hyperlane-xyz/helloworld": "5.1.0",
     "@hyperlane-xyz/registry": "2.4.0",
-    "@hyperlane-xyz/sdk": "5.0.0",
-    "@hyperlane-xyz/utils": "5.0.0",
+    "@hyperlane-xyz/sdk": "5.1.0",
+    "@hyperlane-xyz/utils": "5.1.0",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@safe-global/protocol-kit": "^4.0.2",
     "@solana/web3.js": "^1.78.0",
