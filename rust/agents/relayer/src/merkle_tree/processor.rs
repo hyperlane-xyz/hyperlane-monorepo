@@ -44,7 +44,7 @@ impl ProcessorExt for MerkleTreeProcessor {
         self.db.domain()
     }
 
-    /// One round of processing, extracted from infinite work loop for
+    /// One round of processing, extracted from an infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
         if let Some(insertion) = self.next_unprocessed_leaf()? {

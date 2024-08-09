@@ -23,7 +23,7 @@
 //!   - SpeculativeSerializedSubmitter (batches with higher optimistic nonces,
 //!     recovery behavior)
 //!   - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
-//!   switch everyone to new one)
+//!   switch everyone to a new one)
 
 pub(crate) mod blacklist;
 pub(crate) mod gas_payment;

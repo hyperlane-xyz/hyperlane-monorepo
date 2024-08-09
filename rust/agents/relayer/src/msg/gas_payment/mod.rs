@@ -210,7 +210,7 @@ mod test {
                 hyperlane_db,
             );
 
-            // Ensure that message without any payment is considered as not meeting the
+            // Ensure that a message without any payment is considered as not meeting the
             // requirement because it doesn't match the GasPaymentEnforcementPolicy
             assert_eq!(
                 enforcer

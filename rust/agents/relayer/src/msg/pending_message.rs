@@ -297,7 +297,7 @@ impl PendingOperation for PendingMessage {
             GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
         };
 
-        // Go ahead and attempt processing of message to destination chain.
+        // Go ahead and attempt processing of message to the destination chain.
         debug!(
             ?gas_limit,
             ?tx_cost_estimate,

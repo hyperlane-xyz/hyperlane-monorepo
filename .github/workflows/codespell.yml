@@ -1,4 +1,4 @@
-# A Github action that using codespell to check spelling.
+# A Github action that uses codespell to check spelling.
 # see .codespell/* for configs
 # https://github.com/codespell-project/codespell
 

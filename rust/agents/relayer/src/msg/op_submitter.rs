@@ -48,7 +48,7 @@ use super::op_queue::OperationPriorityQueue;
 /// incorporates both user-visible metrics and message operation readiness
 /// checks.
 ///
-/// Operations which failed processing due to a retriable error are also
+/// Operations that failed processing due to a retriable error are also
 /// retained within the SerialSubmitter, and will eventually be retried
 /// according to our prioritization rule.
 ///
