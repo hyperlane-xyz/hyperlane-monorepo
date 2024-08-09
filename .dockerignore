@@ -8,7 +8,6 @@ typescript/hyperlane-deploy/.env
 **/*.swp
 **/*.swo
 
-rust
 tmp.env
 .DS_STORE
 
