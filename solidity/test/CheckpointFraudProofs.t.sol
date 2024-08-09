@@ -114,17 +114,17 @@ contract CheckpointFraudProofsTest is Test {
             assertFalse(cfp.isPremature(checkpoints[i]));
         }
 
-        assertTrue(
-            cfp.isPremature(
-                Checkpoint(
-                    localDomain,
-                    address(merkleTreeHook).addressToBytes32(),
-                    0,
-                    merkleTreeHook.count(),
-                    0
-                )
-            )
+        Checkpoint memory prematureCheckpoint = Checkpoint(
+            localDomain,
+            address(merkleTreeHook).addressToBytes32(),
+            0,
+            merkleTreeHook.count(),
+            0
         );
+        assertTrue(cfp.isPremature(prematureCheckpoint));
+
+        merkleTreeHook.insert(bytes32("0xdeadbeef"));
+        assertFalse(cfp.isPremature(prematureCheckpoint));
     }
 
     function test_RevertWhenNotLocal_isPremature(uint8 fixtureIndex) public {
