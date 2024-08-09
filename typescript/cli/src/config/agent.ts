@@ -103,7 +103,6 @@ async function getStartBlocks(
         errorRed(
           `❌ Failed to get deployed block to set an index for ${chain}, this is potentially an issue with rpc provider or a misconfiguration`,
         );
-        process.exit(1);
       }
     }),
   );
