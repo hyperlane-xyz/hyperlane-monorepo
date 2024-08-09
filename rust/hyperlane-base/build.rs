@@ -2,7 +2,7 @@ use anyhow::Result;
 use vergen::EmitBuilder;
 
 fn main() -> Result<()> {
-    EmitBuilder::builder().all_git().emit()?;
+    EmitBuilder::builder().git_sha(false).emit()?;
 
     Ok(())
 }
