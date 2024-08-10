@@ -36,7 +36,7 @@ pub struct ValidatorSettings {
     pub validator: SignerConf,
     /// The checkpoint syncer configuration
     pub checkpoint_syncer: CheckpointSyncerConf,
-    /// The reorg_period in blocks
+    /// The reorg period in blocks
     pub reorg_period: u64,
     /// How frequently to check for new checkpoints
     pub interval: Duration,
@@ -55,7 +55,6 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         _filter: (),
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
-
         let p = ValueParser::new(cwp.clone(), &raw.0);
 
         let origin_chain_name = p
@@ -64,22 +63,22 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .parse_string()
             .end();
 
-        let origin_chain_name_set = origin_chain_name.map(|s| HashSet::from([s]));
+        let origin_chain_name_set = origin_chain_name
+            .as_ref()
+            .map(|s| HashSet::from([s.as_str()]));
 
-        let base: Option<Settings> = p
+        let base = p
             .parse_from_raw_config::<Settings, RawAgentConf, Option<&HashSet<&str>>>(
                 origin_chain_name_set.as_ref(),
                 "Expected valid base agent configuration",
             )
             .take_config_err(&mut err);
 
-        let origin_chain = if let (Some(base), Some(origin_chain_name)) = (&base, origin_chain_name)
-        {
-            base.lookup_domain(origin_chain_name)
+        let origin_chain = match (&base, &origin_chain_name) {
+            (Some(base), Some(origin_chain_name)) => base.lookup_domain(origin_chain_name)
                 .context("Missing configuration for the origin chain")
-                .take_err(&mut err, || cwp + "origin_chain_name")
-        } else {
-            None
+                .take_err(&mut err, || cwp + "origin_chain_name"),
+            _ => None,
         };
 
         let validator = p
@@ -98,7 +97,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .unwrap_or_else(|| {
                 std::env::current_dir()
                     .unwrap()
-                    .join(format!("validator_db_{}", origin_chain_name.unwrap_or("")))
+                    .join(format!("validator_db_{}", origin_chain_name.clone().unwrap_or_default()))
             });
 
         let checkpoint_syncer = p
@@ -112,7 +111,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("interval")
             .parse_u64()
             .map(Duration::from_secs)
-            .unwrap_or(Duration::from_secs(5));
+            .unwrap_or_else(|_| Duration::from_secs(5));
 
         cfg_unwrap_all!(cwp, err: [origin_chain_name]);
 
@@ -127,10 +126,11 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 
-        let mut base: Settings = base;
-        // If the origin chain is an EVM chain, then we can use the validator as the signer if needed.
-        if origin_chain.domain_protocol() == HyperlaneDomainProtocol::Ethereum {
-            if let Some(origin) = base.chains.get_mut(origin_chain.name()) {
+        let mut base = base.unwrap();
+        
+        // Use the validator as the signer if the origin chain is an EVM chain and no signer is set.
+        if origin_chain.as_ref().map(|c| c.domain_protocol()) == Some(HyperlaneDomainProtocol::Ethereum) {
+            if let Some(origin) = base.chains.get_mut(origin_chain.as_ref().unwrap().name()) {
                 origin.signer.get_or_insert_with(|| validator.clone());
             }
         }
@@ -138,7 +138,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         err.into_result(Self {
             base,
             db,
-            origin_chain,
+            origin_chain: origin_chain.unwrap(),
             validator,
             checkpoint_syncer,
             reorg_period,
@@ -147,12 +147,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
     }
 }
 
-/// Expects ValidatorAgentConfig.checkpointSyncer
+/// Parses the checkpoint syncer configuration from a ValueParser.
 fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncerConf> {
     let mut err = ConfigParsingError::default();
     let syncer_type = syncer.chain(&mut err).get_key("type").parse_string().end();
 
-    match syncer_type {
+    match syncer_type.as_deref() {
         Some("localStorage") => {
             let path = syncer
                 .chain(&mut err)
@@ -172,7 +172,7 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
             let region = syncer
                 .chain(&mut err)
                 .get_key("region")
-                .parse_from_str("Expected aws region")
+                .parse_from_str("Expected AWS region")
                 .end();
             let folder = syncer
                 .chain(&mut err)
@@ -188,9 +188,9 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 folder,
             })
         }
-        Some(_) => {
-            Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")
-        }
+        Some(_) => Err(eyre!("Unknown checkpoint syncer type"))
+            .into_config_result(|| &syncer.cwp + "type"),
         None => Err(err),
     }
-}
+                }
+            
