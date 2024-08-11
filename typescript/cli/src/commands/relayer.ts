@@ -25,6 +25,7 @@ export const relayerCommand: CommandModuleWithContext<
     );
 
     const relayer = new HyperlaneRelayer({ core });
+    log('Starting relayer ...');
     relayer.start(chainsArray);
     process.once('SIGINT', () => {
       relayer.stop(chainsArray);
