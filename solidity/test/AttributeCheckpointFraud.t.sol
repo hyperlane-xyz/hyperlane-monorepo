@@ -40,23 +40,13 @@ contract AttributeCheckpointFraudTest is Test {
         assert(acf.merkleTreeWhitelist(address(merkleTreeHook)));
     }
 
-    function mockAttribute(
-        bytes32 digest,
-        address signer,
-        FraudType fraudType
-    ) internal {
-        bytes32 slot = keccak256(
-            abi.encode(digest, keccak256(abi.encode(signer, uint(2))))
-        );
-        vm.store(address(acf), slot, bytes32(uint(fraudType)));
-    }
-
     function sign(
         Checkpoint memory checkpoint,
         uint256 privateKey
     ) internal pure returns (bytes memory signature) {
         vm.assume(
             privateKey > 0 &&
+                //  private key must be less than the secp256k1 curve order
                 privateKey <
                 115792089237316195423570985008687907852837564279074904382605163141518161494337
         );
@@ -65,31 +55,6 @@ contract AttributeCheckpointFraudTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
     }
-
-    // function test_unattributed(
-    //     Checkpoint calldata checkpoint,
-    //     uint256 privateKey
-    // ) public {
-    //     vm.assume(
-    //         privateKey > 0 &&
-    //             privateKey <
-    //             115792089237316195423570985008687907852837564279074904382605163141518161494337
-    //     );
-
-    //     bytes32 digest = checkpoint.digest();
-    //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
-    //     bytes memory signature = abi.encodePacked(r, s, v);
-    //     (bytes32 computedDigest, address signer) = acf.unattributed(
-    //         checkpoint,
-    //         signature
-    //     );
-    //     assertEq(digest, computedDigest);
-    //     assertEq(signer, vm.addr(privateKey));
-
-    //     mockAttribute(digest, signer, FraudType.Whitelist);
-    //     vm.expectRevert("fraud already attributed to signer for digest");
-    //     acf.unattributed(checkpoint, signature);
-    // }
 
     function test_attributeWhitelist(
         Checkpoint memory checkpoint,
@@ -109,7 +74,6 @@ contract AttributeCheckpointFraudTest is Test {
         vm.expectRevert("fraud already attributed to signer for digest");
         acf.attributeWhitelist(checkpoint, signature);
 
-        // mockAttribute(digest, signer, FraudType.NotProven);
         acf.whitelist(address(merkleTreeHook));
         vm.expectRevert("merkle tree is whitelisted");
         acf.attributeWhitelist(checkpoint, signature);
