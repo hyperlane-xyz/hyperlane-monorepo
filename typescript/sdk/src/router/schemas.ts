@@ -36,6 +36,8 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
       remoteRouters: RemoteRoutersSchema.optional(),
     }),
   )
+  // TODO: RouterConfigSchema is an artifact of the warp route deployment schema
+  // adding ProxyAdminConfigSchema is subtlety mixing config and artifact schemas, consider refactoring
   .merge(ProxyAdminConfigSchema);
 
 export const GasRouterConfigSchema = RouterConfigSchema.extend({
