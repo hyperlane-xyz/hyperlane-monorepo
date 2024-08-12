@@ -75,7 +75,12 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         color_eyre::install()?;
     }
 
-    let agent_metadata = AgentMetadata::new(env!("VERGEN_GIT_SHA").to_owned());
+    // Latest git commit hash at the time when agent was built.
+    // If .git was not present at the time of build,
+    // the variable defaults to "VERGEN_IDEMPOTENT_OUTPUT".
+    let git_sha = env!("VERGEN_GIT_SHA").to_owned();
+
+    let agent_metadata = AgentMetadata::new(git_sha);
 
     let settings = A::Settings::load()?;
     let core_settings: &Settings = settings.as_ref();
