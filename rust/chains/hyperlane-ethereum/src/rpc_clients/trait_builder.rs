@@ -213,13 +213,13 @@ pub trait BuildableWithProvider {
         M: Middleware + 'static,
     {
         Ok(if let Some(signer) = signer {
-            println!("Building provider with siger");
+            println!("Building provider with signer");
             let signing_provider = wrap_with_signer(provider, signer)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
             self.build_with_provider(signing_provider, conn, locator)
         } else {
-            println!("Building provider without siger");
+            println!("Building provider without signer");
             self.build_with_provider(provider, conn, locator)
         }
         .await)
