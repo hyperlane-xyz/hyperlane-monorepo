@@ -48,7 +48,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     optimismsepolia: true,
     plumetestnet: true,
-    polygonamoy: true,
+    polygonamoy: false,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
