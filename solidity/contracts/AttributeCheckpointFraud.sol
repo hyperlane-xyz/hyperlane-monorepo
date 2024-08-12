@@ -10,11 +10,16 @@ import {CheckpointLib, Checkpoint} from "./libs/CheckpointLib.sol";
 import {CheckpointFraudProofs} from "./CheckpointFraudProofs.sol";
 
 enum FraudType {
-    NOT_PROVEN,
     Whitelist,
     Premature,
     MessageId,
     Root
+}
+
+struct Attribution {
+    FraudType fraudType;
+    // for comparison with staking epoch
+    uint48 timestamp;
 }
 
 /**
@@ -30,8 +35,40 @@ contract AttributeCheckpointFraud is Ownable {
 
     mapping(address => bool) public merkleTreeWhitelist;
 
-    mapping(address signer => mapping(bytes32 digest => FraudType))
-        public attributions;
+    mapping(address signer => mapping(bytes32 digest => Attribution))
+        internal _attributions;
+
+    function _recover(
+        Checkpoint calldata checkpoint,
+        bytes calldata signature
+    ) internal pure returns (address signer, bytes32 digest) {
+        digest = checkpoint.digest();
+        signer = ECDSA.recover(digest, signature);
+    }
+
+    function _attribute(
+        bytes calldata signature,
+        Checkpoint calldata checkpoint,
+        FraudType fraudType
+    ) internal {
+        (address signer, bytes32 digest) = _recover(checkpoint, signature);
+        require(
+            _attributions[signer][digest].timestamp == 0,
+            "fraud already attributed to signer for digest"
+        );
+        _attributions[signer][digest] = Attribution({
+            fraudType: fraudType,
+            timestamp: uint48(block.timestamp)
+        });
+    }
+
+    function attributions(
+        Checkpoint calldata checkpoint,
+        bytes calldata signature
+    ) external view returns (Attribution memory) {
+        (address signer, bytes32 digest) = _recover(checkpoint, signature);
+        return _attributions[signer][digest];
+    }
 
     function whitelist(address merkleTree) external onlyOwner {
         require(
@@ -41,24 +78,10 @@ contract AttributeCheckpointFraud is Ownable {
         merkleTreeWhitelist[merkleTree] = true;
     }
 
-    function unattributed(
-        Checkpoint calldata checkpoint,
-        bytes calldata signature
-    ) public view returns (bytes32 digest, address signer) {
-        digest = checkpoint.digest();
-        signer = ECDSA.recover(digest, signature);
-        require(
-            attributions[signer][digest] == FraudType.NOT_PROVEN,
-            "fraud already attributed to signer for digest"
-        );
-    }
-
     function attributeWhitelist(
         Checkpoint calldata checkpoint,
         bytes calldata signature
     ) external {
-        (bytes32 digest, address signer) = unattributed(checkpoint, signature);
-
         require(
             checkpointFraudProofs.isLocal(checkpoint),
             "checkpoint must be local"
@@ -69,21 +92,19 @@ contract AttributeCheckpointFraud is Ownable {
             "merkle tree is whitelisted"
         );
 
-        attributions[signer][digest] = FraudType.Whitelist;
+        _attribute(signature, checkpoint, FraudType.Whitelist);
     }
 
     function attributePremature(
         Checkpoint calldata checkpoint,
         bytes calldata signature
     ) external {
-        (bytes32 digest, address signer) = unattributed(checkpoint, signature);
-
         require(
             checkpointFraudProofs.isPremature(checkpoint),
             "checkpoint must be premature"
         );
 
-        attributions[signer][digest] = FraudType.Premature;
+        _attribute(signature, checkpoint, FraudType.Premature);
     }
 
     function attributeMessageId(
@@ -92,8 +113,6 @@ contract AttributeCheckpointFraud is Ownable {
         bytes32 actualMessageId,
         bytes calldata signature
     ) external {
-        (bytes32 digest, address signer) = unattributed(checkpoint, signature);
-
         require(
             checkpointFraudProofs.isFraudulentMessageId(
                 checkpoint,
@@ -103,7 +122,7 @@ contract AttributeCheckpointFraud is Ownable {
             "checkpoint must have fraudulent message ID"
         );
 
-        attributions[signer][digest] = FraudType.MessageId;
+        _attribute(signature, checkpoint, FraudType.MessageId);
     }
 
     function attributeRoot(
@@ -111,13 +130,11 @@ contract AttributeCheckpointFraud is Ownable {
         bytes32[TREE_DEPTH] calldata proof,
         bytes calldata signature
     ) external {
-        (bytes32 digest, address signer) = unattributed(checkpoint, signature);
-
         require(
             checkpointFraudProofs.isFraudulentRoot(checkpoint, proof),
             "checkpoint must have fraudulent root"
         );
 
-        attributions[signer][digest] = FraudType.Root;
+        _attribute(signature, checkpoint, FraudType.Root);
     }
 }

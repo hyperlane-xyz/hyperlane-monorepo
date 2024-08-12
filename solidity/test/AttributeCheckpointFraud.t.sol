@@ -51,10 +51,10 @@ contract AttributeCheckpointFraudTest is Test {
         vm.store(address(acf), slot, bytes32(uint(fraudType)));
     }
 
-    function test_unattributed(
-        Checkpoint calldata checkpoint,
+    function sign(
+        Checkpoint memory checkpoint,
         uint256 privateKey
-    ) public {
+    ) internal pure returns (bytes memory signature) {
         vm.assume(
             privateKey > 0 &&
                 privateKey <
@@ -63,44 +63,53 @@ contract AttributeCheckpointFraudTest is Test {
 
         bytes32 digest = checkpoint.digest();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        (bytes32 computedDigest, address signer) = acf.unattributed(
-            checkpoint,
-            signature
-        );
-        assertEq(digest, computedDigest);
-        assertEq(signer, vm.addr(privateKey));
-
-        mockAttribute(digest, signer, FraudType.Whitelist);
-        vm.expectRevert("fraud already attributed to signer for digest");
-        acf.unattributed(checkpoint, signature);
+        return abi.encodePacked(r, s, v);
     }
+
+    // function test_unattributed(
+    //     Checkpoint calldata checkpoint,
+    //     uint256 privateKey
+    // ) public {
+    //     vm.assume(
+    //         privateKey > 0 &&
+    //             privateKey <
+    //             115792089237316195423570985008687907852837564279074904382605163141518161494337
+    //     );
+
+    //     bytes32 digest = checkpoint.digest();
+    //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+    //     bytes memory signature = abi.encodePacked(r, s, v);
+    //     (bytes32 computedDigest, address signer) = acf.unattributed(
+    //         checkpoint,
+    //         signature
+    //     );
+    //     assertEq(digest, computedDigest);
+    //     assertEq(signer, vm.addr(privateKey));
+
+    //     mockAttribute(digest, signer, FraudType.Whitelist);
+    //     vm.expectRevert("fraud already attributed to signer for digest");
+    //     acf.unattributed(checkpoint, signature);
+    // }
 
     function test_attributeWhitelist(
         Checkpoint memory checkpoint,
         uint256 privateKey
     ) public {
-        vm.assume(
-            privateKey > 0 &&
-                privateKey <
-                115792089237316195423570985008687907852837564279074904382605163141518161494337
-        );
-
         checkpoint.origin = domain;
         checkpoint.merkleTree = address(merkleTreeHook).addressToBytes32();
 
-        bytes32 digest = checkpoint.digest();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        address signer = vm.addr(privateKey);
+        bytes memory signature = sign(checkpoint, privateKey);
 
         acf.attributeWhitelist(checkpoint, signature);
-        assert(acf.attributions(signer, digest) == FraudType.Whitelist);
+        assert(
+            acf.attributions(checkpoint, signature).fraudType ==
+                FraudType.Whitelist
+        );
 
         vm.expectRevert("fraud already attributed to signer for digest");
         acf.attributeWhitelist(checkpoint, signature);
 
-        mockAttribute(digest, signer, FraudType.NOT_PROVEN);
+        // mockAttribute(digest, signer, FraudType.NotProven);
         acf.whitelist(address(merkleTreeHook));
         vm.expectRevert("merkle tree is whitelisted");
         acf.attributeWhitelist(checkpoint, signature);
@@ -114,16 +123,7 @@ contract AttributeCheckpointFraudTest is Test {
         Checkpoint calldata checkpoint,
         uint256 privateKey
     ) public {
-        vm.assume(
-            privateKey > 0 &&
-                privateKey <
-                115792089237316195423570985008687907852837564279074904382605163141518161494337
-        );
-
-        bytes32 digest = checkpoint.digest();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        address signer = vm.addr(privateKey);
+        bytes memory signature = sign(checkpoint, privateKey);
 
         vm.mockCall(
             address(acf.checkpointFraudProofs()),
@@ -145,7 +145,10 @@ contract AttributeCheckpointFraudTest is Test {
             abi.encode(true)
         );
         acf.attributePremature(checkpoint, signature);
-        assert(acf.attributions(signer, digest) == FraudType.Premature);
+        assert(
+            acf.attributions(checkpoint, signature).fraudType ==
+                FraudType.Premature
+        );
 
         vm.expectRevert("fraud already attributed to signer for digest");
         acf.attributePremature(checkpoint, signature);
@@ -156,16 +159,7 @@ contract AttributeCheckpointFraudTest is Test {
         bytes32[TREE_DEPTH] calldata proof,
         uint256 privateKey
     ) public {
-        vm.assume(
-            privateKey > 0 &&
-                privateKey <
-                115792089237316195423570985008687907852837564279074904382605163141518161494337
-        );
-
-        bytes32 digest = checkpoint.digest();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        address signer = vm.addr(privateKey);
+        bytes memory signature = sign(checkpoint, privateKey);
 
         vm.mockCall(
             address(acf.checkpointFraudProofs()),
@@ -195,7 +189,10 @@ contract AttributeCheckpointFraudTest is Test {
             checkpoint.messageId,
             signature
         );
-        assert(acf.attributions(signer, digest) == FraudType.MessageId);
+        assert(
+            acf.attributions(checkpoint, signature).fraudType ==
+                FraudType.MessageId
+        );
 
         vm.expectRevert("fraud already attributed to signer for digest");
         acf.attributeMessageId(
@@ -211,16 +208,7 @@ contract AttributeCheckpointFraudTest is Test {
         bytes32[TREE_DEPTH] calldata proof,
         uint256 privateKey
     ) public {
-        vm.assume(
-            privateKey > 0 &&
-                privateKey <
-                115792089237316195423570985008687907852837564279074904382605163141518161494337
-        );
-
-        bytes32 digest = checkpoint.digest();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        address signer = vm.addr(privateKey);
+        bytes memory signature = sign(checkpoint, privateKey);
 
         vm.mockCall(
             address(acf.checkpointFraudProofs()),
@@ -240,7 +228,9 @@ contract AttributeCheckpointFraudTest is Test {
             abi.encode(true)
         );
         acf.attributeRoot(checkpoint, proof, signature);
-        assert(acf.attributions(signer, digest) == FraudType.Root);
+        assert(
+            acf.attributions(checkpoint, signature).fraudType == FraudType.Root
+        );
 
         vm.expectRevert("fraud already attributed to signer for digest");
         acf.attributeRoot(checkpoint, proof, signature);
