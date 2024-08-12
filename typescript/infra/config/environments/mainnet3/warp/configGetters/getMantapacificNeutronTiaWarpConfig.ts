@@ -6,7 +6,7 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-export const getMantapacifNeutronTiaWarpConfig = async (
+export const getMantapacificNeutronTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const neutronRouter =

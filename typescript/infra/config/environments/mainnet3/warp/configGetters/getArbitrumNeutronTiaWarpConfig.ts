@@ -10,7 +10,7 @@ export const getArbitrumNeutronTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const neutronRouter =
-    '0x9c504f7d878445228bef5684f9028cb388f63e58bf1077db75876c7651b9a71f';
+    '910926c4cf95d107237a9cf0b3305fe9c81351ebcba3d218ceb0e4935d92ceac';
 
   // @ts-ignore - foreignDeployment configs dont conform to the TokenRouterConfig
   const neutron: TokenRouterConfig = {

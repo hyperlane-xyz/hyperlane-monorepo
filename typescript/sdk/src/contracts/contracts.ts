@@ -131,6 +131,7 @@ export function attachContractsMapAndGetForeignDeployments<
     factories,
   );
 
+  // TODO: This function shouldn't need to be aware of application types like collateral / synthetic / native etc. Ideally this should work for any app, not just warp routes. is it safe to assume this is always an object containing 1 key/value pair, and that the value will always be an address?
   const foreignDeployments = objMap(
     filterChainMapExcludeProtocol(
       addressesMap,
