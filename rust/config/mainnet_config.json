@@ -1350,7 +1350,7 @@
       "domainId": 1135,
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xd21192429df453021e896f2897Dc8B1167DD61E5",
-      "gasCurrencyCoinGeckoId": "lisk",
+      "gasCurrencyCoinGeckoId": "ethereum",
       "index": {
         "from": 4195553
       },
