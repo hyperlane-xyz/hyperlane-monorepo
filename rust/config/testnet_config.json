@@ -668,9 +668,9 @@
         }
       ],
       "blocks": {
-        "confirmations": 10,
+        "confirmations": 5,
         "estimateBlockTime": 2,
-        "reorgPeriod": 256
+        "reorgPeriod": 10
       },
       "chainId": 80002,
       "deployer": {
