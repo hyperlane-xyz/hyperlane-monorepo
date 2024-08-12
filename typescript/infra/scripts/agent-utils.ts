@@ -448,10 +448,7 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
   }
 }
 
-export function getWarpAddresses(
-  environment: DeployEnvironment,
-  warpRouteId: string,
-) {
+export function getWarpAddresses(warpRouteId: string) {
   const registry = getRegistry();
   const warpRouteConfig = registry.getWarpRoute(warpRouteId);
 
