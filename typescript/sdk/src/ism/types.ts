@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  ArbL2ToL1Ism,
   IAggregationIsm,
   IInterchainSecurityModule,
   IMultisigIsm,
@@ -16,6 +17,7 @@ import { OwnableConfig } from '../deploy/types.js';
 import { ChainMap } from '../types.js';
 
 import {
+  ArbL2ToL1IsmConfigSchema,
   IsmConfigSchema,
   MultisigIsmConfigSchema,
   OpStackIsmConfigSchema,
@@ -35,6 +37,7 @@ export enum ModuleType {
   MESSAGE_ID_MULTISIG,
   NULL,
   CCIP_READ,
+  ARB_L2_TO_L1,
 }
 
 // this enum can be adjusted as per deployments necessary
@@ -50,6 +53,7 @@ export enum IsmType {
   TEST_ISM = 'testIsm',
   PAUSABLE = 'pausableIsm',
   TRUSTED_RELAYER = 'trustedRelayerIsm',
+  ARB_L2_TO_L1 = 'arbL2ToL1Ism',
 }
 
 // ISM types that can be updated in-place
@@ -78,6 +82,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
       return ModuleType.NULL;
+    case IsmType.ARB_L2_TO_L1:
+      return ModuleType.ARB_L2_TO_L1;
   }
 }
 
@@ -93,6 +99,7 @@ export type OpStackIsmConfig = z.infer<typeof OpStackIsmConfigSchema>;
 export type TrustedRelayerIsmConfig = z.infer<
   typeof TrustedRelayerIsmConfigSchema
 >;
+export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -124,6 +131,7 @@ export type DeployedIsmType = {
   [IsmType.TEST_ISM]: TestIsm;
   [IsmType.PAUSABLE]: PausableIsm;
   [IsmType.TRUSTED_RELAYER]: TrustedRelayerIsm;
+  [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;

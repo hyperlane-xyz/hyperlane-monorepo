@@ -25,6 +25,11 @@ export const OpStackIsmConfigSchema = z.object({
   nativeBridge: z.string(),
 });
 
+export const ArbL2ToL1IsmConfigSchema = z.object({
+  type: z.literal(IsmType.ARB_L2_TO_L1),
+  bridge: z.string(),
+});
+
 export const PausableIsmConfigSchema = PausableSchema.and(
   z.object({
     type: z.literal(IsmType.PAUSABLE),
@@ -72,4 +77,5 @@ export const IsmConfigSchema = z.union([
   MultisigIsmConfigSchema,
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
+  ArbL2ToL1IsmConfigSchema,
 ]);
