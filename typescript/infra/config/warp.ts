@@ -17,7 +17,7 @@ import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/co
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
-import { getMantapacifNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 
 export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
@@ -48,7 +48,7 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
-  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacifNeutronTiaWarpConfig,
+  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
 };
 
 export async function getWarpConfig(
