@@ -48,7 +48,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     optimismsepolia: true,
     plumetestnet: true,
-    polygonamoy: false,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -66,7 +66,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     optimismsepolia: true,
     plumetestnet: true,
-    polygonamoy: false,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -85,7 +85,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     optimismsepolia: true,
     plumetestnet: true,
-    polygonamoy: false,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     // Cannot scrape non-EVM chains
@@ -146,7 +146,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9dcf709-20240812-154757',
+      tag: '874a58f-20240812-172417',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -176,7 +176,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9dcf709-20240812-154757',
+      tag: '874a58f-20240812-172417',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -185,7 +185,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9dcf709-20240812-154757',
+      tag: '874a58f-20240812-172417',
     },
     resources: scraperResources,
   },
