@@ -24,13 +24,21 @@ export const RemoteRoutersSchema = z.record(
   RemoteRouterRouter,
 );
 
+const ProxyAdminConfigSchema = z.object({
+  proxyAdmin: z.string().optional(),
+});
+
 export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   ForeignDeploymentConfigSchema,
-).merge(
-  z.object({
-    remoteRouters: RemoteRoutersSchema.optional(),
-  }),
-);
+)
+  .merge(
+    z.object({
+      remoteRouters: RemoteRoutersSchema.optional(),
+    }),
+  )
+  // TODO: RouterConfigSchema is an artifact of the warp route deployment schema
+  // adding ProxyAdminConfigSchema is subtlety mixing config and artifact schemas, consider refactoring
+  .merge(ProxyAdminConfigSchema);
 
 export const GasRouterConfigSchema = RouterConfigSchema.extend({
   gas: z.number().optional(),

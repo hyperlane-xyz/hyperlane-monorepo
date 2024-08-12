@@ -62,6 +62,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         owner: typeof owners === 'string' ? owners : owners[chain].owner,
         ownerOverrides:
           typeof owners === 'string' ? undefined : owners[chain].ownerOverrides,
+        proxyAdmin: contracts.proxyAdmin.address,
       }),
     );
     // filter for EVM chains

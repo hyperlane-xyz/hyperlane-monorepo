@@ -75,8 +75,12 @@ export abstract class HyperlaneAppChecker<
     this.violations.push(violation);
   }
 
-  async checkProxiedContracts(chain: ChainName): Promise<void> {
-    const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
+  async checkProxiedContracts(
+    chain: ChainName,
+    proxyAdminAddress?: Address,
+  ): Promise<void> {
+    const expectedAdmin =
+      proxyAdminAddress ?? this.app.getContracts(chain).proxyAdmin.address;
     if (!expectedAdmin) {
       throw new Error(
         `Checking proxied contracts for ${chain} with no admin provided`,
