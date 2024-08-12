@@ -11,6 +11,8 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  attachContractsMapAndGetForeignDeployments,
+  hypERC20factories,
 } from '@hyperlane-xyz/sdk';
 import { objFilter } from '@hyperlane-xyz/utils';
 
@@ -27,17 +29,20 @@ import { logViolationDetails } from '../src/utils/violation.js';
 
 import {
   Modules,
-  getAddresses,
   getArgs as getRootArgs,
+  getWarpAddresses,
   withChain,
   withContext,
   withModuleAndFork,
+  withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 import { getHelloWorldApp } from './helloworld/utils.js';
 
 function getArgs() {
-  return withChain(withModuleAndFork(withContext(getRootArgs())))
+  return withChain(
+    withWarpRouteId(withModuleAndFork(withContext(getRootArgs()))),
+  )
     .boolean('asDeployer')
     .default('asDeployer', false)
     .boolean('govern')
@@ -46,8 +51,16 @@ function getArgs() {
 }
 
 async function check() {
-  const { fork, govern, module, environment, context, chain, asDeployer } =
-    await getArgs();
+  const {
+    fork,
+    govern,
+    module,
+    environment,
+    context,
+    chain,
+    asDeployer,
+    warpRouteId,
+  } = await getArgs();
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -136,15 +149,44 @@ async function check() {
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
-    const config = await getWarpConfig(multiProvider, envConfig);
-    const addresses = getAddresses(environment, Modules.WARP);
+    if (!warpRouteId) {
+      throw new Error('Warp route id required for warp module');
+    }
+    const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
+    const addresses = getWarpAddresses(warpRouteId);
     const filteredAddresses = Object.keys(addresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
         obj[key] = addresses[key];
         return obj;
       }, {} as typeof addresses);
-    const app = HypERC20App.fromAddressesMap(filteredAddresses, multiProvider);
+
+    const { contractsMap, foreignDeployments } =
+      attachContractsMapAndGetForeignDeployments(
+        filteredAddresses,
+        hypERC20factories,
+        multiProvider,
+      );
+
+    // log error and return is foreign deployment chain is specifically checked
+    if (
+      (chain && foreignDeployments[chain]) ||
+      (fork && foreignDeployments[fork])
+    ) {
+      console.log(
+        `${
+          chain ?? fork
+        } is non evm and it not compatible with warp checker tooling`,
+      );
+      return;
+    }
+
+    const app = new HypERC20App(
+      contractsMap,
+      multiProvider,
+      undefined,
+      foreignDeployments,
+    );
 
     const checker = new HypERC20Checker(
       multiProvider,
