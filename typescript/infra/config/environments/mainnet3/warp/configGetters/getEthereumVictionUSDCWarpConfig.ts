@@ -24,7 +24,7 @@ export const getEthereumVictionUSDCWarpConfig = async (
     type: TokenType.synthetic,
     name: 'USDC',
     symbol: 'USDC',
-    decimals: 18,
+    decimals: 6,
     totalSupply: 0,
     gas: 75_000,
   };

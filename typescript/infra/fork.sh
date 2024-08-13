@@ -1,6 +1,7 @@
 ENVIRONMENT=$1
 MODULE=$2
 CHAIN=$3
+WARP_ROUTE_ID=$4
 
 if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
   echo "Usage: fork.sh <environment> <module> <chain>"
@@ -26,24 +27,24 @@ done
 set -x
 
 echo "Checking deploy"
-yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE --warpRouteId $WARP_ROUTE_ID
 
 echo "Getting balance"
 DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 
 echo "Deploying"
-yarn tsx ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn tsx ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE --warpRouteId $WARP_ROUTE_ID
 
 AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 DEPLOY_DELTA="$((BEFORE-AFTER))"
 
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 echo "Checking deploy with --govern"
-yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE --warpRouteId $WARP_ROUTE_ID
 
 AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 GOVERN_DELTA="$((BEFORE-AFTER))"
 
 echo "Checking deploy without --govern"
-yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE
+yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE --warpRouteId $WARP_ROUTE_ID
