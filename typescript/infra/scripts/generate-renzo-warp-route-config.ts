@@ -28,6 +28,7 @@ const chainsToDeploy = [
   'linea',
   'ethereum',
   'fraxtal',
+  'zircuit',
 ];
 
 const ezEthValidators = {
@@ -94,22 +95,51 @@ const ezEthValidators = {
       '0x25B3A88f7CfD3C9F7d7e32b295673A16a6Ddbd91', // luganodes
     ],
   },
+  zircuit: {
+    threshold: 1,
+    validators: [
+      '0xe986f457965227A05DCF984C8d0C29e01253c44d', // Renzo
+      '0x25B3A88f7CfD3C9F7d7e32b295673A16a6Ddbd91', // luganodes
+    ],
+  },
 };
-const zeroAddress = '0x0000000000000000000000000000000000000001';
+
+const ezEthSafes: Record<string, string> = {
+  arbitrum: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  optimism: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  base: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  blast: '0xda7dBF0DB81882372B598a715F86eD5254A01b0a',
+  bsc: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  mode: '0x7791eeA3484Ba4E5860B7a2293840767619c2B58',
+  linea: '0xb7092685571B49786F1248c6205B5ac3A691c65E',
+  ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+  fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+};
 
 async function main() {
   const registry = new GithubRegistry();
-  const diff = symmetricDifference(
+  const validatorDiff = symmetricDifference(
     new Set(chainsToDeploy),
     new Set(Object.keys(ezEthValidators)),
   );
-  if (diff.size > 0) {
+  const safeDiff = symmetricDifference(
+    new Set(chainsToDeploy),
+    new Set(Object.keys(ezEthSafes)),
+  );
+  if (validatorDiff.size > 0) {
     throw new Error(
-      `chainsToDeploy !== validatorConfig, diff is ${Array.from(diff).join(
-        ', ',
-      )}`,
+      `chainsToDeploy !== validatorConfig, diff is ${Array.from(
+        validatorDiff,
+      ).join(', ')}`,
     );
   }
+  if (safeDiff.size > 0) {
+    throw new Error(
+      `chainsToDeploy !== safeDiff, diff is ${Array.from(safeDiff).join(', ')}`,
+    );
+  }
+
   const tokenConfig: WarpRouteDeployConfig =
     Object.fromEntries<TokenRouterConfig>(
       await Promise.all(
@@ -124,7 +154,7 @@ async function main() {
                     ? TokenType.XERC20Lockbox
                     : TokenType.XERC20,
                 token: chain === lockboxChain ? lockbox : xERC20,
-                owner: zeroAddress,
+                owner: ezEthSafes[chain],
                 gas: warpRouteOverheadGas,
                 mailbox: (await registry.getChainAddresses(chain))!.mailbox,
                 interchainSecurityModule: {
@@ -133,7 +163,7 @@ async function main() {
                   modules: [
                     {
                       type: IsmType.ROUTING,
-                      owner: zeroAddress,
+                      owner: ezEthSafes[chain],
                       domains: buildAggregationIsmConfigs(
                         chain,
                         chainsToDeploy,
@@ -143,7 +173,7 @@ async function main() {
                     {
                       type: IsmType.FALLBACK_ROUTING,
                       domains: {},
-                      owner: zeroAddress,
+                      owner: ezEthSafes[chain],
                     },
                   ],
                 },
