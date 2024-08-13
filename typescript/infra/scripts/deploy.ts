@@ -46,6 +46,7 @@ import {
   withConcurrentDeploy,
   withContext,
   withModuleAndFork,
+  withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
@@ -58,9 +59,12 @@ async function main() {
     buildArtifactPath,
     chains,
     concurrentDeploy,
+    warpRouteId,
   } = await withContext(
     withConcurrentDeploy(
-      withChains(withModuleAndFork(withBuildArtifactPath(getArgs()))),
+      withChains(
+        withModuleAndFork(withWarpRouteId(withBuildArtifactPath(getArgs()))),
+      ),
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
@@ -116,11 +120,14 @@ async function main() {
       concurrentDeploy,
     );
   } else if (module === Modules.WARP) {
+    if (!warpRouteId) {
+      throw new Error('Warp route ID is required for WARP module');
+    }
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
       multiProvider,
     );
-    config = await getWarpConfig(multiProvider, envConfig);
+    config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
     deployer = new HypERC20Deployer(
       multiProvider,
       ismFactory,
@@ -136,7 +143,11 @@ async function main() {
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
-    deployer = new InterchainAccountDeployer(multiProvider, contractVerifier);
+    deployer = new InterchainAccountDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
     const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
     InterchainAccount.fromAddressesMap(addresses, multiProvider);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {

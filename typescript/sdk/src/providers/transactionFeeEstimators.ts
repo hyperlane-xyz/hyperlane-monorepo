@@ -209,7 +209,7 @@ export async function estimateTransactionFeeCosmJsWasm({
   };
   const wasmClient = await provider.provider;
   // @ts-ignore access a private field here to extract client URL
-  const url: string = wasmClient.tmClient.client.url;
+  const url: string = wasmClient.cometClient.client.url;
   const stargateClient = StargateClient.connect(url);
 
   return estimateTransactionFeeCosmJs({

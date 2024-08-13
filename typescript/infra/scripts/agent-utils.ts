@@ -1,7 +1,11 @@
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
-import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  IRegistry,
+  warpConfigToWarpAddresses,
+} from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -140,6 +144,10 @@ export function withChains<T>(args: Argv<T>) {
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
   );
+}
+
+export function withWarpRouteId<T>(args: Argv<T>) {
+  return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
 export function withProtocol<T>(args: Argv<T>) {
@@ -438,6 +446,17 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
   } else {
     return readJSONAtPath(getInfraLandfillPath(environment, module));
   }
+}
+
+export function getWarpAddresses(warpRouteId: string) {
+  const registry = getRegistry();
+  const warpRouteConfig = registry.getWarpRoute(warpRouteId);
+
+  if (!warpRouteConfig) {
+    throw new Error(`Warp route config for ${warpRouteId} not found`);
+  }
+
+  return warpConfigToWarpAddresses(warpRouteConfig);
 }
 
 export function writeAddresses(

@@ -226,11 +226,10 @@ export const createRoutingConfig = callWithConfigCreationLogs(
       message: 'Enter owner address for routing ISM',
     });
     const ownerAddress = owner;
-    const requireMultiple = true;
     const chains = await runMultiChainSelectionStep(
       context.chainMetadata,
       'Select chains to configure routing ISM for',
-      requireMultiple,
+      1,
     );
 
     const domainsMap: ChainMap<IsmConfig> = {};
@@ -253,7 +252,7 @@ export const createFallbackRoutingConfig = callWithConfigCreationLogs(
     const chains = await runMultiChainSelectionStep(
       context.chainMetadata,
       'Select chains to configure fallback routing ISM for',
-      true,
+      1,
     );
 
     const domainsMap: ChainMap<IsmConfig> = {};

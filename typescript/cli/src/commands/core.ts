@@ -28,6 +28,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
+  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -65,7 +66,7 @@ export const apply: CommandModuleWithWriteContext<{
     ),
   },
   handler: async ({ context, chain, config: configFilePath }) => {
-    logGray(`Hyperlane Warp Apply`);
+    logGray(`Hyperlane Core Apply`);
     logGray('--------------------');
 
     const addresses = (await context.registry.getChainAddresses(
@@ -108,9 +109,10 @@ export const deploy: CommandModuleWithWriteContext<{
     ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
+    'skip-confirmation': skipConfirmationOption,
   },
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    logGray(`Hyperlane permissionless deployment${dryRun ? ' dry-run' : ''}`);
+    logGray(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
     logGray(`------------------------------------------------`);
 
     try {
@@ -187,7 +189,7 @@ export const read: CommandModuleWithContext<{
       mailbox = addresses?.mailbox;
       if (!mailbox) {
         throw new Error(
-          `${chain} mailbox not provided and none found in registry ${context.registry.getUri()}`,
+          `${chain} mailbox not provided and none found in registry.`,
         );
       }
     }

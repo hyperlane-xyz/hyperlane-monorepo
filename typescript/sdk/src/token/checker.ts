@@ -25,6 +25,8 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
     await this.checkToken(chain);
+    // We have adapted this method to accept a proxyAdmin contract address parameter
+    await this.checkProxiedContracts(chain, this.configMap[chain].proxyAdmin);
   }
 
   async checkToken(chain: ChainName): Promise<void> {
@@ -44,7 +46,7 @@ export class HypERC20Checker extends HyperlaneRouterChecker<
       for (const check of checks) {
         const actual = await token[check.method]();
         const expected = config[check.method];
-        if (actual !== expected) {
+        if (expected !== undefined && actual !== expected) {
           const violation: TokenMismatchViolation = {
             type: check.violationType,
             chain,

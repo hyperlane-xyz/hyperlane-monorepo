@@ -1,5 +1,63 @@
 # @hyperlane-xyz/cli
 
+## 5.0.0
+
+### Major Changes
+
+- f1d70a5e8: refactor: select chain now become 2 step, select mainnet/testnet type first, then select chain
+
+### Minor Changes
+
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+- d0f7f21fd: Fix logging for hyperlane core apply
+- d00f2ffc0: Displays formatted deployment plan to confirm warp deploy.
+- 40255575c: Adds blockExplorers option on registry init.
+- 708999433: Adds hyperlane warp apply
+- 0e1a80e6e: Improve chain metadata and address fetching from github registries
+- 5529d98d0: Add hyperlane core apply with update ownership
+- 62d71fad3: Add hyperlane warp update to extend a warp config
+- 49986aa92: Add collateralAddressOrDenom for collateralVault
+- ded5718a0: Update hyperlane core read to log the config terminal "preview", only if the number of lines is < 250
+- 5125b798d: Prompt for chain testnet/mainnet during chain definition flow
+- bb470aec2: Add 'submit' command to CLI.
+
+### Patch Changes
+
+- 80ac5d28e: Display token symbol when balance is insufficient for command
+- 6341edf2a: fix: use merkle tree hook address from registry for self relay hook derivations
+- c539775d7: Default to mailbox address in registry
+- c2a2897d7: Update CLI verbiage to ask for vault and not token when initiating collateralVault warp route.
+- Updated dependencies [2c0ae3cf3]
+- Updated dependencies [0dedbf5a0]
+- Updated dependencies [388d25517]
+- Updated dependencies [69a39da1c]
+- Updated dependencies [4907b510c]
+- Updated dependencies [488f949ef]
+- Updated dependencies [c7f5a35e8]
+- Updated dependencies [7265a4087]
+- Updated dependencies [0a40dcb8b]
+- Updated dependencies [f83b492de]
+- Updated dependencies [79740755b]
+- Updated dependencies [8533f9e66]
+- Updated dependencies [ed65556aa]
+- Updated dependencies [ab827a3fa]
+- Updated dependencies [dfa908796]
+- Updated dependencies [ed63e04c4]
+- Updated dependencies [dfa908796]
+- Updated dependencies [5aa24611b]
+- Updated dependencies [cfb890dc6]
+- Updated dependencies [708999433]
+- Updated dependencies [5529d98d0]
+- Updated dependencies [62d71fad3]
+- Updated dependencies [49986aa92]
+- Updated dependencies [7fdd3958d]
+- Updated dependencies [8e942d3c6]
+- Updated dependencies [fef629673]
+- Updated dependencies [be4617b18]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/sdk@5.0.0
+  - @hyperlane-xyz/utils@5.0.0
+
 ## 4.1.0
 
 ### Minor Changes

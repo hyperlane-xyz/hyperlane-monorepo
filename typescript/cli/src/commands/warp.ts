@@ -161,7 +161,7 @@ export const init: CommandModuleWithContext<{
 export const read: CommandModuleWithContext<{
   chain?: string;
   address?: string;
-  out?: string;
+  config?: string;
   symbol?: string;
 }> = {
   command: 'read',
@@ -179,9 +179,19 @@ export const read: CommandModuleWithContext<{
       'Address of the router contract to read.',
       false,
     ),
-    out: outputFileCommandOption(),
+    config: outputFileCommandOption(
+      './configs/warp-route-deployment.yaml',
+      false,
+      'The path to output a Warp Config JSON or YAML file.',
+    ),
   },
-  handler: async ({ context, chain, address, out, symbol }) => {
+  handler: async ({
+    context,
+    chain,
+    address,
+    config: configFilePath,
+    symbol,
+  }) => {
     logGray('Hyperlane Warp Reader');
     logGray('---------------------');
 
@@ -252,9 +262,11 @@ export const read: CommandModuleWithContext<{
       ),
     );
 
-    if (out) {
-      writeYamlOrJson(out, config, 'yaml');
-      logGreen(`✅ Warp route config written successfully to ${out}:\n`);
+    if (configFilePath) {
+      writeYamlOrJson(configFilePath, config, 'yaml');
+      logGreen(
+        `✅ Warp route config written successfully to ${configFilePath}:\n`,
+      );
     } else {
       logGreen(`✅ Warp route config read successfully:\n`);
     }

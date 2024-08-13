@@ -1,9 +1,9 @@
 import { BigNumber, constants } from 'ethers';
 
 import {
-  HypERC20CollateralVaultDeposit__factory,
   HypERC20Collateral__factory,
   HypERC20__factory,
+  HypERC4626Collateral__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -82,7 +82,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       Record<TokenType, { factory: any; method: string }>
     > = {
       collateralVault: {
-        factory: HypERC20CollateralVaultDeposit__factory,
+        factory: HypERC4626Collateral__factory,
         method: 'vault',
       },
       collateral: {
