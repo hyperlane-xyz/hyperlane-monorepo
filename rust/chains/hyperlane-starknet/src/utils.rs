@@ -16,7 +16,8 @@ use url::Url;
 
 use crate::{
     contracts::{
-        interchain_security_module::ModuleType as StarknetModuleType, mailbox::Message,
+        interchain_security_module::ModuleType as StarknetModuleType,
+        mailbox::Bytes as MailboxBytes, mailbox::Message,
         validator_announce::Bytes as ValidatorAnnounceBytes,
     },
     HyperlaneStarknetError,
@@ -167,6 +168,25 @@ fn u128_vec_to_u8_vec(input: Vec<u128>) -> Vec<u8> {
 /// We have to pad the bytes to 16 bytes chunks
 /// see here for more info https://github.com/keep-starknet-strange/alexandria/blob/main/src/bytes/src/bytes.cairo#L16
 pub fn to_strk_message_bytes(bytes: &[u8]) -> ValidatorAnnounceBytes {
+    let result = to_packed_bytes(bytes);
+
+    ValidatorAnnounceBytes {
+        size: bytes.len() as u32,
+        data: result,
+    }
+}
+
+/// Convert a byte slice to a starknet bytes
+pub fn to_mailbox_bytes(bytes: &[u8]) -> MailboxBytes {
+    let result = to_packed_bytes(bytes);
+
+    MailboxBytes {
+        size: bytes.len() as u32,
+        data: result,
+    }
+}
+
+fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
     // Calculate the required padding
     let padding = (16 - (bytes.len() % 16)) % 16;
     let total_len = bytes.len() + padding;
@@ -184,10 +204,7 @@ pub fn to_strk_message_bytes(bytes: &[u8]) -> ValidatorAnnounceBytes {
         result.push(u128::from_be_bytes(array));
     }
 
-    ValidatorAnnounceBytes {
-        size: bytes.len() as u32,
-        data: result,
-    }
+    result
 }
 
 /// Convert a string to a cairo long string

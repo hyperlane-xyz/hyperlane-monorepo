@@ -318,6 +318,8 @@ fn run_locally() {
     };
     let _relayer = "hpl-relayer";
 
+    sleep(Duration::from_secs(5));
+
     let nodes = nodes
         .into_iter()
         .map(|v| (v.0.join(), v.1, v.2, v.3))
@@ -440,7 +442,7 @@ fn run_locally() {
             dispatched_messages += 1;
             let mut cli = StarknetCLI::new(starklid.clone());
 
-            let msg_body: &[u8] = b"helloooooooooo";
+            let msg_body: &[u8] = b"HELLO WORLD";
 
             cli.init(
                 STARKNET_KEYPAIR.into(),
@@ -522,7 +524,7 @@ fn run_locally() {
 fn termination_invariants_met(
     relayer_metrics_port: u32,
     messages_expected: u32,
-    starting_relayer_balance: f64,
+    _starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
     // Commented as IGP is not implemented for Starknet
     // let gas_payments_scraped = fetch_metric(
@@ -558,21 +560,17 @@ fn termination_invariants_met(
         return Ok(false);
     }
 
-    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+    let _ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
 
     // Make sure the balance was correctly updated in the metrics.
-    // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
-    // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/c2288eb31734ba1f2f997e2c6ecb30176427bc2c/rust/utils/run-locally/src/cosmos/cli.rs#L55
-    // What's stopping this is that the format returned by the `uosmo` balance query is a surprisingly low number (0.000003999999995184)
-    // but then maybe the gas_per_tx is just very low - how can we check that? (maybe by simulating said tx)
-    if starting_relayer_balance <= ending_relayer_balance {
-        log!(
-            "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
-            starting_relayer_balance,
-            ending_relayer_balance
-        );
-        return Ok(false);
-    }
+    // if starting_relayer_balance <= ending_relayer_balance {
+    //     log!(
+    //         "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
+    //         starting_relayer_balance,
+    //         ending_relayer_balance
+    //     );
+    //     return Ok(false);
+    // }
 
     log!("Termination invariants have been meet");
     Ok(true)

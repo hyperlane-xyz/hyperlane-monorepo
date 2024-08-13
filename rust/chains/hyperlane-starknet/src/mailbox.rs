@@ -14,15 +14,16 @@ use hyperlane_core::{
     TxCostEstimate, TxOutcome, H256, U256,
 };
 use starknet::accounts::{Execution, SingleOwnerAccount};
-use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
+use starknet::core::types::{
+    FieldElement, MaybePendingTransactionReceipt, PendingTransactionReceipt, TransactionReceipt,
+};
 use starknet::providers::{AnyProvider, Provider};
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-use crate::contracts::mailbox::{
-    Bytes as StarknetBytes, Mailbox as StarknetMailboxInternal, Message as StarknetMessage,
-};
+use crate::contracts::mailbox::{Mailbox as StarknetMailboxInternal, Message as StarknetMessage};
 use crate::error::HyperlaneStarknetError;
+use crate::utils::to_mailbox_bytes;
 use crate::{
     build_single_owner_account, get_transaction_receipt, ConnectionConf, Signer, StarknetProvider,
 };
@@ -86,10 +87,7 @@ impl StarknetMailbox {
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
         let tx = self.contract.process(
-            &StarknetBytes {
-                size: metadata.len() as u32,
-                data: metadata.iter().map(|b| *b as u128).collect(),
-            },
+            &to_mailbox_bytes(metadata),
             &StarknetMessage {
                 version: message.version,
                 nonce: message.nonce,
@@ -97,10 +95,7 @@ impl StarknetMailbox {
                 sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
                 destination: message.destination,
                 recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
-                body: StarknetBytes {
-                    size: message.body.len() as u32,
-                    data: message.body.iter().map(|b| *b as u128).collect(),
-                },
+                body: to_mailbox_bytes(&message.body),
             },
         );
 
@@ -228,6 +223,11 @@ impl Mailbox for StarknetMailbox {
             get_transaction_receipt(&self.provider.rpc_client(), tx.transaction_hash).await;
         match invoke_tx_receipt {
             Ok(MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(receipt))) => {
+                return Ok(receipt.try_into()?);
+            }
+            Ok(MaybePendingTransactionReceipt::PendingReceipt(
+                PendingTransactionReceipt::Invoke(receipt),
+            )) => {
                 return Ok(receipt.try_into()?);
             }
             _ => {

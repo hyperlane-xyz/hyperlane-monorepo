@@ -223,8 +223,11 @@ impl Indexer<H256> for StarknetMailboxIndexer {
             .events
             .into_iter()
             .map(|event| {
-                let message_id: Indexed<H256> =
-                    H256::from_slice(event.data[0].to_bytes_be().as_slice()).into(); // there is only 1 element
+                let message_id: H256 = (event.data[0], event.data[1])
+                    .try_into()
+                    .map_err(Into::<HyperlaneStarknetError>::into)
+                    .unwrap();
+                let message_id: Indexed<H256> = message_id.into();
                 let meta = LogMeta {
                     address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
                     block_number: event.block_number.unwrap(),
@@ -318,9 +321,6 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
                     let message_id: H256 = (event.data[0], event.data[1])
                         .try_into()
                         .map_err(Into::<HyperlaneStarknetError>::into)?;
-
-                    println!("leaf_index: {}, message_id: {}", leaf_index, message_id);
-                    println!("raw event: {:?}", event);
 
                     let merkle_tree_insertion =
                         MerkleTreeInsertion::new(leaf_index, message_id).into();

@@ -157,11 +157,6 @@ impl ValidatorSubmitter {
         //
         // tree.index() will panic if the tree is empty, so we use tree.count() instead
         // and convert the correctness_checkpoint.index to a count by adding 1.
-        println!("tree.count() = {}", tree.count());
-        println!(
-            "correctness_checkpoint.index = {}",
-            correctness_checkpoint.index
-        );
         while tree.count() as u32 <= correctness_checkpoint.index {
             if let Some(insertion) = self
                 .message_db
