@@ -503,6 +503,7 @@
       "domainRoutingIsm": "0xf18E32428dad0802C5D6F723cB80A6Da889777c4",
       "domainRoutingIsmFactory": "0x2A2c22B0a8615ad24839fA6Af302E896Af32d1a3",
       "fallbackRoutingHook": "0xDC98a856fb9112894c2fE32267DA8bF35645FAF3",
+      "gasCurrencyCoinGeckoId": "celo",
       "gnosisSafeTransactionServiceUrl": "https://safe-transaction-celo.safe.global/",
       "index": {
         "from": 22102340
@@ -735,6 +736,7 @@
       },
       "displayName": "Eclipse",
       "domainId": 1408864445,
+      "gasCurrencyCoinGeckoId": "ethereum",
       "index": {
         "from": 1,
         "mode": "sequence"
@@ -1825,6 +1827,7 @@
       "domainRoutingIsm": "0x7Faa23CEdA03364A79e05259e07D5E358E7400F7",
       "domainRoutingIsmFactory": "0x8061Af3A459093540d17823D651BC5E2A92669a7",
       "fallbackRoutingHook": "0x6C2D6eA0969F7Aa0A850CCA88c7BFACa563B2361",
+      "gasCurrencyCoinGeckoId": "moonbeam",
       "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.moonbeam.network",
       "index": {
         "from": 4719713
@@ -2587,6 +2590,7 @@
       "displayName": "Solana",
       "displayNameShort": "Sol",
       "domainId": 1399811149,
+      "gasCurrencyCoinGeckoId": "solana",
       "index": {
         "from": 1,
         "mode": "sequence"
