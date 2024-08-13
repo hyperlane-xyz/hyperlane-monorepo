@@ -5109,6 +5109,12 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0x632b4F32d65F7b25B37a27C57dD510f8e4a58Bf9",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "metis": [
