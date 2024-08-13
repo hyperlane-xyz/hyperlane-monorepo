@@ -117,8 +117,6 @@ const ezEthSafes: Record<string, string> = {
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
 };
 
-const zeroAddress = '0x0000000000000000000000000000000000000001';
-
 async function main() {
   const registry = new GithubRegistry();
   const validatorDiff = symmetricDifference(
@@ -165,7 +163,7 @@ async function main() {
                   modules: [
                     {
                       type: IsmType.ROUTING,
-                      owner: zeroAddress,
+                      owner: ezEthSafes[chain],
                       domains: buildAggregationIsmConfigs(
                         chain,
                         chainsToDeploy,
@@ -175,7 +173,7 @@ async function main() {
                     {
                       type: IsmType.FALLBACK_ROUTING,
                       domains: {},
-                      owner: zeroAddress,
+                      owner: ezEthSafes[chain],
                     },
                   ],
                 },

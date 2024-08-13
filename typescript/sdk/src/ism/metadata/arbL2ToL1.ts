@@ -6,7 +6,6 @@ import {
   EventArgs,
 } from '@arbitrum/sdk';
 import { L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
-import { assert } from 'console';
 import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
 import {
@@ -14,6 +13,7 @@ import {
   ArbSys__factory,
   IOutbox__factory,
 } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 import { WithAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
