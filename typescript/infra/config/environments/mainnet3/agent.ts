@@ -79,7 +79,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantapacific: true,
     mantle: true,
-    merlin: false,
+    merlin: true,
     metis: true,
     mint: true,
     mode: true,
@@ -132,7 +132,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantapacific: true,
     mantle: true,
-    merlin: false,
+    merlin: true,
     metis: true,
     mint: true,
     mode: true,
@@ -188,7 +188,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lukso: true,
     mantapacific: true,
     mantle: true,
-    merlin: false,
+    merlin: true,
     metis: true,
     mint: true,
     mode: true,
@@ -356,7 +356,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9193230-20240809-162513',
+      tag: '78b596e-20240813-123401',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -365,7 +365,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9193230-20240809-162513',
+      tag: '78b596e-20240813-123401',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -375,7 +375,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9193230-20240809-162513',
+      tag: '78b596e-20240813-123401',
     },
     resources: scraperResources,
   },
