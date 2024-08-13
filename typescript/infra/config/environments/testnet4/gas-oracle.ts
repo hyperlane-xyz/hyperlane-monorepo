@@ -1,10 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
-import {
-  ChainMap,
-  ChainName,
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, TOKEN_EXCHANGE_RATE_DECIMALS } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
 import {
@@ -22,16 +18,21 @@ const gasPrices: Record<
   BigNumber
 > = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
+  arbitrumsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
+  basesepolia: ethers.utils.parseUnits('0.1', 'gwei'),
   bsctestnet: ethers.utils.parseUnits('15', 'gwei'),
   connextsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
+  ecotestnet: ethers.utils.parseUnits('0.001', 'gwei'),
   eclipsetestnet: ethers.BigNumber.from('28'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
   holesky: ethers.utils.parseUnits('10', 'gwei'),
+  optimismsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   plumetestnet: ethers.utils.parseUnits('0.01', 'gwei'),
+  polygonamoy: ethers.utils.parseUnits('100', 'gwei'),
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
   solanatestnet: ethers.BigNumber.from('28'),
-  superpositiontestnet: ethers.utils.parseUnits('0.5', 'gwei'),
+  superpositiontestnet: ethers.utils.parseUnits('0.001', 'gwei'),
 };
 
 // Used to categorize rarity of testnet tokens & approximate exchange rates.
@@ -55,12 +56,17 @@ const chainTokenRarity: Record<
   Rarity
 > = {
   alfajores: Rarity.Common,
+  arbitrumsepolia: Rarity.Common,
+  basesepolia: Rarity.Common,
   bsctestnet: Rarity.Rare,
   connextsepolia: Rarity.Common,
+  ecotestnet: Rarity.Rare,
   eclipsetestnet: Rarity.Common,
   fuji: Rarity.Rare,
   holesky: Rarity.Common,
+  optimismsepolia: Rarity.Common,
   plumetestnet: Rarity.Common,
+  polygonamoy: Rarity.Rare,
   scrollsepolia: Rarity.Rare,
   sepolia: Rarity.Mythic,
   solanatestnet: Rarity.Common,
