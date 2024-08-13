@@ -194,7 +194,7 @@ export class HyperlaneRelayer {
     );
   }
 
-  start(chains = this.multiProvider.getKnownChainNames()): void {
+  start(chains = this.core.chains()): void {
     assert(!this.stopRelayingHandler, 'Relayer already started');
 
     const { removeHandler } = this.core.onDispatch(async (message, event) => {
@@ -211,13 +211,25 @@ export class HyperlaneRelayer {
       }
 
       const dispatchReceipt = await event.getTransactionReceipt();
-      await this.relayMessage(dispatchReceipt, undefined, message);
+      const processReceipt = await this.relayMessage(
+        dispatchReceipt,
+        undefined,
+        message,
+      );
+
+      this.logger.info(
+        `Message ${message.id} was processed in ${
+          this.multiProvider.tryGetExplorerTxUrl(destination, {
+            hash: processReceipt.transactionHash,
+          }) ?? 'tx ' + processReceipt.transactionHash
+        }`,
+      );
     }, chains);
 
     this.stopRelayingHandler = removeHandler;
   }
 
-  stop(chains = this.multiProvider.getKnownChainNames()): void {
+  stop(chains = this.core.chains()): void {
     assert(this.stopRelayingHandler, 'Relayer not started');
     this.stopRelayingHandler(chains);
     this.stopRelayingHandler = undefined;
