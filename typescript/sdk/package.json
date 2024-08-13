@@ -3,6 +3,7 @@
   "description": "The official SDK for the Hyperlane Network",
   "version": "5.0.0",
   "dependencies": {
+    "@arbitrum/sdk": "^4.0.0",
     "@aws-sdk/client-s3": "^3.74.0",
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",

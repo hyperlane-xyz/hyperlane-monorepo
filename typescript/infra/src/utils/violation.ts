@@ -98,17 +98,28 @@ function toLowerCaseValues(obj: any): any {
   }, {});
 }
 
-function sortArraysByType(obj: AnyObject): AnyObject {
+function sortArraysByType(obj: any): any {
   if (Array.isArray(obj)) {
-    return obj
-      .sort((a, b) => {
-        if (a.type < b.type) return -1;
-        if (a.type > b.type) return 1;
-        return 0;
-      })
-      .map((item) => sortArraysByType(item));
+    // Check if array elements are objects with a 'type' property
+    if (
+      obj.length > 0 &&
+      typeof obj[0] === 'object' &&
+      obj[0] !== null &&
+      'type' in obj[0]
+    ) {
+      return obj
+        .sort((a, b) => {
+          if (a.type < b.type) return -1;
+          if (a.type > b.type) return 1;
+          return 0;
+        })
+        .map((item) => sortArraysByType(item));
+    } else {
+      // For all other arrays, sort normally
+      return obj.sort().map((item) => sortArraysByType(item));
+    }
   } else if (typeof obj === 'object' && obj !== null) {
-    const sortedObj: AnyObject = {};
+    const sortedObj: any = {};
     Object.keys(obj).forEach((key) => {
       sortedObj[key] = sortArraysByType(obj[key]);
     });
@@ -208,6 +219,22 @@ function preProcessConfig(config: any) {
 }
 
 function logViolationDetail(violation: CheckerViolation): void {
+  if (
+    typeof violation.expected === 'string' ||
+    typeof violation.actual === 'string'
+  ) {
+    if (typeof violation.expected === 'string') {
+      console.log(
+        `Address provided for expected config: ${violation.expected}`,
+      );
+    }
+    if (typeof violation.actual === 'string') {
+      console.log(`Address provided for actual config: ${violation.actual}`);
+    }
+    console.log('Config comparison not possible');
+    return;
+  }
+
   const preProcessedExpectedConfig = preProcessConfig(violation.expected);
   const preProcessedActualConfig = preProcessConfig(violation.actual);
 
@@ -243,7 +270,9 @@ export function logViolationDetails(violations: CheckerViolation[]): void {
     if (violation.type === CoreViolationType.Mailbox) {
       const mailboxViolation = violation as MailboxViolation;
       if (mailboxViolation.subType === MailboxViolationType.DefaultIsm) {
-        console.log(`Mailbox violation ${mailboxViolation.subType} details:`);
+        console.log(
+          `${violation.chain} mailbox violation ${mailboxViolation.subType} details:`,
+        );
         logViolationDetail(violation);
       }
     }
@@ -251,7 +280,9 @@ export function logViolationDetails(violations: CheckerViolation[]): void {
     if (
       violation.type === ConnectionClientViolationType.InterchainSecurityModule
     ) {
-      console.log(`Connection client violation ${violation.type} details:`);
+      console.log(
+        `${violation.chain} connection client violation ${violation.type} details:`,
+      );
       logViolationDetail(violation);
     }
   }
