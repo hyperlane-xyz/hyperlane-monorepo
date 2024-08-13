@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
+use crate::traits::CheckpointSyncer;
+use crate::AgentMetadata;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
-
-use crate::traits::CheckpointSyncer;
 
 #[derive(Debug, Clone)]
 /// Type for reading/write to LocalStorage
@@ -39,6 +39,10 @@ impl LocalStorage {
 
     fn announcement_file_path(&self) -> PathBuf {
         self.path.join("announcement.json")
+    }
+
+    fn metadata_file_path(&self) -> PathBuf {
+        self.path.join("metadata_latest.json")
     }
 }
 
@@ -88,6 +92,15 @@ impl CheckpointSyncer for LocalStorage {
             .await
             .with_context(|| format!("Writing (checkpoint, messageId) to {path:?}"))?;
 
+        Ok(())
+    }
+
+    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
+        let serialized_metadata = serde_json::to_string_pretty(metadata)?;
+        let path = self.metadata_file_path();
+        tokio::fs::write(&path, &serialized_metadata)
+            .await
+            .with_context(|| format!("Writing agent metadata to {path:?}"))?;
         Ok(())
     }
 

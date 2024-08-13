@@ -8,8 +8,8 @@ import {
   ERC20Test__factory,
   ERC4626Test__factory,
   GasRouter,
-  HypERC20CollateralVaultDeposit__factory,
   HypERC20__factory,
+  HypERC4626Collateral__factory,
   HypNative__factory,
   Mailbox,
   Mailbox__factory,
@@ -160,11 +160,10 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(tokenType).to.equal(TokenType.collateralVault);
 
     // Validate onchain token values
-    const collateralVaultContract =
-      HypERC20CollateralVaultDeposit__factory.connect(
-        deployedTokenRoute,
-        signer,
-      );
+    const collateralVaultContract = HypERC4626Collateral__factory.connect(
+      deployedTokenRoute,
+      signer,
+    );
     await validateCoreValues(collateralVaultContract);
     expect(await collateralVaultContract.vault()).to.equal(vault.address);
     expect(await collateralVaultContract.wrappedToken()).to.equal(
