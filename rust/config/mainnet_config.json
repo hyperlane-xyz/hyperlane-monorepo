@@ -1933,7 +1933,7 @@
         "chunk": 5,
         "from": 4000000
       },
-      "interchainGasPaymaster": "0x504ee9ac43ec5814e00c7d21869a90ec52becb489636bdf893b7df9d606b5d67",
+      "interchainGasPaymaster": "0x738a4454e066c3bcb48cb0f03dca1c69b3c3d5ffa4f4470096083f0680a169ac",
       "isTestnet": false,
       "mailbox": "0x848426d50eb2104d5c6381ec63757930b1c14659c40db8b8081e516e7c5238fc",
       "merkleTreeHook": "0xcd30a0001cc1f436c41ef764a712ebabc5a144140e3fd03eafe64a9a24e4e27c",
