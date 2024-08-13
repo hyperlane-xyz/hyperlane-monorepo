@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# exit on error
+set -e
+
 # generates lcov.info
 forge coverage \
     --report lcov \
