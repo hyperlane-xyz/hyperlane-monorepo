@@ -32,6 +32,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  arbitrumsepolia: {
+    threshold: 1,
+    validators: ['0x09fabfbca0b8bf042e2a1161ee5010d147b0f603'],
+  },
+
   avalanche: {
     threshold: 2,
     validators: [
@@ -50,6 +55,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcff391b4e516452d424db66beb9052b041a9ed79', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
+  },
+
+  basesepolia: {
+    threshold: 1,
+    validators: ['0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921'],
   },
 
   blast: {
@@ -127,6 +137,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   eclipsetestnet: {
     threshold: 1,
     validators: ['0xf344f34abca9a444545b5295066348a0ae22dda3'],
+  },
+
+  ecotestnet: {
+    threshold: 1,
+    validators: ['0xb3191420d463c2af8bd9b4a395e100ec5c05915a'],
   },
 
   endurance: {
@@ -283,6 +298,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  optimismsepolia: {
+    threshold: 1,
+    validators: ['0x03efe4d0632ee15685d7e8f46dea0a874304aa29'],
+  },
+
   osmosis: {
     threshold: 1,
     validators: ['0xea483af11c19fa41b16c31d1534c2a486a92bcac'],
@@ -301,6 +321,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
     ],
+  },
+
+  polygonamoy: {
+    threshold: 1,
+    validators: ['0xf0290b06e446b320bd4e9c4a519420354d7ddccd'],
   },
 
   polygonzkevm: {
