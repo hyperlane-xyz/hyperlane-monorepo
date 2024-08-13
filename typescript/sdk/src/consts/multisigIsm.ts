@@ -518,8 +518,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zircuit: {
-    threshold: 1,
-    validators: ['0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb'],
+    threshold: 2,
+    validators: [
+      '0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb',
+      '0x7aC6584c068eb2A72d4Db82A7B7cd5AB34044061', // luganodes
+      '0x0180444c9342BD672867Df1432eb3dA354413a6E', // hashkey cloud
+      '0x1da9176C2CE5cC7115340496fa7D1800a98911CE', // renzo
+    ],
   },
 
   zoramainnet: {
