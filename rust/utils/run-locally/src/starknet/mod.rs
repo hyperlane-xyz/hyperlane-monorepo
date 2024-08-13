@@ -442,7 +442,7 @@ fn run_locally() {
             dispatched_messages += 1;
             let mut cli = StarknetCLI::new(starklid.clone());
 
-            let msg_body: &[u8] = b"HELLO WORLD";
+            let msg_body: &[u8] = b"hello world";
 
             cli.init(
                 STARKNET_KEYPAIR.into(),

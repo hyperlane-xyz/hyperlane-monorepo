@@ -151,19 +151,24 @@ pub fn try_parse_hyperlane_message_from_event(
         sender,
         destination,
         recipient,
-        body: u128_vec_to_u8_vec(message.body.data),
+        body: u128_vec_to_u8_vec(message.body.data, message.body.size),
     })
 }
 
-/// Converts a Vec<u128> to a Vec<u8>.
-fn u128_vec_to_u8_vec(input: Vec<u128>) -> Vec<u8> {
-    let mut output = Vec::with_capacity(input.len() * 16);
+/// Converts a Vec<u128> to a Vec<u8>, respecting the given size and removing trailing zeros.
+fn u128_vec_to_u8_vec(input: Vec<u128>, size: u32) -> Vec<u8> {
+    let mut output = Vec::with_capacity(size as usize);
     for value in input {
         output.extend_from_slice(&value.to_be_bytes());
     }
+    // Truncate to the specified size
+    output.truncate(size as usize);
+    // Remove trailing zeros
+    while output.last() == Some(&0) && output.len() > size as usize {
+        output.pop();
+    }
     output
 }
-
 /// Convert a byte slice to a starknet bytes
 /// We have to pad the bytes to 16 bytes chunks
 /// see here for more info https://github.com/keep-starknet-strange/alexandria/blob/main/src/bytes/src/bytes.cairo#L16
@@ -224,4 +229,25 @@ pub fn string_to_cairo_long_string(
     }
 
     Ok(chunks)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::u128_vec_to_u8_vec;
+
+    #[test]
+    fn test_u128_vec_to_u8_vec() {
+        let input: Vec<u128> = vec![
+            0x01020304050607080910111213141516,
+            0x01020304050607080910111213141516,
+            0x01020304050607080910000000000000,
+        ];
+        let output = u128_vec_to_u8_vec(input.clone(), 42);
+        let expected: Vec<u8> = vec![
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14,
+            0x15, 0x16, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12,
+            0x13, 0x14, 0x15, 0x16, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10,
+        ];
+        assert_eq!(output, expected);
+    }
 }
