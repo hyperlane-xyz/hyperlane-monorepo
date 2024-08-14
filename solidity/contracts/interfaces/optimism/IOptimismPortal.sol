@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 interface IOptimismPortal {
+    error WithdrawalTransactionFailed();
+
     /// @notice Struct representing a withdrawal transaction.
     /// @custom:field nonce    Nonce of the withdrawal transaction
     /// @custom:field sender   Address of the sender of the transaction.
@@ -17,13 +19,6 @@ interface IOptimismPortal {
         uint256 gasLimit;
         bytes data;
     }
-
-    // function proveWithdrawalTransaction(
-    //     Types.WithdrawalTransaction memory _tx,
-    //     uint256 _l2OutputIndex,
-    //     Types.OutputRootProof calldata _outputRootProof,
-    //     bytes[] calldata _withdrawalProof
-    // ) external;
 
     function finalizeWithdrawalTransaction(
         WithdrawalTransaction memory _tx

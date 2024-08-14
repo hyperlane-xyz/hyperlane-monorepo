@@ -13,6 +13,8 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+import "forge-std/console.sol";
+
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -22,6 +24,7 @@ import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.s
 
 // ============ External Imports ============
 
+import {ICrossDomainMessenger} from "../../interfaces/optimism/ICrossDomainMessenger.sol";
 import {IOptimismPortal} from "../../interfaces/optimism/IOptimismPortal.sol";
 import {CrossChainEnabledOptimism} from "@openzeppelin/contracts/crosschain/optimism/CrossChainEnabledOptimism.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -34,18 +37,23 @@ contract OPL2ToL1Ism is
     CrossChainEnabledOptimism,
     AbstractMessageIdAuthorizedIsm
 {
+    using TypeCasts for address;
     using Message for bytes;
     // ============ Constants ============
 
     // module type for the ISM
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.OP_L2_TO_L1);
+    // ICrossDomainMessenger contract on L2 to send messages to L1
+    ICrossDomainMessenger public immutable messenger;
     // OptimismPortal contract on L1 to finalize withdrawal from L1
-    IOptimismPortal public portal;
+    IOptimismPortal public immutable portal;
 
     // ============ Constructor ============
 
-    constructor(address _portal) CrossChainEnabledOptimism(_portal) {
+    constructor(address _messenger) CrossChainEnabledOptimism(_messenger) {
+        messenger = ICrossDomainMessenger(_messenger);
+        address _portal = messenger.PORTAL();
         require(
             Address.isContract(_portal),
             "OPL2ToL1Ism: invalid OptimismPortal contract"
@@ -64,6 +72,7 @@ contract OPL2ToL1Ism is
         if (verified) {
             releaseValueToRecipient(message);
         }
+        console.log("OPL2ToL1Ism: verified=%s", verified, msg.sender);
         return verified || _verifyWithPortalCall(metadata, message);
     }
 
@@ -89,6 +98,14 @@ contract OPL2ToL1Ism is
                 (uint256, address, address, uint256, uint256, bytes)
             );
 
+        console.log(
+            "OPL2ToL1Ism:, target=%s, value=%s, gasLimit=%s",
+            target,
+            value,
+            gasLimit
+        );
+        console.log("address(this)=%s", address(this));
+
         // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
         require(data.length == 36, "OPL2ToL1Ism: invalid data length");
         bytes32 messageId = message.id();
@@ -113,15 +130,14 @@ contract OPL2ToL1Ism is
 
         portal.finalizeWithdrawalTransaction(withdrawal);
 
-        // check if the sender of the l2 message is the authorized hook
-        require(_isAuthorized(), "OPL2ToL1Ism: unauthorized sender");
-
         return true;
     }
 
     /// @inheritdoc AbstractMessageIdAuthorizedIsm
     function _isAuthorized() internal view override returns (bool) {
         return
-            _crossChainSender() == TypeCasts.bytes32ToAddress(authorizedHook);
+            msg.sender == address(portal) &&
+            messenger.xDomainMessageSender().addressToBytes32() ==
+            authorizedHook;
     }
 }
