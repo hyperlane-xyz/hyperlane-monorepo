@@ -3,7 +3,7 @@ coverage:
     project:
       default:
         target: auto  # strictly increasing coverage
-        threshold: 5% # buffer for coverage drop
+        threshold: 3% # buffer for coverage drop
 
 comment:
   layout: "header, diff, flags, components"  # show component info in the PR comment
