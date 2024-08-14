@@ -47,7 +47,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   base: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
       '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
@@ -81,7 +81,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   bsc: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x570af9b7b36568c8877eebba6c6727aa9dab7268',
       '0x8292b1a53907ece0f76af8a50724e9492bcdc8a3', // dsrv
@@ -100,7 +100,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   celo: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x63478422679303c3e4fc611b771fa4a707ef7f4a',
       '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', // dsrv
@@ -167,7 +167,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   ethereum: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
       '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
@@ -206,7 +206,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   gnosis: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xd4df66a859585678f2ea8357161d896be19cc1ca',
       '0x19fb7e04a1be6b39b6966a0b0c60b929a93ed672', // dsrv
@@ -308,7 +308,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   moonbeam: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x2225e2f4e9221049456da93b71d2de41f3b6b2a8',
       '0x645428d198d2e76cbd9c1647f5c80740bb750b97', // dsrv
@@ -331,7 +331,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   optimism: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
       '0x5b7d47b76c69740462432f6a5a0ca5005e014157', // dsrv
@@ -357,7 +357,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   polygon: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac',
       '0x008f24cbb1cc30ad0f19f2516ca75730e37efb5f', // dsrv
@@ -404,7 +404,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   scroll: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xad557170a9f2f21c35e03de07cb30dcbcc3dff63',
       '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
