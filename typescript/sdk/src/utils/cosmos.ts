@@ -34,7 +34,7 @@ export const CosmosChainSchema = z
         'unknown',
       ])
       .describe(
-        "The 'type' of chain as the corresponding CAIP-2 Namespace value. E.G., 'cosmos' or 'eip155'. Namespaces cna be found here: https://github.com/ChainAgnostic/namespaces/tree/main.",
+        "The 'type' of chain as the corresponding CAIP-2 Namespace value. E.G., 'cosmos' or 'eip155'. Namespaces can be found here: https://github.com/ChainAgnostic/namespaces/tree/main.",
       ),
     chain_id: z.string().min(1).optional(),
     pre_fork_chain_name: z
@@ -758,7 +758,7 @@ export const CosmosChainSchema = z
   .strict()
   .and(z.intersection(z.any(), z.any()))
   .describe(
-    'Chain.json is a metadata file that contains information about a blockchain.',
+    'Cosmos Chain.json is a metadata file that contains information about a cosmos sdk based chain.',
   );
 
 export async function getCosmosRegistryChain(chain: string) {
