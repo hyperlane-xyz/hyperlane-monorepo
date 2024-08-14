@@ -43,7 +43,7 @@ export interface OwnerViolation extends CheckerViolation {
 
 export interface ProxyAdminViolation extends CheckerViolation {
   type: ViolationType.ProxyAdmin;
-  proxyAdmin: ProxyAdmin;
+  expectedProxyAdmin: ProxyAdmin;
   proxy: TransparentUpgradeableProxy;
   name: string;
 }

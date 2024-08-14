@@ -347,11 +347,7 @@ export abstract class HyperlaneAppGovernor<
         // Will throw if the transaction fails
         await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
-      } catch (e) {
-        console.error(
-          `Transaction from ${submitterAddress} failed on ${chain}: ${e}`,
-        );
-      }
+      } catch (e) {} // eslint-disable-line no-empty
       return false;
     };
 
@@ -441,7 +437,7 @@ export abstract class HyperlaneAppGovernor<
   async handleProxyAdminViolation(violation: ProxyAdminViolation) {
     const code = await this.checker.multiProvider
       .getProvider(violation.chain)
-      .getCode(violation.proxyAdmin.address);
+      .getCode(violation.expectedProxyAdmin.address);
 
     let call;
     if (code !== '0x') {
@@ -450,7 +446,7 @@ export abstract class HyperlaneAppGovernor<
         chain: violation.chain,
         call: {
           to: violation.actual,
-          data: violation.proxyAdmin.interface.encodeFunctionData(
+          data: violation.expectedProxyAdmin.interface.encodeFunctionData(
             'changeProxyAdmin',
             [violation.proxy.address, violation.expected],
           ),
@@ -459,18 +455,9 @@ export abstract class HyperlaneAppGovernor<
         },
       };
     } else {
-      // admin for proxy is EOA
-      call = {
-        chain: violation.chain,
-        call: {
-          to: violation.proxy.address,
-          data: violation.proxy.interface.encodeFunctionData('changeAdmin', [
-            violation.expected,
-          ]),
-          value: BigNumber.from(0),
-          description: `Change admin of ${violation.proxy.address} to ${violation.expected}`,
-        },
-      };
+      throw new Error(
+        `Admin for proxy ${violation.proxy.address} is not a ProxyAdmin contract`,
+      );
     }
 
     return call;
