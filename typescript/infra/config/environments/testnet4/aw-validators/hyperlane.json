@@ -7,10 +7,14 @@
     ]
   },
   "arbitrumsepolia": {
-    "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
+    "validators": [
+      "0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"
+    ]
   },
   "basesepolia": {
-    "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
+    "validators": [
+      "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"
+    ]
   },
   "bsctestnet": {
     "validators": [
@@ -20,10 +24,14 @@
     ]
   },
   "connextsepolia": {
-    "validators": ["0xffbbec8c499585d80ef69eb613db624d27e089ab"]
+    "validators": [
+      "0xffbbec8c499585d80ef69eb613db624d27e089ab"
+    ]
   },
   "ecotestnet": {
-    "validators": ["0xb3191420d463c2af8bd9b4a395e100ec5c05915a"]
+    "validators": [
+      "0xb3191420d463c2af8bd9b4a395e100ec5c05915a"
+    ]
   },
   "fuji": {
     "validators": [
@@ -33,10 +41,14 @@
     ]
   },
   "holesky": {
-    "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
+    "validators": [
+      "0x7ab28ad88bb45867137ea823af88e2cb02359c03"
+    ]
   },
   "optimismsepolia": {
-    "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
+    "validators": [
+      "0x03efe4d0632ee15685d7e8f46dea0a874304aa29"
+    ]
   },
   "plumetestnet": {
     "validators": [
@@ -46,7 +58,9 @@
     ]
   },
   "polygonamoy": {
-    "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
+    "validators": [
+      "0xf0290b06e446b320bd4e9c4a519420354d7ddccd"
+    ]
   },
   "scrollsepolia": {
     "validators": [
@@ -63,9 +77,13 @@
     ]
   },
   "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
+    ]
   },
   "superpositiontestnet": {
-    "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
+    "validators": [
+      "0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"
+    ]
   }
 }
