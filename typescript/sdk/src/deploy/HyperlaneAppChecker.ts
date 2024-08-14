@@ -1,6 +1,10 @@
 import { utils } from 'ethers';
 
-import { Ownable, TimelockController__factory } from '@hyperlane-xyz/core';
+import {
+  Ownable,
+  ProxyAdmin__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -89,6 +93,10 @@ export abstract class HyperlaneAppChecker<
     const provider = this.multiProvider.getProvider(chain);
     const contracts = this.app.getContracts(chain);
 
+    const proxyAdminContract = proxyAdminAddress
+      ? ProxyAdmin__factory.connect(proxyAdminAddress, provider)
+      : this.app.getContracts(chain).proxyAdmin;
+
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
@@ -101,6 +109,8 @@ export abstract class HyperlaneAppChecker<
               name,
               expected: expectedAdmin,
               actual: actualAdmin,
+              proxyAdmin: proxyAdminContract,
+              proxy: contract,
             } as ProxyAdminViolation);
           }
         }

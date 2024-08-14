@@ -11,6 +11,7 @@ import {
   InterchainAccount,
   OwnableConfig,
   OwnerViolation,
+  ProxyAdminViolation,
 } from '@hyperlane-xyz/sdk';
 // @ts-ignore
 import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk';
@@ -346,7 +347,11 @@ export abstract class HyperlaneAppGovernor<
         // Will throw if the transaction fails
         await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
-      } catch (e) {} // eslint-disable-line no-empty
+      } catch (e) {
+        console.error(
+          `Transaction from ${submitterAddress} failed on ${chain}: ${e}`,
+        );
+      }
       return false;
     };
 
@@ -431,5 +436,43 @@ export abstract class HyperlaneAppGovernor<
         description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
       },
     };
+  }
+
+  async handleProxyAdminViolation(violation: ProxyAdminViolation) {
+    const code = await this.checker.multiProvider
+      .getProvider(violation.chain)
+      .getCode(violation.proxyAdmin.address);
+
+    let call;
+    if (code !== '0x') {
+      // admin for proxy is ProxyAdmin contract
+      call = {
+        chain: violation.chain,
+        call: {
+          to: violation.actual,
+          data: violation.proxyAdmin.interface.encodeFunctionData(
+            'changeProxyAdmin',
+            [violation.proxy.address, violation.expected],
+          ),
+          value: BigNumber.from(0),
+          description: `Change proxyAdmin of transparent proxy ${violation.proxy.address} from ${violation.actual} to ${violation.expected}`,
+        },
+      };
+    } else {
+      // admin for proxy is EOA
+      call = {
+        chain: violation.chain,
+        call: {
+          to: violation.proxy.address,
+          data: violation.proxy.interface.encodeFunctionData('changeAdmin', [
+            violation.expected,
+          ]),
+          value: BigNumber.from(0),
+          description: `Change admin of ${violation.proxy.address} to ${violation.expected}`,
+        },
+      };
+    }
+
+    return call;
   }
 }
