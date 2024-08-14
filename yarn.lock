@@ -7388,6 +7388,7 @@ __metadata:
     chai: "npm:^4.3.6"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
+    flexible-voting: "https://github.com/yorhodes/flexible-voting.git#patch-1"
     fx-portal: "npm:^1.0.3"
     hardhat: "npm:^2.22.2"
     hardhat-gas-reporter: "npm:^1.0.9"
@@ -7398,6 +7399,7 @@ __metadata:
     solhint-plugin-prettier: "npm:^0.0.5"
     solidity-bytes-utils: "npm:^0.8.0"
     solidity-coverage: "npm:^0.8.3"
+    symbiotic-core: "https://github.com/yorhodes/core.git#patch-1"
     ts-generator: "npm:^0.1.1"
     ts-node: "npm:^10.8.0"
     typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
@@ -18676,6 +18678,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"flexible-voting@https://github.com/yorhodes/flexible-voting.git#patch-1":
+  version: 1.0.0
+  resolution: "flexible-voting@https://github.com/yorhodes/flexible-voting.git#commit=2212aed210d9aeec4433019b64080892c41fbe00"
+  checksum: 01a2fa7d96dfbec6f9adc091f3575c9c830f348ed0c3e8aca0a030a2e2418808823759dab63747015d0e6fd7054f4275be305debb9e5e46fc622fc70448309a7
+  languageName: node
+  linkType: hard
+
 "flow-parser@npm:0.*":
   version: 0.242.0
   resolution: "flow-parser@npm:0.242.0"
@@ -28092,6 +28101,13 @@ __metadata:
     tar: "npm:^4.0.2"
     xhr-request: "npm:^1.0.1"
   checksum: c7e8cea8eb266411cb3f4324c6a07a60b7cdb6cab86ac2dae34c2e69a161e7aa9b2e4e61b4005b5f8d277abb9c519e69072cb388a024a7fa32313197c06cbd4a
+  languageName: node
+  linkType: hard
+
+"symbiotic-core@https://github.com/yorhodes/core.git#patch-1":
+  version: 0.0.1
+  resolution: "symbiotic-core@https://github.com/yorhodes/core.git#commit=e3013973966c880dd3ef7ee43304eef39fc3668a"
+  checksum: b9ea8e54ea703f9a070b801887300dd28f558647dd2a83155d378570f0e5b9a3defdb34d1a8e990c9552ec796e632898bf234b10ae88636977e2cab7488c0c5b
   languageName: node
   linkType: hard
 

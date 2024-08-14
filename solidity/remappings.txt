@@ -5,3 +5,5 @@
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
 fx-portal/=lib/fx-portal/
+symbiotic-core/=../node_modules/symbiotic-core
+flexible-voting/=../node_modules/flexible-voting
