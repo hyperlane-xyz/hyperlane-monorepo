@@ -11,6 +11,7 @@ import {
   MailboxViolation,
   MailboxViolationType,
   OwnerViolation,
+  ProxyAdminViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 
@@ -77,6 +78,9 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
       case CoreViolationType.ValidatorAnnounce: {
         console.warn('Ignoring ValidatorAnnounce violation');
         return undefined;
+      }
+      case ViolationType.ProxyAdmin: {
+        return this.handleProxyAdminViolation(violation as ProxyAdminViolation);
       }
       default:
         throw new Error(`Unsupported violation type ${violation.type}`);

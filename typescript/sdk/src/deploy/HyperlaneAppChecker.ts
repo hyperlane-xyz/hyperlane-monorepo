@@ -1,6 +1,10 @@
 import { utils } from 'ethers';
 
-import { Ownable, TimelockController__factory } from '@hyperlane-xyz/core';
+import {
+  Ownable,
+  ProxyAdmin__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -79,9 +83,9 @@ export abstract class HyperlaneAppChecker<
     chain: ChainName,
     proxyAdminAddress?: Address,
   ): Promise<void> {
-    const expectedAdmin =
+    const expectedProxyAdminAddress =
       proxyAdminAddress ?? this.app.getContracts(chain).proxyAdmin.address;
-    if (!expectedAdmin) {
+    if (!expectedProxyAdminAddress) {
       throw new Error(
         `Checking proxied contracts for ${chain} with no admin provided`,
       );
@@ -89,18 +93,28 @@ export abstract class HyperlaneAppChecker<
     const provider = this.multiProvider.getProvider(chain);
     const contracts = this.app.getContracts(chain);
 
+    const expectedProxyAdminContract = ProxyAdmin__factory.connect(
+      expectedProxyAdminAddress,
+      provider,
+    );
+
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
           // Check the ProxiedContract's admin matches expectation
-          const actualAdmin = await proxyAdmin(provider, contract.address);
-          if (!eqAddress(actualAdmin, expectedAdmin)) {
+          const actualProxyAdminAddress = await proxyAdmin(
+            provider,
+            contract.address,
+          );
+          if (!eqAddress(actualProxyAdminAddress, expectedProxyAdminAddress)) {
             this.addViolation({
               type: ViolationType.ProxyAdmin,
               chain,
               name,
-              expected: expectedAdmin,
-              actual: actualAdmin,
+              expected: expectedProxyAdminAddress,
+              actual: actualProxyAdminAddress,
+              expectedProxyAdmin: expectedProxyAdminContract,
+              proxy: contract,
             } as ProxyAdminViolation);
           }
         }

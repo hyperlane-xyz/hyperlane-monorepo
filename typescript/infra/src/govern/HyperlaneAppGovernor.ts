@@ -11,6 +11,7 @@ import {
   InterchainAccount,
   OwnableConfig,
   OwnerViolation,
+  ProxyAdminViolation,
 } from '@hyperlane-xyz/sdk';
 // @ts-ignore
 import { canProposeSafeTransactions } from '@hyperlane-xyz/sdk';
@@ -431,5 +432,34 @@ export abstract class HyperlaneAppGovernor<
         description: `Transfer ownership of ${violation.name} at ${violation.contract.address} to ${violation.expected}`,
       },
     };
+  }
+
+  async handleProxyAdminViolation(violation: ProxyAdminViolation) {
+    const code = await this.checker.multiProvider
+      .getProvider(violation.chain)
+      .getCode(violation.expectedProxyAdmin.address);
+
+    let call;
+    if (code !== '0x') {
+      // admin for proxy is ProxyAdmin contract
+      call = {
+        chain: violation.chain,
+        call: {
+          to: violation.actual,
+          data: violation.expectedProxyAdmin.interface.encodeFunctionData(
+            'changeProxyAdmin',
+            [violation.proxy.address, violation.expected],
+          ),
+          value: BigNumber.from(0),
+          description: `Change proxyAdmin of transparent proxy ${violation.proxy.address} from ${violation.actual} to ${violation.expected}`,
+        },
+      };
+    } else {
+      throw new Error(
+        `Admin for proxy ${violation.proxy.address} is not a ProxyAdmin contract`,
+      );
+    }
+
+    return call;
   }
 }
