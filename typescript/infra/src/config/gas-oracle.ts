@@ -239,11 +239,13 @@ export async function getCosmosChainGasPrice(
 
   const nativeToken = mustGetChainNativeToken(chain);
 
-  const fee = cosmosRegistryChain.fees?.fee_tokens.find((fee) => {
-    return (
-      fee.denom === nativeToken.denom || fee.denom === `u${nativeToken.denom}`
-    );
-  });
+  const fee = cosmosRegistryChain.fees?.fee_tokens.find(
+    (fee: { denom: string }) => {
+      return (
+        fee.denom === nativeToken.denom || fee.denom === `u${nativeToken.denom}`
+      );
+    },
+  );
   if (!fee || fee.average_gas_price === undefined) {
     throw new Error(`No gas price found for Cosmos chain ${chain}`);
   }

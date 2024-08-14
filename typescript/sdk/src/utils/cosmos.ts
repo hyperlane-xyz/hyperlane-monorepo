@@ -760,3 +760,20 @@ export const CosmosChainSchema = z
   .describe(
     'Chain.json is a metadata file that contains information about a blockchain.',
   );
+
+export async function getCosmosRegistryChain(chain: string) {
+  const json = await fetch(
+    `https://raw.githubusercontent.com/cosmos/chain-registry/master/${chain}/chain.json`,
+  );
+  const data = await json.json();
+  const result = CosmosChainSchema.safeParse(data);
+  if (!result.success) {
+    const errorMessages = result.error.issues.map(
+      (issue: any) => `${issue.path} => ${issue.message}`,
+    );
+    throw new Error(
+      `Invalid Cosmos chain ${chain}:\n ${errorMessages.join('\n')}`,
+    );
+  }
+  return result.data;
+}
