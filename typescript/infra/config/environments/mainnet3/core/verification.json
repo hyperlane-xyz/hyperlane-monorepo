@@ -2371,6 +2371,12 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "endurance": [
@@ -3916,6 +3922,12 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xF15D70941dE2Bf95A23d6488eBCbedE0a444137f",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "linea": [
@@ -4858,6 +4870,12 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "lukso": [
@@ -5179,6 +5197,12 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0xD7EcB0396406682a27E87F7946c25Ac531140959",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "mint": [
@@ -5200,6 +5224,12 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xcd9D3744512F07AE844c40E27912092d7c503565",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "mode": [
@@ -6605,6 +6635,18 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "real": [
@@ -7417,6 +7459,12 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "scroll": [
@@ -8579,6 +8627,12 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0xF15D70941dE2Bf95A23d6488eBCbedE0a444137f",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "viction": [
