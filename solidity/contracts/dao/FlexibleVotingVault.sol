@@ -17,4 +17,19 @@ contract FlexibleVotingVault is FlexVotingClient {
     ) internal view override returns (uint256) {
         return vault.activeBalanceOf(_user);
     }
+
+    // betrays the client interface by asking for timestamp instead of block number
+    function getPastRawBalance(
+        address _user,
+        uint256 timestamp
+    ) public view override returns (uint256) {
+        return vault.activeBalanceOfAt(_user, uint48(timestamp), bytes(""));
+    }
+
+    // betrays the client interface by asking for timestamp instead of block number
+    function getPastTotalBalance(
+        uint256 timestamp
+    ) public view override returns (uint256) {
+        return vault.activeStakeAt(uint48(timestamp), bytes(""));
+    }
 }

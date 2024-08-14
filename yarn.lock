@@ -7388,7 +7388,7 @@ __metadata:
     chai: "npm:^4.3.6"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
-    flexible-voting: "https://github.com/yorhodes/flexible-voting.git#patch-1"
+    flexible-voting: "https://github.com/yorhodes/flexible-voting.git#a9ed182eae71319617fd1013eec35e1654e2e508"
     fx-portal: "npm:^1.0.3"
     hardhat: "npm:^2.22.2"
     hardhat-gas-reporter: "npm:^1.0.9"
@@ -18678,10 +18678,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"flexible-voting@https://github.com/yorhodes/flexible-voting.git#patch-1":
-  version: 1.0.0
-  resolution: "flexible-voting@https://github.com/yorhodes/flexible-voting.git#commit=2212aed210d9aeec4433019b64080892c41fbe00"
-  checksum: 01a2fa7d96dfbec6f9adc091f3575c9c830f348ed0c3e8aca0a030a2e2418808823759dab63747015d0e6fd7054f4275be305debb9e5e46fc622fc70448309a7
+"flexible-voting@https://github.com/yorhodes/flexible-voting.git#a9ed182eae71319617fd1013eec35e1654e2e508":
+  version: 1.0.1
+  resolution: "flexible-voting@https://github.com/yorhodes/flexible-voting.git#commit=a9ed182eae71319617fd1013eec35e1654e2e508"
+  checksum: 24b95a40d72fa45d84a92082836435421efd62c4eb6cddf97eee69f0fd6983815b2d6e307332702c5fe3fb01c73a90b8c264f4202351b516fc0053842d753341
   languageName: node
   linkType: hard
 

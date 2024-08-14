@@ -22,7 +22,7 @@
     "chai": "^4.3.6",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
-    "flexible-voting": "https://github.com/yorhodes/flexible-voting.git#patch-1",
+    "flexible-voting": "https://github.com/yorhodes/flexible-voting.git#a9ed182eae71319617fd1013eec35e1654e2e508",
     "hardhat": "^2.22.2",
     "hardhat-gas-reporter": "^1.0.9",
     "hardhat-ignore-warnings": "^0.2.11",
