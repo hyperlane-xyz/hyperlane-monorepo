@@ -158,7 +158,7 @@ contract OPL2ToL1IsmTest is Test {
             messageId
         );
 
-        vm.expectRevert(); // MockOptimismPortal.WithdrawalTransactionFailed()
+        vm.expectRevert(); // evmRevert in MockOptimismPortal
         ism.verify(encodedWithdrawalTx, encodedMessage);
     }
 
@@ -179,7 +179,7 @@ contract OPL2ToL1IsmTest is Test {
 
         vm.etch(address(portal), new bytes(0)); // this is a way to test that the portal isn't called again
         assertTrue(ism.verify(new bytes(0), encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether);
+        assertEq(address(testRecipient).balance, 1 ether); // testing msg.value
     }
 
     function test_verify_statefulAndDirectWithdrawal() public {
@@ -222,7 +222,7 @@ contract OPL2ToL1IsmTest is Test {
             messageId
         );
 
-        vm.expectRevert(); // WithdrawalTransactionFailed()
+        vm.expectRevert(); // evmRevert in MockOptimismPortal
         ism.verify(encodedWithdrawalTx, encodedMessage);
     }
 
@@ -264,6 +264,19 @@ contract OPL2ToL1IsmTest is Test {
 
     /* ============ helper functions ============ */
 
+    function _encodeTestMessage() internal view returns (bytes memory) {
+        return
+            MessageUtils.formatMessage(
+                HYPERLANE_VERSION,
+                uint32(0),
+                OPTIMISM_DOMAIN,
+                TypeCasts.addressToBytes32(address(this)),
+                MAINNET_DOMAIN,
+                TypeCasts.addressToBytes32(address(testRecipient)),
+                testMessage
+            );
+    }
+
     function _encodeMessengerCalldata(
         address _ism,
         uint256 _value,
@@ -301,19 +314,6 @@ contract OPL2ToL1IsmTest is Test {
                 _value,
                 uint256(GAS_QUOTE),
                 _encodeMessengerCalldata(_ism, _value, _messageId)
-            );
-    }
-
-    function _encodeTestMessage() internal view returns (bytes memory) {
-        return
-            MessageUtils.formatMessage(
-                HYPERLANE_VERSION,
-                uint32(0),
-                OPTIMISM_DOMAIN,
-                TypeCasts.addressToBytes32(address(this)),
-                MAINNET_DOMAIN,
-                TypeCasts.addressToBytes32(address(testRecipient)),
-                testMessage
             );
     }
 }

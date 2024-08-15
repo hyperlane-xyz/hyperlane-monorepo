@@ -42,7 +42,7 @@ contract OPL2ToL1Ism is
     // module type for the ISM
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.OP_L2_TO_L1);
-    // bottom offset to the message id in the metadata ()
+    // bottom offset to the start of message id in the metadata
     uint8 public constant MESSAGE_ID_OFFSET = 88;
     // OptimismPortal contract on L1 to finalize withdrawal from L1
     IOptimismPortal public immutable portal;

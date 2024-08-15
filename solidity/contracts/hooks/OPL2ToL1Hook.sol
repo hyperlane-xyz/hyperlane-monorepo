@@ -14,18 +14,13 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
-import {AbstractPostDispatchHook} from "./libs/AbstractMessageIdAuthHook.sol";
-import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
-import {Mailbox} from "../Mailbox.sol";
+import {AbstractPostDispatchHook, AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
-import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title OPL2ToL1Hook

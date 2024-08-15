@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// author: OP Labs
+// inferred from https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock
 interface IOptimismPortal {
     /// @notice Struct representing a withdrawal transaction.
     /// @custom:field nonce    Nonce of the withdrawal transaction
@@ -18,6 +20,8 @@ interface IOptimismPortal {
         bytes data;
     }
 
+    /// @notice Finalizes a withdrawal transaction.
+    /// @param _tx Withdrawal transaction to finalize.
     function finalizeWithdrawalTransaction(
         WithdrawalTransaction memory _tx
     ) external;
