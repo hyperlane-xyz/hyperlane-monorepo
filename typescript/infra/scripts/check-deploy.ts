@@ -106,6 +106,7 @@ async function check() {
       core,
       envConfig.core,
       ismFactory,
+      chainAddresses,
     );
     governor = new HyperlaneCoreGovernor(checker, ica);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
