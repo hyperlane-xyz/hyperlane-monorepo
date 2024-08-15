@@ -348,7 +348,7 @@ impl BaseAgent for Relayer {
             )
             .await
             .expect(&format!(
-                "Error created metrics updater for destination {dest_domain}"
+                "Error creating metrics updater for destination {dest_domain}"
             ));
             tasks.push(metrics_updater.spawn());
         }
