@@ -9,6 +9,7 @@
     "decimals": 9,
     "name": "Solana",
     "symbol": "SOL",
+    "uri": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/b661127dd3dce5ea98b78ae0051fbd10c384b173/deployments/warp_routes/SOL/eclipse/metadata.json",
     "interchainGasPaymaster": "AgjedtgQKTWGR77ULJ9j9AhLjNDk1D3BTtuxKmcZrJqE"
   }
 }

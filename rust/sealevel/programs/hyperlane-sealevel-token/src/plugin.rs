@@ -74,7 +74,13 @@ impl SizedData for SyntheticPlugin {
 }
 
 impl SyntheticPlugin {
-    const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
+    // Need to hardcode this value because our `spl_token_2022` version doesn't include it.
+    // It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
+    const METADATA_POINTER_EXTENSION_SIZE: usize = 234;
+    const TOKEN_METADATA_SIZE: usize = 322;
+    const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN
+        + Self::METADATA_POINTER_EXTENSION_SIZE
+        + Self::TOKEN_METADATA_SIZE;
 
     /// Returns Ok(()) if the mint account info is valid.
     /// Errors if the key or owner is incorrect.

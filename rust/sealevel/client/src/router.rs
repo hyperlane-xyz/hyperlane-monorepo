@@ -17,7 +17,7 @@ use hyperlane_sealevel_igp::accounts::{Igp, InterchainGasPaymasterType, Overhead
 use crate::{
     artifacts::{write_json, HexAndBase58ProgramIdArtifact},
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
-    read_core_program_ids, Context, CoreProgramIds,
+    read_core_program_ids, warp_route, Context, CoreProgramIds,
 };
 
 /// Optional connection client configuration.
@@ -347,6 +347,8 @@ pub(crate) fn deploy_routers<
         .iter()
         .filter(|(_, app_config)| app_config.router_config().foreign_deployment.is_none())
         .collect::<HashMap<_, _>>();
+
+    warp_route::install_spl_token_cli();
 
     // Now we deploy to chains that don't have a foreign deployment
     for (chain_name, app_config) in app_configs_to_deploy.iter() {
