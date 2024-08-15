@@ -28,88 +28,118 @@ const chainsToDeploy = [
   'linea',
   'ethereum',
   'fraxtal',
+  'zircuit',
 ];
 
 const ezEthValidators = {
   arbitrum: {
     threshold: 1,
     validators: [
+      '0x9bccfad3bd12ef0ee8ae839dd9ed7835bccadc9d', // Everclear
       '0xc27032c6bbd48c20005f552af3aaa0dbf14260f3', // Renzo
-      '0x9bCcFAd3BD12Ef0Ee8aE839dD9ED7835BcCaDc9D', // Everclear
     ],
   },
   optimism: {
     threshold: 1,
     validators: [
-      '0xe2593D205F5E7F74A50fA900824501084E092eBd', // Renzo
       '0x6f4cb8e96db5d44422a4495faa73fffb9d30e9e2', // Everclear
+      '0xe2593d205f5e7f74a50fa900824501084e092ebd', // Renzo
     ],
   },
   base: {
     threshold: 1,
     validators: [
-      '0x25BA4eE5268CbfB8D69BAc531Aa10368778702BD', // Renzo
+      '0x25ba4ee5268cbfb8d69bac531aa10368778702bd', // Renzo
       '0x9ec803b503e9c7d2611e231521ef3fde73f7a21c', // Everclear
     ],
   },
   blast: {
     threshold: 1,
     validators: [
-      '0x54Bb0036F777202371429e062FE6AEE0d59442F9', // Renzo
       '0x1652d8ba766821cf01aeea34306dfc1cab964a32', // Everclear
+      '0x54bb0036f777202371429e062fe6aee0d59442f9', // Renzo
     ],
   },
   bsc: {
     threshold: 1,
     validators: [
-      '0x3156Db97a3B3e2dcc3D69FdDfD3e12dc7c937b6D', // Renzo
+      '0x3156db97a3b3e2dcc3d69fddfd3e12dc7c937b6d', // Renzo
       '0x9a0326c43e4713ae2477f09e0f28ffedc24d8266', // Everclear
     ],
   },
   mode: {
     threshold: 1,
     validators: [
-      '0x7e29608C6E5792bBf9128599ca309Be0728af7B4', // Renzo
       '0x456fbbe05484fc9f2f38ea09648424f54d6872be', // Everclear
+      '0x7e29608c6e5792bbf9128599ca309be0728af7b4', // Renzo
     ],
   },
   linea: {
     threshold: 1,
     validators: [
-      '0xcb3e44EdD2229860bDBaA58Ba2c3817D111bEE9A', // Renzo
       '0x06a5a2a429560034d38bf62ca6d470942535947e', // Everclear
+      '0xcb3e44edd2229860bdbaa58ba2c3817d111bee9a', // Renzo
     ],
   },
   ethereum: {
     threshold: 1,
     validators: [
-      '0xc7f7b94a6BaF2FFFa54DfE1dDE6E5Fcbb749e04f', // Renzo
-      '0x1fd889337F60986aa57166bc5AC121eFD13e4fdd', // Everclear
+      '0x1fd889337f60986aa57166bc5ac121efd13e4fdd', // Everclear
+      '0xc7f7b94a6baf2fffa54dfe1dde6e5fcbb749e04f', // Renzo
     ],
   },
   fraxtal: {
     threshold: 1,
     validators: [
-      '0xe986f457965227A05DCF984C8d0C29e01253c44d', // Renzo
-      '0x25B3A88f7CfD3C9F7d7e32b295673A16a6Ddbd91', // luganodes
+      '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91', // luganodes
+      '0xe986f457965227a05dcf984c8d0c29e01253c44d', // Renzo
+    ],
+  },
+  zircuit: {
+    threshold: 1,
+    validators: [
+      '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91', // luganodes
+      '0xe986f457965227a05dcf984c8d0c29e01253c44d', // Renzo
     ],
   },
 };
-const zeroAddress = '0x0000000000000000000000000000000000000001';
+
+const ezEthSafes: Record<string, string> = {
+  arbitrum: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  optimism: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  base: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  blast: '0xda7dBF0DB81882372B598a715F86eD5254A01b0a',
+  bsc: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  mode: '0x7791eeA3484Ba4E5860B7a2293840767619c2B58',
+  linea: '0xb7092685571B49786F1248c6205B5ac3A691c65E',
+  ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+  fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+};
 
 async function main() {
   const registry = new GithubRegistry();
-  const diff = symmetricDifference(
+  const validatorDiff = symmetricDifference(
     new Set(chainsToDeploy),
     new Set(Object.keys(ezEthValidators)),
   );
-  if (diff.size > 0) {
+  const safeDiff = symmetricDifference(
+    new Set(chainsToDeploy),
+    new Set(Object.keys(ezEthSafes)),
+  );
+  if (validatorDiff.size > 0) {
     throw new Error(
-      `chainsToDeploy !== validatorConfig, diff is ${Array.from(diff).join(
-        ', ',
-      )}`,
+      `chainsToDeploy !== validatorConfig, diff is ${Array.from(
+        validatorDiff,
+      ).join(', ')}`,
     );
   }
+  if (safeDiff.size > 0) {
+    throw new Error(
+      `chainsToDeploy !== safeDiff, diff is ${Array.from(safeDiff).join(', ')}`,
+    );
+  }
+
   const tokenConfig: WarpRouteDeployConfig =
     Object.fromEntries<TokenRouterConfig>(
       await Promise.all(
@@ -124,7 +154,7 @@ async function main() {
                     ? TokenType.XERC20Lockbox
                     : TokenType.XERC20,
                 token: chain === lockboxChain ? lockbox : xERC20,
-                owner: zeroAddress,
+                owner: ezEthSafes[chain],
                 gas: warpRouteOverheadGas,
                 mailbox: (await registry.getChainAddresses(chain))!.mailbox,
                 interchainSecurityModule: {
@@ -133,7 +163,7 @@ async function main() {
                   modules: [
                     {
                       type: IsmType.ROUTING,
-                      owner: zeroAddress,
+                      owner: ezEthSafes[chain],
                       domains: buildAggregationIsmConfigs(
                         chain,
                         chainsToDeploy,
@@ -143,7 +173,7 @@ async function main() {
                     {
                       type: IsmType.FALLBACK_ROUTING,
                       domains: {},
-                      owner: zeroAddress,
+                      owner: ezEthSafes[chain],
                     },
                   ],
                 },

@@ -30,6 +30,42 @@ export const validatorChainConfig = (
         'alfajores',
       ),
     },
+    arbitrumsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('arbitrumsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x09fabfbca0b8bf042e2a1161ee5010d147b0f603'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'arbitrumsepolia',
+      ),
+    },
+    basesepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('basesepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'basesepolia',
+      ),
+    },
+    ecotestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('ecotestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb3191420d463c2af8bd9b4a395e100ec5c05915a'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'ecotestnet',
+      ),
+    },
     fuji: {
       interval: 5,
       reorgPeriod: getReorgPeriod('alfajores'),
@@ -179,6 +215,30 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'superpositiontestnet',
+      ),
+    },
+    optimismsepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('optimismsepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x03efe4d0632ee15685d7e8f46dea0a874304aa29'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'optimismsepolia',
+      ),
+    },
+    polygonamoy: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('polygonamoy'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf0290b06e446b320bd4e9c4a519420354d7ddccd'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'polygonamoy',
       ),
     },
   };

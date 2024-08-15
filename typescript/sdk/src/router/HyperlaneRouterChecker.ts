@@ -1,8 +1,10 @@
+import { ethers } from 'ethers';
+
 import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
-import { EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -74,39 +76,43 @@ export class HyperlaneRouterChecker<
       }
     }
 
-    if (config.interchainSecurityModule) {
-      const actualIsmAddress = await router.interchainSecurityModule();
-      if (
-        typeof config.interchainSecurityModule !== 'string' &&
-        !this.ismFactory
-      ) {
-        throw Error(
-          'ISM factory not provided to HyperlaneRouterChecker, cannot check object-based ISM config',
-        );
+    const actualIsmAddress = await router.interchainSecurityModule();
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      actualIsmAddress,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      this.multiProvider,
+      this.ismFactory?.chainMap[chain] ?? ({} as any),
+    );
+
+    if (!matches) {
+      const ismReader = new EvmIsmReader(this.multiProvider, chain);
+      let actualConfig: string | DerivedIsmConfig =
+        ethers.constants.AddressZero;
+      if (actualIsmAddress !== ethers.constants.AddressZero) {
+        actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
       }
 
-      const matches = await moduleMatchesConfig(
+      let expectedConfig = config.interchainSecurityModule;
+
+      if (typeof expectedConfig === 'string') {
+        expectedConfig = await ismReader.deriveIsmConfig(expectedConfig);
+      }
+
+      if (expectedConfig === undefined) {
+        expectedConfig = ethers.constants.AddressZero;
+      }
+
+      const violation: ClientViolation = {
         chain,
-        actualIsmAddress,
-        config.interchainSecurityModule,
-        this.multiProvider,
-        this.ismFactory?.chainMap[chain] ?? ({} as any),
-      );
-
-      if (!matches) {
-        const ismReader = new EvmIsmReader(this.multiProvider, chain);
-        const derivedConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
-
-        const violation: ClientViolation = {
-          chain,
-          type: ClientViolationType.InterchainSecurityModule,
-          contract: router,
-          actual: derivedConfig,
-          expected: config.interchainSecurityModule,
-          description: `ISM config does not match deployed ISM`,
-        };
-        this.addViolation(violation);
-      }
+        type: ClientViolationType.InterchainSecurityModule,
+        contract: router,
+        actual: actualConfig,
+        expected: expectedConfig,
+        description: `ISM config does not match deployed ISM`,
+      };
+      this.addViolation(violation);
     }
   }
 

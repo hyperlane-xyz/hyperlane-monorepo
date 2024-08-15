@@ -303,13 +303,28 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
+    let prevHookConfig: HookConfig | undefined;
+    let prevHookAddress: Address | undefined;
     for (const [dest, hookConfig] of Object.entries(config.domains)) {
+      this.logger.debug(`Deploying routing hook for ${dest}`);
       const destDomain = this.multiProvider.getDomainId(dest);
+
+      if (prevHookConfig && prevHookAddress && prevHookConfig === hookConfig) {
+        this.logger.debug(`Reusing hook ${prevHookAddress} for ${dest}`);
+        routingConfigs.push({
+          destination: destDomain,
+          hook: prevHookAddress,
+        });
+        continue;
+      }
+
       if (typeof hookConfig === 'string') {
         routingConfigs.push({
           destination: destDomain,
           hook: hookConfig,
         });
+        prevHookConfig = hookConfig;
+        prevHookAddress = hookConfig;
       } else {
         const hook = await this.deployContracts(
           chain,
@@ -320,6 +335,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
           destination: destDomain,
           hook: hook[hookConfig.type].address,
         });
+        prevHookConfig = hookConfig;
+        prevHookAddress = hook[hookConfig.type].address;
       }
     }
 

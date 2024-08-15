@@ -5,6 +5,7 @@ import {
   ConnectionClientViolation,
   ConnectionClientViolationType,
   OwnerViolation,
+  ProxyAdminViolation,
   RouterApp,
   RouterConfig,
   RouterViolation,
@@ -26,6 +27,8 @@ export class ProxiedRouterGovernor<
         return this.handleEnrolledRouterViolation(violation as RouterViolation);
       case ViolationType.Owner:
         return this.handleOwnerViolation(violation as OwnerViolation);
+      case ViolationType.ProxyAdmin:
+        return this.handleProxyAdminViolation(violation as ProxyAdminViolation);
       default:
         throw new Error(
           `Unsupported violation type ${violation.type}: ${JSON.stringify(

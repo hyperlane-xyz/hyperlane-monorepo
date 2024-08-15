@@ -5,7 +5,7 @@ import { assert, eqAddress } from '@hyperlane-xyz/utils';
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { proxyImplementation } from '../deploy/proxy.js';
-import { EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -79,14 +79,18 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
     if (!matches) {
       const ismReader = new EvmIsmReader(this.ismFactory.multiProvider, chain);
-      const derivedConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
+      let actualConfig: string | DerivedIsmConfig =
+        ethers.constants.AddressZero;
+      if (actualIsmAddress !== ethers.constants.AddressZero) {
+        actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
+      }
 
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
         subType: MailboxViolationType.DefaultIsm,
         contract: mailbox,
         chain,
-        actual: derivedConfig,
+        actual: actualConfig,
         expected: config.defaultIsm,
       };
       this.addViolation(violation);

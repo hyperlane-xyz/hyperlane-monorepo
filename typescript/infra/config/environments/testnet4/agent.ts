@@ -38,12 +38,17 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 > = {
   [Role.Validator]: {
     alfajores: true,
+    arbitrumsepolia: true,
+    basesepolia: true,
     bsctestnet: true,
     connextsepolia: true,
+    ecotestnet: true,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
+    optimismsepolia: true,
     plumetestnet: true,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -51,12 +56,17 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Relayer]: {
     alfajores: true,
+    arbitrumsepolia: true,
+    basesepolia: true,
     bsctestnet: true,
     connextsepolia: true,
+    ecotestnet: true,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
+    optimismsepolia: true,
     plumetestnet: true,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
@@ -64,13 +74,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   },
   [Role.Scraper]: {
     alfajores: true,
+    arbitrumsepolia: true,
+    basesepolia: true,
     bsctestnet: true,
     connextsepolia: false,
+    ecotestnet: true,
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
+    optimismsepolia: true,
     plumetestnet: true,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     // Cannot scrape non-EVM chains
@@ -131,7 +146,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '64cdc5f-20240715-212733',
+      tag: '874a58f-20240812-172417',
     },
     blacklist: [
       ...releaseCandidateHelloworldMatchingList,
@@ -161,7 +176,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '64cdc5f-20240715-212733',
+      tag: '874a58f-20240812-172417',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -170,7 +185,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd962e36-20240716-132121',
+      tag: '874a58f-20240812-172417',
     },
     resources: scraperResources,
   },

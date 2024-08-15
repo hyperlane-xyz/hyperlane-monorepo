@@ -1,10 +1,10 @@
 {
-  "arbitrum": {
-    "amount": "0.5",
-    "decimals": 9
-  },
   "ancient8": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "arbitrum": {
+    "amount": "0.5",
     "decimals": 9
   },
   "avalanche": {
@@ -12,7 +12,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.116871685",
+    "amount": "0.013311447",
     "decimals": 9
   },
   "blast": {
@@ -35,8 +35,16 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "cyber": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "degenchain": {
+    "amount": "100.0",
+    "decimals": 9
+  },
   "eclipse": {
-    "amount": "0.00000005",
+    "amount": "0.001",
     "decimals": 9
   },
   "endurance": {
@@ -52,7 +60,7 @@
     "decimals": 9
   },
   "fusemainnet": {
-    "amount": "11.0",
+    "amount": "22.0",
     "decimals": 9
   },
   "gnosis": {
@@ -67,16 +75,40 @@
     "amount": "700000000",
     "decimals": 1
   },
+  "kroma": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "linea": {
     "amount": "0.110844655",
     "decimals": 9
   },
+  "lisk": {
+    "amount": "0.00100103",
+    "decimals": 9
+  },
+  "lukso": {
+    "amount": "1.846662485",
+    "decimals": 9
+  },
   "mantapacific": {
-    "amount": "0.101416541",
+    "amount": "0.106134186",
     "decimals": 9
   },
   "mantle": {
     "amount": "0.02",
+    "decimals": 9
+  },
+  "merlin": {
+    "amount": "0.095",
+    "decimals": 9
+  },
+  "metis": {
+    "amount": "1.682845607",
+    "decimals": 9
+  },
+  "mint": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "mode": {
@@ -107,8 +139,20 @@
     "amount": "3.95",
     "decimals": 9
   },
+  "proofofplay": {
+    "amount": "0.01",
+    "decimals": 9
+  },
+  "real": {
+    "amount": "0.2",
+    "decimals": 9
+  },
   "redstone": {
     "amount": "0.0003",
+    "decimals": 9
+  },
+  "sanko": {
+    "amount": "0.5",
     "decimals": 9
   },
   "scroll": {
@@ -120,11 +164,15 @@
     "decimals": 9
   },
   "solana": {
-    "amount": "0.000000001",
+    "amount": "0.001",
     "decimals": 9
   },
   "taiko": {
     "amount": "0.050000001",
+    "decimals": 9
+  },
+  "tangle": {
+    "amount": "1.0",
     "decimals": 9
   },
   "viction": {
@@ -132,15 +180,23 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000251",
+    "amount": "0.002002589",
+    "decimals": 9
+  },
+  "xai": {
+    "amount": "0.23886",
     "decimals": 9
   },
   "xlayer": {
-    "amount": "5.0",
+    "amount": "9.67",
     "decimals": 9
   },
   "zetachain": {
     "amount": "10.1",
+    "decimals": 9
+  },
+  "zircuit": {
+    "amount": "0.001000253",
     "decimals": 9
   },
   "zoramainnet": {

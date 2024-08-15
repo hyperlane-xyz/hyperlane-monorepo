@@ -1,3 +1,5 @@
+pub use crate::metadata::AgentMetadata;
+
 use std::{env, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
@@ -40,6 +42,7 @@ pub trait BaseAgent: Send + Sync + Debug {
 
     /// Instantiate the agent from the standard settings object
     async fn from_settings(
+        agent_metadata: AgentMetadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -72,6 +75,13 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
         color_eyre::install()?;
     }
 
+    // Latest git commit hash at the time when agent was built.
+    // If .git was not present at the time of build,
+    // the variable defaults to "VERGEN_IDEMPOTENT_OUTPUT".
+    let git_sha = env!("VERGEN_GIT_SHA").to_owned();
+
+    let agent_metadata = AgentMetadata::new(git_sha);
+
     let settings = A::Settings::load()?;
     let core_settings: &Settings = settings.as_ref();
 
@@ -80,6 +90,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let agent_metrics = create_agent_metrics(&metrics)?;
     let chain_metrics = create_chain_metrics(&metrics)?;
     let agent = A::from_settings(
+        agent_metadata,
         settings,
         metrics.clone(),
         agent_metrics,
