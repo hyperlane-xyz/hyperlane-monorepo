@@ -86,7 +86,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     neutron: true,
     optimism: true,
-    osmosis: false,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
     proofofplay: true,
@@ -140,7 +140,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
     optimism: true,
-    osmosis: false,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
     proofofplay: true,
@@ -390,7 +390,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '79f2aed-20240731-172847',
+      tag: '78b596e-20240813-123401',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.

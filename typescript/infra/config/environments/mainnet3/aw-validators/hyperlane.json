@@ -143,6 +143,9 @@
       "0x779a17e035018396724a6dec8a59bda1b5adf738"
     ]
   },
+  "osmosis": {
+    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
+  },
   "polygon": {
     "validators": [
       "0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac",
