@@ -86,7 +86,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     neutron: true,
     optimism: true,
-    osmosis: true,
+    // Experiencing some issues with RPCs
+    osmosis: false,
     polygon: true,
     polygonzkevm: true,
     proofofplay: true,
@@ -139,7 +140,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
-    optimism: true,
+    // Experiencing some issues with RPCs
+    optimism: false,
     osmosis: true,
     polygon: true,
     polygonzkevm: true,
