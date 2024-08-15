@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "forge-std/console.sol";
-
+import {CallLib} from "../middleware/libs/Call.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
 import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
 
 // for both L1 and L2
 contract MockOptimismMessenger is ICrossDomainMessenger {
-    error CrossDomainMessengerCallFailed();
-
     address public xDomainMessageSender;
     address public PORTAL;
 
@@ -20,19 +18,19 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
     ) external payable {}
 
     function relayMessage(
-        uint256 _nonce,
-        address _sender,
+        uint256 /*_nonce*/,
+        address /*_sender*/,
         address _target,
         uint256 _value,
-        uint256 _minGasLimit,
+        uint256 /*_minGasLimit*/,
         bytes calldata _message
     ) external payable {
-        (bool success, bytes memory returndata) = _target.call{value: _value}(
+        CallLib.Call memory call = CallLib.Call(
+            TypeCasts.addressToBytes32(_target),
+            _value,
             _message
         );
-        if (!success) {
-            revert CrossDomainMessengerCallFailed();
-        }
+        CallLib.call(call);
     }
 
     function OTHER_MESSENGER() external view returns (address) {}
@@ -46,17 +44,18 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
     }
 }
 
+// mock deployment on L1
 contract MockOptimismPortal is IOptimismPortal {
     error WithdrawalTransactionFailed();
 
     function finalizeWithdrawalTransaction(
         WithdrawalTransaction memory _tx
     ) external {
-        (bool success, bytes memory returndata) = _tx.target.call{
-            value: _tx.value
-        }(_tx.data);
-        if (!success) {
-            revert WithdrawalTransactionFailed();
-        }
+        CallLib.Call memory call = CallLib.Call(
+            TypeCasts.addressToBytes32(_tx.target),
+            _tx.value,
+            _tx.data
+        );
+        CallLib.call(call);
     }
 }
