@@ -46,9 +46,6 @@
   "cheesechain": {
     "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
   },
-  "cyber": {
-    "validators": ["0x94d7119ceeb802173b6924e6cc8c4cd731089a27"]
-  },
   "degenchain": {
     "validators": ["0x433e311f19524cd64fb2123ad0aa1579a4e1fc83"]
   },
@@ -142,9 +139,6 @@
       "0x04d040cee072272789e2d1f29aef73b3ad098db5",
       "0x779a17e035018396724a6dec8a59bda1b5adf738"
     ]
-  },
-  "osmosis": {
-    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
   },
   "polygon": {
     "validators": [
