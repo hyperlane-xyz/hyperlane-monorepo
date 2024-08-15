@@ -46,6 +46,9 @@
   "cheesechain": {
     "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
   },
+  "cyber": {
+    "validators": ["0x94d7119ceeb802173b6924e6cc8c4cd731089a27"]
+  },
   "degenchain": {
     "validators": ["0x433e311f19524cd64fb2123ad0aa1579a4e1fc83"]
   },
