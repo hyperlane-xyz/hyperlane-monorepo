@@ -265,6 +265,7 @@ describe('core', async () => {
       core,
       coreConfig,
       ismFactory,
+      {},
     );
     await checker.check();
   });
