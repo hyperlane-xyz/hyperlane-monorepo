@@ -248,6 +248,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             remote_decimals: app_config.decimal_metadata.remote_decimals(),
         };
 
+        let home_path = std::env::var("HOME").unwrap();
+        let spl_token_binary_path = format!("{home_path}/.cargo/bin/spl-token");
+
         match &app_config.token_type {
             TokenType::Native => ctx.new_txn().add(
                 hyperlane_sealevel_token_native::instruction::init_instruction(
@@ -276,17 +279,20 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 // but this is via the CLI most likely
                 // `spl-token initialize-metadata [FLAGS] [OPTIONS] <TOKEN_MINT_ADDRESS> <TOKEN_NAME> <TOKEN_SYMBOL> <TOKEN_URI>`
                 // `spl-token update-metadata-address <TOKEN_MINT_ADDRESS> <METADATA_ADDRESS>`
-                let status = Command::new("~/.cargo/bin/spl-token")
-                    .args([
-                        "create-token",
-                        mint_account.to_string().as_str(),
-                        "--enable-metadata",
-                    ])
+                let mut cmd = Command::new(spl_token_binary_path.clone());
+                cmd.args([
+                    "create-token",
+                    mint_account.to_string().as_str(),
+                    "--enable-metadata",
+                ]);
+                println!("running command: {:?}", cmd);
+                let status = cmd
                     .stdout(Stdio::inherit())
                     .stderr(Stdio::inherit())
                     .status()
                     .expect("Failed to run command");
-                println!("initialized metadata pointer");
+
+                println!("initialized metadata pointer. Status: {status}");
 
                 // this is where the mint intialization happens
                 init_txn.add(
@@ -319,38 +325,42 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         .send_with_payer();
 
         // do the token-2022 cli initialization steps here
-        if let TokenType::Synthetic(token_metadata) = app_config.token_type {
+        if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
             // the metadata initialization should happen here, but this is via the CLI most likely
-            let status = Command::new("~/.cargo/bin/spl-token")
-                .args([
-                    "initialize-metadata",
-                    mint_account.to_string().as_str(),
-                    token_metadata.name.as_str(),
-                    token_metadata.symbol.as_str(),
-                    token_metadata.uri.as_deref().unwrap_or(""),
-                ])
+            let mut cmd = Command::new(spl_token_binary_path.clone());
+            cmd.args([
+                "initialize-metadata",
+                mint_account.to_string().as_str(),
+                token_metadata.name.as_str(),
+                token_metadata.symbol.as_str(),
+                token_metadata.uri.as_deref().unwrap_or(""),
+            ]);
+            println!("running command: {:?}", cmd);
+            let status = cmd
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .status()
                 .expect("Failed to run command");
-            println!("initialized metadata");
+            println!("initialized metadata. Status: {status}");
 
             // then the mint authority should be set here to `mint_account`
             // `spl-token authorize <TOKEN_ADDRESS> <AUTHORITY_TYPE> <AUTHORITY_ADDRESS>`
-            let status = Command::new("~/.cargo/bin/spl-token")
-                .args([
-                    "authorize",
-                    mint_account.to_string().as_str(),
-                    "mint",
-                    mint_account.to_string().as_str(),
-                ])
+            let mut cmd = Command::new(spl_token_binary_path.clone());
+            cmd.args([
+                "authorize",
+                mint_account.to_string().as_str(),
+                "mint",
+                mint_account.to_string().as_str(),
+            ]);
+            println!("running command: {:?}", cmd);
+            let status = cmd
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .status()
                 .expect("Failed to run command");
-            println!("set the mint authority to the mint account");
+            println!("set the mint authority to the mint account. Status: {status}");
         }
     }
 
