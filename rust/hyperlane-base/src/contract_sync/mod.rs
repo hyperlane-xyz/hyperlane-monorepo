@@ -6,6 +6,7 @@ use axum::async_trait;
 use broadcast::BroadcastMpscSender;
 use cursors::*;
 use derive_new::new;
+use eyre::Result;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
@@ -240,7 +241,8 @@ pub type WatermarkContractSync<T> =
 #[async_trait]
 pub trait ContractSyncer<T>: Send + Sync {
     /// Returns a new cursor to be used for syncing events from the indexer
-    async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>>;
+    async fn cursor(&self, index_settings: IndexSettings)
+        -> Result<Box<dyn ContractSyncCursor<T>>>;
 
     /// Syncs events from the indexer using the provided cursor
     async fn sync(&self, label: &'static str, opts: SyncOptions<T>);
@@ -277,23 +279,25 @@ where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing events from the indexer based on time
-    async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
+    async fn cursor(
+        &self,
+        index_settings: IndexSettings,
+    ) -> Result<Box<dyn ContractSyncCursor<T>>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
             mode: index_settings.mode,
         };
-        Box::new(
+        Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
             )
-            .await
-            .unwrap(),
-        )
+            .await?,
+        ))
     }
 
     async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
@@ -322,17 +326,19 @@ where
     T: Indexable + Send + Sync + Debug + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
-    async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
-        Box::new(
+    async fn cursor(
+        &self,
+        index_settings: IndexSettings,
+    ) -> Result<Box<dyn ContractSyncCursor<T>>> {
+        Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
                 self.indexer.clone(),
                 Arc::new(self.db.clone()),
                 index_settings.chunk_size,
                 index_settings.mode,
             )
-            .await
-            .unwrap(),
-        )
+            .await?,
+        ))
     }
 
     async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {

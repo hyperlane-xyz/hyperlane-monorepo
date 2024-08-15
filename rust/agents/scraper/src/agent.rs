@@ -200,7 +200,10 @@ impl Scraper {
             )
             .await
             .unwrap();
-        let cursor = sync.cursor(index_settings.clone()).await;
+        let cursor = sync
+            .cursor(index_settings.clone())
+            .await
+            .expect(&format!("Error getting cursor for domain {domain}"));
         let maybe_broadcaser = sync.get_broadcaster();
         let task = tokio::spawn(async move { sync.sync("message_dispatch", cursor.into()).await })
             .instrument(
@@ -230,7 +233,10 @@ impl Scraper {
             .unwrap();
 
         let label = "message_delivery";
-        let cursor = sync.cursor(index_settings.clone()).await;
+        let cursor = sync
+            .cursor(index_settings.clone())
+            .await
+            .expect(&format!("Error getting cursor for domain {domain}"));
         // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
         // other types of indexed txs / events
         tokio::spawn(async move { sync.sync(label, SyncOptions::new(Some(cursor), None)).await })
@@ -259,7 +265,10 @@ impl Scraper {
             .unwrap();
 
         let label = "gas_payment";
-        let cursor = sync.cursor(index_settings.clone()).await;
+        let cursor = sync
+            .cursor(index_settings.clone())
+            .await
+            .expect(&format!("Error getting cursor for domain {domain}"));
         tokio::spawn(async move {
             sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
                 .await

@@ -216,7 +216,10 @@ impl Validator {
         let index_settings =
             self.as_ref().settings.chains[self.origin_chain.name()].index_settings();
         let contract_sync = self.merkle_tree_hook_sync.clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .expect(&format!("Error getting cursor"));
         tokio::spawn(async move {
             contract_sync
                 .clone()

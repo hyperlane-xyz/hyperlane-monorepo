@@ -347,7 +347,9 @@ impl BaseAgent for Relayer {
                 Self::AGENT_NAME.to_string(),
             )
             .await
-            .unwrap();
+            .expect(&format!(
+                "Error created metrics updater for destination {dest_domain}"
+            ));
             tasks.push(metrics_updater.spawn());
         }
 
@@ -417,7 +419,10 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .expect(&format!("Error getting cursor for origin {origin}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -439,7 +444,10 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .expect(&format!("Error getting cursor for origin {origin}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -460,7 +468,10 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .expect(&format!("Error getting cursor for origin {origin}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
