@@ -97,6 +97,7 @@ export {
   CheckerViolation,
   OwnableConfig,
   OwnerViolation,
+  ProxyAdminViolation,
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
@@ -517,3 +518,4 @@ export {
   ProxyFactoryFactoriesAddresses,
 } from './deploy/schemas.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export { proxyAdmin } from './deploy/proxy.js';
