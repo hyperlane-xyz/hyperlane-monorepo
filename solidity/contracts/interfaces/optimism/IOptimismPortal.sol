@@ -2,8 +2,6 @@
 pragma solidity ^0.8.0;
 
 interface IOptimismPortal {
-    error WithdrawalTransactionFailed();
-
     /// @notice Struct representing a withdrawal transaction.
     /// @custom:field nonce    Nonce of the withdrawal transaction
     /// @custom:field sender   Address of the sender of the transaction.

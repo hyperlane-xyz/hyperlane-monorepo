@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-
 import {Test} from "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -139,35 +137,43 @@ contract OPL2ToL1IsmTest is Test {
     function test_verify_directWithdrawalCall() public {
         deployAll();
 
-        bytes memory encodedOutboxTxMetadata = _encodeFinalizeWithdrawalTx(
+        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
             address(ism),
             0,
             messageId
         );
 
-        // arbBridge.setL2ToL1Sender(address(hook));
-        console.log("prank messenger: ", address(l1Messenger));
-        vm.startPrank(address(l1Messenger));
-        assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
+        assertTrue(ism.verify(encodedWithdrawalTx, encodedMessage));
+    }
+
+    function test_verify_directWithdrawalCall_revertsWhen_invalidSender()
+        public
+    {
+        deployAll();
+        l1Messenger.setXDomainMessageSender(address(this));
+
+        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
+            address(ism),
+            0,
+            messageId
+        );
+
+        vm.expectRevert(); // MockOptimismPortal.WithdrawalTransactionFailed()
+        ism.verify(encodedWithdrawalTx, encodedMessage);
     }
 
     function test_verify_statefulVerify() public {
         deployAll();
-
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
 
         vm.deal(address(portal), 1 ether);
         IOptimismPortal.WithdrawalTransaction
             memory withdrawal = IOptimismPortal.WithdrawalTransaction({
                 nonce: MOCK_NONCE,
                 sender: L2_MESSENGER_ADDRESS,
-                target: address(ism),
+                target: address(l1Messenger),
                 value: 1 ether,
                 gasLimit: uint256(GAS_QUOTE),
-                data: encodedHookData
+                data: _encodeMessengerCalldata(address(ism), 1 ether, messageId)
             });
         portal.finalizeWithdrawalTransaction(withdrawal);
 
@@ -179,32 +185,25 @@ contract OPL2ToL1IsmTest is Test {
     function test_verify_statefulAndDirectWithdrawal() public {
         deployAll();
 
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
-        vm.deal(address(portal), 1 ether);
         IOptimismPortal.WithdrawalTransaction
             memory withdrawal = IOptimismPortal.WithdrawalTransaction({
                 nonce: MOCK_NONCE,
                 sender: L2_MESSENGER_ADDRESS,
-                target: address(ism),
-                value: 1 ether,
+                target: address(l1Messenger),
+                value: 0,
                 gasLimit: uint256(GAS_QUOTE),
-                data: encodedHookData
+                data: _encodeMessengerCalldata(address(ism), 0, messageId)
             });
         portal.finalizeWithdrawalTransaction(withdrawal);
 
-        bytes memory encodedOutboxTxMetadata = _encodeFinalizeWithdrawalTx(
+        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
             address(ism),
             0,
             messageId
         );
 
-        vm.etch(address(portal), new bytes(0)); // this is a way to test that the arbBridge isn't called again
-        assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether);
+        vm.etch(address(portal), new bytes(0)); // this is a way to test that the portal isn't called again
+        assertTrue(ism.verify(encodedWithdrawalTx, encodedMessage));
     }
 
     function test_verify_revertsWhen_noStatefulAndDirectWithdrawal() public {
@@ -217,49 +216,55 @@ contract OPL2ToL1IsmTest is Test {
     function test_verify_revertsWhen_invalidIsm() public {
         deployAll();
 
-        bytes memory encodedOutboxTxMetadata = _encodeFinalizeWithdrawalTx(
+        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
             address(this),
             0,
             messageId
         );
 
         vm.expectRevert(); // WithdrawalTransactionFailed()
-        ism.verify(encodedOutboxTxMetadata, encodedMessage);
+        ism.verify(encodedWithdrawalTx, encodedMessage);
     }
 
-    // function test_verify_revertsWhen_incorrectMessageId() public {
-    //     deployAll();
+    function test_verify_revertsWhen_incorrectMessageId() public {
+        deployAll();
 
-    //     bytes32 incorrectMessageId = keccak256("incorrect message id");
+        bytes32 incorrectMessageId = keccak256("incorrect message id");
 
-    //     bytes memory encodedOutboxTxMetadata = _encodeFinalizeWithdrawalTx(address(this), 0, messageId);
+        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
+            address(this),
+            0,
+            incorrectMessageId
+        );
 
-    //     bytes memory encodedHookData =
-    //         abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, (incorrectMessageId));
+        // through portal call
+        vm.expectRevert("OPL2ToL1Ism: invalid message id");
+        ism.verify(encodedWithdrawalTx, encodedMessage);
 
-    //     // through outbox call
-    //     vm.expectRevert("OPL2ToL1Ism: invalid message id");
-    //     ism.verify(encodedOutboxTxMetadata, encodedMessage);
+        // through statefulVerify
+        IOptimismPortal.WithdrawalTransaction
+            memory withdrawal = IOptimismPortal.WithdrawalTransaction({
+                nonce: MOCK_NONCE,
+                sender: L2_MESSENGER_ADDRESS,
+                target: address(l1Messenger),
+                value: 0,
+                gasLimit: uint256(GAS_QUOTE),
+                data: _encodeMessengerCalldata(
+                    address(ism),
+                    0,
+                    incorrectMessageId
+                )
+            });
+        portal.finalizeWithdrawalTransaction(withdrawal);
 
-    //     // through statefulVerify
-    //     IOptimismPortal.WithdrawalTransaction memory withdrawal = IOptimismPortal.WithdrawalTransaction({
-    //         nonce: MOCK_NONCE,
-    //         sender: L2_MESSENGER_ADDRESS,
-    //         target: address(ism),
-    //         value: 0,
-    //         gasLimit: uint256(GAS_QUOTE),
-    //         data: encodedHookData
-    //     });
-    //     portal.finalizeWithdrawalTransaction(withdrawal);
-
-    //     vm.etch(address(portal), new bytes(0)); // to stop the outbox route
-    //     vm.expectRevert();
-    //     assertFalse(ism.verify(new bytes(0), encodedMessage));
-    // }
+        vm.etch(address(portal), new bytes(0)); // to stop the portal route
+        vm.expectRevert(); // evmRevert()
+        assertFalse(ism.verify(new bytes(0), encodedMessage));
+    }
 
     /* ============ helper functions ============ */
 
-    function _encodeFinalizeWithdrawalTx(
+    function _encodeMessengerCalldata(
         address _ism,
         uint256 _value,
         bytes32 _messageId
@@ -270,13 +275,32 @@ contract OPL2ToL1IsmTest is Test {
         );
 
         return
+            abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    MOCK_NONCE,
+                    address(hook),
+                    _ism,
+                    _value,
+                    uint256(GAS_QUOTE),
+                    encodedHookData
+                )
+            );
+    }
+
+    function _encodeFinalizeWithdrawalTx(
+        address _ism,
+        uint256 _value,
+        bytes32 _messageId
+    ) internal view returns (bytes memory) {
+        return
             abi.encode(
                 MOCK_NONCE,
                 L2_MESSENGER_ADDRESS,
-                _ism,
+                l1Messenger,
                 _value,
                 uint256(GAS_QUOTE),
-                encodedHookData
+                _encodeMessengerCalldata(_ism, _value, _messageId)
             );
     }
 

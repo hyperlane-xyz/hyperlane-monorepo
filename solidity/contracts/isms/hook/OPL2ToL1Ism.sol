@@ -13,8 +13,6 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
-import "forge-std/console.sol";
-
 // ============ Internal Imports ============
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -44,16 +42,15 @@ contract OPL2ToL1Ism is
     // module type for the ISM
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.OP_L2_TO_L1);
-    // ICrossDomainMessenger contract on L2 to send messages to L1
-    ICrossDomainMessenger public immutable messenger;
+    // bottom offset to the message id in the metadata ()
+    uint8 public constant MESSAGE_ID_OFFSET = 88;
     // OptimismPortal contract on L1 to finalize withdrawal from L1
     IOptimismPortal public immutable portal;
 
     // ============ Constructor ============
 
     constructor(address _messenger) CrossChainEnabledOptimism(_messenger) {
-        messenger = ICrossDomainMessenger(_messenger);
-        address _portal = messenger.PORTAL();
+        address _portal = ICrossDomainMessenger(_messenger).PORTAL();
         require(
             Address.isContract(_portal),
             "OPL2ToL1Ism: invalid OptimismPortal contract"
@@ -72,7 +69,6 @@ contract OPL2ToL1Ism is
         if (verified) {
             releaseValueToRecipient(message);
         }
-        console.log("OPL2ToL1Ism: verified=%s", verified, msg.sender);
         return verified || _verifyWithPortalCall(metadata, message);
     }
 
@@ -86,58 +82,65 @@ contract OPL2ToL1Ism is
         bytes calldata metadata,
         bytes calldata message
     ) internal returns (bool) {
+        // metadata here is double encoded call relayMessage(..., verifyMessageId)
         (
             uint256 nonce,
             address sender,
             address target,
             uint256 value,
             uint256 gasLimit,
-            bytes memory data
+            bytes memory messengerData
         ) = abi.decode(
                 metadata,
                 (uint256, address, address, uint256, uint256, bytes)
             );
 
-        console.log(
-            "OPL2ToL1Ism:, target=%s, value=%s, gasLimit=%s",
-            target,
-            value,
-            gasLimit
+        // this data is an abi encoded call of ICrossDomainMessenger.relayMessage
+        // Σ {
+        //      _selector                       =  4 bytes
+        //      _nonce                          = 32 bytes
+        //      PADDING + _sender               = 32 bytes
+        //      PADDING + _target               = 32 bytes
+        //      _value                          = 32 bytes
+        //      _minGasLimit                    = 32 bytes
+        //      _data
+        //          OFFSET                      = 32 bytes
+        //          LENGTH                      = 32 bytes
+        //          PADDING + verifyMessageId   = 64 bytes
+        // } = 292 bytes
+        require(
+            messengerData.length == 292,
+            "OPL2ToL1Ism: invalid data length"
         );
-        console.log("address(this)=%s", address(this));
-
-        // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
-        require(data.length == 36, "OPL2ToL1Ism: invalid data length");
         bytes32 messageId = message.id();
-        bytes32 convertedBytes;
-        assembly {
-            // data = 0x[4 bytes function signature][32 bytes messageId]
-            convertedBytes := mload(add(data, 36))
-        }
-        // check if the parsed message id matches the message id of the message
+        uint256 metadataLength = metadata.length;
+
+        bytes32 convertedBytes = bytes32(
+            metadata[metadataLength - MESSAGE_ID_OFFSET:metadataLength -
+                MESSAGE_ID_OFFSET +
+                32]
+        );
         require(convertedBytes == messageId, "OPL2ToL1Ism: invalid message id");
 
-        // Types.WithdrawalTransaction memory withdrawal =
+        // directly call the portal to finalize the withdrawal
         IOptimismPortal.WithdrawalTransaction
             memory withdrawal = IOptimismPortal.WithdrawalTransaction({
                 nonce: nonce,
-                sender: sender,
-                target: target,
+                sender: sender, // Sender is the L2Messenger
+                target: target, // Target is the L1Messenger
                 value: value,
                 gasLimit: gasLimit,
-                data: data
+                data: messengerData
             });
-
         portal.finalizeWithdrawalTransaction(withdrawal);
 
+        // if the finalizeWithdrawalTransaction call is successful, the message is verified
         return true;
     }
 
     /// @inheritdoc AbstractMessageIdAuthorizedIsm
     function _isAuthorized() internal view override returns (bool) {
         return
-            msg.sender == address(portal) &&
-            messenger.xDomainMessageSender().addressToBytes32() ==
-            authorizedHook;
+            _crossChainSender() == TypeCasts.bytes32ToAddress(authorizedHook);
     }
 }

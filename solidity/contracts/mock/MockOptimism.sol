@@ -8,6 +8,8 @@ import {IOptimismPortal} from "../interfaces/optimism/IOptimismPortal.sol";
 
 // for both L1 and L2
 contract MockOptimismMessenger is ICrossDomainMessenger {
+    error CrossDomainMessengerCallFailed();
+
     address public xDomainMessageSender;
     address public PORTAL;
 
@@ -24,7 +26,14 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) external payable {}
+    ) external payable {
+        (bool success, bytes memory returndata) = _target.call{value: _value}(
+            _message
+        );
+        if (!success) {
+            revert CrossDomainMessengerCallFailed();
+        }
+    }
 
     function OTHER_MESSENGER() external view returns (address) {}
 
@@ -38,13 +47,14 @@ contract MockOptimismMessenger is ICrossDomainMessenger {
 }
 
 contract MockOptimismPortal is IOptimismPortal {
+    error WithdrawalTransactionFailed();
+
     function finalizeWithdrawalTransaction(
         WithdrawalTransaction memory _tx
     ) external {
         (bool success, bytes memory returndata) = _tx.target.call{
             value: _tx.value
         }(_tx.data);
-        console.log("success: %s", success);
         if (!success) {
             revert WithdrawalTransactionFailed();
         }
