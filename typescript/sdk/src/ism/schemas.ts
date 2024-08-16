@@ -5,6 +5,11 @@ import { OwnableSchema, PausableSchema } from '../schemas.js';
 
 import { AggregationIsmConfig, IsmType, RoutingIsmConfig } from './types.js';
 
+const ValidatorInfoSchema = z.object({
+  signingKey: ZHash,
+  weight: z.number(),
+});
+
 export const TestIsmConfigSchema = z.object({
   type: z.literal(IsmType.TEST_ISM),
 });
@@ -12,6 +17,11 @@ export const TestIsmConfigSchema = z.object({
 export const MultisigConfigSchema = z.object({
   validators: z.array(ZHash),
   threshold: z.number(),
+});
+
+export const WeightedMultisigConfigSchema = z.object({
+  validators: z.array(ValidatorInfoSchema),
+  thresholdWeight: z.number(),
 });
 
 export const TrustedRelayerIsmConfigSchema = z.object({
@@ -41,6 +51,15 @@ export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
     type: z.union([
       z.literal(IsmType.MERKLE_ROOT_MULTISIG),
       z.literal(IsmType.MESSAGE_ID_MULTISIG),
+    ]),
+  }),
+);
+
+export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
+  z.object({
+    type: z.union([
+      z.literal(IsmType.WEIGHT_MERKLE_ROOT_MULTISIG),
+      z.literal(IsmType.WEIGHT_MESSAGE_ID_MULTISIG),
     ]),
   }),
 );
@@ -75,6 +94,7 @@ export const IsmConfigSchema = z.union([
   PausableIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
   MultisigIsmConfigSchema,
+  WeightedMultisigIsmConfigSchema,
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
