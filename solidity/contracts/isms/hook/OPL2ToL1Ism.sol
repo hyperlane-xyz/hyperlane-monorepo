@@ -18,6 +18,7 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {Message} from "../../libs/Message.sol";
+import {OPL2ToL1Metadata} from "../../libs/OPL2ToL1Metadata.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
 
 // ============ External Imports ============
@@ -37,13 +38,13 @@ contract OPL2ToL1Ism is
 {
     using TypeCasts for address;
     using Message for bytes;
+    using OPL2ToL1Metadata for bytes;
+
     // ============ Constants ============
 
     // module type for the ISM
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.OP_L2_TO_L1);
-    // bottom offset to the start of message id in the metadata
-    uint8 public constant MESSAGE_ID_OFFSET = 88;
     // OptimismPortal contract on L1 to finalize withdrawal from L1
     IOptimismPortal public immutable portal;
 
@@ -82,56 +83,19 @@ contract OPL2ToL1Ism is
         bytes calldata metadata,
         bytes calldata message
     ) internal returns (bool) {
-        // metadata here is double encoded call relayMessage(..., verifyMessageId)
-        (
-            uint256 nonce,
-            address sender,
-            address target,
-            uint256 value,
-            uint256 gasLimit,
-            bytes memory messengerData
-        ) = abi.decode(
-                metadata,
-                (uint256, address, address, uint256, uint256, bytes)
-            );
-
-        // this data is an abi encoded call of ICrossDomainMessenger.relayMessage
-        // Σ {
-        //      _selector                       =  4 bytes
-        //      _nonce                          = 32 bytes
-        //      PADDING + _sender               = 32 bytes
-        //      PADDING + _target               = 32 bytes
-        //      _value                          = 32 bytes
-        //      _minGasLimit                    = 32 bytes
-        //      _data
-        //          OFFSET                      = 32 bytes
-        //          LENGTH                      = 32 bytes
-        //          PADDING + verifyMessageId   = 64 bytes
-        // } = 292 bytes
         require(
-            messengerData.length == 292,
+            metadata.checkCalldataLength(),
             "OPL2ToL1Ism: invalid data length"
         );
-        bytes32 messageId = message.id();
-        uint256 metadataLength = metadata.length;
-
-        bytes32 convertedBytes = bytes32(
-            metadata[metadataLength - MESSAGE_ID_OFFSET:metadataLength -
-                MESSAGE_ID_OFFSET +
-                32]
+        require(
+            metadata.messageId() == message.id(),
+            "OPL2ToL1Ism: invalid message id"
         );
-        require(convertedBytes == messageId, "OPL2ToL1Ism: invalid message id");
 
-        // directly call the portal to finalize the withdrawal
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawal = IOptimismPortal.WithdrawalTransaction({
-                nonce: nonce,
-                sender: sender, // Sender is the L2Messenger
-                target: target, // Target is the L1Messenger
-                value: value,
-                gasLimit: gasLimit,
-                data: messengerData
-            });
+        IOptimismPortal.WithdrawalTransaction memory withdrawal = abi.decode(
+            metadata,
+            (IOptimismPortal.WithdrawalTransaction)
+        );
         portal.finalizeWithdrawalTransaction(withdrawal);
 
         // if the finalizeWithdrawalTransaction call is successful, the message is verified

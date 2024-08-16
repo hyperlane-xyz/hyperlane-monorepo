@@ -102,6 +102,9 @@ contract OPL2ToL1IsmTest is Test {
                 (address(ism), encodedHookData, GAS_QUOTE)
             )
         );
+
+        testMetadata = StandardHookMetadata.overrideMsgValue(GAS_QUOTE);
+
         hook.postDispatch(testMetadata, encodedMessage);
     }
 
