@@ -1,6 +1,7 @@
 import '@nomiclabs/hardhat-waffle';
 import hre from 'hardhat';
 
+import { chainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   HyperlaneContractsMap,
@@ -10,12 +11,14 @@ import {
   TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HelloWorldApp } from '../app/app.js';
 import { HelloWorldFactories } from '../app/contracts.js';
 import { HelloWorldChecker } from '../deploy/check.js';
 import { HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
+import { owners } from '../scripts/check.js';
 
 describe('deploy', async () => {
   let multiProvider: MultiProvider;
@@ -24,6 +27,7 @@ describe('deploy', async () => {
   let deployer: HelloWorldDeployer;
   let contracts: HyperlaneContractsMap<HelloWorldFactories>;
   let app: HelloWorldApp;
+  let awProxyAdmins: ChainMap<Address>;
 
   before(async () => {
     const [signer] = await hre.ethers.getSigners();
@@ -37,6 +41,11 @@ describe('deploy', async () => {
     core = await coreDeployer.deployApp();
     config = core.getRouterConfig(signer.address);
     deployer = new HelloWorldDeployer(multiProvider);
+    awProxyAdmins = Object.keys(chainAddresses).reduce((obj, chain) => {
+      // @ts-ignore
+      obj[chain] = chainAddresses[chain].proxyAdmin;
+      return obj;
+    }, {} as ChainMap<Address>);
   });
 
   it('deploys', async () => {
@@ -49,7 +58,13 @@ describe('deploy', async () => {
   });
 
   it('checks', async () => {
-    const checker = new HelloWorldChecker(multiProvider, app, config);
+    const checker = new HelloWorldChecker(
+      multiProvider,
+      app,
+      config,
+      owners,
+      awProxyAdmins,
+    );
     await checker.check();
     checker.expectEmpty();
   });

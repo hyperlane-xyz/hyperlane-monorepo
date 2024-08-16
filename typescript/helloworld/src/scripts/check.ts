@@ -1,8 +1,9 @@
-import { chainAddresses } from '@hyperlane-xyz/registry';
+import { CoreChains, chainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   HyperlaneCore,
   MultiProvider,
+  OwnableConfig,
   attachContractsMap,
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
@@ -17,6 +18,10 @@ const deploymentAddresses: ChainMap<Record<string, Address>> = {};
 
 // SET CONTRACT OWNER ADDRESS HERE
 const ownerAddress = '0x123...';
+
+export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
+  CoreChains.map((chain) => [chain, { owner: ownerAddress }]),
+);
 
 async function check() {
   console.info('Preparing utilities');
@@ -33,8 +38,23 @@ async function check() {
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
   const config = core.getRouterConfig(ownerAddress);
 
+  const awProxyAdmins: ChainMap<Address> = Object.keys(chainAddresses).reduce(
+    (obj, chain) => {
+      // @ts-ignore
+      obj[chain] = chainAddresses[chain].proxyAdmin;
+      return obj;
+    },
+    {} as ChainMap<Address>,
+  );
+
   console.info('Starting check');
-  const helloWorldChecker = new HelloWorldChecker(multiProvider, app, config);
+  const helloWorldChecker = new HelloWorldChecker(
+    multiProvider,
+    app,
+    config,
+    owners,
+    awProxyAdmins,
+  );
   await helloWorldChecker.check();
   helloWorldChecker.expectEmpty();
 }

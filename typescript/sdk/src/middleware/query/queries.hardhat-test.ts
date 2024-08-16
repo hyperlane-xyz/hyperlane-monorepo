@@ -11,6 +11,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1, test2 } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
+import { owners, proxyAdmins } from '../../core/CoreDeployer.hardhat-test.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -61,7 +62,13 @@ describe.skip('InterchainQueryRouter', async () => {
 
   it('checks', async () => {
     const app = new InterchainQuery(contracts, multiProvider);
-    const checker = new InterchainQueryChecker(multiProvider, app, config);
+    const checker = new InterchainQueryChecker(
+      multiProvider,
+      app,
+      config,
+      owners,
+      proxyAdmins,
+    );
     await checker.check();
     expect(checker.violations.length).to.eql(0);
   });

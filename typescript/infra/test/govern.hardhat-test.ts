@@ -152,8 +152,24 @@ describe('ICA governance', async () => {
       [remoteChain]: { owner: accountOwner },
     };
 
+    const awOwners = {
+      [localChain]: { owner: signer.address },
+      [remoteChain]: { owner: accountOwner },
+    };
+
+    const awProxyAdmins: ChainMap<Address> = {
+      [localChain]: signer.address,
+      [remoteChain]: accountOwner,
+    };
+
     const app = new TestApp(contractsMap, multiProvider);
-    const checker = new TestChecker(multiProvider, app, configMap);
+    const checker = new TestChecker(
+      multiProvider,
+      app,
+      configMap,
+      awOwners,
+      awProxyAdmins,
+    );
     governor = new HyperlaneTestGovernor(checker, icaApp);
 
     await recipient.transferOwnership(accountOwner);

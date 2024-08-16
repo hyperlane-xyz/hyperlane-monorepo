@@ -25,6 +25,7 @@ import {
   AccessControlViolation,
   BytecodeMismatchViolation,
   CheckerViolation,
+  OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
   TimelockControllerViolation,
@@ -39,16 +40,22 @@ export abstract class HyperlaneAppChecker<
   readonly app: App;
   readonly configMap: ChainMap<Config>;
   readonly violations: CheckerViolation[];
+  readonly awOwners: ChainMap<OwnableConfig>;
+  readonly awProxyAdmins: ChainMap<Address>;
 
   constructor(
     multiProvider: MultiProvider,
     app: App,
     configMap: ChainMap<Config>,
+    awOwners: ChainMap<OwnableConfig>,
+    awProxyAdmins: ChainMap<Address>,
   ) {
     this.multiProvider = multiProvider;
     this.app = app;
     this.violations = [];
     this.configMap = configMap;
+    this.awOwners = awOwners;
+    this.awProxyAdmins = awProxyAdmins;
   }
 
   abstract checkChain(chain: ChainName): Promise<void>;
@@ -81,41 +88,59 @@ export abstract class HyperlaneAppChecker<
 
   async checkProxiedContracts(
     chain: ChainName,
-    proxyAdminAddress?: Address,
+    owner: Address,
+    ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
-    const expectedProxyAdminAddress =
-      proxyAdminAddress ?? this.app.getContracts(chain).proxyAdmin.address;
-    if (!expectedProxyAdminAddress) {
-      throw new Error(
-        `Checking proxied contracts for ${chain} with no admin provided`,
-      );
-    }
     const provider = this.multiProvider.getProvider(chain);
     const contracts = this.app.getContracts(chain);
-
-    const expectedProxyAdminContract = ProxyAdmin__factory.connect(
-      expectedProxyAdminAddress,
-      provider,
-    );
 
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
-          // Check the ProxiedContract's admin matches expectation
           const actualProxyAdminAddress = await proxyAdmin(
             provider,
             contract.address,
           );
-          if (!eqAddress(actualProxyAdminAddress, expectedProxyAdminAddress)) {
-            this.addViolation({
-              type: ViolationType.ProxyAdmin,
+
+          // get owner of proxy admin contract
+          const actualProxyAdminContract = ProxyAdmin__factory.connect(
+            actualProxyAdminAddress,
+            provider,
+          );
+          const actualProxyAdminOwner = await actualProxyAdminContract.owner();
+          const expectedOwner = ownableOverrides?.['proxyAdmin'] ?? owner;
+
+          if (!eqAddress(actualProxyAdminOwner, expectedOwner)) {
+            const violation: OwnerViolation = {
               chain,
-              name,
-              expected: expectedProxyAdminAddress,
-              actual: actualProxyAdminAddress,
-              expectedProxyAdmin: expectedProxyAdminContract,
-              proxy: contract,
-            } as ProxyAdminViolation);
+              name: 'proxyAdmin',
+              type: ViolationType.Owner,
+              actual: actualProxyAdminOwner,
+              expected: expectedOwner,
+              contract,
+            };
+            this.addViolation(violation);
+          }
+
+          if (actualProxyAdminOwner === this.awOwners[chain].owner) {
+            if (
+              !eqAddress(actualProxyAdminAddress, this.awProxyAdmins[chain])
+            ) {
+              const awProxyAdminContract = ProxyAdmin__factory.connect(
+                this.awProxyAdmins[chain],
+                provider,
+              );
+
+              this.addViolation({
+                type: ViolationType.ProxyAdmin,
+                chain,
+                name,
+                expected: this.awProxyAdmins[chain],
+                actual: actualProxyAdminAddress,
+                expectedProxyAdmin: awProxyAdminContract,
+                proxy: contract,
+              } as ProxyAdminViolation);
+            }
           }
         }
       }),
@@ -228,6 +253,11 @@ export abstract class HyperlaneAppChecker<
     ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
+    // checks ownership of all ownable contracts
+    // if we pass the aw ProxyAdmin to the contructor, this was always raise a violation when we expect the owner to be a third party
+    // so we cannot pass the aw ProxyAdmin to the constructor generally
+    // we still want to check if the aw proxy admin is owned by the aw owner
+
     for (const [name, contract] of Object.entries(ownableContracts)) {
       const expectedOwner = ownableOverrides?.[name] ?? owner;
       const actual = await contract.owner();

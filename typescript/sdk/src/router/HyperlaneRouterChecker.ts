@@ -1,9 +1,16 @@
 import { ethers } from 'ethers';
+import fs from 'fs';
 
-import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  assert,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { OwnableConfig } from '../deploy/types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
@@ -28,9 +35,11 @@ export class HyperlaneRouterChecker<
     multiProvider: MultiProvider,
     app: App,
     configMap: ChainMap<Config>,
+    readonly awOwners: ChainMap<OwnableConfig>,
+    readonly awProxyAdmins: ChainMap<Address>,
     readonly ismFactory?: HyperlaneIsmFactory,
   ) {
-    super(multiProvider, app, configMap);
+    super(multiProvider, app, configMap, awOwners, awProxyAdmins);
   }
 
   async checkChain(chain: ChainName): Promise<void> {
@@ -84,6 +93,7 @@ export class HyperlaneRouterChecker<
       config.interchainSecurityModule ?? ethers.constants.AddressZero,
       this.multiProvider,
       this.ismFactory?.chainMap[chain] ?? ({} as any),
+      mailboxAddr,
     );
 
     if (!matches) {
@@ -103,6 +113,15 @@ export class HyperlaneRouterChecker<
       if (expectedConfig === undefined) {
         expectedConfig = ethers.constants.AddressZero;
       }
+
+      fs.writeFileSync(
+        './expectedConfig.json',
+        JSON.stringify(expectedConfig, null, 2),
+      );
+      fs.writeFileSync(
+        './actualConfig.json',
+        JSON.stringify(actualConfig, null, 2),
+      );
 
       const violation: ClientViolation = {
         chain,

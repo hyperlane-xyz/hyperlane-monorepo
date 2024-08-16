@@ -10,6 +10,7 @@ import {
 
 import { TestChainName } from '../../consts/testChains.js';
 import { HyperlaneContractsMap } from '../../contracts/types.js';
+import { owners, proxyAdmins } from '../../core/CoreDeployer.hardhat-test.js';
 import { TestCoreApp } from '../../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -59,7 +60,13 @@ describe('InterchainAccounts', async () => {
   });
 
   it('checks', async () => {
-    const checker = new InterchainAccountChecker(multiProvider, app, config);
+    const checker = new InterchainAccountChecker(
+      multiProvider,
+      app,
+      config,
+      owners,
+      proxyAdmins,
+    );
     await checker.check();
     expect(checker.violations.length).to.eql(0);
   });

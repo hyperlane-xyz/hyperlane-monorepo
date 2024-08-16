@@ -1,5 +1,6 @@
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, objMap } from '@hyperlane-xyz/utils';
 
+import { OwnableConfig } from '../../deploy/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ProxiedRouterChecker } from '../../router/ProxiedRouterChecker.js';
 import { ChainMap } from '../../types.js';
@@ -17,6 +18,8 @@ export class InterchainAccountChecker extends ProxiedRouterChecker<
     multiProvider: MultiProvider,
     app: InterchainAccount,
     configMap: ChainMap<InterchainAccountConfig>,
+    awOwners: ChainMap<OwnableConfig>,
+    awProxyAdmins: ChainMap<Address>,
   ) {
     // The checker does not expect an ISM in it's config.
     // Instead, we set the ISM to match the ISM address from the app.
@@ -32,6 +35,6 @@ export class InterchainAccountChecker extends ProxiedRouterChecker<
           app.contractsMap[chain].interchainAccountIsm.address,
       };
     });
-    super(multiProvider, app, configMapWithIsm);
+    super(multiProvider, app, configMapWithIsm, awOwners, awProxyAdmins);
   }
 }

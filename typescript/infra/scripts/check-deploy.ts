@@ -1,5 +1,6 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
+  ChainMap,
   HypERC20App,
   HypERC20Checker,
   HyperlaneCoreChecker,
@@ -13,9 +14,8 @@ import {
   InterchainQueryChecker,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
-  proxiedFactories,
 } from '@hyperlane-xyz/sdk';
-import { objFilter } from '@hyperlane-xyz/utils';
+import { Address, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
@@ -100,6 +100,14 @@ async function check() {
     multiProvider,
   );
 
+  const awProxyAdmins: ChainMap<Address> = Object.keys(chainAddresses).reduce(
+    (obj, chain) => {
+      obj[chain] = chainAddresses[chain].proxyAdmin;
+      return obj;
+    },
+    {} as ChainMap<Address>,
+  );
+
   let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
     const checker = new HyperlaneCoreChecker(
@@ -108,11 +116,19 @@ async function check() {
       envConfig.core,
       ismFactory,
       chainAddresses,
+      envConfig.owners,
+      awProxyAdmins,
     );
     governor = new HyperlaneCoreGovernor(checker, ica);
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     const igp = HyperlaneIgp.fromAddressesMap(chainAddresses, multiProvider);
-    const checker = new HyperlaneIgpChecker(multiProvider, igp, envConfig.igp);
+    const checker = new HyperlaneIgpChecker(
+      multiProvider,
+      igp,
+      envConfig.igp,
+      envConfig.owners,
+      awProxyAdmins,
+    );
     governor = new HyperlaneIgpGovernor(checker);
   } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
     const checker = new InterchainAccountChecker(
@@ -122,6 +138,8 @@ async function check() {
         routerConfig,
         (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
       ),
+      envConfig.owners,
+      awProxyAdmins,
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
@@ -130,6 +148,8 @@ async function check() {
       multiProvider,
       iqs,
       routerConfig,
+      envConfig.owners,
+      awProxyAdmins,
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HELLO_WORLD) {
@@ -147,6 +167,8 @@ async function check() {
       multiProvider,
       app,
       routerConfig,
+      envConfig.owners,
+      awProxyAdmins,
       ismFactory,
     );
     governor = new ProxiedRouterGovernor(checker);
@@ -161,7 +183,6 @@ async function check() {
       .reduce((obj, key) => {
         obj[key] = {
           ...warpAddresses[key],
-          proxyAdmin: chainAddresses[key].proxyAdmin,
         };
         return obj;
       }, {} as typeof warpAddresses);
@@ -169,7 +190,7 @@ async function check() {
     const { contractsMap, foreignDeployments } =
       attachContractsMapAndGetForeignDeployments(
         filteredAddresses,
-        { ...hypERC20factories, ...proxiedFactories },
+        hypERC20factories,
         multiProvider,
       );
 
@@ -197,6 +218,8 @@ async function check() {
       multiProvider,
       app,
       config as any,
+      envConfig.owners,
+      awProxyAdmins,
       ismFactory,
     );
     governor = new ProxiedRouterGovernor(checker, ica);

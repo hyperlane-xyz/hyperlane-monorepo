@@ -5,7 +5,6 @@ import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
-import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
@@ -19,7 +18,7 @@ import {
 import { TokenMetadata } from './types.js';
 
 export class HypERC20Checker extends ProxiedRouterChecker<
-  HypERC20Factories & ProxiedFactories,
+  HypERC20Factories,
   HypERC20App,
   TokenRouterConfig
 > {

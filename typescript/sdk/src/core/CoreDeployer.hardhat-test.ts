@@ -3,11 +3,12 @@ import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { OwnableConfig } from '../deploy/types.js';
 import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
@@ -23,6 +24,16 @@ import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
 import { CoreConfig } from './types.js';
 
+const OWNER_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
+  testChains.map((chain) => [chain, { owner: OWNER_ADDRESS }]),
+);
+
+export const proxyAdmins: ChainMap<Address> = objMap(
+  owners,
+  () => OWNER_ADDRESS,
+);
+
 describe('core', async () => {
   let multiProvider: MultiProvider;
   let deployer: HyperlaneCoreDeployer;
@@ -30,6 +41,8 @@ describe('core', async () => {
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
   let ismFactory: HyperlaneIsmFactory;
+  let awOwners: ChainMap<OwnableConfig>;
+  let awProxyAdmins: ChainMap<Address>;
 
   before(async () => {
     const [signer] = await hre.ethers.getSigners();
@@ -44,6 +57,8 @@ describe('core', async () => {
 
     contracts = await deployer.deploy(coreConfig);
     core = new HyperlaneCore(contracts, multiProvider);
+    awOwners = owners;
+    awProxyAdmins = proxyAdmins;
   });
 
   describe('idempotency', () => {
@@ -266,6 +281,8 @@ describe('core', async () => {
       coreConfig,
       ismFactory,
       {},
+      awOwners,
+      awProxyAdmins,
     );
     await checker.check();
   });

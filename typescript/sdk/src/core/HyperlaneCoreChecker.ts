@@ -1,10 +1,11 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { assert, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { proxyImplementation } from '../deploy/proxy.js';
+import { OwnableConfig } from '../deploy/types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
@@ -30,8 +31,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     configMap: ChainMap<CoreConfig>,
     readonly ismFactory: HyperlaneIsmFactory,
     readonly chainAddresses: ChainMap<Record<string, string>>,
+    readonly awOwners: ChainMap<OwnableConfig>,
+    readonly awProxyAdmins: ChainMap<Address>,
   ) {
-    super(multiProvider, app, configMap);
+    super(multiProvider, app, configMap, awOwners, awProxyAdmins);
   }
 
   async checkChain(chain: ChainName): Promise<void> {
@@ -41,7 +44,11 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       return;
     }
 
-    await this.checkProxiedContracts(chain);
+    await this.checkProxiedContracts(
+      chain,
+      config.owner,
+      config.ownerOverrides,
+    );
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
