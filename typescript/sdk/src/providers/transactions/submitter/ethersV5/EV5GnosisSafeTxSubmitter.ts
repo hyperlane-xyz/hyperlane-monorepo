@@ -34,10 +34,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     const { chain, safeAddress } = props;
     const { gnosisSafeTransactionServiceUrl } =
       multiProvider.getChainMetadata(chain);
-    if (!gnosisSafeTransactionServiceUrl)
-      throw new Error(
-        `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
-      );
+    assert(
+      gnosisSafeTransactionServiceUrl,
+      `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
+    );
 
     const signerAddress = await multiProvider.getSigner(chain).getAddress();
     const authorized = await canProposeSafeTransactions(
@@ -46,10 +46,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       multiProvider,
       safeAddress,
     );
-    if (!authorized)
-      throw new Error(
-        `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
-      );
+    assert(
+      authorized,
+      `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
+    );
 
     const safe = await getSafe(chain, multiProvider, safeAddress);
     const safeService = await getSafeService(chain, multiProvider);
