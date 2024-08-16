@@ -67,10 +67,11 @@ contract OPL2ToL1Ism is
         bytes calldata message
     ) external override returns (bool) {
         bool verified = isVerified(message);
-        if (verified) {
-            releaseValueToRecipient(message);
+        if (!verified) {
+            require(_verifyWithPortalCall(metadata, message));
         }
-        return verified || _verifyWithPortalCall(metadata, message);
+        releaseValueToRecipient(message);
+        return true;
     }
 
     // ============ Internal function ============
