@@ -219,7 +219,12 @@ impl Validator {
         let cursor = contract_sync
             .cursor(index_settings)
             .await
-            .expect(&format!("Error getting cursor"));
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Error getting merkle tree hook cursor for origin {0}: {err}",
+                    self.origin_chain
+                )
+            });
         tokio::spawn(async move {
             contract_sync
                 .clone()

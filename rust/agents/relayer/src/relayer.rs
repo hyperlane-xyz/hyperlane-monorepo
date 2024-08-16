@@ -422,7 +422,7 @@ impl Relayer {
         let cursor = contract_sync
             .cursor(index_settings)
             .await
-            .expect(&format!("Error getting cursor for origin {origin}"));
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -447,7 +447,7 @@ impl Relayer {
         let cursor = contract_sync
             .cursor(index_settings)
             .await
-            .expect(&format!("Error getting cursor for origin {origin}"));
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -471,7 +471,7 @@ impl Relayer {
         let cursor = contract_sync
             .cursor(index_settings)
             .await
-            .expect(&format!("Error getting cursor for origin {origin}"));
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
