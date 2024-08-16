@@ -2634,7 +2634,7 @@
       "testRecipient": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54",
       "timelockController": "0x0000000000000000000000000000000000000000",
       "transactionOverrides": {
-        "gasPrice": 2000000000
+        "gasPrice": 101000000000
       },
       "validatorAnnounce": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
     },
