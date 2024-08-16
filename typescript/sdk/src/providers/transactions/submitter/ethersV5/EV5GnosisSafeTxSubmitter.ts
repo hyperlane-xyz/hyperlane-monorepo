@@ -2,8 +2,9 @@ import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
+// prettier-ignore
 // @ts-ignore
-import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
+import { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -22,19 +23,47 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
+    private safe: any,
+    private safeService: any,
   ) {}
 
+  static async create(
+    multiProvider: MultiProvider,
+    props: EV5GnosisSafeTxSubmitterProps,
+  ): Promise<EV5GnosisSafeTxSubmitter> {
+    const { chain, safeAddress } = props;
+    const { gnosisSafeTransactionServiceUrl } =
+      multiProvider.getChainMetadata(chain);
+    if (!gnosisSafeTransactionServiceUrl)
+      throw new Error(
+        `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
+      );
+
+    const signerAddress = await multiProvider.getSigner(chain).getAddress();
+    const authorized = await canProposeSafeTransactions(
+      signerAddress,
+      chain,
+      multiProvider,
+      safeAddress,
+    );
+    if (!authorized)
+      throw new Error(
+        `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
+      );
+
+    const safe = await getSafe(chain, multiProvider, safeAddress);
+    const safeService = await getSafeService(chain, multiProvider);
+
+    return new EV5GnosisSafeTxSubmitter(
+      multiProvider,
+      props,
+      safe,
+      safeService,
+    );
+  }
+
   public async submit(...txs: PopulatedTransactions): Promise<void> {
-    const safe = await getSafe(
-      this.props.chain,
-      this.multiProvider,
-      this.props.safeAddress,
-    );
-    const safeService = await getSafeService(
-      this.props.chain,
-      this.multiProvider,
-    );
-    const nextNonce: number = await safeService.getNextNonce(
+    const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
     const safeTransactionBatch: any[] = txs.map(
@@ -47,23 +76,25 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
         return { to, data, value: value?.toString() ?? '0' };
       },
     );
-    const safeTransaction = await safe.createTransaction({
+    const safeTransaction = await this.safe.createTransaction({
       safeTransactionData: safeTransactionBatch,
       options: { nonce: nextNonce },
     });
     const safeTransactionData: any = safeTransaction.data;
-    const safeTxHash: string = await safe.getTransactionHash(safeTransaction);
+    const safeTxHash: string = await this.safe.getTransactionHash(
+      safeTransaction,
+    );
     const senderAddress: Address = await this.multiProvider.getSignerAddress(
       this.props.chain,
     );
-    const safeSignature: any = await safe.signTransactionHash(safeTxHash);
+    const safeSignature: any = await this.safe.signTransactionHash(safeTxHash);
     const senderSignature: string = safeSignature.data;
 
-    this.logger.debug(
+    this.logger.info(
       `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
     );
 
-    return safeService.proposeTransaction({
+    return this.safeService.proposeTransaction({
       safeAddress: this.props.safeAddress,
       safeTransactionData,
       safeTxHash,
