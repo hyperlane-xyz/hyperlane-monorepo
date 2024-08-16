@@ -4,7 +4,8 @@ import { ERC20, ERC20__factory, HypERC20Collateral } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TokenMismatchViolation } from '../deploy/types.js';
-import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker.js';
+import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
+import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
@@ -17,16 +18,14 @@ import {
 } from './schemas.js';
 import { TokenMetadata } from './types.js';
 
-export class HypERC20Checker extends HyperlaneRouterChecker<
-  HypERC20Factories,
+export class HypERC20Checker extends ProxiedRouterChecker<
+  HypERC20Factories & ProxiedFactories,
   HypERC20App,
   TokenRouterConfig
 > {
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
     await this.checkToken(chain);
-    // We have adapted this method to accept a proxyAdmin contract address parameter
-    await this.checkProxiedContracts(chain, this.configMap[chain].proxyAdmin);
   }
 
   async checkToken(chain: ChainName): Promise<void> {
