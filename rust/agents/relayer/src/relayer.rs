@@ -347,9 +347,9 @@ impl BaseAgent for Relayer {
                 Self::AGENT_NAME.to_string(),
             )
             .await
-            .expect(&format!(
-                "Error creating metrics updater for destination {dest_domain}"
-            ));
+            .unwrap_or_else(|_| {
+                panic!("Error creating metrics updater for destination {dest_domain}")
+            });
             tasks.push(metrics_updater.spawn());
         }
 
