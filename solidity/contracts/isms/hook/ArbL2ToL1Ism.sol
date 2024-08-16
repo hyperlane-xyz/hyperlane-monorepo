@@ -62,10 +62,11 @@ contract ArbL2ToL1Ism is
         bytes calldata message
     ) external override returns (bool) {
         bool verified = isVerified(message);
-        if (verified) {
-            releaseValueToRecipient(message);
+        if (!verified) {
+            require(_verifyWithOutboxCall(metadata, message));
         }
-        return verified || _verifyWithOutboxCall(metadata, message);
+        releaseValueToRecipient(message);
+        return true;
     }
 
     // ============ Internal function ============
@@ -87,6 +88,7 @@ contract ArbL2ToL1Ism is
             uint256 l2Block,
             uint256 l1Block,
             uint256 l2Timestamp,
+            uint256 value,
             bytes memory data
         ) = abi.decode(
                 metadata,
@@ -98,15 +100,11 @@ contract ArbL2ToL1Ism is
                     uint256,
                     uint256,
                     uint256,
+                    uint256,
                     bytes
                 )
             );
 
-        // check if the sender of the l2 message is the authorized hook
-        require(
-            l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
-            "ArbL2ToL1Ism: l2Sender != authorizedHook"
-        );
         // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
         require(data.length == 36, "ArbL2ToL1Ism: invalid data length");
         bytes32 messageId = message.id();
@@ -120,8 +118,6 @@ contract ArbL2ToL1Ism is
             convertedBytes == messageId,
             "ArbL2ToL1Ism: invalid message id"
         );
-
-        // value send to 0
         arbOutbox.executeTransaction(
             proof,
             index,
@@ -130,7 +126,7 @@ contract ArbL2ToL1Ism is
             l2Block,
             l1Block,
             l2Timestamp,
-            0,
+            value,
             data
         );
         // the above bridge call will revert if the verifyMessageId call fails
