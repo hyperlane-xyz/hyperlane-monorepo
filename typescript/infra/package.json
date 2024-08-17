@@ -17,6 +17,7 @@
     "@hyperlane-xyz/registry": "2.5.0",
     "@hyperlane-xyz/sdk": "5.0.0",
     "@hyperlane-xyz/utils": "5.0.0",
+    "@inquirer/prompts": "^5.3.8",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@safe-global/protocol-kit": "^4.0.2",
     "@solana/web3.js": "^1.78.0",

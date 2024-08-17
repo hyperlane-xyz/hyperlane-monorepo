@@ -11,10 +11,10 @@ async function main() {
     .filter(Boolean) // filter out empty strings
     .map((url) => url.trim());
 
-  if (!rpcUrlsArray.length) {
-    console.error('No rpc urls provided, Exiting.');
-    process.exit(1);
-  }
+  // if (!rpcUrlsArray.length) {
+  //   console.error('No rpc urls provided, Exiting.');
+  //   process.exit(1);
+  // }
 
   await setAndVerifyRpcUrls(environment, chain, rpcUrlsArray);
 }
