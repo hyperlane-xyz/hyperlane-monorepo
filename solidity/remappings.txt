@@ -5,3 +5,5 @@
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
 fx-portal/=lib/fx-portal/
+telepathyx=../node_modules/telepathyx
+optimism-bedrock-contracts=../node_modules/optimism-bedrock-contracts
