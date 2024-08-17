@@ -33,7 +33,7 @@ contract StateProofHelpersTest is Test {
             0x8284b05f9fecfb3b8089dc7671e647563fdba6b1c6b4ce10d257a5f18fd471cf
         );
 
-    address constant MAILBOX_ADDR = 0xd81BDE27ce1217C5DaF4dE611577667534f997B0;
+    address constant MAILBOX_ADDR = 0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc;
     bytes constant MESSAGE_ID =
         hex"42a71a941db463ca31d30e30837b436a24fafbf1e0210e5013dcc5af8029989c";
     uint256 constant ACCOUNT_PROOF_LENGTH = 9;

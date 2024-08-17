@@ -15,7 +15,7 @@ pragma solidity >=0.8.0;
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ISP1Lightclient} from "../../interfaces/ISP1Lightclient.sol";
+import {ISP1LightClient} from "../../interfaces/ISP1LightClient.sol";
 
 // ============ Internal Imports ============
 
@@ -34,7 +34,7 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     using Message for bytes;
 
     /// @notice LightClient to read the state root from
-    ISP1Lightclient public lightClient;
+    ISP1LightClient public lightClient;
 
     /// @notice Source Mailbox that will dispatch a message
     Mailbox public sourceMailbox;
@@ -70,7 +70,7 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
         sourceMailbox = _sourceMailbox;
         destinationMailbox = _destinationMailbox;
         dispatchedHook = _dispatchedHook;
-        lightClient = ISP1Lightclient(_lightClient);
+        lightClient = ISP1LightClient(_lightClient);
         dispatchedSlot = _dispatchedSlot;
         offchainUrls = _offchainUrls;
     }
@@ -182,15 +182,7 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     function dispatchedSlotKey(
         uint32 _messageNonce
     ) public view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _messageNonce,
-                    keccak256(
-                        abi.encode(address(sourceMailbox), dispatchedSlot)
-                    )
-                )
-            );
+        return keccak256(abi.encode(_messageNonce, dispatchedSlot));
     }
 
     /**
