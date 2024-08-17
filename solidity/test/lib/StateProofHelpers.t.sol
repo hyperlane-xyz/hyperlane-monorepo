@@ -8,37 +8,38 @@ import "../../contracts/libs/StateProofHelpers.sol";
  * @title Test of StateProofHelper
  * @notice This test uses the JSON results from an RPC, such as https://www.quicknode.com/docs/ethereum/eth_getProof
  *
- * address: 0x3EF546F04a1B24EAF9dCe2ed4338A1b5c32e2a56 (TelepathyCcipReadhook on Sepolia)
- * storageSlot: 0x0 (slot for TelepathyCcipReadhook.dispatched)
- * blockNumber: 5322910
- * stateRoot: 0x03e88cdfbd9dc672604e797310dc332658844408a65fef43c83313f2cd19bb9b (sourced from https://etherscan.io/block/5322910, but also the hash of the 1st account proof)
+ * address: 0x7DDf66a264656A36eB0Ff4bC6eC562028B983B90 (DispatchedHook on Holesky)
+ * storageSlot: 0x66ce4e8e12a5403828e3fb3176b429cb926ef9dc29fd04c1b3c13ed2787d98d6 (slot for DispatchedHook.dispatched)
+ * blockNumber: 2151871
+ * stateRoot: 0x03e88cdfbd9dc672604e797310dc332658844408a65fef43c83313f2cd19bb9b (sourced from https://holesky.etherscan.io/block/2151871)
  *
- * Alternatively, you can use cast index to access mappings:
+ * You can use cast index to access storage slot of DispatchedHook.dispatched for nonce 138:
  *
- * Get the the storage location for slot 0x0 (a nested mapping(address mailbox => mapping(uint256 messageNonce => messageId)))
- * cast index address "0xd81BDE27ce1217C5DaF4dE611577667534f997B0" 0
+ * Get the the storage location for slot 0x0 (mapping(uint256 messageNonce => messageId))
+ * cast index address "0x7DDf66a264656A36eB0Ff4bC6eC562028B983B90" 0
  *
  * Get the the index for nonce 0 at storage location calculated above
- * cast index uint256 0 0xc975e4c05def9782b312ab471f3a24f2361ceeffb778cb5c7bbde5b1c4c53074
+ * cast index uint256 138 0
+ * > 0x66ce4e8e12a5403828e3fb3176b429cb926ef9dc29fd04c1b3c13ed2787d98d6
  */
 contract StateProofHelpersTest is Test {
     string proofsJson;
     bytes[] accountProof;
     bytes[] storageProof;
 
-    address constant HOOK_ADDR = 0x3EF546F04a1B24EAF9dCe2ed4338A1b5c32e2a56;
+    address constant HOOK_ADDR = 0x7DDf66a264656A36eB0Ff4bC6eC562028B983B90;
     bytes32 constant stateRoot =
         bytes32(
-            0x03e88cdfbd9dc672604e797310dc332658844408a65fef43c83313f2cd19bb9b
+            0x8284b05f9fecfb3b8089dc7671e647563fdba6b1c6b4ce10d257a5f18fd471cf
         );
 
     address constant MAILBOX_ADDR = 0xd81BDE27ce1217C5DaF4dE611577667534f997B0;
     bytes constant MESSAGE_ID =
-        hex"31ede38d2e93c5aee49c836f329a626d8c6322abfbff3783e82e5759f870d7e9";
-    uint256 constant ACCOUNT_PROOF_LENGTH = 7;
+        hex"42a71a941db463ca31d30e30837b436a24fafbf1e0210e5013dcc5af8029989c";
+    uint256 constant ACCOUNT_PROOF_LENGTH = 9;
     uint256 constant STORAGE_PROOF_LENGTH = 1;
     uint256 constant DISPATCHED_SLOT = 0;
-    uint32 constant MESSAGE_NONCE = 0;
+    uint32 constant MESSAGE_NONCE = 138;
     bytes32 constant EMPTY_BYTES32 = bytes32("");
 
     function setUp() public virtual {
@@ -91,12 +92,9 @@ contract StateProofHelpersTest is Test {
         );
 
         // Calculate the dispatched slot
-        // mapping(address mailbox => mapping(uint256 messageNonce => messageId))
+        // mapping(uint256 messageNonce => messageId)
         bytes32 dispatchedSlot = keccak256(
-            abi.encode(
-                MESSAGE_NONCE,
-                keccak256(abi.encode(MAILBOX_ADDR, DISPATCHED_SLOT))
-            )
+            abi.encode(MESSAGE_NONCE, DISPATCHED_SLOT)
         );
         bytes memory delivery = StorageProof.getStorageBytes(
             keccak256(abi.encode(dispatchedSlot)),
