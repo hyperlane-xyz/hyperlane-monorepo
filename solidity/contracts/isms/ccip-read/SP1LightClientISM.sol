@@ -36,9 +36,6 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     /// @notice LightClient to read the state root from
     ISP1LightClient public lightClient;
 
-    /// @notice Source Mailbox that will dispatch a message
-    Mailbox public sourceMailbox;
-
     /// @notice Destination Mailbox
     Mailbox public destinationMailbox;
 
@@ -52,24 +49,21 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     string[] public offchainUrls;
 
     /**
-     * @param _sourceMailbox the source chain Mailbox
      * @param _destinationMailbox the destination chain Mailbox
      * @param _dispatchedHook the source chain DispatchedHook
      * @param _dispatchedSlot the source chain DispatchedHook slot number of the dispatched mapping
      * @param _offchainUrls urls to make ccip read queries
      */
     function initialize(
-        Mailbox _sourceMailbox,
-        Mailbox _destinationMailbox,
-        DispatchedHook _dispatchedHook,
+        address _destinationMailbox,
+        address _dispatchedHook,
         address _lightClient,
         uint256 _dispatchedSlot,
         string[] memory _offchainUrls
     ) external initializer {
         __Ownable_init();
-        sourceMailbox = _sourceMailbox;
-        destinationMailbox = _destinationMailbox;
-        dispatchedHook = _dispatchedHook;
+        destinationMailbox = Mailbox(_destinationMailbox);
+        dispatchedHook = DispatchedHook(_dispatchedHook);
         lightClient = ISP1LightClient(_lightClient);
         dispatchedSlot = _dispatchedSlot;
         offchainUrls = _offchainUrls;
@@ -116,7 +110,7 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
      * @notice Gets the slot value of DispatchedHook.dispatched mapping given a slot key and proofs
      * @param _proofs encoded account proof and storage proof
      * @param _dispatchedSlotKey hash of the source chain DispatchedHook slot number to do a storage proof for
-     * @return byte value of the dispatched[sourceMailbox][nonce]
+     * @return byte value of the dispatched[nonce]
      */
     function getDispatchedValue(
         bytes calldata _proofs,
@@ -146,7 +140,7 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     /**
      * @notice Gets the current head state root from Succinct LightClient
      */
-    function getHeadStateRoot() internal view returns (bytes32) {
+    function getHeadStateRoot() public view returns (bytes32) {
         return lightClient.executionStateRoots(lightClient.head());
     }
 
@@ -165,8 +159,8 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
             abi.encodeWithSelector(
                 ISuccinctProofsService.getProofs.selector,
                 address(dispatchedHook),
-                dispatchedSlotKey(_message.nonce())
-                //messageId
+                dispatchedSlotKey(_message.nonce()),
+                getHeadStateRoot()
             ),
             SP1LightClientIsm.process.selector,
             _message
@@ -174,10 +168,10 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     }
 
     /**
-     * @notice Creates a single storage key of the source chain DispatchedHook.dispatched mapping
+     * @notice Calculates storage key of the source chain DispatchedHook.dispatched mapping
      * @param _messageNonce message nonce
      *
-     * mapping(address mailbox => mapping(uint256 messageNonce => messageId))
+     * mapping(uint256 messageNonce => messageId)
      */
     function dispatchedSlotKey(
         uint32 _messageNonce
@@ -187,7 +181,6 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
 
     /**
      * @notice Callback after CCIP read activities are complete.
-     * This validate and stores the state proof and then calls DispatchedHook to process the message
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
      * @param _proofs response from CCIP read that will be passed back to verify() through the DispatchedHook
      * @param _message data that will help construct the offchain query

@@ -12,11 +12,11 @@ interface ISuccinctProofsService {
      * Requests the Succinct proof, state proof, and returns account and storage proof
      * @param target contract address to get the proof for
      * @param storageKey storage key to get the proof for
-     * @param messageId message id to get the block number for
+     * @param slot current head slot of the LightClient
      */
     function getProofs(
         address target,
         bytes32 storageKey,
-        bytes32 messageId
-    ) external view returns (string[][] memory);
+        bytes32 slot
+    ) external view returns (string[][] memory proofs);
 }

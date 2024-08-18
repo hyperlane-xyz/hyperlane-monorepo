@@ -48,9 +48,8 @@ contract SP1LightClientIsmTest is StateProofHelpersTest {
         hook = DispatchedHook(HOOK_ADDR);
 
         sp1LightClientIsm.initialize({
-            _sourceMailbox: mailbox,
-            _destinationMailbox: mailbox,
-            _dispatchedHook: hook,
+            _destinationMailbox: address(mailbox),
+            _dispatchedHook: address(hook),
             _lightClient: address(lightClient),
             _dispatchedSlot: DISPATCHED_SLOT,
             _offchainUrls: urls
@@ -130,8 +129,9 @@ contract SP1LightClientIsmTest is StateProofHelpersTest {
             abi.encodeWithSelector(
                 ISuccinctProofsService.getProofs.selector,
                 address(HOOK_ADDR),
-                sp1LightClientIsm.dispatchedSlotKey(_messageNonce)
-            ), // Mailbox Addr, storageKeys
+                sp1LightClientIsm.dispatchedSlotKey(_messageNonce),
+                sp1LightClientIsm.getHeadStateRoot()
+            ),
             SP1LightClientIsm.process.selector,
             encodedMessage
         );
