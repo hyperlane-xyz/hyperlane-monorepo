@@ -203,8 +203,6 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
-        let chain_url: String = client.url();
-        println!("chain_url: {:?}", chain_url);
         if account_exists(client, &token_pda).unwrap() {
             println!("Warp route token already exists, skipping init");
             return;
@@ -308,18 +306,40 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
                 println!("initialized metadata pointer. Status: {status}");
 
-                // this is where the mint intialization happens
+                let required_rent = client
+                    .get_minimum_balance_for_rent_exemption(SyntheticPlugin::MINT_ACCOUNT_SIZE)
+                    .expect("querying lamports for rent failed");
+                let mint_account_balance = client
+                    .get_balance(&mint_account)
+                    .expect("failed to get balance of the mint acc");
+                let required_balance_for_metadata_rent = required_rent - mint_account_balance;
+
                 ctx.new_txn()
-                // .add(
-                //     spl_token_2022::instruction::initialize_mint2(
-                //         &spl_token_2022::id(),
-                //         &mint_account,
-                //         &ctx.payer_pubkey,
-                //         None,
-                //         decimals,
-                //     )
-                //     .unwrap(),
-                // )
+                    .add_with_description(
+                        solana_program::system_instruction::transfer(
+                            &ctx.payer_pubkey,
+                            &mint_account,
+                            required_balance_for_metadata_rent,
+                        ),
+                        format!(
+                        "Funding mint account {} with funding_amount {} to reach total balance of {}",
+                        mint_account, required_balance_for_metadata_rent, required_rent
+                    ),
+                    )
+                    .with_client(client)
+                    .send_with_payer();
+
+                // this is where the mint intialization happens
+                ctx.new_txn().add(
+                    spl_token_2022::instruction::initialize_mint2(
+                        &spl_token_2022::id(),
+                        &mint_account,
+                        &ctx.payer_pubkey,
+                        None,
+                        decimals,
+                    )
+                    .unwrap(),
+                )
             }
             TokenType::Collateral(collateral_info) => ctx.new_txn().add(
                 hyperlane_sealevel_token_collateral::instruction::init_instruction(
@@ -344,50 +364,50 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
             // the metadata initialization should happen here, but this is via the CLI most likely
-            // let mut cmd = Command::new(spl_token_binary_path.clone());
-            // cmd.args([
-            //     "initialize-metadata",
-            //     mint_account.to_string().as_str(),
-            //     token_metadata.name.as_str(),
-            //     token_metadata.symbol.as_str(),
-            //     token_metadata.uri.as_deref().unwrap_or(""),
-            //     "-p",
-            //     "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-            //     "--url",
-            //     client.url().as_str(),
-            //     "--with-compute-unit-limit",
-            //     "500000",
-            // ]);
-            // println!("running command: {:?}", cmd);
-            // let status = cmd
-            //     .stdout(Stdio::inherit())
-            //     .stderr(Stdio::inherit())
-            //     .status()
-            //     .expect("Failed to run command");
-            // println!("initialized metadata. Status: {status}");
+            let mut cmd = Command::new(spl_token_binary_path.clone());
+            cmd.args([
+                "initialize-metadata",
+                mint_account.to_string().as_str(),
+                token_metadata.name.as_str(),
+                token_metadata.symbol.as_str(),
+                token_metadata.uri.as_deref().unwrap_or(""),
+                "-p",
+                "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                "--url",
+                client.url().as_str(),
+                "--with-compute-unit-limit",
+                "500000",
+            ]);
+            println!("running command: {:?}", cmd);
+            let status = cmd
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .status()
+                .expect("Failed to run command");
+            println!("initialized metadata. Status: {status}");
 
             // then the mint authority should be set here to `mint_account`
             // `spl-token authorize <TOKEN_ADDRESS> <AUTHORITY_TYPE> <AUTHORITY_ADDRESS>`
-            // let mut cmd = Command::new(spl_token_binary_path.clone());
-            // cmd.args([
-            //     "authorize",
-            //     mint_account.to_string().as_str(),
-            //     "mint",
-            //     mint_account.to_string().as_str(),
-            //     "-p",
-            //     "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-            //     "--url",
-            //     client.url().as_str(),
-            //     "--with-compute-unit-limit",
-            //     "500000",
-            // ]);
-            // println!("running command: {:?}", cmd);
-            // let status = cmd
-            //     .stdout(Stdio::inherit())
-            //     .stderr(Stdio::inherit())
-            //     .status()
-            //     .expect("Failed to run command");
-            // println!("set the mint authority to the mint account. Status: {status}");
+            let mut cmd = Command::new(spl_token_binary_path.clone());
+            cmd.args([
+                "authorize",
+                mint_account.to_string().as_str(),
+                "mint",
+                mint_account.to_string().as_str(),
+                "-p",
+                "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                "--url",
+                client.url().as_str(),
+                "--with-compute-unit-limit",
+                "500000",
+            ]);
+            println!("running command: {:?}", cmd);
+            let status = cmd
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .status()
+                .expect("Failed to run command");
+            println!("set the mint authority to the mint account. Status: {status}");
         }
     }
 

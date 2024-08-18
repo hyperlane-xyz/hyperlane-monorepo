@@ -380,40 +380,40 @@ pub(crate) fn deploy_routers<
             H256::from_slice(&program_id.to_bytes()[..]),
         );
 
-        // configure_connection_client(
-        //     ctx,
-        //     &deployer,
-        //     &program_id,
-        //     app_config.router_config(),
-        //     chain_config,
-        // );
+        configure_connection_client(
+            ctx,
+            &deployer,
+            &program_id,
+            app_config.router_config(),
+            chain_config,
+        );
 
-        // configure_owner(
-        //     ctx,
-        //     &deployer,
-        //     &program_id,
-        //     app_config.router_config(),
-        //     chain_config,
-        // );
+        configure_owner(
+            ctx,
+            &deployer,
+            &program_id,
+            app_config.router_config(),
+            chain_config,
+        );
     }
 
-    // // Now enroll all the routers.
-    // enroll_all_remote_routers(
-    //     &deployer,
-    //     ctx,
-    //     &app_configs_to_deploy,
-    //     &chain_configs,
-    //     &routers,
-    // );
+    // Now enroll all the routers.
+    enroll_all_remote_routers(
+        &deployer,
+        ctx,
+        &app_configs_to_deploy,
+        &chain_configs,
+        &routers,
+    );
 
-    // // Call the post-deploy hook.
-    // deployer.post_deploy(
-    //     ctx,
-    //     &app_configs,
-    //     &app_configs_to_deploy,
-    //     &chain_configs,
-    //     &routers,
-    // );
+    // Call the post-deploy hook.
+    deployer.post_deploy(
+        ctx,
+        &app_configs,
+        &app_configs_to_deploy,
+        &chain_configs,
+        &routers,
+    );
 
     // Now write the program ids to a file!
     let routers_by_name: HashMap<String, H256> = routers
