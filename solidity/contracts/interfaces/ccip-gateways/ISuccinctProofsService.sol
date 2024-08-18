@@ -17,6 +17,6 @@ interface ISuccinctProofsService {
     function getProofs(
         address target,
         bytes32 storageKey,
-        bytes32 slot
+        uint256 slot
     ) external view returns (string[][] memory proofs);
 }
