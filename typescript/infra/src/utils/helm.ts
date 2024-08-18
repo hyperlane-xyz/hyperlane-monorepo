@@ -91,3 +91,13 @@ export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
 export function buildHelmChartDependencies(chartPath: string) {
   return execCmd(`cd ${chartPath} && helm dependency build`, {}, false, true);
 }
+
+export function normalizeK8sName(name: string) {
+  return (
+    name
+      .toLowerCase()
+      .substring(0, 63)
+      // Remove a trailing hyphen if it exists
+      .replace(/-$/g, '')
+  );
+}

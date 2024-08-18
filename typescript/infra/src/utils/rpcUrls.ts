@@ -15,7 +15,7 @@ import {
 } from '../agents/index.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
-import { isEthereumProtocolChain } from './utils.js';
+import { execCmd, isEthereumProtocolChain } from './utils.js';
 
 // export async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
 //   let providersSucceeded = true;
@@ -261,3 +261,55 @@ async function updateSecretAndDisablePrevious(
     }
   }
 }
+
+// abstract class SecretRpcConsumingK8sWorkload {
+//   abstract k8sSecretName(): string;
+
+//   abstract k8sPodNames(): string[];
+// }
+
+// abstract class AgentWorkload extends SecretRpcConsumingK8sWorkload {
+//   constructor(readonly environment: string, readonly context: string) {
+//     super();
+//   }
+
+//   abstract helmReleaseName(): string;
+//   // {{/*
+//   //   Create a default fully qualified app name.
+//   //   We truncate at 63 chars - 11 because some Kubernetes name fields are limited to this (by the DNS naming spec).
+//   //   If release name contains chart name it will be used as a full name.
+//   //   */}}
+//   //   {{- define "agent-common.fullname" -}}
+//   //   {{- if .Values.fullnameOverride }}
+//   //   {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+//   //   {{- else }}
+//   //   {{- $name := default .Chart.Name .Values.nameOverride }}
+//   //   {{- if contains $name .Release.Name }}
+//   //   {{- .Release.Name | trunc 63 | trimSuffix "-" }}
+//   //   {{- else }}
+//   //   {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+//   //   {{- end }}
+//   //   {{- end }}
+//   //   {{- end }}
+
+//   async function getHelmValues() {
+//     const values = await execCmd(
+//       `helm get values ${helmReleaseName()} -n ${environment}`,
+//     )
+//   }
+
+//   function agentFullName() {
+
+//   }
+
+// }
+
+// class OmniscientRelayerWorkload extends SecretRpcConsumingK8sWorkload {
+//   k8sSecretName(): string {
+//     return 'omniscient-relayer';
+//   }
+
+//   k8sPodNames(): string[] {
+//     return ['omniscient-relayer'];
+//   }
+// }

@@ -36,6 +36,7 @@ export interface HelmRootAgentValues {
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
+  fullnameOverride?: string;
 }
 
 // See rust/helm/values.yaml for the full list of options and their defaults.
