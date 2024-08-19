@@ -709,9 +709,10 @@ fn main() {
         (Pubkey::from_str(&keypair_path).unwrap(), None)
     };
 
-    let commitment = CommitmentConfig::confirmed();
+    let commitment = CommitmentConfig::processed();
 
     let mut instructions = vec![];
+
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {
         assert!(cli.compute_budget <= MAX_COMPUTE_UNIT_LIMIT);
         instructions.push(

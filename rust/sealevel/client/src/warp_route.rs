@@ -260,10 +260,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 )
                 .unwrap(),
             ),
-            TokenType::Synthetic(token_metadata) => {
+            TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
-                let init_txn = ctx
+                ctx
                     .new_txn()
                     .add(
                         hyperlane_sealevel_token::instruction::init_instruction(
@@ -656,14 +656,14 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
 
 pub fn install_spl_token_cli() {
     println!("Installing cargo 1.76.0 (required by spl-token-cli)");
-    let status = Command::new("rustup")
+    Command::new("rustup")
         .args(["toolchain", "install", "1.76.0"])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
         .expect("Failed to run command");
     println!("Installing the spl token cli");
-    let status = Command::new("cargo")
+    Command::new("cargo")
         .args([
             "+1.76.0",
             "install",
