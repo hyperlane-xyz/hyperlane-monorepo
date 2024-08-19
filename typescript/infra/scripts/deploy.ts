@@ -6,9 +6,11 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  ChainName,
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
+  HyperlaneAddressesMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -109,8 +111,17 @@ async function main() {
     );
   } else if (module === Modules.CORE) {
     config = envConfig.core;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+    console.log(
+      'Address map: ',
       getAddresses(environment, Modules.PROXY_FACTORY),
+    );
+    console.log('MultiProvider: ', multiProvider.getKnownChainNames());
+    const addresses = getAddresses(environment, Modules.PROXY_FACTORY);
+    const filteredAddresses = Object.entries(addresses).filter(([chain, _]) => {
+      return multiProvider.getKnownChainNames().includes(chain);
+    });
+    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+      Object.fromEntries(filteredAddresses) as HyperlaneAddressesMap<any>,
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(

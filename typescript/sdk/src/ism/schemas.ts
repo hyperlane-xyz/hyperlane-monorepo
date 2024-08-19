@@ -6,7 +6,7 @@ import { OwnableSchema, PausableSchema } from '../schemas.js';
 import { AggregationIsmConfig, IsmType, RoutingIsmConfig } from './types.js';
 
 const ValidatorInfoSchema = z.object({
-  signingKey: ZHash,
+  signingAddress: ZHash,
   weight: z.number(),
 });
 
@@ -58,8 +58,8 @@ export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
 export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
   z.object({
     type: z.union([
-      z.literal(IsmType.WEIGHT_MERKLE_ROOT_MULTISIG),
-      z.literal(IsmType.WEIGHT_MESSAGE_ID_MULTISIG),
+      z.literal(IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG),
+      z.literal(IsmType.WEIGHTED_MESSAGE_ID_MULTISIG),
     ]),
   }),
 );

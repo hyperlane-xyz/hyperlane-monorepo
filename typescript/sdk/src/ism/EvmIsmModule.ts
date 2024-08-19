@@ -112,6 +112,10 @@ export class EvmIsmModule extends HyperlaneModule<
         staticAggregationHookFactory:
           params.addresses.staticAggregationHookFactory,
         domainRoutingIsmFactory: params.addresses.domainRoutingIsmFactory,
+        staticMerkleRootWeightedMultisigIsmFactory:
+          params.addresses.staticMerkleRootWeightedMultisigIsmFactory,
+        staticMessageIdWeightedMultisigIsmFactory:
+          params.addresses.staticMessageIdWeightedMultisigIsmFactory,
       },
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
