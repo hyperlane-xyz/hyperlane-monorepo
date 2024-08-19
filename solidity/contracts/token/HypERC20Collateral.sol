@@ -35,7 +35,7 @@ contract HypERC20Collateral is TokenRouter {
 
     function balanceOf(
         address _account
-    ) external view override returns (uint256) {
+    ) external view virtual override returns (uint256) {
         return wrappedToken.balanceOf(_account);
     }
 
