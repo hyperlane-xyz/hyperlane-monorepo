@@ -63,7 +63,7 @@ contract ArbL2ToL1Ism is
     ) external override returns (bool) {
         bool verified = isVerified(message);
         if (!verified) {
-            require(_verifyWithOutboxCall(metadata, message));
+            _verifyWithOutboxCall(metadata, message);
         }
         releaseValueToRecipient(message);
         return true;
@@ -79,7 +79,7 @@ contract ArbL2ToL1Ism is
     function _verifyWithOutboxCall(
         bytes calldata metadata,
         bytes calldata message
-    ) internal returns (bool) {
+    ) internal {
         (
             bytes32[] memory proof,
             uint256 index,
@@ -129,8 +129,6 @@ contract ArbL2ToL1Ism is
             value,
             data
         );
-        // the above bridge call will revert if the verifyMessageId call fails
-        return true;
     }
 
     /// @inheritdoc AbstractMessageIdAuthorizedIsm
