@@ -13,7 +13,8 @@ interface IInterchainSecurityModule {
         CCIP_READ,
         ARB_L2_TO_L1,
         WEIGHT_MERKLE_ROOT_MULTISIG,
-        WEIGHT_MESSAGE_ID_MULTISIG
+        WEIGHT_MESSAGE_ID_MULTISIG,
+        OP_L2_TO_L1
     }
 
     /**

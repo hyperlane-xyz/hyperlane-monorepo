@@ -13,6 +13,7 @@ import {
   InterchainQueryChecker,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
+  proxiedFactories,
 } from '@hyperlane-xyz/sdk';
 import { objFilter } from '@hyperlane-xyz/utils';
 
@@ -154,18 +155,21 @@ async function check() {
       throw new Error('Warp route id required for warp module');
     }
     const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    const addresses = getWarpAddresses(warpRouteId);
-    const filteredAddresses = Object.keys(addresses) // filter out changes not in config
+    const warpAddresses = getWarpAddresses(warpRouteId);
+    const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
       .filter((key) => key in config)
       .reduce((obj, key) => {
-        obj[key] = addresses[key];
+        obj[key] = {
+          ...warpAddresses[key],
+          proxyAdmin: chainAddresses[key].proxyAdmin,
+        };
         return obj;
-      }, {} as typeof addresses);
+      }, {} as typeof warpAddresses);
 
     const { contractsMap, foreignDeployments } =
       attachContractsMapAndGetForeignDeployments(
         filteredAddresses,
-        hypERC20factories,
+        { ...hypERC20factories, ...proxiedFactories },
         multiProvider,
       );
 
