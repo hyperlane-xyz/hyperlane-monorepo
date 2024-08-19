@@ -308,7 +308,8 @@ contract Hyp7683 is HypERC20Collateral, ERC20Upgradeable {
         // Just burn the synthetic token
         _burn(msg.sender, _amount);
         // No nonce needed for settlement
-        return abi.encode(fastFee, 0);
+        // No fee desired for settlement
+        return abi.encode(0, 0);
     }
 
     // get claim on origin collateral
