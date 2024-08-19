@@ -81,23 +81,14 @@ export abstract class HyperlaneAppChecker<
 
   async checkProxiedContracts(
     chain: ChainName,
-    proxyAdminAddress?: Address,
+    owner: Address,
+    ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
     const expectedProxyAdminAddress =
-      proxyAdminAddress ?? this.app.getContracts(chain).proxyAdmin.address;
-    if (!expectedProxyAdminAddress) {
-      throw new Error(
-        `Checking proxied contracts for ${chain} with no admin provided`,
-      );
-    }
+      this.app.getContracts(chain).proxyAdmin?.address;
     const provider = this.multiProvider.getProvider(chain);
+
     const contracts = this.app.getContracts(chain);
-
-    const expectedProxyAdminContract = ProxyAdmin__factory.connect(
-      expectedProxyAdminAddress,
-      provider,
-    );
-
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
@@ -106,15 +97,36 @@ export abstract class HyperlaneAppChecker<
             provider,
             contract.address,
           );
-          if (!eqAddress(actualProxyAdminAddress, expectedProxyAdminAddress)) {
+          const actualProxyAdminContract = ProxyAdmin__factory.connect(
+            actualProxyAdminAddress,
+            provider,
+          );
+          const actualProxyAdminOwner = await actualProxyAdminContract.owner();
+          const expectedOwner = ownableOverrides?.['proxyAdmin'] ?? owner;
+          if (!eqAddress(actualProxyAdminOwner, expectedOwner)) {
+            const violation: OwnerViolation = {
+              chain,
+              name: 'proxyAdmin',
+              type: ViolationType.Owner,
+              actual: actualProxyAdminOwner,
+              expected: expectedOwner,
+              contract,
+            };
+            this.addViolation(violation);
+          }
+
+          // Check the ProxiedContract's admin matches expectation if it was provided
+          if (
+            expectedProxyAdminAddress &&
+            !eqAddress(actualProxyAdminAddress, expectedProxyAdminAddress)
+          ) {
             this.addViolation({
               type: ViolationType.ProxyAdmin,
               chain,
               name,
               expected: expectedProxyAdminAddress,
               actual: actualProxyAdminAddress,
-              expectedProxyAdmin: expectedProxyAdminContract,
-              proxy: contract,
+              proxyAddress: contract.address,
             } as ProxyAdminViolation);
           }
         }

@@ -9,16 +9,29 @@ export abstract class ProxiedRouterChecker<
   App extends RouterApp<Factories>,
   Config extends ProxiedRouterConfig,
 > extends HyperlaneRouterChecker<Factories, App, Config> {
-  async checkOwnership(chain: ChainName): Promise<void> {
+  getOwnableOverrides(chain: ChainName): any {
     const config = this.configMap[chain];
-    let ownableOverrides = config.ownerOverrides;
     if (config.timelock) {
-      ownableOverrides = {
+      return {
         proxyAdmin: this.app.getAddresses(chain).timelockController,
       };
     }
+  }
 
-    return super.checkOwnership(chain, config.owner, ownableOverrides);
+  async checkOwnership(chain: ChainName): Promise<void> {
+    return super.checkOwnership(
+      chain,
+      this.configMap[chain].owner,
+      this.getOwnableOverrides(chain),
+    );
+  }
+
+  async checkProxiedContracts(chain: ChainName): Promise<void> {
+    return super.checkProxiedContracts(
+      chain,
+      this.configMap[chain].owner,
+      this.getOwnableOverrides(chain),
+    );
   }
 
   async checkChain(chain: ChainName): Promise<void> {

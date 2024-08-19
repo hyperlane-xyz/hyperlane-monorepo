@@ -15,7 +15,7 @@ import {
   hypERC20factories,
   proxiedFactories,
 } from '@hyperlane-xyz/sdk';
-import { objFilter } from '@hyperlane-xyz/utils';
+import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
@@ -161,8 +161,19 @@ async function check() {
       .reduce((obj, key) => {
         obj[key] = {
           ...warpAddresses[key],
-          proxyAdmin: chainAddresses[key].proxyAdmin,
         };
+
+        const proxyAdmin = eqAddress(
+          config[key].owner,
+          envConfig.owners[key].owner,
+        )
+          ? chainAddresses[key].proxyAdmin
+          : undefined;
+
+        if (proxyAdmin) {
+          obj[key].proxyAdmin = proxyAdmin;
+        }
+
         return obj;
       }, {} as typeof warpAddresses);
 
