@@ -3125,8 +3125,8 @@
       "aggregationHook": "0x198e8c938EC00Da143e772628c7958DD97B7c2A6",
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.zircuit.com/api",
-          "family": "other",
+          "apiUrl": "https://explorer.zircuit.com/api/contractVerifyHardhat",
+          "family": "etherscan",
           "name": "Zircuit Eplorer",
           "url": "https://explorer.zircuit.com"
         }
@@ -3147,12 +3147,12 @@
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xDa7cECb05C4aeB02c1aFDE277d4306a2da7Bd762",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://gateway.safe.zircuit.com/api",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.zircuit.com",
       "index": {
         "from": 1511458
       },
       "interchainGasPaymaster": "0x03cF708E42C89623bd83B281A56935cB562b9258",
-      "interchainSecurityModule": "0x636bB3fCa3B74B942bA8C258c44109384B252979",
+      "interchainSecurityModule": "0x817D346Add1D08Af124a90e43123111c9d6813B3",
       "mailbox": "0xc2FbB9411186AB3b1a6AFCCA702D1a80B48b197c",
       "merkleTreeHook": "0x4C97D35c668EE5194a13c8DE8Afc18cce40C9F28",
       "name": "zircuit",
@@ -3172,6 +3172,9 @@
         },
         {
           "http": "https://zircuit1-mainnet.liquify.com"
+        },
+        {
+          "http": "https://zircuit-mainnet.drpc.org"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
