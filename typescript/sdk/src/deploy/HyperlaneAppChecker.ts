@@ -84,7 +84,7 @@ export abstract class HyperlaneAppChecker<
     owner: Address,
     ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
-    // expectedProxyAdminAddress may be undefined, this means that expectedProxyAdminAddress is not set in the config/not known at deployment time/not using a singleton proxyAdmin
+    // expectedProxyAdminAddress may be undefined, this means that proxyAdmin is not set in the config/not known at deployment time
     const expectedProxyAdminAddress =
       this.app.getContracts(chain).proxyAdmin?.address;
     const provider = this.multiProvider.getProvider(chain);
@@ -114,7 +114,7 @@ export abstract class HyperlaneAppChecker<
             }
           } else {
             // config does not define an expected ProxyAdmin address, this means that checkOwnership will not be able to check the ownership of the ProxyAdmin contract
-            // as it is not explicitly defined in the config. We therefore check the ownership of the ProxyAdmin contract against the owner of the contracts here
+            // as it is not explicitly defined in the config. We therefore check the ownership of the ProxyAdmin contract here.
             const actualProxyAdminContract = ProxyAdmin__factory.connect(
               actualProxyAdminAddress,
               provider,
