@@ -27,8 +27,9 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
-export const getSmartProviderErrorMessage = (errorMsg: string) =>
-  `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+export function getSmartProviderErrorMessage(errorMsg: string): string {
+  return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+}
 
 // This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
 const RPC_SERVER_ERRORS = [
