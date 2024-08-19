@@ -103,9 +103,7 @@ contract OPL2ToL1IsmTest is Test {
             )
         );
 
-        testMetadata = StandardHookMetadata.overrideMsgValue(GAS_QUOTE);
-
-        hook.postDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: GAS_QUOTE}(testMetadata, encodedMessage);
     }
 
     function testFork_postDispatch_revertWhen_chainIDNotSupported() public {

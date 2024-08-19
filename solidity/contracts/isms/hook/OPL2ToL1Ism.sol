@@ -68,7 +68,7 @@ contract OPL2ToL1Ism is
     ) external override returns (bool) {
         bool verified = isVerified(message);
         if (!verified) {
-            require(_verifyWithPortalCall(metadata, message));
+            _verifyWithPortalCall(metadata, message);
         }
         releaseValueToRecipient(message);
         return true;
@@ -83,7 +83,7 @@ contract OPL2ToL1Ism is
     function _verifyWithPortalCall(
         bytes calldata metadata,
         bytes calldata message
-    ) internal returns (bool) {
+    ) internal {
         require(
             metadata.checkCalldataLength(),
             "OPL2ToL1Ism: invalid data length"
@@ -97,10 +97,8 @@ contract OPL2ToL1Ism is
             metadata,
             (IOptimismPortal.WithdrawalTransaction)
         );
-        portal.finalizeWithdrawalTransaction(withdrawal);
-
         // if the finalizeWithdrawalTransaction call is successful, the message is verified
-        return true;
+        portal.finalizeWithdrawalTransaction(withdrawal);
     }
 
     /// @inheritdoc AbstractMessageIdAuthorizedIsm

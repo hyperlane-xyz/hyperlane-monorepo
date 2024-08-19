@@ -8,6 +8,18 @@ pragma solidity >=0.8.0;
 library OPL2ToL1Metadata {
     // bottom offset to the start of message id in the metadata
     uint256 private constant MESSAGE_ID_OFFSET = 88;
+    // from IOptimismPortal.WithdrawalTransaction
+    // Σ {
+    //      nonce                          = 32 bytes
+    //      PADDING + sender               = 32 bytes
+    //      PADDING + target               = 32 bytes
+    //      value                          = 32 bytes
+    //      gasLimit                       = 32 bytes
+    //      _data
+    //          OFFSET                      = 32 bytes
+    //          LENGTH                      = 32 bytes
+    // } = 252 bytes
+    uint256 private constant FIXED_METADATA_LENGTH = 252;
     // metadata here is double encoded call relayMessage(..., verifyMessageId)
     // Σ {
     //      _selector                       =  4 bytes
@@ -43,11 +55,8 @@ library OPL2ToL1Metadata {
     function checkCalldataLength(
         bytes calldata _metadata
     ) internal pure returns (bool) {
-        (, , , , , bytes memory messengerData) = abi.decode(
-            _metadata,
-            (uint256, address, address, uint256, uint256, bytes)
-        );
-
-        return messengerData.length == MESSENGER_CALLDATA_LENGTH;
+        return
+            _metadata.length ==
+            MESSENGER_CALLDATA_LENGTH + FIXED_METADATA_LENGTH;
     }
 }
