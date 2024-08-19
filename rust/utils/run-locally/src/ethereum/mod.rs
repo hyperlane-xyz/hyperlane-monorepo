@@ -19,12 +19,12 @@ mod multicall;
 pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     log!("Installing typescript dependencies...");
     let yarn_monorepo = Program::new("yarn").working_dir(MONOREPO_ROOT_PATH);
-    yarn_monorepo.clone().cmd("install").run().join();
-    if !config.is_ci_env {
-        // don't need to clean in the CI
-        yarn_monorepo.clone().cmd("clean").run().join();
-    }
-    yarn_monorepo.clone().cmd("build").run().join();
+    // yarn_monorepo.clone().cmd("install").run().join();
+    // if !config.is_ci_env {
+    //     // don't need to clean in the CI
+    //     yarn_monorepo.clone().cmd("clean").run().join();
+    // }
+    // yarn_monorepo.clone().cmd("build").run().join();
 
     if !config.is_ci_env {
         // Kill any existing anvil processes just in case since it seems to have issues getting cleaned up

@@ -968,6 +968,201 @@
       "technicalStack": "arbitrumnitro",
       "testRecipient": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
       "validatorAnnounce": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C"
+    },
+    "test1": {
+      "ROUTING": "0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3",
+      "aggregationHook": "0x7F54A0734c5B443E5B04cc26B54bb8ecE0455785",
+      "blockExplorers": [
+        {
+          "apiKey": "fakekey",
+          "apiUrl": "https://api.etherscan.io/api",
+          "family": "etherscan",
+          "name": "Etherscan",
+          "url": "https://etherscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 0
+      },
+      "chainId": 9913371,
+      "defaultIsm": "0xF908e307066dA7a10B7A0353200e9ae39351744f",
+      "displayName": "Test 1",
+      "domainId": 9913371,
+      "domainRoutingIsm": "0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3",
+      "fallbackRoutingHook": "0x99bbA657f2BbC93c02D617f8bA121cB8Fc104Acf",
+      "index": {
+        "from": 30
+      },
+      "interchainGasPaymaster": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
+      "interchainSecurityModule": "0xb0279Db6a2F1E01fbC8483FCCef0Be2bC6299cC3",
+      "isTestnet": true,
+      "mailbox": "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E",
+      "merkleTreeHook": "0x4826533B4897376654Bb4d4AD88B7faFD0C98528",
+      "name": "test1",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "opStackHook": "0x90c84237fDdf091b1E63f369AF122EB46000bc70",
+      "protocol": "ethereum",
+      "protocolFee": "0x1291Be112d480055DaFd8a610b7d1e203891C274",
+      "proxyAdmin": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:8545"
+        }
+      ],
+      "storageGasOracle": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF",
+      "testRecipient": "0xCD8a1C3ba11CF5ECfa6267617243239504a98d90",
+      "validatorAnnounce": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575"
+    },
+    "test2": {
+      "ROUTING": "0xe082b26cEf079a095147F35c9647eC97c2401B83",
+      "aggregationHook": "0x5f07F66a6c12BAE727A0e0C84c2f83Ef3c83b44c",
+      "blockExplorers": [
+        {
+          "apiKey": "fakekey",
+          "apiUrl": "https://api.etherscan.io/api",
+          "family": "etherscan",
+          "name": "Etherscan",
+          "url": "https://etherscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 1
+      },
+      "chainId": 9913372,
+      "defaultIsm": "0x1E01182454073691d6190FC0F977cB7D646981E1",
+      "displayName": "Test 2",
+      "domainId": 9913372,
+      "domainRoutingIsm": "0x3Ca8f9C04c7e3E1624Ac2008F92f6F366A869444",
+      "fallbackRoutingHook": "0x4C4a2f8c81640e47606d3fd77B353E87Ba015584",
+      "index": {
+        "from": 57
+      },
+      "interchainGasPaymaster": "0xDC11f7E700A4c898AE5CAddB1082cFfa76512aDD",
+      "interchainSecurityModule": "0x3Ca8f9C04c7e3E1624Ac2008F92f6F366A869444",
+      "isTestnet": true,
+      "mailbox": "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650",
+      "merkleTreeHook": "0x04C89607413713Ec9775E14b954286519d836FEf",
+      "name": "test2",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "protocolFee": "0x0355B7B8cb128fA5692729Ab3AAa199C1753f726",
+      "proxyAdmin": "0x2bdCC0de6bE1f7D2ee689a0342D76F52E8EFABa3",
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:8545"
+        }
+      ],
+      "storageGasOracle": "0x21dF544947ba3E8b3c32561399E88B52Dc8b2823",
+      "testRecipient": "0x172076E0166D1F9Cc711C77Adf8488051744980C",
+      "validatorAnnounce": "0xf4B146FbA71F41E0592668ffbF264F1D186b2Ca8"
+    },
+    "test3": {
+      "ROUTING": "0x06cd7788D77332cF1156f1E327eBC090B5FF16a3",
+      "aggregationHook": "0xd5BA21a5bDE25af311a900191c52ce9Fc8Ab9b8d",
+      "blockExplorers": [
+        {
+          "apiKey": "fakekey",
+          "apiUrl": "https://api.etherscan.io/api",
+          "family": "etherscan",
+          "name": "Etherscan",
+          "url": "https://etherscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 2
+      },
+      "chainId": 9913373,
+      "defaultIsm": "0x70A87cfB7d93284ea9Ad4834BBacbbd4b2A85bb4",
+      "displayName": "Test 3",
+      "domainId": 9913373,
+      "domainRoutingIsm": "0xa12fFA0B9f159BB4C54bce579611927Addc51610",
+      "fallbackRoutingHook": "0xf953b3A269d80e3eB0F2947630Da976B896A8C5b",
+      "index": {
+        "from": 84
+      },
+      "interchainGasPaymaster": "0xe8D2A1E88c91DCd5433208d4152Cc4F399a7e91d",
+      "interchainSecurityModule": "0xa12fFA0B9f159BB4C54bce579611927Addc51610",
+      "isTestnet": true,
+      "mailbox": "0x2B0d36FACD61B71CC05ab8F3D2355ec3631C0dd5",
+      "merkleTreeHook": "0xA4899D35897033b927acFCf422bc745916139776",
+      "name": "test3",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "protocolFee": "0xCace1b78160AE76398F486c8a18044da0d66d86D",
+      "proxyAdmin": "0xBEc49fA140aCaA83533fB00A2BB19bDdd0290f25",
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:8545"
+        }
+      ],
+      "storageGasOracle": "0xAA292E8611aDF267e563f334Ee42320aC96D0463",
+      "testRecipient": "0xc0F115A19107322cFBf1cDBC7ea011C19EbDB4F8",
+      "validatorAnnounce": "0xF8e31cb472bc70500f08Cd84917E5A1912Ec8397"
+    },
+    "test4": {
+      "aggregationHook": "0xfD4Ab5938aAcE9B094cc3B298d18be83E170B2fc",
+      "blockExplorers": [
+        {
+          "apiKey": "fakekey",
+          "apiUrl": "https://api.etherscan.io/api",
+          "family": "etherscan",
+          "name": "Etherscan",
+          "url": "https://etherscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 0
+      },
+      "chainId": 31337,
+      "displayName": "Test 4",
+      "domainId": 31337,
+      "domainRoutingIsm": "0x532B02BD614Fd18aEE45603d02866cFb77575CB3",
+      "fallbackRoutingHook": "0x1f10F3Ba7ACB61b2F50B9d6DdCf91a6f787C0E82",
+      "index": {
+        "from": 111
+      },
+      "interchainGasPaymaster": "0x5fc748f1FEb28d7b76fa1c6B07D8ba2d5535177c",
+      "interchainSecurityModule": "0x532B02BD614Fd18aEE45603d02866cFb77575CB3",
+      "isTestnet": true,
+      "mailbox": "0x07882Ae1ecB7429a84f1D53048d35c4bB2056877",
+      "merkleTreeHook": "0xE3011A37A904aB90C8881a99BD1F6E21401f1522",
+      "name": "test4",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "protocolFee": "0x8A93d247134d91e0de6f96547cB0204e5BE8e5D8",
+      "proxyAdmin": "0x34B40BA116d5Dec75548a9e9A8f15411461E8c70",
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:8545"
+        }
+      ],
+      "storageGasOracle": "0x457cCf29090fe5A24c19c1bc95F492168C0EaFdb",
+      "testRecipient": "0xd6e1afe5cA8D00A2EFC01B89997abE2De47fdfAf",
+      "validatorAnnounce": "0xF32D39ff9f6Aa7a7A64d7a4F00a54826Ef791a55"
     }
   },
   "defaultRpcConsensusType": "fallback"
