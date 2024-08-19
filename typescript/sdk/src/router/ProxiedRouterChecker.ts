@@ -1,3 +1,4 @@
+import { AddressesMap } from '../contracts/types.js';
 import { ChainName } from '../types.js';
 
 import { HyperlaneRouterChecker } from './HyperlaneRouterChecker.js';
@@ -9,13 +10,16 @@ export abstract class ProxiedRouterChecker<
   App extends RouterApp<Factories>,
   Config extends ProxiedRouterConfig,
 > extends HyperlaneRouterChecker<Factories, App, Config> {
-  getOwnableOverrides(chain: ChainName): any {
+  getOwnableOverrides(chain: ChainName): AddressesMap | undefined {
     const config = this.configMap[chain];
-    if (config.timelock) {
-      return {
+    let ownableOverrides = config?.ownerOverrides;
+    if (config?.timelock) {
+      ownableOverrides = {
+        ...ownableOverrides,
         proxyAdmin: this.app.getAddresses(chain).timelockController,
       };
     }
+    return ownableOverrides;
   }
 
   async checkOwnership(chain: ChainName): Promise<void> {

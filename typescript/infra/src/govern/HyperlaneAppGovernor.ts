@@ -438,11 +438,7 @@ export abstract class HyperlaneAppGovernor<
   async handleProxyAdminViolation(violation: ProxyAdminViolation) {
     const provider = this.checker.multiProvider.getProvider(violation.chain);
     const code = await provider.getCode(violation.expected);
-
-    const expectedProxyAdmin = ProxyAdmin__factory.connect(
-      violation.expected,
-      provider,
-    );
+    const proxyAdminInterface = ProxyAdmin__factory.createInterface();
 
     let call;
     if (code !== '0x') {
@@ -451,10 +447,10 @@ export abstract class HyperlaneAppGovernor<
         chain: violation.chain,
         call: {
           to: violation.actual,
-          data: expectedProxyAdmin.interface.encodeFunctionData(
-            'changeProxyAdmin',
-            [violation.proxyAddress, violation.expected],
-          ),
+          data: proxyAdminInterface.encodeFunctionData('changeProxyAdmin', [
+            violation.proxyAddress,
+            violation.expected,
+          ]),
           value: BigNumber.from(0),
           description: `Change proxyAdmin of transparent proxy ${violation.proxyAddress} from ${violation.actual} to ${violation.expected}`,
         },

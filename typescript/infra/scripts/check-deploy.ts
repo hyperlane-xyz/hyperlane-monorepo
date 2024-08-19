@@ -167,7 +167,7 @@ async function check() {
           config[key].owner,
           envConfig.owners[key].owner,
         )
-          ? chainAddresses[key].proxyAdmin
+          ? chainAddresses[key]?.proxyAdmin
           : undefined;
 
         if (proxyAdmin) {
