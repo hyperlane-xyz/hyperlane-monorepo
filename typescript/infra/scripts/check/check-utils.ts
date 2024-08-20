@@ -1,7 +1,11 @@
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
+  CheckerViolation,
   HypERC20App,
   HypERC20Checker,
+  HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
@@ -11,47 +15,49 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
   proxiedFactories,
 } from '@hyperlane-xyz/sdk';
 import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../config/contexts.js';
-import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
-import { getWarpConfig } from '../config/warp.js';
-import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor.js';
-import { HyperlaneCoreGovernor } from '../src/govern/HyperlaneCoreGovernor.js';
-import { HyperlaneIgpGovernor } from '../src/govern/HyperlaneIgpGovernor.js';
-import { ProxiedRouterGovernor } from '../src/govern/ProxiedRouterGovernor.js';
-import { Role } from '../src/roles.js';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
-import { logViolationDetails } from '../src/utils/violation.js';
-
+import { Contexts } from '../../config/contexts.js';
+import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
+import { getWarpConfig } from '../../config/warp.js';
+import { EnvironmentConfig } from '../../src/config/environment.js';
+import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
+import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
+import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
+import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
+import { Role } from '../../src/roles.js';
+import { impersonateAccount, useLocalProvider } from '../../src/utils/fork.js';
+import { logViolationDetails } from '../../src/utils/violation.js';
 import {
   Modules,
   getArgs as getRootArgs,
   getWarpAddresses,
+  withAsDeployer,
   withChain,
   withContext,
+  withGovern,
   withModuleAndFork,
   withWarpRouteId,
-} from './agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
-import { getHelloWorldApp } from './helloworld/utils.js';
+} from '../agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
+import { getHelloWorldApp } from '../helloworld/utils.js';
 
-function getArgs() {
-  return withChain(
-    withWarpRouteId(withModuleAndFork(withContext(getRootArgs()))),
-  )
-    .boolean('asDeployer')
-    .default('asDeployer', false)
-    .boolean('govern')
-    .default('govern', false)
-    .alias('g', 'govern').argv;
+export function getCheckDeployArgs() {
+  return withAsDeployer(
+    withGovern(
+      withChain(withWarpRouteId(withModuleAndFork(withContext(getRootArgs())))),
+    ),
+  );
 }
 
-async function check() {
+export async function check(
+  argv?: Record<string, any>,
+): Promise<void | CheckerViolation> {
   const {
     fork,
     govern,
@@ -61,7 +67,8 @@ async function check() {
     chain,
     asDeployer,
     warpRouteId,
-  } = await getArgs();
+  } = argv ?? (await getCheckDeployArgs().argv);
+
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -85,11 +92,86 @@ async function check() {
     environment,
     multiProvider,
   );
+
+  const governor = await getGovernor(
+    module,
+    multiProvider,
+    core,
+    envConfig,
+    chainAddresses,
+    context,
+    chain,
+    fork,
+    warpRouteId,
+  );
+
+  if (!governor) {
+    return;
+  }
+
+  if (fork) {
+    await governor.checker.checkChain(fork);
+    if (govern) {
+      await governor.govern(false, fork);
+    }
+  } else if (chain) {
+    await governor.checker.checkChain(chain);
+    if (govern) {
+      await governor.govern(true, chain);
+    }
+  } else {
+    await governor.checker.check();
+    if (govern) {
+      await governor.govern();
+    }
+  }
+
+  if (!govern) {
+    const violations = governor.checker.violations;
+    if (violations.length > 0) {
+      console.table(violations, [
+        'chain',
+        'remote',
+        'name',
+        'type',
+        'subType',
+        'actual',
+        'expected',
+      ]);
+
+      logViolationDetails(violations);
+
+      if (!fork) {
+        throw new Error(
+          `Checking ${module} deploy yielded ${violations.length} violations`,
+        );
+      }
+    } else {
+      console.info(`${module} checker found no violations`);
+    }
+  }
+}
+
+const getGovernor = async (
+  module: Modules,
+  multiProvider: MultiProvider,
+  core: HyperlaneCore,
+  envConfig: EnvironmentConfig,
+  chainAddresses: ChainMap<ChainAddresses>,
+  context: Contexts,
+  chain?: string,
+  fork?: string,
+  warpRouteId?: string,
+) => {
+  let governor: HyperlaneAppGovernor<any, any>;
+
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
     chainAddresses,
     multiProvider,
   );
+
   const routerConfig = core.getRouterConfig(envConfig.owners);
+
   const icaChainAddresses = objFilter(
     chainAddresses,
     (chain, addresses): addresses is Record<string, string> =>
@@ -100,7 +182,6 @@ async function check() {
     multiProvider,
   );
 
-  let governor: HyperlaneAppGovernor<any, any>;
   if (module === Modules.CORE) {
     const checker = new HyperlaneCoreChecker(
       multiProvider,
@@ -167,7 +248,7 @@ async function check() {
         // this will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin
         const proxyAdmin = eqAddress(
           config[key].owner,
-          envConfig.owners[key].owner,
+          envConfig.owners[key]?.owner,
         )
           ? chainAddresses[key]?.proxyAdmin
           : undefined;
@@ -218,52 +299,5 @@ async function check() {
     return;
   }
 
-  if (fork) {
-    await governor.checker.checkChain(fork);
-    if (govern) {
-      await governor.govern(false, fork);
-    }
-  } else if (chain) {
-    await governor.checker.checkChain(chain);
-    if (govern) {
-      await governor.govern(true, chain);
-    }
-  } else {
-    await governor.checker.check();
-    if (govern) {
-      await governor.govern();
-    }
-  }
-
-  if (!govern) {
-    const violations = governor.checker.violations;
-    if (violations.length > 0) {
-      console.table(violations, [
-        'chain',
-        'remote',
-        'name',
-        'type',
-        'subType',
-        'actual',
-        'expected',
-      ]);
-
-      logViolationDetails(violations);
-
-      if (!fork) {
-        throw new Error(
-          `Checking ${module} deploy yielded ${violations.length} violations`,
-        );
-      }
-    } else {
-      console.info(`${module} Checker found no violations`);
-    }
-  }
-}
-
-check()
-  .then()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+  return governor;
+};

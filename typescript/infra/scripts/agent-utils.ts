@@ -109,6 +109,16 @@ export function withContext<T>(args: Argv<T>) {
     .demandOption('context');
 }
 
+export function withAsDeployer<T>(args: Argv<T>) {
+  return args
+    .describe('asDeployer', 'Set signer to the deployer key')
+    .default('asDeployer', false);
+}
+
+export function withGovern<T>(args: Argv<T>) {
+  return args.boolean('govern').default('govern', false).alias('g', 'govern');
+}
+
 export function withChainRequired<T>(args: Argv<T>) {
   return withChain(args).demandOption('chain');
 }
