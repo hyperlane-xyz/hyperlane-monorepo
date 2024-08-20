@@ -265,8 +265,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
-                ctx
-                    .new_txn()
+                ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token::instruction::init_instruction(
                             program_id,
@@ -301,29 +300,6 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .expect("Failed to run command");
 
                 println!("initialized metadata pointer. Status: {status}");
-
-                let required_rent = client
-                    .get_minimum_balance_for_rent_exemption(SyntheticPlugin::MINT_ACCOUNT_SIZE)
-                    .expect("querying lamports for rent failed");
-                let mint_account_balance = client
-                    .get_balance(&mint_account)
-                    .expect("failed to get balance of the mint acc");
-                let required_balance_for_metadata_rent = required_rent.saturating_sub(mint_account_balance);
-
-                ctx.new_txn()
-                    .add_with_description(
-                        solana_program::system_instruction::transfer(
-                            &ctx.payer_pubkey,
-                            &mint_account,
-                            required_balance_for_metadata_rent,
-                        ),
-                        format!(
-                        "Funding mint account {} with funding_amount {} to reach total balance of {}",
-                        mint_account, required_balance_for_metadata_rent, required_rent
-                    ),
-                    )
-                    .with_client(client)
-                    .send_with_payer();
 
                 ctx.new_txn().add(
                     spl_token_2022::instruction::initialize_mint2(
