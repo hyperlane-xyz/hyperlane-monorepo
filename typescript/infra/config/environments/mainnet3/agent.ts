@@ -295,7 +295,7 @@ const metricAppContexts = [
   },
   {
     name: 'renzo_ezeth',
-    matchingList: routerMatchingList(renzoEzEthAddresses),
+    matchingList: matchingList(renzoEzEthAddresses),
   },
   {
     name: 'renzo_ezeth_old',
