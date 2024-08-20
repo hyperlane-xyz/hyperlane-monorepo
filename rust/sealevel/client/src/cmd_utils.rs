@@ -72,7 +72,7 @@ pub(crate) fn deploy_program(
     ];
 
     if local_domain.eq(&SOLANA_DOMAIN) {
-        command.append(&mut vec!["--with-compute-unit-price", "2500000"]);
+        command.append(&mut vec!["--with-compute-unit-price", "250000"]);
     }
 
     build_cmd(command.as_slice(), None, None);

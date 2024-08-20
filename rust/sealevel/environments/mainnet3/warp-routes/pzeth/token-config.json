@@ -1,0 +1,11 @@
+{
+  "solana": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Renzo Restaked LST",
+    "symbol": "pzETH",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/12660fd34d30e960a748d87408a8d88f634f7454/deployments/warp_routes/pzETH/ethereum-solana-metadata.json",
+    "interchainGasPaymaster": "5FG1TUuhXGKdMbbH8uHEnUghazD4aVfEPAgKLNGNx3SL",
+    "remoteDecimals": 18
+  }
+}

@@ -377,6 +377,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 client.url().as_str(),
                 "--with-compute-unit-limit",
                 "500000",
+                "--mint-authority",
+                // TODO fix
+                "~/solana-mainnet-deployer-keypair.json",
+                // also --signer? or fee payer
             ]);
             println!("running command: {:?}", cmd);
             let status = cmd
@@ -400,6 +404,11 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 client.url().as_str(),
                 "--with-compute-unit-limit",
                 "500000",
+                // TODO fix
+                "--fee-payer",
+                "~/solana-mainnet-deployer-keypair.json",
+                "--authority",
+                "~/solana-mainnet-deployer-keypair.json",
             ]);
             println!("running command: {:?}", cmd);
             let status = cmd
