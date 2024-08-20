@@ -39,6 +39,8 @@ use crate::{
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
+const TOKEN_2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
 /// Configuration relating to decimals.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -279,19 +281,13 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 let (mint_account, _mint_bump) =
                     Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
 
-                // the metadata pointer should be initialized here, right before the mint initialization below
-                // but this is via the CLI most likely
-                // `spl-token initialize-metadata [FLAGS] [OPTIONS] <TOKEN_MINT_ADDRESS> <TOKEN_NAME> <TOKEN_SYMBOL> <TOKEN_URI>`
-                // `spl-token update-metadata-address <TOKEN_MINT_ADDRESS> <METADATA_ADDRESS>`
-                let chain_url = client.url();
-                println!("chain_url: {:?}", chain_url);
                 let mut cmd = Command::new(spl_token_binary_path.clone());
                 cmd.args([
                     "create-token",
                     mint_account.to_string().as_str(),
                     "--enable-metadata",
                     "-p",
-                    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                    TOKEN_2022_PROGRAM_ID,
                     "--url",
                     client.url().as_str(),
                     "--with-compute-unit-limit",
@@ -312,7 +308,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 let mint_account_balance = client
                     .get_balance(&mint_account)
                     .expect("failed to get balance of the mint acc");
-                let required_balance_for_metadata_rent = required_rent - mint_account_balance;
+                let required_balance_for_metadata_rent = required_rent.saturating_sub(mint_account_balance);
 
                 ctx.new_txn()
                     .add_with_description(
@@ -329,7 +325,6 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .with_client(client)
                     .send_with_payer();
 
-                // this is where the mint intialization happens
                 ctx.new_txn().add(
                     spl_token_2022::instruction::initialize_mint2(
                         &spl_token_2022::id(),
@@ -359,11 +354,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         .with_client(client)
         .send_with_payer();
 
-        // do the token-2022 cli initialization steps here
         if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
             let (mint_account, _mint_bump) =
                 Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
-            // the metadata initialization should happen here, but this is via the CLI most likely
+
             let mut cmd = Command::new(spl_token_binary_path.clone());
             cmd.args([
                 "initialize-metadata",
@@ -372,7 +366,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 token_metadata.symbol.as_str(),
                 token_metadata.uri.as_deref().unwrap_or(""),
                 "-p",
-                "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                TOKEN_2022_PROGRAM_ID,
                 "--url",
                 client.url().as_str(),
                 "--with-compute-unit-limit",
@@ -386,8 +380,6 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .expect("Failed to run command");
             println!("initialized metadata. Status: {status}");
 
-            // then the mint authority should be set here to `mint_account`
-            // `spl-token authorize <TOKEN_ADDRESS> <AUTHORITY_TYPE> <AUTHORITY_ADDRESS>`
             let mut cmd = Command::new(spl_token_binary_path.clone());
             cmd.args([
                 "authorize",
@@ -395,7 +387,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 "mint",
                 mint_account.to_string().as_str(),
                 "-p",
-                "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                TOKEN_2022_PROGRAM_ID,
                 "--url",
                 client.url().as_str(),
                 "--with-compute-unit-limit",
