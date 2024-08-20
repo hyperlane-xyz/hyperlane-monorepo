@@ -163,6 +163,8 @@ async function check() {
           ...warpAddresses[key],
         };
 
+        // if the owner in the config is an AW account, set the proxyAdmin to the AW singleton proxyAdmin
+        // this will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin
         const proxyAdmin = eqAddress(
           config[key].owner,
           envConfig.owners[key].owner,
