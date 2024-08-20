@@ -430,7 +430,7 @@ export class HyperlaneSmartProvider
     errors: any[],
     fallbackMsg: string,
   ): void {
-    this.logger.error(fallbackMsg);
+    this.logger.debug(fallbackMsg);
     if (errors.length === 0) throw new Error(fallbackMsg);
 
     const rpcServerError = errors.find((e) =>
