@@ -293,10 +293,16 @@ async fn test_initialize() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
-            .await
-            .unwrap();
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        Default::default(),
+        Pubkey::new_unique(),
+    )
+    .await
+    .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -404,10 +410,16 @@ async fn transfer_from_remote(
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
-            .await
-            .unwrap();
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        Default::default(),
+        Pubkey::new_unique(),
+    )
+    .await
+    .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -545,10 +557,16 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let _mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
-            .await
-            .unwrap();
+    let _mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        Default::default(),
+        Pubkey::new_unique(),
+    )
+    .await
+    .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
