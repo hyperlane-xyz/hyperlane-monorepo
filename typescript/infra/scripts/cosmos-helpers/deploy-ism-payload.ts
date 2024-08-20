@@ -6,6 +6,31 @@ import { strip0x } from '@hyperlane-xyz/utils';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+/**
+ * Generates a yaml payload intended to be consumed as a config by the cw-hyperlane
+ * deploy CLI. Expected output is of the form:
+ * ```
+ * deploy:
+ *   ism:
+ *     type: multisig
+ *     validators:
+ *       "1":
+ *         addrs:
+ *           - 03c842db86a6a3e524d4a6615390c1ea8e2b9541
+ *           - 94438a7de38d4548ae54df5c6010c4ebc5239eae
+ *           - 5450447aee7b544c462c9352bef7cad049b0c2dc
+ *           - 38c7a4ca1273ead2e867d096adbcdd0e2acb21d8
+ *           - b3ac35d3988bca8c2ffd195b1c6bee18536b317b
+ *           - b683b742b378632a5f73a2a5a45801b3489bba44
+ *           - bf1023eff3dba21263bf2db2add67a0d6bcda2de
+ *        threshold: 4
+ * ```
+ *
+ * Which can be copied into a config YAML file and passed to the deploy CLI.
+ * Some additional context can be found here:
+ * https://www.notion.so/hyperlanexyz/Updating-Neutron-default-ISM-091a3528343c4e7b98453768eb950b38
+ */
+
 async function main() {
   const { environment } = await getArgs().argv;
   const config = getEnvironmentConfig(environment);
@@ -21,6 +46,7 @@ async function main() {
       return [
         multiProvider.getDomainId(chain),
         {
+          // Must strip 0x from addresses for compatibility with cosmos tooling
           addrs: multisig.validators.map(strip0x),
           threshold: multisig.threshold,
         },
@@ -38,19 +64,6 @@ async function main() {
   };
 
   console.log(yamlStringify(deployConfig));
-
-  // const keyName = 'low_balance_test';
-
-  // for (const payload of payloads) {
-  //   const cmd = `neutrond tx wasm execute neutron1pa0fupajl0ysmdylcwau5szdkdcxg7rxt967p04felf9n6hc7zvqh4ycv9 '${JSON.stringify(
-  //     payload,
-  //   )}' --from ${keyName} --chain-id neutron-1 --node https://rpc-magnetix.neutron-1.neutron.org:443 --fees 50000untrn`;
-
-  //   console.log(cmd);
-
-  //   return;
-  // }
-  // // console.log(JSON.stringify(payload, null, 2));
 }
 
 main().catch((err) => {
