@@ -359,6 +359,24 @@ export async function moduleMatchesConfig(
       }
       break;
     }
+    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG: {
+      const expectedAddress =
+        await contracts.staticMerkleRootWeightedMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.thresholdWeight,
+        );
+      matches = eqAddress(expectedAddress, module.address);
+      break;
+    }
+    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG: {
+      const expectedAddress =
+        await contracts.staticMessageIdWeightedMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.thresholdWeight,
+        );
+      matches = eqAddress(expectedAddress, module.address);
+      break;
+    }
     default: {
       throw new Error('Unsupported ModuleType');
     }
