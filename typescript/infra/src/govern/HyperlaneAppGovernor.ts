@@ -1,6 +1,7 @@
 import { BigNumber } from 'ethers';
 import prompts from 'prompts';
 
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
@@ -435,9 +436,9 @@ export abstract class HyperlaneAppGovernor<
   }
 
   async handleProxyAdminViolation(violation: ProxyAdminViolation) {
-    const code = await this.checker.multiProvider
-      .getProvider(violation.chain)
-      .getCode(violation.expectedProxyAdmin.address);
+    const provider = this.checker.multiProvider.getProvider(violation.chain);
+    const code = await provider.getCode(violation.expected);
+    const proxyAdminInterface = ProxyAdmin__factory.createInterface();
 
     let call;
     if (code !== '0x') {
@@ -446,17 +447,17 @@ export abstract class HyperlaneAppGovernor<
         chain: violation.chain,
         call: {
           to: violation.actual,
-          data: violation.expectedProxyAdmin.interface.encodeFunctionData(
-            'changeProxyAdmin',
-            [violation.proxy.address, violation.expected],
-          ),
+          data: proxyAdminInterface.encodeFunctionData('changeProxyAdmin', [
+            violation.proxyAddress,
+            violation.expected,
+          ]),
           value: BigNumber.from(0),
-          description: `Change proxyAdmin of transparent proxy ${violation.proxy.address} from ${violation.actual} to ${violation.expected}`,
+          description: `Change proxyAdmin of transparent proxy ${violation.proxyAddress} from ${violation.actual} to ${violation.expected}`,
         },
       };
     } else {
       throw new Error(
-        `Admin for proxy ${violation.proxy.address} is not a ProxyAdmin contract`,
+        `Admin for proxy ${violation.proxyAddress} is not a ProxyAdmin contract`,
       );
     }
 

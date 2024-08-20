@@ -41,7 +41,11 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       return;
     }
 
-    await this.checkProxiedContracts(chain);
+    await this.checkProxiedContracts(
+      chain,
+      config.owner,
+      config.ownerOverrides,
+    );
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
