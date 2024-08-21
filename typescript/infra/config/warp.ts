@@ -13,12 +13,12 @@ import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumSolanaPzETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSolanaPzETHWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
-import { getEthereumSolanaPzETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSolanaPzETHWarpConfig.js';
 
 export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',

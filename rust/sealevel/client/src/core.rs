@@ -26,6 +26,24 @@ pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
             (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
         // Divide by the max compute units
         / DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT as u64;
+
+        if initial_instructions
+            .iter_mut()
+            .find(|i| match i.instruction {
+                ComputeBudgetInstruction::SetComputeUnitPrice { .. } => {
+                    // The compute unit price has already been set, so we override it
+                    i.instruction = ComputeBudgetInstruction::set_compute_unit_price(
+                        MICRO_LAMPORT_FEE_PER_LIMIT,
+                    );
+                    true
+                }
+                _ => false,
+            })
+        {
+            // If we performed an override, we can return early
+            return;
+        }
+
         initial_instructions.push(
             (
                 ComputeBudgetInstruction::set_compute_unit_price(MICRO_LAMPORT_FEE_PER_LIMIT),

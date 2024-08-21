@@ -1,10 +1,12 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
   RouterConfig,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { ethers } from 'ethers';
+
 import { DEPLOYER } from '../../owners.js';
 
 export const getEthereumSolanaPzETHWarpConfig = async (

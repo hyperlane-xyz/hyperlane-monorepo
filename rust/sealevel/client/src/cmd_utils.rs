@@ -72,6 +72,7 @@ pub(crate) fn deploy_program(
     ];
 
     if local_domain.eq(&SOLANA_DOMAIN) {
+        // May need tweaking depending on gas prices / available balance
         command.append(&mut vec!["--with-compute-unit-price", "550000"]);
     }
 

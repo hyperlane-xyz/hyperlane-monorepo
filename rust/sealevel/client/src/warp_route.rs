@@ -348,9 +348,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 "--with-compute-unit-limit",
                 "500000",
                 "--mint-authority",
-                // TODO fix
-                "~/solana-mainnet-deployer-keypair.json",
-                // also --signer? or fee payer
+                ctx.payer_keypair_path(),
+                "--fee-payer",
+                ctx.payer_keypair_path(),
             ]);
             println!("running command: {:?}", cmd);
             let status = cmd
@@ -372,11 +372,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 client.url().as_str(),
                 "--with-compute-unit-limit",
                 "500000",
-                // TODO fix
                 "--fee-payer",
-                "~/solana-mainnet-deployer-keypair.json",
+                ctx.payer_keypair_path(),
                 "--authority",
-                "~/solana-mainnet-deployer-keypair.json",
+                ctx.payer_keypair_path(),
             ]);
             println!("running command: {:?}", cmd);
             let status = cmd
@@ -445,13 +444,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 });
 
             // All destination gas config changes
-            let mut destination_gas_configs = destination_gas_to_set
+            let destination_gas_configs = destination_gas_to_set
                 .chain(destination_gas_to_unset)
                 .collect::<Vec<GasRouterConfig>>();
-            destination_gas_configs.push(GasRouterConfig {
-                domain: 1,
-                gas: Some(300000),
-            });
 
             if !destination_gas_configs.is_empty() {
                 let description = format!(
