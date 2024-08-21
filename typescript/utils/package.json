@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.78.0",
