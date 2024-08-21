@@ -2,7 +2,6 @@ import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
-  CheckerViolation,
   HypERC20App,
   HypERC20Checker,
   HyperlaneCore,
@@ -58,9 +57,7 @@ export function getCheckDeployArgs() {
   return withWarpRouteId(withModule(getCheckArgs()));
 }
 
-export async function check(
-  argv?: Record<string, any>,
-): Promise<void | CheckerViolation> {
+export async function check(argv?: Record<string, any>) {
   const {
     fork,
     govern,
