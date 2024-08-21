@@ -15,7 +15,7 @@
 - 19ea05384: Adds CollateralFiat to token mapping which will output the correct standard to the warp deploy artifact.
 - a49f52cc9: Deploy to solana + eclipse
 - 63abe564d: Added yield route with yield going to message recipient.
-- 19f7d4fd9: Supprt passing foreignDeployments to HypERC20App constructor
+- 19f7d4fd9: Support passing foreignDeployments to HypERC20App constructor
 
 ### Patch Changes
 
