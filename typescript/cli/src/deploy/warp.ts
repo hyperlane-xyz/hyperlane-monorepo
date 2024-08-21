@@ -445,11 +445,7 @@ async function createWarpHook(
     contractVerifier,
   });
 
-  console.log(evmHookModule);
   const { deployedHook } = evmHookModule.serialize();
-
-  console.log('SERIALIZED');
-  console.log(deployedHook);
   return deployedHook;
 }
 
