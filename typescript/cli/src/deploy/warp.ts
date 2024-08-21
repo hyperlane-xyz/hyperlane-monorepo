@@ -2,6 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { ContractReceipt } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -47,6 +48,7 @@ import {
   isTokenMetadata,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
+import { TokenRouterConfig } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -57,6 +59,7 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import { ProxyFactoryFactories } from '../../../sdk/dist/deploy/contracts.js';
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getOrRequestApiKeys } from '../context/context.js';
@@ -199,28 +202,37 @@ async function executeDeploy(
     multiProvider,
     contractVerifier,
   );
+  const mutatedConfig: WarpRouteDeployConfig = await promiseObjAll(
+    objMap(
+      config,
+      async (chain: string, tokenRouterConfig: TokenRouterConfig) => {
+        // If a new ISM is configured in the WarpRouteConfig, deploy that ISM
+        // Then return a modified config with the ism address as a string
+        const configWithDeployedIsm = await deployAndResolveWarpIsm(
+          chain,
+          tokenRouterConfig,
+          multiProvider,
+          registry,
+          ismFactoryDeployer,
+          contractVerifier,
+        );
 
-  // For each chain in WarpRouteConfig, deploy each Ism Factory, if it's not in the registry
-  // Then return a modified config with the ism address as a string
-  const configWithISM = await deployAndResolveWarpIsm(
-    config,
-    multiProvider,
-    registry,
-    ismFactoryDeployer,
-    contractVerifier,
+        // If a new hook is configured in the WarpRouteConfig, deploy that hook
+        // and return the updated config with the hook address as a string
+        const configWithDeployedHook = await deployAndResolveWarpHook(
+          chain,
+          tokenRouterConfig,
+          multiProvider,
+          registry,
+          ismFactoryDeployer,
+          contractVerifier,
+        );
+        return { ...configWithDeployedIsm, ...configWithDeployedHook };
+      },
+    ),
   );
 
-  // If a new hook is configured in the WarpRouteConfig, deploy that hook
-  // and return the updated config with the hook address as a string
-  const configWithHook = await deployAndResolveWarpHook(
-    configWithISM,
-    multiProvider,
-    registry,
-    ismFactoryDeployer,
-    contractVerifier,
-  );
-
-  const deployedContracts = await deployer.deploy(configWithHook);
+  const deployedContracts = await deployer.deploy(mutatedConfig);
 
   logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
@@ -238,68 +250,58 @@ async function writeDeploymentArtifacts(
 }
 
 async function deployAndResolveWarpIsm(
-  warpConfig: WarpRouteDeployConfig,
+  chain: string,
+  tokenRouterConfig: TokenRouterConfig,
   multiProvider: MultiProvider,
   registry: IRegistry,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier?: ContractVerifier,
-): Promise<WarpRouteDeployConfig> {
-  return promiseObjAll(
-    objMap(warpConfig, async (chain, config) => {
-      if (
-        !config.interchainSecurityModule ||
-        typeof config.interchainSecurityModule === 'string'
-      ) {
-        logGray(
-          `Config Ism is ${
-            !config.interchainSecurityModule
-              ? 'empty'
-              : config.interchainSecurityModule
-          }, skipping deployment.`,
-        );
-        return config;
-      }
+): Promise<TokenRouterConfig> {
+  if (
+    !tokenRouterConfig.interchainSecurityModule ||
+    typeof tokenRouterConfig.interchainSecurityModule === 'string'
+  ) {
+    logGray(
+      `Config Ism is ${
+        !tokenRouterConfig.interchainSecurityModule
+          ? 'empty'
+          : tokenRouterConfig.interchainSecurityModule
+      }, skipping deployment.`,
+    );
+    return tokenRouterConfig;
+  }
 
-      logBlue(`Loading registry factory addresses for ${chain}...`);
-      let chainAddresses = await registry.getChainAddresses(chain);
-
-      if (!chainAddresses) {
-        logGray(
-          `Registry factory addresses not found for ${chain}. Deploying...`,
-        );
-        chainAddresses = serializeContracts(
-          await ismFactoryDeployer.deployContracts(chain),
-        ) as Record<string, string>;
-      }
-
-      logGray(
-        `Creating ${config.interchainSecurityModule.type} ISM for ${config.type} token on ${chain} chain...`,
-      );
-
-      const deployedIsm = await createWarpIsm(
-        chain,
-        warpConfig,
-        multiProvider,
-        {
-          domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
-          staticAggregationHookFactory:
-            chainAddresses.staticAggregationHookFactory,
-          staticAggregationIsmFactory:
-            chainAddresses.staticAggregationIsmFactory,
-          staticMerkleRootMultisigIsmFactory:
-            chainAddresses.staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory:
-            chainAddresses.staticMessageIdMultisigIsmFactory,
-        },
-        contractVerifier,
-      );
-
-      logGreen(
-        `Finished creating ${config.interchainSecurityModule.type} ISM for ${config.type} token on ${chain} chain.`,
-      );
-      return { ...warpConfig[chain], interchainSecurityModule: deployedIsm };
-    }),
+  const chainAddresses = await getOrDeployIsmFactories(
+    registry,
+    chain,
+    ismFactoryDeployer,
   );
+
+  logGray(
+    `Creating ${tokenRouterConfig.interchainSecurityModule.type} ISM for ${tokenRouterConfig.type} token on ${chain} chain...`,
+  );
+
+  const deployedIsm = await createWarpIsm(
+    chain,
+    tokenRouterConfig,
+    multiProvider,
+    {
+      domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
+      staticAggregationHookFactory: chainAddresses.staticAggregationHookFactory,
+      staticAggregationIsmFactory: chainAddresses.staticAggregationIsmFactory,
+      staticMerkleRootMultisigIsmFactory:
+        chainAddresses.staticMerkleRootMultisigIsmFactory,
+      staticMessageIdMultisigIsmFactory:
+        chainAddresses.staticMessageIdMultisigIsmFactory,
+    },
+    contractVerifier,
+  );
+
+  logGreen(
+    `Finished creating ${tokenRouterConfig.interchainSecurityModule.type} ISM for ${tokenRouterConfig.type} token on ${chain} chain.`,
+  );
+  tokenRouterConfig.interchainSecurityModule = deployedIsm;
+  return tokenRouterConfig;
 }
 
 /**
@@ -309,9 +311,9 @@ async function deployAndResolveWarpIsm(
  */
 async function createWarpIsm(
   chain: string,
-  warpConfig: WarpRouteDeployConfig,
+  tokenRouterConfig: TokenRouterConfig,
   multiProvider: MultiProvider,
-  factoryAddresses: HyperlaneAddresses<any>,
+  factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
   contractVerifier?: ContractVerifier,
 ): Promise<string> {
   const {
@@ -324,7 +326,7 @@ async function createWarpIsm(
   const evmIsmModule = await EvmIsmModule.create({
     chain,
     multiProvider,
-    mailbox: warpConfig[chain].mailbox,
+    mailbox: tokenRouterConfig.mailbox,
     proxyFactoryFactories: {
       domainRoutingIsmFactory,
       staticAggregationHookFactory,
@@ -332,7 +334,7 @@ async function createWarpIsm(
       staticMerkleRootMultisigIsmFactory,
       staticMessageIdMultisigIsmFactory,
     },
-    config: warpConfig[chain].interchainSecurityModule!,
+    config: tokenRouterConfig.interchainSecurityModule!,
     contractVerifier,
   });
   const { deployedIsm } = evmIsmModule.serialize();
@@ -345,63 +347,54 @@ async function createWarpIsm(
  * @returns The updated config with the deployed hook address
  */
 async function deployAndResolveWarpHook(
-  warpConfig: WarpRouteDeployConfig,
+  chain: string,
+  tokenRouterConfig: TokenRouterConfig,
   multiProvider: MultiProvider,
   registry: IRegistry,
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
   contractVerifier?: ContractVerifier,
-): Promise<WarpRouteDeployConfig> {
-  return promiseObjAll(
-    objMap(warpConfig, async (chain, config) => {
-      if (!config.hook || typeof config.hook === 'string') {
-        logGray(
-          `Config Hook is ${
-            !config.hook ? 'empty' : config.hook
-          }, skipping deployment.`,
-        );
-        return config;
-      }
+): Promise<TokenRouterConfig> {
+  if (!tokenRouterConfig.hook || typeof tokenRouterConfig.hook === 'string') {
+    logGray(
+      `Config Hook is ${
+        !tokenRouterConfig.hook ? 'empty' : tokenRouterConfig.hook
+      }, skipping deployment.`,
+    );
+    return tokenRouterConfig;
+  }
 
-      logBlue(`Loading registry factory addresses for ${chain}...`);
-      let chainAddresses = await registry.getChainAddresses(chain);
-
-      if (!chainAddresses) {
-        logGray(
-          `Registry factory addresses not found for ${chain}. Deploying...`,
-        );
-        chainAddresses = serializeContracts(
-          await ismFactoryDeployer.deployContracts(chain),
-        ) as Record<string, string>;
-      }
-
-      logGray(
-        `Creating ${config.hook.type} Hook for ${config.type} token on ${chain} chain...`,
-      );
-
-      const deployedHook = await createWarpHook(
-        chain,
-        warpConfig,
-        multiProvider,
-        {
-          domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
-          staticAggregationHookFactory:
-            chainAddresses.staticAggregationHookFactory,
-          staticAggregationIsmFactory:
-            chainAddresses.staticAggregationIsmFactory,
-          staticMerkleRootMultisigIsmFactory:
-            chainAddresses.staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory:
-            chainAddresses.staticMessageIdMultisigIsmFactory,
-        },
-        contractVerifier,
-      );
-
-      logGreen(
-        `Finished creating ${config.hook.type} ISM for ${config.type} token on ${chain} chain.`,
-      );
-      return { ...warpConfig[chain], hook: deployedHook };
-    }),
+  const chainAddresses = await getOrDeployIsmFactories(
+    registry,
+    chain,
+    ismFactoryDeployer,
   );
+
+  logGray(
+    `Creating ${tokenRouterConfig.hook.type} Hook for ${tokenRouterConfig.type} token on ${chain} chain...`,
+  );
+
+  const deployedHook = await createWarpHook(
+    chain,
+    tokenRouterConfig,
+    multiProvider,
+    {
+      domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
+      staticAggregationHookFactory: chainAddresses.staticAggregationHookFactory,
+      staticAggregationIsmFactory: chainAddresses.staticAggregationIsmFactory,
+      staticMerkleRootMultisigIsmFactory:
+        chainAddresses.staticMerkleRootMultisigIsmFactory,
+      staticMessageIdMultisigIsmFactory:
+        chainAddresses.staticMessageIdMultisigIsmFactory,
+    },
+    contractVerifier,
+  );
+
+  logGreen(
+    `Finished creating ${tokenRouterConfig.hook.type} ISM for ${tokenRouterConfig.type} token on ${chain} chain.`,
+  );
+
+  tokenRouterConfig.hook = deployedHook;
+  return tokenRouterConfig;
 }
 
 /**
@@ -411,9 +404,9 @@ async function deployAndResolveWarpHook(
  */
 async function createWarpHook(
   chain: string,
-  warpConfig: WarpRouteDeployConfig,
+  tokenRouterConfig: TokenRouterConfig,
   multiProvider: MultiProvider,
-  factoryAddresses: HyperlaneAddresses<any>,
+  factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
   contractVerifier?: ContractVerifier,
 ): Promise<string> {
   const {
@@ -424,10 +417,14 @@ async function createWarpHook(
     staticMessageIdMultisigIsmFactory,
   } = factoryAddresses;
 
+  const proxyAdmin = (
+    await multiProvider.handleDeploy(chain, new ProxyAdmin__factory(), [])
+  ).address;
+
   const coreAddresses: CoreAddresses = {
-    mailbox: warpConfig[chain].mailbox,
+    mailbox: tokenRouterConfig.mailbox,
     validatorAnnounce: '', // not needed for hook deployment
-    proxyAdmin: '', // not sure what to pass here?
+    proxyAdmin,
   };
 
   const evmHookModule = await EvmHookModule.create({
@@ -441,7 +438,7 @@ async function createWarpHook(
       staticMessageIdMultisigIsmFactory,
     },
     coreAddresses,
-    config: warpConfig[chain].hook!,
+    config: tokenRouterConfig.hook!,
     contractVerifier,
   });
 
@@ -479,6 +476,23 @@ async function getWarpCoreConfig(
   fullyConnectTokens(warpCoreConfig);
 
   return warpCoreConfig;
+}
+
+async function getOrDeployIsmFactories(
+  registry: IRegistry,
+  chain: string,
+  ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
+) {
+  logBlue(`Loading registry factory addresses for ${chain}...`);
+  let chainAddresses = await registry.getChainAddresses(chain);
+
+  if (!chainAddresses) {
+    logGray(`Registry factory addresses not found for ${chain}. Deploying...`);
+    chainAddresses = serializeContracts(
+      await ismFactoryDeployer.deployContracts(chain),
+    ) as Record<string, string>;
+  }
+  return chainAddresses;
 }
 
 /**
