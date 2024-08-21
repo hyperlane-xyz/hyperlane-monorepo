@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Supprt passing foreignDeployments to HypERC20App constructor
+Support passing foreignDeployments to HypERC20App constructor
