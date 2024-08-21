@@ -118,11 +118,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         processed_count: 0,
     });
     if init.protocol_fee.fee > init.max_protocol_fee {
-        msg!(
-            "Invalid initialization config: Protocol fee is greater than max protocol fee",
-            init.protocol_fee.fee,
-            init.max_protocol_fee
-        );
+        msg!("Invalid initialization config: Protocol fee is greater than max protocol fee",);
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -919,11 +915,7 @@ fn set_protocol_fee_config(
     outbox.ensure_owner_signer(owner_info)?;
 
     if new_protocol_fee_config.fee > outbox.max_protocol_fee {
-        msg!(
-            "Invalid protocol fee config: Fee is greater than max protocol fee",
-            new_protocol_fee_config.fee,
-            outbox.max_protocol_fee
-        );
+        msg!("Invalid protocol fee config: Fee is greater than max protocol fee",);
         return Err(ProgramError::InvalidArgument);
     }
 
