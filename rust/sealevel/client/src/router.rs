@@ -378,7 +378,7 @@ pub(crate) fn deploy_routers<
             existing_program_ids.as_ref(),
         );
 
-        // // Add the router to the list of routers.
+        // Add the router to the list of routers.
         routers.insert(
             chain_config.domain_id(),
             H256::from_slice(&program_id.to_bytes()[..]),

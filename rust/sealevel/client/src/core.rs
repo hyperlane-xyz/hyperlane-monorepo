@@ -5,8 +5,6 @@ use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::signature::Signer;
 
 use std::collections::HashMap;
-use std::thread::sleep;
-use std::time::Duration;
 use std::{fs::File, path::Path};
 
 use crate::DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT;
