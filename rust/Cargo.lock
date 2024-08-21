@@ -4549,6 +4549,7 @@ dependencies = [
  "num-derive 0.4.1",
  "num-traits",
  "proc-macro-crate 1.2.1",
+ "serde",
  "serializable-account-meta",
  "solana-program",
  "spl-noop",
