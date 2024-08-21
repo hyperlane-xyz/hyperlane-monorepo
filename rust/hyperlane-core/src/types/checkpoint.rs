@@ -4,7 +4,7 @@ use derive_more::Deref;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::{utils::domain_hash, Signable, Signature, SignedType, H256, U256};
+use crate::{utils::domain_hash, Signable, Signature, SignedType, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
@@ -60,25 +60,6 @@ pub struct MultisigSignedCheckpoint {
     pub checkpoint: CheckpointWithMessageId,
     /// Signatures over the checkpoint ordered by validator index, length == threshold
     pub signatures: Vec<Signature>,
-}
-
-#[test]
-fn get_sigs() {
-    let first = Signature {
-        r: U256::from_dec_str("97217305801002279246930604981023931941501067885277621273870459506977276556252").unwrap(), s: U256::from_dec_str("11359507626607341624918661055527732554223526100320102414717072105602230618024").unwrap(), v: 28,
-    };
-    let second = Signature {
-        r: U256::from_dec_str("29795820506885272616657050340362462579601368048292197267617668390980228901542").unwrap(), s: U256::from_dec_str("21674239815159939353464199741744832118359490205815777304471606849563395859738").unwrap(), v: 28,
-    };
-    let third = Signature {
-        r: U256::from_dec_str("45397632692698258890469882858919809484532425161988694192359182966252207346121").unwrap(), s: U256::from_dec_str("49388384835354296282480514655122421906452659177359349661684177874548728499454").unwrap(), v: 28
-    };
-
-    println!("first {:?}", hex::encode(&first.to_vec()));
-    println!("second {:?}", hex::encode(&second.to_vec()));
-    println!("third {:?}", hex::encode(&third.to_vec()));
-
-    assert!(false);
 }
 
 /// Error types for MultisigSignedCheckpoint
