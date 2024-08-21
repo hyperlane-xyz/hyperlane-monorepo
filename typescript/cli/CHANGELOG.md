@@ -1,5 +1,38 @@
 # @hyperlane-xyz/cli
 
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Update to registry v2.5.0
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Add output of hyperlane warp read to ./configs/warp-route-deployment.yaml
+- 013f19c64: Remove registry.getUri() from core read logging to prevent registry error
+- 013f19c64: Fixes the new chain message to display the correct command
+- 013f19c64: Add check & confirm for existing mailbox to core deploy to allow users to decide if they want to deploy a new mailbox
+
+### Patch Changes
+
+- 013f19c64: Require at least 1 chain selection in warp init
+- 013f19c64: feat: Add long-running CLI relayer
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [19f7d4fd9]
+  - @hyperlane-xyz/sdk@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
 ## 5.0.0
 
 ### Major Changes

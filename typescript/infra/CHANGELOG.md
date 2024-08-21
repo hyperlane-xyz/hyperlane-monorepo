@@ -1,5 +1,33 @@
 # @hyperlane-xyz/infra
 
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Update to registry v2.5.0
+
+### Patch Changes
+
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [19f7d4fd9]
+  - @hyperlane-xyz/sdk@5.1.0
+  - @hyperlane-xyz/helloworld@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
 ## 5.0.0
 
 ### Minor Changes
