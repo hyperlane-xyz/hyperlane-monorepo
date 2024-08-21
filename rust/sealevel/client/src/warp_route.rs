@@ -292,7 +292,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     "--with-compute-unit-limit",
                     "500000",
                     "--mint-authority",
-                    ctx.payer_pubkey,
+                    &ctx.payer_pubkey.to_string(),
                 ]);
                 println!("running command: {:?}", cmd);
                 let status = cmd
@@ -354,7 +354,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 "--fee-payer",
                 ctx.payer_keypair_path(),
                 "--update-authority",
-                ctx.payer_pubkey,
+                &ctx.payer_pubkey.to_string(),
             ]);
             println!("running command: {:?}", cmd);
             let status = cmd
@@ -368,7 +368,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             let authorities_to_transfer = &["metadata-pointer", "metadata", "mint"];
 
             for authority in authorities_to_transfer {
-                println!("Transferring authority: {authority} to the mint account");
+                println!("Transferring authority: {authority} to the mint account {mint_account}");
 
                 let mut cmd = Command::new(spl_token_binary_path.clone());
                 cmd.args([

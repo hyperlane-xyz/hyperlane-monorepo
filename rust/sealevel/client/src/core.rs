@@ -1,8 +1,9 @@
+use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::signature::Signer;
+use solana_sdk::{compute_budget, compute_budget::ComputeBudgetInstruction};
 
 use std::collections::HashMap;
 use std::{fs::File, path::Path};
@@ -27,21 +28,24 @@ pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
         // Divide by the max compute units
         / DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT as u64;
 
-        if initial_instructions
-            .iter_mut()
-            .find(|i| match i.instruction {
-                ComputeBudgetInstruction::SetComputeUnitPrice { .. } => {
-                    // The compute unit price has already been set, so we override it
+        for i in initial_instructions.iter_mut() {
+            if i.instruction.program_id != compute_budget::id() {
+                continue;
+            }
+            if let Ok(compute_budget_instruction) =
+                ComputeBudgetInstruction::try_from_slice(&i.instruction.data)
+            {
+                if matches!(
+                    compute_budget_instruction,
+                    ComputeBudgetInstruction::SetComputeUnitPrice { .. }
+                ) {
+                    // The compute unit price has already been set, so we override it and return early
                     i.instruction = ComputeBudgetInstruction::set_compute_unit_price(
                         MICRO_LAMPORT_FEE_PER_LIMIT,
                     );
-                    true
+                    return;
                 }
-                _ => false,
-            })
-        {
-            // If we performed an override, we can return early
-            return;
+            }
         }
 
         initial_instructions.push(
