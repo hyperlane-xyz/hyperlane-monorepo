@@ -374,7 +374,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 cmd.args([
                     "authorize",
                     mint_account.to_string().as_str(),
-                    "metadata-pointer",
+                    authority,
                     mint_account.to_string().as_str(),
                     "-p",
                     TOKEN_2022_PROGRAM_ID,
