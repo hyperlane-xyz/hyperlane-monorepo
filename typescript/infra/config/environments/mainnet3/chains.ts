@@ -55,7 +55,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
     // Sei's `eth_feeHistory` is not to spec and incompatible with ethers-rs,
     // so we force legacy transactions by setting a gas price.
     transactionOverrides: {
-      gasPrice: 2 * 10 ** 9, // 2 gwei
+      gasPrice: 100 * 10 ** 9, // 100 gwei
     },
   },
   moonbeam: {

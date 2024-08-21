@@ -7,5 +7,12 @@
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/12660fd34d30e960a748d87408a8d88f634f7454/deployments/warp_routes/pzETH/ethereum-solana-metadata.json",
     "interchainGasPaymaster": "5FG1TUuhXGKdMbbH8uHEnUghazD4aVfEPAgKLNGNx3SL",
     "remoteDecimals": 18
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 18,
+    "token": "0x8c9532a60e0e7c6bbd2b2c1303f63ace1c3e9811",
+    "foreignDeployment": "0x1D622da2ce4C4D9D4B0611718cb3BcDcAd008DD4",
+    "destinationGas": 200000
   }
 }

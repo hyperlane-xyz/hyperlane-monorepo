@@ -164,8 +164,8 @@
     "decimals": 9
   },
   "solana": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.5",
+    "decimals": 1
   },
   "taiko": {
     "amount": "0.050000001",

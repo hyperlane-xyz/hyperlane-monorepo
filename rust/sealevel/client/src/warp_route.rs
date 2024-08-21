@@ -477,9 +477,13 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 });
 
             // All destination gas config changes
-            let destination_gas_configs = destination_gas_to_set
+            let mut destination_gas_configs = destination_gas_to_set
                 .chain(destination_gas_to_unset)
                 .collect::<Vec<GasRouterConfig>>();
+            destination_gas_configs.push(GasRouterConfig {
+                domain: 1,
+                gas: Some(300000),
+            });
 
             if !destination_gas_configs.is_empty() {
                 let description = format!(

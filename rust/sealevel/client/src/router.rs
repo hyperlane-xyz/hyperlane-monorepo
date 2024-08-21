@@ -364,7 +364,7 @@ pub(crate) fn deploy_routers<
             }
         }
 
-        adjust_gas_price_if_needed(chain_name.as_str(), ctx);
+        // adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
         // Deploy - this is idempotent.
         let program_id = deployer.deploy(
