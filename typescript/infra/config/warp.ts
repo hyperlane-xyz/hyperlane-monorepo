@@ -13,6 +13,7 @@ import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumSolanaPzETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSolanaPzETHWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
@@ -26,6 +27,7 @@ export enum WarpRouteIds {
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
+  EthereumSolanaPzETH = 'pzETH/ethereum-solana',
   EthereumVictionETH = 'ETH/ethereum-viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
@@ -49,6 +51,7 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
+  [WarpRouteIds.EthereumSolanaPzETH]: getEthereumSolanaPzETHWarpConfig,
 };
 
 export async function getWarpConfig(

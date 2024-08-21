@@ -291,6 +291,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     client.url().as_str(),
                     "--with-compute-unit-limit",
                     "500000",
+                    "--mint-authority",
+                    &ctx.payer_pubkey.to_string(),
                 ]);
                 println!("running command: {:?}", cmd);
                 let status = cmd
@@ -347,6 +349,12 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 client.url().as_str(),
                 "--with-compute-unit-limit",
                 "500000",
+                "--mint-authority",
+                ctx.payer_keypair_path(),
+                "--fee-payer",
+                ctx.payer_keypair_path(),
+                "--update-authority",
+                &ctx.payer_pubkey.to_string(),
             ]);
             println!("running command: {:?}", cmd);
             let status = cmd
@@ -356,26 +364,37 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .expect("Failed to run command");
             println!("initialized metadata. Status: {status}");
 
-            let mut cmd = Command::new(spl_token_binary_path.clone());
-            cmd.args([
-                "authorize",
-                mint_account.to_string().as_str(),
-                "mint",
-                mint_account.to_string().as_str(),
-                "-p",
-                TOKEN_2022_PROGRAM_ID,
-                "--url",
-                client.url().as_str(),
-                "--with-compute-unit-limit",
-                "500000",
-            ]);
-            println!("running command: {:?}", cmd);
-            let status = cmd
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .status()
-                .expect("Failed to run command");
-            println!("set the mint authority to the mint account. Status: {status}");
+            // Burn the metadata pointer, metadata, and mint authorities by moving them to the mint
+            let authorities_to_transfer = &["metadata-pointer", "metadata", "mint"];
+
+            for authority in authorities_to_transfer {
+                println!("Transferring authority: {authority} to the mint account {mint_account}");
+
+                let mut cmd = Command::new(spl_token_binary_path.clone());
+                cmd.args([
+                    "authorize",
+                    mint_account.to_string().as_str(),
+                    authority,
+                    mint_account.to_string().as_str(),
+                    "-p",
+                    TOKEN_2022_PROGRAM_ID,
+                    "--url",
+                    client.url().as_str(),
+                    "--with-compute-unit-limit",
+                    "500000",
+                    "--fee-payer",
+                    ctx.payer_keypair_path(),
+                    "--authority",
+                    ctx.payer_keypair_path(),
+                ]);
+                println!("Running command: {:?}", cmd);
+                let status = cmd
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+                    .expect("Failed to run command");
+                println!("Set the {authority} authority to the mint account. Status: {status}");
+            }
         }
     }
 
