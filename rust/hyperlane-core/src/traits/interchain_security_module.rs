@@ -41,6 +41,10 @@ pub enum ModuleType {
     Null,
     /// Ccip Read ISM (accepts offchain signature information)
     CcipRead,
+    /// Weighted Merkle Proof ISM (similar to Merkle Proof ISM but with each validator having a specific weight)
+    WeightedMerkleRootMultisig,
+    /// Weighted Message ID ISM (similar to Message ID ISM but with each validator having a specific weight)
+    WeightedMessageIdMultisig,
 }
 
 /// Interface for the InterchainSecurityModule chain contract. Allows abstraction over

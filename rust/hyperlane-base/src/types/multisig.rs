@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -90,15 +91,19 @@ impl MultisigCheckpointSyncer {
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint_in_range(
         &self,
-        validators: &[H256],
-        threshold: usize,
+        weighted_validators: &[(H256, u64)],
+        threshold_weight: u64,
         minimum_index: u32,
         maximum_index: u32,
         origin: &HyperlaneDomain,
         destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
+        let validators: Vec<H256> = weighted_validators
+            .iter()
+            .map(|(address, _)| *address)
+            .collect();
         let mut latest_indices = self
-            .get_validator_latest_checkpoints_and_update_metrics(validators, origin, destination)
+            .get_validator_latest_checkpoints_and_update_metrics(&validators, origin, destination)
             .await;
 
         debug!(
@@ -114,7 +119,7 @@ impl MultisigCheckpointSyncer {
         // Sort in descending order. The n'th index will represent
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.cmp(a));
-        if let Some(&highest_quorum_index) = latest_indices.get(threshold - 1) {
+        if let Some(&highest_quorum_index) = latest_indices.get(threshold_weight as usize - 1) {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.
@@ -124,8 +129,9 @@ impl MultisigCheckpointSyncer {
                 return Ok(None);
             }
             for index in (minimum_index..=start_index).rev() {
-                if let Ok(Some(checkpoint)) =
-                    self.fetch_checkpoint(validators, threshold, index).await
+                if let Ok(Some(checkpoint)) = self
+                    .fetch_checkpoint(weighted_validators, threshold_weight, index)
+                    .await
                 {
                     return Ok(Some(checkpoint));
                 }
@@ -141,8 +147,8 @@ impl MultisigCheckpointSyncer {
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint(
         &self,
-        validators: &[H256],
-        threshold: usize,
+        weighted_validators: &[(H256, u64)],
+        threshold_weight: u64,
         index: u32,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
@@ -151,7 +157,14 @@ impl MultisigCheckpointSyncer {
         let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
             HashMap::new();
 
-        for validator in validators.iter() {
+        let sorted_validators: Vec<(usize, &(H256, u64))> = weighted_validators
+            .iter()
+            .enumerate()
+            .sorted_by_key(|(_, (_, weight))| std::cmp::Reverse(*weight))
+            .collect();
+
+        let mut cumulative_weight: u64 = 0;
+        for (_, (validator, weight)) in sorted_validators {
             let addr = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
@@ -186,6 +199,7 @@ impl MultisigCheckpointSyncer {
                     let root = signed_checkpoint.value.root;
                     let signed_checkpoints = signed_checkpoints_per_root.entry(root).or_default();
                     signed_checkpoints.push(signed_checkpoint);
+                    cumulative_weight += *weight;
 
                     // Count the number of signatures for this signed checkpoint
                     let signature_count = signed_checkpoints.len();
@@ -197,8 +211,14 @@ impl MultisigCheckpointSyncer {
                         "Found signed checkpoint"
                     );
 
-                    // If we've hit a quorum, create a MultisigSignedCheckpoint
-                    if signature_count >= threshold {
+                    // If we've hit a quorum in weight, create a MultisigSignedCheckpoint
+                    if cumulative_weight >= threshold_weight {
+                        signed_checkpoints.sort_by_key(|sc| {
+                            weighted_validators
+                                .iter()
+                                .position(|(v, _)| v == &H256::from(sc.recover().unwrap()))
+                                .unwrap()
+                        });
                         let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
                         debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
                         return Ok(Some(checkpoint));

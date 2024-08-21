@@ -1,6 +1,7 @@
 mod base;
 mod merkle_root_multisig;
 mod message_id_multisig;
+mod weighted;
 
 pub use base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 

@@ -29,8 +29,8 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 
     async fn fetch_metadata(
         &self,
-        validators: &[H256],
-        threshold: u8,
+        validators: &[(H256, u64)],
+        threshold_weight: u64,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
@@ -50,7 +50,10 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         // Update the validator latest checkpoint metrics.
         let _ = checkpoint_syncer
             .get_validator_latest_checkpoints_and_update_metrics(
-                validators,
+                &validators
+                    .iter()
+                    .map(|(address, _)| *address)
+                    .collect::<Vec<_>>(),
                 self.origin_domain(),
                 self.destination_domain(),
             )
@@ -58,7 +61,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
-                .fetch_checkpoint(validators, threshold as usize, leaf_index)
+                .fetch_checkpoint(validators, threshold_weight, leaf_index)
                 .await
                 .context(CTX)?,
             debug!("No quorum checkpoint found")

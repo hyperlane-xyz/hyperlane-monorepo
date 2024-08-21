@@ -30,8 +30,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
 
     async fn fetch_metadata(
         &self,
-        validators: &[H256],
-        threshold: u8,
+        validators: &[(H256, u64)],
+        threshold_weight: u64,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
@@ -53,7 +53,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             checkpoint_syncer
                 .fetch_checkpoint_in_range(
                     validators,
-                    threshold as usize,
+                    threshold_weight,
                     leaf_index,
                     highest_leaf_index,
                     self.origin_domain(),
