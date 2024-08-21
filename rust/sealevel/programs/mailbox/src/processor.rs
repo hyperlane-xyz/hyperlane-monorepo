@@ -117,6 +117,14 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         default_ism: init.default_ism,
         processed_count: 0,
     });
+    if init.protocol_fee.fee > init.max_protocol_fee {
+        msg!(
+            "Invalid initialization config: Protocol fee is greater than max protocol fee",
+            init.protocol_fee.fee,
+            init.max_protocol_fee
+        );
+        return Err(ProgramError::InvalidArgument);
+    }
 
     // Create the inbox PDA account.
     create_pda_account(
@@ -145,10 +153,8 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         outbox_bump_seed: outbox_bump,
         owner: Some(*payer_info.key),
         tree: MerkleTree::default(),
-        protocol_fee: ProtocolFee {
-            fee: init.protocol_fee,
-            beneficiary: init.protocol_fee_beneficiary,
-        },
+        max_protocol_fee: init.max_protocol_fee,
+        protocol_fee: init.protocol_fee,
     });
 
     // Create the outbox PDA account.
@@ -875,8 +881,8 @@ fn claim_protocol_fees(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
     let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
 
     // Account 1: Beneficiary
-    let benecifiary_info = next_account_info(accounts_iter)?;
-    if benecifiary_info.key != &outbox.protocol_fee.beneficiary {
+    let beneficiary_info = next_account_info(accounts_iter)?;
+    if beneficiary_info.key != &outbox.protocol_fee.beneficiary {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -884,7 +890,7 @@ fn claim_protocol_fees(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
     let required_outbox_rent = rent.minimum_balance(outbox_info.data_len());
     let claimable_protocol_fees = outbox_info.lamports().saturating_sub(required_outbox_rent);
     **outbox_info.try_borrow_mut_lamports()? -= claimable_protocol_fees;
-    **benecifiary_info.try_borrow_mut_lamports()? += claimable_protocol_fees;
+    **beneficiary_info.try_borrow_mut_lamports()? += claimable_protocol_fees;
 
     // For good measure...
     verify_rent_exempt(outbox_info, &rent)?;
@@ -911,6 +917,15 @@ fn set_protocol_fee_config(
     // Account 1: Owner
     let owner_info = next_account_info(accounts_iter)?;
     outbox.ensure_owner_signer(owner_info)?;
+
+    if new_protocol_fee_config.fee > outbox.max_protocol_fee {
+        msg!(
+            "Invalid protocol fee config: Fee is greater than max protocol fee",
+            new_protocol_fee_config.fee,
+            outbox.max_protocol_fee
+        );
+        return Err(ProgramError::InvalidArgument);
+    }
 
     outbox.protocol_fee = new_protocol_fee_config;
 

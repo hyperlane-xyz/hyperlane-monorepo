@@ -62,10 +62,10 @@ pub struct Init {
     pub local_domain: u32,
     /// The default ISM.
     pub default_ism: Pubkey,
-    /// The current protocol fee, expressed in the lowest denomination.
-    pub protocol_fee: u64,
-    /// The beneficiary of protocol fees.
-    pub protocol_fee_beneficiary: Pubkey,
+    /// The maximum protocol fee that can be charged.
+    pub max_protocol_fee: u64,
+    /// The protocol fee configuration.
+    pub protocol_fee: ProtocolFee,
 }
 
 /// Instruction data for the OutboxDispatch instruction.
@@ -99,8 +99,8 @@ pub fn init_instruction(
     program_id: Pubkey,
     local_domain: u32,
     default_ism: Pubkey,
-    protocol_fee: u64,
-    protocol_fee_beneficiary: Pubkey,
+    max_protocol_fee: u64,
+    protocol_fee: ProtocolFee,
     payer: Pubkey,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (inbox_account, _inbox_bump) =
@@ -115,8 +115,8 @@ pub fn init_instruction(
         data: Instruction::Init(Init {
             local_domain,
             default_ism,
+            max_protocol_fee,
             protocol_fee,
-            protocol_fee_beneficiary,
         })
         .into_instruction_data()?,
         accounts: vec![
