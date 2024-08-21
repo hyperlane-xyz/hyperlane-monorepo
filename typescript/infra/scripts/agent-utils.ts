@@ -90,14 +90,18 @@ export function getArgs() {
     .alias('e', 'environment');
 }
 
-export function withModuleAndFork<T>(args: Argv<T>) {
+export function withFork<T>(args: Argv<T>) {
   return args
-    .choices('module', Object.values(Modules))
-    .demandOption('module', 'hyperlane module to deploy')
-    .alias('m', 'module')
     .describe('fork', 'network to fork')
     .choices('fork', getChains())
     .alias('f', 'fork');
+}
+
+export function withModule<T>(args: Argv<T>) {
+  return args
+    .choices('module', Object.values(Modules))
+    .demandOption('module', 'hyperlane module to deploy')
+    .alias('m', 'module');
 }
 
 export function withContext<T>(args: Argv<T>) {

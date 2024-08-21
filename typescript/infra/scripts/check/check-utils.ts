@@ -40,19 +40,22 @@ import {
   withAsDeployer,
   withChain,
   withContext,
+  withFork,
   withGovern,
-  withModuleAndFork,
+  withModule,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 import { getHelloWorldApp } from '../helloworld/utils.js';
 
-export function getCheckDeployArgs() {
+export function getCheckArgs() {
   return withAsDeployer(
-    withGovern(
-      withChain(withWarpRouteId(withModuleAndFork(withContext(getRootArgs())))),
-    ),
+    withGovern(withChain(withFork(withContext(getRootArgs())))),
   );
+}
+
+export function getCheckDeployArgs() {
+  return withWarpRouteId(withModule(getCheckArgs()));
 }
 
 export async function check(
@@ -105,6 +108,7 @@ export async function check(
     warpRouteId,
   );
 
+  // TODO: getGovernor should throw if module not implemented and this should be removed
   if (!governor) {
     return;
   }
@@ -295,7 +299,8 @@ const getGovernor = async (
     );
     governor = new ProxiedRouterGovernor(checker, ica);
   } else {
-    console.log(`Skipping ${module}, checker or governor unimplemented`);
+    // TODO: should we throw here instead?
+    console.log(`Skipping ${module}, checker or governor not implemented`);
     return;
   }
 

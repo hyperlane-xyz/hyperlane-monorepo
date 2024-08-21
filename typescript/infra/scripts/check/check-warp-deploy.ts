@@ -1,26 +1,16 @@
+import chalk from 'chalk';
+
+import { WarpRouteIds } from '../../config/warp.js';
 import { Modules } from '../agent-utils.js';
 
-import { check, getCheckDeployArgs } from './check-utils.js';
-
-const WARP_ROUTE_IDS = [
-  'ECLIP/arbitrum-neutron',
-  'ETH/ethereum-viction',
-  'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-zircuit',
-  'INJ/inevm-injective',
-  'TIA/arbitrum-neutron',
-  'TIA/mantapacific-neutron',
-  'USDC/ancient8-ethereum',
-  'USDC/ethereum-inevm',
-  'USDC/ethereum-viction',
-  'USDT/ethereum-inevm',
-  'USDT/ethereum-viction',
-];
+import { check, getCheckArgs } from './check-utils.js';
 
 async function checkWarp() {
-  const argv = await getCheckDeployArgs().argv;
+  const argv = await getCheckArgs().argv;
 
-  for (const warpRouteId of WARP_ROUTE_IDS) {
-    console.log(`Checking warp route ${warpRouteId}`);
+  // TODO: consider retrying this if check throws an error
+  for (const warpRouteId of Object.values(WarpRouteIds)) {
+    console.log(`\nChecking warp route ${warpRouteId}...`);
     try {
       await check({
         ...argv,
@@ -28,7 +18,7 @@ async function checkWarp() {
         module: Modules.WARP,
       });
     } catch (e) {
-      console.error(e);
+      console.log(chalk.red(`Error checking warp route ${warpRouteId}: ${e}`));
     }
   }
 }
