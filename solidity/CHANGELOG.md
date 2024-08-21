@@ -1,20 +1,5 @@
 # @hyperlane-xyz/core
 
-## 5.1.0
-
-### Minor Changes
-
-- e151b5f9a: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
-- 6f377f174: Added hook/ism for using the Optimism native bridge for L2->L1 calls
-- 63abe564d: Added yield route with yield going to message recipient.
-- 76f7ecaff: feat: attributable fraud for signers
-- cb404cb85: Implement checkpoint fraud proofs for use in slashing
-
-### Patch Changes
-
-- 2edfa4043: fix: only evaluate dynamic revert reasons in reverting branch
-  - @hyperlane-xyz/utils@5.1.0
-
 ## 5.0.0
 
 ### Patch Changes
