@@ -80,10 +80,6 @@ impl SyntheticPlugin {
     /// It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
     #[cfg(target_arch = "sbf")]
     pub const MINT_ACCOUNT_SIZE: usize = 234;
-
-    /// The size of the mint account.
-    /// Need to hardcode this value because our `spl_token_2022` version doesn't include it.
-    /// It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
     #[cfg(not(target_arch = "sbf"))]
     pub const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
 
