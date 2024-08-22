@@ -588,7 +588,7 @@ export const nautilus: ChainMetadata = {
   },
   rpcUrls: [
     {
-      http: 'https://api.nautilus.nautchain.xyz',
+      http: 'https://api.evm.nautilus.prod.eclipsenetwork.xyz',
     },
   ],
   blocks: {

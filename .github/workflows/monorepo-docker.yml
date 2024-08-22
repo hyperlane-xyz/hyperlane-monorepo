@@ -8,6 +8,9 @@ on:
     paths:
       # For now, because this image is only used to use `infra`, we just build for infra changes
       - 'typescript/infra/**'
+      - 'typescript/sdk/**'
+      - 'typescript/utils/**'
+      - 'solidity/contracts/**'
 concurrency:
   group: build-push-monorepo-${{ github.ref }}
   cancel-in-progress: true
