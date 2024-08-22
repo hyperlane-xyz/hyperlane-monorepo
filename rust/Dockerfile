@@ -33,12 +33,11 @@ RUN \
   --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
   --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
   --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
-    cd rust && \
     RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
-    cp target/release/validator /release && \
-    cp target/release/relayer /release && \
-    cp target/release/scraper /release
+    cp /usr/src/rust/target/release/validator /release && \
+    cp /usr/src/rust/target/release/relayer /release && \
+    cp /usr/src/rust/target/release/scraper /release
 
 # Step 4: Set up the release image
 FROM ubuntu:22.04
