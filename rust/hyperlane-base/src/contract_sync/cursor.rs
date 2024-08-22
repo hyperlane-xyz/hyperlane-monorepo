@@ -399,11 +399,22 @@ impl ForwardBackwardMessageSyncCursor {
         db: Arc<dyn HyperlaneMessageStore>,
         chunk_size: u32,
         mode: IndexMode,
+        domain: &HyperlaneDomain,
     ) -> Result<Self> {
-        let (count, tip) = indexer.sequence_and_tip().await?;
-        let count = count.ok_or(ChainCommunicationError::from_other_str(
+        let (count, mut tip) = {indexer.sequence_and_tip().await?;
+        let mut count = count.ok_or(ChainCommunicationError::from_other_str(
             "Failed to query message count",
         ))?;
+        if domain.id() == 22222 {
+            if let Some(env_tip) = env::var("NAUTILUS_SYNC_TIP").ok() {
+                tracing::warn!(?env_tip, "Using NAUTILUS_SYNC_TIP");
+                tip = env_tip.parse().unwrap();
+            }
+            if let Some(env_count) = env::var("NAUTILUS_SYNC_COUNT").ok() {
+                tracing::warn!(?env_count, "Using NAUTILUS_SYNC_COUNT");
+                count = env_count.parse().unwrap();
+            }
+        }
         let forward_cursor = ForwardMessageSyncCursor::new(
             indexer.clone(),
             db.clone(),
