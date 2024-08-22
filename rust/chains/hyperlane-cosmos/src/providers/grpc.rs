@@ -649,3 +649,6 @@ impl BlockNumberGetter for WasmGrpcProvider {
         self.latest_block_height().await
     }
 }
+
+#[cfg(test)]
+mod tests;
