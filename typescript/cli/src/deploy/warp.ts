@@ -206,14 +206,18 @@ async function executeDeploy(
     objMap(
       config,
       async (chain: string, tokenRouterConfig: TokenRouterConfig) => {
+        const chainAddresses = await getOrDeployIsmFactories(
+          registry,
+          chain,
+          ismFactoryDeployer,
+        );
         // If a new ISM is configured in the WarpRouteConfig, deploy that ISM
         // Then return a modified config with the ism address as a string
         const configWithDeployedIsm = await deployAndResolveWarpIsm(
           chain,
           tokenRouterConfig,
           multiProvider,
-          registry,
-          ismFactoryDeployer,
+          chainAddresses,
           contractVerifier,
         );
 
@@ -223,8 +227,7 @@ async function executeDeploy(
           chain,
           tokenRouterConfig,
           multiProvider,
-          registry,
-          ismFactoryDeployer,
+          chainAddresses,
           contractVerifier,
         );
         return { ...configWithDeployedIsm, ...configWithDeployedHook };
@@ -253,8 +256,7 @@ async function deployAndResolveWarpIsm(
   chain: string,
   tokenRouterConfig: TokenRouterConfig,
   multiProvider: MultiProvider,
-  registry: IRegistry,
-  ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
+  chainAddresses: Record<string, string>,
   contractVerifier?: ContractVerifier,
 ): Promise<TokenRouterConfig> {
   if (
@@ -270,12 +272,6 @@ async function deployAndResolveWarpIsm(
     );
     return tokenRouterConfig;
   }
-
-  const chainAddresses = await getOrDeployIsmFactories(
-    registry,
-    chain,
-    ismFactoryDeployer,
-  );
 
   logGray(
     `Creating ${tokenRouterConfig.interchainSecurityModule.type} ISM for ${tokenRouterConfig.type} token on ${chain} chain...`,
@@ -350,8 +346,7 @@ async function deployAndResolveWarpHook(
   chain: string,
   tokenRouterConfig: TokenRouterConfig,
   multiProvider: MultiProvider,
-  registry: IRegistry,
-  ismFactoryDeployer: HyperlaneProxyFactoryDeployer,
+  chainAddresses: Record<string, string>,
   contractVerifier?: ContractVerifier,
 ): Promise<TokenRouterConfig> {
   if (!tokenRouterConfig.hook || typeof tokenRouterConfig.hook === 'string') {
@@ -362,12 +357,6 @@ async function deployAndResolveWarpHook(
     );
     return tokenRouterConfig;
   }
-
-  const chainAddresses = await getOrDeployIsmFactories(
-    registry,
-    chain,
-    ismFactoryDeployer,
-  );
 
   logGray(
     `Creating ${tokenRouterConfig.hook.type} Hook for ${tokenRouterConfig.type} token on ${chain} chain...`,
