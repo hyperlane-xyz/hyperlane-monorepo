@@ -165,6 +165,7 @@ export {
   PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
+  WeightedMultisigIsmConfig,
 } from './ism/types.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
 export {

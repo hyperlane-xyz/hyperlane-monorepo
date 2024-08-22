@@ -45,7 +45,8 @@ import {
   withChains,
   withConcurrentDeploy,
   withContext,
-  withModuleAndFork,
+  withFork,
+  withModule,
   withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
@@ -63,7 +64,7 @@ async function main() {
   } = await withContext(
     withConcurrentDeploy(
       withChains(
-        withModuleAndFork(withWarpRouteId(withBuildArtifactPath(getArgs()))),
+        withModule(withFork(withWarpRouteId(withBuildArtifactPath(getArgs())))),
       ),
     ),
   ).argv;
