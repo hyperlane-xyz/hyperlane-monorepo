@@ -202,7 +202,7 @@ async function executeDeploy(
     multiProvider,
     contractVerifier,
   );
-  const mutatedConfig: WarpRouteDeployConfig = await promiseObjAll(
+  const modifiedConfig: WarpRouteDeployConfig = await promiseObjAll(
     objMap(
       config,
       async (chain: string, tokenRouterConfig: TokenRouterConfig) => {
@@ -218,7 +218,7 @@ async function executeDeploy(
         );
 
         // If a new hook is configured in the WarpRouteConfig, deploy that hook
-        // and return the updated config with the hook address as a string
+        // Then return the modified config with the hook address as a string
         const configWithDeployedHook = await deployAndResolveWarpHook(
           chain,
           tokenRouterConfig,
@@ -232,7 +232,7 @@ async function executeDeploy(
     ),
   );
 
-  const deployedContracts = await deployer.deploy(mutatedConfig);
+  const deployedContracts = await deployer.deploy(modifiedConfig);
 
   logGreen('✅ Warp contract deployments complete');
   return deployedContracts;
@@ -421,9 +421,8 @@ async function createWarpHook(
     await multiProvider.handleDeploy(chain, new ProxyAdmin__factory(), [])
   ).address;
 
-  const coreAddresses: CoreAddresses = {
+  const coreAddresses: Omit<CoreAddresses, 'validatorAnnounce'> = {
     mailbox: tokenRouterConfig.mailbox,
-    validatorAnnounce: '', // not needed for hook deployment
     proxyAdmin,
   };
 
