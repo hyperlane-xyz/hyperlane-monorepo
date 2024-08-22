@@ -83,6 +83,14 @@ impl MessageProcessor {
     /// None.
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
         loop {
+            if self.domain().id() == 22222 && self.message_nonce == 206730 {
+                tracing::warn!(
+                    "Skipping message 206730 for domain 22222, which is lost by the Eclipse team"
+                );
+                // If the domain is the origin, we can't send messages to ourselves.
+                self.message_nonce += 1;
+            }
+
             // First, see if we can find the message so we can update the gauge.
             if let Some(message) = self.db.retrieve_message_by_nonce(self.message_nonce)? {
                 // Update the latest nonce gauges
