@@ -9,52 +9,7 @@ RUN apt-get update && \
     apt-get install -y musl-tools clang && \
     rustup target add x86_64-unknown-linux-musl
 
-# Step 2: Copy dependency files and create dummy source files
-COPY rust/Cargo.toml rust/Cargo.lock ./rust/
-
-# Create dummy source files to build dependencies
-RUN mkdir -p rust/src && \
-    echo "fn main() {}" > rust/src/main.rs && \
-    mkdir -p rust/agents/relayer/src && \
-    echo "fn main() {}" > rust/agents/relayer/src/lib.rs && \
-    mkdir -p rust/agents/validator/src && \
-    echo "fn main() {}" > rust/agents/validator/src/lib.rs && \
-    mkdir -p rust/agents/scraper/src && \
-    echo "fn main() {}" > rust/agents/scraper/src/lib.rs && \
-    mkdir -p rust/chains/src && \
-    echo "fn main() {}" > rust/chains/src/lib.rs && \
-    mkdir -p rust/hyperlane-base/src && \
-    echo "fn main() {}" > rust/hyperlane-base/src/lib.rs && \
-    mkdir -p rust/hyperlane-core/src && \
-    echo "fn main() {}" > rust/hyperlane-core/src/lib.rs && \
-    mkdir -p rust/hyperlane-test/src && \
-    echo "fn main() {}" > rust/hyperlane-test/src/lib.rs && \
-    mkdir -p rust/ethers-prometheus/src && \
-    echo "fn main() {}" > rust/ethers-prometheus/src/lib.rs && \
-    mkdir -p rust/utils/src && \
-    echo "fn main() {}" > rust/utils/src/lib.rs && \
-    mkdir -p rust/sealevel/src && \
-    echo "fn main() {}" > rust/sealevel/src/lib.rs
-
-# Copy individual Cargo.toml files for each workspace member
-COPY rust/agents/relayer/Cargo.toml rust/agents/relayer/
-COPY rust/agents/validator/Cargo.toml rust/agents/validator/
-COPY rust/agents/scraper/Cargo.toml rust/agents/scraper/
-COPY rust/chains/Cargo.toml rust/chains/
-COPY rust/hyperlane-base/Cargo.toml rust/hyperlane-base/
-COPY rust/hyperlane-core/Cargo.toml rust/hyperlane-core/
-COPY rust/hyperlane-test/Cargo.toml rust/hyperlane-test/
-COPY rust/ethers-prometheus/Cargo.toml rust/ethers-prometheus/
-COPY rust/utils/Cargo.toml rust/utils/
-COPY rust/sealevel/Cargo.toml rust/sealevel/
-
-# Step 3: Build dependencies
-RUN \
-  --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
-  --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
-  --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
-    cd rust && \
-    RUSTFLAGS="--cfg tokio_unstable" cargo build --release
+RUN mkdir rust
 
 # Step 4: Copy the actual source code
 COPY rust/agents rust/agents
@@ -65,7 +20,13 @@ COPY rust/hyperlane-test rust/hyperlane-test
 COPY rust/ethers-prometheus rust/ethers-prometheus
 COPY rust/utils rust/utils
 COPY rust/sealevel rust/sealevel
+
+COPY rust/Cargo.toml rust/.
+COPY rust/Cargo.lock rust/.
+
 COPY .git .git
+
+WORKDIR /usr/src/rust
 
 # Step 5: Build binaries
 RUN \
