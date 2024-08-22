@@ -39,8 +39,6 @@ use crate::{
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
-const TOKEN_2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
-
 /// Configuration relating to decimals.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -286,7 +284,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     mint_account.to_string().as_str(),
                     "--enable-metadata",
                     "-p",
-                    TOKEN_2022_PROGRAM_ID,
+                    spl_token_2022::id().to_string().as_str(),
                     "--url",
                     client.url().as_str(),
                     "--with-compute-unit-limit",
@@ -344,7 +342,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 token_metadata.symbol.as_str(),
                 token_metadata.uri.as_deref().unwrap_or(""),
                 "-p",
-                TOKEN_2022_PROGRAM_ID,
+                spl_token_2022::id().to_string().as_str(),
                 "--url",
                 client.url().as_str(),
                 "--with-compute-unit-limit",
@@ -377,7 +375,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     authority,
                     mint_account.to_string().as_str(),
                     "-p",
-                    TOKEN_2022_PROGRAM_ID,
+                    spl_token_2022::id().to_string().as_str(),
                     "--url",
                     client.url().as_str(),
                     "--with-compute-unit-limit",

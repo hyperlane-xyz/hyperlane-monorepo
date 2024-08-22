@@ -8,6 +8,8 @@ use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
 };
 use serializable_account_meta::SerializableAccountMeta;
+#[cfg(not(target_arch = "sbf"))]
+use solana_program::program_pack::Pack as _;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     instruction::AccountMeta,
@@ -73,11 +75,17 @@ impl SizedData for SyntheticPlugin {
 }
 
 impl SyntheticPlugin {
-    // Need to hardcode this value because our `spl_token_2022` version doesn't include it.
-    // It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
-    const METADATA_POINTER_EXTENSION_SIZE: usize = 234;
     /// The size of the mint account.
-    pub const MINT_ACCOUNT_SIZE: usize = Self::METADATA_POINTER_EXTENSION_SIZE;
+    /// Need to hardcode this value because our `spl_token_2022` version doesn't include it.
+    /// It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
+    #[cfg(target_arch = "sbf")]
+    pub const MINT_ACCOUNT_SIZE: usize = 234;
+
+    /// The size of the mint account.
+    /// Need to hardcode this value because our `spl_token_2022` version doesn't include it.
+    /// It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
+    #[cfg(not(target_arch = "sbf"))]
+    pub const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
 
     /// Returns Ok(()) if the mint account info is valid.
     /// Errors if the key or owner is incorrect.
