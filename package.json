@@ -13,7 +13,7 @@
     "lint-staged": "^12.4.3",
     "prettier": "^2.8.8",
     "tsx": "^4.7.1",
-    "turbo": "^2.0.1"
+    "turbo": "^2.0.14"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.2"
