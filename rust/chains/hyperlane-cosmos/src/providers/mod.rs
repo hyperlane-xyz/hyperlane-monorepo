@@ -5,9 +5,10 @@ use hyperlane_core::{
 };
 use tendermint_rpc::{client::CompatMode, HttpClient};
 
-use self::grpc::WasmGrpcProvider;
 use crate::grpc::WasmProvider;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
+
+use self::grpc::WasmGrpcProvider;
 
 /// cosmos grpc provider
 pub mod grpc;
