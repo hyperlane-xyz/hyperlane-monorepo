@@ -51,15 +51,15 @@ RUN apt-get update && \
 WORKDIR /app
 COPY --from=builder /release/* .
 
-# Step 5: Copy config files
-COPY rust/config ./config
-
-# Step 6: Set up permissions and directories
+# Step 5: Set up permissions and directories
 RUN chmod 777 /app &&  \
     mkdir /usr/share/hyperlane/ && \
     chmod 1000 /usr/share/hyperlane && \
     mkdir /data/ && \
     chown -R 1000 /data/
+
+# Step 6: Copy config files
+COPY rust/config ./config
 
 # Step 7: Set up the user and entrypoint
 USER 1000
