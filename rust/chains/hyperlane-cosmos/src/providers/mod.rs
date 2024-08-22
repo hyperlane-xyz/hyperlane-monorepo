@@ -5,9 +5,9 @@ use hyperlane_core::{
 };
 use tendermint_rpc::{client::CompatMode, HttpClient};
 
-use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
-
 use self::grpc::WasmGrpcProvider;
+use crate::grpc::WasmProvider;
+use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 /// cosmos grpc provider
 pub mod grpc;
@@ -89,7 +89,7 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
-        // FIXME
+        let _ = self.grpc_client.wasm_contract_info().await?;
         Ok(true)
     }
 

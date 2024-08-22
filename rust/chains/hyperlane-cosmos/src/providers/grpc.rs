@@ -16,8 +16,8 @@ use cosmrs::{
             },
         },
         cosmwasm::wasm::v1::{
-            query_client::QueryClient as WasmQueryClient, MsgExecuteContract,
-            QuerySmartContractStateRequest,
+            query_client::QueryClient as WasmQueryClient, ContractInfo, MsgExecuteContract,
+            QueryContractInfoRequest, QuerySmartContractStateRequest,
         },
         traits::Message,
     },
@@ -104,6 +104,12 @@ pub trait WasmProvider: Send + Sync {
         payload: T,
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
+
+    /// Request contract info from the stored contract address.
+    async fn wasm_contract_info(&self) -> ChainResult<ContractInfo>;
+
+    /// Request contract info from a specified contract address
+    async fn wasm_contract_info_to(&self, to: String) -> ChainResult<ContractInfo>;
 
     /// Send a wasm tx.
     async fn wasm_send<T: Serialize + Sync + Send + Clone + Debug>(
@@ -532,6 +538,42 @@ impl WasmProvider for WasmGrpcProvider {
             .await?;
 
         Ok(response.data)
+    }
+
+    async fn wasm_contract_info(&self) -> ChainResult<ContractInfo> {
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
+        self.wasm_contract_info_to(contract_address.address()).await
+    }
+
+    async fn wasm_contract_info_to(&self, to: String) -> ChainResult<ContractInfo> {
+        let response = self
+            .provider
+            .call(move |provider| {
+                let to = to.clone();
+                let future = async move {
+                    let mut client = WasmQueryClient::new(provider.channel.clone());
+
+                    let request = tonic::Request::new(QueryContractInfoRequest { address: to });
+
+                    let response = client
+                        .contract_info(request)
+                        .await
+                        .map_err(ChainCommunicationError::from_other)?
+                        .into_inner()
+                        .contract_info
+                        .ok_or(ChainCommunicationError::from_other_str(
+                            "empty contract info",
+                        ))?;
+
+                    Ok(response)
+                };
+                Box::pin(future)
+            })
+            .await?;
+
+        Ok(response)
     }
 
     #[instrument(skip(self))]
