@@ -10,9 +10,9 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction, HyperlaneMessage,
-    HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer, LogMeta,
-    SequenceIndexer,
+    ChainCommunicationError, ChainResult, ContractSyncCursor, CursorAction, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneMessageStore, HyperlaneWatermarkedLogStore, IndexMode, Indexer,
+    LogMeta, SequenceIndexer,
 };
 use tokio::time::sleep;
 use tracing::{debug, warn};
@@ -401,16 +401,16 @@ impl ForwardBackwardMessageSyncCursor {
         mode: IndexMode,
         domain: &HyperlaneDomain,
     ) -> Result<Self> {
-        let (count, mut tip) = {indexer.sequence_and_tip().await?;
+        let (count, mut tip) = indexer.sequence_and_tip().await?;
         let mut count = count.ok_or(ChainCommunicationError::from_other_str(
             "Failed to query message count",
         ))?;
         if domain.id() == 22222 {
-            if let Some(env_tip) = env::var("NAUTILUS_SYNC_TIP").ok() {
+            if let Some(env_tip) = std::env::var("NAUTILUS_SYNC_TIP").ok() {
                 tracing::warn!(?env_tip, "Using NAUTILUS_SYNC_TIP");
                 tip = env_tip.parse().unwrap();
             }
-            if let Some(env_count) = env::var("NAUTILUS_SYNC_COUNT").ok() {
+            if let Some(env_count) = std::env::var("NAUTILUS_SYNC_COUNT").ok() {
                 tracing::warn!(?env_count, "Using NAUTILUS_SYNC_COUNT");
                 count = env_count.parse().unwrap();
             }

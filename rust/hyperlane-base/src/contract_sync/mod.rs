@@ -207,6 +207,7 @@ impl MessageContractSync {
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.mode,
+                &self.domain,
             )
             .await
             .unwrap(),
