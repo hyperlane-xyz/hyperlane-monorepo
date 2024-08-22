@@ -1,3 +1,4 @@
+use hyperlane_sealevel_mailbox::protocol_fee::ProtocolFee;
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
@@ -6,6 +7,7 @@ use solana_sdk::signature::Signer;
 use std::collections::HashMap;
 use std::{fs::File, path::Path};
 
+use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
     artifacts::{read_json, write_json},
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
@@ -14,6 +16,25 @@ use crate::{
 };
 use hyperlane_core::H256;
 use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
+
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ProtocolFeeConfig {
+    max_protocol_fee: u64,
+    fee: u64,
+    #[serde(with = "crate::serde::serde_option_pubkey")]
+    beneficiary: Option<Pubkey>,
+}
+
+impl Default for ProtocolFeeConfig {
+    fn default() -> Self {
+        Self {
+            max_protocol_fee: ONE_SOL_IN_LAMPORTS,
+            fee: 0,
+            beneficiary: None,
+        }
+    }
+}
 
 pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
     match cmd.cmd {
@@ -77,11 +98,28 @@ fn deploy_mailbox(
 
     println!("Deployed Mailbox at program ID {}", program_id);
 
+    let protocol_fee_config = core
+        .protocol_fee_config_file
+        .as_deref()
+        .map(|p| {
+            let file = File::open(p).expect("Failed to open oracle config file");
+            serde_json::from_reader::<_, ProtocolFeeConfig>(file)
+                .expect("Failed to parse oracle config file")
+        })
+        .unwrap_or_default();
+
+    let protocol_fee_beneficiary = protocol_fee_config.beneficiary.unwrap_or(ctx.payer_pubkey);
+
     // Initialize
     let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
         program_id,
         core.local_domain,
         default_ism,
+        protocol_fee_config.max_protocol_fee,
+        ProtocolFee {
+            fee: protocol_fee_config.fee,
+            beneficiary: protocol_fee_beneficiary,
+        },
         ctx.payer_pubkey,
     )
     .unwrap();
@@ -326,4 +364,26 @@ pub(crate) fn read_core_program_ids(
         .join("core")
         .join("program-ids.json");
     read_json(&path)
+}
+
+#[cfg(test)]
+mod test {
+    use solana_program::pubkey::Pubkey;
+
+    #[test]
+    fn test_protocol_fee_serialization() {
+        let protocol_fee_config = super::ProtocolFeeConfig {
+            max_protocol_fee: 100,
+            fee: 10,
+            beneficiary: Some(Pubkey::new_unique()),
+        };
+        let json_serialized = serde_json::to_string(&protocol_fee_config).unwrap();
+        assert_eq!(
+            json_serialized,
+            r#"{"maxProtocolFee":100,"fee":10,"beneficiary":"1111111QLbz7JHiBTspS962RLKV8GndWFwiEaqKM"}"#
+        );
+        let deserialized: super::ProtocolFeeConfig =
+            serde_json::from_str(&json_serialized).unwrap();
+        assert_eq!(deserialized, protocol_fee_config);
+    }
 }
