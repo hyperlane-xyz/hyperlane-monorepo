@@ -16,7 +16,7 @@ async function main() {
   //   process.exit(1);
   // }
 
-  await setAndVerifyRpcUrls(environment, chain, rpcUrlsArray);
+  await setAndVerifyRpcUrls(environment, chain);
 }
 
 main()

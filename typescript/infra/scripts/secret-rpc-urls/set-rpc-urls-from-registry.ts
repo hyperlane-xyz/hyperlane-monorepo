@@ -31,8 +31,8 @@ async function main() {
       continue;
     }
 
-    const rpcUrlsArray = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    await setAndVerifyRpcUrls(environment, chain, rpcUrlsArray);
+    // const rpcUrlsArray = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+    await setAndVerifyRpcUrls(environment, chain);
   }
 }
 
