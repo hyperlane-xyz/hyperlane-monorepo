@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   IPostDispatchHook,
   IPostDispatchHook__factory,
@@ -7,7 +5,7 @@ import {
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, isZeroishAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -113,7 +111,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // Check if the mailbox has already been initialized
     const currentDefaultIsm = await mailbox.defaultIsm();
-    if (currentDefaultIsm === ethers.constants.AddressZero) {
+    if (isZeroishAddress(currentDefaultIsm)) {
       // If the default ISM is the zero address, the mailbox hasn't been initialized
       this.logger.debug('Initializing mailbox');
       try {
