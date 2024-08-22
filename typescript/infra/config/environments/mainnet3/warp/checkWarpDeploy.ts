@@ -4,7 +4,7 @@ import { environment } from '../chains.js';
 export const checkWarpDeployConfig: CheckWarpDeployConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'e77dfa7-20240822-113013',
+    tag: '9fa5231-20240822-124838',
   },
   namespace: environment,
   cronSchedule: '*/5 * * * *',

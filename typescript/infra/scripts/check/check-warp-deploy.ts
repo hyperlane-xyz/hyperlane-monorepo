@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
 import { WarpRouteIds } from '../../config/warp.js';
-import { startMetricsServer, submitMetrics } from '../../src/utils/metrics.js';
+import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 
 import {
@@ -16,7 +16,6 @@ async function main() {
     await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
-  startMetricsServer(metricsRegister);
   const checkerViolationsGauge = new Gauge({
     name: 'hyperlane_check_violations',
     help: 'Checker violation',
@@ -33,6 +32,7 @@ async function main() {
       'expected',
     ],
   });
+  metricsRegister.registerMetric(checkerViolationsGauge);
 
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of Object.values(WarpRouteIds)) {
