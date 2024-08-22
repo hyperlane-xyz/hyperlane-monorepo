@@ -97,19 +97,8 @@ pub trait WasmProvider: Send + Sync {
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
-    /// Perform a wasm query against a specified contract address.
-    async fn wasm_query_to<T: Serialize + Sync + Send + Clone + Debug>(
-        &self,
-        to: String,
-        payload: T,
-        block_height: Option<u64>,
-    ) -> ChainResult<Vec<u8>>;
-
     /// Request contract info from the stored contract address.
     async fn wasm_contract_info(&self) -> ChainResult<ContractInfo>;
-
-    /// Request contract info from a specified contract address
-    async fn wasm_contract_info_to(&self, to: String) -> ChainResult<ContractInfo>;
 
     /// Send a wasm tx.
     async fn wasm_send<T: Serialize + Sync + Send + Clone + Debug>(
@@ -500,24 +489,11 @@ impl WasmProvider for WasmGrpcProvider {
         T: Serialize + Send + Sync + Clone + Debug,
     {
         let contract_address = self.get_contract_address()?;
-        self.wasm_query_to(contract_address.address(), payload, block_height)
-            .await
-    }
-
-    async fn wasm_query_to<T>(
-        &self,
-        to: String,
-        payload: T,
-        block_height: Option<u64>,
-    ) -> ChainResult<Vec<u8>>
-    where
-        T: Serialize + Send + Sync + Clone,
-    {
         let query_data = serde_json::to_string(&payload)?.as_bytes().to_vec();
         let response = self
             .provider
             .call(move |provider| {
-                let to = to.clone();
+                let to = contract_address.address().clone();
                 let query_data = query_data.clone();
                 let future = async move {
                     let mut client = WasmQueryClient::new(provider.channel.clone());
@@ -547,14 +523,10 @@ impl WasmProvider for WasmGrpcProvider {
 
     async fn wasm_contract_info(&self) -> ChainResult<ContractInfo> {
         let contract_address = self.get_contract_address()?;
-        self.wasm_contract_info_to(contract_address.address()).await
-    }
-
-    async fn wasm_contract_info_to(&self, to: String) -> ChainResult<ContractInfo> {
         let response = self
             .provider
             .call(move |provider| {
-                let to = to.clone();
+                let to = contract_address.address().clone();
                 let future = async move {
                     let mut client = WasmQueryClient::new(provider.channel.clone());
 
