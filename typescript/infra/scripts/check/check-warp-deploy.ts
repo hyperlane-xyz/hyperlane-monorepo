@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
 import { WarpRouteIds } from '../../config/warp.js';
-import { startMetricsServer } from '../../src/utils/metrics.js';
+import { startMetricsServer, submitMetrics } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 
 import {
@@ -75,6 +75,10 @@ async function main() {
       } else {
         console.info(chalk.green(`${warpModule} checker found no violations`));
       }
+
+      await submitMetrics(metricsRegister, `check-warp-deploy-${environment}`, {
+        overwriteAllMetrics: true,
+      });
     } catch (e) {
       console.log(chalk.red(`Error checking warp route ${warpRouteId}: ${e}`));
     }
