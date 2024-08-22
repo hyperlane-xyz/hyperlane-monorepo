@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
+  ChainMetadata,
   ChainName,
   CoreConfig,
   MultiProtocolProvider,
@@ -364,6 +365,7 @@ export async function getMultiProtocolProvider(
 
 export async function getMultiProviderForRole(
   environment: DeployEnvironment,
+  supportedChainNames: ChainName[],
   registry: IRegistry,
   context: Contexts,
   role: Role,
@@ -377,13 +379,21 @@ export async function getMultiProviderForRole(
     return multiProvider;
   }
   await promiseObjAll(
-    objMap(chainMetadata, async (chain, _) => {
-      if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-        const key = getKeyForRole(environment, context, role, chain, index);
-        const signer = await key.getSigner();
-        multiProvider.setSigner(chain, signer);
-      }
-    }),
+    objMap(
+      supportedChainNames.reduce((acc, chain) => {
+        if (chainMetadata[chain]) {
+          acc[chain] = chainMetadata[chain];
+        }
+        return acc;
+      }, {} as ChainMap<ChainMetadata>),
+      async (chain, _) => {
+        if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+          const key = getKeyForRole(environment, context, role, chain, index);
+          const signer = await key.getSigner();
+          multiProvider.setSigner(chain, signer);
+        }
+      },
+    ),
   );
 
   return multiProvider;
