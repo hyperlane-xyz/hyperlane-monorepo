@@ -656,6 +656,12 @@ fn outbox_dispatch(
         &system_instruction::transfer(payer_info.key, outbox_info.key, protocol_fee),
         &[payer_info.clone(), outbox_info.clone()],
     )?;
+    msg!(
+        "Protocol fee of {} paid from {} to {}",
+        protocol_fee,
+        payer_info.key,
+        outbox_info.key
+    );
 
     let message = HyperlaneMessage {
         version: VERSION,
