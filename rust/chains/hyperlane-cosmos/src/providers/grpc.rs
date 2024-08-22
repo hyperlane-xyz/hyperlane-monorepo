@@ -456,6 +456,13 @@ impl WasmGrpcProvider {
             sequence: base_account.sequence,
         })
     }
+
+    fn get_contract_address(&self) -> Result<&CosmosAddress, ChainCommunicationError> {
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
+        Ok(contract_address)
+    }
 }
 
 #[async_trait]
@@ -492,9 +499,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync + Clone + Debug,
     {
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
+        let contract_address = self.get_contract_address()?;
         self.wasm_query_to(contract_address.address(), payload, block_height)
             .await
     }
@@ -541,9 +546,7 @@ impl WasmProvider for WasmGrpcProvider {
     }
 
     async fn wasm_contract_info(&self) -> ChainResult<ContractInfo> {
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
+        let contract_address = self.get_contract_address()?;
         self.wasm_contract_info_to(contract_address.address()).await
     }
 
@@ -582,9 +585,7 @@ impl WasmProvider for WasmGrpcProvider {
         T: Serialize + Send + Sync + Clone + Debug,
     {
         let signer = self.get_signer()?;
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
+        let contract_address = self.get_contract_address()?;
         let msgs = vec![MsgExecuteContract {
             sender: signer.address.clone(),
             contract: contract_address.address(),
@@ -652,9 +653,7 @@ impl WasmProvider for WasmGrpcProvider {
         // Estimating gas requires a signer, which we can reasonably expect to have
         // since we need one to send a tx with the estimated gas anyways.
         let signer = self.get_signer()?;
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
+        let contract_address = self.get_contract_address()?;
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
             contract: contract_address.address(),
