@@ -164,7 +164,7 @@ function writeToFile(filepath: string, content: string) {
 }
 
 export function writeJsonAtPath(filepath: string, obj: any) {
-  const content = stringifyObject(obj, 'json', 1);
+  const content = stringifyObject(obj, 'json', 2);
   writeToFile(filepath, content);
 }
 
