@@ -920,7 +920,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 2,
-        "reorgPeriod": 1
+        "reorgPeriod": 2
       },
       "chainId": 252,
       "deployer": {
@@ -1179,8 +1179,7 @@
     },
     "injective": {
       "bech32Prefix": "inj",
-      "blockExplorers": [
-      ],
+      "blockExplorers": [],
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
