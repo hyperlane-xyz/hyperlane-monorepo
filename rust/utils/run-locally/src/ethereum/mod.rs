@@ -49,7 +49,11 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     yarn_infra.clone().cmd("deploy-core").run().join();
 
     log!("Updating agent config...");
-    yarn_infra.clone().cmd("update-agent-config:test").run().join();
+    yarn_infra
+        .clone()
+        .cmd("update-agent-config:test")
+        .run()
+        .join();
 
     log!("Deploying multicall contract...");
     tokio::runtime::Builder::new_current_thread()
