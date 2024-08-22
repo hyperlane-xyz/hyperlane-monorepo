@@ -31,7 +31,7 @@ export const keyFunderConfig: KeyFunderConfig<
     basesepolia: '0.1',
     bsctestnet: '5',
     connextsepolia: '1',
-    ecotestnet: '0.1',
+    ecotestnet: '0.02',
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '5',
@@ -71,7 +71,7 @@ export const keyFunderConfig: KeyFunderConfig<
     basesepolia: '0.05',
     bsctestnet: '1',
     connextsepolia: '0.1',
-    ecotestnet: '0.05',
+    ecotestnet: '0.01',
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '1',
