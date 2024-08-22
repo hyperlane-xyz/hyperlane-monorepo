@@ -21,6 +21,7 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
+  WeightedMultisigIsmConfig,
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
 
@@ -28,6 +29,7 @@ function randomModuleType(): ModuleType {
   const choices = [
     ModuleType.AGGREGATION,
     ModuleType.MESSAGE_ID_MULTISIG,
+    ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG,
     ModuleType.ROUTING,
     ModuleType.NULL,
   ];
@@ -50,6 +52,36 @@ const randomMultisigIsmConfig = (
   };
 };
 
+const randomWeightedMultisigIsmConfig = (
+  n: number,
+  addresses?: string[],
+): WeightedMultisigIsmConfig => {
+  const totalWeight = 1e10;
+  const emptyArray = new Array<number>(n).fill(0);
+  const validators = emptyArray.map(() => ({
+    signingAddress: addresses ? randomElement(addresses) : randomAddress(),
+    weight: 0,
+  }));
+  let remainingWeight = totalWeight;
+
+  for (let i = 0; i < n; i++) {
+    if (i === n - 1) {
+      validators[i].weight = remainingWeight;
+    } else {
+      const weight = Math.floor(Math.random() * (remainingWeight + 1));
+      validators[i].weight = weight;
+      remainingWeight -= weight;
+    }
+  }
+
+  const thresholdWeight = Math.floor(Math.random() * totalWeight);
+  return {
+    type: IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+    validators,
+    thresholdWeight,
+  };
+};
+
 export const randomIsmConfig = (
   maxDepth = 5,
   validatorAddresses?: string[],
@@ -60,6 +92,9 @@ export const randomIsmConfig = (
   if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
     const n = randomInt(validatorAddresses?.length ?? 5, 1);
     return randomMultisigIsmConfig(randomInt(n, 1), n, validatorAddresses);
+  } else if (moduleType === ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG) {
+    const n = randomInt(validatorAddresses?.length ?? 5, 1);
+    return randomWeightedMultisigIsmConfig(randomInt(n, 1), validatorAddresses);
   } else if (moduleType === ModuleType.ROUTING) {
     const config: RoutingIsmConfig = {
       type: IsmType.ROUTING,

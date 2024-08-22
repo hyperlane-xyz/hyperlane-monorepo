@@ -54,8 +54,9 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   sei: {
     // Sei's `eth_feeHistory` is not to spec and incompatible with ethers-rs,
     // so we force legacy transactions by setting a gas price.
+    // A minimum fee of 100 gwei is imposed https://seitrace.com/proposal/83?chain=pacific-1
     transactionOverrides: {
-      gasPrice: 100 * 10 ** 9, // 100 gwei
+      gasPrice: 101 * 10 ** 9, // 101 gwei
     },
   },
   moonbeam: {

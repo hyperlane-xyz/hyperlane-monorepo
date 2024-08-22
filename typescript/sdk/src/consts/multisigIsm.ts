@@ -458,6 +458,22 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
   },
 
+  stride: {
+    threshold: 6,
+    validators: [
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0x88f0E5528131b10e3463C4c68108217Dd33462ac', // cosmostation
+      '0xa3eaa1216827ad63dd9db43f6168258a89177990', // DSRV
+      '0x3f869C36110F00D10dC74cca3ac1FB133cf019ad', // polkachu
+      '0x502dC6135d16E74056f609FBAF76846814C197D3', // strangelove
+      '0xc36979780c1aD43275182600a61Ce41f1C390FbE', // imperator
+      '0x87460dcEd16a75AECdBffD4189111d30B099f5b0', // enigma
+      '0xf54982134e52Eb7253236943FBffE0886C5bde0C', // L5
+      '0x5937b7cE1029C3Ec4bD8e1AaCc0C0f9422654D7d', // stakecito
+      '0x3a446ed2923c08445af06e53f0acb558c0e0413c', // staked
+    ],
+  },
+
   superpositiontestnet: {
     threshold: 1,
     validators: ['0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a'],
@@ -518,8 +534,13 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zircuit: {
-    threshold: 1,
-    validators: ['0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb'],
+    threshold: 3,
+    validators: [
+      '0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb',
+      '0x7aC6584c068eb2A72d4Db82A7B7cd5AB34044061', // luganodes
+      '0x0180444c9342BD672867Df1432eb3dA354413a6E', // hashkey cloud
+      '0x1da9176C2CE5cC7115340496fa7D1800a98911CE', // renzo
+    ],
   },
 
   zoramainnet: {

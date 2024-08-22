@@ -2307,6 +2307,12 @@
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
+    },
+    {
+      "address": "0x089DdA086dCbfA0C2cCa69B45F2eB6DE7Fd71F38",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "degenchain": [
@@ -2371,6 +2377,24 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x089DdA086dCbfA0C2cCa69B45F2eB6DE7Fd71F38",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x089DdA086dCbfA0C2cCa69B45F2eB6DE7Fd71F38",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "endurance": [
@@ -3916,6 +3940,30 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xF15D70941dE2Bf95A23d6488eBCbedE0a444137f",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x662771d29DFf0d7C36bB9BB6d4241a02e77585d9",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x662771d29DFf0d7C36bB9BB6d4241a02e77585d9",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x9c44E6b8F0dB517C2c3a0478caaC5349b614F912",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "linea": [
@@ -4858,6 +4906,24 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x53e912b41125d6094590a7DBEf1360d3d56EEa19",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x53e912b41125d6094590a7DBEf1360d3d56EEa19",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "lukso": [
@@ -5115,6 +5181,12 @@
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
+    },
+    {
+      "address": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "metis": [
@@ -5179,6 +5251,24 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0xD7EcB0396406682a27E87F7946c25Ac531140959",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0xDab56C5A1EffFdd23f6BD1243E457B1575984Bc6",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0xDab56C5A1EffFdd23f6BD1243E457B1575984Bc6",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "mint": [
@@ -5200,6 +5290,36 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xcd9D3744512F07AE844c40E27912092d7c503565",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0xDab56C5A1EffFdd23f6BD1243E457B1575984Bc6",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x53e912b41125d6094590a7DBEf1360d3d56EEa19",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
+    },
+    {
+      "address": "0xDab56C5A1EffFdd23f6BD1243E457B1575984Bc6",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x53e912b41125d6094590a7DBEf1360d3d56EEa19",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "mode": [
@@ -6605,6 +6725,42 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
+    },
+    {
+      "address": "0x5d69BC38eF3eDb491c0b7186BEc4eC45c4013f93",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x73db9c7430548f399e335f3424e8d56080e9010c",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
+    },
+    {
+      "address": "0x5d69BC38eF3eDb491c0b7186BEc4eC45c4013f93",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x73db9c7430548f399e335f3424e8d56080e9010c",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "real": [
@@ -6632,6 +6788,12 @@
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
+    },
+    {
+      "address": "0x59C2dB903937EbE55B59c3415FD55e970FF5f2DC",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "redstone": [
@@ -7417,6 +7579,30 @@
       "expectedimplementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "isProxy": true,
       "name": "TransparentUpgradeableProxy"
+    },
+    {
+      "address": "0xC88bAD76EC7acD9fd3b9Bb264f7f5C18097c5710",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0xDab56C5A1EffFdd23f6BD1243E457B1575984Bc6",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "scroll": [
@@ -8579,6 +8765,24 @@
       "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "ProtocolFee"
+    },
+    {
+      "address": "0xF15D70941dE2Bf95A23d6488eBCbedE0a444137f",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x5d69BC38eF3eDb491c0b7186BEc4eC45c4013f93",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
+    },
+    {
+      "address": "0x5d69BC38eF3eDb491c0b7186BEc4eC45c4013f93",
+      "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "PausableIsm"
     }
   ],
   "viction": [
@@ -8967,6 +9171,12 @@
       "constructorArguments": "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
       "isProxy": false,
       "name": "PausableIsm"
+    },
+    {
+      "address": "0xe8d5590F2e969F9d21f0132f2b596273f8a03Ef2",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000003b9aca000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba",
+      "isProxy": false,
+      "name": "ProtocolFee"
     }
   ],
   "xlayer": [
