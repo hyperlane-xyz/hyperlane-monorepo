@@ -11,7 +11,7 @@ RUN apt-get update && \
 
 RUN mkdir rust
 
-# Step 4: Copy the actual source code
+# Step 2: Copy the actual source code
 COPY rust/agents rust/agents
 COPY rust/chains rust/chains
 COPY rust/hyperlane-base rust/hyperlane-base
@@ -28,7 +28,7 @@ COPY .git .git
 
 WORKDIR /usr/src/rust
 
-# Step 5: Build binaries
+# Step 3: Build binaries
 RUN \
   --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
   --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
@@ -40,7 +40,7 @@ RUN \
     cp target/release/relayer /release && \
     cp target/release/scraper /release
 
-# Step 6: Set up the release image
+# Step 4: Set up the release image
 FROM ubuntu:22.04
 RUN apt-get update && \
     apt-get install -y \
@@ -52,17 +52,17 @@ RUN apt-get update && \
 WORKDIR /app
 COPY --from=builder /release/* .
 
-# Step 7: Copy config files
+# Step 5: Copy config files
 COPY rust/config ./config
 
-# Step 8: Set up permissions and directories
+# Step 6: Set up permissions and directories
 RUN chmod 777 /app &&  \
     mkdir /usr/share/hyperlane/ && \
     chmod 1000 /usr/share/hyperlane && \
     mkdir /data/ && \
     chown -R 1000 /data/
 
-# Step 9: Set up the user and entrypoint
+# Step 7: Set up the user and entrypoint
 USER 1000
 ENTRYPOINT ["tini", "--"]
 CMD ["./validator"]
