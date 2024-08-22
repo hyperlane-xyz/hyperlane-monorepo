@@ -3,7 +3,7 @@
 FROM rust:1.72.1 as builder
 WORKDIR /usr/src
 
-# 1a: Prepare for static linking
+# Step 1: Prepare for static linking and install necessary tools
 RUN apt-get update && \
     apt-get dist-upgrade -y && \
     apt-get install -y musl-tools clang && \
@@ -11,7 +11,7 @@ RUN apt-get update && \
 
 RUN mkdir rust
 
-# Add workspace to workdir
+# Step 2: Copy the actual source code
 COPY rust/agents rust/agents
 COPY rust/chains rust/chains
 COPY rust/hyperlane-base rust/hyperlane-base
@@ -28,7 +28,7 @@ COPY .git .git
 
 WORKDIR /usr/src/rust
 
-# Build binaries
+# Step 3: Build binaries
 RUN \
   --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
   --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
@@ -39,7 +39,7 @@ RUN \
     cp /usr/src/rust/target/release/relayer /release && \
     cp /usr/src/rust/target/release/scraper /release
 
-## 2: Copy the binaries to release image
+# Step 4: Set up the release image
 FROM ubuntu:22.04
 RUN apt-get update && \
     apt-get install -y \
@@ -49,15 +49,19 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY rust/config ./config
 COPY --from=builder /release/* .
 
+# Step 5: Copy config files
+COPY rust/config ./config
+
+# Step 6: Set up permissions and directories
 RUN chmod 777 /app &&  \
     mkdir /usr/share/hyperlane/ && \
     chmod 1000 /usr/share/hyperlane && \
     mkdir /data/ && \
     chown -R 1000 /data/
 
+# Step 7: Set up the user and entrypoint
 USER 1000
 ENTRYPOINT ["tini", "--"]
 CMD ["./validator"]
