@@ -324,6 +324,11 @@ impl Relayer {
             self.prover_syncs[origin].clone(),
             send_channels,
             destination_ctxs,
+            std::env::var("NONCES_TO_SKIP")
+                .unwrap_or_default()
+                .split(',')
+                .filter_map(|s| s.parse().ok())
+                .collect(),
         );
 
         let span = info_span!("MessageProcessor", origin=%message_processor.domain());

@@ -38,6 +38,7 @@ pub struct MessageProcessor {
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     #[new(default)]
     message_nonce: u32,
+    to_skip: Vec<u32>,
 }
 
 impl Debug for MessageProcessor {
@@ -85,7 +86,8 @@ impl MessageProcessor {
         loop {
             if self.domain().id() == 22222 && self.message_nonce == 206730 {
                 tracing::warn!(
-                    "Skipping message 206730 for domain 22222, which is lost by the Eclipse team"
+                    ?self.to_skip,
+                    "Skipping message nonces for domain 22222, which is lost by the Eclipse team",
                 );
                 // If the domain is the origin, we can't send messages to ourselves.
                 self.message_nonce += 1;
@@ -318,6 +320,7 @@ mod test {
                 Arc::new(RwLock::new(MerkleTreeBuilder::new(db.clone()))),
                 HashMap::from([(destination_domain.id(), send_channel)]),
                 HashMap::from([(destination_domain.id(), message_context)]),
+                vec![],
             ),
             receive_channel,
         )
