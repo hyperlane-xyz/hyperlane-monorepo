@@ -25,7 +25,7 @@ export function localAccountRouters(): ChainMap<Address> {
 export const safes: ChainMap<Address> = {
   mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI
   celo: '0x879038d6Fc9F6D5e2BA73188bd078486d77e1156',
-  ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
+  ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
   avalanche: '0x5bE94B17112B8F18eA9Ac8e559377B467556a3c3',
   polygon: '0xf9cFD440CfBCfAB8473cc156485B7eE753b2913E',
   bsc: '0x7bB2ADeDdC342ffb611dDC073095cc4B8C547170',

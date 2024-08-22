@@ -1,10 +1,10 @@
+import { Gauge } from 'prom-client';
+
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
+  CheckerViolation,
   HypERC20App,
   HypERC20Checker,
-  HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
   HyperlaneIgpChecker,
@@ -14,7 +14,6 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
-  MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
   proxiedFactories,
@@ -24,7 +23,7 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { getWarpConfig } from '../../config/warp.js';
-import { EnvironmentConfig } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
@@ -47,28 +46,30 @@ import {
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 import { getHelloWorldApp } from '../helloworld/utils.js';
 
-export function getCheckArgs() {
+export function getCheckBaseArgs() {
   return withAsDeployer(
     withGovern(withChain(withFork(withContext(getRootArgs())))),
   );
 }
 
-export function getCheckDeployArgs() {
-  return withWarpRouteId(withModule(getCheckArgs()));
+export function getCheckWarpDeployArgs() {
+  return getCheckBaseArgs();
 }
 
-export async function check(argv?: Record<string, any>) {
-  const {
-    fork,
-    govern,
-    module,
-    environment,
-    context,
-    chain,
-    asDeployer,
-    warpRouteId,
-  } = argv ?? (await getCheckDeployArgs().argv);
+export function getCheckDeployArgs() {
+  return withWarpRouteId(withModule(getCheckBaseArgs()));
+}
 
+export const getGovernor = async (
+  module: Modules,
+  context: Contexts,
+  environment: DeployEnvironment,
+  asDeployer: boolean,
+  warpRouteId?: string,
+  chain?: string,
+  fork?: string,
+  govern?: boolean,
+) => {
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -93,77 +94,6 @@ export async function check(argv?: Record<string, any>) {
     multiProvider,
   );
 
-  const governor = await getGovernor(
-    module,
-    multiProvider,
-    core,
-    envConfig,
-    chainAddresses,
-    context,
-    chain,
-    fork,
-    warpRouteId,
-  );
-
-  // TODO: getGovernor should throw if module not implemented and this should be removed
-  if (!governor) {
-    return;
-  }
-
-  if (fork) {
-    await governor.checker.checkChain(fork);
-    if (govern) {
-      await governor.govern(false, fork);
-    }
-  } else if (chain) {
-    await governor.checker.checkChain(chain);
-    if (govern) {
-      await governor.govern(true, chain);
-    }
-  } else {
-    await governor.checker.check();
-    if (govern) {
-      await governor.govern();
-    }
-  }
-
-  if (!govern) {
-    const violations = governor.checker.violations;
-    if (violations.length > 0) {
-      console.table(violations, [
-        'chain',
-        'remote',
-        'name',
-        'type',
-        'subType',
-        'actual',
-        'expected',
-      ]);
-
-      logViolationDetails(violations);
-
-      if (!fork) {
-        throw new Error(
-          `Checking ${module} deploy yielded ${violations.length} violations`,
-        );
-      }
-    } else {
-      console.info(`${module} checker found no violations`);
-    }
-  }
-}
-
-const getGovernor = async (
-  module: Modules,
-  multiProvider: MultiProvider,
-  core: HyperlaneCore,
-  envConfig: EnvironmentConfig,
-  chainAddresses: ChainMap<ChainAddresses>,
-  context: Contexts,
-  chain?: string,
-  fork?: string,
-  warpRouteId?: string,
-) => {
   let governor: HyperlaneAppGovernor<any, any>;
 
   const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
@@ -278,7 +208,11 @@ const getGovernor = async (
           chain ?? fork
         } is non evm and it not compatible with warp checker tooling`,
       );
-      return;
+      throw Error(
+        `${
+          chain ?? fork
+        } is non evm and it not compatible with warp checker tooling`,
+      );
     }
 
     const app = new HypERC20App(
@@ -296,10 +230,38 @@ const getGovernor = async (
     );
     governor = new ProxiedRouterGovernor(checker, ica);
   } else {
-    // TODO: should we throw here instead?
-    console.log(`Skipping ${module}, checker or governor not implemented`);
-    return;
+    throw Error(
+      `Checker or governor not implemented not implemented for ${module}`,
+    );
   }
 
   return governor;
+};
+
+export const logViolations = (violations: CheckerViolation[]) => {
+  console.table(violations, [
+    'chain',
+    'remote',
+    'name',
+    'type',
+    'subType',
+    'actual',
+    'expected',
+  ]);
+  logViolationDetails(violations);
+};
+
+export const checkerViolationsGaugeObj = {
+  name: 'hyperlane_check_violations',
+  help: 'Checker violation',
+  labelNames: [
+    'module',
+    'chain',
+    'remote',
+    'name',
+    'type',
+    'subType',
+    'actual',
+    'expected',
+  ],
 };

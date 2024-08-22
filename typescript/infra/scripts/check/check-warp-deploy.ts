@@ -1,29 +1,89 @@
 import chalk from 'chalk';
+import { Gauge, Registry } from 'prom-client';
 
 import { WarpRouteIds } from '../../config/warp.js';
+import { startMetricsServer } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 
-import { check, getCheckArgs } from './check-utils.js';
+import {
+  getCheckWarpDeployArgs,
+  getGovernor,
+  logViolations,
+} from './check-utils.js';
 
-async function checkWarp() {
-  const argv = await getCheckArgs().argv;
+async function main() {
+  const { environment, asDeployer, chain, fork, context } =
+    await getCheckWarpDeployArgs().argv;
+
+  const metricsRegister = new Registry();
+  startMetricsServer(metricsRegister);
+  const checkerViolationsGauge = new Gauge({
+    name: 'hyperlane_check_violations',
+    help: 'Checker violation',
+    registers: [metricsRegister],
+    labelNames: [
+      'module',
+      'warp_route_id',
+      'chain',
+      'remote',
+      'name',
+      'type',
+      'sub_type',
+      'actual',
+      'expected',
+    ],
+  });
 
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of Object.values(WarpRouteIds)) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
+    const warpModule = Modules.WARP;
+
     try {
-      await check({
-        ...argv,
+      const governor = await getGovernor(
+        warpModule,
+        context,
+        environment,
+        asDeployer,
         warpRouteId,
-        module: Modules.WARP,
-      });
+        chain,
+        fork,
+      );
+
+      await governor.checker.check();
+
+      const violations: any = governor.checker.violations;
+      if (violations.length > 0) {
+        logViolations(violations);
+
+        for (const violation of violations) {
+          checkerViolationsGauge
+            .labels({
+              module: warpModule,
+              warp_route_id: warpRouteId,
+              chain: violation.chain,
+              name: violation.name,
+              type: violation.type,
+              actual: violation.actual,
+              expected: violation.expected,
+            })
+            .set(1);
+          console.log(
+            `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
+          );
+        }
+      } else {
+        console.info(chalk.green(`${warpModule} checker found no violations`));
+      }
     } catch (e) {
       console.log(chalk.red(`Error checking warp route ${warpRouteId}: ${e}`));
     }
   }
+
+  process.exit(0);
 }
 
-checkWarp()
+main()
   .then()
   .catch((e) => {
     console.error(e);

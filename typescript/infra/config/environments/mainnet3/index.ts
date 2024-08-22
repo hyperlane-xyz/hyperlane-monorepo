@@ -19,6 +19,7 @@ import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
 import { ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
+import { checkWarpDeployConfig } from './warp/checkWarpDeploy.js';
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
@@ -51,6 +52,7 @@ export const environment: EnvironmentConfig = {
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
+  checkWarpDeployConfig,
   liquidityLayerConfig: {
     bridgeAdapters: bridgeAdapterConfigs,
     relayer: relayerConfig,

@@ -17,7 +17,7 @@ import { CloudAgentKey } from '../agents/keys.js';
 import { Role } from '../roles.js';
 
 import { RootAgentConfig } from './agent/agent.js';
-import { KeyFunderConfig } from './funding.js';
+import { CheckWarpDeployConfig, KeyFunderConfig } from './funding.js';
 import { HelloWorldConfig } from './helloworld/types.js';
 import { InfrastructureConfig } from './infrastructure.js';
 import { LiquidityLayerRelayerConfig } from './middleware.js';
@@ -61,6 +61,7 @@ export type EnvironmentConfig = {
   ) => Promise<ChainMap<CloudAgentKey>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig<string[]>;
+  checkWarpDeployConfig?: CheckWarpDeployConfig;
   liquidityLayerConfig?: {
     bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;
