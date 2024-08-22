@@ -4,9 +4,7 @@ import { z } from 'zod';
 import type {
   AccessControl,
   Ownable,
-  ProxyAdmin,
   TimelockController,
-  TransparentUpgradeableProxy,
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -43,8 +41,7 @@ export interface OwnerViolation extends CheckerViolation {
 
 export interface ProxyAdminViolation extends CheckerViolation {
   type: ViolationType.ProxyAdmin;
-  expectedProxyAdmin: ProxyAdmin;
-  proxy: TransparentUpgradeableProxy;
+  proxyAddress: Address;
   name: string;
 }
 
