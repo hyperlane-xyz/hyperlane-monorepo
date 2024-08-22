@@ -252,8 +252,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       destination,
       weightedmultisigIsmFactory,
       config.validators,
-      logger,
       config.thresholdWeight,
+      logger,
     );
 
     return IMultisigIsm__factory.connect(address, signer);
@@ -516,8 +516,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     chain: ChainName,
     factory: StaticWeightedValidatorSetFactory,
     values: IStaticWeightedMultisigIsm.ValidatorInfoStruct[],
-    logger: Logger,
     thresholdWeight = 66e8,
+    logger: Logger,
   ): Promise<Address> {
     const sorted = [...values].sort();
 
