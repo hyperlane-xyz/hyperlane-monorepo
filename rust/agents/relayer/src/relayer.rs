@@ -327,7 +327,7 @@ impl Relayer {
             std::env::var("NONCES_TO_SKIP")
                 .unwrap_or_default()
                 .split(',')
-                .filter_map(|s| s.parse().ok())
+                .filter_map(|s| s.parse::<u32>().ok())
                 .collect(),
         );
 
