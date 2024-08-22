@@ -22,6 +22,7 @@ use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds,
+    protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -268,8 +269,8 @@ async fn test_initialize() {
         &mailbox_program_id,
         &payer,
         LOCAL_DOMAIN,
-        Default::default(),
-        Pubkey::new_unique(),
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
     )
     .await
     .unwrap();
@@ -360,8 +361,8 @@ async fn test_transfer_remote() {
         &mailbox_program_id,
         &payer,
         LOCAL_DOMAIN,
-        Default::default(),
-        Pubkey::new_unique(),
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
     )
     .await
     .unwrap();
@@ -585,8 +586,8 @@ async fn transfer_from_remote(
         &mailbox_program_id,
         &payer,
         LOCAL_DOMAIN,
-        Default::default(),
-        Pubkey::new_unique(),
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
     )
     .await
     .unwrap();
@@ -745,8 +746,8 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
         &mailbox_program_id,
         &payer,
         LOCAL_DOMAIN,
-        Default::default(),
-        Pubkey::new_unique(),
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
     )
     .await
     .unwrap();
