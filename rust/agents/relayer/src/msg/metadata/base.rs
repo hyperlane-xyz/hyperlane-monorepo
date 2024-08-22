@@ -33,6 +33,10 @@ use hyperlane_core::{
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
+use super::multisig::{
+    WeightedMerkleRootMultisigMetadataBuilder, WeightedMessageIdMultisigMetadataBuilder,
+};
+
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
     #[error("Unknown or invalid module type ({0})")]
@@ -254,10 +258,10 @@ impl MessageMetadataBuilder {
             ModuleType::Null => Box::new(NullMetadataBuilder::new()),
             ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(cloned)),
             ModuleType::WeightedMerkleRootMultisig => {
-                Box::new(MerkleRootMultisigMetadataBuilder::new(cloned))
+                Box::new(WeightedMerkleRootMultisigMetadataBuilder::new(cloned))
             }
             ModuleType::WeightedMessageIdMultisig => {
-                Box::new(MessageIdMultisigMetadataBuilder::new(cloned))
+                Box::new(WeightedMessageIdMultisigMetadataBuilder::new(cloned))
             }
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };

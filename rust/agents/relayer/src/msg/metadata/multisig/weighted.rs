@@ -8,7 +8,8 @@ use crate::msg::metadata::{
     MessageMetadataBuilder,
 };
 use async_trait::async_trait;
-use derive_more::AsRef;
+use derive_more::{AsRef, Deref};
+use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{HyperlaneMessage, H256};
@@ -36,7 +37,7 @@ pub trait WeightedMultisigIsmMetadataBuilder: MultisigIsmMetadataBuilder {
     }
 }
 
-#[derive(Debug, Clone, AsRef)]
+#[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct WeightedMerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
 
 #[async_trait]
@@ -61,7 +62,7 @@ impl MultisigIsmMetadataBuilder for WeightedMerkleRootMultisigMetadataBuilder {
     }
 }
 
-#[derive(Debug, Clone, AsRef)]
+#[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct WeightedMessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
 
 #[async_trait]
