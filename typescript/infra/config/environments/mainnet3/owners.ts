@@ -25,7 +25,7 @@ export function localAccountRouters(): ChainMap<Address> {
 export const safes: ChainMap<Address> = {
   mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI
   celo: '0x879038d6Fc9F6D5e2BA73188bd078486d77e1156',
-  ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+  ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
   avalanche: '0x5bE94B17112B8F18eA9Ac8e559377B467556a3c3',
   polygon: '0xf9cFD440CfBCfAB8473cc156485B7eE753b2913E',
   bsc: '0x7bB2ADeDdC342ffb611dDC073095cc4B8C547170',
@@ -42,7 +42,7 @@ export const safes: ChainMap<Address> = {
   blast: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   mode: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
-  ancient8: '0xD2BFA0F0654E3f2139b8cDC56c32eeC54D32b133',
+  ancient8: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
   taiko: '0xa4864301d3fa2a3e68256309F9F0F570270a1BD0',
   fraxtal: '0x66e9f52800E9F89F0569fddc594Acd5EE609f762',
   sei: '0xCed197FBc360C26C19889745Cf73511b71D03d5D',

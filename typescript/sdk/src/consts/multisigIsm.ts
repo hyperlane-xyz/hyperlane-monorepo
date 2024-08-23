@@ -169,7 +169,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   ethereum: {
     threshold: 4,
     validators: [
-      '0x03c842db86a6a3e524d4a6615390c1ea8e2b9542',
+      '0x03c842db86a6a3e524d4a6615390c1ea8e2b9541',
       '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', // dsrv
       '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake

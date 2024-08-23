@@ -10,7 +10,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 14400 # todo
+      activeDeadlineSeconds: 14400
       template:
         spec:
           restartPolicy: Never
@@ -23,6 +23,7 @@ spec:
             - ./typescript/infra/scripts/check/check-warp-deploy.ts
             - -e
             - {{ .Values.hyperlane.runEnv }}
+            - --pushMetrics
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}
