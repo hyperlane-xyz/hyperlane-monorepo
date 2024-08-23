@@ -103,7 +103,9 @@ export function normalizeK8sName(name: string) {
   );
 }
 
-export abstract class HelmManager<T> {
+export type HelmValues = Record<string, any>;
+
+export abstract class HelmManager<T = HelmValues> {
   abstract readonly helmReleaseName: string;
   abstract readonly helmChartPath: string;
   abstract readonly namespace: string;
