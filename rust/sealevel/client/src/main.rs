@@ -721,7 +721,7 @@ fn main() {
         (Pubkey::from_str(&keypair_path).unwrap(), None)
     };
 
-    let commitment = CommitmentConfig::processed();
+    let commitment = CommitmentConfig::confirmed();
 
     let mut instructions = vec![];
 
