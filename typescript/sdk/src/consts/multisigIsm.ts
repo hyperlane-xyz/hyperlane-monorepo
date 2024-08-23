@@ -15,7 +15,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   ancient8: {
     threshold: 2,
     validators: [
-      '0xbb5842ae0e05215b53df4787a29144efb7e67552',
+      '0xbb5842ae0e05215b53df4787a29144efb7e67551',
       '0xa5a56e97fb46f0ac3a3d261e404acb998d9a6969', // coin98
       '0x95c7bf235837cb5a609fe6c95870410b9f68bcff', // ancient8
     ],

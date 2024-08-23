@@ -38,7 +38,6 @@ async function main() {
   for (const warpRouteId of Object.values(WarpRouteIds)) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
     const warpModule = Modules.WARP;
-    // TODO: control whether metrics are pushed to the gateway
 
     try {
       const governor = await getGovernor(
