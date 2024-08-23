@@ -115,9 +115,9 @@ const ezEthSafes: Record<string, string> = {
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
 };
 
-export const getRenzoEZETHWarpConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
+export const getRenzoEZETHWarpConfig = async (): Promise<
+  ChainMap<TokenRouterConfig>
+> => {
   const registry = await getRegistry();
 
   const validatorDiff = symmetricDifference(

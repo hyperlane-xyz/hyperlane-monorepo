@@ -34,9 +34,15 @@ export enum WarpRouteIds {
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
 }
 
+type WarpConfigGetterWithConfig = (
+  routerConfig: ChainMap<RouterConfig>,
+) => Promise<ChainMap<TokenRouterConfig>>;
+
+type WarpConfigGetterWithoutConfig = () => Promise<ChainMap<TokenRouterConfig>>;
+
 export const warpConfigGetterMap: Record<
   string,
-  (routerConfig: ChainMap<RouterConfig>) => Promise<ChainMap<TokenRouterConfig>>
+  WarpConfigGetterWithConfig | WarpConfigGetterWithoutConfig
 > = {
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
@@ -65,5 +71,9 @@ export async function getWarpConfig(
     throw new Error(`Unknown warp route: ${warpRouteId}`);
   }
 
-  return warpConfigGetter(routerConfig);
+  if (warpConfigGetter.length === 1) {
+    return warpConfigGetter(routerConfig);
+  } else {
+    return (warpConfigGetter as WarpConfigGetterWithoutConfig)();
+  }
 }

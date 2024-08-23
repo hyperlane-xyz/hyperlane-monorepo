@@ -6,7 +6,7 @@ import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 import { getRenzoEZETHWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConifg.js';
 
 async function main() {
-  const tokenConfig = await getRenzoEZETHWarpConfig({});
+  const tokenConfig = await getRenzoEZETHWarpConfig();
   const parsed = WarpRouteDeployConfigSchema.safeParse(tokenConfig);
 
   if (!parsed.success) {
