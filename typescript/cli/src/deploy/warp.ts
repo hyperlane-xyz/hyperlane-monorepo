@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { ContractReceipt, constants } from 'ethers';
+import { ContractReceipt } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
@@ -53,6 +53,7 @@ import {
   Address,
   ProtocolType,
   assert,
+  isNullish,
   objFilter,
   objKeys,
   objMap,
@@ -367,7 +368,7 @@ async function createWarpHook(
   multiProvider: MultiProvider,
   proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>,
   contractVerifier?: ContractVerifier,
-): Promise<string> {
+): Promise<Address> {
   const proxyAdmin = (
     await multiProvider.handleDeploy(chain, new ProxyAdmin__factory(), [])
   ).address;
@@ -436,24 +437,50 @@ async function getOrDeployIsmFactories(
       await ismFactoryDeployer.deployContracts(chain),
     );
   }
+  // Should never be empty because Factories will be deployed above
+  assert(chainAddresses, 'Ism Factories undefined');
 
-  return {
-    staticAggregationHookFactory: chainAddresses!.staticAggregationHookFactory,
-    staticAggregationIsmFactory: chainAddresses!.staticAggregationIsmFactory,
+  const proxyFactoryFactoriesAddresses = {
+    staticAggregationHookFactory: chainAddresses.staticAggregationHookFactory,
+    staticAggregationIsmFactory: chainAddresses.staticAggregationIsmFactory,
     staticMerkleRootMultisigIsmFactory:
-      chainAddresses!.staticMerkleRootMultisigIsmFactory,
+      chainAddresses.staticMerkleRootMultisigIsmFactory,
     staticMessageIdMultisigIsmFactory:
-      chainAddresses!.staticMessageIdMultisigIsmFactory,
-    domainRoutingIsmFactory: chainAddresses!.domainRoutingIsmFactory,
-
-    // These can be null because they may not exist on all chains in the Registry
+      chainAddresses.staticMessageIdMultisigIsmFactory,
+    domainRoutingIsmFactory: chainAddresses.domainRoutingIsmFactory,
     staticMerkleRootWeightedMultisigIsmFactory:
-      chainAddresses!.staticMerkleRootWeightedMultisigIsmFactory ||
-      constants.AddressZero,
+      chainAddresses.staticMerkleRootWeightedMultisigIsmFactory,
     staticMessageIdWeightedMultisigIsmFactory:
-      chainAddresses!.staticMessageIdWeightedMultisigIsmFactory ||
-      constants.AddressZero,
+      chainAddresses.staticMessageIdWeightedMultisigIsmFactory,
   };
+  await confirmIndividualFactoryAddresses(proxyFactoryFactoriesAddresses);
+
+  return proxyFactoryFactoriesAddresses;
+}
+
+/**
+ * Confirms that the provided ISM factory addresses are not null.
+ * If any addresses are null, prompts the user to confirm whether they want to continue with the deployment, which may fail.
+ *
+ * @param proxyFactoryFactoriesAddresses - The addresses of ISM factory contracts.
+ */
+async function confirmIndividualFactoryAddresses(
+  proxyFactoryFactoriesAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
+) {
+  const nullAddresses = objFilter(
+    proxyFactoryFactoriesAddresses,
+    (_, address): address is string => isNullish(address) || address === '',
+  );
+  const nullFactoryNames = Object.keys(nullAddresses).join(', ');
+
+  if (nullFactoryNames) {
+    const isConfirmed = await confirm({
+      message: `ISM factory addresses do not exist for ${nullFactoryNames}. Deployment may fail! Do you wish to continue?`,
+      default: false,
+    });
+
+    if (!isConfirmed) throw new Error('Deployment cancelled');
+  }
 }
 
 /**
