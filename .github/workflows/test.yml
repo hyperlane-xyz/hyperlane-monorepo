@@ -249,7 +249,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -qq libudev-dev pkg-config
+          sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
