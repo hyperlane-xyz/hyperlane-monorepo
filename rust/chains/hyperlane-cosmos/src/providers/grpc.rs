@@ -16,8 +16,8 @@ use cosmrs::{
             },
         },
         cosmwasm::wasm::v1::{
-            query_client::QueryClient as WasmQueryClient, MsgExecuteContract,
-            QuerySmartContractStateRequest,
+            query_client::QueryClient as WasmQueryClient, ContractInfo, MsgExecuteContract,
+            QueryContractInfoRequest, QuerySmartContractStateRequest,
         },
         traits::Message,
     },
@@ -97,13 +97,8 @@ pub trait WasmProvider: Send + Sync {
         block_height: Option<u64>,
     ) -> ChainResult<Vec<u8>>;
 
-    /// Perform a wasm query against a specified contract address.
-    async fn wasm_query_to<T: Serialize + Sync + Send + Clone + Debug>(
-        &self,
-        to: String,
-        payload: T,
-        block_height: Option<u64>,
-    ) -> ChainResult<Vec<u8>>;
+    /// Request contract info from the stored contract address.
+    async fn wasm_contract_info(&self) -> ChainResult<ContractInfo>;
 
     /// Send a wasm tx.
     async fn wasm_send<T: Serialize + Sync + Send + Clone + Debug>(
@@ -450,6 +445,13 @@ impl WasmGrpcProvider {
             sequence: base_account.sequence,
         })
     }
+
+    fn get_contract_address(&self) -> Result<&CosmosAddress, ChainCommunicationError> {
+        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("No contract address available")
+        })?;
+        Ok(contract_address)
+    }
 }
 
 #[async_trait]
@@ -486,27 +488,12 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync + Clone + Debug,
     {
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
-        self.wasm_query_to(contract_address.address(), payload, block_height)
-            .await
-    }
-
-    async fn wasm_query_to<T>(
-        &self,
-        to: String,
-        payload: T,
-        block_height: Option<u64>,
-    ) -> ChainResult<Vec<u8>>
-    where
-        T: Serialize + Send + Sync + Clone,
-    {
+        let contract_address = self.get_contract_address()?;
         let query_data = serde_json::to_string(&payload)?.as_bytes().to_vec();
         let response = self
             .provider
             .call(move |provider| {
-                let to = to.clone();
+                let to = contract_address.address().clone();
                 let query_data = query_data.clone();
                 let future = async move {
                     let mut client = WasmQueryClient::new(provider.channel.clone());
@@ -534,15 +521,43 @@ impl WasmProvider for WasmGrpcProvider {
         Ok(response.data)
     }
 
+    async fn wasm_contract_info(&self) -> ChainResult<ContractInfo> {
+        let contract_address = self.get_contract_address()?;
+        let response = self
+            .provider
+            .call(move |provider| {
+                let to = contract_address.address().clone();
+                let future = async move {
+                    let mut client = WasmQueryClient::new(provider.channel.clone());
+
+                    let request = tonic::Request::new(QueryContractInfoRequest { address: to });
+
+                    let response = client
+                        .contract_info(request)
+                        .await
+                        .map_err(ChainCommunicationError::from_other)?
+                        .into_inner()
+                        .contract_info
+                        .ok_or(ChainCommunicationError::from_other_str(
+                            "empty contract info",
+                        ))?;
+
+                    Ok(response)
+                };
+                Box::pin(future)
+            })
+            .await?;
+
+        Ok(response)
+    }
+
     #[instrument(skip(self))]
     async fn wasm_send<T>(&self, payload: T, gas_limit: Option<U256>) -> ChainResult<TxResponse>
     where
         T: Serialize + Send + Sync + Clone + Debug,
     {
         let signer = self.get_signer()?;
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
+        let contract_address = self.get_contract_address()?;
         let msgs = vec![MsgExecuteContract {
             sender: signer.address.clone(),
             contract: contract_address.address(),
@@ -610,9 +625,7 @@ impl WasmProvider for WasmGrpcProvider {
         // Estimating gas requires a signer, which we can reasonably expect to have
         // since we need one to send a tx with the estimated gas anyways.
         let signer = self.get_signer()?;
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
+        let contract_address = self.get_contract_address()?;
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
             contract: contract_address.address(),
@@ -636,3 +649,6 @@ impl BlockNumberGetter for WasmGrpcProvider {
         self.latest_block_height().await
     }
 }
+
+#[cfg(test)]
+mod tests;
