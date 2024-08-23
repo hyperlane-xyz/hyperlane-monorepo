@@ -12,7 +12,7 @@ use crate::{
     Context, MultisigIsmMessageIdCmd, MultisigIsmMessageIdSubCmd,
 };
 
-use hyperlane_core::H160;
+use hyperlane_core::{KnownHyperlaneDomain, H160};
 
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
@@ -53,9 +53,19 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let context_dir = create_new_directory(&chain_dir, &deploy.context);
             let key_dir = create_new_directory(&context_dir, "keys");
+            let local_domain = deploy
+                .chain
+                .parse::<KnownHyperlaneDomain>()
+                .map(|v| v as u32)
+                .expect("Invalid chain name");
 
-            let ism_program_id =
-                deploy_multisig_ism_message_id(&mut ctx, &deploy.built_so_dir, true, &key_dir);
+            let ism_program_id = deploy_multisig_ism_message_id(
+                &mut ctx,
+                &deploy.built_so_dir,
+                true,
+                &key_dir,
+                local_domain,
+            );
 
             write_json::<SingularProgramIdArtifact>(
                 &context_dir.join("program-ids.json"),
@@ -158,6 +168,7 @@ pub(crate) fn deploy_multisig_ism_message_id(
     built_so_dir: &Path,
     use_existing_keys: bool,
     key_dir: &Path,
+    local_domain: u32,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
@@ -174,6 +185,7 @@ pub(crate) fn deploy_multisig_ism_message_id(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
+        local_domain,
     );
 
     println!(
@@ -197,6 +209,10 @@ pub(crate) fn deploy_multisig_ism_message_id(
             ),
         )
         .send_with_payer();
+    println!(
+        "initialized Multisig ISM Message ID at program ID {}",
+        program_id
+    );
 
     program_id
 }
