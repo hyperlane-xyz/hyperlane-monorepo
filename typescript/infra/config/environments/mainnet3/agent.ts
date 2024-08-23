@@ -298,7 +298,7 @@ const metricAppContexts = [
     matchingList: matchingList(renzoEzEthAddressesV3),
   },
   {
-    // preserving old addresses incase any transactions are still in flight and need to be processed
+    // preserving old addresses in case any transactions are still in flight and need to be processed
     name: 'renzo_ezeth_old',
     matchingList: matchingList(renzoEzEthAddressesV1),
   },
