@@ -1,5 +1,3 @@
-import { Gauge } from 'prom-client';
-
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   CheckerViolation,
@@ -41,6 +39,7 @@ import {
   withFork,
   withGovern,
   withModule,
+  withPushMetrics,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
@@ -53,7 +52,7 @@ export function getCheckBaseArgs() {
 }
 
 export function getCheckWarpDeployArgs() {
-  return getCheckBaseArgs();
+  return withPushMetrics(getCheckBaseArgs());
 }
 
 export function getCheckDeployArgs() {
