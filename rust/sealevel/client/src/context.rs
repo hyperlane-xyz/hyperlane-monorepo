@@ -27,7 +27,6 @@ pub(crate) struct Context {
     pub commitment: CommitmentConfig,
     pub initial_instructions: RefCell<Vec<InstructionWithDescription>>,
     pub require_tx_approval: bool,
-    pub keypair_path: String,
 }
 
 #[derive(Debug)]
@@ -62,7 +61,6 @@ impl Context {
         commitment: CommitmentConfig,
         initial_instructions: RefCell<Vec<InstructionWithDescription>>,
         require_tx_approval: bool,
-        keypair_path: String,
     ) -> Self {
         Self {
             client,
@@ -71,7 +69,6 @@ impl Context {
             commitment,
             initial_instructions,
             require_tx_approval,
-            keypair_path,
         }
     }
 

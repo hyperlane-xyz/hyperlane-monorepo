@@ -753,7 +753,6 @@ fn main() {
         commitment,
         instructions.into(),
         cli.require_tx_approval,
-        keypair_path,
     );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
