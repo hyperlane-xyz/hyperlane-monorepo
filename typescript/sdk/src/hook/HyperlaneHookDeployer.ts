@@ -48,14 +48,17 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
     readonly igpDeployer = new HyperlaneIgpDeployer(
       multiProvider,
       contractVerifier,
+      concurrentDeploy,
     ),
   ) {
     super(multiProvider, hookFactories, {
       logger: rootLogger.child({ module: 'HookDeployer' }),
       contractVerifier,
+      concurrentDeploy,
     });
   }
 

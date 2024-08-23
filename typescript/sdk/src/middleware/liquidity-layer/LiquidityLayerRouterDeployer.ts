@@ -62,11 +62,14 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(multiProvider, liquidityLayerFactories, {
       contractVerifier,
+      concurrentDeploy,
     });
   }
+
   routerContractName(): string {
     return 'LiquidityLayerRouter';
   }

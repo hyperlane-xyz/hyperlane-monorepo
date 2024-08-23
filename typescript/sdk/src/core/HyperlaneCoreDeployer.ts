@@ -47,10 +47,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       {},
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
     this.testRecipient = new TestRecipientDeployer(
       multiProvider,
       contractVerifier,
+      concurrentDeploy,
     );
   }
 
