@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use tendermint_rpc::{client::CompatMode, HttpClient};
-use tracing::info;
 
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
