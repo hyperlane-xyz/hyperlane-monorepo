@@ -453,18 +453,24 @@ async function getOrDeployIsmFactories(
     staticMessageIdWeightedMultisigIsmFactory:
       chainAddresses.staticMessageIdWeightedMultisigIsmFactory,
   };
-  await confirmIndividualFactoryAddresses(proxyFactoryFactoriesAddresses);
+  await validateIndividualFactoryAddresses(
+    chain,
+    proxyFactoryFactoriesAddresses,
+  );
 
   return proxyFactoryFactoriesAddresses;
 }
 
 /**
- * Confirms that the provided ISM factory addresses are not null.
- * If any addresses are null, prompts the user to confirm whether they want to continue with the deployment, which may fail.
+ * Validates that all individual ISM factory addresses are defined for the given chain.
+ * Throws an error if any factory address is null or empty.
  *
- * @param proxyFactoryFactoriesAddresses - The addresses of ISM factory contracts.
+ * @param chain - The chain to validate the factory addresses for.
+ * @param proxyFactoryFactoriesAddresses - ISM factory addresses to validate.
+ * @throws Error if any factory address is null or empty.
  */
-async function confirmIndividualFactoryAddresses(
+async function validateIndividualFactoryAddresses(
+  chain: Address,
   proxyFactoryFactoriesAddresses: HyperlaneAddresses<ProxyFactoryFactories>,
 ) {
   const nullAddresses = objFilter(
@@ -475,7 +481,7 @@ async function confirmIndividualFactoryAddresses(
 
   if (nullFactoryNames)
     throw new Error(
-      `Undefined ISM factory address(es) for ${nullFactoryNames}. Deployment terminating. \nConsider deploying with 'hyperlane core deploy'`,
+      `Undefined ISM factory address(es) for ${nullFactoryNames} on ${chain}. Deployment terminating. \nConsider deploying with 'hyperlane core deploy'`,
     );
 }
 
