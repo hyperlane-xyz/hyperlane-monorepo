@@ -473,14 +473,10 @@ async function confirmIndividualFactoryAddresses(
   );
   const nullFactoryNames = Object.keys(nullAddresses).join(', ');
 
-  if (nullFactoryNames) {
-    const isConfirmed = await confirm({
-      message: `ISM factory addresses do not exist for ${nullFactoryNames}. Deployment may fail! Do you wish to continue?`,
-      default: false,
-    });
-
-    if (!isConfirmed) throw new Error('Deployment cancelled');
-  }
+  if (nullFactoryNames)
+    throw new Error(
+      `Undefined ISM factory address(es) for ${nullFactoryNames}. Deployment terminating. \nConsider deploying with 'hyperlane core deploy'`,
+    );
 }
 
 /**
