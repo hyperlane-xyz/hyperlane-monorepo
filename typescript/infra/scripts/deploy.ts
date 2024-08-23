@@ -34,7 +34,7 @@ import {
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
-import { inCIMode } from '../src/utils/utils.js';
+import { inCIMode, writeYamlAtPath } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -70,7 +70,12 @@ async function main() {
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
-  let multiProvider = await envConfig.getMultiProvider();
+  let multiProvider = await envConfig.getMultiProvider(
+    undefined,
+    undefined,
+    undefined,
+    chains,
+  );
 
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
@@ -230,14 +235,6 @@ async function main() {
     environment,
     module,
   };
-  // Don't write agent config in fork tests
-  const agentConfig =
-    module === Modules.CORE && !fork
-      ? {
-          environment,
-          multiProvider,
-        }
-      : undefined;
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
@@ -247,7 +244,11 @@ async function main() {
             (chains ?? []).includes(chain),
           )
         : config;
-    console.log(JSON.stringify(confirmConfig, null, 2));
+
+    const deployPlanPath = path.join(modulePath, 'deployment-plan.yaml');
+    writeYamlAtPath(deployPlanPath, confirmConfig);
+    console.log(`Deployment Plan written to ${deployPlanPath}`);
+
     const { value: confirmed } = await prompts({
       type: 'confirm',
       name: 'value',
@@ -266,7 +267,6 @@ async function main() {
     // Use chains if provided, otherwise deploy to all chains
     // If fork is provided, deploy to fork only
     targetNetworks: chains && chains.length > 0 ? chains : !fork ? [] : [fork],
-    agentConfig,
   });
 }
 
