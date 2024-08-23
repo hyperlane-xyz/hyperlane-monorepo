@@ -85,6 +85,14 @@ impl MessageProcessor {
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
         loop {
             if self.domain().id() == 22222 && self.message_nonce == 206730 {
+                for i in 0..100 {
+                    let nonce = self.message_nonce + i;
+                    tracing::warn!(
+                        nonce,
+                        present_in_db = self.db.retrieve_message_by_nonce(nonce)?.is_some(),
+                        "Checking if Nautilus message is present",
+                    );
+                }
                 tracing::warn!(
                     ?self.to_skip,
                     "Skipping message nonces for domain 22222, which is lost by the Eclipse team",

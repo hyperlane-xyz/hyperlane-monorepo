@@ -115,6 +115,12 @@ impl MerkleTreeBuilder {
         if index >= self.count() {
             let starting_index = self.prover.count() as u32;
             for i in starting_index..=index {
+                if self.db.domain().id() == 22222 && i == 206730 {
+                    self.prover.ingest(H256::zero()).expect("!tree full");
+                    self.incremental.ingest(H256::zero());
+                    tracing::warn!("Ingested zero leaf for 206730");
+                    continue;
+                }
                 self.db.wait_for_message_nonce(i).await?;
                 self.ingest_nonce(i)?;
             }
