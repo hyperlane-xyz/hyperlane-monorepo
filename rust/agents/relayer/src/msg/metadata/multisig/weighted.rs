@@ -28,12 +28,12 @@ pub trait WeightedMultisigIsmMetadataBuilder: MultisigIsmMetadataBuilder {
             .await
             .context(CTX)?;
 
-        let (validators, threshold) = multisig_ism
+        let (validators, threshold_weight) = multisig_ism
             .validators_and_threshold_weight(message)
             .await
             .context(CTX)?;
 
-        Ok((validators, threshold as u64))
+        Ok((validators, threshold_weight))
     }
 }
 
