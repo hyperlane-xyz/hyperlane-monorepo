@@ -46,11 +46,13 @@ abstract class TokenDeployer<
     loggerName: string,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(multiProvider, factories, {
       logger: rootLogger.child({ module: loggerName }),
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     }); // factories not used in deploy
   }
 
@@ -184,6 +186,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(
       multiProvider,
@@ -191,6 +194,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       'HypERC20Deployer',
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   }
 
