@@ -278,6 +278,10 @@ async function deployAndResolveWarpIsm(
             chainAddresses.staticMerkleRootMultisigIsmFactory,
           staticMessageIdMultisigIsmFactory:
             chainAddresses.staticMessageIdMultisigIsmFactory,
+          staticMerkleRootWeightedMultisigIsmFactory:
+            chainAddresses.staticMerkleRootWeightedMultisigIsmFactory,
+          staticMessageIdWeightedMultisigIsmFactory:
+            chainAddresses.staticMessageIdWeightedMultisigIsmFactory,
         },
         contractVerifier,
       );
@@ -308,6 +312,8 @@ async function createWarpIsm(
     staticAggregationIsmFactory,
     staticMerkleRootMultisigIsmFactory,
     staticMessageIdMultisigIsmFactory,
+    staticMerkleRootWeightedMultisigIsmFactory,
+    staticMessageIdWeightedMultisigIsmFactory,
   } = factoryAddresses;
   const evmIsmModule = await EvmIsmModule.create({
     chain,
@@ -319,6 +325,8 @@ async function createWarpIsm(
       staticAggregationIsmFactory,
       staticMerkleRootMultisigIsmFactory,
       staticMessageIdMultisigIsmFactory,
+      staticMerkleRootWeightedMultisigIsmFactory,
+      staticMessageIdWeightedMultisigIsmFactory,
     },
     config: warpConfig[chain].interchainSecurityModule!,
     contractVerifier,

@@ -1,5 +1,36 @@
 # @hyperlane-xyz/sdk
 
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Add ether's error reasoning handling to SmartProvider to show clearer error messages
+- 013f19c64: Support proxiedFactories in HypERC20App and extend HypERC20Checker with ProxiedRouterChecker
+- 013f19c64: Deploy to arbitrumsepolia, basesepolia, ecotestnet, optimismsepolia, polygonamoy
+- 013f19c64: Deploy to zircuit
+- 013f19c64: Update cosmos zod schema and enroll new validators for cheesechain, xlayer, zircuit, worldchain.
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Support proxyAdmin checks for non AW owned warp router contracts
+- 013f19c64: Add stride validators to default multisig ism
+- 013f19c64: Adds CollateralFiat to token mapping which will output the correct standard to the warp deploy artifact.
+- 013f19c64: Deploy to solana + eclipse
+- 013f19c64: Added yield route with yield going to message recipient.
+- 19f7d4fd9: Support passing foreignDeployments to HypERC20App constructor
+
+### Patch Changes
+
+- 013f19c64: feat: Add long-running CLI relayer
+- 013f19c64: Support xERC20Lockbox in checkToken
+- 013f19c64: Update ProxyAdminViolation interface to include proxyAdmin and proxy contract fields
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+  - @hyperlane-xyz/core@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
 ## 5.0.0
 
 ### Major Changes

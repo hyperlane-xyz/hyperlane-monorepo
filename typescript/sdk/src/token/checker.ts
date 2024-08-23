@@ -1,6 +1,11 @@
 import { BigNumber } from 'ethers';
 
-import { ERC20, ERC20__factory, HypERC20Collateral } from '@hyperlane-xyz/core';
+import {
+  ERC20,
+  ERC20__factory,
+  HypERC20Collateral,
+  IXERC20Lockbox__factory,
+} from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TokenMismatchViolation } from '../deploy/types.js';
@@ -9,6 +14,7 @@ import { ProxiedFactories } from '../router/types.js';
 import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
+import { TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import {
   TokenRouterConfig,
@@ -80,10 +86,24 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     } else if (isSyntheticConfig(expectedConfig)) {
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
     } else if (isCollateralConfig(expectedConfig)) {
-      const collateralToken = await ERC20__factory.connect(
-        expectedConfig.token,
-        this.multiProvider.getProvider(chain),
-      );
+      const provider = this.multiProvider.getProvider(chain);
+      let collateralToken: ERC20;
+
+      if (expectedConfig.type === TokenType.XERC20Lockbox) {
+        const collateralTokenAddress = await IXERC20Lockbox__factory.connect(
+          expectedConfig.token,
+          provider,
+        ).callStatic.ERC20();
+        collateralToken = await ERC20__factory.connect(
+          collateralTokenAddress,
+          provider,
+        );
+      } else {
+        collateralToken = await ERC20__factory.connect(
+          expectedConfig.token,
+          provider,
+        );
+      }
       const actualToken = await (
         hypToken as unknown as HypERC20Collateral
       ).wrappedToken();

@@ -53,6 +53,7 @@ export type EnvironmentConfig = {
     context?: Contexts,
     role?: Role,
     useSecrets?: boolean,
+    chains?: ChainName[],
   ) => Promise<MultiProvider>;
   getKeys: (
     context?: Contexts,

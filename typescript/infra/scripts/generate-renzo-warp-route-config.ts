@@ -98,8 +98,8 @@ const ezEthValidators = {
   zircuit: {
     threshold: 1,
     validators: [
-      '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91', // luganodes
-      '0xe986f457965227a05dcf984c8d0c29e01253c44d', // Renzo
+      '0x1da9176c2ce5cc7115340496fa7d1800a98911ce', // Renzo
+      '0x7ac6584c068eb2a72d4db82a7b7cd5ab34044061', // luganodes
     ],
   },
 };
