@@ -291,6 +291,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     "500000",
                     "--mint-authority",
                     &ctx.payer_pubkey.to_string(),
+                    "--fee-payer",
+                    ctx.payer_keypair_path(),
                 ]);
                 println!("running command: {:?}", cmd);
                 let status = cmd

@@ -710,7 +710,7 @@ fn main() {
             payer_keypair.pubkey(),
             Some(PayerKeypair {
                 keypair: payer_keypair,
-                keypair_path,
+                keypair_path: keypair_path.clone(),
             }),
         )
     } else {
@@ -753,6 +753,7 @@ fn main() {
         commitment,
         instructions.into(),
         cli.require_tx_approval,
+        keypair_path,
     );
     match cli.cmd {
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
