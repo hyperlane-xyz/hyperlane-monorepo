@@ -6,15 +6,24 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
+import { getAgentConfig } from '../../scripts/agent-utils.js';
+import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import {
+  RelayerHelmManager,
+  ScraperHelmManager,
+  ValidatorHelmManager,
   getSecretRpcEndpoints,
   getSecretRpcEndpointsLatestVersionName,
   secretRpcEndpointsExist,
   setSecretRpcEndpoints,
 } from '../agents/index.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { KeyFunderHelmManager } from '../funding/key-funder.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
+import { HelmManager } from './helm.js';
 import { execCmd, isEthereumProtocolChain } from './utils.js';
 
 // export async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
@@ -78,7 +87,12 @@ export async function setAndVerifyRpcUrls(
     const secretPayload = JSON.stringify(newRpcUrls);
     await confirmSetSecrets(environment, chain, secretPayload);
     // await testProvidersIfNeeded(chain, rpcUrlsArray);
-    await updateSecretAndDisablePrevious(environment, chain, secretPayload);
+    // await updateSecretAndDisablePrevious(environment, chain, secretPayload);
+    await refreshK8sResources(
+      environment as DeployEnvironment,
+      chain,
+      secretPayload,
+    );
   } catch (error: any) {
     console.error(
       `Error occurred while setting RPC URLs for ${chain}:`,
@@ -258,6 +272,56 @@ async function updateSecretAndDisablePrevious(
       console.log(`Disabled previous version of the secret!`);
     } catch (e) {
       console.log(`Could not disable previous version of the secret`);
+    }
+  }
+}
+
+async function refreshK8sResources(
+  environment: DeployEnvironment,
+  chain: string,
+  secretPayload: string,
+): Promise<void> {
+  // const agentConfig = await agentConfig(environment, chain);
+
+  const envConfig = getEnvironmentConfig(environment);
+  const contextHelmManagers: Record<string, HelmManager<any>[]> = {};
+  const pushContextHelmManager = (
+    context: string,
+    manager: HelmManager<any>,
+  ) => {
+    if (!contextHelmManagers[context]) {
+      contextHelmManagers[context] = [];
+    }
+    contextHelmManagers[context].push(manager);
+  };
+  for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
+    if (agentConfig.relayer) {
+      pushContextHelmManager(context, new RelayerHelmManager(agentConfig));
+    }
+    if (agentConfig.validators) {
+      pushContextHelmManager(
+        context,
+        new ValidatorHelmManager(agentConfig, chain),
+      );
+    }
+    if (agentConfig.scraper) {
+      pushContextHelmManager(context, new ScraperHelmManager(agentConfig));
+    }
+
+    if (context == Contexts.Hyperlane) {
+      // Key funder
+      pushContextHelmManager(
+        context,
+        KeyFunderHelmManager.forEnvironment(environment),
+      );
+
+      // Kathy
+      if (envConfig.helloWorld?.hyperlane?.addresses[chain]) {
+        // pushContextHelmManager(
+        //   context,
+        //   new KathyHelmManager(agentConfig, chain),
+        // );
+      }
     }
   }
 }

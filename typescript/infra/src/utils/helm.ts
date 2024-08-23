@@ -1,3 +1,4 @@
+import { DockerConfig } from '../config/agent/agent.js';
 import {
   HelmChartConfig,
   HelmChartRepositoryConfig,
@@ -100,4 +101,81 @@ export function normalizeK8sName(name: string) {
       // Remove a trailing hyphen if it exists
       .replace(/-$/g, '')
   );
+}
+
+export abstract class HelmManager<T> {
+  abstract readonly helmReleaseName: string;
+  abstract readonly helmChartPath: string;
+  abstract readonly namespace: string;
+  abstract readonly dockerImage: DockerConfig;
+
+  abstract helmValues(): Promise<T>;
+
+  async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
+    const cmd = ['helm', action];
+    if (dryRun) cmd.push('--dry-run');
+
+    if (action == HelmCommand.Remove) {
+      if (dryRun) cmd.push('--dry-run');
+      cmd.push(this.helmReleaseName, this.namespace);
+      await execCmd(cmd, {}, false, true);
+      return;
+    }
+
+    const values = helmifyValues(await this.helmValues());
+    if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
+      // Delete secrets to avoid them being stale
+      const cmd = [
+        'kubectl',
+        'delete',
+        'secrets',
+        '--namespace',
+        this.namespace,
+        '--selector',
+        `app.kubernetes.io/instance=${this.helmReleaseName}`,
+      ];
+      try {
+        await execCmd(cmd, {}, false, false);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    await buildHelmChartDependencies(this.helmChartPath);
+    cmd.push(
+      this.helmReleaseName,
+      this.helmChartPath,
+      '--create-namespace',
+      '--namespace',
+      this.namespace,
+      ...values,
+    );
+    if (action == HelmCommand.UpgradeDiff) {
+      cmd.push(
+        `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
+      );
+    }
+    await execCmd(cmd, {}, false, true);
+  }
+
+  async doesHelmReleaseExist() {
+    try {
+      await execCmd(
+        `helm status ${this.helmReleaseName} --namespace ${this.namespace}`,
+        {},
+        false,
+        false,
+      );
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async getExistingK8sSecrets(): Promise<string[]> {
+    const [output] = await execCmd(
+      `kubectl get secret --selector=app.kubernetes.io/instance=${this.helmReleaseName} -o jsonpath='{.items[*].metadata.name}' -n ${this.namespace}`,
+    );
+    return output.split(' ');
+  }
 }

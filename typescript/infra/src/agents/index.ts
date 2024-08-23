@@ -26,6 +26,7 @@ import {
 } from '../utils/gcloud.js';
 import {
   HelmCommand,
+  HelmManager,
   buildHelmChartDependencies,
   helmifyValues,
   normalizeK8sName,
@@ -48,9 +49,8 @@ if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
     `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
   );
 
-export abstract class AgentHelmManager {
+export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> {
   abstract readonly role: AgentRole;
-  abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
 
@@ -71,55 +71,8 @@ export abstract class AgentHelmManager {
     return this.config.namespace;
   }
 
-  async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
-    const cmd = ['helm', action];
-    if (dryRun) cmd.push('--dry-run');
-
-    if (action == HelmCommand.Remove) {
-      if (dryRun) cmd.push('--dry-run');
-      cmd.push(this.helmReleaseName, this.namespace);
-      await execCmd(cmd, {}, false, true);
-      return;
-    }
-
-    const values = helmifyValues(await this.helmValues());
-    if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
-      // Delete secrets to avoid them being stale
-      const cmd = [
-        'kubectl',
-        'delete',
-        'secrets',
-        '--namespace',
-        this.namespace,
-        '--selector',
-        `app.kubernetes.io/instance=${this.helmReleaseName}`,
-      ];
-      try {
-        await execCmd(cmd, {}, false, false);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    await buildHelmChartDependencies(this.helmChartPath);
-    cmd.push(
-      this.helmReleaseName,
-      this.helmChartPath,
-      '--create-namespace',
-      '--namespace',
-      this.namespace,
-      ...values,
-    );
-    if (action == HelmCommand.UpgradeDiff) {
-      cmd.push(
-        `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
-      );
-    }
-    await execCmd(cmd, {}, false, true);
-  }
-
   async helmValues(): Promise<HelmRootAgentValues> {
-    const dockerImage = this.dockerImage();
+    const dockerImage = this.dockerImage;
     return {
       image: {
         repository: dockerImage.repo,
@@ -156,25 +109,7 @@ export abstract class AgentHelmManager {
     return this.config.agentRoleConfig.rpcConsensusType;
   }
 
-  async doesAgentReleaseExist() {
-    try {
-      await execCmd(
-        `helm status ${this.helmReleaseName} --namespace ${this.namespace}`,
-        {},
-        false,
-        false,
-      );
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  // async getK8sSecretNames(): Promise<string[]> {
-
-  // }
-
-  dockerImage(): DockerConfig {
+  get dockerImage(): DockerConfig {
     return this.config.agentRoleConfig.docker;
   }
 
@@ -235,7 +170,7 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
     return parts.join('-');
   }
 
-  dockerImage(): DockerConfig {
+  get dockerImage(): DockerConfig {
     return this.config.dockerImageForChain(this.chainName);
   }
 }
