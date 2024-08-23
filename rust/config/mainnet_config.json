@@ -1983,7 +1983,7 @@
       ],
       "rpcUrls": [
         {
-          "http": "https://rpc-kralum.neutron-1.neutron.org"
+          "http": "https://rpc-arch.mainnet.neutron.tm.p2p.org"
         }
       ],
       "signer": {

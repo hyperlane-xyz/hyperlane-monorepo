@@ -13,6 +13,8 @@ mod m20230309_000003_create_table_transaction;
 mod m20230309_000004_create_table_delivered_message;
 mod m20230309_000004_create_table_gas_payment;
 mod m20230309_000005_create_table_message;
+mod m20240823_000006_add_injective_neutron_osmosis;
+mod m20240827_000007_add_cosmos_chain_e2e_test;
 
 pub struct Migrator;
 
@@ -30,6 +32,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20230309_000004_create_table_gas_payment::Migration),
             Box::new(m20230309_000004_create_table_delivered_message::Migration),
             Box::new(m20230309_000005_create_table_message::Migration),
+            Box::new(m20240823_000006_add_injective_neutron_osmosis::Migration),
+            Box::new(m20240827_000007_add_cosmos_chain_e2e_test::Migration),
         ]
     }
 }

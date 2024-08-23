@@ -203,6 +203,8 @@ impl From<(CosmosResp, Deployments, String, u32, u32)> for CosmosNetwork {
 pub struct CosmosHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
+    pub scraper: AgentHandles,
+    pub postgres: AgentHandles,
 }
 
 impl Drop for CosmosHyperlaneStack {
@@ -211,6 +213,8 @@ impl Drop for CosmosHyperlaneStack {
             stop_child(&mut v.1);
         }
         stop_child(&mut self.relayer.1);
+        stop_child(&mut self.scraper.1);
+        stop_child(&mut self.postgres.1);
     }
 }
 
@@ -278,7 +282,7 @@ fn launch_cosmos_validator(
 
 #[apply(as_task)]
 fn launch_cosmos_relayer(
-    agent_config_path: PathBuf,
+    agent_config_path: String,
     relay_chains: Vec<String>,
     metrics: u32,
     debug: bool,
@@ -289,7 +293,7 @@ fn launch_cosmos_relayer(
     let relayer = Program::default()
         .bin(relayer_bin)
         .working_dir("../../")
-        .env("CONFIG_FILES", agent_config_path.to_str().unwrap())
+        .env("CONFIG_FILES", agent_config_path)
         .env("RUST_BACKTRACE", "1")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
@@ -302,6 +306,32 @@ fn launch_cosmos_relayer(
         .spawn("RLY", None);
 
     relayer
+}
+
+#[apply(as_task)]
+fn launch_cosmos_scraper(
+    agent_config_path: String,
+    chains: Vec<String>,
+    metrics: u32,
+    debug: bool,
+) -> AgentHandles {
+    let bin = concat_path(format!("../../{AGENT_BIN_PATH}"), "scraper");
+
+    let scraper = Program::default()
+        .bin(bin)
+        .working_dir("../../")
+        .env("CONFIG_FILES", agent_config_path)
+        .env("RUST_BACKTRACE", "1")
+        .hyp_env("CHAINSTOSCRAPE", chains.join(","))
+        .hyp_env(
+            "DB",
+            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
+        )
+        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
+        .hyp_env("METRICSPORT", metrics.to_string())
+        .spawn("SCR", None);
+
+    scraper
 }
 
 const ENV_CLI_PATH_KEY: &str = "E2E_OSMOSIS_CLI_PATH";
@@ -452,19 +482,40 @@ fn run_locally() {
     )
     .unwrap();
 
+    log!("Running postgres db...");
+    let postgres = Program::new("docker")
+        .cmd("run")
+        .flag("rm")
+        .arg("name", "scraper-testnet-postgres")
+        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+        .arg("publish", "5432:5432")
+        .cmd("postgres:14")
+        .spawn("SQL", None);
+
+    sleep(Duration::from_secs(5));
+
+    log!("Init postgres db...");
+    Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))
+        .run()
+        .join();
+
     let hpl_val = agent_config_out
         .chains
         .clone()
         .into_values()
         .map(|agent_config| launch_cosmos_validator(agent_config, agent_config_path.clone(), debug))
         .collect::<Vec<_>>();
+
+    let chains = agent_config_out.chains.into_keys().collect::<Vec<_>>();
+    let path = agent_config_path.to_str().unwrap();
+
     let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
-    let hpl_rly = launch_cosmos_relayer(
-        agent_config_path,
-        agent_config_out.chains.into_keys().collect::<Vec<_>>(),
-        hpl_rly_metrics_port,
-        debug,
-    );
+    let hpl_rly =
+        launch_cosmos_relayer(path.to_owned(), chains.clone(), hpl_rly_metrics_port, debug);
+
+    let hpl_scr_metrics_port = hpl_rly_metrics_port + 1u32;
+    let hpl_scr =
+        launch_cosmos_scraper(path.to_owned(), chains.clone(), hpl_scr_metrics_port, debug);
 
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
@@ -523,6 +574,8 @@ fn run_locally() {
     let _stack = CosmosHyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
         relayer: hpl_rly.join(),
+        scraper: hpl_scr.join(),
+        postgres,
     };
 
     // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
