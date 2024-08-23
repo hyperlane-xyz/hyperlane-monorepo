@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { formatUnits } from 'ethers/lib/utils.js';
 
 import { Contexts } from '../config/contexts.js';
 import { Role } from '../src/roles.js';
@@ -42,7 +42,8 @@ async function main() {
           await Promise.all(Object.values(keys).map((key) => key.fetch()));
           if (keys[chain]) {
             const balance = await provider.getBalance(keys[chain].address);
-            return convertToNativeTokenValue(balance, decimals);
+            const formattedBalance = formatUnits(balance, decimals);
+            return Number(formattedBalance).toFixed(3);
           }
           return null;
         }),
@@ -72,11 +73,3 @@ main()
     console.error(e);
     process.exit(1);
   });
-
-function convertToNativeTokenValue(value: BigNumber, decimals: number): string {
-  const divisor = BigNumber.from(10).pow(decimals);
-  const integerPart = value.div(divisor);
-  const fractionalPart = value.mod(divisor).toString().padStart(decimals, '0');
-  const truncatedFractionalPart = fractionalPart.slice(0, 3);
-  return `${integerPart.toString()}.${truncatedFractionalPart}`;
-}
