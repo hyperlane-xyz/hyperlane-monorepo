@@ -12,7 +12,7 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { environment, asDeployer, chain, fork, context } =
+  const { environment, asDeployer, chain, fork, context, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
@@ -25,7 +25,7 @@ async function main() {
       'warp_route_id',
       'chain',
       'remote',
-      'name',
+      'contract_name',
       'type',
       'sub_type',
       'actual',
@@ -38,6 +38,7 @@ async function main() {
   for (const warpRouteId of Object.values(WarpRouteIds)) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
     const warpModule = Modules.WARP;
+    // TODO: control whether metrics are pushed to the gateway
 
     try {
       const governor = await getGovernor(
@@ -56,29 +57,37 @@ async function main() {
       if (violations.length > 0) {
         logViolations(violations);
 
-        for (const violation of violations) {
-          checkerViolationsGauge
-            .labels({
-              module: warpModule,
-              warp_route_id: warpRouteId,
-              chain: violation.chain,
-              name: violation.name,
-              type: violation.type,
-              actual: violation.actual,
-              expected: violation.expected,
-            })
-            .set(1);
-          console.log(
-            `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
-          );
+        if (pushMetrics) {
+          for (const violation of violations) {
+            checkerViolationsGauge
+              .labels({
+                module: warpModule,
+                warp_route_id: warpRouteId,
+                chain: violation.chain,
+                contract_name: violation.name,
+                type: violation.type,
+                actual: violation.actual,
+                expected: violation.expected,
+              })
+              .set(1);
+            console.log(
+              `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
+            );
+          }
         }
       } else {
         console.info(chalk.green(`${warpModule} checker found no violations`));
       }
 
-      await submitMetrics(metricsRegister, `check-warp-deploy-${environment}`, {
-        overwriteAllMetrics: true,
-      });
+      if (pushMetrics) {
+        await submitMetrics(
+          metricsRegister,
+          `check-warp-deploy-${environment}`,
+          {
+            overwriteAllMetrics: true,
+          },
+        );
+      }
     } catch (e) {
       console.log(chalk.red(`Error checking warp route ${warpRouteId}: ${e}`));
     }
