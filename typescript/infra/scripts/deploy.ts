@@ -33,6 +33,7 @@ import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
+import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
 import { inCIMode, writeYamlAtPath } from '../src/utils/utils.js';
 
@@ -71,9 +72,9 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
 
   let multiProvider = await envConfig.getMultiProvider(
-    undefined,
-    undefined,
-    undefined,
+    context,
+    Role.Deployer,
+    true,
     chains,
   );
 
