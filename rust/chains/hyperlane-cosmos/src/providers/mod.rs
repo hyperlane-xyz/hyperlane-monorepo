@@ -94,10 +94,7 @@ impl HyperlaneProvider for CosmosProvider {
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         match self.grpc_client.wasm_contract_info().await {
             Ok(c) => Ok(true),
-            Err(e) => {
-                info!("provided address is not a contract, address: {:?}", address);
-                Ok(false)
-            }
+            Err(e) => Ok(false),
         }
     }
 
