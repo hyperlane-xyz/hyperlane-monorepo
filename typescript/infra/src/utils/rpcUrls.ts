@@ -1,10 +1,10 @@
 import input from '@inquirer/input';
-import { Separator, confirm } from '@inquirer/prompts';
+import { Separator, checkbox, confirm } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
+import { ProtocolType, runWithTimeout, timeout } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -21,6 +21,7 @@ import {
 } from '../agents/index.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
+import { KathyHelmManager } from '../helloworld/kathy.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
@@ -284,15 +285,15 @@ async function refreshK8sResources(
   // const agentConfig = await agentConfig(environment, chain);
 
   const envConfig = getEnvironmentConfig(environment);
-  const contextHelmManagers: Record<string, HelmManager<any>[]> = {};
+  const contextHelmManagers: [string, HelmManager<any>][] = [];
   const pushContextHelmManager = (
     context: string,
     manager: HelmManager<any>,
   ) => {
-    if (!contextHelmManagers[context]) {
-      contextHelmManagers[context] = [];
-    }
-    contextHelmManagers[context].push(manager);
+    // if (!contextHelmManagers[context]) {
+    //   contextHelmManagers[context] = [];
+    // }
+    contextHelmManagers.push([context, manager]);
   };
   for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
     if (agentConfig.relayer) {
@@ -315,15 +316,62 @@ async function refreshK8sResources(
         KeyFunderHelmManager.forEnvironment(environment),
       );
 
-      // Kathy
+      // Kathy - only expected to be running as a long-running service in the
+      // Hyperlane context
       if (envConfig.helloWorld?.hyperlane?.addresses[chain]) {
-        // pushContextHelmManager(
-        //   context,
-        //   new KathyHelmManager(agentConfig, chain),
-        // );
+        pushContextHelmManager(
+          context,
+          KathyHelmManager.forEnvironment(environment, context),
+        );
       }
     }
   }
+
+  const selection = await checkbox({
+    message:
+      'Select deployments to refresh (update secrets & restart any pods)',
+    choices: contextHelmManagers.map(([context, helmManager], i) => ({
+      name: `${helmManager.helmReleaseName} (context: ${context})`,
+      value: i,
+      // By default, all deployments are selected
+      checked: true,
+    })),
+  });
+  const selectedHelmManagers = contextHelmManagers.filter((_, i) =>
+    selection.includes(i),
+  );
+
+  const secretsToDelete = (
+    await Promise.all(
+      selectedHelmManagers.map(async ([_context, helmManager]) =>
+        helmManager.getExistingK8sSecrets(),
+      ),
+    )
+  ).flat();
+
+  console.log(`Deleting secrets: ${secretsToDelete.join(', ')}`);
+  await execCmd(
+    `kubectl delete secret ${secretsToDelete.join(' ')} -n ${environment}`,
+  );
+
+  await Promise.all(
+    secretsToDelete.map(async (secret) => {
+      try {
+        await runWithTimeout(
+          // 60 seconds
+          60 * 1000,
+          async () => {
+            await execCmd(
+              `kubectl wait --for=exists secret/${secret} -n ${environment}`,
+            );
+            console.log(`✅ Secret ${secret} successfully re-created`);
+          },
+        );
+      } catch (e) {
+        console.error(`Error waiting for secret ${secret} to exist: ${e}`);
+      }
+    }),
+  );
 }
 
 // abstract class SecretRpcConsumingK8sWorkload {
