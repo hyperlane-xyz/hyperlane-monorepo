@@ -16,6 +16,7 @@ import {
   Address,
   ProtocolType,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
@@ -637,19 +638,15 @@ export abstract class HyperlaneDeployer<
     contractName: string,
   ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
-    const hit =
-      !!cachedAddress && cachedAddress !== ethers.constants.AddressZero;
-    const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
-    const contract = factory
-      .attach(contractAddress)
-      .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
-      ReturnType<F['deploy']>
-    >;
-    if (hit) {
+    if (cachedAddress && !isZeroishAddress(cachedAddress)) {
       this.logger.debug(
-        `Recovered ${contractName.toString()} on ${chain} ${cachedAddress}`,
+        `Recovered ${contractName} on ${chain}: ${cachedAddress}`,
       );
-      return contract;
+      return factory
+        .attach(cachedAddress)
+        .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
+        ReturnType<F['deploy']>
+      >;
     }
     return undefined;
   }

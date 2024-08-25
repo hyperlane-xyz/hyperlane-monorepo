@@ -520,7 +520,7 @@
       "name": "celo",
       "nativeToken": {
         "decimals": 18,
-        "name": "CELO",
+        "name": "Celo",
         "symbol": "CELO"
       },
       "pausableHook": "0x80672c5D9Fd26B235654C24adc1CFcDeb8d15115",
@@ -582,7 +582,7 @@
       "name": "cheesechain",
       "nativeToken": {
         "decimals": 18,
-        "name": "CHEESE",
+        "name": "Cheese",
         "symbol": "CHEESE"
       },
       "pausableHook": "0x7b75b29caD47e10146e29BBf7BD9025e021a7023",
@@ -703,7 +703,7 @@
       "name": "degenchain",
       "nativeToken": {
         "decimals": 18,
-        "name": "Degen Chain",
+        "name": "Degen",
         "symbol": "DEGEN"
       },
       "pausableHook": "0x61594D2cA900C44ab51d07776465397FefC643C6",
@@ -808,7 +808,7 @@
       "name": "endurance",
       "nativeToken": {
         "decimals": 18,
-        "name": "ACE",
+        "name": "Fusionist",
         "symbol": "ACE"
       },
       "pausableHook": "0xaE7BCf37D4541d3CFc46c1459829c1246E11aE08",
@@ -1179,8 +1179,7 @@
     },
     "injective": {
       "bech32Prefix": "inj",
-      "blockExplorers": [
-      ],
+      "blockExplorers": [],
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
@@ -1456,7 +1455,7 @@
       "name": "lukso",
       "nativeToken": {
         "decimals": 18,
-        "name": "LYX",
+        "name": "LUKSO",
         "symbol": "LYX"
       },
       "pausableHook": "0x232471495586baF1aCc4FD930B18302AEa3B1b35",
@@ -1651,7 +1650,7 @@
       "name": "merlin",
       "nativeToken": {
         "decimals": 18,
-        "name": "BTC",
+        "name": "Bitcoin",
         "symbol": "BTC"
       },
       "pausableHook": "0xDd1CddEd982e4d271d4D6Bc4cdE8d4F3338733B5",
@@ -1899,7 +1898,7 @@
       "name": "moonbeam",
       "nativeToken": {
         "decimals": 18,
-        "name": "GLMR",
+        "name": "Moonbeam",
         "symbol": "GLMR"
       },
       "pausableHook": "0xe28f2AEEB42ee83CAd068D9A9a449c8b868C137f",
@@ -2363,7 +2362,7 @@
       "name": "real",
       "nativeToken": {
         "decimals": 18,
-        "name": "reETH",
+        "name": "Real Ether",
         "symbol": "reETH"
       },
       "pausableHook": "0xc965292958794f59ec3e9538738dD252873F07CC",
@@ -2484,7 +2483,7 @@
       "name": "sanko",
       "nativeToken": {
         "decimals": 18,
-        "name": "DMT",
+        "name": "Dream Machine Token",
         "symbol": "DMT"
       },
       "pausableHook": "0x61594D2cA900C44ab51d07776465397FefC643C6",
@@ -2671,7 +2670,7 @@
       "name": "solana",
       "nativeToken": {
         "decimals": 9,
-        "name": "Sol",
+        "name": "Solana",
         "symbol": "SOL"
       },
       "protocol": "sealevel",
@@ -3125,8 +3124,8 @@
       "aggregationHook": "0x198e8c938EC00Da143e772628c7958DD97B7c2A6",
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.zircuit.com/api",
-          "family": "other",
+          "apiUrl": "https://explorer.zircuit.com/api/contractVerifyHardhat",
+          "family": "etherscan",
           "name": "Zircuit Eplorer",
           "url": "https://explorer.zircuit.com"
         }
@@ -3147,12 +3146,12 @@
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
       "fallbackRoutingHook": "0xDa7cECb05C4aeB02c1aFDE277d4306a2da7Bd762",
       "gasCurrencyCoinGeckoId": "ethereum",
-      "gnosisSafeTransactionServiceUrl": "https://gateway.safe.zircuit.com/api",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.zircuit.com",
       "index": {
         "from": 1511458
       },
       "interchainGasPaymaster": "0x03cF708E42C89623bd83B281A56935cB562b9258",
-      "interchainSecurityModule": "0x636bB3fCa3B74B942bA8C258c44109384B252979",
+      "interchainSecurityModule": "0x817D346Add1D08Af124a90e43123111c9d6813B3",
       "mailbox": "0xc2FbB9411186AB3b1a6AFCCA702D1a80B48b197c",
       "merkleTreeHook": "0x4C97D35c668EE5194a13c8DE8Afc18cce40C9F28",
       "name": "zircuit",
@@ -3162,7 +3161,7 @@
         "symbol": "ETH"
       },
       "pausableHook": "0x4Eb82Ee35b0a1c1d776E3a3B547f9A9bA6FCC9f2",
-      "pausableIsm": "0x4848d54987ffc732aD313827cdC25DF2eedD79d8",
+      "pausableIsm": "0xc2Da384799488B4e1E773d70a83346529145085B",
       "protocol": "ethereum",
       "protocolFee": "0xe243Fb51d91c5DE62afAbE44F7Ed2D4DC51668C6",
       "proxyAdmin": "0xA5580D7Af50F3FD869EbEA51e352e2656F8DD5C2",
@@ -3172,6 +3171,9 @@
         },
         {
           "http": "https://zircuit1-mainnet.liquify.com"
+        },
+        {
+          "http": "https://zircuit-mainnet.drpc.org"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",

@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
+  ChainMetadata,
   ChainName,
   CoreConfig,
   MultiProtocolProvider,
@@ -90,14 +91,18 @@ export function getArgs() {
     .alias('e', 'environment');
 }
 
-export function withModuleAndFork<T>(args: Argv<T>) {
+export function withFork<T>(args: Argv<T>) {
   return args
-    .choices('module', Object.values(Modules))
-    .demandOption('module', 'hyperlane module to deploy')
-    .alias('m', 'module')
     .describe('fork', 'network to fork')
     .choices('fork', getChains())
     .alias('f', 'fork');
+}
+
+export function withModule<T>(args: Argv<T>) {
+  return args
+    .choices('module', Object.values(Modules))
+    .demandOption('module', 'hyperlane module to deploy')
+    .alias('m', 'module');
 }
 
 export function withContext<T>(args: Argv<T>) {
@@ -107,6 +112,16 @@ export function withContext<T>(args: Argv<T>) {
     .coerce('context', assertContext)
     .alias('x', 'context')
     .demandOption('context');
+}
+
+export function withAsDeployer<T>(args: Argv<T>) {
+  return args
+    .describe('asDeployer', 'Set signer to the deployer key')
+    .default('asDeployer', false);
+}
+
+export function withGovern<T>(args: Argv<T>) {
+  return args.boolean('govern').default('govern', false).alias('g', 'govern');
 }
 
 export function withChainRequired<T>(args: Argv<T>) {
@@ -165,6 +180,19 @@ export function withAgentRole<T>(args: Argv<T>) {
     .coerce('role', (role: string[]): Role[] => role.map(assertRole))
     .demandOption('role')
     .alias('r', 'role');
+}
+
+export function withAgentRoles<T>(args: Argv<T>) {
+  return (
+    args
+      .describe('roles', 'Set of roles to perform actions on.')
+      .array('roles')
+      .coerce('roles', (role: string[]): Role[] => role.map(assertRole))
+      .choices('roles', Object.values(Role))
+      // Ensure roles are unique
+      .coerce('roles', (roles: string[]) => Array.from(new Set(roles)))
+      .alias('r', 'roles')
+  );
 }
 
 export function withKeyRoleAndChain<T>(args: Argv<T>) {
@@ -350,6 +378,7 @@ export async function getMultiProtocolProvider(
 
 export async function getMultiProviderForRole(
   environment: DeployEnvironment,
+  supportedChainNames: ChainName[],
   registry: IRegistry,
   context: Contexts,
   role: Role,
@@ -363,13 +392,21 @@ export async function getMultiProviderForRole(
     return multiProvider;
   }
   await promiseObjAll(
-    objMap(chainMetadata, async (chain, _) => {
-      if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
-        const key = getKeyForRole(environment, context, role, chain, index);
-        const signer = await key.getSigner();
-        multiProvider.setSigner(chain, signer);
-      }
-    }),
+    objMap(
+      supportedChainNames.reduce((acc, chain) => {
+        if (chainMetadata[chain]) {
+          acc[chain] = chainMetadata[chain];
+        }
+        return acc;
+      }, {} as ChainMap<ChainMetadata>),
+      async (chain, _) => {
+        if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+          const key = getKeyForRole(environment, context, role, chain, index);
+          const signer = await key.getSigner();
+          multiProvider.setSigner(chain, signer);
+        }
+      },
+    ),
   );
 
   return multiProvider;

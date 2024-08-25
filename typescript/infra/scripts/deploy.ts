@@ -33,8 +33,9 @@ import {
   extractBuildArtifact,
   fetchExplorerApiKeys,
 } from '../src/deployment/verify.js';
+import { Role } from '../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
-import { inCIMode } from '../src/utils/utils.js';
+import { inCIMode, writeYamlAtPath } from '../src/utils/utils.js';
 
 import {
   Modules,
@@ -45,7 +46,8 @@ import {
   withChains,
   withConcurrentDeploy,
   withContext,
-  withModuleAndFork,
+  withFork,
+  withModule,
   withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
@@ -63,13 +65,18 @@ async function main() {
   } = await withContext(
     withConcurrentDeploy(
       withChains(
-        withModuleAndFork(withWarpRouteId(withBuildArtifactPath(getArgs()))),
+        withModule(withFork(withWarpRouteId(withBuildArtifactPath(getArgs())))),
       ),
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
-  let multiProvider = await envConfig.getMultiProvider();
+  let multiProvider = await envConfig.getMultiProvider(
+    context,
+    Role.Deployer,
+    true,
+    chains,
+  );
 
   if (fork) {
     multiProvider = multiProvider.extendChainMetadata({
@@ -106,6 +113,7 @@ async function main() {
     deployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
       contractVerifier,
+      concurrentDeploy,
     );
   } else if (module === Modules.CORE) {
     config = envConfig.core;
@@ -132,6 +140,7 @@ async function main() {
       multiProvider,
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
     config = envConfig.igp;
@@ -153,7 +162,11 @@ async function main() {
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
-    deployer = new InterchainQueryDeployer(multiProvider, contractVerifier);
+    deployer = new InterchainQueryDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
   } else if (module === Modules.LIQUIDITY_LAYER) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     const routerConfig = core.getRouterConfig(envConfig.owners);
@@ -167,7 +180,11 @@ async function main() {
         ...routerConfig[chain],
       }),
     );
-    deployer = new LiquidityLayerDeployer(multiProvider, contractVerifier);
+    deployer = new LiquidityLayerDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
   } else if (module === Modules.TEST_RECIPIENT) {
     const addresses = getAddresses(environment, Modules.CORE);
 
@@ -178,7 +195,11 @@ async function main() {
           ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
       };
     }
-    deployer = new TestRecipientDeployer(multiProvider, contractVerifier);
+    deployer = new TestRecipientDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
   } else if (module === Modules.TEST_QUERY_SENDER) {
     // Get query router addresses
     const queryAddresses = getAddresses(
@@ -188,7 +209,11 @@ async function main() {
     config = objMap(queryAddresses, (_c, conf) => ({
       queryRouterAddress: conf.router,
     }));
-    deployer = new TestQuerySenderDeployer(multiProvider, contractVerifier);
+    deployer = new TestQuerySenderDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
   } else if (module === Modules.HELLO_WORLD) {
     const { core } = await getHyperlaneCore(environment, multiProvider);
     config = core.getRouterConfig(envConfig.owners);
@@ -196,6 +221,7 @@ async function main() {
       multiProvider,
       undefined,
       contractVerifier,
+      concurrentDeploy,
     );
   } else if (module === Modules.HOOK) {
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
@@ -206,6 +232,8 @@ async function main() {
       multiProvider,
       getEnvAddresses(environment),
       ismFactory,
+      contractVerifier,
+      concurrentDeploy,
     );
     // Config is intended to be changed for ad-hoc use cases:
     config = {
@@ -229,14 +257,6 @@ async function main() {
     environment,
     module,
   };
-  // Don't write agent config in fork tests
-  const agentConfig =
-    module === Modules.CORE && !fork
-      ? {
-          environment,
-          multiProvider,
-        }
-      : undefined;
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
@@ -246,7 +266,11 @@ async function main() {
             (chains ?? []).includes(chain),
           )
         : config;
-    console.log(JSON.stringify(confirmConfig, null, 2));
+
+    const deployPlanPath = path.join(modulePath, 'deployment-plan.yaml');
+    writeYamlAtPath(deployPlanPath, confirmConfig);
+    console.log(`Deployment Plan written to ${deployPlanPath}`);
+
     const { value: confirmed } = await prompts({
       type: 'confirm',
       name: 'value',
@@ -265,7 +289,6 @@ async function main() {
     // Use chains if provided, otherwise deploy to all chains
     // If fork is provided, deploy to fork only
     targetNetworks: chains && chains.length > 0 ? chains : !fork ? [] : [fork],
-    agentConfig,
   });
 }
 

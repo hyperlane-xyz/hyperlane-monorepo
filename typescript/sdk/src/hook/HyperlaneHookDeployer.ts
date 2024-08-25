@@ -9,7 +9,12 @@ import {
   ProtocolFee,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
-import { Address, addressToBytes32, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  deepEquals,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
@@ -43,14 +48,17 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
     readonly igpDeployer = new HyperlaneIgpDeployer(
       multiProvider,
       contractVerifier,
+      concurrentDeploy,
     ),
   ) {
     super(multiProvider, hookFactories, {
       logger: rootLogger.child({ module: 'HookDeployer' }),
       contractVerifier,
+      concurrentDeploy,
     });
   }
 
@@ -166,7 +174,13 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
     }
-    this.logger.debug(`Deploying aggregation hook of ${config.hooks}`);
+
+    this.logger.debug(
+      { aggregationHook: config.hooks },
+      `Deploying aggregation hook of type ${config.hooks.map((h) =>
+        typeof h === 'string' ? h : h.type,
+      )}...`,
+    );
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
       this.ismFactory.getContracts(chain).staticAggregationHookFactory,
@@ -309,7 +323,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       this.logger.debug(`Deploying routing hook for ${dest}`);
       const destDomain = this.multiProvider.getDomainId(dest);
 
-      if (prevHookConfig && prevHookAddress && prevHookConfig === hookConfig) {
+      if (deepEquals(prevHookConfig, hookConfig) && prevHookAddress) {
         this.logger.debug(`Reusing hook ${prevHookAddress} for ${dest}`);
         routingConfigs.push({
           destination: destDomain,
