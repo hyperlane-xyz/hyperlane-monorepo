@@ -8,7 +8,7 @@ import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetad
 import {Message} from "../../contracts/libs/Message.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 
-contract DispatchedHookTest is Test {
+contract DispatchedHookTest {
     using Message for bytes;
     using TypeCasts for address;
 
