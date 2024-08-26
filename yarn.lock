@@ -7515,6 +7515,7 @@ __metadata:
     lint-staged: "npm:^12.4.3"
     prettier: "npm:^2.8.8"
     tsx: "npm:^4.7.1"
+    zx: "npm:^8.1.4"
   languageName: unknown
   linkType: soft
 
@@ -12397,6 +12398,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/fs-extra@npm:>=11":
+  version: 11.0.4
+  resolution: "@types/fs-extra@npm:11.0.4"
+  dependencies:
+    "@types/jsonfile": "npm:*"
+    "@types/node": "npm:*"
+  checksum: acc4c1eb0cde7b1f23f3fe6eb080a14832d8fa9dc1761aa444c5e2f0f6b6fa657ed46ebae32fb580a6700fc921b6165ce8ac3e3ba030c3dd15f10ad4dd4cae98
+  languageName: node
+  linkType: hard
+
 "@types/glob@npm:^7.1.1, @types/glob@npm:^7.1.3":
   version: 7.2.0
   resolution: "@types/glob@npm:7.2.0"
@@ -12482,6 +12493,15 @@ __metadata:
   version: 1.0.36
   resolution: "@types/json-stable-stringify@npm:1.0.36"
   checksum: 765b07589e11a3896c3d06bb9e3a9be681e7edd95adf27370df0647a91bd2bfcfaf0e091fd4a13729343b388973f73f7e789d6cc62ab988240518a2d27c4a4e2
+  languageName: node
+  linkType: hard
+
+"@types/jsonfile@npm:*":
+  version: 6.1.4
+  resolution: "@types/jsonfile@npm:6.1.4"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 309fda20eb5f1cf68f2df28931afdf189c5e7e6bec64ac783ce737bb98908d57f6f58757ad5da9be37b815645a6f914e2d4f3ac66c574b8fe1ba6616284d0e97
   languageName: node
   linkType: hard
 
@@ -12649,6 +12669,15 @@ __metadata:
   dependencies:
     undici-types: "npm:~5.26.4"
   checksum: 71e0023342272e63c47f3fab6082bd6c89d0b0c4262a1c2d0d52458560077f5c28ef5cfe704306eac43fc2e5111bef4e1cdbf08f565650520fad5e54005a8836
+  languageName: node
+  linkType: hard
+
+"@types/node@npm:>=20":
+  version: 22.5.0
+  resolution: "@types/node@npm:22.5.0"
+  dependencies:
+    undici-types: "npm:~6.19.2"
+  checksum: 89af3bd217b1559b645a9ed16d4ae3add75749814cbd8eefddd1b96003d1973afb1c8a2b23d69f3a8cc6c532e3aa185eaf5cc29a6e7c42c311a2aad4c99430ae
   languageName: node
   linkType: hard
 
@@ -29137,6 +29166,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"undici-types@npm:~6.19.2":
+  version: 6.19.8
+  resolution: "undici-types@npm:6.19.8"
+  checksum: cf0b48ed4fc99baf56584afa91aaffa5010c268b8842f62e02f752df209e3dea138b372a60a963b3b2576ed932f32329ce7ddb9cb5f27a6c83040d8cd74b7a70
+  languageName: node
+  linkType: hard
+
 "undici@npm:^5.11":
   version: 5.11.0
   resolution: "undici@npm:5.11.0"
@@ -30751,5 +30787,22 @@ __metadata:
   version: 3.21.2
   resolution: "zod@npm:3.21.2"
   checksum: 1c67216871808c3beaeaf2439adfc589055502665e8fc4267abf36dc4f673018cd15575e8f38a3eb9b8edb43356d91a809fc6ded3fab4b7f5d6a3982d0b97c77
+  languageName: node
+  linkType: hard
+
+"zx@npm:^8.1.4":
+  version: 8.1.4
+  resolution: "zx@npm:8.1.4"
+  dependencies:
+    "@types/fs-extra": "npm:>=11"
+    "@types/node": "npm:>=20"
+  dependenciesMeta:
+    "@types/fs-extra":
+      optional: true
+    "@types/node":
+      optional: true
+  bin:
+    zx: build/cli.js
+  checksum: 1ffa4c51a1edad25de0729d09667b3d1b7b4f9c8f6b4300e34d85f8f18c2e768f7e297b9bfad4d3b8a24792b3f14085f229933d0a224febba49ac2588ed155b1
   languageName: node
   linkType: hard
