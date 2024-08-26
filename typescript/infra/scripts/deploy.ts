@@ -126,6 +126,7 @@ async function main() {
       ismFactory,
       contractVerifier,
       concurrentDeploy,
+      60 * 60 * 1000, // 60 minutes
     );
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {

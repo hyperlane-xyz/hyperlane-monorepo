@@ -52,6 +52,18 @@ export async function deployWithArtifacts<Config extends object>({
     );
   }
 
+  const handleExit = async () => {
+    console.log('Running post-deploy steps');
+    await postDeploy(deployer, cache);
+    console.log('Post-deploy completed');
+  };
+
+  // Handle Ctrl+C
+  process.on('SIGINT', handleExit);
+  // One final post-deploy before exit to ensure
+  // deployments exceeding the timeout are still written
+  process.on('beforeExit', handleExit);
+
   // Deploy the contracts
   try {
     await deployer.deploy(targetConfigMap);
@@ -63,6 +75,7 @@ export async function deployWithArtifacts<Config extends object>({
     }
   }
 
+  // Call the post-deploy hook to write artifacts
   await postDeploy(deployer, cache);
 }
 
