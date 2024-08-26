@@ -9,6 +9,7 @@ import {
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
+  HyperlaneAddressesMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -45,8 +46,7 @@ import {
   withChains,
   withConcurrentDeploy,
   withContext,
-  withFork,
-  withModule,
+  withModuleAndFork,
   withWarpRouteId,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
@@ -64,7 +64,7 @@ async function main() {
   } = await withContext(
     withConcurrentDeploy(
       withChains(
-        withModule(withFork(withWarpRouteId(withBuildArtifactPath(getArgs())))),
+        withModuleAndFork(withWarpRouteId(withBuildArtifactPath(getArgs()))),
       ),
     ),
   ).argv;
@@ -110,8 +110,9 @@ async function main() {
     );
   } else if (module === Modules.CORE) {
     config = envConfig.core;
+    const addresses = getAddresses(environment, Modules.PROXY_FACTORY);
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
+      addresses,
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(
