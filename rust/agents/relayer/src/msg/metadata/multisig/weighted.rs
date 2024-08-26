@@ -22,13 +22,13 @@ pub trait WeightedMultisigIsmMetadataBuilder: MultisigIsmMetadataBuilder {
         message: &HyperlaneMessage,
     ) -> Result<(Vec<(H256, u64)>, u64)> {
         const CTX: &str = "When fetching WeightedMultisigIsm metadata";
-        let multisig_ism = self
+        let weighted_multisig_ism = self
             .as_ref()
             .build_weighted_multisig_ism(ism_address)
             .await
             .context(CTX)?;
 
-        let (validators, threshold_weight) = multisig_ism
+        let (validators, threshold_weight) = weighted_multisig_ism
             .validators_and_threshold_weight(message)
             .await
             .context(CTX)?;
