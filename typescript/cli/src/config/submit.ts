@@ -74,9 +74,7 @@ function getChainFromTxs(
   multiProvider: MultiProvider,
   transactions: PopulatedTransactions,
 ) {
-  const firstTransaction = transactions.at(0);
-  assert(firstTransaction, 'Transactions empty');
-
+  const firstTransaction = transactions[0];
   const sameChainIds = transactions.every(
     (t: PopulatedTransaction) => t.chainId === firstTransaction.chainId,
   );
