@@ -1,7 +1,7 @@
 import { WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../src/utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { CHAIN_NAME, readWarpConfig } from './warp.js';
 

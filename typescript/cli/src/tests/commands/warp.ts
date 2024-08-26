@@ -2,15 +2,15 @@ import { $ } from 'zx';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
-import { readYamlOrJson } from '../../src/utils/files.js';
+import { readYamlOrJson } from '../../utils/files.js';
 
 import { getDeployedWarpAddress } from './helpers.js';
 
 export const CHAIN_NAME = 'anvil1';
-const TEST_CONFIGS_PATH = './test-configs';
-const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
+export const TEST_CONFIGS_PATH = './test-configs';
+export const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
 
-const ANVIL_KEY =
+export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 /**
@@ -37,6 +37,7 @@ export async function hyperlaneWarpDeploy(warpCoreInputPath: string) {
         --key ${ANVIL_KEY} \
         --yes`;
 }
+
 /**
  * Applies updates to the Warp route config.
  */
@@ -44,13 +45,15 @@ export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
 ) {
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
+  const logs =
+    await $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --yes`;
+  console.log(logs);
 }
 
 /**
