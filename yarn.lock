@@ -7363,6 +7363,7 @@ __metadata:
     yargs: "npm:^17.7.2"
     zod: "npm:^3.21.2"
     zod-validation-error: "npm:^3.3.0"
+    zx: "npm:^8.1.4"
   bin:
     hyperlane: ./dist/cli.js
   languageName: unknown
@@ -7515,7 +7516,6 @@ __metadata:
     lint-staged: "npm:^12.4.3"
     prettier: "npm:^2.8.8"
     tsx: "npm:^4.7.1"
-    zx: "npm:^8.1.4"
   languageName: unknown
   linkType: soft
 
