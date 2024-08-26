@@ -9,6 +9,7 @@ import {
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
+  HyperlaneAddressesMap,
   HyperlaneCoreDeployer,
   HyperlaneDeployer,
   HyperlaneHookDeployer,
@@ -109,8 +110,12 @@ async function main() {
     );
   } else if (module === Modules.CORE) {
     config = envConfig.core;
+    const addresses = getAddresses(environment, Modules.PROXY_FACTORY);
+    const filteredAddresses = Object.entries(addresses).filter(([chain, _]) => {
+      return multiProvider.getKnownChainNames().includes(chain);
+    });
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
+      Object.fromEntries(filteredAddresses) as HyperlaneAddressesMap<any>,
       multiProvider,
     );
     deployer = new HyperlaneCoreDeployer(

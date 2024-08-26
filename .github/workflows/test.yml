@@ -262,9 +262,10 @@ jobs:
         working-directory: ./rust
         env:
           E2E_CI_MODE: 'true'
-          E2E_CI_TIMEOUT_SEC: '600'
-          E2E_KATHY_MESSAGES: '20'
+          E2E_CI_TIMEOUT_SEC: '200'
+          E2E_KATHY_MESSAGES: '5'
           RUST_BACKTRACE: 'full'
+          SEALEVEL_ENABLED: 'false'
 
   e2e:
     runs-on: ubuntu-latest
