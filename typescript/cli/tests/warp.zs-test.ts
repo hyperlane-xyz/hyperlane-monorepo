@@ -31,7 +31,7 @@ async function hyperlaneCoreDeploy(coreInputPath: string) {
         --registry ${REGISTRY_PATH} \
         --overrides " " \
         --config ${coreInputPath} \
-        --chain anvil1 \
+        --chain ${CHAIN_NAME} \
         --key ${ANVIL_KEY} \
         --yes`;
 }
@@ -49,8 +49,8 @@ async function hyperlaneWarpDeploy(warpCoreInputPath: string) {
 }
 
 /**
- * Retrieves the deployed Warp address from the Warp core configuration.
- * @param warpCorePath - The file path to the Warp core configuration.
+ * Retrieves the deployed Warp address from the Warp core config.
+ * @param warpCorePath - The file path to the Warp core config.
  * @returns The deployed Warp address.
  */
 function getDeployedWarpAddress(warpCorePath: string) {
@@ -60,7 +60,7 @@ function getDeployedWarpAddress(warpCorePath: string) {
 
 /**
  * Reads the Warp route deployment config to specified output path.
- * @returns The Warp route deployment configuration.
+ * @returns The Warp route deployment config.
  */
 async function readWarpConfig(
   warpCoreInputPath: string,
@@ -78,8 +78,8 @@ async function readWarpConfig(
 }
 
 /**
- * Updates the owner of the Warp route deployment configuration, and then output to a file
- * @returns The file path to the updated Warp route deployment configuration.
+ * Updates the owner of the Warp route deployment config, and then output to a file
+ * @returns The file path to the updated Warp route deployment config.
  */
 async function updateWarpOwner(
   owner: Address,
@@ -105,8 +105,7 @@ async function hyperlaneWarpApply(
         --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
-        --key $HYP_KEY \
-        --verbosity debug \
+        --key ${ANVIL_KEY} \
         --yes`;
 }
 
