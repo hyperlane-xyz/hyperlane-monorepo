@@ -54,7 +54,6 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public multisigMetadataBuilder: MultisigMetadataBuilder;
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
   public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
-  public routingMetadataBuilder: RoutingMetadataBuilder;
   public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
 
   public multiProvider: MultiProvider;
