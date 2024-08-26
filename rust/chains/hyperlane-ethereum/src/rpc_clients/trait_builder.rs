@@ -52,6 +52,9 @@ pub trait BuildableWithProvider {
     /// The type that will be created.
     type Output;
 
+    /// Whether this provider requires a signer
+    const NEEDS_SIGNER: bool;
+
     /// Construct a new instance of the associated trait using a connection
     /// config. This is the first step and will wrap the provider with
     /// metrics and a signer as needed.
@@ -210,11 +213,13 @@ pub trait BuildableWithProvider {
         M: Middleware + 'static,
     {
         Ok(if let Some(signer) = signer {
+            println!("Building provider with signer");
             let signing_provider = wrap_with_signer(provider, signer)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
             self.build_with_provider(signing_provider, conn, locator)
         } else {
+            println!("Building provider without signer");
             self.build_with_provider(provider, conn, locator)
         }
         .await)

@@ -1,5 +1,81 @@
 # @hyperlane-xyz/sdk
 
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Add ether's error reasoning handling to SmartProvider to show clearer error messages
+- 013f19c64: Support proxiedFactories in HypERC20App and extend HypERC20Checker with ProxiedRouterChecker
+- 013f19c64: Deploy to arbitrumsepolia, basesepolia, ecotestnet, optimismsepolia, polygonamoy
+- 013f19c64: Deploy to zircuit
+- 013f19c64: Update cosmos zod schema and enroll new validators for cheesechain, xlayer, zircuit, worldchain.
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Support proxyAdmin checks for non AW owned warp router contracts
+- 013f19c64: Add stride validators to default multisig ism
+- 013f19c64: Adds CollateralFiat to token mapping which will output the correct standard to the warp deploy artifact.
+- 013f19c64: Deploy to solana + eclipse
+- 013f19c64: Added yield route with yield going to message recipient.
+- 19f7d4fd9: Support passing foreignDeployments to HypERC20App constructor
+
+### Patch Changes
+
+- 013f19c64: feat: Add long-running CLI relayer
+- 013f19c64: Support xERC20Lockbox in checkToken
+- 013f19c64: Update ProxyAdminViolation interface to include proxyAdmin and proxy contract fields
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+  - @hyperlane-xyz/core@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
+## 5.0.0
+
+### Major Changes
+
+- 488f949ef: Upgrade CosmJS libs to 0.32.4
+
+### Minor Changes
+
+- 2c0ae3cf3: Deploy to connextsepolia + superpositiontestnet
+- 0dedbf5a0: Deploy to endurance, fusemainnet, zoramainnet
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+- 4907b510c: Add logic to parse SmartProvider errors to handle ethers and smart provider errors
+- c7f5a35e8: Add hyperlane core apply with update default Ism
+- f83b492de: - Enable updating of hooks through the `EvmHookModule`, including IGP and gas oracles.
+  - Drive-by fixes to ISM module and tests.
+- 79740755b: Add enroll remote router to WarpModule
+- 8533f9e66: Adds transferOwnership to warp update to allow ownership to be transferred if the onchain owner differ
+- ed65556aa: Improve WarpCore validation error message for IGP fee checks
+- cfb890dc6: Remove outdated logos in SDK (now in registry)
+- 708999433: Adds hyperlane warp apply
+- 5529d98d0: Add hyperlane core apply with update ownership
+- 62d71fad3: Add hyperlane warp update to extend a warp config
+- 49986aa92: Add collateralAddressOrDenom for collateralVault
+- 8e942d3c6: Deploy to cheesechain, worldchain, xlayer
+
+### Patch Changes
+
+- 69a39da1c: Fix issue with cosmos tx estimation
+- 7265a4087: Add rpcUrl, chainId, and method(params) to smart provider logging.
+- 0a40dcb8b: Update cosmos chain schema
+- ab827a3fa: Removes inaccurate contract verification check, resulting in proxy contracts not being marked as proxies during contract verification.
+- dfa908796: add error message for all calls to assert util
+- ed63e04c4: Creates HyperlaneReader to re-use dyn provider log level & silences provider logs in deriveIsmConfig like deriveHookConfig.
+- 5aa24611b: Add 'isInitialized' check before initializing implementation contract (for contracts that disableInitializers in constructors).
+- 7fdd3958d: Adds logic to prune and minify build artifacts to address 'entity size too large' error thrown from explorers. Note that the only identified instance of this issue is on BSC mainnet.
+- fef629673: ContractVerifier now adjusts timeouts based on explorer family, which helps with many rate-limiting related contract verification issues. In addition, the ContractVerifier verify logic has been greatly simplified to allowing for a predictable callstack + easy debugging.
+- be4617b18: Handle subdirectories for the folder in S3Validator class
+- Updated dependencies [388d25517]
+- Updated dependencies [488f949ef]
+- Updated dependencies [dfa908796]
+- Updated dependencies [90598ad44]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/utils@5.0.0
+  - @hyperlane-xyz/core@5.0.0
+
 ## 4.1.0
 
 ### Minor Changes

@@ -1,0 +1,1455 @@
+{
+  "arbitrum": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.arbiscan.io/api",
+        "family": "etherscan",
+        "name": "Arbiscan",
+        "url": "https://arbiscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 0
+    },
+    "chainId": 42161,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Arbitrum",
+    "domainId": 42161,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-arbitrum.safe.global/",
+    "index": {
+      "from": 143649797
+    },
+    "name": "arbitrum",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://arbitrum.llamarpc.com"
+      },
+      {
+        "http": "https://rpc.ankr.com/arbitrum"
+      },
+      {
+        "http": "https://arb1.arbitrum.io/rpc"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
+  },
+  "ancient8": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://scan.ancient8.gg/api",
+        "family": "blockscout",
+        "name": "Ancient8 Explorer",
+        "url": "https://scan.ancient8.gg"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 0
+    },
+    "chainId": 888888888,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Ancient8",
+    "domainId": 888888888,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe.ancient8.gg/txs/",
+    "isTestnet": false,
+    "name": "ancient8",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.ancient8.gg"
+      }
+    ],
+    "technicalStack": "other"
+  },
+  "avalanche": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api",
+        "family": "routescan",
+        "name": "SnowTrace",
+        "url": "https://snowtrace.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 3
+    },
+    "chainId": 43114,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Avalanche",
+    "domainId": 43114,
+    "gasCurrencyCoinGeckoId": "avalanche-2",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-avalanche.safe.global/",
+    "name": "avalanche",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Avalanche",
+      "symbol": "AVAX"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.ankr.com/avalanche"
+      },
+      {
+        "http": "https://api.avax.network/ext/bc/C/rpc",
+        "pagination": {
+          "maxBlockRange": 100000,
+          "minBlockNumber": 6765067
+        }
+      }
+    ]
+  },
+  "base": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.basescan.org/api",
+        "family": "etherscan",
+        "name": "BaseScan",
+        "url": "https://basescan.org"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 8453,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Base",
+    "domainId": 8453,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-base.safe.global/",
+    "name": "base",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://base.publicnode.com/"
+      },
+      {
+        "http": "https://mainnet.base.org"
+      },
+      {
+        "http": "https://base.blockpi.network/v1/rpc/public"
+      }
+    ]
+  },
+  "blast": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/81457/etherscan/api",
+        "family": "routescan",
+        "name": "Blast Explorer",
+        "url": "https://blastexplorer.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 81457,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Blast",
+    "domainId": 81457,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.blast-safe.io",
+    "name": "blast",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.blast.io"
+      }
+    ],
+    "technicalStack": "other"
+  },
+  "bob": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.gobob.xyz/api",
+        "family": "blockscout",
+        "name": "BOB Explorer",
+        "url": "https://explorer.gobob.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 60808,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "BOB",
+    "domainId": 60808,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.gobob.xyz",
+    "name": "bob",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.gobob.xyz"
+      }
+    ],
+    "technicalStack": "other"
+  },
+  "bsc": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.bscscan.com/api",
+        "family": "etherscan",
+        "name": "BscScan",
+        "url": "https://bscscan.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 15
+    },
+    "chainId": 56,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Binance Smart Chain",
+    "displayNameShort": "Binance",
+    "domainId": 56,
+    "gasCurrencyCoinGeckoId": "binancecoin",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-bsc.safe.global/",
+    "name": "bsc",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "BNB",
+      "symbol": "BNB"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.ankr.com/bsc"
+      },
+      {
+        "http": "https://bsc.drpc.org"
+      },
+      {
+        "http": "https://bscrpc.com"
+      }
+    ],
+    "transactionOverrides": {
+      "gasPrice": 3000000000
+    }
+  },
+  "celo": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.celoscan.io/api",
+        "family": "etherscan",
+        "name": "CeloScan",
+        "url": "https://celoscan.io"
+      },
+      {
+        "apiUrl": "https://explorer.celo.org/mainnet/api",
+        "family": "blockscout",
+        "name": "Blockscout",
+        "url": "https://explorer.celo.org"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 5,
+      "reorgPeriod": 0
+    },
+    "chainId": 42220,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Celo",
+    "domainId": 42220,
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-celo.safe.global/",
+    "name": "celo",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "CELO",
+      "symbol": "CELO"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://forno.celo.org"
+      }
+    ]
+  },
+  "cheesechain": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://fetascan.io/api",
+        "family": "blockscout",
+        "name": "Fetascan",
+        "url": "https://fetascan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 90,
+      "reorgPeriod": 0
+    },
+    "chainId": 383353,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "CheeseChain",
+    "domainId": 383353,
+    "gasCurrencyCoinGeckoId": "cheese-2",
+    "name": "cheesechain",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "CHEESE",
+      "symbol": "CHEESE"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://cheesechain.calderachain.xyz/http"
+      }
+    ]
+  },
+  "eclipse": {
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 0.4,
+      "reorgPeriod": 0
+    },
+    "chainId": 1408864445,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Eclipse",
+    "domainId": 1408864445,
+    "name": "eclipse",
+    "nativeToken": {
+      "decimals": 9,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "sealevel",
+    "rpcUrls": [
+      {
+        "http": "https://mainnetbeta-rpc.eclipse.xyz"
+      }
+    ]
+  },
+  "endurance": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer-endurance.fusionist.io/api",
+        "family": "blockscout",
+        "name": "Endurance Explorer",
+        "url": "https://explorer-endurance.fusionist.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 12,
+      "reorgPeriod": 14
+    },
+    "chainId": 648,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Endurance",
+    "domainId": 648,
+    "gasCurrencyCoinGeckoId": "endurance",
+    "gnosisSafeTransactionServiceUrl": "https://safewallet.fusionist.io/cgw/api",
+    "name": "endurance",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "ACE",
+      "symbol": "ACE"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc-endurance.fusionist.io"
+      }
+    ]
+  },
+  "ethereum": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.etherscan.io/api",
+        "family": "etherscan",
+        "name": "Etherscan",
+        "url": "https://etherscan.io"
+      },
+      {
+        "apiUrl": "https://eth.blockscout.com/api",
+        "family": "blockscout",
+        "name": "Blockscout",
+        "url": "https://blockscout.com/eth/mainnet"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "estimateBlockTime": 13,
+      "reorgPeriod": 14
+    },
+    "chainId": 1,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Ethereum",
+    "domainId": 1,
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-mainnet.safe.global/",
+    "name": "ethereum",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://ethereum.publicnode.com"
+      },
+      {
+        "http": "https://cloudflare-eth.com"
+      }
+    ],
+    "transactionOverrides": {
+      "maxFeePerGas": 150000000000,
+      "maxPriorityFeePerGas": 5000000000
+    }
+  },
+  "fraxtal": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.fraxscan.com/api",
+        "family": "etherscan",
+        "name": "Fraxscan",
+        "url": "https://fraxscan.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 252,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Fraxtal",
+    "domainId": 252,
+    "gasCurrencyCoinGeckoId": "frax-ether",
+    "gnosisSafeTransactionServiceUrl": "https://transaction-frax.safe.optimism.io",
+    "name": "fraxtal",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Frax Ether",
+      "symbol": "frxETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.frax.com"
+      }
+    ]
+  },
+  "fusemainnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.fuse.io/api",
+        "family": "etherscan",
+        "name": "FuseExplorer",
+        "url": "https://explorer.fuse.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 5,
+      "reorgPeriod": 1
+    },
+    "chainId": 122,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Fuse",
+    "domainId": 122,
+    "gasCurrencyCoinGeckoId": "fuse-network-token",
+    "gnosisSafeTransactionServiceUrl": "https://transaction-fuse.safe.fuse.io",
+    "name": "fusemainnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "FUSE",
+      "symbol": "FUSE"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.fuse.io"
+      }
+    ]
+  },
+  "gnosis": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.gnosisscan.io/api",
+        "family": "etherscan",
+        "name": "GnosisScan",
+        "url": "https://gnosisscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 5,
+      "reorgPeriod": 14
+    },
+    "chainId": 100,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Gnosis",
+    "domainId": 100,
+    "gasCurrencyCoinGeckoId": "xdai",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-gnosis-chain.safe.global/",
+    "name": "gnosis",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "xDai",
+      "symbol": "xDai"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.gnosischain.com",
+        "pagination": {
+          "maxBlockRange": 10000,
+          "minBlockNumber": 25997478
+        }
+      }
+    ]
+  },
+  "inevm": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://inevm.calderaexplorer.xyz/api",
+        "family": "blockscout",
+        "name": "Caldera inEVM Explorer",
+        "url": "https://inevm.calderaexplorer.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 0
+    },
+    "chainId": 2525,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Injective EVM",
+    "displayNameShort": "inEVM",
+    "domainId": 2525,
+    "gasCurrencyCoinGeckoId": "injective-protocol",
+    "name": "inevm",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Injective",
+      "symbol": "INJ"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://inevm.calderachain.xyz/http"
+      }
+    ]
+  },
+  "injective": {
+    "bech32Prefix": "inj",
+    "blockExplorers": [],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 10
+    },
+    "chainId": 6909546,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Injective",
+    "domainId": 6909546,
+    "gasCurrencyCoinGeckoId": "injective-protocol",
+    "grpcUrls": [
+      {
+        "http": "sentry.chain.grpc.injective.network:443"
+      }
+    ],
+    "name": "injective",
+    "nativeToken": {
+      "decimals": 18,
+      "denom": "inj",
+      "name": "Injective",
+      "symbol": "INJ"
+    },
+    "protocol": "cosmos",
+    "restUrls": [
+      {
+        "http": "https://sentry.lcd.injective.network:443"
+      }
+    ],
+    "rpcUrls": [
+      {
+        "http": "https://sentry.tm.injective.network:443"
+      }
+    ],
+    "slip44": 118
+  },
+  "linea": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.lineascan.build/api",
+        "family": "etherscan",
+        "name": "LineaScan",
+        "url": "https://lineascan.build"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 1
+    },
+    "chainId": 59144,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Linea",
+    "domainId": 59144,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.linea.build",
+    "name": "linea",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.linea.build"
+      }
+    ]
+  },
+  "mantapacific": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://pacific-explorer.manta.network/api",
+        "family": "blockscout",
+        "name": "Manta Pacific Explorer",
+        "url": "https://pacific-explorer.manta.network"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 1
+    },
+    "chainId": 169,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Manta Pacific",
+    "displayNameShort": "Manta",
+    "domainId": 169,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.manta.network",
+    "isTestnet": false,
+    "name": "mantapacific",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://pacific-rpc.manta.network/http"
+      }
+    ]
+  },
+  "mantle": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.mantle.xyz/api",
+        "family": "blockscout",
+        "name": "Mantle Mainnet Explorer",
+        "url": "https://explorer.mantle.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 5000,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Mantle",
+    "domainId": 5000,
+    "gasCurrencyCoinGeckoId": "mantle",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.mantle.xyz",
+    "name": "mantle",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Mantle",
+      "symbol": "MNT"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.mantle.xyz"
+      }
+    ],
+    "technicalStack": "other"
+  },
+  "mode": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.mode.network/api",
+        "family": "blockscout",
+        "name": "Mode Explorer",
+        "url": "https://explorer.mode.network"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 34443,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Mode",
+    "domainId": 34443,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction-mode.safe.optimism.io",
+    "name": "mode",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.mode.network"
+      }
+    ],
+    "technicalStack": "other"
+  },
+  "moonbeam": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-moonbeam.moonscan.io/api",
+        "family": "etherscan",
+        "name": "MoonScan",
+        "url": "https://moonscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 2,
+      "estimateBlockTime": 12,
+      "reorgPeriod": 2
+    },
+    "chainId": 1284,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Moonbeam",
+    "domainId": 1284,
+    "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.moonbeam.network",
+    "name": "moonbeam",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "GLMR",
+      "symbol": "GLMR"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.api.moonbeam.network"
+      }
+    ],
+    "transactionOverrides": {
+      "maxFeePerGas": 350000000000,
+      "maxPriorityFeePerGas": 50000000000
+    }
+  },
+  "neutron": {
+    "bech32Prefix": "neutron",
+    "blockExplorers": [
+      {
+        "apiUrl": "https://www.mintscan.io/neutron",
+        "family": "other",
+        "name": "Mintscan",
+        "url": "https://www.mintscan.io/neutron"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 1
+    },
+    "chainId": 1853125230,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Neutron",
+    "domainId": 1853125230,
+    "gasCurrencyCoinGeckoId": "neutron-3",
+    "grpcUrls": [
+      {
+        "http": "grpc-kralum.neutron-1.neutron.org:80"
+      }
+    ],
+    "isTestnet": false,
+    "name": "neutron",
+    "nativeToken": {
+      "decimals": 6,
+      "denom": "untrn",
+      "name": "Neutron",
+      "symbol": "NTRN"
+    },
+    "protocol": "cosmos",
+    "restUrls": [
+      {
+        "http": "https://rest-lb.neutron.org"
+      }
+    ],
+    "rpcUrls": [
+      {
+        "http": "https://rpc-kralum.neutron-1.neutron.org"
+      }
+    ],
+    "slip44": 118,
+    "transactionOverrides": {
+      "gasPrice": "0.0075"
+    }
+  },
+  "optimism": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-optimistic.etherscan.io/api",
+        "family": "etherscan",
+        "name": "Etherscan",
+        "url": "https://optimistic.etherscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 0
+    },
+    "chainId": 10,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Optimism",
+    "domainId": 10,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-optimism.safe.global/",
+    "name": "optimism",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.optimism.io"
+      }
+    ]
+  },
+  "osmosis": {
+    "bech32Prefix": "osmo",
+    "blockExplorers": [
+      {
+        "apiUrl": "https://www.mintscan.io/osmosis",
+        "family": "other",
+        "name": "Mintscan",
+        "url": "https://www.mintscan.io/osmosis"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 1
+    },
+    "chainId": 875,
+    "deployer": {
+      "name": "Mitosis",
+      "url": "https://mitosis.org"
+    },
+    "displayName": "Osmosis",
+    "domainId": 875,
+    "gasCurrencyCoinGeckoId": "osmosis",
+    "grpcUrls": [
+      {
+        "http": "osmosis-grpc.publicnode.com:443"
+      }
+    ],
+    "isTestnet": false,
+    "name": "osmosis",
+    "nativeToken": {
+      "decimals": 6,
+      "denom": "uosmo",
+      "name": "Osmosis",
+      "symbol": "OSMO"
+    },
+    "protocol": "cosmos",
+    "restUrls": [
+      {
+        "http": "https://osmosis-rest.publicnode.com"
+      }
+    ],
+    "rpcUrls": [
+      {
+        "http": "https://osmosis-rpc.publicnode.com"
+      }
+    ],
+    "slip44": 118,
+    "transactionOverrides": {
+      "gasPrice": "0.025"
+    }
+  },
+  "polygon": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.polygonscan.com/api",
+        "family": "etherscan",
+        "name": "PolygonScan",
+        "url": "https://polygonscan.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 256
+    },
+    "chainId": 137,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Polygon",
+    "domainId": 137,
+    "gasCurrencyCoinGeckoId": "matic-network",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-polygon.safe.global/",
+    "name": "polygon",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Matic",
+      "symbol": "MATIC"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://polygon-bor.publicnode.com"
+      },
+      {
+        "http": "https://polygon-rpc.com"
+      },
+      {
+        "http": "https://rpc.ankr.com/polygon"
+      }
+    ],
+    "transactionOverrides": {
+      "maxFeePerGas": 550000000000,
+      "maxPriorityFeePerGas": 50000000000
+    }
+  },
+  "polygonzkevm": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api-zkevm.polygonscan.com/api",
+        "family": "etherscan",
+        "name": "PolygonScan",
+        "url": "https://zkevm.polygonscan.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 10,
+      "reorgPeriod": 1
+    },
+    "chainId": 1101,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Polygon zkEVM",
+    "displayNameShort": "zkEVM",
+    "domainId": 1101,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-zkevm.safe.global/",
+    "name": "polygonzkevm",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://zkevm-rpc.com"
+      },
+      {
+        "http": "https://rpc.ankr.com/polygon_zkevm"
+      }
+    ],
+    "transactionOverrides": {
+      "gasPrice": 1000000000
+    }
+  },
+  "redstone": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.redstone.xyz/api",
+        "family": "blockscout",
+        "name": "Redstone Explorer",
+        "url": "https://explorer.redstone.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 0
+    },
+    "chainId": 690,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Redstone",
+    "domainId": 690,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction-redstone.safe.optimism.io",
+    "name": "redstone",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.redstonechain.com"
+      }
+    ]
+  },
+  "scroll": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.scrollscan.com/api",
+        "family": "etherscan",
+        "name": "Scroll Explorer",
+        "url": "https://scrollscan.com/"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 1
+    },
+    "chainId": 534352,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Scroll",
+    "domainId": 534352,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-scroll.safe.global",
+    "name": "scroll",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://scroll.blockpi.network/v1/rpc/public"
+      }
+    ],
+    "transactionOverrides": {
+      "gasPrice": 2000000000
+    }
+  },
+  "sei": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://seitrace.com/pacific-1/api",
+        "family": "etherscan",
+        "name": "Seitrace",
+        "url": "https://seitrace.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 1
+    },
+    "chainId": 1329,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Sei",
+    "domainId": 1329,
+    "gasCurrencyCoinGeckoId": "sei-network",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.sei-safe.protofire.io",
+    "name": "sei",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Sei",
+      "symbol": "SEI"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://evm-rpc.sei-apis.com"
+      }
+    ],
+    "transactionOverrides": {
+      "gasPrice": 2000000000
+    }
+  },
+  "solana": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.solana.com?cluster=mainnet-beta",
+        "family": "other",
+        "name": "Solana Explorer",
+        "url": "https://explorer.solana.com?cluster=mainnet-beta"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 0.4,
+      "reorgPeriod": 0
+    },
+    "chainId": 1399811149,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Solana",
+    "domainId": 1399811149,
+    "name": "solana",
+    "nativeToken": {
+      "decimals": 9,
+      "name": "Sol",
+      "symbol": "SOL"
+    },
+    "protocol": "sealevel",
+    "rpcUrls": [
+      {
+        "http": "https://api.mainnet-beta.solana.com"
+      }
+    ]
+  },
+  "taiko": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.taikoscan.io/api",
+        "family": "etherscan",
+        "name": "Taikoscan",
+        "url": "https://taikoscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 12,
+      "reorgPeriod": 1
+    },
+    "chainId": 167000,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Taiko",
+    "domainId": 167000,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.taiko.xyz",
+    "name": "taiko",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.mainnet.taiko.xyz"
+      }
+    ],
+    "technicalStack": "other"
+  },
+  "viction": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://www.vicscan.xyz/api",
+        "family": "other",
+        "name": "Vicscan",
+        "url": "https://www.vicscan.xyz"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 0
+    },
+    "chainId": 88,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Viction",
+    "domainId": 88,
+    "gasCurrencyCoinGeckoId": "tomochain",
+    "name": "viction",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Viction",
+      "symbol": "VIC"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.tomochain.com"
+      },
+      {
+        "http": "https://viction.blockpi.network/v1/rpc/public"
+      }
+    ]
+  },
+  "worldchain": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://worldchain-mainnet-explorer.alchemy.com/api",
+        "family": "blockscout",
+        "name": "World Chain explorer",
+        "url": "https://worldchain-mainnet-explorer.alchemy.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 480,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "World Chain",
+    "domainId": 480,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "name": "worldchain",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://raas-backend.alchemy.com/rpc/worldchain-mainnet/rollup"
+      }
+    ]
+  },
+  "xlayer": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://www.oklink.com/api",
+        "family": "other",
+        "name": "X Layer Explorer",
+        "url": "https://www.oklink.com/xlayer"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 10,
+      "reorgPeriod": 1
+    },
+    "chainId": 196,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "XLayer",
+    "displayNameShort": "XLayer",
+    "domainId": 196,
+    "gasCurrencyCoinGeckoId": "okb",
+    "gnosisSafeTransactionServiceUrl": "https://app.safe.global/welcome?chain=xlayer",
+    "name": "xlayer",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "OKB",
+      "symbol": "OKB"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://xlayerrpc.okx.com"
+      },
+      {
+        "http": "https://rpc.xlayer.tech"
+      }
+    ]
+  },
+  "zetachain": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.zetachain.com",
+        "family": "other",
+        "name": "ZetaScan",
+        "url": "https://explorer.zetachain.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 6,
+      "reorgPeriod": 0
+    },
+    "chainId": 7000,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "ZetaChain",
+    "domainId": 7000,
+    "gasCurrencyCoinGeckoId": "zetachain",
+    "gnosisSafeTransactionServiceUrl": "https://transaction.safe.zetachain.com",
+    "name": "zetachain",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "ZetaChain",
+      "symbol": "ZETA"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://zetachain-evm.blockpi.network/v1/rpc/public"
+      },
+      {
+        "http": "https://zetachain-athens-evm.blockpi.network/v1/rpc/public"
+      }
+    ]
+  },
+  "zoramainnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.zora.energy/api",
+        "family": "blockscout",
+        "name": "Zora Explorer",
+        "url": "https://explorer.zora.energy"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 1
+    },
+    "chainId": 7777777,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Zora",
+    "domainId": 7777777,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://transaction-zora.safe.optimism.io",
+    "name": "zoramainnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.zora.energy"
+      }
+    ]
+  }
+}

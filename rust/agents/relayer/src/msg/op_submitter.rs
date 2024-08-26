@@ -5,8 +5,12 @@ use derive_new::new;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use hyperlane_core::total_estimated_cost;
+use hyperlane_core::BatchResult;
 use hyperlane_core::ConfirmReason::*;
+use hyperlane_core::PendingOperation;
 use hyperlane_core::PendingOperationStatus;
+use itertools::Either;
+use itertools::Itertools;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
@@ -19,8 +23,8 @@ use tracing::{info, warn};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    BatchItem, ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneMessage, PendingOperationResult, QueueOperation, TxOutcome,
+    ChainCommunicationError, ChainResult, HyperlaneDomain, HyperlaneDomainProtocol,
+    PendingOperationResult, QueueOperation, TxOutcome,
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
@@ -480,46 +484,82 @@ struct OperationBatch {
 
 impl OperationBatch {
     async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
-        match self.try_submit_as_batch(metrics).await {
-            Ok(outcome) => {
-                info!(outcome=?outcome, batch_size=self.operations.len(), batch=?self.operations, "Submitted transaction batch");
-                let total_estimated_cost = total_estimated_cost(&self.operations);
-                for mut op in self.operations {
-                    op.set_operation_outcome(outcome.clone(), total_estimated_cost);
-                    op.set_next_attempt_after(CONFIRM_DELAY);
-                    confirm_queue
-                        .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
-                        .await;
-                }
-                return;
+        let excluded_ops = match self.try_submit_as_batch(metrics).await {
+            Ok(batch_result) => {
+                Self::handle_batch_result(self.operations, batch_result, confirm_queue).await
             }
             Err(e) => {
-                warn!(error=?e, batch=?self.operations, "Error when submitting batch. Falling back to serial submission.");
+                warn!(error=?e, batch=?self.operations, "Error when submitting batch");
+                self.operations
             }
+        };
+
+        if !excluded_ops.is_empty() {
+            warn!(excluded_ops=?excluded_ops, "Either the batch tx would revert, or the operations would revert in the batch. Falling back to serial submission.");
+            OperationBatch::new(excluded_ops, self.domain)
+                .submit_serially(confirm_queue, metrics)
+                .await;
         }
-        self.submit_serially(confirm_queue, metrics).await;
     }
 
     #[instrument(skip(metrics), ret, level = "debug")]
     async fn try_submit_as_batch(
         &self,
         metrics: &SerialSubmitterMetrics,
-    ) -> ChainResult<TxOutcome> {
-        let batch = self
-            .operations
-            .iter()
-            .map(|op| op.try_batch())
-            .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
-
+    ) -> ChainResult<BatchResult> {
         // We already assume that the relayer submits to a single mailbox per destination.
         // So it's fine to use the first item in the batch to get the mailbox.
-        let Some(first_item) = batch.first() else {
+        let Some(first_item) = self.operations.first() else {
             return Err(ChainCommunicationError::BatchIsEmpty);
         };
-
-        let outcome = first_item.mailbox.process_batch(&batch).await?;
-        metrics.ops_submitted.inc_by(self.operations.len() as u64);
+        let outcome = if let Some(mailbox) = first_item.try_get_mailbox() {
+            mailbox
+                .try_process_batch(self.operations.iter().collect_vec())
+                .await?
+        } else {
+            BatchResult::failed(self.operations.len())
+        };
+        let ops_submitted = self.operations.len() - outcome.failed_indexes.len();
+        metrics.ops_submitted.inc_by(ops_submitted as u64);
         Ok(outcome)
+    }
+
+    /// Process the operations sent by a batch.
+    /// Returns the operations that were not sent
+    async fn handle_batch_result(
+        operations: Vec<QueueOperation>,
+        batch_result: BatchResult,
+        confirm_queue: &mut OpQueue,
+    ) -> Vec<Box<dyn PendingOperation>> {
+        let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
+            operations.into_iter().enumerate().partition_map(|(i, op)| {
+                if !batch_result.failed_indexes.contains(&i) {
+                    Either::Left(op)
+                } else {
+                    Either::Right(op)
+                }
+            });
+
+        if let Some(outcome) = batch_result.outcome {
+            info!(batch_size=sent_ops.len(), outcome=?outcome, batch=?sent_ops, ?excluded_ops, "Submitted transaction batch");
+            Self::update_sent_ops_state(sent_ops, outcome, confirm_queue).await;
+        }
+        excluded_ops
+    }
+
+    async fn update_sent_ops_state(
+        sent_ops: Vec<Box<dyn PendingOperation>>,
+        outcome: TxOutcome,
+        confirm_queue: &mut OpQueue,
+    ) {
+        let total_estimated_cost = total_estimated_cost(sent_ops.as_slice());
+        for mut op in sent_ops {
+            op.set_operation_outcome(outcome.clone(), total_estimated_cost);
+            op.set_next_attempt_after(CONFIRM_DELAY);
+            confirm_queue
+                .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
+                .await;
+        }
     }
 
     async fn submit_serially(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {

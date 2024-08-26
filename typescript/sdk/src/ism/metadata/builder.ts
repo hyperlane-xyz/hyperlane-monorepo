@@ -7,7 +7,11 @@ import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { DispatchedMessage } from '../../core/types.js';
 import { DerivedHookConfig } from '../../hook/EvmHookReader.js';
-import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
+import {
+  ArbL2ToL1HookConfig,
+  HookType,
+  MerkleTreeHookConfig,
+} from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { DerivedIsmConfig } from '../EvmIsmReader.js';
 import { IsmType } from '../types.js';
@@ -16,6 +20,7 @@ import {
   AggregationMetadata,
   AggregationMetadataBuilder,
 } from './aggregation.js';
+import { ArbL2ToL1Metadata, ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadata, NullMetadataBuilder } from './null.js';
 import {
@@ -26,6 +31,7 @@ import {
 export type StructuredMetadata =
   | NullMetadata
   | MultisigMetadata
+  | ArbL2ToL1Metadata
   | AggregationMetadata<any>
   | RoutingMetadata<any>;
 
@@ -48,6 +54,8 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public multisigMetadataBuilder: MultisigMetadataBuilder;
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
   public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
+  public routingMetadataBuilder: RoutingMetadataBuilder;
+  public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
 
   public multiProvider: MultiProvider;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
@@ -59,7 +67,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       this,
     );
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
-    this;
+    this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
     this.multiProvider = core.multiProvider;
   }
 
@@ -112,6 +120,15 @@ export class BaseMetadataBuilder implements MetadataBuilder {
           maxDepth,
         );
 
+      case IsmType.ARB_L2_TO_L1: {
+        const hookConfig = hook as WithAddress<ArbL2ToL1HookConfig>;
+        return this.arbL2ToL1MetadataBuilder.build({
+          ...context,
+          ism,
+          hook: hookConfig,
+        });
+      }
+
       default:
         throw new Error(`Unsupported ISM: ${ism}`);
     }
@@ -135,6 +152,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
 
       case IsmType.ROUTING:
         return DefaultFallbackRoutingMetadataBuilder.decode(metadata, {
+          ...context,
+          ism,
+        });
+
+      case IsmType.ARB_L2_TO_L1:
+        return ArbL2ToL1MetadataBuilder.decode(metadata, {
           ...context,
           ism,
         });

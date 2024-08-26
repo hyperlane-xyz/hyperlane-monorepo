@@ -1,0 +1,74 @@
+{
+  "name": "@hyperlane-xyz/widgets",
+  "description": "Common react components for Hyperlane projects",
+  "version": "5.1.0",
+  "peerDependencies": {
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/registry": "2.5.0",
+    "@hyperlane-xyz/sdk": "5.1.0"
+  },
+  "devDependencies": {
+    "@storybook/addon-essentials": "^7.6.14",
+    "@storybook/addon-interactions": "^7.6.14",
+    "@storybook/addon-links": "^7.6.14",
+    "@storybook/addon-onboarding": "^1.0.11",
+    "@storybook/blocks": "^7.6.14",
+    "@storybook/react": "^7.6.14",
+    "@storybook/react-vite": "^7.6.14",
+    "@storybook/test": "^7.6.14",
+    "@types/node": "^18.11.18",
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "@types/ws": "^8.5.5",
+    "@typescript-eslint/eslint-plugin": "^7.4.0",
+    "@typescript-eslint/parser": "^7.4.0",
+    "babel-loader": "^8.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-storybook": "^0.6.15",
+    "postcss": "^8.4.21",
+    "prettier": "^2.8.8",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "storybook": "^7.6.14",
+    "tailwindcss": "^3.2.4",
+    "ts-node": "^10.8.0",
+    "typescript": "5.3.3",
+    "vite": "^5.1.1"
+  },
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./styles.css": "./dist/styles.css"
+  },
+  "types": "./dist/index.d.ts",
+  "homepage": "https://www.hyperlane.xyz",
+  "keywords": [
+    "Hyperlane",
+    "Widgets",
+    "React",
+    "Components",
+    "Typescript"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
+  },
+  "scripts": {
+    "build": "yarn build:ts && yarn build:css",
+    "build:ts": "tsc",
+    "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
+    "clean": "rm -rf ./dist ./cache ./storybook-static",
+    "lint": "eslint ./src --ext .ts",
+    "prettier": "prettier --write ./src",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  }
+}

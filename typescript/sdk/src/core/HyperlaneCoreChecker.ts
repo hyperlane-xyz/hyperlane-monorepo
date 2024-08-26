@@ -5,6 +5,7 @@ import { assert, eqAddress } from '@hyperlane-xyz/utils';
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { proxyImplementation } from '../deploy/proxy.js';
+import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -28,6 +29,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     app: HyperlaneCore,
     configMap: ChainMap<CoreConfig>,
     readonly ismFactory: HyperlaneIsmFactory,
+    readonly chainAddresses: ChainMap<Record<string, string>>,
   ) {
     super(multiProvider, app, configMap);
   }
@@ -39,7 +41,11 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       return;
     }
 
-    await this.checkProxiedContracts(chain);
+    await this.checkProxiedContracts(
+      chain,
+      config.owner,
+      config.ownerOverrides,
+    );
     await this.checkMailbox(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
@@ -65,26 +71,65 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       )} for ${chain}`,
     );
 
-    const actualIsm = await mailbox.defaultIsm();
+    const actualIsmAddress = await mailbox.defaultIsm();
 
     const config = this.configMap[chain];
     const matches = await moduleMatchesConfig(
       chain,
-      actualIsm,
+      actualIsmAddress,
       config.defaultIsm,
       this.ismFactory.multiProvider,
       this.ismFactory.getContracts(chain),
     );
+
     if (!matches) {
-      const violation: MailboxViolation = {
-        type: CoreViolationType.Mailbox,
-        subType: MailboxViolationType.DefaultIsm,
-        contract: mailbox,
+      const registryIsmAddress =
+        this.chainAddresses[chain].interchainSecurityModule;
+      const registryIsmMatches = await moduleMatchesConfig(
         chain,
-        actual: actualIsm,
-        expected: config.defaultIsm,
-      };
-      this.addViolation(violation);
+        registryIsmAddress,
+        config.defaultIsm,
+        this.ismFactory.multiProvider,
+        this.ismFactory.getContracts(chain),
+      );
+
+      if (registryIsmMatches) {
+        // if the ISM in registry matches the expected config, then we can assume
+        // that the mailbox should be using that ISM instead of the current one
+        // and we should report just an address violation
+        const violation: MailboxViolation = {
+          type: CoreViolationType.Mailbox,
+          subType: MailboxViolationType.DefaultIsm,
+          contract: mailbox,
+          chain,
+          actual: actualIsmAddress,
+          expected: registryIsmAddress,
+        };
+        this.addViolation(violation);
+      } else {
+        const ismReader = new EvmIsmReader(
+          this.ismFactory.multiProvider,
+          chain,
+        );
+        let actualConfig: string | DerivedIsmConfig =
+          ethers.constants.AddressZero;
+        if (actualIsmAddress !== ethers.constants.AddressZero) {
+          actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
+        }
+
+        // If the config doesn't match either onchain or the registry
+        // then we have a full config violation, which the governor will need to
+        // fix by deploying a new ISM
+        const violation: MailboxViolation = {
+          type: CoreViolationType.Mailbox,
+          subType: MailboxViolationType.DefaultIsm,
+          contract: mailbox,
+          chain,
+          actual: actualConfig,
+          expected: config.defaultIsm,
+        };
+        this.addViolation(violation);
+      }
     }
   }
 

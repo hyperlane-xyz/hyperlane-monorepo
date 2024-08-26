@@ -9,7 +9,12 @@ import {
   ProtocolFee,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
-import { Address, addressToBytes32, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addressToBytes32,
+  deepEquals,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
@@ -43,14 +48,17 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     readonly core: ChainMap<Partial<CoreAddresses>>,
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
     readonly igpDeployer = new HyperlaneIgpDeployer(
       multiProvider,
       contractVerifier,
+      concurrentDeploy,
     ),
   ) {
     super(multiProvider, hookFactories, {
       logger: rootLogger.child({ module: 'HookDeployer' }),
       contractVerifier,
+      concurrentDeploy,
     });
   }
 
@@ -166,7 +174,13 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       aggregatedHooks.push(subhooks[hookConfig.type].address);
       hooks = { ...hooks, ...subhooks };
     }
-    this.logger.debug(`Deploying aggregation hook of ${config.hooks}`);
+
+    this.logger.debug(
+      { aggregationHook: config.hooks },
+      `Deploying aggregation hook of type ${config.hooks.map((h) =>
+        typeof h === 'string' ? h : h.type,
+      )}...`,
+    );
     const address = await this.ismFactory.deployStaticAddressSet(
       chain,
       this.ismFactory.getContracts(chain).staticAggregationHookFactory,
@@ -303,13 +317,28 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     }
 
     const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
+    let prevHookConfig: HookConfig | undefined;
+    let prevHookAddress: Address | undefined;
     for (const [dest, hookConfig] of Object.entries(config.domains)) {
+      this.logger.debug(`Deploying routing hook for ${dest}`);
       const destDomain = this.multiProvider.getDomainId(dest);
+
+      if (deepEquals(prevHookConfig, hookConfig) && prevHookAddress) {
+        this.logger.debug(`Reusing hook ${prevHookAddress} for ${dest}`);
+        routingConfigs.push({
+          destination: destDomain,
+          hook: prevHookAddress,
+        });
+        continue;
+      }
+
       if (typeof hookConfig === 'string') {
         routingConfigs.push({
           destination: destDomain,
           hook: hookConfig,
         });
+        prevHookConfig = hookConfig;
+        prevHookAddress = hookConfig;
       } else {
         const hook = await this.deployContracts(
           chain,
@@ -320,6 +349,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
           destination: destDomain,
           hook: hook[hookConfig.type].address,
         });
+        prevHookConfig = hookConfig;
+        prevHookAddress = hook[hookConfig.type].address;
       }
     }
 

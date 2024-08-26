@@ -19,7 +19,7 @@ use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use super::{
-    gas_payment::GasPaymentEnforcer,
+    gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
 };
 
@@ -170,7 +170,7 @@ impl PendingOperation for PendingMessage {
         self.app_context.clone()
     }
 
-    #[instrument(skip(self), ret, fields(id=?self.id()), level = "debug")]
+    #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
@@ -286,8 +286,15 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        let Some(gas_limit) = gas_limit else {
-            return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
+        let gas_limit = match gas_limit {
+            GasPolicyStatus::NoPaymentFound => {
+                return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound)
+            }
+            GasPolicyStatus::PolicyNotMet => {
+                return self
+                    .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet)
+            }
+            GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -445,6 +452,10 @@ impl PendingOperation for PendingMessage {
 
     fn set_retries(&mut self, retries: u32) {
         self.set_retries(retries);
+    }
+
+    fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+        Some(self.ctx.destination_mailbox.clone())
     }
 }
 

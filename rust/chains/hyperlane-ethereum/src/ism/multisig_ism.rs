@@ -32,6 +32,7 @@ pub struct MultisigIsmBuilder {}
 #[async_trait]
 impl BuildableWithProvider for MultisigIsmBuilder {
     type Output = Box<dyn MultisigIsm>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

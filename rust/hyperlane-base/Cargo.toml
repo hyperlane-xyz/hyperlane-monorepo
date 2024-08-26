@@ -70,6 +70,10 @@ tempfile.workspace = true
 tracing-test.workspace = true
 walkdir.workspace = true
 
+[build-dependencies]
+anyhow = { workspace = true }
+vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
+
 [features]
 default = ["oneline-errors", "color-eyre"]
 oneline-eyre = ["backtrace-oneline", "backtrace"]

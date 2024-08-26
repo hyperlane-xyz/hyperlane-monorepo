@@ -34,6 +34,7 @@ pub struct ValidatorAnnounceBuilder {}
 #[async_trait]
 impl BuildableWithProvider for ValidatorAnnounceBuilder {
     type Output = Box<dyn ValidatorAnnounce>;
+    const NEEDS_SIGNER: bool = true;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

@@ -44,6 +44,7 @@ pub struct MerkleTreeHookBuilder {}
 #[async_trait]
 impl BuildableWithProvider for MerkleTreeHookBuilder {
     type Output = Box<dyn MerkleTreeHook>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -62,6 +63,7 @@ pub struct MerkleTreeHookIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for MerkleTreeHookIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

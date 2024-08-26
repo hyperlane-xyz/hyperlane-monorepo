@@ -81,6 +81,11 @@ export async function createChainConfig({
     10,
   );
 
+  const isTestnet = await confirm({
+    message:
+      'Is this chain a testnet (a chain used for testing & development)?',
+  });
+
   const metadata: ChainMetadata = {
     name,
     displayName,
@@ -88,6 +93,7 @@ export async function createChainConfig({
     domainId: chainId,
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
+    isTestnet,
   };
 
   await addBlockExplorerConfig(metadata);

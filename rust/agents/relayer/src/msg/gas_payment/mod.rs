@@ -34,6 +34,13 @@ pub trait GasPaymentPolicy: Debug + Send + Sync {
     ) -> Result<Option<U256>>;
 }
 
+#[derive(PartialEq, Debug)]
+pub enum GasPolicyStatus {
+    NoPaymentFound,
+    PolicyNotMet,
+    PolicyMet(U256),
+}
+
 #[derive(Debug)]
 pub struct GasPaymentEnforcer {
     /// List of policies and a whitelist to decide if it should be used for a
@@ -80,15 +87,19 @@ impl GasPaymentEnforcer {
         &self,
         message: &HyperlaneMessage,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<Option<U256>> {
+    ) -> Result<GasPolicyStatus> {
         let msg_id = message.id();
         let gas_payment_key = GasPaymentKey {
             message_id: msg_id,
             destination: message.destination,
         };
-        let current_payment = self
+        let current_payment_option = self
             .db
             .retrieve_gas_payment_by_gas_payment_key(gas_payment_key)?;
+        let current_payment = match current_payment_option {
+            Some(payment) => payment,
+            None => InterchainGasPayment::from_gas_payment_key(gas_payment_key),
+        };
         let current_expenditure = self.db.retrieve_gas_expenditure_by_message_id(msg_id)?;
 
         for (policy, whitelist) in &self.policies {
@@ -122,7 +133,18 @@ impl GasPaymentEnforcer {
                     &current_expenditure,
                     tx_cost_estimate,
                 )
-                .await;
+                .await
+                .map(|result| {
+                    if let Some(gas_limit) = result {
+                        GasPolicyStatus::PolicyMet(gas_limit)
+                    } else if current_payment_option.is_some() {
+                        // There is a gas payment but it didn't meet the policy
+                        GasPolicyStatus::PolicyNotMet
+                    } else {
+                        // No payment was found and it didn't meet the policy
+                        GasPolicyStatus::NoPaymentFound
+                    }
+                });
         }
 
         error!(
@@ -130,7 +152,7 @@ impl GasPaymentEnforcer {
             policies=?self.policies,
             "No gas payment policy matched for message; consider adding a default policy to the end of the policies array which uses a wildcard whitelist."
         );
-        Ok(None)
+        Ok(GasPolicyStatus::PolicyNotMet)
     }
 
     pub fn record_tx_outcome(&self, message: &HyperlaneMessage, outcome: TxOutcome) -> Result<()> {
@@ -162,8 +184,11 @@ mod test {
     };
 
     use super::GasPaymentEnforcer;
-    use crate::settings::{
-        matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
+    use crate::{
+        msg::gas_payment::GasPolicyStatus,
+        settings::{
+            matching_list::MatchingList, GasPaymentEnforcementConf, GasPaymentEnforcementPolicy,
+        },
     };
 
     #[tokio::test]
@@ -195,7 +220,7 @@ mod test {
                     )
                     .await
                     .unwrap(),
-                None
+                GasPolicyStatus::NoPaymentFound
             );
         })
         .await;
@@ -224,7 +249,7 @@ mod test {
                         &TxCostEstimate::default(),
                     )
                     .await,
-                Ok(None)
+                Ok(GasPolicyStatus::PolicyNotMet)
             ));
         })
         .await;
@@ -262,11 +287,13 @@ mod test {
             hyperlane_db.process_gas_payment(wrong_destination_payment, &LogMeta::random());
             // Ensure if the gas payment was made to the incorrect destination, it does not meet
             // the requirement
-            assert!(enforcer
-                .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
-                .await
-                .unwrap()
-                .is_none());
+            assert_eq!(
+                enforcer
+                    .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
+                    .await
+                    .unwrap(),
+                GasPolicyStatus::NoPaymentFound
+            );
 
             let correct_destination_payment = InterchainGasPayment {
                 message_id: msg.id(),
@@ -277,11 +304,13 @@ mod test {
             hyperlane_db.process_gas_payment(correct_destination_payment, &LogMeta::random());
             // Ensure if the gas payment was made to the correct destination, it meets the
             // requirement
-            assert!(enforcer
-                .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
-                .await
-                .unwrap()
-                .is_some());
+            assert_eq!(
+                enforcer
+                    .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
+                    .await
+                    .unwrap(),
+                GasPolicyStatus::PolicyMet(U256::zero())
+            );
         })
         .await;
     }
@@ -319,12 +348,13 @@ mod test {
             hyperlane_db.process_gas_payment(initial_payment, &LogMeta::random());
 
             // Ensure if only half gas payment was made, it does not meet the requirement
-            assert!(enforcer
-                .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
-                .await
-                .unwrap()
-                .is_none());
-
+            assert_eq!(
+                enforcer
+                    .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
+                    .await
+                    .unwrap(),
+                GasPolicyStatus::PolicyNotMet
+            );
             let deficit_payment = InterchainGasPayment {
                 message_id: msg.id(),
                 destination: msg.destination,
@@ -333,11 +363,13 @@ mod test {
             };
             hyperlane_db.process_gas_payment(deficit_payment, &LogMeta::random());
             // Ensure if the full gas payment was made, it meets the requirement
-            assert!(enforcer
-                .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
-                .await
-                .unwrap()
-                .is_some());
+            assert_eq!(
+                enforcer
+                    .message_meets_gas_payment_requirement(&msg, &TxCostEstimate::default(),)
+                    .await
+                    .unwrap(),
+                GasPolicyStatus::PolicyMet(U256::zero())
+            );
         })
         .await;
     }
@@ -383,14 +415,14 @@ mod test {
 
             // The message should meet the requirement because it's on the whitelist for the first
             // policy, even though it would not pass the second (default) policy.
-            assert!(enforcer
+            assert_eq!(enforcer
                 .message_meets_gas_payment_requirement(
                     &matching_message,
                     &TxCostEstimate::default(),
                 )
                 .await
-                .unwrap()
-                .is_some());
+                .unwrap(),
+                GasPolicyStatus::PolicyMet(U256::zero()));
 
             // Switch the sender & recipient
             let not_matching_message = HyperlaneMessage {
@@ -401,14 +433,14 @@ mod test {
 
             // The message should not meet the requirement because it's NOT on the first whitelist
             // and doesn't satisfy the GasPaymentEnforcementPolicy
-            assert!(enforcer
+            assert_eq!(enforcer
                 .message_meets_gas_payment_requirement(
                     &not_matching_message,
                     &TxCostEstimate::default(),
                 )
                 .await
-                .unwrap()
-                .is_none());
+                .unwrap(),
+                GasPolicyStatus::NoPaymentFound);
         })
         .await;
     }

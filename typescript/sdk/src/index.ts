@@ -30,6 +30,7 @@ export {
   attachContracts,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
+  attachAndConnectContracts,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
@@ -66,7 +67,11 @@ export {
   RelayerCacheSchema,
 } from './core/HyperlaneRelayer.js';
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
-export { CoreConfigSchema } from './core/schemas.js';
+export {
+  CoreConfigSchema,
+  DeployedCoreAddressesSchema,
+  DeployedCoreAddresses,
+} from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
 export {
@@ -92,6 +97,7 @@ export {
   CheckerViolation,
   OwnableConfig,
   OwnerViolation,
+  ProxyAdminViolation,
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
@@ -159,6 +165,7 @@ export {
   PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
+  WeightedMultisigIsmConfig,
 } from './ism/types.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
 export {
@@ -377,6 +384,7 @@ export {
   RouterConfig,
   RouterViolation,
   RouterViolationType,
+  RemoteRouters,
   proxiedFactories,
 } from './router/types.js';
 export {
@@ -503,7 +511,12 @@ export { isCompliant } from './utils/schemas.js';
 // @ts-ignore
 export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
 
-export { DeployedCoreAdresses, EvmCoreModule } from './core/EvmCoreModule.js';
+export { EvmCoreModule } from './core/EvmCoreModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-export { ProxyFactoryFactoriesAddresses } from './deploy/schemas.js';
+export {
+  ProxyFactoryFactoriesSchema,
+  ProxyFactoryFactoriesAddresses,
+} from './deploy/schemas.js';
+export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export { proxyAdmin } from './deploy/proxy.js';

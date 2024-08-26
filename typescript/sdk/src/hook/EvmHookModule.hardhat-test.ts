@@ -1,10 +1,15 @@
 /* eslint-disable no-console */
-import assert from 'assert';
 import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  deepEquals,
+  eqAddress,
+  normalizeConfig,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -33,8 +38,12 @@ const hookTypes = Object.values(HookType);
 
 function randomHookType(): HookType {
   // OP_STACK filtering is temporary until we have a way to deploy the required contracts
+  // ARB_L2_TO_L1 filtered out until we have a way to deploy the required contracts (arbL2ToL1.hardhat-test.ts has the same test for checking deployment)
   const filteredHookTypes = hookTypes.filter(
-    (type) => type !== HookType.OP_STACK && type !== HookType.CUSTOM,
+    (type) =>
+      type !== HookType.OP_STACK &&
+      type !== HookType.ARB_L2_TO_L1 &&
+      type !== HookType.CUSTOM,
   );
   return filteredHookTypes[
     Math.floor(Math.random() * filteredHookTypes.length)
@@ -118,6 +127,14 @@ function randomHookConfig(
         owner: randomAddress(),
         type: hookType,
         nativeBridge: randomAddress(),
+        destinationChain: 'testChain',
+      };
+
+    case HookType.ARB_L2_TO_L1:
+      return {
+        type: hookType,
+        arbSys: randomAddress(),
+        bridge: randomAddress(),
         destinationChain: 'testChain',
       };
 
@@ -253,7 +270,7 @@ describe('EvmHookModule', async () => {
   afterEach(async () => {
     const normalizedDerivedConfig = normalizeConfig(await testHook.read());
     const normalizedConfig = normalizeConfig(testConfig);
-    assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
+    deepEquals(normalizedDerivedConfig, normalizedConfig);
   });
 
   // create a new Hook and verify that it matches the config
@@ -281,7 +298,9 @@ describe('EvmHookModule', async () => {
         // need to setup deploying/mocking IL1CrossDomainMessenger before this test can be enabled
         .filter(
           (hookType) =>
-            hookType !== HookType.OP_STACK && hookType !== HookType.CUSTOM,
+            hookType !== HookType.OP_STACK &&
+            hookType !== HookType.ARB_L2_TO_L1 &&
+            hookType !== HookType.CUSTOM,
         )
         // generate a random config for each hook type
         .map((hookType) => {

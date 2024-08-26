@@ -19,9 +19,11 @@ export class TestQuerySenderDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(multiProvider, TEST_QUERY_SENDER_FACTORIES, {
       contractVerifier,
+      concurrentDeploy,
     });
   }
 

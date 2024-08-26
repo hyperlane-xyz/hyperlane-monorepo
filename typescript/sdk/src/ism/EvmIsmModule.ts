@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsmFactory__factory,
@@ -20,15 +21,15 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  Domain,
   ProtocolType,
   assert,
-  configDeepEquals,
+  deepEquals,
   eqAddress,
   normalizeConfig,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
-import { Domain } from '@hyperlane-xyz/utils';
 
 import { attachAndConnectContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -111,6 +112,10 @@ export class EvmIsmModule extends HyperlaneModule<
         staticAggregationHookFactory:
           params.addresses.staticAggregationHookFactory,
         domainRoutingIsmFactory: params.addresses.domainRoutingIsmFactory,
+        staticMerkleRootWeightedMultisigIsmFactory:
+          params.addresses.staticMerkleRootWeightedMultisigIsmFactory,
+        staticMessageIdWeightedMultisigIsmFactory:
+          params.addresses.staticMessageIdWeightedMultisigIsmFactory,
       },
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
@@ -154,7 +159,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // if it's a fallback routing ISM, do a mailbox diff check
 
     // If configs match, no updates needed
-    if (configDeepEquals(currentConfig, targetConfig)) {
+    if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
@@ -381,6 +386,14 @@ export class EvmIsmModule extends HyperlaneModule<
           factory: new OPStackIsm__factory(),
           contractName: IsmType.OP_STACK,
           constructorArgs: [config.nativeBridge],
+        });
+
+      case IsmType.ARB_L2_TO_L1:
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new ArbL2ToL1Ism__factory(),
+          contractName: IsmType.ARB_L2_TO_L1,
+          constructorArgs: [config.bridge],
         });
 
       case IsmType.PAUSABLE:

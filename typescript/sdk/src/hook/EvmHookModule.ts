@@ -1,6 +1,9 @@
+import { getArbitrumNetwork } from '@arbitrum/sdk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  ArbL2ToL1Hook,
+  ArbL2ToL1Ism__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -25,7 +28,7 @@ import {
   Address,
   ProtocolType,
   addressToBytes32,
-  configDeepEquals,
+  deepEquals,
   eqAddress,
   normalizeConfig,
   rootLogger,
@@ -44,7 +47,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpFactories, igpFactories } from '../gas/contracts.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
-import { IsmType, OpStackIsmConfig } from '../ism/types.js';
+import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
@@ -54,6 +57,7 @@ import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import { HookConfigSchema } from './schemas.js';
 import {
   AggregationHookConfig,
+  ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -142,7 +146,7 @@ export class EvmHookModule extends HyperlaneModule<
     this.args.config = targetConfig;
 
     // If configs match, no updates needed
-    if (configDeepEquals(currentConfig, targetConfig)) {
+    if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
@@ -275,7 +279,7 @@ export class EvmHookModule extends HyperlaneModule<
 
       // If the domain is not in the current config or the config has changed, deploy a new hook
       // TODO: in-place updates per domain as a future optimization
-      if (!configDeepEquals(currentDomains[dest], targetDomainConfig)) {
+      if (!deepEquals(currentDomains[dest], targetDomainConfig)) {
         const domainHook = await this.deploy({
           config: targetDomainConfig,
         });
@@ -471,7 +475,7 @@ export class EvmHookModule extends HyperlaneModule<
       }
 
       // only update if the oracle config has changed
-      if (!current || !configDeepEquals(current, target)) {
+      if (!current || !deepEquals(current, target)) {
         configsToSet.push({ remoteDomain, ...target });
 
         // Log an example remote gas cost
@@ -567,7 +571,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Deploy a new fallback hook if the fallback config has changed
     if (
       targetConfig.type === HookType.FALLBACK_ROUTING &&
-      !configDeepEquals(
+      !deepEquals(
         targetConfig.fallback,
         (currentConfig as FallbackRoutingHookConfig).fallback,
       )
@@ -634,6 +638,8 @@ export class EvmHookModule extends HyperlaneModule<
         return this.deployProtocolFeeHook({ config });
       case HookType.OP_STACK:
         return this.deployOpStackHook({ config });
+      case HookType.ARB_L2_TO_L1:
+        return this.deployArbL1ToL1Hook({ config });
       case HookType.ROUTING:
       case HookType.FALLBACK_ROUTING:
         return this.deployRoutingHook({ config });
@@ -721,6 +727,7 @@ export class EvmHookModule extends HyperlaneModule<
     return StaticAggregationHook__factory.connect(address, signer);
   }
 
+  // NOTE: this deploys the ism too on the destination chain if it doesn't exist
   protected async deployOpStackHook({
     config,
   }: {
@@ -807,6 +814,97 @@ export class EvmHookModule extends HyperlaneModule<
     await this.multiProvider.handleTx(
       config.destinationChain,
       opstackIsm.setAuthorizedHook(
+        addressToBytes32(hook.address),
+        this.multiProvider.getTransactionOverrides(config.destinationChain),
+      ),
+    );
+
+    return hook;
+  }
+
+  // NOTE: this deploys the ism too on the destination chain if it doesn't exist
+  protected async deployArbL1ToL1Hook({
+    config,
+  }: {
+    config: ArbL2ToL1HookConfig;
+  }): Promise<ArbL2ToL1Hook> {
+    const chain = this.chain;
+    const mailbox = this.args.addresses.mailbox;
+
+    const destinationChain = this.multiProvider.getChainId(
+      config.destinationChain,
+    );
+    if (typeof destinationChain !== 'number') {
+      throw new Error(
+        `Only ethereum chains supported for deploying Arbitrum L2 hook,  given: ${config.destinationChain}`,
+      );
+    }
+
+    const bridge =
+      config.bridge ?? getArbitrumNetwork(destinationChain).ethBridge.bridge;
+
+    const ismConfig: ArbL2ToL1IsmConfig = {
+      type: IsmType.ARB_L2_TO_L1,
+      bridge,
+    };
+
+    const arbL2ToL1IsmAddress = (
+      await EvmIsmModule.create({
+        chain: config.destinationChain,
+        config: ismConfig,
+        proxyFactoryFactories: this.args.addresses,
+        mailbox: mailbox,
+        multiProvider: this.multiProvider,
+        contractVerifier: this.contractVerifier,
+      })
+    ).serialize().deployedIsm;
+
+    // connect to ISM
+    const arbL2ToL1Ism = ArbL2ToL1Ism__factory.connect(
+      arbL2ToL1IsmAddress,
+      this.multiProvider.getSignerOrProvider(config.destinationChain),
+    );
+
+    // deploy arbL1ToL1 hook
+    const hook = await this.deployer.deployContract({
+      chain,
+      contractKey: HookType.ARB_L2_TO_L1,
+      constructorArgs: [
+        mailbox,
+        this.multiProvider.getDomainId(config.destinationChain),
+        addressToBytes32(arbL2ToL1IsmAddress),
+        config.arbSys,
+        BigNumber.from(200_000), // 2x estimate of executeTransaction call overhead
+      ],
+    });
+    // set authorized hook on arbL2ToL1 ism
+    const authorizedHook = await arbL2ToL1Ism.authorizedHook();
+    if (authorizedHook === addressToBytes32(hook.address)) {
+      this.logger.debug(
+        'Authorized hook already set on ism %s',
+        arbL2ToL1Ism.address,
+      );
+      return hook;
+    } else if (authorizedHook !== ethers.constants.HashZero) {
+      this.logger.debug(
+        'Authorized hook mismatch on ism %s, expected %s, got %s',
+        arbL2ToL1Ism.address,
+        addressToBytes32(hook.address),
+        authorizedHook,
+      );
+      throw new Error('Authorized hook mismatch');
+    }
+
+    // check if mismatch and redeploy hook
+    this.logger.debug(
+      'Setting authorized hook %s on ism % on destination %s',
+      hook.address,
+      arbL2ToL1Ism.address,
+      config.destinationChain,
+    );
+    await this.multiProvider.handleTx(
+      config.destinationChain,
+      arbL2ToL1Ism.setAuthorizedHook(
         addressToBytes32(hook.address),
         this.multiProvider.getTransactionOverrides(config.destinationChain),
       ),

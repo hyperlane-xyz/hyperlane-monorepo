@@ -1,9 +1,11 @@
-import { ethers, providers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
+  IOutbox__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
@@ -14,15 +16,18 @@ import {
   WithAddress,
   assert,
   concurrentMap,
+  getLogLevel,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
+import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationIsmConfig,
+  ArbL2ToL1IsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -43,14 +48,16 @@ export interface IsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>>;
   deriveNullConfig(address: Address): Promise<WithAddress<NullIsmConfig>>;
+  deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1IsmConfig>>;
   assertModuleType(
     moduleType: ModuleType,
     expectedModuleType: ModuleType,
   ): void;
 }
 
-export class EvmIsmReader implements IsmReader {
-  protected readonly provider: providers.Provider;
+export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
 
   constructor(
@@ -60,37 +67,59 @@ export class EvmIsmReader implements IsmReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = multiProvider.getProvider(chain);
+    super(multiProvider, chain);
   }
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
-    const ism = IInterchainSecurityModule__factory.connect(
-      address,
-      this.provider,
-    );
-    const moduleType: ModuleType = await ism.moduleType();
-    this.logger.debug('Deriving ISM config', { address, moduleType });
+    let moduleType: ModuleType | undefined = undefined;
+    let derivedIsmConfig: DerivedIsmConfig;
+    try {
+      const ism = IInterchainSecurityModule__factory.connect(
+        address,
+        this.provider,
+      );
+      this.logger.debug('Deriving IsmConfig:', { address });
 
-    switch (moduleType) {
-      case ModuleType.UNUSED:
-        throw new Error('UNUSED does not have a corresponding IsmType');
-      case ModuleType.ROUTING:
-        // IsmType is either ROUTING or FALLBACK_ROUTING, but that's determined inside deriveRoutingConfig
-        return this.deriveRoutingConfig(address);
-      case ModuleType.AGGREGATION:
-        return this.deriveAggregationConfig(address);
-      case ModuleType.LEGACY_MULTISIG:
-        throw new Error('LEGACY_MULTISIG is deprecated and not supported');
-      case ModuleType.MERKLE_ROOT_MULTISIG:
-      case ModuleType.MESSAGE_ID_MULTISIG:
-        return this.deriveMultisigConfig(address);
-      case ModuleType.NULL:
-        return this.deriveNullConfig(address);
-      case ModuleType.CCIP_READ:
-        throw new Error('CCIP_READ does not have a corresponding IsmType');
-      default:
-        throw new Error('Unknown ModuleType');
+      // Temporarily turn off SmartProvider logging
+      // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
+      this.setSmartProviderLogLevel('silent');
+      moduleType = await ism.moduleType();
+
+      switch (moduleType) {
+        case ModuleType.UNUSED:
+          throw new Error('UNUSED does not have a corresponding IsmType');
+        case ModuleType.ROUTING:
+          // IsmType is either ROUTING or FALLBACK_ROUTING, but that's determined inside deriveRoutingConfig
+          derivedIsmConfig = await this.deriveRoutingConfig(address);
+          break;
+        case ModuleType.AGGREGATION:
+          derivedIsmConfig = await this.deriveAggregationConfig(address);
+          break;
+        case ModuleType.LEGACY_MULTISIG:
+          throw new Error('LEGACY_MULTISIG is deprecated and not supported');
+        case ModuleType.MERKLE_ROOT_MULTISIG:
+        case ModuleType.MESSAGE_ID_MULTISIG:
+          derivedIsmConfig = await this.deriveMultisigConfig(address);
+          break;
+        case ModuleType.NULL:
+          derivedIsmConfig = await this.deriveNullConfig(address);
+          break;
+        case ModuleType.CCIP_READ:
+          throw new Error('CCIP_READ does not have a corresponding IsmType');
+        case ModuleType.ARB_L2_TO_L1:
+          return this.deriveArbL2ToL1Config(address);
+        default:
+          throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
+      }
+    } catch (e: any) {
+      const errorMessage = `Failed to derive ISM module type ${moduleType} (${address}):\n\t${e}`;
+      this.logger.debug(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
+
+    return derivedIsmConfig;
   }
 
   async deriveRoutingConfig(
@@ -258,6 +287,21 @@ export class EvmIsmReader implements IsmReader {
     return {
       address,
       type: IsmType.TEST_ISM,
+    };
+  }
+
+  async deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1IsmConfig>> {
+    const ism = ArbL2ToL1Ism__factory.connect(address, this.provider);
+
+    const outbox = await ism.arbOutbox();
+    const outboxContract = IOutbox__factory.connect(outbox, this.provider);
+    const bridge = await outboxContract.bridge();
+    return {
+      address,
+      type: IsmType.ARB_L2_TO_L1,
+      bridge,
     };
   }
 

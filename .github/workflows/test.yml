@@ -4,14 +4,10 @@ on:
   # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
-    paths-ignore:
-      - '*.md'
   # Triggers on pull requests ignoring md files
   pull_request:
     branches:
       - '*' # run against all branches
-    paths-ignore:
-      - '*.md'
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab
@@ -249,6 +245,11 @@ jobs:
             ./*
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry

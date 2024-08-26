@@ -1,5 +1,6 @@
 import { info } from 'console';
-import { Message, MessageTx } from 'hyperlane-explorer/src/types';
+
+import { Message, MessageTx } from './explorerTypes';
 
 // These types are copied from hyperlane-explorer. TODO: export them so this file can use them directly.
 interface ApiResult<R> {

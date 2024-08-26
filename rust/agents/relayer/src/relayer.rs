@@ -9,11 +9,12 @@ use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
+    broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
-    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    SyncOptions,
+    AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
+    HyperlaneAgentCore, SyncOptions,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
@@ -21,8 +22,8 @@ use hyperlane_core::{
 };
 use tokio::{
     sync::{
-        broadcast::{Receiver, Sender},
-        mpsc::{self, UnboundedSender},
+        broadcast::Sender as BroadcastSender,
+        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
         RwLock,
     },
     task::JoinHandle,
@@ -112,6 +113,7 @@ impl BaseAgent for Relayer {
     type Settings = RelayerSettings;
 
     async fn from_settings(
+        _agent_metadata: AgentMetadata,
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -309,7 +311,7 @@ impl BaseAgent for Relayer {
                 }));
             tasks.push(console_server.instrument(info_span!("Tokio console server")));
         }
-        let sender = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let sender = BroadcastSender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
@@ -345,7 +347,9 @@ impl BaseAgent for Relayer {
                 Self::AGENT_NAME.to_string(),
             )
             .await
-            .unwrap();
+            .unwrap_or_else(|_| {
+                panic!("Error creating metrics updater for destination {dest_domain}")
+            });
             tasks.push(metrics_updater.spawn());
         }
 
@@ -358,7 +362,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_interchain_gas_payment_sync(
                     origin,
-                    maybe_broadcaster.clone().map(|b| b.subscribe()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,
@@ -366,7 +370,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_merkle_tree_hook_syncs(
                     origin,
-                    maybe_broadcaster.map(|b| b.subscribe()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,
@@ -415,7 +419,10 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -428,7 +435,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
-        tx_id_receiver: Option<Receiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
@@ -437,7 +444,10 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -453,12 +463,15 @@ impl Relayer {
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
-        tx_id_receiver: Option<Receiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()

@@ -19,7 +19,6 @@ contract DeployArbHook is Script {
     uint32 constant L1_DOMAIN = 11155111;
     address constant L1_MAILBOX = 0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766;
     address constant L1_BRIDGE = 0x38f918D0E9F1b721EDaA41302E399fa1B79333a9;
-    address constant L1_OUTBOX = 0x65f07C7D521164a4d5DaC6eB8Fac8DA067A3B78F;
     address constant L1_ISM = 0x096A1c034c7Ad113B6dB786b7BA852cB67025458; // placeholder
     bytes32 TEST_RECIPIENT =
         0x000000000000000000000000155b1cd2f7cbc58d403b9be341fab6cd77425175; // placeholder
@@ -33,7 +32,7 @@ contract DeployArbHook is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        ism = new ArbL2ToL1Ism(L1_BRIDGE, L1_OUTBOX);
+        ism = new ArbL2ToL1Ism(L1_BRIDGE);
 
         TestRecipient testRecipient = new TestRecipient();
         testRecipient.setInterchainSecurityModule(address(ism));
