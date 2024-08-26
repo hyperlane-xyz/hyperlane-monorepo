@@ -216,6 +216,7 @@ export class ContractVerifier {
           return this.submitForm(chain, action, verificationLogger, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
+          break;
         case ExplorerApiErrors.NOT_VERIFIED:
         case ExplorerApiErrors.PROXY_FAILED:
         case ExplorerApiErrors.BYTECODE_MISMATCH:
