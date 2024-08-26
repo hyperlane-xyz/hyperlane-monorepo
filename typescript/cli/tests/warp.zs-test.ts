@@ -110,15 +110,7 @@ async function hyperlaneWarpApply(
         --yes`;
 }
 
-async function burnWarpOwner() {
-  const warpConfigPath = await updateWarpOwner(
-    BURN_ADDRESS,
-    WARP_CORE_CONFIG_PATH,
-    `${EXAMPLES_PATH}/warp-route-deployment-2.yaml`,
-  );
-  await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH);
-
-  // Check owner
+async function checkWarpOwner() {
   const warpAddress = getDeployedWarpAddress(WARP_CORE_CONFIG_PATH);
   const provider = new JsonRpcProvider(LOCAL_ANVIL_HOST);
   const signer = new Wallet(ANVIL_KEY, provider);
@@ -135,4 +127,12 @@ async function burnWarpOwner() {
 
 await hyperlaneCoreDeploy(CORE_CONFIG_PATH);
 await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
-await burnWarpOwner();
+
+const warpConfigPath = await updateWarpOwner(
+  BURN_ADDRESS,
+  WARP_CORE_CONFIG_PATH,
+  `${EXAMPLES_PATH}/warp-route-deployment-2.yaml`,
+);
+await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH);
+
+await checkWarpOwner();
