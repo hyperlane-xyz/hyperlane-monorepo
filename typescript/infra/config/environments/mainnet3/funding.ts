@@ -24,21 +24,27 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  // desired balance config
+  // desired balance config, must be set for each chain
   desiredBalancePerChain: {
     ancient8: '0.5',
     arbitrum: '0.5',
+    astar: '100',
+    astarzkevm: '0.05',
     avalanche: '5',
     base: '0.5',
+    bitlayer: '0.002',
     blast: '0.2',
     bob: '0.2',
     bsc: '5',
     celo: '3',
     cheesechain: '50',
+    coredao: '25',
     cyber: '0.05',
     degenchain: '100',
+    dogechain: '100',
     endurance: '20',
     ethereum: '0.5',
+    flare: '500',
     fraxtal: '0.2',
     fusemainnet: '20',
     gnosis: '5',
@@ -53,6 +59,7 @@ export const keyFunderConfig: KeyFunderConfig<
     metis: '3',
     mint: '0.05',
     mode: '0.2',
+    molten: '3',
     moonbeam: '5',
     optimism: '0.5',
     polygon: '20',
@@ -63,6 +70,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sanko: '2',
     scroll: '0.5',
     sei: '50',
+    shibarium: '50',
     taiko: '0.2',
     tangle: '2',
     viction: '3',
@@ -79,6 +87,7 @@ export const keyFunderConfig: KeyFunderConfig<
     solana: '0',
     eclipse: '0',
   },
+  // if not set, keyfunder defaults to 0
   desiredKathyBalancePerChain: {
     ancient8: '0',
     arbitrum: '0.1',
@@ -133,6 +142,7 @@ export const keyFunderConfig: KeyFunderConfig<
     eclipse: '0',
     solana: '0',
   },
+  // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
     ancient8: '0.1',
     arbitrum: '0.1',
