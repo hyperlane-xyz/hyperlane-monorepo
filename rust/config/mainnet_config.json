@@ -3403,6 +3403,9 @@
       "validatorAnnounce": "0xb4fc9B5fD57499Ef6FfF3995728a55F7A618ef86",
       "index": {
         "from": 6898609
+      },
+      "transactionOverrides": {
+        "gasLimit": 15000000
       }
     },
     "astarzkevm": {
