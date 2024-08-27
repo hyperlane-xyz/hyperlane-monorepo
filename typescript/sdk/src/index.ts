@@ -336,9 +336,15 @@ export {
   EV5ImpersonatedAccountTxSubmitterProps,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
-export { SubmissionStrategySchema } from './providers/transactions/submitter/builder/schemas.js';
+export {
+  SubmissionStrategySchema,
+  ChainSubmissionStrategySchema,
+} from './providers/transactions/submitter/builder/schemas.js';
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
-export { SubmissionStrategy } from './providers/transactions/submitter/builder/types.js';
+export {
+  SubmissionStrategy,
+  ChainSubmissionStrategy,
+} from './providers/transactions/submitter/builder/types.js';
 
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
