@@ -13,27 +13,62 @@ use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{HyperlaneMessage, H256};
+use tracing::{debug, info};
 
 #[async_trait]
 pub trait WeightedMultisigIsmMetadataBuilder: MultisigIsmMetadataBuilder {
-    async fn ism_validator_requirements(
+    async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-    ) -> Result<(Vec<(H256, u64)>, u64)> {
-        const CTX: &str = "When fetching WeightedMultisigIsm metadata";
+    ) -> Result<Option<Vec<u8>>> {
+        const CTX: &str = "When fetching MultisigIsm metadata";
         let weighted_multisig_ism = self
             .as_ref()
             .build_weighted_multisig_ism(ism_address)
             .await
             .context(CTX)?;
 
-        let (validators, threshold_weight) = weighted_multisig_ism
+        let (weighted_validators, threshold_weight) = weighted_multisig_ism
             .validators_and_threshold_weight(message)
             .await
             .context(CTX)?;
 
-        Ok((validators, threshold_weight))
+        if weighted_validators.is_empty() {
+            info!("Could not fetch metadata: No validator set found for ISM");
+            return Ok(None);
+        }
+
+        let validators: Vec<H256> = weighted_validators
+            .iter()
+            .map(|(address, _)| *address)
+            .collect();
+
+        let checkpoint_syncer = self
+            .as_ref()
+            .build_checkpoint_syncer(&validators, self.as_ref().app_context.clone())
+            .await
+            .context(CTX)?;
+
+        if let Some(metadata) = self
+            .fetch_metadata(
+                &weighted_validators,
+                threshold_weight,
+                message,
+                &checkpoint_syncer,
+            )
+            .await
+            .context(CTX)?
+        {
+            debug!(?message, ?metadata.checkpoint, "Found checkpoint with quorum");
+            Ok(Some(self.format_metadata(metadata)?))
+        } else {
+            info!(
+                ?message, ?weighted_validators, threshold_weight, ism=%weighted_multisig_ism.address(),
+                "Could not fetch metadata: Unable to reach quorum"
+            );
+            Ok(None)
+        }
     }
 }
 
