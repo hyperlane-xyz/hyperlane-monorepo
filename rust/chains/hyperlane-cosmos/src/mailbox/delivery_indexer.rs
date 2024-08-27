@@ -15,7 +15,7 @@ use hyperlane_core::{
 
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 use crate::utils::{
-    execute_and_parse_log_futures, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
+    execute_and_parse_log_futures, parse_logs_in_range, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
     CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
 };
 use crate::{ConnectionConf, HyperlaneCosmosError, Signer};
@@ -112,21 +112,12 @@ impl Indexer<H256> for CosmosMailboxDeliveryIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        let logs_futures: Vec<_> = range
-            .map(|block_number| {
-                let indexer = self.indexer.clone();
-                tokio::spawn(async move {
-                    let logs = indexer
-                        .get_logs_in_block(
-                            block_number,
-                            Self::hyperlane_delivery_parser,
-                            "DeliveryCursor",
-                        )
-                        .await;
-                    (logs, block_number)
-                })
-            })
-            .collect();
+        let logs_futures = parse_logs_in_range(
+            range,
+            self.indexer.clone(),
+            Self::hyperlane_delivery_parser,
+            "DeliveryCursor",
+        );
 
         execute_and_parse_log_futures(logs_futures).await
     }
