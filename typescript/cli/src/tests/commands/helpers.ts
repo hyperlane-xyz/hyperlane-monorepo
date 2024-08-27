@@ -1,5 +1,9 @@
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { TokenRouterConfig, WarpCoreConfig } from '@hyperlane-xyz/sdk';
+import {
+  TokenRouterConfig,
+  WarpCoreConfig,
+  WarpCoreConfigSchema,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../context/context.js';
@@ -17,9 +21,11 @@ export const ANVIL_KEY =
 /**
  * Retrieves the deployed Warp address from the Warp core config.
  */
-export function getDeployedWarpAddress(warpCorePath: string) {
+export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
   const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
-  return warpCoreConfig.tokens[0].addressOrDenom;
+  WarpCoreConfigSchema.parse(warpCoreConfig);
+  return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
+    .addressOrDenom;
 }
 
 /**
@@ -28,28 +34,28 @@ export function getDeployedWarpAddress(warpCorePath: string) {
 export async function updateWarpOwnerConfig(
   chain: string,
   owner: Address,
-  warpCoreInputPath: string,
-  warpDeployOutputPath: string,
+  warpCorePath: string,
+  warpDeployPath: string,
 ): Promise<string> {
   const warpDeployConfig = await readWarpConfig(
     chain,
-    warpCoreInputPath,
-    warpDeployOutputPath,
+    warpCorePath,
+    warpDeployPath,
   );
   warpDeployConfig[chain].owner = owner;
-  writeYamlOrJson(warpDeployOutputPath, warpDeployConfig);
+  writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
-  return warpDeployOutputPath;
+  return warpDeployPath;
 }
 
 /**
  * Updates the Warp route deployment configuration with a new owner, and then applies the changes.
  */
 export async function updateOwner(
-  warpConfigPath: string,
-  warpCoreConfigPath: string,
   owner: Address,
   chain: string,
+  warpConfigPath: string,
+  warpCoreConfigPath: string,
 ) {
   await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
   return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
@@ -62,19 +68,19 @@ export async function extendWarpConfig(
   chain: string,
   chainToExtend: string,
   extendedConfig: TokenRouterConfig,
-  warpCoreInputPath: string,
-  warpDeployOutputPath: string,
+  warpCorePath: string,
+  warpDeployPath: string,
 ): Promise<string> {
   const warpDeployConfig = await readWarpConfig(
     chain,
-    warpCoreInputPath,
-    warpDeployOutputPath,
+    warpCorePath,
+    warpDeployPath,
   );
   warpDeployConfig[chainToExtend] = extendedConfig;
-  writeYamlOrJson(warpDeployOutputPath, warpDeployConfig);
-  await hyperlaneWarpApply(warpDeployOutputPath, warpCoreInputPath);
+  writeYamlOrJson(warpDeployPath, warpDeployConfig);
+  await hyperlaneWarpApply(warpDeployPath, warpCorePath);
 
-  return warpDeployOutputPath;
+  return warpDeployPath;
 }
 
 /**
@@ -95,4 +101,10 @@ export async function deployOrUseExistingCore(
   }
 
   return addresses;
+}
+export async function getChainId(chainName: string) {
+  const chainMetadata = await getRegistry(REGISTRY_PATH, '').getChainMetadata(
+    chainName,
+  );
+  return String(chainMetadata?.chainId);
 }

@@ -533,16 +533,11 @@ export async function runWarpRouteApply(
       (chain, _config): _config is any => !warpCoreChains.includes(chain),
     );
 
-    const existingTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+    extendedConfigs = await deriveMetadataFromExisting(
       multiProvider,
       existingConfigs,
+      extendedConfigs,
     );
-    extendedConfigs = objMap(extendedConfigs, (_chain, extendedConfig) => {
-      return {
-        ...existingTokenMetadata,
-        ...extendedConfig,
-      };
-    });
 
     const newExtensionContracts = await executeDeploy(
       {
@@ -578,6 +573,27 @@ export async function runWarpRouteApply(
   } else {
     throw new Error('Unenrolling warp routes is currently not supported');
   }
+}
+
+/**
+ * Derives token metadata from existing config and merges it with extended config.
+ * @returns The merged Warp route deployment config with token metadata.
+ */
+async function deriveMetadataFromExisting(
+  multiProvider: MultiProvider,
+  existingConfigs: WarpRouteDeployConfig,
+  extendedConfigs: WarpRouteDeployConfig,
+): Promise<WarpRouteDeployConfig> {
+  const existingTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+    multiProvider,
+    existingConfigs,
+  );
+  return objMap(extendedConfigs, (_chain, extendedConfig) => {
+    return {
+      ...existingTokenMetadata,
+      ...extendedConfig,
+    };
+  });
 }
 
 /**

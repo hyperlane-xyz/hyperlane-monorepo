@@ -4,7 +4,7 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 // prettier-ignore
 // @ts-ignore
-import { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from '../../../../utils/gnosisSafe.js';
+import { canProposeSafeTransactions, getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
