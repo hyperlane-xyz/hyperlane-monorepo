@@ -36,14 +36,6 @@ export async function deployWithArtifacts<Config extends object>({
     deployer.cacheAddressesMap(addressesMap);
   }
 
-  process.on('SIGINT', async () => {
-    // Call the post deploy hook to write the addresses and verification
-    await postDeploy(deployer, cache);
-
-    console.log('\nCaught (Ctrl+C), gracefully exiting...');
-    process.exit(0); // Exit the process
-  });
-
   // Filter the config map to only deploy the target networks
   let targetConfigMap = configMap;
   if (targetNetworks.length > 0) {
