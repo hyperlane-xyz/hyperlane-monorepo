@@ -171,6 +171,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         self,
         signers: &T,
     ) -> Option<EncodedConfirmedTransactionWithStatusMeta> {
+        let client = self.client.unwrap_or(&self.ctx.client);
+
         // If the payer can't sign, it's presumed that the payer is intended
         // to be a Squads multisig, which must be submitted via a separate
         // process.
@@ -180,6 +182,15 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             println!("Transaction to be submitted via Squads multisig:");
 
             self.pretty_print_transaction();
+
+            println!("Simulating...");
+            let new_keypair = Keypair::new();
+            let recent_blockhash = client.get_latest_blockhash().unwrap();
+            let message =
+                Message::new_with_blockhash(&self.instructions(), None, &recent_blockhash);
+            let unsigned_txn = Transaction::new_unsigned(message);
+            let simulation_result = client.simulate_transaction(&unsigned_txn);
+            println!("Simulation result: {:?}", simulation_result);
 
             wait_for_user_confirmation();
 
@@ -192,8 +203,6 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
         if self.ctx.require_tx_approval {
             wait_for_user_confirmation();
         }
-
-        let client = self.client.unwrap_or(&self.ctx.client);
 
         let recent_blockhash = client.get_latest_blockhash().unwrap();
         let txn = Transaction::new_signed_with_payer(
