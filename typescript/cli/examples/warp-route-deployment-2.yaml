@@ -1,0 +1,11 @@
+anvil2:
+  decimals: 18
+  mailbox: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318"
+  name: Ether
+  owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  remoteRouters:
+    "31337": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9"
+  symbol: ETH
+  totalSupply: 0
+  type: native
+
