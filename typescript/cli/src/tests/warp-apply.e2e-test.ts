@@ -28,14 +28,9 @@ const WARP_CORE_CONFIG_PATH_1 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/an
 describe('WarpApply e2e tests', async function () {
   this.timeout(0); // No limit timeout since these tests can take a while
 
-  //@ts-ignore
-  let chain1Addresses: ChainAddresses = {};
   let chain2Addresses: ChainAddresses = {};
   before(async () => {
-    chain1Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_1,
-      CORE_CONFIG_PATH,
-    );
+    await deployOrUseExistingCore(CHAIN_NAME_1, CORE_CONFIG_PATH);
     chain2Addresses = await deployOrUseExistingCore(
       CHAIN_NAME_2,
       CORE_CONFIG_PATH,

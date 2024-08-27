@@ -17,7 +17,7 @@ anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --gas-price 1 > /dev/nu
 anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/null &
 
 echo "Running e2e tests"
-yarn mocha './src/**/*.e2e-test.ts'
+yarn mocha "./src/**/*.e2e-test.ts"
 
 cleanup
 
