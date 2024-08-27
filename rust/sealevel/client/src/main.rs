@@ -710,7 +710,7 @@ fn main() {
             payer_keypair.pubkey(),
             Some(PayerKeypair {
                 keypair: payer_keypair,
-                keypair_path,
+                keypair_path: keypair_path.clone(),
             }),
         )
     } else {
@@ -724,6 +724,7 @@ fn main() {
     let commitment = CommitmentConfig::confirmed();
 
     let mut instructions = vec![];
+
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {
         assert!(cli.compute_budget <= MAX_COMPUTE_UNIT_LIMIT);
         instructions.push(
