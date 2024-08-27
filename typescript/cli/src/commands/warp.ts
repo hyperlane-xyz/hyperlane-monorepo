@@ -9,6 +9,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
+  ChainSubmissionStrategy,
+  ChainSubmissionStrategySchema,
   EvmERC20WarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
@@ -28,7 +30,11 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -37,6 +43,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
+  strategyCommandOption,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -66,7 +73,7 @@ export const apply: CommandModuleWithWriteContext<{
   config: string;
   symbol?: string;
   warp: string;
-  safe?: string;
+  strategy?: string;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -80,14 +87,9 @@ export const apply: CommandModuleWithWriteContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
-    safe: {
-      ...addressCommandOption(
-        'Address of the gnosis safe to submit apply transactions to.',
-      ),
-      demandOption: false,
-    },
+    strategy: { ...strategyCommandOption, demandOption: false },
   },
-  handler: async ({ context, config, symbol, warp, safe }) => {
+  handler: async ({ context, config, symbol, warp, strategy: strategyUrl }) => {
     logGray(`Hyperlane Warp Apply`);
     logGray('--------------------'); // @TODO consider creating a helper function for these dashes
     let warpCoreConfig: WarpCoreConfig;
@@ -100,15 +102,33 @@ export const apply: CommandModuleWithWriteContext<{
       process.exit(0);
     }
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
+    let chainSubmissionStrategy;
+    if (strategyUrl) {
+      chainSubmissionStrategy = readChainSubmissionStrategy(strategyUrl);
+    }
     await runWarpRouteApply({
       context,
       warpDeployConfig,
       warpCoreConfig,
-      safeAddress: safe,
+      chainSubmissionStrategy,
     });
     process.exit(0);
   },
 };
+
+/**
+ * Retrieves a chain submission strategy from the provided filepath.
+ * @param submissionStrategyFilepath a filepath to the submission strategy file
+ * @returns a formatted submission strategy
+ */
+export function readChainSubmissionStrategy(
+  submissionStrategyFilepath: string,
+): ChainSubmissionStrategy {
+  const submissionStrategyFileContent = readYamlOrJson(
+    submissionStrategyFilepath.trim(),
+  );
+  return ChainSubmissionStrategySchema.parse(submissionStrategyFileContent);
+}
 
 export const deploy: CommandModuleWithWriteContext<{
   config: string;
