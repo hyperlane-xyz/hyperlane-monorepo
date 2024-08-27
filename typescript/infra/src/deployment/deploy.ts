@@ -36,14 +36,6 @@ export async function deployWithArtifacts<Config extends object>({
     deployer.cacheAddressesMap(addressesMap);
   }
 
-  process.on('SIGINT', async () => {
-    // Call the post deploy hook to write the addresses and verification
-    await postDeploy(deployer, cache);
-
-    console.log('\nCaught (Ctrl+C), gracefully exiting...');
-    process.exit(0); // Exit the process
-  });
-
   // Filter the config map to only deploy the target networks
   let targetConfigMap = configMap;
   if (targetNetworks.length > 0) {
@@ -51,6 +43,18 @@ export async function deployWithArtifacts<Config extends object>({
       targetNetworks.includes(chain),
     );
   }
+
+  const handleExit = async () => {
+    console.log('Running post-deploy steps');
+    await postDeploy(deployer, cache);
+    console.log('Post-deploy completed');
+  };
+
+  // Handle Ctrl+C
+  process.on('SIGINT', handleExit);
+  // One final post-deploy before exit to ensure
+  // deployments exceeding the timeout are still written
+  process.on('beforeExit', handleExit);
 
   // Deploy the contracts
   try {
@@ -63,6 +67,7 @@ export async function deployWithArtifacts<Config extends object>({
     }
   }
 
+  // Call the post-deploy hook to write artifacts
   await postDeploy(deployer, cache);
 }
 

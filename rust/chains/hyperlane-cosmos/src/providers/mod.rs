@@ -1,10 +1,12 @@
 use async_trait::async_trait;
+use tendermint_rpc::{client::CompatMode, HttpClient};
+
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneProvider, TxnInfo, H256, U256,
 };
-use tendermint_rpc::{client::CompatMode, HttpClient};
 
+use crate::grpc::WasmProvider;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 use self::grpc::WasmGrpcProvider;
@@ -88,9 +90,11 @@ impl HyperlaneProvider for CosmosProvider {
         todo!() // FIXME
     }
 
-    async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
-        // FIXME
-        Ok(true)
+    async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
+        match self.grpc_client.wasm_contract_info().await {
+            Ok(c) => Ok(true),
+            Err(e) => Ok(false),
+        }
     }
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {

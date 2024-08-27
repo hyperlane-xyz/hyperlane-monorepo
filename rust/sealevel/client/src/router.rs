@@ -15,9 +15,10 @@ use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::accounts::{Igp, InterchainGasPaymasterType, OverheadIgp};
 
 use crate::{
+    adjust_gas_price_if_needed,
     artifacts::{write_json, HexAndBase58ProgramIdArtifact},
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
-    read_core_program_ids, Context, CoreProgramIds,
+    read_core_program_ids, warp_route, Context, CoreProgramIds,
 };
 
 /// Optional connection client configuration.
@@ -185,6 +186,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                         .to_str()
                         .unwrap(),
                     &chain_config.rpc_urls[0].http,
+                    chain_config.domain_id(),
                 )
                 .unwrap();
 
@@ -348,6 +350,8 @@ pub(crate) fn deploy_routers<
         .filter(|(_, app_config)| app_config.router_config().foreign_deployment.is_none())
         .collect::<HashMap<_, _>>();
 
+    warp_route::install_spl_token_cli();
+
     // Now we deploy to chains that don't have a foreign deployment
     for (chain_name, app_config) in app_configs_to_deploy.iter() {
         let chain_config = chain_configs
@@ -359,6 +363,8 @@ pub(crate) fn deploy_routers<
                 println!("WARNING: Ownership transfer is not yet supported in this deploy tooling, ownership is granted to the payer account");
             }
         }
+
+        adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
         // Deploy - this is idempotent.
         let program_id = deployer.deploy(
@@ -537,6 +543,8 @@ fn enroll_all_remote_routers<
     routers: &HashMap<u32, H256>,
 ) {
     for (chain_name, _) in app_configs_to_deploy.iter() {
+        adjust_gas_price_if_needed(chain_name.as_str(), ctx);
+
         let chain_config = chain_configs
             .get(*chain_name)
             .unwrap_or_else(|| panic!("Chain config not found for chain: {}", chain_name));

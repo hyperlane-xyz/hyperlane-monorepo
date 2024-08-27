@@ -3,7 +3,6 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -33,7 +32,8 @@ import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 import merklyEthAddresses from './warp/merkly-eth-addresses.json';
-import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
+import renzoEzEthAddressesV1 from './warp/renzo-ezETH-addresses-v1.json';
+import renzoEzEthAddressesV3 from './warp/renzo-ezETH-addresses-v3.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
@@ -295,20 +295,12 @@ const metricAppContexts = [
   },
   {
     name: 'renzo_ezeth',
-    matchingList: routerMatchingList(renzoEzEthAddresses),
+    matchingList: matchingList(renzoEzEthAddressesV3),
   },
   {
+    // preserving old addresses in case any transactions are still in flight and need to be processed
     name: 'renzo_ezeth_old',
-    // There's an old message to Base that's stuck around, we
-    // just care about this one for now.
-    matchingList: [
-      {
-        recipientAddress: addressToBytes32(
-          '0x584BA77ec804f8B6A559D196661C0242C6844F49',
-        ),
-        destinationDomain: getDomainId('base'),
-      },
-    ],
+    matchingList: matchingList(renzoEzEthAddressesV1),
   },
   // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
   // {
