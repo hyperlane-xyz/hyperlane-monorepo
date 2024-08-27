@@ -17,6 +17,7 @@ export async function hyperlaneWarpDeploy(warpCoreInputPath: string) {
         --overrides " " \
         --config ${warpCoreInputPath} \
         --key ${ANVIL_KEY} \
+        --verbosity debug \
         --yes`;
 }
 

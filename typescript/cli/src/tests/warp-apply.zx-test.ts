@@ -119,6 +119,5 @@ describe('WarpApply', async function () {
       updatedWarpDeployConfig[CHAIN_NAME_1].remoteRouters!,
     );
     expect(remoteRouterKeys).to.include(chain2Id);
-    console.log(updatedWarpDeployConfig);
   });
 });

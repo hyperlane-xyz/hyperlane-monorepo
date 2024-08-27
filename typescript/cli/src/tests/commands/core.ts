@@ -15,5 +15,6 @@ export async function hyperlaneCoreDeploy(
         --config ${coreInputPath} \
         --chain ${chain} \
         --key ${ANVIL_KEY} \
+        --verbosity debug \
         --yes`;
 }

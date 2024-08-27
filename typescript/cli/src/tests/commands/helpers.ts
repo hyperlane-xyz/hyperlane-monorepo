@@ -55,10 +55,13 @@ export async function updateOwner(
   return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
 }
 
+/**
+ * Extends the Warp route deployment with a new warp config
+ */
 export async function extendWarpConfig(
   chain: string,
   chainToExtend: string,
-  config: TokenRouterConfig,
+  extendedConfig: TokenRouterConfig,
   warpCoreInputPath: string,
   warpDeployOutputPath: string,
 ): Promise<string> {
@@ -67,13 +70,16 @@ export async function extendWarpConfig(
     warpCoreInputPath,
     warpDeployOutputPath,
   );
-  warpDeployConfig[chainToExtend] = config;
+  warpDeployConfig[chainToExtend] = extendedConfig;
   writeYamlOrJson(warpDeployOutputPath, warpDeployConfig);
   await hyperlaneWarpApply(warpDeployOutputPath, warpCoreInputPath);
 
   return warpDeployOutputPath;
 }
 
+/**
+ * Deploys new core contracts on the specified chain if it doesn't already exist, and returns the chain addresses.
+ */
 export async function deployOrUseExistingCore(
   chain: string,
   coreInputPath: string,
