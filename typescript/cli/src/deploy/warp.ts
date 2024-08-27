@@ -9,6 +9,7 @@ import {
   AnnotatedEV5Transaction,
   ChainMap,
   ChainName,
+  ChainSubmissionStrategy,
   ContractVerifier,
   EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
@@ -31,7 +32,6 @@ import {
   RemoteRouters,
   RoutingIsmConfig,
   SubmissionStrategy,
-  SubmitterMetadata,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TrustedRelayerIsmConfig,
@@ -91,7 +91,7 @@ interface DeployParams {
 
 interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
-  safeAddress?: Address;
+  chainSubmissionStrategy?: ChainSubmissionStrategy;
 }
 
 export async function runWarpRouteDeploy({
@@ -497,9 +497,9 @@ export async function runWarpRouteApply(
           const transactionReceipts = await submitter.submit(...transactions);
 
           if (transactionReceipts && transactionReceipts.length > 0) {
-            if (params.safeAddress)
+            if (params.chainSubmissionStrategy)
               return logGreen(
-                `✅ Warp config update successfully submitted to safe (${params.safeAddress}) on ${chain}:\n\n`,
+                `✅ Warp config update successfully submitted to safe (${params.chainSubmissionStrategy}) on ${chain}:\n\n`,
                 indentYamlOrJson(
                   yamlStringify(transactionReceipts, null, 2),
                   4,
@@ -539,8 +539,8 @@ export async function runWarpRouteApply(
     );
     extendedConfigs = objMap(extendedConfigs, (_chain, extendedConfig) => {
       return {
-        ...extendedConfig,
         ...existingTokenMetadata,
+        ...extendedConfig,
       };
     });
 
@@ -642,9 +642,9 @@ async function enrollRemoteRouters(
       const transactionReceipts = await submitter.submit(...mutatedConfigTxs);
 
       if (transactionReceipts && transactionReceipts.length > 0) {
-        if (warpApplyParams.safeAddress)
+        if (warpApplyParams.chainSubmissionStrategy)
           return logGreen(
-            `✅ Router enrollment update successfully submitted to safe (${warpApplyParams.safeAddress}) on ${chain}:\n\n`,
+            `✅ Router enrollment update successfully submitted to safe (${warpApplyParams.chainSubmissionStrategy}) on ${chain}:\n\n`,
             indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
           );
 
@@ -810,33 +810,20 @@ async function getWarpApplySubmitter({
   context: WriteCommandContext;
   warpApplyParams: WarpApplyParams;
 }): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { safeAddress } = warpApplyParams;
-  const { chainMetadata, multiProvider, isDryRun, key } = context;
+  const { chainSubmissionStrategy } = warpApplyParams;
+  const { chainMetadata, multiProvider } = context;
 
-  let submitter: SubmitterMetadata;
-  if (safeAddress) {
-    submitter = {
-      type: TxSubmitterType.GNOSIS_SAFE,
-      chain,
-      safeAddress,
-    };
-  } else if (isDryRun) {
-    submitter = {
-      type: TxSubmitterType.IMPERSONATED_ACCOUNT,
-      userAddress: key,
-    };
-  } else {
-    submitter = {
+  // Default to JSON_RPC in the case of no --strategy
+  let submissionStrategy: SubmissionStrategy = {
+    submitter: {
       type: TxSubmitterType.JSON_RPC,
-    };
+    },
+  };
+  if (chainSubmissionStrategy) {
+    submissionStrategy = chainSubmissionStrategy[chain];
   }
 
   const protocol = chainMetadata[chain].protocol;
-  const submissionStrategy: SubmissionStrategy = {
-    chain,
-    submitter,
-  };
-
   return getSubmitterBuilder<typeof protocol>({
     submissionStrategy,
     multiProvider,

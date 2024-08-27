@@ -4,27 +4,9 @@ import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson } from '../../utils/files.js';
 
-import { getDeployedWarpAddress } from './helpers.js';
+import { ANVIL_KEY, REGISTRY_PATH, getDeployedWarpAddress } from './helpers.js';
 
-export const CHAIN_NAME = 'anvil1';
-export const TEST_CONFIGS_PATH = './test-configs';
-export const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
-
-export const ANVIL_KEY =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-
-/**
- * Deploys the Hyperlane core contracts to the specified chain using the provided config.
- */
-export async function hyperlaneCoreDeploy(coreInputPath: string) {
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
-        --registry ${REGISTRY_PATH} \
-        --overrides " " \
-        --config ${coreInputPath} \
-        --chain ${CHAIN_NAME} \
-        --key ${ANVIL_KEY} \
-        --yes`;
-}
+$.verbose = true;
 
 /**
  * Deploys the Warp route to the specified chain using the provided config.
@@ -45,32 +27,41 @@ export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
 ) {
-  const logs =
-    await $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
+        --verbosity debug \
         --yes`;
-  console.log(logs);
+}
+
+export async function hyperlaneWarpRead(
+  chain: string,
+  warpAddress: string,
+  warpDeployOutputPath: string,
+) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
+        --registry ${REGISTRY_PATH} \
+        --overrides " " \
+        --address ${warpAddress} \
+        --chain ${chain} \
+        --config ${warpDeployOutputPath}`;
 }
 
 /**
  * Reads the Warp route deployment config to specified output path.
+ * @param warpCoreInputPath path to warp core
+ * @param warpDeployOutputPath path to output the resulting read
  * @returns The Warp route deployment config.
  */
 export async function readWarpConfig(
+  chain: string,
   warpCoreInputPath: string,
   warpDeployOutputPath: string,
 ): Promise<WarpRouteDeployConfig> {
   const warpAddress = getDeployedWarpAddress(warpCoreInputPath);
-
-  await $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
-        --registry ${REGISTRY_PATH} \
-        --overrides " " \
-        --address ${warpAddress} \
-        --chain ${CHAIN_NAME} \
-        --config ${warpDeployOutputPath}`;
+  await hyperlaneWarpRead(chain, warpAddress!, warpDeployOutputPath);
   return readYamlOrJson(warpDeployOutputPath);
 }
