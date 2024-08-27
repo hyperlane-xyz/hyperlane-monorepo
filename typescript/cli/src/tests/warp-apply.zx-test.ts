@@ -83,7 +83,7 @@ describe('WarpApply', async function () {
     );
   });
 
-  it.only('should extend an existing warp route', async () => {
+  it('should extend an existing warp route', async () => {
     // Read existing config into a file
     const warpConfigPath = `${EXAMPLES_PATH}/warp-route-deployment-2.yaml`;
     await readWarpConfig(CHAIN_NAME_1, WARP_CORE_CONFIG_PATH, warpConfigPath);
