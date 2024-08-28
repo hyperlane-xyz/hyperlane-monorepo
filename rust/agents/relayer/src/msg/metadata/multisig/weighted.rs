@@ -36,7 +36,7 @@ impl MultisigIsmMetadataBuilder for WeightedMerkleRootMultisigMetadataBuilder {
             .await
             .context(CTX)?;
 
-        Ok((validators, threshold as Weight))
+        Ok((validators, threshold))
     }
 
     fn token_layout(&self) -> Vec<MetadataToken> {
@@ -78,7 +78,7 @@ impl MultisigIsmMetadataBuilder for WeightedMessageIdMultisigMetadataBuilder {
             .await
             .context(CTX)?;
 
-        Ok((validators, threshold as u64))
+        Ok((validators, threshold))
     }
     fn token_layout(&self) -> Vec<MetadataToken> {
         MessageIdMultisigMetadataBuilder::new(self.0.clone()).token_layout()
