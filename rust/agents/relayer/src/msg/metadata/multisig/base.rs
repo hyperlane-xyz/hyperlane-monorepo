@@ -6,7 +6,7 @@ use derive_new::new;
 use ethers::abi::Token;
 
 use eyre::{Context, Result};
-use hyperlane_base::MultisigCheckpointSyncer;
+use hyperlane_base::{MultisigCheckpointSyncer, ValidatorWithWeight, Weight};
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{HyperlaneMessage, MultisigSignedCheckpoint, H256};
 use strum::Display;
@@ -40,8 +40,8 @@ pub enum MetadataToken {
 pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Sync {
     async fn fetch_metadata(
         &self,
-        validators: &[(H256, u64)],
-        threshold: u64,
+        validators: &[ValidatorWithWeight],
+        threshold: Weight,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>>;
@@ -94,23 +94,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-    ) -> Result<(Vec<(H256, u64)>, u64)> {
-        const CTX: &str = "When fetching MultisigIsm metadata";
-        let multisig_ism = self
-            .as_ref()
-            .build_multisig_ism(ism_address)
-            .await
-            .context(CTX)?;
-
-        let (validators, threshold) = multisig_ism
-            .validators_and_threshold(message)
-            .await
-            .context(CTX)?;
-
-        let unit_validators: Vec<(H256, u64)> = validators.into_iter().map(|v| (v, 1)).collect();
-
-        Ok((unit_validators, threshold as u64))
-    }
+    ) -> Result<(Vec<ValidatorWithWeight>, Weight)>;
 }
 
 #[async_trait]
@@ -121,22 +105,17 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         message: &HyperlaneMessage,
     ) -> Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching MultisigIsm metadata";
-        let multisig_ism = self
-            .as_ref()
-            .build_multisig_ism(ism_address)
-            .await
-            .context(CTX)?;
 
-        let (unit_validators, threshold_weight) = self
+        let (weighted_validators, threshold_weight) = self
             .ism_validator_requirements(ism_address, message)
             .await?;
 
-        if unit_validators.is_empty() {
+        if weighted_validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
             return Ok(None);
         }
 
-        let validators: Vec<H256> = unit_validators
+        let validators: Vec<H256> = weighted_validators
             .iter()
             .map(|(address, _)| *address)
             .collect();
@@ -149,7 +128,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
 
         if let Some(metadata) = self
             .fetch_metadata(
-                &unit_validators,
+                &weighted_validators,
                 threshold_weight,
                 message,
                 &checkpoint_syncer,
@@ -161,7 +140,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             Ok(Some(self.format_metadata(metadata)?))
         } else {
             info!(
-                ?message, ?unit_validators, threshold_weight, ism=%multisig_ism.address(),
+                ?message, ?weighted_validators, threshold_weight, ism=%ism_address,
                 "Could not fetch metadata: Unable to reach quorum"
             );
             Ok(None)

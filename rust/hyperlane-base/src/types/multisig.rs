@@ -11,6 +11,12 @@ use hyperlane_core::{
 };
 
 use crate::{CheckpointSyncer, CoreMetrics};
+/// Weights are scaled by 1e10 as 100% so 
+pub type Weight = u64;
+/// Type alias for representing both weighted and unweighted types
+/// for unweighted, we have (validator, 1), threshold_weight = threshold
+/// for weighted, we have (validator, weight)
+pub type ValidatorWithWeight = (H256, Weight);
 
 /// For a particular validator set, fetches signed checkpoints from multiple
 /// validators to create MultisigSignedCheckpoints.
@@ -91,8 +97,8 @@ impl MultisigCheckpointSyncer {
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint_in_range(
         &self,
-        weighted_validators: &[(H256, u64)],
-        threshold_weight: u64,
+        weighted_validators: &[ValidatorWithWeight],
+        threshold_weight: Weight,
         minimum_index: u32,
         maximum_index: u32,
         origin: &HyperlaneDomain,
@@ -147,8 +153,8 @@ impl MultisigCheckpointSyncer {
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint(
         &self,
-        weighted_validators: &[(H256, u64)],
-        threshold_weight: u64,
+        weighted_validators: &[ValidatorWithWeight],
+        threshold_weight: Weight,
         index: u32,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
@@ -157,7 +163,7 @@ impl MultisigCheckpointSyncer {
         let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
             HashMap::new();
 
-        let sorted_validators: Vec<(usize, &(H256, u64))> = weighted_validators
+        let sorted_validators: Vec<(usize, &ValidatorWithWeight)> = weighted_validators
             .iter()
             .enumerate()
             .sorted_by_key(|(_, (_, weight))| std::cmp::Reverse(*weight))
