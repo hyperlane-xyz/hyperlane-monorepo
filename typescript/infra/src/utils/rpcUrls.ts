@@ -88,8 +88,8 @@ export async function setAndVerifyRpcUrls(
       environment,
       chain,
     );
-    // const newRpcUrls = await inputRpcUrls(chain, currentSecrets);
-    const newRpcUrls = currentSecrets;
+    const newRpcUrls = await inputRpcUrls(chain, currentSecrets);
+    // const newRpcUrls = currentSecrets;
     console.log(`Selected RPC URLs: ${formatRpcUrls(newRpcUrls)}\n`);
 
     const secretPayload = JSON.stringify(newRpcUrls);
