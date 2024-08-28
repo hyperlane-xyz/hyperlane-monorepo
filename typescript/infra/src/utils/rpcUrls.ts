@@ -4,7 +4,13 @@ import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { ProtocolType, runWithTimeout, timeout } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  pollAsync,
+  runWithTimeout,
+  sleep,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -82,17 +88,17 @@ export async function setAndVerifyRpcUrls(
       environment,
       chain,
     );
-    const newRpcUrls = await inputRpcUrls(chain, currentSecrets);
+    // const newRpcUrls = await inputRpcUrls(chain, currentSecrets);
+    const newRpcUrls = currentSecrets;
     console.log(`Selected RPC URLs: ${formatRpcUrls(newRpcUrls)}\n`);
 
     const secretPayload = JSON.stringify(newRpcUrls);
     await confirmSetSecrets(environment, chain, secretPayload);
     // await testProvidersIfNeeded(chain, rpcUrlsArray);
     // await updateSecretAndDisablePrevious(environment, chain, secretPayload);
-    await refreshK8sResources(
+    await refreshAllDependentK8sResources(
       environment as DeployEnvironment,
       chain,
-      secretPayload,
     );
   } catch (error: any) {
     console.error(
@@ -277,10 +283,9 @@ async function updateSecretAndDisablePrevious(
   }
 }
 
-async function refreshK8sResources(
+async function refreshAllDependentK8sResources(
   environment: DeployEnvironment,
   chain: string,
-  secretPayload: string,
 ): Promise<void> {
   // const agentConfig = await agentConfig(environment, chain);
 
@@ -337,91 +342,145 @@ async function refreshK8sResources(
       checked: true,
     })),
   });
-  const selectedHelmManagers = contextHelmManagers.filter((_, i) =>
-    selection.includes(i),
+  const selectedHelmManagers = contextHelmManagers
+    .map(([_, m]) => m)
+    .filter((_, m) => selection.includes(m));
+
+  await refreshK8sResources(
+    selectedHelmManagers,
+    K8sResourceType.SECRET,
+    environment,
   );
-
-  const secretsToDelete = (
-    await Promise.all(
-      selectedHelmManagers.map(async ([_context, helmManager]) =>
-        helmManager.getExistingK8sSecrets(),
-      ),
-    )
-  ).flat();
-
-  console.log(`Deleting secrets: ${secretsToDelete.join(', ')}`);
-  await execCmd(
-    `kubectl delete secret ${secretsToDelete.join(' ')} -n ${environment}`,
-  );
-
-  await Promise.all(
-    secretsToDelete.map(async (secret) => {
-      try {
-        await runWithTimeout(
-          // 60 seconds
-          60 * 1000,
-          async () => {
-            await execCmd(
-              `kubectl wait --for=exists secret/${secret} -n ${environment}`,
-            );
-            console.log(`✅ Secret ${secret} successfully re-created`);
-          },
-        );
-      } catch (e) {
-        console.error(`Error waiting for secret ${secret} to exist: ${e}`);
-      }
-    }),
+  await refreshK8sResources(
+    selectedHelmManagers,
+    K8sResourceType.POD,
+    environment,
   );
 }
 
-// abstract class SecretRpcConsumingK8sWorkload {
-//   abstract k8sSecretName(): string;
+enum K8sResourceType {
+  SECRET = 'secret',
+  POD = 'pod',
+}
 
-//   abstract k8sPodNames(): string[];
-// }
+async function refreshK8sResources(
+  helmManagers: HelmManager<any>[],
+  resourceType: K8sResourceType,
+  namespace: string,
+) {
+  const resourceNames = (
+    await Promise.all(
+      helmManagers.map(async (helmManager) => {
+        if (resourceType === K8sResourceType.SECRET) {
+          return helmManager.getExistingK8sSecrets();
+        } else if (resourceType === K8sResourceType.POD) {
+          return helmManager.getManagedK8sPods();
+        } else {
+          throw new Error(`Unknown resource type: ${resourceType}`);
+        }
+      }),
+    )
+  ).flat();
 
-// abstract class AgentWorkload extends SecretRpcConsumingK8sWorkload {
-//   constructor(readonly environment: string, readonly context: string) {
-//     super();
-//   }
+  console.log(`Ready to delete ${resourceType}s: ${resourceNames.join(', ')}`);
 
-//   abstract helmReleaseName(): string;
-//   // {{/*
-//   //   Create a default fully qualified app name.
-//   //   We truncate at 63 chars - 11 because some Kubernetes name fields are limited to this (by the DNS naming spec).
-//   //   If release name contains chart name it will be used as a full name.
-//   //   */}}
-//   //   {{- define "agent-common.fullname" -}}
-//   //   {{- if .Values.fullnameOverride }}
-//   //   {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-//   //   {{- else }}
-//   //   {{- $name := default .Chart.Name .Values.nameOverride }}
-//   //   {{- if contains $name .Release.Name }}
-//   //   {{- .Release.Name | trunc 63 | trimSuffix "-" }}
-//   //   {{- else }}
-//   //   {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-//   //   {{- end }}
-//   //   {{- end }}
-//   //   {{- end }}
+  const cont = await confirm({
+    message: `Proceed and delete ${resourceNames.length} ${resourceType}s?`,
+  });
+  if (!cont) {
+    throw new Error('Aborting');
+  }
 
-//   async function getHelmValues() {
-//     const values = await execCmd(
-//       `helm get values ${helmReleaseName()} -n ${environment}`,
-//     )
-//   }
+  await execCmd(
+    `kubectl delete ${resourceType} ${resourceNames.join(' ')} -n ${namespace}`,
+  );
+  console.log(
+    `🏗  Deleted ${resourceNames.length} ${resourceType}s, waiting for them to be recreated...`,
+  );
 
-//   function agentFullName() {
+  await waitForK8sResources(resourceType, resourceNames, namespace);
+}
 
-//   }
+async function waitForK8sResources(
+  resourceType: K8sResourceType,
+  resourceNames: string[],
+  namespace: string,
+) {
+  const resourceGetter =
+    resourceType === K8sResourceType.SECRET
+      ? getExistingK8sSecrets
+      : getRunningK8sPods;
 
-// }
+  try {
+    await pollAsync(
+      async () => {
+        const { missing } = await resourceGetter(resourceNames, namespace);
+        if (missing.length > 0) {
+          console.log(
+            `⏳ ${resourceNames.length - missing.length} of ${
+              resourceNames.length
+            } ${resourceType}s up, waiting for ${missing.length} more`,
+          );
+          throw new Error(
+            `${resourceType}s not ready, ${missing.length} missing`,
+          );
+        }
+      },
+      2000,
+      30,
+    );
+    console.log(`✅ All ${resourceNames.length} secrets exist`);
+  } catch (e) {
+    console.error(`Error waiting for ${resourceType}s to exist: ${e}`);
+  }
+}
 
-// class OmniscientRelayerWorkload extends SecretRpcConsumingK8sWorkload {
-//   k8sSecretName(): string {
-//     return 'omniscient-relayer';
-//   }
+async function getExistingK8sSecrets(
+  resourceNames: string[],
+  namespace: string,
+): Promise<{
+  existing: string[];
+  missing: string[];
+}> {
+  const [output] = await execCmd(
+    `kubectl get secret ${resourceNames.join(
+      ' ',
+    )} -n ${namespace} --ignore-not-found -o jsonpath='{.items[*].metadata.name}'`,
+  );
+  const existing = output.split(' ').filter(Boolean);
+  const missing = resourceNames.filter(
+    (resource) => !existing.includes(resource),
+  );
+  return { existing, missing };
+}
 
-//   k8sPodNames(): string[] {
-//     return ['omniscient-relayer'];
-//   }
-// }
+async function getRunningK8sPods(
+  resourceNames: string[],
+  namespace: string,
+): Promise<{
+  existing: string[];
+  missing: string[];
+}> {
+  // Returns a newline separated list of pod names and their statuses, e.g.:
+  //   pod1:Running
+  //   pod2:Pending
+  //   pod3:Running
+  // Interestingly, providing names here is incompatible with the jsonpath range syntax. So we get all pods
+  // and filter.
+  const [output] = await execCmd(
+    `kubectl get pods -n ${namespace} --ignore-not-found -o jsonpath='{range .items[*]}{.metadata.name}:{.status.phase}{"\\n"}{end}'`,
+  );
+  const running = output
+    .split('\n')
+    .map((line) => {
+      const [pod, status] = line.split(':');
+      return resourceNames.includes(pod) && status === 'Running'
+        ? pod
+        : undefined;
+    })
+    .filter((pod) => pod !== undefined);
+  const missing = resourceNames.filter(
+    (resource) => !running.includes(resource),
+  );
+  return { existing: running, missing };
+}

@@ -61,6 +61,11 @@ export class KeyFunderHelmManager extends HelmManager<any> {
     };
     return helmifyValues(values);
   }
+
+  async getManagedK8sPods(): Promise<string[]> {
+    //
+    return [];
+  }
 }
 
 // export async function runKeyFunderHelmCommand(

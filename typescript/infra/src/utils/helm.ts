@@ -178,6 +178,18 @@ export abstract class HelmManager<T = HelmValues> {
     const [output] = await execCmd(
       `kubectl get secret --selector=app.kubernetes.io/instance=${this.helmReleaseName} -o jsonpath='{.items[*].metadata.name}' -n ${this.namespace}`,
     );
-    return output.split(' ');
+    // Split on spaces and remove empty strings
+    return output.split(' ').filter(Boolean);
+  }
+
+  // Returns the names of all pods managed by a Statefulset in the helm release
+  async getManagedK8sPods() {
+    // Consider supporting Deployments in the future. For now, we only support StatefulSets because
+    // jsonpath doesn't support or operators well.
+    const [output] = await execCmd(
+      `kubectl get pods --selector=app.kubernetes.io/instance=${this.helmReleaseName} -o jsonpath='{range .items[?(@.metadata.ownerReferences[0].kind=="StatefulSet")]}{.metadata.name}{"\\n"}{end}' -n ${this.namespace}`,
+    );
+    // Split on new lines and remove empty strings
+    return output.split('\n').filter(Boolean);
   }
 }
