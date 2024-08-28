@@ -7,3 +7,6 @@
 [submodule "governance/lib/forge-std"]
 	path = governance/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "governance/lib/rewards"]
+	path = governance/lib/rewards
+	url = https://github.com/symbioticfi/rewards
