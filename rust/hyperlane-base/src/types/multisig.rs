@@ -11,7 +11,7 @@ use hyperlane_core::{
 };
 
 use crate::{CheckpointSyncer, CoreMetrics};
-/// Weights are scaled by 1e10 as 100% so 
+/// Weights are scaled by 1e10 as 100%
 pub type Weight = u64;
 /// Type alias for representing both weighted and unweighted types
 /// for unweighted, we have (validator, 1), threshold_weight = threshold
@@ -125,7 +125,19 @@ impl MultisigCheckpointSyncer {
         // Sort in descending order. The n'th index will represent
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.cmp(a));
-        if let Some(&highest_quorum_index) = latest_indices.get(threshold_weight as usize - 1) {
+
+        // Find the highest index that meets the threshold weight
+        let mut cumulative_weight = 0;
+        let mut highest_quorum_index = None;
+        for (i, &index) in latest_indices.iter().enumerate() {
+            cumulative_weight += weighted_validators[i].1; // Add the weight of this validator
+            if cumulative_weight >= threshold_weight {
+                highest_quorum_index = Some(index);
+                break;
+            }
+        }
+
+        if let Some(highest_quorum_index) = highest_quorum_index {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.
@@ -219,6 +231,7 @@ impl MultisigCheckpointSyncer {
 
                     // If we've hit a quorum in weight, create a MultisigSignedCheckpoint
                     if cumulative_weight >= threshold_weight {
+                        // to conform to the onchain ordering of the set by address
                         signed_checkpoints.sort_by_key(|sc| {
                             weighted_validators
                                 .iter()
