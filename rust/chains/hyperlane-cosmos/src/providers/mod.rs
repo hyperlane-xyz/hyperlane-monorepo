@@ -1,6 +1,7 @@
 use async_trait::async_trait;
+use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
-use cosmrs::tx::SignerInfo;
+use cosmrs::tx::{MessageExt, SignerInfo};
 use cosmrs::Tx;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
@@ -14,6 +15,7 @@ use hyperlane_core::{
 
 use crate::address::CosmosAddress;
 use crate::grpc::WasmProvider;
+use crate::libs::account::CosmosAccountId;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 use self::grpc::WasmGrpcProvider;
@@ -158,6 +160,19 @@ impl HyperlaneProvider for CosmosProvider {
             ChainCommunicationError::from_other_str("could not deserialize transaction")
         })?;
 
+        // TODO assuming that there is only one message in the transaction and it is execute contract message
+        let any = tx.body.messages.get(0).unwrap();
+        let proto =
+            cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract::from_any(any).map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    "could not decode contract execution message",
+                )
+            })?;
+        let msg = MsgExecuteContract::try_from(proto)
+            .map_err(|e| ChainCommunicationError::from_other_str("could not convert from proto"))?;
+        let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
+
+        // TODO choose correct signer (should it be the one paid for the transaction)
         let signer = tx
             .auth_info
             .signer_infos
@@ -185,7 +200,7 @@ impl HyperlaneProvider for CosmosProvider {
             gas_price: Some(gas_price),
             nonce,
             sender,
-            recipient: None,
+            recipient: Some(contract),
             receipt: Some(TxnReceiptInfo {
                 gas_used: U256::from(response.tx_result.gas_used),
                 cumulative_gas_used: U256::from(response.tx_result.gas_used),
