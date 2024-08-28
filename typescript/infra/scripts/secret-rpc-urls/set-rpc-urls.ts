@@ -1,10 +1,26 @@
 import { setAndVerifyRpcUrls } from '../../src/utils/rpcUrls.js';
-import { getArgs, withChainRequired, withRpcUrls } from '../agent-utils.js';
+import {
+  getArgs,
+  withChainRequired,
+  withChains,
+  withRpcUrls,
+} from '../agent-utils.js';
 
 async function main() {
-  const { environment, chain } = await withChainRequired(getArgs()).argv;
+  const { environment, chains } = await withChains(getArgs()).alias(
+    'chain',
+    'c',
+  ).argv;
 
-  await setAndVerifyRpcUrls(environment, chain);
+  if (!chains || chains.length === 0) {
+    console.error('No chains provided, Exiting.');
+    process.exit(1);
+  }
+
+  for (const chain of chains) {
+    console.log(`Setting RPC URLs for chain: ${chain}`);
+    await setAndVerifyRpcUrls(environment, chain);
+  }
 }
 
 main()

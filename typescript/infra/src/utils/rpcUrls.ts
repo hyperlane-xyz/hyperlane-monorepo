@@ -31,23 +31,7 @@ import { KathyHelmManager } from '../helloworld/kathy.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
-import { execCmd, isEthereumProtocolChain } from './utils.js';
-
-// export async function testProviders(rpcUrlsArray: string[]): Promise<boolean> {
-//   let providersSucceeded = true;
-//   for (const url of rpcUrlsArray) {
-//     const provider = new ethers.providers.StaticJsonRpcProvider(url);
-//     try {
-//       const blockNumber = await timeout(provider.getBlockNumber(), 5000);
-//       console.log(`Valid provider for ${url} with block number ${blockNumber}`);
-//     } catch (e) {
-//       console.error(`Provider failed: ${url}`);
-//       providersSucceeded = false;
-//     }
-//   }
-
-//   return providersSucceeded;
-// }
+import { execCmd } from './utils.js';
 
 async function testProvider(chain: ChainName, url: string): Promise<boolean> {
   const chainMetadata = getChain(chain);
@@ -70,7 +54,7 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
       );
     }
     console.log(
-      `✅ Valid provider for ${url} with block number ${blockNumber}`,
+      `✅  Valid provider for ${url} with block number ${blockNumber}`,
     );
     return true;
   } catch (e) {
@@ -89,7 +73,6 @@ export async function setAndVerifyRpcUrls(
       chain,
     );
     const newRpcUrls = await inputRpcUrls(chain, currentSecrets);
-    // const newRpcUrls = currentSecrets;
     console.log(`Selected RPC URLs: ${formatRpcUrls(newRpcUrls)}\n`);
 
     const secretPayload = JSON.stringify(newRpcUrls);
@@ -134,27 +117,45 @@ async function getAndDisplayCurrentSecrets(
   return currentSecrets;
 }
 
+// Copied from @inquirer/prompts as it's not exported :(
+type Choice<Value> = {
+  value: Value;
+  name?: string;
+  description?: string;
+  short?: string;
+  disabled?: boolean | string;
+  type?: never;
+};
+
 async function inputRpcUrls(
   chain: string,
   existingUrls: string[],
 ): Promise<string[]> {
   const selectedUrls: string[] = [];
 
-  const remainingExistingChoices = Object.fromEntries(
-    existingUrls.map((url, i) => {
-      return [
-        url,
-        {
-          value: url,
-          name: `${url} (existing index ${i})`,
-        },
-      ];
-    }),
+  const registryUrls = getChain(chain).rpcUrls.map((rpc) => rpc.http);
+
+  const existingUrlChoices: Array<Choice<string>> = existingUrls.map(
+    (url, i) => {
+      return {
+        value: url,
+        name: `${url} (existing index ${i})`,
+      };
+    },
+  );
+  const registryUrlChoices: Array<Choice<string>> = registryUrls.map(
+    (url, i) => {
+      return {
+        value: url,
+        name: `[PUBLIC] ${url} (registry index ${i})`,
+      };
+    },
   );
 
   enum SystemChoice {
     ADD_NEW = 'Add new RPC URL',
     DONE = 'Done',
+    USE_REGISTRY_URLS = 'Use all registry URLs',
     REMOVE_LAST = 'Remove last RPC URL',
   }
 
@@ -176,11 +177,18 @@ async function inputRpcUrls(
     console.log(`Selected RPC URLs: ${formatRpcUrls(selectedUrls)}\n`);
 
     // Sadly @inquirer/prompts doesn't expose the types needed here
-    const choices: (Separator | { value: string })[] = [
+    const choices: (Separator | Choice<any>)[] = [
       ...[SystemChoice.DONE, SystemChoice.ADD_NEW].map((choice) => ({
         value: choice,
       })),
-      ...Object.values(remainingExistingChoices),
+      {
+        value: SystemChoice.USE_REGISTRY_URLS,
+        name: `Use registry URLs (${JSON.stringify(registryUrls)})`,
+      },
+      new Separator('-----'),
+      ...existingUrlChoices,
+      new Separator('-----'),
+      ...registryUrlChoices,
     ];
     if (selectedUrls.length > 0) {
       choices.push(new Separator('-----'));
@@ -192,6 +200,7 @@ async function inputRpcUrls(
     const selection = await select({
       message: 'Select RPC URL',
       choices,
+      pageSize: 30,
     });
 
     if (selection === SystemChoice.DONE) {
@@ -204,9 +213,24 @@ async function inputRpcUrls(
       await pushSelectedUrl(newUrl);
     } else if (selection === SystemChoice.REMOVE_LAST) {
       selectedUrls.pop();
-    } else if (remainingExistingChoices[selection]) {
+    } else if (selection === SystemChoice.USE_REGISTRY_URLS) {
+      for (const url of registryUrls) {
+        await pushSelectedUrl(url);
+      }
+      console.log('Added all registry URLs');
+      break;
+    } else {
+      let index = existingUrls.indexOf(selection);
+      if (index !== -1) {
+        existingUrlChoices.splice(index, 1);
+      }
+
+      index = registryUrls.indexOf(selection);
+      if (index !== -1) {
+        registryUrls.splice(index, 1);
+      }
+
       await pushSelectedUrl(selection);
-      delete remainingExistingChoices[selection];
     }
     console.log('========');
   }
@@ -287,7 +311,13 @@ async function refreshAllDependentK8sResources(
   environment: DeployEnvironment,
   chain: string,
 ): Promise<void> {
-  // const agentConfig = await agentConfig(environment, chain);
+  const cont = await confirm({
+    message: `Do you want to refresh all dependent k8s resources for ${chain} in ${environment}?`,
+  });
+  if (!cont) {
+    console.log('Skipping refresh of k8s resources');
+    return;
+  }
 
   const envConfig = getEnvironmentConfig(environment);
   const contextHelmManagers: [string, HelmManager<any>][] = [];
@@ -295,9 +325,6 @@ async function refreshAllDependentK8sResources(
     context: string,
     manager: HelmManager<any>,
   ) => {
-    // if (!contextHelmManagers[context]) {
-    //   contextHelmManagers[context] = [];
-    // }
     contextHelmManagers.push([context, manager]);
   };
   for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
@@ -401,6 +428,9 @@ async function refreshK8sResources(
   await waitForK8sResources(resourceType, resourceNames, namespace);
 }
 
+// Polls until all resources are ready.
+// For secrets, this means they exist.
+// For pods, this means they exist and are running.
 async function waitForK8sResources(
   resourceType: K8sResourceType,
   resourceNames: string[],
@@ -429,7 +459,7 @@ async function waitForK8sResources(
       2000,
       30,
     );
-    console.log(`✅ All ${resourceNames.length} secrets exist`);
+    console.log(`✅  All ${resourceNames.length} ${resourceType}s exist`);
   } catch (e) {
     console.error(`Error waiting for ${resourceType}s to exist: ${e}`);
   }
@@ -470,6 +500,7 @@ async function getRunningK8sPods(
   const [output] = await execCmd(
     `kubectl get pods -n ${namespace} --ignore-not-found -o jsonpath='{range .items[*]}{.metadata.name}:{.status.phase}{"\\n"}{end}'`,
   );
+  // Filter out pods that are not in the list of resource names or are not running
   const running = output
     .split('\n')
     .map((line) => {

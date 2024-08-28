@@ -61,42 +61,7 @@ export class KeyFunderHelmManager extends HelmManager<any> {
     };
     return helmifyValues(values);
   }
-
-  async getManagedK8sPods(): Promise<string[]> {
-    //
-    return [];
-  }
 }
-
-// export async function runKeyFunderHelmCommand(
-//   helmCommand: HelmCommand,
-//   agentConfig: AgentContextConfig,
-//   keyFunderConfig: KeyFunderConfig<string[]>,
-// ) {
-//   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
-//   if (helmCommand === HelmCommand.InstallOrUpgrade) {
-//     // Delete secrets to avoid them being stale
-//     try {
-//       await execCmd(
-//         `kubectl delete secrets --namespace ${agentConfig.namespace} --selector app.kubernetes.io/instance=key-funder`,
-//         {},
-//         false,
-//         false,
-//       );
-//     } catch (e) {
-//       console.error(e);
-//     }
-//   }
-
-//   return execCmd(
-//     `helm ${helmCommand} key-funder ./helm/key-funder --namespace ${
-//       keyFunderConfig.namespace
-//     } ${values.join(' ')}`,
-//     {},
-//     false,
-//     true,
-//   );
-// }
 
 export function getKeyFunderConfig(
   coreConfig: EnvironmentConfig,
