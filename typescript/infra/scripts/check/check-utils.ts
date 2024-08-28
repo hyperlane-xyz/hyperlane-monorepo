@@ -1,3 +1,5 @@
+import { Registry } from 'prom-client';
+
 import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   CheckerViolation,
@@ -59,7 +61,7 @@ export function getCheckDeployArgs() {
   return withWarpRouteId(withModule(getCheckBaseArgs()));
 }
 
-export const getGovernor = async (
+export async function getGovernor(
   module: Modules,
   context: Contexts,
   environment: DeployEnvironment,
@@ -68,7 +70,7 @@ export const getGovernor = async (
   chain?: string,
   fork?: string,
   govern?: boolean,
-) => {
+) {
   const envConfig = getEnvironmentConfig(environment);
   let multiProvider = await envConfig.getMultiProvider();
 
@@ -235,9 +237,9 @@ export const getGovernor = async (
   }
 
   return governor;
-};
+}
 
-export const logViolations = (violations: CheckerViolation[]) => {
+export function logViolations(violations: CheckerViolation[]) {
   console.table(violations, [
     'chain',
     'remote',
@@ -248,19 +250,23 @@ export const logViolations = (violations: CheckerViolation[]) => {
     'expected',
   ]);
   logViolationDetails(violations);
-};
+}
 
-export const checkerViolationsGaugeObj = {
-  name: 'hyperlane_check_violations',
-  help: 'Checker violation',
-  labelNames: [
-    'module',
-    'chain',
-    'remote',
-    'name',
-    'type',
-    'subType',
-    'actual',
-    'expected',
-  ],
-};
+export function getCheckerViolationsGaugeObj(metricsRegister: Registry) {
+  return {
+    name: 'hyperlane_check_violations',
+    help: 'Checker violation',
+    registers: [metricsRegister],
+    labelNames: [
+      'module',
+      'warp_route_id',
+      'chain',
+      'remote',
+      'contract_name',
+      'type',
+      'sub_type',
+      'actual',
+      'expected',
+    ],
+  };
+}

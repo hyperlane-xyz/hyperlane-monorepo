@@ -7,6 +7,7 @@ import { Modules } from '../agent-utils.js';
 
 import {
   getCheckWarpDeployArgs,
+  getCheckerViolationsGaugeObj,
   getGovernor,
   logViolations,
 } from './check-utils.js';
@@ -16,23 +17,12 @@ async function main() {
     await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
-  const checkerViolationsGauge = new Gauge({
-    name: 'hyperlane_check_violations',
-    help: 'Checker violation',
-    registers: [metricsRegister],
-    labelNames: [
-      'module',
-      'warp_route_id',
-      'chain',
-      'remote',
-      'contract_name',
-      'type',
-      'sub_type',
-      'actual',
-      'expected',
-    ],
-  });
+  const checkerViolationsGauge = new Gauge(
+    getCheckerViolationsGaugeObj(metricsRegister),
+  );
   metricsRegister.registerMetric(checkerViolationsGauge);
+
+  const failedWarpRoutesChecks: string[] = [];
 
   // TODO: consider retrying this if check throws an error
   for (const warpRouteId of Object.values(WarpRouteIds)) {
@@ -88,8 +78,20 @@ async function main() {
         );
       }
     } catch (e) {
-      console.log(chalk.red(`Error checking warp route ${warpRouteId}: ${e}`));
+      console.error(
+        chalk.red(`Error checking warp route ${warpRouteId}: ${e}`),
+      );
+      failedWarpRoutesChecks.push(warpRouteId);
     }
+  }
+
+  if (failedWarpRoutesChecks.length > 0) {
+    console.error(
+      chalk.red(
+        `Failed to check warp routes: ${failedWarpRoutesChecks.join(', ')}`,
+      ),
+    );
+    process.exit(1);
   }
 
   process.exit(0);
