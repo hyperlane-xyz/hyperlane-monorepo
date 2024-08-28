@@ -10,3 +10,6 @@
 [submodule "governance/lib/rewards"]
 	path = governance/lib/rewards
 	url = https://github.com/symbioticfi/rewards
+[submodule "governance/lib/core"]
+	path = governance/lib/core
+	url = https://github.com/symbioticfi/core
