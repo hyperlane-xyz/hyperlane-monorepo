@@ -10,9 +10,11 @@ export const aggregationIsm = (validatorKey: string): AggregationIsmConfig => {
   return {
     type: IsmType.AGGREGATION,
     modules: [
+      merkleRootMultisig(validatorKey),
+      messageIdMultisig(validatorKey),
       uniformlyWeightedMultisigIsm(merkleRootMultisig(validatorKey)),
       uniformlyWeightedMultisigIsm(messageIdMultisig(validatorKey)),
     ],
-    threshold: 2,
+    threshold: 4,
   };
 };
