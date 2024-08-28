@@ -1,0 +1,12 @@
+@openzeppelin/contracts-upgradeable/=lib/core/lib/openzeppelin-contracts-upgradeable/contracts/
+@openzeppelin/contracts/=lib/core/lib/openzeppelin-contracts/contracts/
+@symbiotic/contracts/=lib/rewards/lib/core/src/contracts/
+@symbiotic/interfaces/=lib/rewards/lib/core/src/interfaces/
+@symbiotic/mocks/=lib/rewards/lib/core/test/mocks/
+core/=lib/core/
+ds-test/=lib/core/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test/src/
+erc4626-tests/=lib/core/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/
+forge-std/=lib/forge-std/src/
+openzeppelin-contracts-upgradeable/=lib/core/lib/openzeppelin-contracts-upgradeable/
+openzeppelin-contracts/=lib/core/lib/openzeppelin-contracts/
+rewards/=lib/rewards/
