@@ -1,4 +1,4 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
 import { FundableRole, Role } from '../roles.js';
@@ -21,6 +21,6 @@ export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]> {
   cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
   desiredBalancePerChain: Record<SupportedChains[number], string>;
-  desiredKathyBalancePerChain: Record<SupportedChains[number], string>;
-  igpClaimThresholdPerChain: Record<SupportedChains[number], string>;
+  desiredKathyBalancePerChain: ChainMap<string>;
+  igpClaimThresholdPerChain: ChainMap<string>;
 }

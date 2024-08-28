@@ -37,6 +37,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x09fabfbca0b8bf042e2a1161ee5010d147b0f603'],
   },
 
+  astar: {
+    threshold: 1,
+    validators: ['0x4d1b2cade01ee3493f44304653d8e352c66ec3e7'],
+  },
+
+  astarzkevm: {
+    threshold: 1,
+    validators: ['0x89ecdd6caf138934bf3a2fb7b323984d72fd66de'],
+  },
+
   avalanche: {
     threshold: 2,
     validators: [
@@ -60,6 +70,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   basesepolia: {
     threshold: 1,
     validators: ['0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921'],
+  },
+
+  bitlayer: {
+    threshold: 1,
+    validators: ['0x1d9b0f4ea80dbfc71cb7d64d8005eccf7c41e75f'],
   },
 
   blast: {
@@ -132,6 +147,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xffbbec8c499585d80ef69eb613db624d27e089ab'],
   },
 
+  coredao: {
+    threshold: 1,
+    validators: ['0xbd6e158a3f5830d99d7d2bce192695bc4a148de2'],
+  },
+
   cyber: {
     threshold: 2,
     validators: [
@@ -148,6 +168,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  dogechain: {
+    threshold: 1,
+    validators: ['0xe43f742c37858746e6d7e458bc591180d0cba440'],
   },
 
   eclipse: {
@@ -185,6 +210,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xb683b742b378632a5f73a2a5a45801b3489bba44', // avs: luganodes
       '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de', // avs: pier two
     ],
+  },
+
+  flare: {
+    threshold: 1,
+    validators: ['0xb65e52be342dba3ab2c088ceeb4290c744809134'],
   },
 
   fraxtal: {
@@ -338,6 +368,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  molten: {
+    threshold: 1,
+    validators: ['0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f'],
+  },
+
   moonbeam: {
     threshold: 3,
     validators: [
@@ -480,6 +515,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x469f0940684d147defc44f3647146cb90dd0bc8e',
       '0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83',
     ],
+  },
+
+  shibarium: {
+    threshold: 1,
+    validators: ['0xfa33391ee38597cbeef72ccde8c9e13e01e78521'],
   },
 
   solana: {
