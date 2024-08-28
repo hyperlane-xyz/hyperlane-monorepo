@@ -35,6 +35,7 @@ export async function fetchGCPSecret(
     );
     output = envVarOverride;
   } else {
+    debugLog(`Fetching GCP secret with name ${secretName}`);
     output = await fetchLatestGCPSecret(secretName);
   }
 
