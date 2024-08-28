@@ -129,7 +129,7 @@ impl HyperlaneProvider for CosmosProvider {
         // TODO add proper error handling
         let response = self
             .rpc_client
-            .tx(tendermint_hash, true)
+            .tx(tendermint_hash, false)
             .await
             .map_err(|_| ChainCommunicationError::from_other_str("generic error"))?;
 
