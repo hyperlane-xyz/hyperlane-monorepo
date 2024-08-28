@@ -14,6 +14,8 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta};
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
 
+type FutureChainResults<T> = Vec<JoinHandle<(ChainResult<Vec<(T, LogMeta)>>, u32)>>;
+
 /// The event attribute key for the contract address.
 pub(crate) const CONTRACT_ADDRESS_ATTRIBUTE_KEY: &str = "_contract_address";
 /// Base64 encoded version of the contract address attribute key, i.e.
@@ -44,7 +46,7 @@ pub(crate) fn parse_logs_in_range<T: PartialEq + Send + Sync + Debug + 'static>(
     indexer: Box<CosmosWasmIndexer>,
     parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     label: &'static str,
-) -> Vec<JoinHandle<(ChainResult<Vec<(T, LogMeta)>>, u32)>> {
+) -> FutureChainResults<T> {
     range
         .map(|block_number| {
             let indexer = indexer.clone();
