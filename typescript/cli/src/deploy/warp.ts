@@ -544,7 +544,7 @@ export async function runWarpRouteApply(
       warpCoreConfigByChain,
     );
 
-    await enrollRemoteRouters(mergedRouters, context, strategyUrl);
+    await enrollRemoteRouters(context, mergedRouters, strategyUrl);
 
     const updatedWarpCoreConfig = await getWarpCoreConfig(
       params,
@@ -625,8 +625,8 @@ function mergeAllRouters(
  * @param multiProvider - A MultiProvider instance to interact with multiple chains.
  */
 async function enrollRemoteRouters(
-  deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
   context: WriteCommandContext,
+  deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
   strategyUrl?: string,
 ): Promise<void> {
   logBlue(`Enrolling deployed routers with each other (if not already)...`);
