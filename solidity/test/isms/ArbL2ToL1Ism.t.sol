@@ -221,9 +221,7 @@ contract ArbL2ToL1IsmTest is Test {
 
         arbBridge.setL2ToL1Sender(address(this));
 
-        vm.expectRevert(
-            "AbstractMessageIdAuthorizedIsm: sender is not the hook"
-        );
+        vm.expectRevert("ArbL2ToL1Ism: l2Sender != authorizedHook");
         ism.verify(encodedOutboxTxMetadata, encodedMessage);
     }
 

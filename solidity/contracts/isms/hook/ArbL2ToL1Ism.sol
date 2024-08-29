@@ -61,8 +61,7 @@ contract ArbL2ToL1Ism is
         bytes calldata metadata,
         bytes calldata message
     ) external override returns (bool) {
-        bool verified = isVerified(message);
-        if (!verified) {
+        if (!isVerified(message)) {
             _verifyWithOutboxCall(metadata, message);
         }
         releaseValueToRecipient(message);
@@ -105,6 +104,11 @@ contract ArbL2ToL1Ism is
                 )
             );
 
+        // check if the sender of the l2 message is the authorized hook
+        require(
+            l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
+            "ArbL2ToL1Ism: l2Sender != authorizedHook"
+        );
         // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
         require(data.length == 36, "ArbL2ToL1Ism: invalid data length");
         bytes32 messageId = message.id();
