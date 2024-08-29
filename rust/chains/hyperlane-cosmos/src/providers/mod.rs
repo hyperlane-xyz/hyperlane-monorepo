@@ -107,24 +107,26 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("block hash should be of correct size");
 
-        // TODO add proper error handling
         let response = self
             .rpc_client
             .block_by_hash(tendermint_hash)
             .await
-            .map_err(|_| ChainCommunicationError::from_other_str("generic error"))?;
+            .map_err(ChainCommunicationError::from_other)?;
 
         let received_hash = H256::from_slice(response.block_id.hash.as_bytes());
 
         if &received_hash != hash {
             return Err(ChainCommunicationError::from_other_str(
-                "received incorrect block",
+                &format!("received incorrect block, expected hash: {hash:?}, received hash: {received_hash:?}")
             ));
         }
 
-        let block = response
-            .block
-            .ok_or_else(|| ChainCommunicationError::from_other_str("empty block info"))?;
+        let block = response.block.ok_or_else(|| {
+            ChainCommunicationError::from_other_str(&format!(
+                "empty block info for block: {:?}",
+                hash
+            ))
+        })?;
 
         let time: OffsetDateTime = block.header.time.into();
 
