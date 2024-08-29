@@ -1,10 +1,9 @@
-use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
 use std::str::FromStr;
 
 use async_trait::async_trait;
 use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
@@ -22,7 +21,7 @@ use crate::types::tx_response_to_outcome;
 use crate::utils::get_block_height_for_lag;
 use crate::{payloads, ConnectionConf, CosmosProvider, Signer};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
     config: ConnectionConf,
@@ -77,12 +76,6 @@ impl HyperlaneChain for CosmosMailbox {
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
         Box::new(self.provider.clone())
-    }
-}
-
-impl Debug for CosmosMailbox {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        todo!()
     }
 }
 
