@@ -101,28 +101,14 @@ impl Mailbox for CosmosMailbox {
             message_delivered: payloads::mailbox::DeliveredRequestInner { id },
         };
 
-        let delivered = match self
+        let delivered = self
             .provider
             .grpc()
             .wasm_query(GeneralMailboxQuery { mailbox: payload }, None)
             .await
-        {
-            Ok(v) => {
-                let response: payloads::mailbox::DeliveredResponse = serde_json::from_slice(&v)?;
+            .map(|v| serde_json::from_slice::<payloads::mailbox::DeliveredResponse>(&v))??;
 
-                response.delivered
-            }
-            Err(err) => {
-                warn!(
-                    "error while checking the message delivery status: {:?}",
-                    err
-                );
-
-                false
-            }
-        };
-
-        Ok(delivered)
+        Ok(delivered.delivered)
     }
 
     #[instrument(err, ret, skip(self))]
