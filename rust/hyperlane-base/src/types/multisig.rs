@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -10,6 +11,18 @@ use hyperlane_core::{
 };
 
 use crate::{CheckpointSyncer, CoreMetrics};
+/// Weights are scaled by 1e10 as 100%
+pub type Weight = u64;
+/// Struct for representing both weighted and unweighted types
+/// for unweighted, we have (validator, 1), threshold_weight = threshold
+/// for weighted, we have (validator, weight)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, new)]
+pub struct ValidatorWithWeight {
+    /// The validator's address
+    pub validator: H256,
+    /// The validator's weight
+    pub weight: Weight,
+}
 
 /// For a particular validator set, fetches signed checkpoints from multiple
 /// validators to create MultisigSignedCheckpoints.
@@ -90,15 +103,16 @@ impl MultisigCheckpointSyncer {
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint_in_range(
         &self,
-        validators: &[H256],
-        threshold: usize,
+        weighted_validators: &[ValidatorWithWeight],
+        threshold_weight: Weight,
         minimum_index: u32,
         maximum_index: u32,
         origin: &HyperlaneDomain,
         destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
+        let validators: Vec<H256> = weighted_validators.iter().map(|vw| vw.validator).collect();
         let mut latest_indices = self
-            .get_validator_latest_checkpoints_and_update_metrics(validators, origin, destination)
+            .get_validator_latest_checkpoints_and_update_metrics(&validators, origin, destination)
             .await;
 
         debug!(
@@ -114,7 +128,19 @@ impl MultisigCheckpointSyncer {
         // Sort in descending order. The n'th index will represent
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.cmp(a));
-        if let Some(&highest_quorum_index) = latest_indices.get(threshold - 1) {
+
+        // Find the highest index that meets the threshold weight
+        let mut cumulative_weight = 0;
+        let mut highest_quorum_index = None;
+        for (i, &index) in latest_indices.iter().enumerate() {
+            cumulative_weight += weighted_validators[i].weight; // Add the weight of this validator
+            if cumulative_weight >= threshold_weight {
+                highest_quorum_index = Some(index);
+                break;
+            }
+        }
+
+        if let Some(highest_quorum_index) = highest_quorum_index {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.
@@ -124,8 +150,9 @@ impl MultisigCheckpointSyncer {
                 return Ok(None);
             }
             for index in (minimum_index..=start_index).rev() {
-                if let Ok(Some(checkpoint)) =
-                    self.fetch_checkpoint(validators, threshold, index).await
+                if let Ok(Some(checkpoint)) = self
+                    .fetch_checkpoint(weighted_validators, threshold_weight, index)
+                    .await
                 {
                     return Ok(Some(checkpoint));
                 }
@@ -141,8 +168,8 @@ impl MultisigCheckpointSyncer {
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint(
         &self,
-        validators: &[H256],
-        threshold: usize,
+        weighted_validators: &[ValidatorWithWeight],
+        threshold_weight: Weight,
         index: u32,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
@@ -151,8 +178,15 @@ impl MultisigCheckpointSyncer {
         let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
             HashMap::new();
 
-        for validator in validators.iter() {
-            let addr = H160::from(*validator);
+        let sorted_validators: Vec<(usize, &ValidatorWithWeight)> = weighted_validators
+            .iter()
+            .enumerate()
+            .sorted_by_key(|(_, vw)| std::cmp::Reverse(vw.weight))
+            .collect();
+
+        let mut cumulative_weight: u64 = 0;
+        for (_, vw) in sorted_validators {
+            let addr = H160::from(vw.validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
@@ -162,7 +196,7 @@ impl MultisigCheckpointSyncer {
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
                         debug!(
-                            validator = format!("{:#x}", validator),
+                            validator = format!("{:#x}", vw.validator),
                             index = index,
                             checkpoint_index = signed_checkpoint.value.index,
                             "Checkpoint index mismatch"
@@ -173,9 +207,9 @@ impl MultisigCheckpointSyncer {
                     // Ensure that the signature is actually by the validator
                     let signer = signed_checkpoint.recover()?;
 
-                    if H256::from(signer) != *validator {
+                    if H256::from(signer) != vw.validator {
                         debug!(
-                            validator = format!("{:#x}", validator),
+                            validator = format!("{:#x}", vw.validator),
                             index = index,
                             "Checkpoint signature mismatch"
                         );
@@ -186,32 +220,40 @@ impl MultisigCheckpointSyncer {
                     let root = signed_checkpoint.value.root;
                     let signed_checkpoints = signed_checkpoints_per_root.entry(root).or_default();
                     signed_checkpoints.push(signed_checkpoint);
+                    cumulative_weight += vw.weight;
 
                     // Count the number of signatures for this signed checkpoint
                     let signature_count = signed_checkpoints.len();
                     debug!(
-                        validator = format!("{:#x}", validator),
+                        validator = format!("{:#x}", vw.validator),
                         index = index,
                         root = format!("{:#x}", root),
                         signature_count = signature_count,
                         "Found signed checkpoint"
                     );
 
-                    // If we've hit a quorum, create a MultisigSignedCheckpoint
-                    if signature_count >= threshold {
+                    // If we've hit a quorum in weight, create a MultisigSignedCheckpoint
+                    if cumulative_weight >= threshold_weight {
+                        // to conform to the onchain ordering of the set by address
+                        signed_checkpoints.sort_by_key(|sc| {
+                            weighted_validators
+                                .iter()
+                                .position(|vw| vw.validator == H256::from(sc.recover().unwrap()))
+                                .unwrap()
+                        });
                         let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
                         debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
                         return Ok(Some(checkpoint));
                     }
                 } else {
                     debug!(
-                        validator = format!("{:#x}", validator),
+                        validator = format!("{:#x}", vw.validator),
                         index = index,
                         "Unable to find signed checkpoint"
                     );
                 }
             } else {
-                debug!(%validator, "Unable to find checkpoint syncer");
+                debug!(%vw.validator, "Unable to find checkpoint syncer");
                 continue;
             }
         }
