@@ -9,8 +9,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
-  ChainSubmissionStrategy,
-  ChainSubmissionStrategySchema,
   EvmERC20WarpRouteReader,
   TokenStandard,
   WarpCoreConfig,
@@ -30,11 +28,7 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import {
-  indentYamlOrJson,
-  readYamlOrJson,
-  writeYamlOrJson,
-} from '../utils/files.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -102,33 +96,16 @@ export const apply: CommandModuleWithWriteContext<{
       process.exit(0);
     }
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
-    let chainSubmissionStrategy;
-    if (strategyUrl) {
-      chainSubmissionStrategy = readChainSubmissionStrategy(strategyUrl);
-    }
+
     await runWarpRouteApply({
       context,
       warpDeployConfig,
       warpCoreConfig,
-      chainSubmissionStrategy,
+      strategyUrl,
     });
     process.exit(0);
   },
 };
-
-/**
- * Retrieves a chain submission strategy from the provided filepath.
- * @param submissionStrategyFilepath a filepath to the submission strategy file
- * @returns a formatted submission strategy
- */
-export function readChainSubmissionStrategy(
-  submissionStrategyFilepath: string,
-): ChainSubmissionStrategy {
-  const submissionStrategyFileContent = readYamlOrJson(
-    submissionStrategyFilepath.trim(),
-  );
-  return ChainSubmissionStrategySchema.parse(submissionStrategyFileContent);
-}
 
 export const deploy: CommandModuleWithWriteContext<{
   config: string;

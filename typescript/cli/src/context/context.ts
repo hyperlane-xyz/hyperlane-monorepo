@@ -134,7 +134,7 @@ export async function getDryRunContext(
  * and an override one (such as a local directory)
  * @returns a new MergedRegistry
  */
-export function getRegistry(
+function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
 ): IRegistry {

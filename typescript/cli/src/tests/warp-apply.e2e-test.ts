@@ -30,10 +30,11 @@ describe('WarpApply e2e tests', async function () {
 
   let chain2Addresses: ChainAddresses = {};
   before(async () => {
-    await deployOrUseExistingCore(CHAIN_NAME_1, CORE_CONFIG_PATH);
+    await deployOrUseExistingCore(CHAIN_NAME_1, CORE_CONFIG_PATH, ANVIL_KEY);
     chain2Addresses = await deployOrUseExistingCore(
       CHAIN_NAME_2,
       CORE_CONFIG_PATH,
+      ANVIL_KEY,
     );
   });
 
@@ -110,7 +111,7 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
     );
 
-    const chain2Id = await getChainId(CHAIN_NAME_2);
+    const chain2Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
     const remoteRouterKeys1 = Object.keys(
       updatedWarpDeployConfig1[CHAIN_NAME_1].remoteRouters!,
     );
@@ -123,7 +124,7 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
     );
 
-    const chain1Id = await getChainId(CHAIN_NAME_1);
+    const chain1Id = await getChainId(CHAIN_NAME_1, ANVIL_KEY);
     const remoteRouterKeys2 = Object.keys(
       updatedWarpDeployConfig2[CHAIN_NAME_2].remoteRouters!,
     );

@@ -6,7 +6,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { getRegistry } from '../../context/context.js';
+import { getContext } from '../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
@@ -89,22 +89,28 @@ export async function extendWarpConfig(
 export async function deployOrUseExistingCore(
   chain: string,
   coreInputPath: string,
+  key: string,
 ) {
-  const addresses = (await getRegistry(REGISTRY_PATH, '').getChainAddresses(
-    chain,
-  )) as ChainAddresses;
+  const { registry } = await getContext({
+    registryUri: REGISTRY_PATH,
+    registryOverrideUri: '',
+    key,
+  });
+  const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
+
   if (!addresses) {
     await hyperlaneCoreDeploy(chain, coreInputPath);
-    return getRegistry(REGISTRY_PATH, '').getChainAddresses(
-      chain,
-    ) as ChainAddresses;
+    return deployOrUseExistingCore(chain, coreInputPath, key);
   }
 
   return addresses;
 }
-export async function getChainId(chainName: string) {
-  const chainMetadata = await getRegistry(REGISTRY_PATH, '').getChainMetadata(
-    chainName,
-  );
+export async function getChainId(chainName: string, key: string) {
+  const { registry } = await getContext({
+    registryUri: REGISTRY_PATH,
+    registryOverrideUri: '',
+    key,
+  });
+  const chainMetadata = await registry.getChainMetadata(chainName);
   return String(chainMetadata?.chainId);
 }

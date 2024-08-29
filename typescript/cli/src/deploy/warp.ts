@@ -1,4 +1,3 @@
-import { TransactionReceipt } from '@ethersproject/providers';
 import { confirm } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
@@ -10,6 +9,7 @@ import {
   ChainMap,
   ChainName,
   ChainSubmissionStrategy,
+  ChainSubmissionStrategySchema,
   ContractVerifier,
   EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
@@ -75,6 +75,7 @@ import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
   isFile,
+  readYamlOrJson,
   runFileSelectionStep,
 } from '../utils/files.js';
 
@@ -91,7 +92,7 @@ interface DeployParams {
 
 interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
-  chainSubmissionStrategy?: ChainSubmissionStrategy;
+  strategyUrl?: string;
 }
 
 export async function runWarpRouteDeploy({
@@ -433,8 +434,9 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
 export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
-  const { warpDeployConfig, warpCoreConfig, context } = params;
+  const { warpDeployConfig, warpCoreConfig, context, strategyUrl } = params;
   const { registry, multiProvider, chainMetadata, skipConfirmation } = context;
+
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
   WarpCoreConfigSchema.parse(warpCoreConfig);
   const addresses = await registry.getAddresses();
@@ -466,12 +468,6 @@ export async function runWarpRouteApply(
     await promiseObjAll(
       objMap(warpDeployConfig, async (chain, config) => {
         try {
-          const submitter: TxSubmitterBuilder<ProtocolType> =
-            await getWarpApplySubmitter({
-              chain,
-              context,
-              warpApplyParams: params,
-            });
           config.ismFactoryAddresses = addresses[
             chain
           ] as ProxyFactoryFactoriesAddresses;
@@ -493,25 +489,18 @@ export async function runWarpRouteApply(
             return logGreen(
               `Warp config on ${chain} is the same as target. No updates needed.`,
             );
-
+          const submitter: TxSubmitterBuilder<ProtocolType> =
+            await getWarpApplySubmitter({
+              chain,
+              context,
+              strategyUrl,
+            });
           const transactionReceipts = await submitter.submit(...transactions);
 
           if (transactionReceipts && transactionReceipts.length > 0) {
-            if (params.chainSubmissionStrategy)
-              return logGreen(
-                `✅ Warp config update successfully submitted to safe (${params.chainSubmissionStrategy}) on ${chain}:\n\n`,
-                indentYamlOrJson(
-                  yamlStringify(transactionReceipts, null, 2),
-                  4,
-                ),
-              );
-
-            const transactionHashes = transactionReceipts.map(
-              (receipt) => (receipt as TransactionReceipt).transactionHash,
-            );
             return logGreen(
-              `✅ Warp config successfully updated on ${chain}:\n\n`,
-              indentYamlOrJson(yamlStringify(transactionHashes, null, 2), 4),
+              `✅ Warp config update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
+              indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
             );
           }
         } catch (e) {
@@ -562,7 +551,7 @@ export async function runWarpRouteApply(
       ...newExtensionContracts,
     } as HyperlaneContractsMap<HypERC20Factories>;
 
-    await enrollRemoteRouters(mergedRouters, context, params);
+    await enrollRemoteRouters(mergedRouters, context, strategyUrl);
 
     const updatedWarpCoreConfig = await getWarpCoreConfig(
       params,
@@ -573,6 +562,20 @@ export async function runWarpRouteApply(
   } else {
     throw new Error('Unenrolling warp routes is currently not supported');
   }
+}
+
+/**
+ * Retrieves a chain submission strategy from the provided filepath.
+ * @param submissionStrategyFilepath a filepath to the submission strategy file
+ * @returns a formatted submission strategy
+ */
+export function readChainSubmissionStrategy(
+  submissionStrategyFilepath: string,
+): ChainSubmissionStrategy {
+  const submissionStrategyFileContent = readYamlOrJson(
+    submissionStrategyFilepath.trim(),
+  );
+  return ChainSubmissionStrategySchema.parse(submissionStrategyFileContent);
 }
 
 /**
@@ -605,7 +608,7 @@ async function deriveMetadataFromExisting(
 async function enrollRemoteRouters(
   deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
   context: WriteCommandContext,
-  warpApplyParams: WarpApplyParams,
+  strategyUrl?: string,
 ): Promise<void> {
   logBlue(`Enrolling deployed routers with each other (if not already)...`);
   const { multiProvider } = context;
@@ -617,12 +620,6 @@ async function enrollRemoteRouters(
 
   await promiseObjAll(
     objMap(deployedContractsMap, async (chain, contracts) => {
-      const submitter: TxSubmitterBuilder<ProtocolType> =
-        await getWarpApplySubmitter({
-          chain,
-          context,
-          warpApplyParams,
-        });
       const router = getRouter(contracts); // Assume deployedContract always has 1 value
 
       // Mutate the config.remoteRouters by setting it to all other routers to update
@@ -654,24 +651,18 @@ async function enrollRemoteRouters(
         return logGreen(
           `Mutated warp config on ${chain} is the same as target. No updates needed.`,
         );
-
+      const submitter: TxSubmitterBuilder<ProtocolType> =
+        await getWarpApplySubmitter({
+          chain,
+          context,
+          strategyUrl,
+        });
       const transactionReceipts = await submitter.submit(...mutatedConfigTxs);
 
-      if (transactionReceipts && transactionReceipts.length > 0) {
-        if (warpApplyParams.chainSubmissionStrategy)
-          return logGreen(
-            `✅ Router enrollment update successfully submitted to safe (${warpApplyParams.chainSubmissionStrategy}) on ${chain}:\n\n`,
-            indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-          );
-
-        const transactionHashes = transactionReceipts!.map(
-          (receipt) => (receipt as TransactionReceipt).transactionHash,
-        );
-        logGreen(
-          `✅ Routers enrolled successfully on ${chain}:\n\n`,
-          indentYamlOrJson(yamlStringify(transactionHashes, null, 2), 4),
-        );
-      }
+      return logGreen(
+        `✅ Router enrollment update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
+        indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+      );
     }),
   );
 }
@@ -819,24 +810,21 @@ function transformIsmConfigForDisplay(ismConfig: IsmConfig): any[] {
 async function getWarpApplySubmitter({
   chain,
   context,
-  warpApplyParams,
+  strategyUrl,
 }: {
   chain: ChainName;
   context: WriteCommandContext;
-  warpApplyParams: WarpApplyParams;
+  strategyUrl?: string;
 }): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { chainSubmissionStrategy } = warpApplyParams;
   const { chainMetadata, multiProvider } = context;
 
-  // Default to JSON_RPC in the case of no --strategy
-  let submissionStrategy: SubmissionStrategy = {
-    submitter: {
-      type: TxSubmitterType.JSON_RPC,
-    },
-  };
-  if (chainSubmissionStrategy) {
-    submissionStrategy = chainSubmissionStrategy[chain];
-  }
+  const submissionStrategy: SubmissionStrategy = strategyUrl
+    ? readChainSubmissionStrategy(strategyUrl)[chain]
+    : {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+      };
 
   const protocol = chainMetadata[chain].protocol;
   return getSubmitterBuilder<typeof protocol>({
