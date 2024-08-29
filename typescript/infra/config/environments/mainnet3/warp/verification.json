@@ -89,12 +89,6 @@
       "name": "ProxyAdmin"
     },
     {
-      "address": "0x870464fE2EA3a6b3c242f30BDa1f1EFdDf580890",
-      "constructorArguments": "",
-      "isProxy": false,
-      "name": "ProxyAdmin"
-    },
-    {
       "address": "0xEd96482beA3C51a33b4c1aDa8b438e33A2367413",
       "constructorArguments": "",
       "isProxy": false,
