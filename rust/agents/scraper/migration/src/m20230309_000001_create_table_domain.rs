@@ -414,6 +414,46 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
+    RawDomain {
+        name: "injective",
+        token: "INJ",
+        domain: 6909546,
+        chain_id: 6909546,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "neutron",
+        token: "NTRN",
+        domain: 1853125230,
+        chain_id: 1853125230,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "osmosis",
+        token: "OSMO",
+        domain: 875,
+        chain_id: 875,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "cosmostest99990",
+        token: "OSMO",
+        domain: 99990,
+        chain_id: 99990,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "cosmostest99991",
+        token: "OSMO",
+        domain: 99991,
+        chain_id: 99991,
+        is_test_net: true,
+        is_deprecated: false,
+    },
 ];
 
 #[derive(DeriveMigrationName)]

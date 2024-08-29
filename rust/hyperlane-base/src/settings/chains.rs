@@ -288,7 +288,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
+                let indexer = Box::new(h_cosmos::CosmosMailboxDispatchIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
@@ -327,7 +327,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
+                let indexer = Box::new(h_cosmos::CosmosMailboxDeliveryIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
