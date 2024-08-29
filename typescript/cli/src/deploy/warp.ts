@@ -528,7 +528,7 @@ export async function runWarpRouteApply(
       extendedConfigs,
     );
 
-    const newExtensionContracts = await executeDeploy(
+    const newDeployedContracts = await executeDeploy(
       {
         // TODO: use EvmERC20WarpModule when it's ready
         context,
@@ -537,19 +537,12 @@ export async function runWarpRouteApply(
       apiKeys,
     );
 
-    const existingContractAddresses = objMap(
+    const mergedRouters = mergeAllRouters(
+      multiProvider,
       existingConfigs,
-      (chain, config) => ({
-        [config.type]: warpCoreConfigByChain[chain].addressOrDenom!,
-      }),
+      newDeployedContracts,
+      warpCoreConfigByChain,
     );
-    const mergedRouters = {
-      ...connectContractsMap(
-        attachContractsMap(existingContractAddresses, hypERC20factories),
-        multiProvider,
-      ),
-      ...newExtensionContracts,
-    } as HyperlaneContractsMap<HypERC20Factories>;
 
     await enrollRemoteRouters(mergedRouters, context, strategyUrl);
 
@@ -597,6 +590,32 @@ async function deriveMetadataFromExisting(
       ...extendedConfig,
     };
   });
+}
+
+/**
+ * Merges existing router configs with newly deployed router contracts.
+ */
+function mergeAllRouters(
+  multiProvider: MultiProvider,
+  existingConfigs: WarpRouteDeployConfig,
+  deployedContractsMap: HyperlaneContractsMap<
+    HypERC20Factories | HypERC721Factories
+  >,
+  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
+) {
+  const existingContractAddresses = objMap(
+    existingConfigs,
+    (chain, config) => ({
+      [config.type]: warpCoreConfigByChain[chain].addressOrDenom!,
+    }),
+  );
+  return {
+    ...connectContractsMap(
+      attachContractsMap(existingContractAddresses, hypERC20factories),
+      multiProvider,
+    ),
+    ...deployedContractsMap,
+  } as HyperlaneContractsMap<HypERC20Factories>;
 }
 
 /**
