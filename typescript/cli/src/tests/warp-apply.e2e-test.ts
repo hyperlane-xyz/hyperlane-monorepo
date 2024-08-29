@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
-import { beforeEach } from 'mocha';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
