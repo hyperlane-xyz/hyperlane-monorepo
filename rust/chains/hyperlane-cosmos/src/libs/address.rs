@@ -6,8 +6,6 @@ use cosmrs::{
 };
 use derive_new::new;
 use hyperlane_core::{ChainCommunicationError, ChainResult, Error::Overflow, H256};
-use tendermint::account::Id as TendermintAccountId;
-use tendermint::public_key::PublicKey as TendermintPublicKey;
 
 use crate::libs::account::CosmosAccountId;
 use crate::HyperlaneCosmosError;
@@ -25,16 +23,8 @@ impl CosmosAddress {
     /// Returns a Bitcoin style address: RIPEMD160(SHA256(pubkey))
     /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
     pub fn from_pubkey(pubkey: PublicKey, prefix: &str) -> ChainResult<Self> {
-        // Get the inner type
-        let tendermint_pubkey = TendermintPublicKey::from(pubkey);
-        // Get the RIPEMD160(SHA256(pubkey))
-        let tendermint_id = TendermintAccountId::from(tendermint_pubkey);
-        // Bech32 encoding
-        let account_id = AccountId::new(prefix, tendermint_id.as_bytes())
-            .map_err(Into::<HyperlaneCosmosError>::into)?;
-        // Hex digest
-        let digest = H256::try_from(&CosmosAccountId::new(&account_id))?;
-        Ok(CosmosAddress::new(account_id, digest))
+        let account_id = CosmosAccountId::account_id_from_pubkey(pubkey, prefix)?;
+        Self::from_account_id(account_id)
     }
 
     /// Creates a wrapper around a cosmrs AccountId from a private key byte array
@@ -43,6 +33,14 @@ impl CosmosAddress {
             .map_err(Into::<HyperlaneCosmosError>::into)?
             .public_key();
         Self::from_pubkey(pubkey, prefix)
+    }
+
+    /// Returns a Bitcoin style address calculated from Bech32 enconding
+    /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
+    pub fn from_account_id(account_id: AccountId) -> ChainResult<Self> {
+        // Hex digest
+        let digest = H256::try_from(&CosmosAccountId::new(&account_id))?;
+        Ok(CosmosAddress::new(account_id, digest))
     }
 
     /// Creates a wrapper around a cosmrs AccountId from a H256 digest
