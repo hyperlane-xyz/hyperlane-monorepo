@@ -27,15 +27,11 @@ use hyperlane_base::{
 use hyperlane_core::{
     accumulator::merkle::Proof, AggregationIsm, CcipReadIsm, Checkpoint, HyperlaneDomain,
     HyperlaneMessage, InterchainSecurityModule, Mailbox, ModuleType, MultisigIsm, RoutingIsm,
-    ValidatorAnnounce, WeightedMultisigIsm, H160, H256,
+    ValidatorAnnounce, H160, H256,
 };
 
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
-
-use super::multisig::{
-    WeightedMerkleRootMultisigMetadataBuilder, WeightedMessageIdMultisigMetadataBuilder,
-};
 
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataBuilderError {
@@ -257,12 +253,6 @@ impl MessageMetadataBuilder {
             ModuleType::Aggregation => Box::new(AggregationIsmMetadataBuilder::new(cloned)),
             ModuleType::Null => Box::new(NullMetadataBuilder::new()),
             ModuleType::CcipRead => Box::new(CcipReadIsmMetadataBuilder::new(cloned)),
-            ModuleType::WeightedMerkleRootMultisig => {
-                Box::new(WeightedMerkleRootMultisigMetadataBuilder::new(cloned))
-            }
-            ModuleType::WeightedMessageIdMultisig => {
-                Box::new(WeightedMessageIdMultisigMetadataBuilder::new(cloned))
-            }
             _ => return Err(MetadataBuilderError::UnsupportedModuleType(module_type).into()),
         };
         let meta = metadata_builder
@@ -369,15 +359,6 @@ impl BaseMetadataBuilder {
     pub async fn build_ccip_read_ism(&self, address: H256) -> Result<Box<dyn CcipReadIsm>> {
         self.destination_chain_setup
             .build_ccip_read_ism(address, &self.metrics)
-            .await
-    }
-
-    pub async fn build_weighted_multisig_ism(
-        &self,
-        address: H256,
-    ) -> Result<Box<dyn WeightedMultisigIsm>> {
-        self.destination_chain_setup
-            .build_weighted_multisig_ism(address, &self.metrics)
             .await
     }
 
