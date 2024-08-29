@@ -88,8 +88,12 @@ abstract contract MailboxClient is OwnableUpgradeable {
         _transferOwnership(_owner);
     }
 
+    function _isCurrentId(bytes32 id) internal view returns (bool) {
+        return mailbox.getCurrentMessageId() == id;
+    }
+
     function _isLatestDispatched(bytes32 id) internal view returns (bool) {
-        return mailbox.latestDispatchedId() == id;
+        return _isCurrentId(id);
     }
 
     function _isDelivered(bytes32 id) internal view returns (bool) {

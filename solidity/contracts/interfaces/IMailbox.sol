@@ -56,6 +56,8 @@ interface IMailbox {
 
     function latestDispatchedId() external view returns (bytes32);
 
+    function getCurrentMessageId() external view returns (bytes32);
+
     function dispatch(
         uint32 destinationDomain,
         bytes32 recipientAddress,

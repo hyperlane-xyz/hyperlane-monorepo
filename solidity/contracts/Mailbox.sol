@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.8.0;
+pragma solidity >=0.8.24;
 
 // ============ Internal Imports ============
 import {Versioned} from "./upgrade/Versioned.sol";
@@ -32,8 +32,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
     // A monotonically increasing nonce for outbound unique message IDs.
     uint32 public nonce;
 
-    // The latest dispatched message ID used for auth in post-dispatch hooks.
-    bytes32 public latestDispatchedId;
+    // preserve storage layout
+    bytes32 private __GAP;
 
     // The default ISM, used if the recipient fails to specify one.
     IInterchainSecurityModule public defaultIsm;
@@ -214,6 +214,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
         /// EFFECTS ///
 
+        setCurrentMessageId(_id);
         deliveries[_id] = Delivery({
             processor: msg.sender,
             blockNumber: uint48(block.number)
@@ -289,7 +290,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
 
         /// EFFECTS ///
 
-        latestDispatchedId = id;
+        setCurrentMessageId(id);
         nonce += 1;
         emit Dispatch(msg.sender, destinationDomain, recipientAddress, message);
         emit DispatchId(id);
@@ -304,6 +305,28 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         hook.postDispatch{value: msg.value - requiredValue}(metadata, message);
 
         return id;
+    }
+
+    function getCurrentMessageId()
+        public
+        view
+        override
+        returns (bytes32 currentMessageId)
+    {
+        assembly {
+            currentMessageId := tload(0)
+        }
+    }
+
+    // for backwards compatibility
+    function latestDispatchedId() external view returns (bytes32) {
+        return getCurrentMessageId();
+    }
+
+    function setCurrentMessageId(bytes32 currentMessageId) internal {
+        assembly {
+            tstore(0, currentMessageId)
+        }
     }
 
     /**
