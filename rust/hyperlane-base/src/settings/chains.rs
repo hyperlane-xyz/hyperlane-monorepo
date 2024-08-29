@@ -11,7 +11,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
-    ValidatorAnnounce, WeightedMultisigIsm, H256,
+    ValidatorAnnounce, H256,
 };
 use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
@@ -659,27 +659,6 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(_) => {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
-        }
-        .context(ctx)
-    }
-
-    /// Try to convert the chain setting into a Multisig Ism contract
-    pub async fn build_weighted_multisig_ism(
-        &self,
-        address: H256,
-        metrics: &CoreMetrics,
-    ) -> Result<Box<dyn WeightedMultisigIsm>> {
-        let ctx = "Building weighed multisig ISM";
-        let locator = self.locator(address);
-
-        match &self.connection {
-            ChainConnectionConf::Ethereum(conf) => {
-                self.build_ethereum(conf, &locator, metrics, h_eth::WeighedMultisigIsmBuilder {})
-                    .await
-            }
-            ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
-            ChainConnectionConf::Cosmos(_) => todo!(),
         }
         .context(ctx)
     }
