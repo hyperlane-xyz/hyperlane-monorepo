@@ -146,6 +146,73 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 
+[profile.release.package.access-control]
+overflow-checks = true
+
+[profile.release.package.account-utils]
+overflow-checks = true
+
+[profile.release.package.ecdsa-signature]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-connection-client]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token-lib]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-interchain-security-module-interface]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-message-recipient-interface]
+overflow-checks = true
+
+[profile.release.package.multisig-ism]
+overflow-checks = true
+
+[profile.release.package.serializable-account-meta]
+overflow-checks = true
+
+[profile.release.package.hyperlane-test-transaction-utils]
+overflow-checks = true
+
+[profile.release.package.hyperlane-test-utils]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-mailbox]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-igp]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-igp-test]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token-collateral]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token-native]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-multisig-ism-message-id]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-test-ism]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-mailbox-test]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-test-send-receiver]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-validator-announce]
+overflow-checks = true
+
+
 [workspace.dependencies.ethers]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 features = []
