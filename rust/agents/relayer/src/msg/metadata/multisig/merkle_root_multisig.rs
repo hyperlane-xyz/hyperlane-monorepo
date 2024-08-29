@@ -95,8 +95,10 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             .await
             .context(CTX)?;
 
-        let unit_validators: Vec<ValidatorWithWeight> =
-            validators.into_iter().map(|v| (v, 1)).collect();
+        let unit_validators: Vec<ValidatorWithWeight> = validators
+            .into_iter()
+            .map(|v| ValidatorWithWeight::new(v, 1))
+            .collect();
 
         Ok((unit_validators, threshold as Weight))
     }

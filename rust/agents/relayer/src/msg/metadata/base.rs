@@ -372,7 +372,6 @@ impl BaseMetadataBuilder {
             .await
     }
 
-    // TODO
     pub async fn build_weighted_multisig_ism(
         &self,
         address: H256,

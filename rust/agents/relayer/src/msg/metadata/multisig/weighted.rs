@@ -36,6 +36,11 @@ impl MultisigIsmMetadataBuilder for WeightedMerkleRootMultisigMetadataBuilder {
             .await
             .context(CTX)?;
 
+        let validators: Vec<ValidatorWithWeight> = validators
+            .into_iter()
+            .map(|(validator, weight)| ValidatorWithWeight::new(validator, weight))
+            .collect();
+
         Ok((validators, threshold))
     }
 
@@ -77,6 +82,11 @@ impl MultisigIsmMetadataBuilder for WeightedMessageIdMultisigMetadataBuilder {
             .validators_and_threshold_weight(message)
             .await
             .context(CTX)?;
+
+        let validators: Vec<ValidatorWithWeight> = validators
+            .into_iter()
+            .map(|(validator, weight)| ValidatorWithWeight::new(validator, weight))
+            .collect();
 
         Ok((validators, threshold))
     }

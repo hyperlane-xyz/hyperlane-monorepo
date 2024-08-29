@@ -115,10 +115,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             return Ok(None);
         }
 
-        let validators: Vec<H256> = weighted_validators
-            .iter()
-            .map(|(address, _)| *address)
-            .collect();
+        let validators: Vec<H256> = weighted_validators.iter().map(|vw| vw.validator).collect();
 
         let checkpoint_syncer = self
             .as_ref()

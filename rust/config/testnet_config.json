@@ -114,10 +114,10 @@
       "proxyAdmin": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8",
       "rpcUrls": [
         {
-          "http": "https://arbitrum-sepolia.blockpi.network/v1/rpc/public"
+          "http": "https://public.stackup.sh/api/v1/node/arbitrum-sepolia"
         },
         {
-          "http": "https://sepolia-rollup.arbitrum.io/rpc"
+          "http": "https://arbitrum-sepolia.blockpi.network/v1/rpc/public"
         }
       ],
       "staticAggregationHookFactory": "0x0526E47C49742C15F8817ef8cf0d8FFc72139D4F",
@@ -693,7 +693,7 @@
       "name": "polygonamoy",
       "nativeToken": {
         "decimals": 18,
-        "name": "Matic",
+        "name": "MATIC",
         "symbol": "MATIC"
       },
       "pausableHook": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
@@ -903,7 +903,7 @@
       "name": "solanatestnet",
       "nativeToken": {
         "decimals": 9,
-        "name": "Solana",
+        "name": "Sol",
         "symbol": "SOL"
       },
       "protocol": "sealevel",

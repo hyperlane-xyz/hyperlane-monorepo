@@ -50,10 +50,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         // Update the validator latest checkpoint metrics.
         let _ = checkpoint_syncer
             .get_validator_latest_checkpoints_and_update_metrics(
-                &validators
-                    .iter()
-                    .map(|(address, _)| *address)
-                    .collect::<Vec<_>>(),
+                &validators.iter().map(|vw| vw.validator).collect::<Vec<_>>(),
                 self.origin_domain(),
                 self.destination_domain(),
             )
@@ -106,8 +103,10 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             .await
             .context(CTX)?;
 
-        let unit_validators: Vec<ValidatorWithWeight> =
-            validators.into_iter().map(|v| (v, 1)).collect();
+        let unit_validators: Vec<ValidatorWithWeight> = validators
+            .into_iter()
+            .map(|v| ValidatorWithWeight::new(v, 1))
+            .collect();
 
         Ok((unit_validators, threshold as Weight))
     }

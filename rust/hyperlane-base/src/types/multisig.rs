@@ -13,10 +13,16 @@ use hyperlane_core::{
 use crate::{CheckpointSyncer, CoreMetrics};
 /// Weights are scaled by 1e10 as 100%
 pub type Weight = u64;
-/// Type alias for representing both weighted and unweighted types
+/// Struct for representing both weighted and unweighted types
 /// for unweighted, we have (validator, 1), threshold_weight = threshold
 /// for weighted, we have (validator, weight)
-pub type ValidatorWithWeight = (H256, Weight);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, new)]
+pub struct ValidatorWithWeight {
+    /// The validator's address
+    pub validator: H256,
+    /// The validator's weight
+    pub weight: Weight,
+}
 
 /// For a particular validator set, fetches signed checkpoints from multiple
 /// validators to create MultisigSignedCheckpoints.
@@ -104,10 +110,7 @@ impl MultisigCheckpointSyncer {
         origin: &HyperlaneDomain,
         destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
-        let validators: Vec<H256> = weighted_validators
-            .iter()
-            .map(|(address, _)| *address)
-            .collect();
+        let validators: Vec<H256> = weighted_validators.iter().map(|vw| vw.validator).collect();
         let mut latest_indices = self
             .get_validator_latest_checkpoints_and_update_metrics(&validators, origin, destination)
             .await;
@@ -130,7 +133,7 @@ impl MultisigCheckpointSyncer {
         let mut cumulative_weight = 0;
         let mut highest_quorum_index = None;
         for (i, &index) in latest_indices.iter().enumerate() {
-            cumulative_weight += weighted_validators[i].1; // Add the weight of this validator
+            cumulative_weight += weighted_validators[i].weight; // Add the weight of this validator
             if cumulative_weight >= threshold_weight {
                 highest_quorum_index = Some(index);
                 break;
@@ -178,12 +181,12 @@ impl MultisigCheckpointSyncer {
         let sorted_validators: Vec<(usize, &ValidatorWithWeight)> = weighted_validators
             .iter()
             .enumerate()
-            .sorted_by_key(|(_, (_, weight))| std::cmp::Reverse(*weight))
+            .sorted_by_key(|(_, vw)| std::cmp::Reverse(vw.weight))
             .collect();
 
         let mut cumulative_weight: u64 = 0;
-        for (_, (validator, weight)) in sorted_validators {
-            let addr = H160::from(*validator);
+        for (_, vw) in sorted_validators {
+            let addr = H160::from(vw.validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's
                 // checkpoint syncer, which can happen if the validator has not
@@ -193,7 +196,7 @@ impl MultisigCheckpointSyncer {
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
                         debug!(
-                            validator = format!("{:#x}", validator),
+                            validator = format!("{:#x}", vw.validator),
                             index = index,
                             checkpoint_index = signed_checkpoint.value.index,
                             "Checkpoint index mismatch"
@@ -204,9 +207,9 @@ impl MultisigCheckpointSyncer {
                     // Ensure that the signature is actually by the validator
                     let signer = signed_checkpoint.recover()?;
 
-                    if H256::from(signer) != *validator {
+                    if H256::from(signer) != vw.validator {
                         debug!(
-                            validator = format!("{:#x}", validator),
+                            validator = format!("{:#x}", vw.validator),
                             index = index,
                             "Checkpoint signature mismatch"
                         );
@@ -217,12 +220,12 @@ impl MultisigCheckpointSyncer {
                     let root = signed_checkpoint.value.root;
                     let signed_checkpoints = signed_checkpoints_per_root.entry(root).or_default();
                     signed_checkpoints.push(signed_checkpoint);
-                    cumulative_weight += *weight;
+                    cumulative_weight += vw.weight;
 
                     // Count the number of signatures for this signed checkpoint
                     let signature_count = signed_checkpoints.len();
                     debug!(
-                        validator = format!("{:#x}", validator),
+                        validator = format!("{:#x}", vw.validator),
                         index = index,
                         root = format!("{:#x}", root),
                         signature_count = signature_count,
@@ -235,7 +238,7 @@ impl MultisigCheckpointSyncer {
                         signed_checkpoints.sort_by_key(|sc| {
                             weighted_validators
                                 .iter()
-                                .position(|(v, _)| v == &H256::from(sc.recover().unwrap()))
+                                .position(|vw| vw.validator == H256::from(sc.recover().unwrap()))
                                 .unwrap()
                         });
                         let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
@@ -244,13 +247,13 @@ impl MultisigCheckpointSyncer {
                     }
                 } else {
                     debug!(
-                        validator = format!("{:#x}", validator),
+                        validator = format!("{:#x}", vw.validator),
                         index = index,
                         "Unable to find signed checkpoint"
                     );
                 }
             } else {
-                debug!(%validator, "Unable to find checkpoint syncer");
+                debug!(%vw.validator, "Unable to find checkpoint syncer");
                 continue;
             }
         }
