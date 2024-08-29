@@ -16,9 +16,9 @@ echo "Starting anvil1 and anvil2 chain"
 anvil --chain-id 31337 -p 8545 --state /tmp/anvil1/state --gas-price 1 > /dev/null &
 anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/null &
 
-echo "Running e2e tests"
-yarn mocha "./src/**/*.e2e-test.ts"
+echo "Running all tests"
+yarn mocha --config .mocharc.json
 
 cleanup
 
-echo "Done e2e tests"
+echo "Done all tests"
