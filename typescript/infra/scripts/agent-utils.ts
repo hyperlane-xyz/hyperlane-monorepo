@@ -114,6 +114,13 @@ export function withContext<T>(args: Argv<T>) {
     .demandOption('context');
 }
 
+export function withPushMetrics<T>(args: Argv<T>) {
+  return args
+    .describe('pushMetrics', 'Push metrics to prometheus')
+    .boolean('pushMetrics')
+    .default('pushMetrics', false);
+}
+
 export function withAsDeployer<T>(args: Argv<T>) {
   return args
     .describe('asDeployer', 'Set signer to the deployer key')
