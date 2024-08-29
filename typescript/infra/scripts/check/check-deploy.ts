@@ -1,7 +1,63 @@
-import { check } from './check-utils.js';
+import {
+  getCheckDeployArgs,
+  getGovernor,
+  logViolations,
+} from './check-utils.js';
 
 async function main() {
-  await check();
+  const {
+    module,
+    context,
+    environment,
+    asDeployer,
+    chain,
+    fork,
+    govern,
+    warpRouteId,
+  } = await getCheckDeployArgs().argv;
+
+  const governor = await getGovernor(
+    module,
+    context,
+    environment,
+    asDeployer,
+    warpRouteId,
+    chain,
+    fork,
+    govern,
+  );
+
+  if (fork) {
+    await governor.checker.checkChain(fork);
+    if (govern) {
+      await governor.govern(false, fork);
+    }
+  } else if (chain) {
+    await governor.checker.checkChain(chain);
+    if (govern) {
+      await governor.govern(true, chain);
+    }
+  } else {
+    await governor.checker.check();
+    if (govern) {
+      await governor.govern();
+    }
+  }
+
+  if (!govern) {
+    const violations = governor.checker.violations;
+    if (violations.length > 0) {
+      logViolations(violations);
+
+      if (!fork) {
+        throw new Error(
+          `Checking ${module} deploy yielded ${violations.length} violations`,
+        );
+      }
+    } else {
+      console.info(`${module} checker found no violations`);
+    }
+  }
 }
 
 main()
