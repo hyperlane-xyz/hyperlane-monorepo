@@ -33,6 +33,10 @@ use hyperlane_core::{
 };
 use tracing::{instrument, warn};
 
+pub use delivery_indexer::CosmosMailboxDeliveryIndexer;
+
+mod delivery_indexer;
+
 #[derive(Clone)]
 /// A reference to a Mailbox contract on some Cosmos chain
 pub struct CosmosMailbox {
@@ -376,31 +380,6 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxIndexer {
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.indexer.get_finalized_block_number().await
-    }
-}
-
-#[async_trait]
-impl Indexer<H256> for CosmosMailboxIndexer {
-    async fn fetch_logs_in_range(
-        &self,
-        range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        // TODO: implement when implementing Cosmos scraping
-        todo!()
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
-    }
-}
-
-#[async_trait]
-impl SequenceAwareIndexer<H256> for CosmosMailboxIndexer {
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<H256>::get_finalized_block_number(&self).await?;
-
-        // No sequence for message deliveries.
-        Ok((None, tip))
     }
 }
 

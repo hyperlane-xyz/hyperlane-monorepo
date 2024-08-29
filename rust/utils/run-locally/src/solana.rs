@@ -16,7 +16,7 @@ use crate::AGENT_BIN_PATH;
 /// The Solana CLI tool version to download and use.
 const SOLANA_CLI_VERSION: &str = "1.14.20";
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
-    "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2023-07-27-01/spl.tar.gz";
+    "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz";
 
 // Solana program tuples of:
 // 0: Solana address or keypair for the bpf program

@@ -29,6 +29,14 @@ name = "init-db"
 path = "bin/init_db.rs"
 
 [[bin]]
+name = "down"
+path = "bin/down.rs"
+
+[[bin]]
+name = "fresh"
+path = "bin/fresh.rs"
+
+[[bin]]
 name = "recreate-db"
 path = "bin/recreate_db.rs"
 

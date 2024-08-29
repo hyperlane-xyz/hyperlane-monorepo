@@ -84,6 +84,7 @@ export class HyperlaneRouterChecker<
       config.interchainSecurityModule ?? ethers.constants.AddressZero,
       this.multiProvider,
       this.ismFactory?.chainMap[chain] ?? ({} as any),
+      mailboxAddr,
     );
 
     if (!matches) {

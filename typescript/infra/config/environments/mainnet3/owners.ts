@@ -53,6 +53,7 @@ export const safes: ChainMap<Address> = {
   zoramainnet: '0xF87018025575552889062De4b05bBC3DAe35Cd96',
   fusemainnet: '0x29a526227CB864C90Cf078d03872da913B473139',
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
+  zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
 };
 
 export const icaOwnerChain = 'ethereum';

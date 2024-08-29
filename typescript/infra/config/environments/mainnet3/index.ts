@@ -1,3 +1,5 @@
+import { ChainName } from '@hyperlane-xyz/sdk';
+
 import {
   getKeysForRole,
   getMultiProtocolProvider,
@@ -28,9 +30,11 @@ export const environment: EnvironmentConfig = {
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
     useSecrets?: boolean,
+    chains?: ChainName[],
   ) =>
     getMultiProviderForRole(
       environmentName,
+      chains && chains.length > 0 ? chains : supportedChainNames,
       await getRegistry(useSecrets),
       context,
       role,

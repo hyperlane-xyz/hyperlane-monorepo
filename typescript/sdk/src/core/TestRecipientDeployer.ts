@@ -31,10 +31,12 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(multiProvider, testRecipientFactories, {
       logger: rootLogger.child({ module: 'TestRecipientDeployer' }),
       contractVerifier,
+      concurrentDeploy,
     });
   }
 

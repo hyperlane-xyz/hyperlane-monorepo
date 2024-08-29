@@ -170,7 +170,7 @@ impl PendingOperation for PendingMessage {
         self.app_context.clone()
     }
 
-    #[instrument(skip(self), ret, fields(id=?self.id()), level = "debug")]
+    #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");

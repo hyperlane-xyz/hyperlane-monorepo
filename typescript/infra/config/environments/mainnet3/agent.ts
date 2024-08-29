@@ -3,7 +3,6 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -33,7 +32,8 @@ import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 import merklyEthAddresses from './warp/merkly-eth-addresses.json';
-import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
+import renzoEzEthAddressesV1 from './warp/renzo-ezETH-addresses-v1.json';
+import renzoEzEthAddressesV3 from './warp/renzo-ezETH-addresses-v3.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
@@ -56,18 +56,24 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     ancient8: true,
     arbitrum: true,
+    astar: true,
+    astarzkevm: true,
     avalanche: true,
     base: true,
+    bitlayer: true,
     blast: true,
     bob: true,
     bsc: true,
     celo: true,
     cheesechain: true,
+    coredao: true,
     cyber: true,
     degenchain: true,
-    eclipse: true,
+    dogechain: true,
+    eclipse: false,
     endurance: true,
     ethereum: true,
+    flare: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -83,6 +89,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     metis: true,
     mint: true,
     mode: true,
+    molten: true,
     moonbeam: true,
     neutron: true,
     optimism: true,
@@ -95,7 +102,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sanko: true,
     scroll: true,
     sei: true,
-    solana: true,
+    shibarium: true,
+    solana: false,
     taiko: true,
     tangle: true,
     viction: true,
@@ -109,18 +117,24 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     ancient8: true,
     arbitrum: true,
+    astar: true,
+    astarzkevm: true,
     avalanche: true,
     base: true,
+    bitlayer: true,
     blast: true,
     bob: true,
     bsc: true,
     celo: true,
     cheesechain: true,
+    coredao: true,
     cyber: true,
     degenchain: true,
-    eclipse: true,
+    dogechain: true,
+    eclipse: false,
     endurance: true,
     ethereum: true,
+    flare: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -136,6 +150,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     metis: true,
     mint: true,
     mode: true,
+    molten: true,
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
@@ -149,7 +164,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sanko: true,
     scroll: true,
     sei: true,
-    solana: true,
+    shibarium: true,
+    solana: false,
     taiko: true,
     tangle: true,
     viction: true,
@@ -163,19 +179,25 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     ancient8: true,
     arbitrum: true,
+    astar: true,
+    astarzkevm: true,
     avalanche: true,
     base: true,
+    bitlayer: true,
     blast: true,
     bob: true,
     bsc: true,
     celo: true,
     cheesechain: true,
+    coredao: true,
     cyber: true,
     degenchain: true,
+    dogechain: true,
     // Cannot scrape non-EVM chains
     eclipse: false,
     endurance: true,
     ethereum: true,
+    flare: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -192,6 +214,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     metis: true,
     mint: true,
     mode: true,
+    molten: true,
     moonbeam: true,
     // Cannot scrape non-EVM chains
     neutron: false,
@@ -208,6 +231,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
     // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
+    shibarium: true,
     // Cannot scrape non-EVM chains
     solana: false,
     taiko: true,
@@ -295,20 +319,12 @@ const metricAppContexts = [
   },
   {
     name: 'renzo_ezeth',
-    matchingList: routerMatchingList(renzoEzEthAddresses),
+    matchingList: matchingList(renzoEzEthAddressesV3),
   },
   {
+    // preserving old addresses in case any transactions are still in flight and need to be processed
     name: 'renzo_ezeth_old',
-    // There's an old message to Base that's stuck around, we
-    // just care about this one for now.
-    matchingList: [
-      {
-        recipientAddress: addressToBytes32(
-          '0x584BA77ec804f8B6A559D196661C0242C6844F49',
-        ),
-        destinationDomain: getDomainId('base'),
-      },
-    ],
+    matchingList: matchingList(renzoEzEthAddressesV1),
   },
   // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
   // {
@@ -356,7 +372,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '78b596e-20240813-123401',
+      tag: '72d498f-20240828-092241',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -365,7 +381,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '78b596e-20240813-123401',
+      tag: '72d498f-20240828-092241',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -375,7 +391,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '78b596e-20240813-123401',
+      tag: '72d498f-20240828-092241',
     },
     resources: scraperResources,
   },

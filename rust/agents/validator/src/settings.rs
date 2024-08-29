@@ -188,6 +188,40 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 folder,
             })
         }
+        Some("gcs") => {
+            let bucket = syncer
+                .chain(&mut err)
+                .get_key("bucket")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let folder = syncer
+                .chain(&mut err)
+                .get_opt_key("folder")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let service_account_key = syncer
+                .chain(&mut err)
+                .get_opt_key("service_account_key")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+            let user_secrets = syncer
+                .chain(&mut err)
+                .get_opt_key("user_secrets")
+                .parse_string()
+                .end()
+                .map(str::to_owned);
+
+            cfg_unwrap_all!(&syncer.cwp, err: [bucket]);
+            err.into_result(CheckpointSyncerConf::Gcs {
+                bucket,
+                folder,
+                service_account_key,
+                user_secrets,
+            })
+        }
         Some(_) => {
             Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")
         }
