@@ -436,6 +436,11 @@ jobs:
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
+      
+      - name: Check environment variables
+        run: |
+          echo "MAINNET3_ARBITRUM_RPC_URLS: ${MAINNET3_ARBITRUM_RPC_URLS:+set}"
+          echo "MAINNET3_OPTIMISM_RPC_URLS: ${MAINNET3_OPTIMISM_RPC_URLS:+set}"
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
         run: cd typescript/infra && LOG_FORMAT=pretty LOG_LEVEL=debug ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
