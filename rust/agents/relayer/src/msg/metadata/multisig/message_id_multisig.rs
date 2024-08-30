@@ -108,6 +108,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             .map(|v| ValidatorWithWeight::new(v, 1))
             .collect();
 
-        Ok((unit_validators, threshold as Weight))
+        Ok((unit_validators, threshold.into()))
     }
 }

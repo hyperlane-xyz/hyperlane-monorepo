@@ -225,6 +225,7 @@ impl MultisigCheckpointSyncer {
                         index = index,
                         root = format!("{:#x}", root),
                         signature_count = signature_count,
+                        cumulative_weight = cumulative_weight,
                         "Found signed checkpoint"
                     );
 

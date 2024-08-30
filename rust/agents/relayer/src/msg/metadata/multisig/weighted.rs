@@ -90,6 +90,7 @@ impl MultisigIsmMetadataBuilder for WeightedMessageIdMultisigMetadataBuilder {
 
         Ok((validators, threshold))
     }
+
     fn token_layout(&self) -> Vec<MetadataToken> {
         MessageIdMultisigMetadataBuilder::new(self.0.clone()).token_layout()
     }
