@@ -9,6 +9,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, Error::Overflow, H256
 use tendermint::account::Id as TendermintAccountId;
 use tendermint::public_key::PublicKey as TendermintPublicKey;
 
+use crate::libs::account::CosmosAccountId;
 use crate::HyperlaneCosmosError;
 
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
@@ -32,7 +33,7 @@ impl CosmosAddress {
         let account_id = AccountId::new(prefix, tendermint_id.as_bytes())
             .map_err(Into::<HyperlaneCosmosError>::into)?;
         // Hex digest
-        let digest = Self::bech32_decode(account_id.clone())?;
+        let digest = H256::try_from(&CosmosAccountId::new(&account_id))?;
         Ok(CosmosAddress::new(account_id, digest))
     }
 
@@ -69,14 +70,6 @@ impl CosmosAddress {
         Ok(CosmosAddress::new(account_id, digest))
     }
 
-    /// Builds a H256 digest from a cosmos AccountId (Bech32 encoding)
-    fn bech32_decode(account_id: AccountId) -> ChainResult<H256> {
-        // Temporarily set the digest to a default value as a placeholder.
-        // Can't implement H256::try_from for AccountId to avoid this.
-        let cosmos_address = CosmosAddress::new(account_id, Default::default());
-        H256::try_from(&cosmos_address)
-    }
-
     /// String representation of a cosmos AccountId
     pub fn address(&self) -> String {
         self.account_id.to_string()
@@ -92,17 +85,7 @@ impl TryFrom<&CosmosAddress> for H256 {
     type Error = ChainCommunicationError;
 
     fn try_from(cosmos_address: &CosmosAddress) -> Result<Self, Self::Error> {
-        // `to_bytes()` decodes the Bech32 into a hex, represented as a byte vec
-        let bytes = cosmos_address.account_id.to_bytes();
-        let h256_len = H256::len_bytes();
-        let Some(start_point) = h256_len.checked_sub(bytes.len()) else {
-            // input is too large to fit in a H256
-            return Err(Overflow.into());
-        };
-        let mut empty_hash = H256::default();
-        let result = empty_hash.as_bytes_mut();
-        result[start_point..].copy_from_slice(bytes.as_slice());
-        Ok(H256::from_slice(result))
+        CosmosAccountId::new(&cosmos_address.account_id).try_into()
     }
 }
 
@@ -111,7 +94,7 @@ impl FromStr for CosmosAddress {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let account_id = AccountId::from_str(s).map_err(Into::<HyperlaneCosmosError>::into)?;
-        let digest = Self::bech32_decode(account_id.clone())?;
+        let digest = CosmosAccountId::new(&account_id).try_into()?;
         Ok(Self::new(account_id, digest))
     }
 }

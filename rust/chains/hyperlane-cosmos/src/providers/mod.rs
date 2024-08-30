@@ -1,5 +1,7 @@
 use async_trait::async_trait;
+use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
+use cosmrs::tx::{MessageExt, SignerInfo};
 use cosmrs::Tx;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
@@ -13,6 +15,7 @@ use hyperlane_core::{
 
 use crate::address::CosmosAddress;
 use crate::grpc::WasmProvider;
+use crate::libs::account::CosmosAccountId;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 use self::grpc::WasmGrpcProvider;
@@ -73,6 +76,18 @@ impl CosmosProvider {
     /// Get an rpc client
     pub fn rpc(&self) -> &HttpClient {
         &self.rpc_client
+    }
+
+    fn sender(&self, signer: &SignerInfo) -> Result<H256, ChainCommunicationError> {
+        let signer_public_key = signer
+            .public_key
+            .clone()
+            .ok_or_else(|| ChainCommunicationError::from_other_str("no public key"))?;
+        let public_key: PublicKey = signer_public_key.try_into()?;
+        let key =
+            CosmosAddress::from_pubkey(public_key, &self.connection_conf.get_bech32_prefix())?;
+        let sender = key.digest();
+        Ok(sender)
     }
 }
 
@@ -145,34 +160,51 @@ impl HyperlaneProvider for CosmosProvider {
             ChainCommunicationError::from_other_str("could not deserialize transaction")
         })?;
 
+        // TODO assuming that there is only one message in the transaction and it is execute contract message
+        let any = tx.body.messages.get(0).unwrap();
+        let proto =
+            cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract::from_any(any).map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    "could not decode contract execution message",
+                )
+            })?;
+        let msg = MsgExecuteContract::try_from(proto)
+            .map_err(|e| ChainCommunicationError::from_other_str("could not convert from proto"))?;
+        let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
+
+        // TODO choose correct signer (should it be the one paid for the transaction)
         let signer = tx
             .auth_info
             .signer_infos
             .get(0)
             .expect("there should be at least one signer");
-        let signer_public_key = signer
-            .public_key
-            .clone()
-            .ok_or_else(|| ChainCommunicationError::from_other_str("no public key"))?;
+        let sender = self.sender(signer)?;
+        let nonce = signer.sequence;
 
-        let public_key: PublicKey = signer_public_key.try_into()?;
-        let key =
-            CosmosAddress::from_pubkey(public_key, &self.connection_conf.get_bech32_prefix())?;
-        let sender = key.digest();
+        // TODO support multiple denomination for amount
+        let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
+        let fee = tx
+            .auth_info
+            .fee
+            .amount
+            .iter()
+            .fold(U256::zero(), |acc, a| acc + a.amount);
+
+        let gas_price = fee / gas_limit;
 
         let tx_info = TxnInfo {
             hash: hash.to_owned(),
             gas_limit: U256::from(response.tx_result.gas_wanted),
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
-            gas_price: None,
-            nonce: 0,
+            gas_price: Some(gas_price),
+            nonce,
             sender,
-            recipient: None,
+            recipient: Some(contract),
             receipt: Some(TxnReceiptInfo {
                 gas_used: U256::from(response.tx_result.gas_used),
                 cumulative_gas_used: U256::from(response.tx_result.gas_used),
-                effective_gas_price: None,
+                effective_gas_price: Some(gas_price),
             }),
         };
 
