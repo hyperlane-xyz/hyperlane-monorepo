@@ -28,7 +28,7 @@ const EXAMPLES_PATH = './examples';
 const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 
-const TEMP_PATH = './tmp'; // /temp gets removed at the end of all-test.sh
+const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/anvil2/warp-route-deployment-anvil2.yaml`;
 const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
 
