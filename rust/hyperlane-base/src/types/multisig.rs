@@ -87,7 +87,7 @@ impl MultisigCheckpointSyncer {
         // Filter out any validators that did not return a latest index
         latest_indices
             .into_iter()
-            .map(|(validator, index)| (H256::from(validator), index.unwrap_or(0)))
+            .filter_map(|(validator, index)| index.map(|i| (H256::from(validator), i)))
             .collect()
     }
 
