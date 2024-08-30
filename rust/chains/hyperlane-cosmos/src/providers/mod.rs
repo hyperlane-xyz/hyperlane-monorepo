@@ -116,6 +116,31 @@ impl CosmosProvider {
 
         Ok((account_id, signer_info.sequence))
     }
+
+    /// Calculates the sender and the nonce for the transaction.
+    /// We use `payer` of the fees as the sender of the transaction, and we search for `payer`
+    /// signature information to find the nonce.
+    /// If `payer` is not specified, we use the account which signed the transaction first, as
+    /// the sender.
+    fn sender_and_nonce(&self, tx: &Tx) -> Result<(H256, SequenceNumber), ChainCommunicationError> {
+        let (sender, nonce) = tx
+            .auth_info
+            .fee
+            .payer
+            .as_ref()
+            .map(|payer| self.search_payer_in_signer_infos(&tx.auth_info.signer_infos, payer))
+            .map_or_else(
+                || {
+                    let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
+                        ChainCommunicationError::from_other_str("no signer info in default signer")
+                    })?;
+                    self.convert_signer_info_into_account_id_and_nonce(signer_info)
+                },
+                |p| p,
+            )
+            .map(|(a, n)| CosmosAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
+        Ok((sender, nonce))
+    }
 }
 
 impl HyperlaneChain for CosmosProvider {
@@ -201,24 +226,7 @@ impl HyperlaneProvider for CosmosProvider {
             .map_err(|e| ChainCommunicationError::from_other_str("could not convert from proto"))?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
-        // We calculate the sender and the nonce for the transaction.
-        // We use `payer` of the fees as the sender of the transaction and search for its
-        // signature information to find the nonce.
-        // If `payer` is not specified, we use the account which signed the transaction first, as
-        // the sender.
-        let (sender, nonce) = tx
-            .auth_info
-            .fee
-            .payer
-            .as_ref()
-            .map(|payer| self.search_payer_in_signer_infos(&tx.auth_info.signer_infos, payer))
-            .unwrap_or_else(|| {
-                let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
-                    ChainCommunicationError::from_other_str("no signer info in default signer")
-                })?;
-                self.convert_signer_info_into_account_id_and_nonce(signer_info)
-            })
-            .map(|(a, n)| CosmosAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
+        let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         // TODO support multiple denomination for amount
         let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
