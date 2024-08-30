@@ -83,7 +83,7 @@ impl CosmosProvider {
         &self,
         signer_infos: &[SignerInfo],
         payer: &AccountId,
-    ) -> Result<(AccountId, SequenceNumber), ChainCommunicationError> {
+    ) -> ChainResult<(AccountId, SequenceNumber)> {
         signer_infos
             .iter()
             .map(|si| self.convert_signer_info_into_account_id_and_nonce(si))
@@ -102,9 +102,9 @@ impl CosmosProvider {
     fn convert_signer_info_into_account_id_and_nonce(
         &self,
         signer_info: &SignerInfo,
-    ) -> Result<(AccountId, SequenceNumber), ChainCommunicationError> {
+    ) -> ChainResult<(AccountId, SequenceNumber)> {
         let signer_public_key = signer_info.public_key.clone().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("no public key for default signer")
+            HyperlaneCosmosError::PublicKeyError("no public key for default signer".to_owned())
         })?;
 
         let public_key = PublicKey::try_from(signer_public_key)?;
@@ -115,6 +115,53 @@ impl CosmosProvider {
         )?;
 
         Ok((account_id, signer_info.sequence))
+    }
+
+    /// Calculates the sender and the nonce for the transaction.
+    /// We use `payer` of the fees as the sender of the transaction, and we search for `payer`
+    /// signature information to find the nonce.
+    /// If `payer` is not specified, we use the account which signed the transaction first, as
+    /// the sender.
+    fn sender_and_nonce(&self, tx: &Tx) -> ChainResult<(H256, SequenceNumber)> {
+        let (sender, nonce) = tx
+            .auth_info
+            .fee
+            .payer
+            .as_ref()
+            .map(|payer| self.search_payer_in_signer_infos(&tx.auth_info.signer_infos, payer))
+            .map_or_else(
+                || {
+                    let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
+                        HyperlaneCosmosError::SignerInfoError(
+                            "no signer info in default signer".to_owned(),
+                        )
+                    })?;
+                    self.convert_signer_info_into_account_id_and_nonce(signer_info)
+                },
+                |p| p,
+            )
+            .map(|(a, n)| CosmosAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
+        Ok((sender, nonce))
+    }
+
+    /// Extract contract address from transaction.
+    /// Assumes that there is only one `MsgExecuteContract` message in the transaction
+    fn contract(tx: &Tx) -> ChainResult<H256> {
+        use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
+
+        let any = tx
+            .body
+            .messages
+            .iter()
+            .find(|a| a.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("could not find contract execution message")
+            })?;
+        let proto =
+            ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let msg = MsgExecuteContract::try_from(proto)?;
+        let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
+        Ok(contract)
     }
 }
 
@@ -170,55 +217,25 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        // TODO add proper error handling
         let response = self
             .rpc_client
             .tx(tendermint_hash, false)
             .await
-            .map_err(|_| ChainCommunicationError::from_other_str("generic error"))?;
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 
         if &received_hash != hash {
-            return Err(ChainCommunicationError::from_other_str(
-                "received incorrect transaction",
-            ));
+            return Err(ChainCommunicationError::from_other_str(&format!(
+                "received incorrect transaction, expected hash: {:?}, received hash: {:?}",
+                hash, received_hash,
+            )));
         }
 
-        let tx = Tx::from_bytes(&response.tx).map_err(|_| {
-            ChainCommunicationError::from_other_str("could not deserialize transaction")
-        })?;
+        let tx = Tx::from_bytes(&response.tx)?;
 
-        // TODO assuming that there is only one message in the transaction and it is execute contract message
-        let any = tx.body.messages.get(0).unwrap();
-        let proto =
-            cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract::from_any(any).map_err(|e| {
-                ChainCommunicationError::from_other_str(
-                    "could not decode contract execution message",
-                )
-            })?;
-        let msg = MsgExecuteContract::try_from(proto)
-            .map_err(|e| ChainCommunicationError::from_other_str("could not convert from proto"))?;
-        let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
-
-        // We calculate the sender and the nonce for the transaction.
-        // We use `payer` of the fees as the sender of the transaction and search for its
-        // signature information to find the nonce.
-        // If `payer` is not specified, we use the account which signed the transaction first, as
-        // the sender.
-        let (sender, nonce) = tx
-            .auth_info
-            .fee
-            .payer
-            .as_ref()
-            .map(|payer| self.search_payer_in_signer_infos(&tx.auth_info.signer_infos, payer))
-            .unwrap_or_else(|| {
-                let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
-                    ChainCommunicationError::from_other_str("no signer info in default signer")
-                })?;
-                self.convert_signer_info_into_account_id_and_nonce(signer_info)
-            })
-            .map(|(a, n)| CosmosAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
+        let contract = Self::contract(&tx)?;
+        let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         // TODO support multiple denomination for amount
         let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
