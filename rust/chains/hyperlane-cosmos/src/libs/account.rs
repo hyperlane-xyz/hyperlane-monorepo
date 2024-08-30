@@ -1,7 +1,11 @@
-use cosmrs::AccountId;
+use cosmrs::{crypto::PublicKey, AccountId};
+use tendermint::account::Id as TendermintAccountId;
+use tendermint::public_key::PublicKey as TendermintPublicKey;
 
 use hyperlane_core::Error::Overflow;
-use hyperlane_core::{ChainCommunicationError, H256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
+
+use crate::HyperlaneCosmosError;
 
 pub(crate) struct CosmosAccountId<'a> {
     account_id: &'a AccountId,
@@ -10,6 +14,18 @@ pub(crate) struct CosmosAccountId<'a> {
 impl<'a> CosmosAccountId<'a> {
     pub fn new(account_id: &'a AccountId) -> Self {
         Self { account_id }
+    }
+
+    pub fn account_id_from_pubkey(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
+        // Get the inner type
+        let tendermint_pub_key = TendermintPublicKey::from(pub_key);
+        // Get the RIPEMD160(SHA256(pub_key))
+        let tendermint_id = TendermintAccountId::from(tendermint_pub_key);
+        // Bech32 encoding
+        let account_id = AccountId::new(prefix, tendermint_id.as_bytes())
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        Ok(account_id)
     }
 }
 
