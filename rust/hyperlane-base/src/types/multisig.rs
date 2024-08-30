@@ -206,7 +206,7 @@ impl MultisigCheckpointSyncer {
                     let signer =
                         self.fetch_or_recover(&signed_checkpoint, &mut recovered_addresses)?;
 
-                    if H256::from(signer) != vw.validator {
+                    if signer != vw.validator {
                         debug!(
                             validator = format!("{:#x}", vw.validator),
                             index = index,
@@ -254,7 +254,7 @@ impl MultisigCheckpointSyncer {
                                 .and_then(|signer| {
                                     weighted_validators
                                         .iter()
-                                        .position(|vw| vw.validator == H256::from(signer))
+                                        .position(|vw| vw.validator == signer)
                                 })
                                 .map(|pos| (false, pos))
                                 .unwrap_or((true, 0)) // this shouldn't cause a panic because returning (true, 0) means that the validator is not in the weighted_validators list
@@ -298,7 +298,7 @@ impl MultisigCheckpointSyncer {
 
         for (validator, index) in sorted_indices {
             if !validators_included.contains(&validator) {
-                if let Some(weight) = weight_dict.get(&validator) {
+                if let Some(weight) = weight_dict.get(validator) {
                     cumulative_weight += weight;
                     validators_included.insert(validator);
                 }
