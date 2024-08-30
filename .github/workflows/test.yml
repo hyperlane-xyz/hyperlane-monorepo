@@ -409,7 +409,7 @@ jobs:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
 
-    timeout-minutes: 6
+    timeout-minutes: 10
     needs: [yarn-build]
     strategy:
       fail-fast: false
