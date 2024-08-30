@@ -83,7 +83,7 @@ impl CosmosProvider {
         &self,
         signer_infos: &[SignerInfo],
         payer: &AccountId,
-    ) -> Result<(AccountId, SequenceNumber), ChainCommunicationError> {
+    ) -> ChainResult<(AccountId, SequenceNumber)> {
         signer_infos
             .iter()
             .map(|si| self.convert_signer_info_into_account_id_and_nonce(si))
@@ -102,9 +102,9 @@ impl CosmosProvider {
     fn convert_signer_info_into_account_id_and_nonce(
         &self,
         signer_info: &SignerInfo,
-    ) -> Result<(AccountId, SequenceNumber), ChainCommunicationError> {
+    ) -> ChainResult<(AccountId, SequenceNumber)> {
         let signer_public_key = signer_info.public_key.clone().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("no public key for default signer")
+            HyperlaneCosmosError::PublicKeyError("no public key for default signer".to_owned())
         })?;
 
         let public_key = PublicKey::try_from(signer_public_key)?;
@@ -122,7 +122,7 @@ impl CosmosProvider {
     /// signature information to find the nonce.
     /// If `payer` is not specified, we use the account which signed the transaction first, as
     /// the sender.
-    fn sender_and_nonce(&self, tx: &Tx) -> Result<(H256, SequenceNumber), ChainCommunicationError> {
+    fn sender_and_nonce(&self, tx: &Tx) -> ChainResult<(H256, SequenceNumber)> {
         let (sender, nonce) = tx
             .auth_info
             .fee
@@ -132,7 +132,9 @@ impl CosmosProvider {
             .map_or_else(
                 || {
                     let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
-                        ChainCommunicationError::from_other_str("no signer info in default signer")
+                        HyperlaneCosmosError::SignerInfoError(
+                            "no signer info in default signer".to_owned(),
+                        )
                     })?;
                     self.convert_signer_info_into_account_id_and_nonce(signer_info)
                 },
@@ -144,7 +146,7 @@ impl CosmosProvider {
 
     /// Extract contract address from transaction.
     /// Assumes that there is only one `MsgExecuteContract` message in the transaction
-    fn contract(tx: &Tx) -> Result<H256, ChainCommunicationError> {
+    fn contract(tx: &Tx) -> ChainResult<H256> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
         let any = tx
