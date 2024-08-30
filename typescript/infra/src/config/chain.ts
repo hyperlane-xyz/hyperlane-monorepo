@@ -153,8 +153,11 @@ export async function getSecretMetadataOverridesFromGitHubSecrets(
   const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
 
   for (const chain of chains) {
-    const rpcUrls =
-      process.env[`${deployEnv.toUpperCase()}_${chain.toUpperCase()}_RPC_URLS`];
+    const rpcUrlsEnv = `${deployEnv.toUpperCase()}_${chain.toUpperCase()}_RPC_URLS`;
+    debugLog(
+      `Looking for secret RPC URLs for chain ${chain} in env: ${rpcUrlsEnv}`,
+    );
+    const rpcUrls = process.env[rpcUrlsEnv];
     if (rpcUrls) {
       debugLog(`Found secret RPC URLs for chain ${chain}`);
       const metadataRpcUrls = rpcUrls
