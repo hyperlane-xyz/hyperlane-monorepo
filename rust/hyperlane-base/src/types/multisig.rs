@@ -174,6 +174,8 @@ impl MultisigCheckpointSyncer {
         // particular index, but we'd like to be robust to this not being the case
         let mut signed_checkpoints_per_root: HashMap<H256, Vec<SignedCheckpointWithMessageId>> =
             HashMap::new();
+        // Keeps track of the recovered addresses for each signed checkpoint, signing_hash -> address
+        let mut recovered_addresses: HashMap<H256, H256> = HashMap::new();
 
         let sorted_validators: Vec<(usize, &ValidatorWithWeight)> = weighted_validators
             .iter()
@@ -201,7 +203,8 @@ impl MultisigCheckpointSyncer {
                     }
 
                     // Ensure that the signature is actually by the validator
-                    let signer = signed_checkpoint.recover()?;
+                    let signer =
+                        self.fetch_or_recover(&signed_checkpoint, &mut recovered_addresses)?;
 
                     if H256::from(signer) != vw.validator {
                         debug!(
@@ -222,13 +225,14 @@ impl MultisigCheckpointSyncer {
                     let cumulative_weight: Weight = signed_checkpoints
                         .iter()
                         .filter_map(|sc| {
+                            let signer =
+                                self.fetch_or_recover(sc, &mut recovered_addresses).ok()?;
                             weighted_validators
                                 .iter()
-                                .find(|vw| vw.validator == H256::from(sc.recover().unwrap()))
+                                .find(|vw| vw.validator == signer)
                                 .map(|vw| vw.weight)
                         })
                         .sum();
-                    // cumulative_weight += vw.weight;
 
                     // Count the number of signatures for this signed checkpoint
                     let signature_count = signed_checkpoints.len();
@@ -245,7 +249,7 @@ impl MultisigCheckpointSyncer {
                     if cumulative_weight >= threshold_weight {
                         // to conform to the onchain ordering of the set by address
                         signed_checkpoints.sort_by_key(|sc| {
-                            sc.recover()
+                            self.fetch_or_recover(sc, &mut recovered_addresses)
                                 .ok()
                                 .and_then(|signer| {
                                     weighted_validators
@@ -253,7 +257,7 @@ impl MultisigCheckpointSyncer {
                                         .position(|vw| vw.validator == H256::from(signer))
                                 })
                                 .map(|pos| (false, pos))
-                                .unwrap_or((true, 0))
+                                .unwrap_or((true, 0)) // this shouldn't cause a panic because returning (true, 0) means that the validator is not in the weighted_validators list
                         });
                         let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
                         debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
@@ -312,5 +316,21 @@ impl MultisigCheckpointSyncer {
             "Highest quorum index not found"
         );
         None
+    }
+
+    // signed_checkpoint.recover() is expensive, so we cache the result in recovered_addresses
+    fn fetch_or_recover(
+        &self,
+        signed_checkpoint: &SignedCheckpointWithMessageId,
+        recovered_addresses: &mut HashMap<H256, H256>,
+    ) -> Result<H256> {
+        let checkpoint_hash = signed_checkpoint.value.signing_hash();
+        if let Some(&address) = recovered_addresses.get(&checkpoint_hash) {
+            Ok(address)
+        } else {
+            let address = H256::from(signed_checkpoint.recover()?);
+            recovered_addresses.insert(checkpoint_hash, address);
+            Ok(address)
+        }
     }
 }
