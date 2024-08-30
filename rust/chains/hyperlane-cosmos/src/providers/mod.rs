@@ -96,10 +96,7 @@ impl CosmosProvider {
             })
             // If there were not any signer info with non-empty public key or no signers for the transaction,
             // we get None here
-            .map_or_else(
-                || Err(ChainCommunicationError::from_other_str("no signer info")),
-                |r| r,
-            )
+            .unwrap_or_else(|| Err(ChainCommunicationError::from_other_str("no signer info")))
     }
 
     fn convert_signer_info_into_account_id_and_nonce(
@@ -210,15 +207,12 @@ impl HyperlaneProvider for CosmosProvider {
             .payer
             .as_ref()
             .map(|payer| self.search_payer_in_signer_infos(&tx.auth_info.signer_infos, payer))
-            .map_or_else(
-                || {
-                    let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
-                        ChainCommunicationError::from_other_str("no signer info in default signer")
-                    })?;
-                    self.convert_signer_info_into_account_id_and_nonce(signer_info)
-                },
-                |p| p,
-            )
+            .unwrap_or_else(|| {
+                let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
+                    ChainCommunicationError::from_other_str("no signer info in default signer")
+                })?;
+                self.convert_signer_info_into_account_id_and_nonce(signer_info)
+            })
             .map(|(a, n)| CosmosAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
 
         // TODO support multiple denomination for amount
