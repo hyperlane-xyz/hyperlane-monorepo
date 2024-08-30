@@ -405,6 +405,10 @@ jobs:
 
   env-test:
     runs-on: ubuntu-latest
+    env:
+      MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+      MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+
     timeout-minutes: 3
     needs: [yarn-build]
     strategy:
