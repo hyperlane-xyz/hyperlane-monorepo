@@ -141,6 +141,30 @@ impl CosmosProvider {
             .map(|(a, n)| CosmosAddress::from_account_id(a).map(|a| (a.digest(), n)))??;
         Ok((sender, nonce))
     }
+
+    /// Extract contract address from transaction.
+    /// Assumes that there is only one `MsgExecuteContract` message in the transaction
+    fn contract(tx: &Tx) -> Result<H256, ChainCommunicationError> {
+        use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
+
+        let any = tx
+            .body
+            .messages
+            .iter()
+            .find(|a| a.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("could not find contract execution message")
+            })?;
+        let proto = ProtoMsgExecuteContract::from_any(any).map_err(|e| {
+            ChainCommunicationError::from_other_str(&format!(
+                "could not decode contract execution message into proto: {}",
+                e,
+            ))
+        })?;
+        let msg = MsgExecuteContract::try_from(proto)?;
+        let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
+        Ok(contract)
+    }
 }
 
 impl HyperlaneChain for CosmosProvider {
@@ -214,18 +238,7 @@ impl HyperlaneProvider for CosmosProvider {
             ChainCommunicationError::from_other_str("could not deserialize transaction")
         })?;
 
-        // TODO assuming that there is only one message in the transaction and it is execute contract message
-        let any = tx.body.messages.get(0).unwrap();
-        let proto =
-            cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract::from_any(any).map_err(|e| {
-                ChainCommunicationError::from_other_str(
-                    "could not decode contract execution message",
-                )
-            })?;
-        let msg = MsgExecuteContract::try_from(proto)
-            .map_err(|e| ChainCommunicationError::from_other_str("could not convert from proto"))?;
-        let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
-
+        let contract = Self::contract(&tx)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         // TODO support multiple denomination for amount
