@@ -18,7 +18,8 @@ anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/nu
 anvil --chain-id 31347 -p 8600 --state /tmp/anvil3/state --gas-price 1 > /dev/null &
 
 echo "Running all tests"
-yarn mocha --config .mocharc.json
+# yarn mocha --config .mocharc.json
+yarn mocha --config .mocharc.json './src/**/*.e2e-test.ts'
 
 # cleanup
 

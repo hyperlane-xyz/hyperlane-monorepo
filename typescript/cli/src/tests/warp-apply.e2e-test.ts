@@ -20,7 +20,6 @@ import {
 } from './commands/helpers.js';
 import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
 
-/// To run: 1) start 2 anvils, 2) yarn run tsx tests/warp.zs-test.ts inside of cli/
 const CHAIN_NAME_2 = 'anvil2';
 const CHAIN_NAME_3 = 'anvil3';
 
