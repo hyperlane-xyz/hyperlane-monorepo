@@ -286,7 +286,13 @@ impl MultisigCheckpointSyncer {
                 return Some(*index);
             }
         }
+
         // If threshold is not met
+        debug!(
+            cumulative_weight = cumulative_weight,
+            threshold_weight = threshold_weight,
+            "Highest quorum index not found"
+        );
         None
     }
 }
