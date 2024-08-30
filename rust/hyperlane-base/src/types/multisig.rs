@@ -7,10 +7,11 @@ use eyre::Result;
 use tracing::{debug, instrument};
 
 use hyperlane_core::{
-    HyperlaneDomain, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256,
+    HyperlaneDomain, MultisigSignedCheckpoint, Signable, SignedCheckpointWithMessageId, H160, H256,
 };
 
 use crate::{CheckpointSyncer, CoreMetrics};
+
 /// Weights are scaled by 1e10 as 100%
 pub type Weight = u128;
 /// Struct for representing both weighted and unweighted types
@@ -180,7 +181,6 @@ impl MultisigCheckpointSyncer {
             .sorted_by_key(|(_, vw)| std::cmp::Reverse(vw.weight))
             .collect();
 
-        let mut cumulative_weight: Weight = 0;
         for (_, vw) in sorted_validators {
             let addr = H160::from(vw.validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
@@ -212,11 +212,23 @@ impl MultisigCheckpointSyncer {
                         continue;
                     }
 
+                    // let checkpoint_hash = signed_checkpoint.value.signing_hash();
+
                     // Push the signed checkpoint into the hashmap
                     let root = signed_checkpoint.value.root;
                     let signed_checkpoints = signed_checkpoints_per_root.entry(root).or_default();
                     signed_checkpoints.push(signed_checkpoint);
-                    cumulative_weight += vw.weight;
+
+                    let cumulative_weight: Weight = signed_checkpoints
+                        .iter()
+                        .filter_map(|sc| {
+                            weighted_validators
+                                .iter()
+                                .find(|vw| vw.validator == H256::from(sc.recover().unwrap()))
+                                .map(|vw| vw.weight)
+                        })
+                        .sum();
+                    // cumulative_weight += vw.weight;
 
                     // Count the number of signatures for this signed checkpoint
                     let signature_count = signed_checkpoints.len();
@@ -233,10 +245,15 @@ impl MultisigCheckpointSyncer {
                     if cumulative_weight >= threshold_weight {
                         // to conform to the onchain ordering of the set by address
                         signed_checkpoints.sort_by_key(|sc| {
-                            weighted_validators
-                                .iter()
-                                .position(|vw| vw.validator == H256::from(sc.recover().unwrap()))
-                                .unwrap()
+                            sc.recover()
+                                .ok()
+                                .and_then(|signer| {
+                                    weighted_validators
+                                        .iter()
+                                        .position(|vw| vw.validator == H256::from(signer))
+                                })
+                                .map(|pos| (false, pos))
+                                .unwrap_or((true, 0))
                         });
                         let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
                         debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
