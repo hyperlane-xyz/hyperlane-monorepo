@@ -334,3 +334,87 @@ impl MultisigCheckpointSyncer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use prometheus::Registry;
+
+    use super::*;
+    use std::sync::Arc;
+
+    fn setup_syncer() -> MultisigCheckpointSyncer {
+        let registry = Registry::new();
+        let metrics = CoreMetrics::new("test_agent", 8080, registry).unwrap();
+        MultisigCheckpointSyncer::new(HashMap::new(), Arc::new(metrics), None)
+    }
+
+    #[test]
+    fn test_fetch_highest_quorum_index() {
+        let syncer = setup_syncer();
+        let validators = vec![
+            ValidatorWithWeight::new(H256::from_low_u64_be(1), 30),
+            ValidatorWithWeight::new(H256::from_low_u64_be(2), 30),
+            ValidatorWithWeight::new(H256::from_low_u64_be(3), 40),
+        ];
+
+        // Threshold weight = sum of all weights
+        assert_eq!(
+            syncer.fetch_highest_quorum_index(
+                &validators,
+                100,
+                &[
+                    (H256::from_low_u64_be(1), 10),
+                    (H256::from_low_u64_be(2), 9),
+                    (H256::from_low_u64_be(3), 8)
+                ]
+            ),
+            Some(8)
+        );
+
+        // Threshold weight = 0
+        assert_eq!(
+            syncer.fetch_highest_quorum_index(&validators, 0, &[(H256::from_low_u64_be(1), 10)]),
+            Some(10)
+        );
+
+        // 2/3 validators enough for threshold weight
+        assert_eq!(
+            syncer.fetch_highest_quorum_index(
+                &validators,
+                60,
+                &[
+                    (H256::from_low_u64_be(1), 10),
+                    (H256::from_low_u64_be(2), 9)
+                ]
+            ),
+            Some(9)
+        );
+
+        // Validator in weighted_validators but not in sorted_indices
+        assert_eq!(
+            syncer.fetch_highest_quorum_index(
+                &validators,
+                70,
+                &[
+                    (H256::from_low_u64_be(1), 10),
+                    (H256::from_low_u64_be(2), 9)
+                ]
+            ),
+            None
+        );
+
+        // Sorted indices 0 for some validators
+        assert_eq!(
+            syncer.fetch_highest_quorum_index(
+                &validators,
+                60,
+                &[
+                    (H256::from_low_u64_be(1), 10),
+                    (H256::from_low_u64_be(2), 8),
+                    (H256::from_low_u64_be(3), 0)
+                ]
+            ),
+            Some(8)
+        );
+    }
+}
