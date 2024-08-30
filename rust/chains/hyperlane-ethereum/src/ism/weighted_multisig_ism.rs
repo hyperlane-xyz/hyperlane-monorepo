@@ -97,17 +97,17 @@ where
     async fn validators_and_threshold_weight(
         &self,
         message: &HyperlaneMessage,
-    ) -> ChainResult<(Vec<(H256, u64)>, u64)> {
+    ) -> ChainResult<(Vec<(H256, u128)>, u128)> {
         let (validator_addresses, threshold) = self
             .contract
             .validators_and_threshold_weight(RawHyperlaneMessage::from(message).to_vec().into())
             .call()
             .await?;
-        let validators: Vec<(H256, u64)> = validator_addresses
+        let validators: Vec<(H256, u128)> = validator_addresses
             .iter()
-            .map(|x| (H256::from(x.signing_address), x.weight as u64))
+            .map(|x| (H256::from(x.signing_address), x.weight))
             .collect();
-        Ok((validators, threshold as u64))
+        Ok((validators, threshold))
     }
 }
 

@@ -70,7 +70,7 @@ impl MultisigIsmMetadataBuilder for WeightedMessageIdMultisigMetadataBuilder {
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-    ) -> Result<(Vec<ValidatorWithWeight>, u64)> {
+    ) -> Result<(Vec<ValidatorWithWeight>, Weight)> {
         const CTX: &str = "When fetching WeightedMultisigIsm metadata";
         let weighted_multisig_ism = self
             .as_ref()

@@ -26,5 +26,5 @@ pub trait WeightedMultisigIsm: HyperlaneContract + Send + Sync + Debug {
     async fn validators_and_threshold_weight(
         &self,
         message: &HyperlaneMessage,
-    ) -> ChainResult<(Vec<(H256, u64)>, u64)>;
+    ) -> ChainResult<(Vec<(H256, u128)>, u128)>;
 }

@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use derive_new::new;
@@ -12,7 +12,7 @@ use hyperlane_core::{
 
 use crate::{CheckpointSyncer, CoreMetrics};
 /// Weights are scaled by 1e10 as 100%
-pub type Weight = u64;
+pub type Weight = u128;
 /// Struct for representing both weighted and unweighted types
 /// for unweighted, we have (validator, 1), threshold_weight = threshold
 /// for weighted, we have (validator, weight)
@@ -44,7 +44,7 @@ impl MultisigCheckpointSyncer {
         validators: &[H256],
         origin: &HyperlaneDomain,
         destination: &HyperlaneDomain,
-    ) -> Vec<u32> {
+    ) -> Vec<(H256, u32)> {
         // Get the latest_index from each validator's checkpoint syncer.
         // If a validator does not return a latest index, None is recorded so
         // this can be surfaced in the metrics.
@@ -85,7 +85,10 @@ impl MultisigCheckpointSyncer {
         }
 
         // Filter out any validators that did not return a latest index
-        latest_indices.values().copied().flatten().collect()
+        latest_indices
+            .into_iter()
+            .map(|(validator, index)| (H256::from(validator), index.unwrap_or(0)))
+            .collect()
     }
 
     /// Attempts to get the latest checkpoint with a quorum of signatures among
@@ -125,22 +128,15 @@ impl MultisigCheckpointSyncer {
             return Ok(None);
         }
 
-        // Sort in descending order. The n'th index will represent
-        // the highest index for which we (supposedly) have (n+1) signed checkpoints
-        latest_indices.sort_by(|a, b| b.cmp(a));
+        // Sort in descending order by index. The n'th index will represent
+        // the validator with the highest index for which we (supposedly) have (n+1) signed checkpoints
+        latest_indices.sort_by(|a, b| b.1.cmp(&a.1));
 
         // Find the highest index that meets the threshold weight
-        let mut cumulative_weight = 0;
-        let mut highest_quorum_index = None;
-        for (i, &index) in latest_indices.iter().enumerate() {
-            cumulative_weight += weighted_validators[i].weight; // Add the weight of this validator
-            if cumulative_weight >= threshold_weight {
-                highest_quorum_index = Some(index);
-                break;
-            }
-        }
 
-        if let Some(highest_quorum_index) = highest_quorum_index {
+        if let Some(highest_quorum_index) =
+            self.fetch_highest_quorum_index(weighted_validators, threshold_weight, &latest_indices)
+        {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.
@@ -184,7 +180,7 @@ impl MultisigCheckpointSyncer {
             .sorted_by_key(|(_, vw)| std::cmp::Reverse(vw.weight))
             .collect();
 
-        let mut cumulative_weight: u64 = 0;
+        let mut cumulative_weight: Weight = 0;
         for (_, vw) in sorted_validators {
             let addr = H160::from(vw.validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
@@ -259,5 +255,35 @@ impl MultisigCheckpointSyncer {
         }
         debug!("No quorum checkpoint found for message");
         Ok(None)
+    }
+
+    fn fetch_highest_quorum_index(
+        &self,
+        weighted_validators: &[ValidatorWithWeight],
+        threshold_weight: Weight,
+        sorted_indices: &[(H256, u32)],
+    ) -> Option<u32> {
+        let weight_dict: HashMap<H256, Weight> = weighted_validators
+            .iter()
+            .map(|v| (v.validator, v.weight))
+            .collect();
+
+        let mut cumulative_weight: u128 = 0;
+        let mut validators_included = HashSet::new();
+
+        for (validator, index) in sorted_indices {
+            if !validators_included.contains(&validator) {
+                if let Some(weight) = weight_dict.get(&validator) {
+                    cumulative_weight += weight;
+                    validators_included.insert(validator);
+                }
+            }
+
+            if cumulative_weight >= threshold_weight {
+                return Some(*index);
+            }
+        }
+        // If threshold is not met
+        None
     }
 }
