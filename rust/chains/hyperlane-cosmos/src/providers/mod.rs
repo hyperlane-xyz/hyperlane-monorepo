@@ -219,24 +219,24 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        // TODO add proper error handling
         let response = self
             .rpc_client
             .tx(tendermint_hash, false)
             .await
-            .map_err(|_| ChainCommunicationError::from_other_str("generic error"))?;
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(&format!("error on RPC request: {}", e))
+            })?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 
         if &received_hash != hash {
-            return Err(ChainCommunicationError::from_other_str(
-                "received incorrect transaction",
-            ));
+            return Err(ChainCommunicationError::from_other_str(&format!(
+                "received incorrect transaction, expected hash: {:?}, received hash: {:?}",
+                hash, received_hash,
+            )));
         }
 
-        let tx = Tx::from_bytes(&response.tx).map_err(|_| {
-            ChainCommunicationError::from_other_str("could not deserialize transaction")
-        })?;
+        let tx = Tx::from_bytes(&response.tx)?;
 
         let contract = Self::contract(&tx)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
