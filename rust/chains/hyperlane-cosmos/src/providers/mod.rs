@@ -225,9 +225,7 @@ impl HyperlaneProvider for CosmosProvider {
             .rpc_client
             .tx(tendermint_hash, false)
             .await
-            .map_err(|e| {
-                ChainCommunicationError::from_other_str(&format!("error on RPC request: {}", e))
-            })?;
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 
