@@ -257,6 +257,9 @@ impl MultisigCheckpointSyncer {
         Ok(None)
     }
 
+    // this function fetches the highest index that meets the threshold weight
+    // it assumes sorted_indices is sorted in descending order of index
+    // it doesn't assume that the indices contain all validators in weighted_validators
     fn fetch_highest_quorum_index(
         &self,
         weighted_validators: &[ValidatorWithWeight],
