@@ -201,6 +201,11 @@ impl HyperlaneProvider for CosmosProvider {
             .map_err(|e| ChainCommunicationError::from_other_str("could not convert from proto"))?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
+        // We calculate the sender and the nonce for the transaction.
+        // We use `payer` of the fees as the sender of the transaction and search for its
+        // signature information to find the nonce.
+        // If `payer` is not specified, we use the account which signed the transaction first, as
+        // the sender.
         let (sender, nonce) = tx
             .auth_info
             .fee
