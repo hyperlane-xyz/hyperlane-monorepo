@@ -17,6 +17,31 @@ use hyperlane_core::{HyperlaneMessage, H256};
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct WeightedMerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
 
+async fn fetch_validator_requirements(
+    builder: &impl AsRef<MessageMetadataBuilder>,
+    ism_address: H256,
+    message: &HyperlaneMessage,
+) -> Result<(Vec<ValidatorWithWeight>, Weight)> {
+    const CTX: &str = "When fetching WeightedMultisigIsm metadata";
+    let weighted_multisig_ism = builder
+        .as_ref()
+        .build_weighted_multisig_ism(ism_address)
+        .await
+        .context(CTX)?;
+
+    let (validators, threshold) = weighted_multisig_ism
+        .validators_and_threshold_weight(message)
+        .await
+        .context(CTX)?;
+
+    let validators: Vec<ValidatorWithWeight> = validators
+        .into_iter()
+        .map(|(validator, weight)| ValidatorWithWeight::new(validator, weight))
+        .collect();
+
+    Ok((validators, threshold))
+}
+
 #[async_trait]
 impl MultisigIsmMetadataBuilder for WeightedMerkleRootMultisigMetadataBuilder {
     async fn ism_validator_requirements(
@@ -24,24 +49,7 @@ impl MultisigIsmMetadataBuilder for WeightedMerkleRootMultisigMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<(Vec<ValidatorWithWeight>, Weight)> {
-        const CTX: &str = "When fetching WeightedMultisigIsm metadata";
-        let weighted_multisig_ism = self
-            .as_ref()
-            .build_weighted_multisig_ism(ism_address)
-            .await
-            .context(CTX)?;
-
-        let (validators, threshold) = weighted_multisig_ism
-            .validators_and_threshold_weight(message)
-            .await
-            .context(CTX)?;
-
-        let validators: Vec<ValidatorWithWeight> = validators
-            .into_iter()
-            .map(|(validator, weight)| ValidatorWithWeight::new(validator, weight))
-            .collect();
-
-        Ok((validators, threshold))
+        fetch_validator_requirements(self, ism_address, message).await
     }
 
     fn token_layout(&self) -> Vec<MetadataToken> {
@@ -71,24 +79,7 @@ impl MultisigIsmMetadataBuilder for WeightedMessageIdMultisigMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<(Vec<ValidatorWithWeight>, Weight)> {
-        const CTX: &str = "When fetching WeightedMultisigIsm metadata";
-        let weighted_multisig_ism = self
-            .as_ref()
-            .build_weighted_multisig_ism(ism_address)
-            .await
-            .context(CTX)?;
-
-        let (validators, threshold) = weighted_multisig_ism
-            .validators_and_threshold_weight(message)
-            .await
-            .context(CTX)?;
-
-        let validators: Vec<ValidatorWithWeight> = validators
-            .into_iter()
-            .map(|(validator, weight)| ValidatorWithWeight::new(validator, weight))
-            .collect();
-
-        Ok((validators, threshold))
+        fetch_validator_requirements(self, ism_address, message).await
     }
 
     fn token_layout(&self) -> Vec<MetadataToken> {

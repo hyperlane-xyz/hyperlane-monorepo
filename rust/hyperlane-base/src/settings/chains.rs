@@ -669,7 +669,7 @@ impl ChainConf {
         address: H256,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn WeightedMultisigIsm>> {
-        let ctx = "Building weighed multisig ISM";
+        let ctx = "Building weighted multisig ISM";
         let locator = self.locator(address);
 
         match &self.connection {

@@ -50,7 +50,7 @@ impl<M> EthereumWeightedMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// Create a reference to a weightedMultisigIsm at a specific Ethereum address on some
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {

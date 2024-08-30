@@ -25,6 +25,31 @@ pub struct MultisigMetadata {
     proof: Option<Proof>,
 }
 
+pub(crate) async fn fetch_unit_validator_requirements(
+    builder: &impl AsRef<MessageMetadataBuilder>,
+    ism_address: H256,
+    message: &HyperlaneMessage,
+) -> Result<(Vec<ValidatorWithWeight>, Weight)> {
+    const CTX: &str = "When fetching MultisigIsm metadata";
+    let multisig_ism = builder
+        .as_ref()
+        .build_multisig_ism(ism_address)
+        .await
+        .context(CTX)?;
+
+    let (validators, threshold) = multisig_ism
+        .validators_and_threshold(message)
+        .await
+        .context(CTX)?;
+
+    let unit_validators: Vec<ValidatorWithWeight> = validators
+        .into_iter()
+        .map(|v| ValidatorWithWeight::new(v, 1))
+        .collect();
+
+    Ok((unit_validators, threshold.into()))
+}
+
 #[derive(Debug, Display, PartialEq, Eq, Clone)]
 pub enum MetadataToken {
     CheckpointMerkleRoot,

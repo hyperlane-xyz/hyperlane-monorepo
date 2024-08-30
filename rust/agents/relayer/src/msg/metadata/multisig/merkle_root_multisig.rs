@@ -11,7 +11,9 @@ use tracing::debug;
 
 use crate::msg::metadata::MessageMetadataBuilder;
 
-use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
+use super::base::{
+    fetch_unit_validator_requirements, MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata,
+};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
@@ -83,23 +85,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<(Vec<ValidatorWithWeight>, Weight)> {
-        const CTX: &str = "When fetching MultisigIsm metadata";
-        let multisig_ism = self
-            .as_ref()
-            .build_multisig_ism(ism_address)
-            .await
-            .context(CTX)?;
-
-        let (validators, threshold) = multisig_ism
-            .validators_and_threshold(message)
-            .await
-            .context(CTX)?;
-
-        let unit_validators: Vec<ValidatorWithWeight> = validators
-            .into_iter()
-            .map(|v| ValidatorWithWeight::new(v, 1))
-            .collect();
-
-        Ok((unit_validators, threshold.into()))
+        fetch_unit_validator_requirements(self, ism_address, message).await
     }
 }
