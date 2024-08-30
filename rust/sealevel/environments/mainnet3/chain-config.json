@@ -364,7 +364,7 @@
       }
     ]
   },
-  "eclipse": {
+  "eclipsemainnet": {
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 0.4,
@@ -1193,7 +1193,7 @@
       "gasPrice": 2000000000
     }
   },
-  "solana": {
+  "solanamainnet": {
     "blockExplorers": [
       {
         "apiUrl": "https://explorer.solana.com?cluster=mainnet-beta",
@@ -1214,7 +1214,7 @@
     },
     "displayName": "Solana",
     "domainId": 1399811149,
-    "name": "solana",
+    "name": "solanamainnet",
     "nativeToken": {
       "decimals": 9,
       "name": "Sol",

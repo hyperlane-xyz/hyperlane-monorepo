@@ -61,7 +61,7 @@ pub enum KnownHyperlaneDomain {
     Cheesechain = 383353,
     Cyber = 7560,
     DegenChain = 666666666,
-    Eclipse = 1408864445,
+    EclipseMainnet = 1408864445,
     Endurance = 648,
     Ethereum = 1,
     Fraxtal = 252,
@@ -90,7 +90,7 @@ pub enum KnownHyperlaneDomain {
     Redstone = 690,
     Sanko = 1996,
     Sei = 1329,
-    Solana = 1399811149,
+    SolanaMainnet = 1399811149,
     Taiko = 167000,
     Tangle = 5845,
     Viction = 88,
@@ -234,10 +234,10 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
-                DegenChain, Eclipse, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis,
+                DegenChain, EclipseMainnet, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis,
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
-                ReAl, Redstone, Sanko, Sei, Solana, Taiko, Tangle, Viction, Worldchain, Xai,
+                ReAl, Redstone, Sanko, Sei, SolanaMainnet, Taiko, Tangle, Viction, Worldchain, Xai,
                 Xlayer, Zetachain, Zircuit, ZoraMainnet,
             ],
             Testnet: [
@@ -271,7 +271,7 @@ impl KnownHyperlaneDomain {
 
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
-            HyperlaneDomainProtocol::Sealevel: [Eclipse, Solana, SealevelTest1, SealevelTest2],
+            HyperlaneDomainProtocol::Sealevel: [EclipseMainnet, SolanaMainnet, SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [
                 Injective, Neutron, Osmosis,
 
@@ -292,10 +292,10 @@ impl KnownHyperlaneDomain {
                 ConnextSepolia, PlumeTestnet, SuperpositionTestnet
             ],
             HyperlaneDomainTechnicalStack::Other: [
-                Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cyber, Eclipse, Endurance, Ethereum,
+                Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cyber, EclipseMainnet, Endurance, Ethereum,
                 Fraxtal, Fuji, FuseMainnet, Gnosis, Injective, Kroma, Linea, Lisk, Lukso,
                 MantaPacific, Mantle, Merlin, Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis,
-                Polygon, Redstone, Sei, Solana, Taiko, Tangle, Viction, Worldchain, Xlayer, Zetachain,
+                Polygon, Redstone, Sei, SolanaMainnet, Taiko, Tangle, Viction, Worldchain, Xlayer, Zetachain,
                 Zircuit, ZoraMainnet,
 
                 // Local chains

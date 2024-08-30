@@ -1,5 +1,5 @@
 {
-  "solana": {
+  "solanamainnet": {
     "type": "synthetic",
     "decimals": 9,
     "name": "Renzo Restaked LST",

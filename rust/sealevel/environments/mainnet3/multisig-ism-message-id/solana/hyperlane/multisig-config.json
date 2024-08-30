@@ -80,9 +80,7 @@
   },
   "cheesechain": {
     "threshold": 1,
-    "validators": [
-      "0x478fb53c6860ae8fc35235ba0d38d49b13128226"
-    ],
+    "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"],
     "type": 3
   },
   "endurance": {
@@ -227,9 +225,7 @@
   },
   "osmosis": {
     "threshold": 1,
-    "validators": [
-      "0xea483af11c19fa41b16c31d1534c2a486a92bcac"
-    ],
+    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"],
     "type": 3
   },
   "polygon": {
@@ -277,11 +273,9 @@
     ],
     "type": 3
   },
-  "eclipse": {
+  "eclipsemainnet": {
     "threshold": 1,
-    "validators": [
-      "0x54c96aa1666596c043b07d694da552aa4b596306"
-    ],
+    "validators": ["0x54c96aa1666596c043b07d694da552aa4b596306"],
     "type": 3
   },
   "taiko": {
@@ -304,16 +298,12 @@
   },
   "worldchain": {
     "threshold": 1,
-    "validators": [
-      "0x31048785845325b22817448b68d08f8a8fe36854"
-    ],
+    "validators": ["0x31048785845325b22817448b68d08f8a8fe36854"],
     "type": 3
   },
   "xlayer": {
     "threshold": 1,
-    "validators": [
-      "0xa2ae7c594703e988f23d97220717c513db638ea3"
-    ],
+    "validators": ["0xa2ae7c594703e988f23d97220717c513db638ea3"],
     "type": 3
   },
   "zetachain": {

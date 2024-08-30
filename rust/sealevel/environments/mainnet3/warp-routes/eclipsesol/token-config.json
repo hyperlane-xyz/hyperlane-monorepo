@@ -1,10 +1,10 @@
 {
-  "solana": {
+  "solanamainnet": {
     "type": "native",
     "decimals": 9,
     "interchainGasPaymaster": "HkqbGqRX7Fi5pwqi8HkDaUhHK6mGWsy7Rt17fpgBrbP5"
   },
-  "eclipse": {
+  "eclipsemainnet": {
     "type": "synthetic",
     "decimals": 9,
     "name": "Solana",
