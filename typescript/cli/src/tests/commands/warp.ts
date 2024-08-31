@@ -48,6 +48,7 @@ export async function hyperlaneWarpRead(
         --overrides " " \
         --address ${warpAddress} \
         --chain ${chain} \
+        --verbosity debug \
         --config ${warpDeployPath}`;
 }
 
