@@ -1,3 +1,8 @@
 {
-  "import": ["tsx"]
+  "extensions": ["ts"],
+  "spec": ["src/**/*.test.*", "src/**/*.e2e-test.ts"],
+  "node-option": [
+    "experimental-specifier-resolution=node",
+    "loader=ts-node/esm"
+  ]
 }
