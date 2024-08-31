@@ -144,12 +144,15 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   tryGetSigner(chainNameOrId: ChainNameOrId): Signer | null {
     const chainName = this.tryGetChainName(chainNameOrId);
+    console.log('tryGetSigner chainName', chainName);
     if (!chainName) return null;
+    console.log('tryGetSigner signers', this.signers);
     const signer = this.signers[chainName];
     if (!signer) return null;
     if (signer.provider) return signer;
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
+    console.log('provider', provider);
     return provider ? signer.connect(provider) : signer;
   }
 
