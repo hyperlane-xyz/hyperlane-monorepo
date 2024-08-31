@@ -33,8 +33,7 @@
     "postinstall": "husky install"
   },
   "workspaces": [
-    "solidity",
-    "typescript/*"
+    "typescript/cli"
   ],
   "resolutions": {
     "async": "^2.6.4",
