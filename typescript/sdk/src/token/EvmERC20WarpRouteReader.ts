@@ -124,6 +124,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       });
       return TokenType.native;
     } catch (e) {
+      console.log('error in reader', e);
       throw Error(
         `Error accessing token specific method, implying this is not a supported token.`,
       );
