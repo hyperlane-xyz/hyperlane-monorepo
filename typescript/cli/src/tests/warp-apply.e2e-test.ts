@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 // import { Wallet } from 'test.yml ethers';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+// import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   // TokenRouterConfig,
   // TokenType,
@@ -20,7 +20,7 @@ import {
 import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
 
 const CHAIN_NAME_2 = 'anvil2';
-const CHAIN_NAME_3 = 'anvil3';
+// const CHAIN_NAME_3 = 'anvil3';
 
 const BURN_ADDRESS = '0x0000000000000000000000000000000000000001';
 const EXAMPLES_PATH = './examples';
@@ -32,15 +32,15 @@ const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/anvil2/warp-route-deployment-anvil2.yam
 const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
 
 describe('WarpApply e2e tests', async function () {
-  let chain2Addresses: ChainAddresses = {};
+  // let chain2Addresses: ChainAddresses = {};
   this.timeout(70000); // No limit timeout since these tests can take a while
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
-    chain2Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_3,
-      CORE_CONFIG_PATH,
-      ANVIL_KEY,
-    );
+    // chain2Addresses = await deployOrUseExistingCore(
+    //   CHAIN_NAME_3,
+    //   CORE_CONFIG_PATH,
+    //   ANVIL_KEY,
+    // );
 
     // Create a new warp config using the example
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
