@@ -5,12 +5,6 @@ function cleanup() {
   pkill -f anvil
   rm -rf /tmp/anvil2
   rm -rf /tmp/anvil3
-
-  mkdir -p /tmp/anvil2 /tmp/anvil2/state
-  mkdir -p /tmp/anvil3 /tmp/anvil3/state
-  chmod -R 777 /tmp/anvil2
-  chmod -R 777 /tmp/anvil3
-
   rm -f ./test-configs/anvil/chains/anvil2/addresses.yaml
   rm -f ./test-configs/anvil/chains/anvil3/addresses.yaml
   set -e
