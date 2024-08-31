@@ -25,7 +25,7 @@
     "prettier": "yarn workspaces foreach --since --parallel run prettier",
     "lint": "yarn workspaces foreach --all --parallel run lint",
     "test": "yarn workspaces foreach --all --parallel run test",
-    "test:ci": "yarn workspaces foreach --all --topological run test:ci",
+    "test:ci": "yarn workspace @hyperlane-xyz/cli run test:ci",
     "coverage": "yarn workspaces foreach --all --parallel run coverage",
     "version:prepare": "yarn changeset version && yarn workspaces foreach --all --parallel run version:update && yarn install --no-immutable",
     "version:check": "yarn changeset status",
@@ -33,7 +33,8 @@
     "postinstall": "husky install"
   },
   "workspaces": [
-    "typescript/cli"
+    "solidity",
+    "typescript/*"
   ],
   "resolutions": {
     "async": "^2.6.4",
