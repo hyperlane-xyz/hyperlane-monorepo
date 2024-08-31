@@ -34,7 +34,7 @@ const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/an
 
 describe('WarpApply e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
-  this.timeout(60000); // No limit timeout since these tests can take a while
+  this.timeout(60000); // Long timeout since these tests can take a while
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
     chain2Addresses = await deployOrUseExistingCore(
