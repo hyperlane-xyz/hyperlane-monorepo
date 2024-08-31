@@ -134,9 +134,6 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
-
       - name: Unit Tests
         run: yarn test:ci
 
