@@ -78,7 +78,7 @@ export async function setAndVerifyRpcUrls(
     const secretPayload = JSON.stringify(newRpcUrls);
     await confirmSetSecrets(environment, chain, secretPayload);
     // await testProvidersIfNeeded(chain, rpcUrlsArray);
-    // await updateSecretAndDisablePrevious(environment, chain, secretPayload);
+    await updateSecretAndDisablePrevious(environment, chain, secretPayload);
     await refreshAllDependentK8sResources(
       environment as DeployEnvironment,
       chain,
@@ -509,7 +509,8 @@ async function getRunningK8sPods(
         ? pod
         : undefined;
     })
-    .filter((pod) => pod !== undefined);
+    // TS isn't smart enought to know that the filter removes undefineds
+    .filter((pod) => pod !== undefined) as string[];
   const missing = resourceNames.filter(
     (resource) => !running.includes(resource),
   );
