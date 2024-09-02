@@ -1,9 +1,6 @@
 // This file is JS because of https://github.com/safe-global/safe-core-sdk/issues/805
 import SafeApiKit from '@safe-global/api-kit';
-import Safe, {
-  EthersAdapter,
-  safeDeploymentsVersions,
-} from '@safe-global/protocol-kit';
+import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import {
   getMultiSendCallOnlyDeployment,
   getMultiSendDeployment,
@@ -26,6 +23,20 @@ const safeVersionOverrides = {
   ancient8: '1.1.1',
 };
 
+// This is the version of the Safe contracts that the SDK is compatible with.
+// Copied the MVP fields from https://github.com/safe-global/safe-core-sdk/blob/4d1c0e14630f951c2498e1d4dd521403af91d6e1/packages/protocol-kit/src/contracts/config.ts#L19
+// because the SDK doesn't expose this value.
+const safeDeploymentsVersions = {
+  '1.3.0': {
+    multiSendVersion: '1.3.0',
+    multiSendCallOnlyVersion: '1.3.0',
+  },
+  '1.1.1': {
+    multiSendVersion: '1.1.1',
+    multiSendCallOnlyVersion: '1.3.0',
+  },
+};
+
 export function getSafe(chain, multiProvider, safeAddress) {
   // Create Ethers Adapter
   const signer = multiProvider.getSigner(chain);
@@ -38,16 +49,17 @@ export function getSafe(chain, multiProvider, safeAddress) {
   const safeVersion = safeVersionOverrides[chain] || DEFAULT_SAFE_VERSION;
   const { multiSendVersion, multiSendCallOnlyVersion } =
     safeDeploymentsVersions[safeVersion];
-  const multiSendAddress = getMultiSendDeployment({
+  const { defaultAddress: multiSendAddress } = getMultiSendDeployment({
     version: multiSendVersion,
     network: domainId,
     released: true,
-  }).defaultAddress;
-  const multiSendCallOnlyAddress = getMultiSendCallOnlyDeployment({
-    version: multiSendCallOnlyVersion,
-    network: domainId,
-    released: true,
-  }).defaultAddress;
+  });
+  const { defaultAddress: multiSendCallOnlyAddress } =
+    getMultiSendCallOnlyDeployment({
+      version: multiSendCallOnlyVersion,
+      network: domainId,
+      released: true,
+    });
 
   // Only update contractNetworks if default multiSend addresses are missing
   const contractNetworks = {
