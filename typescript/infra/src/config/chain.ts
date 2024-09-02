@@ -8,12 +8,7 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  objFilter,
-  objMerge,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
@@ -25,8 +20,6 @@ export const defaultRetry: ProviderRetryOptions = {
   maxRetries: 6,
   baseRetryDelayMs: 50,
 };
-
-const debugLog = rootLogger.child({ module: 'infra:config:chain' }).debug;
 
 export async function fetchProvider(
   chainName: ChainName,
@@ -154,12 +147,8 @@ export async function getSecretMetadataOverridesFromGitHubSecrets(
 
   for (const chain of chains) {
     const rpcUrlsEnv = `${deployEnv.toUpperCase()}_${chain.toUpperCase()}_RPC_URLS`;
-    debugLog(
-      `Looking for secret RPC URLs for chain ${chain} in env: ${rpcUrlsEnv}`,
-    );
     const rpcUrls = process.env[rpcUrlsEnv];
     if (rpcUrls) {
-      debugLog(`Found secret RPC URLs for chain ${chain}`);
       const metadataRpcUrls = rpcUrls
         .split(',')
         .map((rpcUrl) => ({ http: rpcUrl })) as ChainMetadata['rpcUrls'];

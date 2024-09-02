@@ -30,6 +30,7 @@ async function runAnvil(rpcUrl: string) {
       '1',
     ],
     {
+      detached: false,
       stdio: ['ignore', 'ignore', 'ignore'],
     },
   );
