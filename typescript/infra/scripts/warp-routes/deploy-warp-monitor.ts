@@ -16,7 +16,7 @@ async function main() {
     .string('filePath')
     .parse();
 
-  assertCorrectKubeContext(getEnvironmentConfig('mainnet3'));
+  await assertCorrectKubeContext(getEnvironmentConfig('mainnet3'));
 
   const helmManager = new WarpRouteMonitorHelmManager(filePath, 'mainnet3');
   await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);

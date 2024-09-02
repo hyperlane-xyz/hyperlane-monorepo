@@ -1,16 +1,18 @@
 import { setRpcUrlsInteractive } from '../../src/utils/rpcUrls.js';
 import {
+  assertCorrectKubeContext,
   getArgs,
-  withChainRequired,
   withChains,
-  withRpcUrls,
 } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   const { environment, chains } = await withChains(getArgs()).alias(
     'chain',
     'c',
   ).argv;
+
+  await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
   if (!chains || chains.length === 0) {
     console.error('No chains provided, Exiting.');
