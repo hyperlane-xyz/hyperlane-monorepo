@@ -275,7 +275,7 @@
   },
   "solanamainnet": {
     "threshold": 1,
-    "validators": ["0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415"],
+    "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"],
     "type": 3
   },
   "taiko": {
