@@ -492,7 +492,7 @@ fn run_locally() {
         .cmd("postgres:14")
         .spawn("SQL", None);
 
-    sleep(Duration::from_secs(10));
+    sleep(Duration::from_secs(15));
 
     log!("Init postgres db...");
     Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))
