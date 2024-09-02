@@ -1,7 +1,7 @@
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 // @ts-ignore
 import { getSafe, getSafeService } from '@hyperlane-xyz/sdk';
-import { CallData } from '@hyperlane-xyz/utils';
+import { CallData, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<void>;
@@ -58,22 +58,80 @@ export class SafeMultiSend extends MultiSend {
     );
     const safeService = getSafeService(this.chain, this.multiProvider);
 
-    const safeTransactionData = calls.map((call) => {
-      return {
-        to: call.to,
-        data: call.data.toString(),
-        value: call.value?.toString() || '0',
-      };
-    });
+    if (isZeroishAddress(safeSdk.getMultiSendAddress())) {
+      console.log(
+        `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
+      );
+      await this.proposeIndividualTransactions(calls, safeSdk, safeService);
+    } else {
+      await this.proposeMultiSendTransaction(calls, safeSdk, safeService);
+    }
+  }
+
+  // Helper function to propose individual transactions
+  private async proposeIndividualTransactions(
+    calls: CallData[],
+    safeSdk: any,
+    safeService: any,
+  ) {
+    for (const call of calls) {
+      const safeTransactionData = this.createSafeTransactionData(call);
+      const safeTransaction = await this.createSafeTransaction(
+        safeSdk,
+        safeService,
+        safeTransactionData,
+      );
+      await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+    }
+  }
+
+  // Helper function to propose a multi-send transaction
+  private async proposeMultiSendTransaction(
+    calls: CallData[],
+    safeSdk: any,
+    safeService: any,
+  ) {
+    const safeTransactionData = calls.map(this.createSafeTransactionData);
+    const safeTransaction = await this.createSafeTransaction(
+      safeSdk,
+      safeService,
+      safeTransactionData,
+    );
+    await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+  }
+
+  // Helper function to create safe transaction data
+  private createSafeTransactionData(call: CallData) {
+    return {
+      to: call.to,
+      data: call.data.toString(),
+      value: call.value?.toString() || '0',
+    };
+  }
+
+  // Helper function to create a safe transaction
+  private async createSafeTransaction(
+    safeSdk: any,
+    safeService: any,
+    safeTransactionData: any,
+  ) {
     const nextNonce = await safeService.getNextNonce(this.safeAddress);
-    const safeTransaction = await safeSdk.createTransaction({
+    return safeSdk.createTransaction({
       safeTransactionData,
       options: { nonce: nextNonce },
     });
+  }
+
+  // Helper function to propose a safe transaction
+  private async proposeSafeTransaction(
+    safeSdk: any,
+    safeService: any,
+    safeTransaction: any,
+  ) {
     const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
     const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
-
     const senderAddress = await this.multiProvider.getSignerAddress(this.chain);
+
     await safeService.proposeTransaction({
       safeAddress: this.safeAddress,
       safeTransactionData: safeTransaction.data,
@@ -81,5 +139,7 @@ export class SafeMultiSend extends MultiSend {
       senderAddress,
       senderSignature: senderSignature.data,
     });
+
+    console.log(`Proposed transaction with hash ${safeTxHash}`);
   }
 }
