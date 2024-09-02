@@ -11,7 +11,7 @@ if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
 fi
 
 # kill all child processes on exit
-trap 'jobs -p | xargs -r kill' EXIT
+trap 'jobs -p | xargs -r kill 2>/dev/null' EXIT
 
 # exit 1 on any subsequent failures
 set -e
@@ -58,6 +58,3 @@ GOVERN_DELTA="$((BEFORE-AFTER))"
 
 echo "Checking deploy without --govern"
 execute_command "yarn tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"
-
-kill -9 $ANVIL_PID
-wait $ANVIL_PID

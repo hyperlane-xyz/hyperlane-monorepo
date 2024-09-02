@@ -44,16 +44,6 @@ async function runAnvil(rpcUrl: string) {
     process.exit(1);
   });
 
-  process.on('SIGINT', () => {
-    console.log('Received SIGINT. Terminating Anvil...');
-    anvilProcess.kill('SIGINT');
-  });
-
-  process.on('SIGTERM', () => {
-    console.log('Received SIGTERM. Terminating Anvil...');
-    anvilProcess.kill('SIGTERM');
-  });
-
   return anvilProcess.pid;
 }
 
