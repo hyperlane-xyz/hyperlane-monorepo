@@ -622,7 +622,8 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x047ba6c9949baB22d13C347B40819b7A20C4C53a",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x148CF67B8A242c1360bb2C93fCe203EC4d4f9B56",
-      "staticMessageIdWeightedMultisigIsmFactory": "0xcd849e612Aaa138f03698C3Edb42a34117BFF631"
+      "staticMessageIdWeightedMultisigIsmFactory": "0xcd849e612Aaa138f03698C3Edb42a34117BFF631",
+      "gnosisSafeTransactionServiceUrl": "https://prod.cheese.transaction.keypersafe.xyz/"
     },
     "cyber": {
       "aggregationHook": "0xF6C1769d5390Be0f77080eF7791fBbA7eF4D5659",
@@ -777,7 +778,7 @@
       "interchainGasPaymaster": "AgjedtgQKTWGR77ULJ9j9AhLjNDk1D3BTtuxKmcZrJqE",
       "mailbox": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
       "merkleTreeHook": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
-      "name": "eclipse",
+      "name": "eclipsemainnet",
       "nativeToken": {
         "decimals": 9,
         "name": "Ether",
