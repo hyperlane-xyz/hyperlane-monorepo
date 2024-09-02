@@ -10,6 +10,7 @@ use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
 use tracing::instrument;
 
+use crate::utils::parse_logs_in_range;
 use crate::{
     rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
     signers::Signer,
@@ -208,22 +209,12 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let logs_futures: Vec<_> = range
-            .map(|block_number| {
-                let self_clone = self.clone();
-                tokio::spawn(async move {
-                    let logs = self_clone
-                        .indexer
-                        .get_logs_in_block(
-                            block_number,
-                            Self::interchain_gas_payment_parser,
-                            "InterchainGasPaymentCursor",
-                        )
-                        .await;
-                    (logs, block_number)
-                })
-            })
-            .collect();
+        let logs_futures = parse_logs_in_range(
+            range,
+            self.indexer.clone(),
+            Self::interchain_gas_payment_parser,
+            "InterchainGasPaymentCursor",
+        );
 
         execute_and_parse_log_futures(logs_futures).await
     }

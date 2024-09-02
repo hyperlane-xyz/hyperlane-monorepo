@@ -170,19 +170,19 @@ impl ChainCommunicationError {
         Self::Other(HyperlaneCustomErrorWrapper(err))
     }
 
-    /// Creates a chain communication error of the other error variant from a static string
-    pub fn from_other_str(err: &'static str) -> Self {
+    /// Creates a chain communication error of the other error variant from a string slice
+    pub fn from_other_str(err: &str) -> Self {
         #[derive(Debug)]
         #[repr(transparent)]
-        struct StringError(&'static str);
+        struct StringError(String);
         impl Display for StringError {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                f.write_str(self.0)
+                f.write_str(&self.0)
             }
         }
         impl StdError for StringError {}
 
-        Self::from_contract_error(StringError(err))
+        Self::from_contract_error(StringError(err.to_owned()))
     }
 
     /// Creates a chain communication error of the contract error variant from any other existing

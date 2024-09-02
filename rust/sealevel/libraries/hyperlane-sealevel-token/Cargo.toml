@@ -30,5 +30,3 @@ serializable-account-meta = { path = "../serializable-account-meta" }
 [lib]
 crate-type = ["cdylib", "lib"]
 
-[profile.release]
-overflow-checks = true

@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/sdk": patch
+'@hyperlane-xyz/sdk': patch
 ---
 
 Support DefaultFallbackRoutingIsm in metadata builder

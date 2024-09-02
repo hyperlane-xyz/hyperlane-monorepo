@@ -18,5 +18,3 @@ solana-program-test.workspace = true
 solana-sdk.workspace = true
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
 
-[profile.release]
-overflow-checks = true
