@@ -93,16 +93,6 @@ export function buildHelmChartDependencies(chartPath: string) {
   return execCmd(`cd ${chartPath} && helm dependency build`, {}, false, true);
 }
 
-export function normalizeK8sName(name: string) {
-  return (
-    name
-      .toLowerCase()
-      .substring(0, 63)
-      // Remove a trailing hyphen if it exists
-      .replace(/-$/g, '')
-  );
-}
-
 export type HelmValues = Record<string, any>;
 
 export abstract class HelmManager<T = HelmValues> {
@@ -110,6 +100,10 @@ export abstract class HelmManager<T = HelmValues> {
   abstract readonly helmChartPath: string;
   abstract readonly namespace: string;
 
+  /**
+   * Returns the values to be passed to the helm chart.
+   * Expected to be an object of values.
+   */
   abstract helmValues(): Promise<T>;
 
   async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {

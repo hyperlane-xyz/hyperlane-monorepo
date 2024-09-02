@@ -9,7 +9,7 @@ import { KeyFunderConfig } from '../config/funding.js';
 import { HelmCommand, HelmManager, helmifyValues } from '../utils/helm.js';
 import { execCmd, getInfraPath } from '../utils/utils.js';
 
-export class KeyFunderHelmManager extends HelmManager<any> {
+export class KeyFunderHelmManager extends HelmManager {
   readonly helmReleaseName: string = 'key-funder';
   readonly helmChartPath: string = join(getInfraPath(), './helm/key-funder/');
 
@@ -32,8 +32,8 @@ export class KeyFunderHelmManager extends HelmManager<any> {
     return this.config.namespace;
   }
 
-  async helmValues(): Promise<any> {
-    const values = {
+  async helmValues() {
+    return {
       cronjob: {
         schedule: this.config.cronSchedule,
       },
@@ -55,7 +55,6 @@ export class KeyFunderHelmManager extends HelmManager<any> {
         prometheusPushGateway: this.config.prometheusPushGateway,
       },
     };
-    return helmifyValues(values);
   }
 }
 

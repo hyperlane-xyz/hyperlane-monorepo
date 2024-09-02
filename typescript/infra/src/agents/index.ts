@@ -24,13 +24,7 @@ import {
   getGcpSecretLatestVersionName,
   setGCPSecretUsingClient,
 } from '../utils/gcloud.js';
-import {
-  HelmCommand,
-  HelmManager,
-  buildHelmChartDependencies,
-  helmifyValues,
-  normalizeK8sName,
-} from '../utils/helm.js';
+import { HelmManager } from '../utils/helm.js';
 import {
   execCmd,
   getInfraPath,
@@ -126,35 +120,6 @@ abstract class OmniscientAgentHelmManager extends AgentHelmManager {
     if (this.context != Contexts.Hyperlane) parts.push(this.context);
     return parts.join('-');
   }
-
-  getHelmFullName(helmValues: HelmRootAgentValues) {
-    if (helmValues.fullnameOverride) {
-      return normalizeK8sName(helmValues.fullnameOverride);
-    }
-    const name = helmValues.nameOverride ?? 'chartName';
-    if (name.includes(this.helmReleaseName)) {
-      return normalizeK8sName(this.helmReleaseName);
-    }
-    return normalizeK8sName(`${this.helmReleaseName}-${name}`);
-  }
-
-  //   // {{/*
-  //   //   Create a default fully qualified app name.
-  //   //   We truncate at 63 chars - 11 because some Kubernetes name fields are limited to this (by the DNS naming spec).
-  //   //   If release name contains chart name it will be used as a full name.
-  //   //   */}}
-  //   //   {{- define "agent-common.fullname" -}}
-  //   //   {{- if .Values.fullnameOverride }}
-  //   //   {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-  //   //   {{- else }}
-  //   //   {{- $name := default .Chart.Name .Values.nameOverride }}
-  //   //   {{- if contains $name .Release.Name }}
-  //   //   {{- .Release.Name | trunc 63 | trimSuffix "-" }}
-  //   //   {{- else }}
-  //   //   {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-  //   //   {{- end }}
-  //   //   {{- end }}
-  //   //   {{- end }}
 }
 
 abstract class MultichainAgentHelmManager extends AgentHelmManager {
