@@ -1,4 +1,4 @@
-import { setAndVerifyRpcUrls } from '../../src/utils/rpcUrls.js';
+import { setRpcUrlsInteractive } from '../../src/utils/rpcUrls.js';
 import {
   getArgs,
   withChainRequired,
@@ -19,7 +19,7 @@ async function main() {
 
   for (const chain of chains) {
     console.log(`Setting RPC URLs for chain: ${chain}`);
-    await setAndVerifyRpcUrls(environment, chain);
+    await setRpcUrlsInteractive(environment, chain);
   }
 }
 

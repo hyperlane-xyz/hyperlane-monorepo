@@ -4,17 +4,10 @@ import select from '@inquirer/select';
 import { ethers } from 'ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  pollAsync,
-  runWithTimeout,
-  sleep,
-  timeout,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
-import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import {
   RelayerHelmManager,
@@ -31,39 +24,16 @@ import { KathyHelmManager } from '../helloworld/kathy.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
-import { execCmd } from './utils.js';
+import { K8sResourceType, refreshK8sResources } from './k8s.js';
 
-async function testProvider(chain: ChainName, url: string): Promise<boolean> {
-  const chainMetadata = getChain(chain);
-  if (chainMetadata.protocol !== ProtocolType.Ethereum) {
-    console.log(`Skipping provider test for non-Ethereum chain ${chain}`);
-    return true;
-  }
-
-  const provider = new ethers.providers.StaticJsonRpcProvider(url);
-  const expectedChainId = chainMetadata.chainId;
-
-  try {
-    const [blockNumber, providerNetwork] = await timeout(
-      Promise.all([provider.getBlockNumber(), provider.getNetwork()]),
-      5000,
-    );
-    if (providerNetwork.chainId !== expectedChainId) {
-      throw new Error(
-        `Expected chainId ${expectedChainId}, got ${providerNetwork.chainId}`,
-      );
-    }
-    console.log(
-      `✅  Valid provider for ${url} with block number ${blockNumber}`,
-    );
-    return true;
-  } catch (e) {
-    console.error(`Provider failed: ${url}\nError: ${e}`);
-    return false;
-  }
-}
-
-export async function setAndVerifyRpcUrls(
+/**
+ * Set the RPC URLs for the given chain in the given environment interactively.
+ * Includes an interactive experience for selecting new RPC URLs, confirming the change,
+ * updating the secret, and refreshing dependent k8s resources.
+ * @param environment The environment to set the RPC URLs in
+ * @param chain The chain to set the RPC URLs for
+ */
+export async function setRpcUrlsInteractive(
   environment: string,
   chain: string,
 ): Promise<void> {
@@ -76,10 +46,9 @@ export async function setAndVerifyRpcUrls(
     console.log(`Selected RPC URLs: ${formatRpcUrls(newRpcUrls)}\n`);
 
     const secretPayload = JSON.stringify(newRpcUrls);
-    await confirmSetSecrets(environment, chain, secretPayload);
-    // await testProvidersIfNeeded(chain, rpcUrlsArray);
+    await confirmSetSecretsInteractive(environment, chain, secretPayload);
     await updateSecretAndDisablePrevious(environment, chain, secretPayload);
-    await refreshAllDependentK8sResources(
+    await refreshDependentK8sResourcesInteractive(
       environment as DeployEnvironment,
       chain,
     );
@@ -90,10 +59,6 @@ export async function setAndVerifyRpcUrls(
     );
     return;
   }
-}
-
-function formatRpcUrls(rpcUrls: string[]): string {
-  return JSON.stringify(rpcUrls, null, 2);
 }
 
 async function getAndDisplayCurrentSecrets(
@@ -127,6 +92,14 @@ type Choice<Value> = {
   type?: never;
 };
 
+/**
+ * Prompt the user to input RPC URLs for the given chain.
+ * The user can choose to input new URLs, use all registry URLs, or use existing URLs
+ * from secrets or the registry.
+ * @param chain The chain to input RPC URLs for
+ * @param existingUrls The existing RPC URLs for the chain
+ * @returns The selected RPC URLs
+ */
 async function inputRpcUrls(
   chain: string,
   existingUrls: string[],
@@ -172,6 +145,7 @@ async function inputRpcUrls(
     }
     selectedUrls.push(newUrl);
   };
+  const separator = new Separator('-----');
 
   while (true) {
     console.log(`Selected RPC URLs: ${formatRpcUrls(selectedUrls)}\n`);
@@ -185,13 +159,13 @@ async function inputRpcUrls(
         value: SystemChoice.USE_REGISTRY_URLS,
         name: `Use registry URLs (${JSON.stringify(registryUrls)})`,
       },
-      new Separator('-----'),
+      separator,
       ...existingUrlChoices,
-      new Separator('-----'),
+      separator,
       ...registryUrlChoices,
     ];
     if (selectedUrls.length > 0) {
-      choices.push(new Separator('-----'));
+      choices.push(separator);
       choices.push({
         value: SystemChoice.REMOVE_LAST,
       });
@@ -220,6 +194,8 @@ async function inputRpcUrls(
       console.log('Added all registry URLs');
       break;
     } else {
+      // If none of the above, a URL was chosen
+
       let index = existingUrls.indexOf(selection);
       if (index !== -1) {
         existingUrlChoices.splice(index, 1);
@@ -238,7 +214,10 @@ async function inputRpcUrls(
   return selectedUrls;
 }
 
-async function confirmSetSecrets(
+/**
+ * A prompt to confirm setting the given secret payload for the given chain in the given environment.
+ */
+async function confirmSetSecretsInteractive(
   environment: string,
   chain: string,
   secretPayload: string,
@@ -253,33 +232,13 @@ async function confirmSetSecrets(
   }
 }
 
-// async function testProvidersIfNeeded(
-//   chain: string,
-//   rpcUrlsArray: string[],
-// ): Promise<void> {
-//   if (isEthereumProtocolChain(chain)) {
-//     console.log('\nTesting providers...');
-//     const testPassed = await testProviders(rpcUrlsArray);
-//     if (!testPassed) {
-//       console.error('At least one provider failed.');
-//       throw new Error('Provider test failed');
-//     }
-
-//     const confirmedProviders = await confirm({
-//       message: `All providers passed. Do you want to continue setting the secret?\n`,
-//     });
-
-//     if (!confirmedProviders) {
-//       console.log('Continuing without setting secret.');
-//       throw new Error('User cancelled operation after provider test');
-//     }
-//   } else {
-//     console.log(
-//       'Skipping provider testing as chain is not an Ethereum protocol chain.',
-//     );
-//   }
-// }
-
+/**
+ * Non-interactively updates the secret for the given chain in the given environment with the given payload.
+ * Disables the previous version of the secret if it exists.
+ * @param environment The environment to update the secret in
+ * @param chain The chain to update the secret for
+ * @param secretPayload The new secret payload to set
+ */
 async function updateSecretAndDisablePrevious(
   environment: string,
   chain: string,
@@ -307,12 +266,20 @@ async function updateSecretAndDisablePrevious(
   }
 }
 
-async function refreshAllDependentK8sResources(
+/**
+ * Interactively refreshes dependent k8s resources for the given chain in the given environment.
+ * Allows for helm releases to be selected for refreshing. Refreshing involves first deleting
+ * secrets, expecting them to be recreated by external-secrets, and then deleting pods to restart
+ * them with the new secrets.
+ * @param environment The environment to refresh resources in
+ * @param chain The chain to refresh resources for
+ */
+async function refreshDependentK8sResourcesInteractive(
   environment: DeployEnvironment,
   chain: string,
 ): Promise<void> {
   const cont = await confirm({
-    message: `Do you want to refresh all dependent k8s resources for ${chain} in ${environment}?`,
+    message: `Do you want to refresh dependent k8s resources for ${chain} in ${environment}?`,
   });
   if (!cont) {
     console.log('Skipping refresh of k8s resources');
@@ -385,134 +352,42 @@ async function refreshAllDependentK8sResources(
   );
 }
 
-enum K8sResourceType {
-  SECRET = 'secret',
-  POD = 'pod',
-}
-
-async function refreshK8sResources(
-  helmManagers: HelmManager<any>[],
-  resourceType: K8sResourceType,
-  namespace: string,
-) {
-  const resourceNames = (
-    await Promise.all(
-      helmManagers.map(async (helmManager) => {
-        if (resourceType === K8sResourceType.SECRET) {
-          return helmManager.getExistingK8sSecrets();
-        } else if (resourceType === K8sResourceType.POD) {
-          return helmManager.getManagedK8sPods();
-        } else {
-          throw new Error(`Unknown resource type: ${resourceType}`);
-        }
-      }),
-    )
-  ).flat();
-
-  console.log(`Ready to delete ${resourceType}s: ${resourceNames.join(', ')}`);
-
-  const cont = await confirm({
-    message: `Proceed and delete ${resourceNames.length} ${resourceType}s?`,
-  });
-  if (!cont) {
-    throw new Error('Aborting');
+/**
+ * Test the provider at the given URL, returning false if the provider is unhealthy
+ * or related to a different chain. No-op for non-Ethereum chains.
+ * @param chain The chain to test the provider for
+ * @param url The URL of the provider
+ */
+async function testProvider(chain: ChainName, url: string): Promise<boolean> {
+  const chainMetadata = getChain(chain);
+  if (chainMetadata.protocol !== ProtocolType.Ethereum) {
+    console.log(`Skipping provider test for non-Ethereum chain ${chain}`);
+    return true;
   }
 
-  await execCmd(
-    `kubectl delete ${resourceType} ${resourceNames.join(' ')} -n ${namespace}`,
-  );
-  console.log(
-    `🏗  Deleted ${resourceNames.length} ${resourceType}s, waiting for them to be recreated...`,
-  );
-
-  await waitForK8sResources(resourceType, resourceNames, namespace);
-}
-
-// Polls until all resources are ready.
-// For secrets, this means they exist.
-// For pods, this means they exist and are running.
-async function waitForK8sResources(
-  resourceType: K8sResourceType,
-  resourceNames: string[],
-  namespace: string,
-) {
-  const resourceGetter =
-    resourceType === K8sResourceType.SECRET
-      ? getExistingK8sSecrets
-      : getRunningK8sPods;
+  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const expectedChainId = chainMetadata.chainId;
 
   try {
-    await pollAsync(
-      async () => {
-        const { missing } = await resourceGetter(resourceNames, namespace);
-        if (missing.length > 0) {
-          console.log(
-            `⏳ ${resourceNames.length - missing.length} of ${
-              resourceNames.length
-            } ${resourceType}s up, waiting for ${missing.length} more`,
-          );
-          throw new Error(
-            `${resourceType}s not ready, ${missing.length} missing`,
-          );
-        }
-      },
-      2000,
-      30,
+    const [blockNumber, providerNetwork] = await timeout(
+      Promise.all([provider.getBlockNumber(), provider.getNetwork()]),
+      5000,
     );
-    console.log(`✅  All ${resourceNames.length} ${resourceType}s exist`);
+    if (providerNetwork.chainId !== expectedChainId) {
+      throw new Error(
+        `Expected chainId ${expectedChainId}, got ${providerNetwork.chainId}`,
+      );
+    }
+    console.log(
+      `✅  Valid provider for ${url} with block number ${blockNumber}`,
+    );
+    return true;
   } catch (e) {
-    console.error(`Error waiting for ${resourceType}s to exist: ${e}`);
+    console.error(`Provider failed: ${url}\nError: ${e}`);
+    return false;
   }
 }
 
-async function getExistingK8sSecrets(
-  resourceNames: string[],
-  namespace: string,
-): Promise<{
-  existing: string[];
-  missing: string[];
-}> {
-  const [output] = await execCmd(
-    `kubectl get secret ${resourceNames.join(
-      ' ',
-    )} -n ${namespace} --ignore-not-found -o jsonpath='{.items[*].metadata.name}'`,
-  );
-  const existing = output.split(' ').filter(Boolean);
-  const missing = resourceNames.filter(
-    (resource) => !existing.includes(resource),
-  );
-  return { existing, missing };
-}
-
-async function getRunningK8sPods(
-  resourceNames: string[],
-  namespace: string,
-): Promise<{
-  existing: string[];
-  missing: string[];
-}> {
-  // Returns a newline separated list of pod names and their statuses, e.g.:
-  //   pod1:Running
-  //   pod2:Pending
-  //   pod3:Running
-  // Interestingly, providing names here is incompatible with the jsonpath range syntax. So we get all pods
-  // and filter.
-  const [output] = await execCmd(
-    `kubectl get pods -n ${namespace} --ignore-not-found -o jsonpath='{range .items[*]}{.metadata.name}:{.status.phase}{"\\n"}{end}'`,
-  );
-  // Filter out pods that are not in the list of resource names or are not running
-  const running = output
-    .split('\n')
-    .map((line) => {
-      const [pod, status] = line.split(':');
-      return resourceNames.includes(pod) && status === 'Running'
-        ? pod
-        : undefined;
-    })
-    // TS isn't smart enought to know that the filter removes undefineds
-    .filter((pod) => pod !== undefined) as string[];
-  const missing = resourceNames.filter(
-    (resource) => !running.includes(resource),
-  );
-  return { existing: running, missing };
+function formatRpcUrls(rpcUrls: string[]): string {
+  return JSON.stringify(rpcUrls, null, 2);
 }
