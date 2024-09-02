@@ -139,8 +139,8 @@ export const keyFunderConfig: KeyFunderConfig<
     injective: '0',
     neutron: '0',
     osmosis: '0',
-    eclipse: '0',
-    solana: '0',
+    eclipsemainnet: '0',
+    solanamainnet: '0',
   },
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
@@ -194,7 +194,7 @@ export const keyFunderConfig: KeyFunderConfig<
     injective: '0',
     neutron: '0',
     osmosis: '0',
-    eclipse: '0',
-    solana: '0',
+    eclipsemainnet: '0',
+    solanamainnet: '0',
   },
 };
