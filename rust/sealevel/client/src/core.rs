@@ -20,7 +20,7 @@ use hyperlane_core::H256;
 use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
-    if chain_name.eq("solana") {
+    if chain_name.eq("solanamainnet") {
         let mut initial_instructions = ctx.initial_instructions.borrow_mut();
         const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 50_000_000;
         const MICRO_LAMPORT_FEE_PER_LIMIT: u64 =

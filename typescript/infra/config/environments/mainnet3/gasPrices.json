@@ -63,7 +63,7 @@
     "amount": "250.0",
     "decimals": 9
   },
-  "eclipse": {
+  "eclipsemainnet": {
     "amount": "0.001",
     "decimals": 9
   },
@@ -195,7 +195,7 @@
     "amount": "54.30595191",
     "decimals": 9
   },
-  "solana": {
+  "solanamainnet": {
     "amount": "0.5",
     "decimals": 1
   },
