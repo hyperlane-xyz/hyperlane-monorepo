@@ -196,14 +196,18 @@ async function inputRpcUrls(
     } else {
       // If none of the above, a URL was chosen
 
-      let index = existingUrls.indexOf(selection);
+      let index = existingUrlChoices.findIndex(
+        (choice) => choice.value === selection,
+      );
       if (index !== -1) {
         existingUrlChoices.splice(index, 1);
       }
 
-      index = registryUrls.indexOf(selection);
+      index = registryUrlChoices.findIndex(
+        (choice) => choice.value === selection,
+      );
       if (index !== -1) {
-        registryUrls.splice(index, 1);
+        registryUrlChoices.splice(index, 1);
       }
 
       await pushSelectedUrl(selection);
