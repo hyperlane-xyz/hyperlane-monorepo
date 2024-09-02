@@ -49,10 +49,6 @@ export class KathyHelmManager extends HelmManager<HelmValues> {
     return this.config.namespace;
   }
 
-  get dockerImage() {
-    return this.config.docker;
-  }
-
   get helmReleaseName(): string {
     // For backward compatibility, keep the hyperlane context release name as
     // 'helloworld-kathy', and add `-${context}` as a suffix for any other contexts

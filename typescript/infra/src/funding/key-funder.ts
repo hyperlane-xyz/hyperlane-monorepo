@@ -32,10 +32,6 @@ export class KeyFunderHelmManager extends HelmManager<any> {
     return this.config.namespace;
   }
 
-  get dockerImage() {
-    return this.config.docker;
-  }
-
   async helmValues(): Promise<any> {
     const values = {
       cronjob: {

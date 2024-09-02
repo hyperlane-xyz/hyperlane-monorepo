@@ -109,7 +109,6 @@ export abstract class HelmManager<T = HelmValues> {
   abstract readonly helmReleaseName: string;
   abstract readonly helmChartPath: string;
   abstract readonly namespace: string;
-  abstract readonly dockerImage: DockerConfig;
 
   abstract helmValues(): Promise<T>;
 
