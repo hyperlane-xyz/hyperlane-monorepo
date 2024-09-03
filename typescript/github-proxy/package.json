@@ -1,21 +1,22 @@
 {
-	"name": "github-proxy",
-	"version": "0.0.0",
-	"private": true,
-	"scripts": {
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
-		"start": "wrangler dev",
-		"test:vitest": "vitest",
-		"cf-typegen": "wrangler types"
-	},
-	"type": "module",
-	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.4.5",
-		"@cloudflare/workers-types": "^4.20240821.1",
-		"chai": "4.5.0",
-		"typescript": "^5.5.2",
-		"vitest": "1.4.0",
-		"wrangler": "^3.74.0"
-	}
+  "name": "github-proxy",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "test:vitest": "vitest",
+    "prettier": "prettier --write ./src ./test"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.4.5",
+    "@cloudflare/workers-types": "^4.20240821.1",
+    "chai": "4.5.0",
+    "prettier": "^2.8.8",
+    "typescript": "^5.5.2",
+    "vitest": "1.4.0",
+    "wrangler": "^3.74.0"
+  }
 }

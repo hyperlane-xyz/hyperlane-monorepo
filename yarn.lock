@@ -20004,6 +20004,7 @@ __metadata:
     "@cloudflare/vitest-pool-workers": "npm:^0.4.5"
     "@cloudflare/workers-types": "npm:^4.20240821.1"
     chai: "npm:4.5.0"
+    prettier: "npm:^2.8.8"
     typescript: "npm:^5.5.2"
     vitest: "npm:1.4.0"
     wrangler: "npm:^3.74.0"

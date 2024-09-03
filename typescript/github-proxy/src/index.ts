@@ -1,32 +1,32 @@
 import { DISALLOWED_URL_MSG } from './errors';
 
 const GITHUB_API_ALLOWLIST = [
-	'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main',
-	'https://api.github.com/repos/hyperlane-xyz/hyperlane-registry',
+  'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main',
+  'https://api.github.com/repos/hyperlane-xyz/hyperlane-registry',
 ];
 
 export default {
-	async fetch(request, env: any, _ctx): Promise<Response> {
-		if (!canParseUrl(request.url)) {
-			return new Response(DISALLOWED_URL_MSG, { status: 401 });
-		}
+  async fetch(request, env: any, _ctx): Promise<Response> {
+    if (!canParseUrl(request.url)) {
+      return new Response(DISALLOWED_URL_MSG, { status: 401 });
+    }
 
-		const apiUrl = getUrlPath(request.url);
-		const allowablePath = getOriginWithPartialPath(apiUrl);
-		if (!GITHUB_API_ALLOWLIST.includes(allowablePath)) {
-			return new Response(DISALLOWED_URL_MSG, { status: 401 });
-		}
+    const apiUrl = getUrlPath(request.url);
+    const allowablePath = getOriginWithPartialPath(apiUrl);
+    if (!GITHUB_API_ALLOWLIST.includes(allowablePath)) {
+      return new Response(DISALLOWED_URL_MSG, { status: 401 });
+    }
 
-		return fetch(apiUrl, {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				'User-Agent': 'Hyperlane-Github-Proxy',
-				'X-GitHub-Api-Version': '2022-11-28',
-				Authorization: `Bearer ${env.GITHUB_API_KEY}`,
-			},
-		});
-	},
+    return fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Hyperlane-Github-Proxy',
+        'X-GitHub-Api-Version': '2022-11-28',
+        Authorization: `Bearer ${env.GITHUB_API_KEY}`,
+      },
+    });
+  },
 } satisfies ExportedHandler<Env>;
 
 /**
@@ -37,11 +37,11 @@ export default {
  * @returns `true` if the URL can be parsed, `false` otherwise.
  */
 function canParseUrl(url: string): boolean {
-	try {
-		return !!getUrlPath(url);
-	} catch (e) {
-		return false;
-	}
+  try {
+    return !!getUrlPath(url);
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -52,9 +52,9 @@ function canParseUrl(url: string): boolean {
  * @returns The origin URL with the first three path segments.
  */
 function getOriginWithPartialPath(url: URL): string {
-	const origin = url.origin;
-	const pathNames = url.pathname.split('/');
-	return `${origin}/${pathNames[1]}/${pathNames[2]}/${pathNames[3]}`;
+  const origin = url.origin;
+  const pathNames = url.pathname.split('/');
+  return `${origin}/${pathNames[1]}/${pathNames[2]}/${pathNames[3]}`;
 }
 
 /**
@@ -64,5 +64,5 @@ function getOriginWithPartialPath(url: URL): string {
  * @returns A new URL object with the leading slash removed from the pathname.
  */
 function getUrlPath(url: string): URL {
-	return new URL(new URL(url).pathname.substring(1));
+  return new URL(new URL(url).pathname.substring(1));
 }
