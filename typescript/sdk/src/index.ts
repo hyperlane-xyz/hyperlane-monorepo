@@ -518,7 +518,6 @@ export {
   getSafe,
   getSafeDelegates,
   getSafeService,
-  DEFAULT_SAFE_VERSION,
   // @ts-ignore
 } from './utils/gnosisSafe.js';
 

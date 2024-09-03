@@ -17,12 +17,6 @@ export function getSafeService(chain, multiProvider) {
   return new SafeApiKit.default({ txServiceUrl, ethAdapter });
 }
 
-// Default safe version to use if not specified
-export const DEFAULT_SAFE_VERSION = '1.3.0';
-const safeVersionOverrides = {
-  ancient8: '1.1.1',
-};
-
 // This is the version of the Safe contracts that the SDK is compatible with.
 // Copied the MVP fields from https://github.com/safe-global/safe-core-sdk/blob/4d1c0e14630f951c2498e1d4dd521403af91d6e1/packages/protocol-kit/src/contracts/config.ts#L19
 // because the SDK doesn't expose this value.
@@ -37,7 +31,7 @@ const safeDeploymentsVersions = {
   },
 };
 
-export function getSafe(chain, multiProvider, safeAddress) {
+export async function getSafe(chain, multiProvider, safeAddress) {
   // Create Ethers Adapter
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
@@ -45,20 +39,30 @@ export function getSafe(chain, multiProvider, safeAddress) {
   // Get the domain id for the given chain
   const domainId = multiProvider.getDomainId(chain);
 
-  // Get the default contract addresses for the given chain
-  const safeVersion = safeVersionOverrides[chain] || DEFAULT_SAFE_VERSION;
-  const { multiSendVersion, multiSendCallOnlyVersion } =
-    safeDeploymentsVersions[safeVersion];
-  const multiSend = getMultiSendDeployment({
-    version: multiSendVersion,
-    network: domainId,
-    released: true,
-  });
-  const multiSendCallOnly = getMultiSendCallOnlyDeployment({
-    version: multiSendCallOnlyVersion,
-    network: domainId,
-    released: true,
-  });
+  // Get the safe version
+  const safeService = getSafeService(chain, multiProvider);
+  const { version: rawSafeVersion } = await safeService.getSafeInfo(
+    safeAddress,
+  );
+  // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
+  const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
+
+  // Get the multiSend and multiSendCallOnly deployments for the given chain
+  let multiSend, multiSendCallOnly;
+  if (safeDeploymentsVersions[safeVersion]) {
+    const { multiSendVersion, multiSendCallOnlyVersion } =
+      safeDeploymentsVersions[safeVersion];
+    multiSend = getMultiSendDeployment({
+      version: multiSendVersion,
+      network: domainId,
+      released: true,
+    });
+    multiSendCallOnly = getMultiSendCallOnlyDeployment({
+      version: multiSendCallOnlyVersion,
+      network: domainId,
+      released: true,
+    });
+  }
 
   return Safe.default.create({
     ethAdapter,
@@ -66,7 +70,7 @@ export function getSafe(chain, multiProvider, safeAddress) {
     contractNetworks: {
       [domainId]: {
         // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
-        // if the contract is not deployed
+        // if the contract is not deployed or if the version is not found
         multiSendAddress: multiSend?.defaultAddress || safeAddress,
         multiSendCallOnlyAddress:
           multiSendCallOnly?.defaultAddress || safeAddress,

@@ -1,3 +1,4 @@
+import { JsonRpcSigner } from '@ethersproject/providers';
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import {
@@ -19,8 +20,12 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  const safeSdk = await getSafe(chain, multiProvider, safeAddress);
-  const safeService = getSafeService(chain, multiProvider);
+  const safeSdk: Safe.default = await getSafe(
+    chain,
+    multiProvider,
+    safeAddress,
+  );
+  const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
 }
 
@@ -170,7 +175,7 @@ export async function deleteSafeTx(
       },
     };
 
-    const signature = await (signer as ethers.Wallet)._signTypedData(
+    const signature = await (signer as JsonRpcSigner)._signTypedData(
       typedData.domain,
       { DeleteRequest: typedData.types.DeleteRequest },
       typedData.message,

@@ -2,8 +2,6 @@ import { EthersAdapter, SafeFactory } from '@safe-global/protocol-kit';
 import { SafeAccountConfig } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
-import { DEFAULT_SAFE_VERSION } from '@hyperlane-xyz/sdk';
-
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import { Role } from '../../src/roles.js';
@@ -38,7 +36,6 @@ async function main() {
   try {
     safeFactory = await SafeFactory.create({
       ethAdapter,
-      safeVersion: DEFAULT_SAFE_VERSION,
     });
   } catch (e) {
     console.error(`Error initializing SafeFactory: ${e}`);
