@@ -77,7 +77,7 @@ export function getSafe(chain, multiProvider, safeAddress) {
     };
   }
 
-  return Safe.create({
+  return Safe.default.create({
     ethAdapter,
     safeAddress,
     contractNetworks,
