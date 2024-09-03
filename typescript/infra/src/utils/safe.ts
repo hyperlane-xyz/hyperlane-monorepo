@@ -1,20 +1,19 @@
 import { ethers } from 'ethers';
 
 import {
-  ChainName,
   ChainNameOrId,
   MultiProvider,
   getSafe,
   getSafeService,
 } from '@hyperlane-xyz/sdk';
-import { CallData } from '@hyperlane-xyz/utils';
+import { Address, CallData } from '@hyperlane-xyz/utils';
 
 export async function getSafeAndService({
   chain,
   multiProvider,
   safeAddress,
 }: {
-  chain: string;
+  chain: ChainNameOrId;
   multiProvider: MultiProvider;
   safeAddress: string;
 }) {
@@ -39,7 +38,7 @@ export async function createSafeTransaction({
 }: {
   safeSdk: any;
   safeService: any;
-  safeAddress: string;
+  safeAddress: Address;
   safeTransactionData: any;
 }) {
   const nextNonce = await safeService.getNextNonce(safeAddress);
@@ -61,7 +60,7 @@ export async function proposeSafeTransaction({
   safeSdk: any;
   safeService: any;
   safeTransaction: any;
-  safeAddress: string;
+  safeAddress: Address;
   signer: ethers.Signer;
 }) {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
@@ -84,9 +83,9 @@ export async function deleteAllPendingSafeTxs({
   multiProvider,
   safeAddress,
 }: {
-  chain: string;
+  chain: ChainNameOrId;
   multiProvider: MultiProvider;
-  safeAddress: string;
+  safeAddress: Address;
 }) {
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
@@ -116,7 +115,7 @@ export async function deleteAllPendingSafeTxs({
   }
 
   console.log(
-    `Deleted all pending transactions on ${chain} for ${safeAddress}`,
+    `Deleted all pending transactions on ${chain} for ${safeAddress}\n`,
   );
 }
 
@@ -126,9 +125,9 @@ export async function deleteSafeTx({
   safeAddress,
   safeTxHash,
 }: {
-  chain: string;
+  chain: ChainNameOrId;
   multiProvider: MultiProvider;
-  safeAddress: string;
+  safeAddress: Address;
   safeTxHash: string;
 }) {
   const signer = multiProvider.getSigner(chain);
@@ -210,17 +209,18 @@ export async function deleteSafeTx({
     });
 
     if (res.status === 204) {
-      console.log(
-        `Successfully deleted transaction ${safeTxHash} (No Content)`,
-      );
+      console.log(`Successfully deleted transaction ${safeTxHash} on ${chain}`);
       return;
     }
 
     const errorBody = await res.text();
     console.error(
-      `Failed to delete transaction ${safeTxHash}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
+      `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
     );
   } catch (error) {
-    console.error(`Failed to delete transaction ${safeTxHash}:`, error);
+    console.error(
+      `Failed to delete transaction ${safeTxHash} on ${chain}:`,
+      error,
+    );
   }
 }
