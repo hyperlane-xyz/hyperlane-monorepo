@@ -36,12 +36,7 @@ async function main() {
 
   for (const chain of chains) {
     try {
-      await deleteSafeTx({
-        chain,
-        multiProvider,
-        safeAddress: safes[chain],
-        safeTxHash: tx,
-      });
+      await deleteSafeTx(chain, multiProvider, safes[chain], tx);
     } catch (error) {
       console.error(`Error deleting transaction ${tx} for ${chain}:`, error);
     }

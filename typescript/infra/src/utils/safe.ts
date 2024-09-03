@@ -8,21 +8,17 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData } from '@hyperlane-xyz/utils';
 
-export async function getSafeAndService({
-  chain,
-  multiProvider,
-  safeAddress,
-}: {
-  chain: ChainNameOrId;
-  multiProvider: MultiProvider;
-  safeAddress: string;
-}) {
+export async function getSafeAndService(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
+) {
   const safeSdk = await getSafe(chain, multiProvider, safeAddress);
   const safeService = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
 }
 
-export function createSafeTransactionData({ call }: { call: CallData }) {
+export function createSafeTransactionData(call: CallData) {
   return {
     to: call.to,
     data: call.data.toString(),
@@ -30,17 +26,12 @@ export function createSafeTransactionData({ call }: { call: CallData }) {
   };
 }
 
-export async function createSafeTransaction({
-  safeSdk,
-  safeService,
-  safeAddress,
-  safeTransactionData,
-}: {
-  safeSdk: any;
-  safeService: any;
-  safeAddress: Address;
-  safeTransactionData: any;
-}) {
+export async function createSafeTransaction(
+  safeSdk: any,
+  safeService: any,
+  safeAddress: Address,
+  safeTransactionData: any,
+) {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
@@ -48,21 +39,14 @@ export async function createSafeTransaction({
   });
 }
 
-export async function proposeSafeTransaction({
-  chain,
-  safeSdk,
-  safeService,
-  safeTransaction,
-  safeAddress,
-  signer,
-}: {
-  chain: ChainNameOrId;
-  safeSdk: any;
-  safeService: any;
-  safeTransaction: any;
-  safeAddress: Address;
-  signer: ethers.Signer;
-}) {
+export async function proposeSafeTransaction(
+  chain: ChainNameOrId,
+  safeSdk: any,
+  safeService: any,
+  safeTransaction: any,
+  safeAddress: Address,
+  signer: ethers.Signer,
+) {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
   const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
   const senderAddress = await signer.getAddress();
@@ -78,15 +62,11 @@ export async function proposeSafeTransaction({
   console.log(`Proposed transaction on ${chain} with hash ${safeTxHash}`);
 }
 
-export async function deleteAllPendingSafeTxs({
-  chain,
-  multiProvider,
-  safeAddress,
-}: {
-  chain: ChainNameOrId;
-  multiProvider: MultiProvider;
-  safeAddress: Address;
-}) {
+export async function deleteAllPendingSafeTxs(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
+) {
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
@@ -106,12 +86,7 @@ export async function deleteAllPendingSafeTxs({
 
   // Delete each pending transaction
   for (const tx of pendingTxs.results) {
-    await deleteSafeTx({
-      chain,
-      multiProvider,
-      safeAddress,
-      safeTxHash: tx.safeTxHash,
-    });
+    await deleteSafeTx(chain, multiProvider, safeAddress, tx.safeTxHash);
   }
 
   console.log(
@@ -119,17 +94,12 @@ export async function deleteAllPendingSafeTxs({
   );
 }
 
-export async function deleteSafeTx({
-  chain,
-  multiProvider,
-  safeAddress,
-  safeTxHash,
-}: {
-  chain: ChainNameOrId;
-  multiProvider: MultiProvider;
-  safeAddress: Address;
-  safeTxHash: string;
-}) {
+export async function deleteSafeTx(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  safeAddress: string,
+  safeTxHash: string,
+) {
   const signer = multiProvider.getSigner(chain);
   const domainId = multiProvider.getDomainId(chain);
   const txServiceUrl =

@@ -56,11 +56,11 @@ export class SafeMultiSend extends MultiSend {
   }
 
   async sendTransactions(calls: CallData[]) {
-    const { safeSdk, safeService } = await getSafeAndService({
-      chain: this.chain,
-      multiProvider: this.multiProvider,
-      safeAddress: this.safeAddress,
-    });
+    const { safeSdk, safeService } = await getSafeAndService(
+      this.chain,
+      this.multiProvider,
+      this.safeAddress,
+    );
 
     if (isZeroishAddress(safeSdk.getMultiSendAddress())) {
       console.log(
@@ -79,13 +79,13 @@ export class SafeMultiSend extends MultiSend {
     safeService: any,
   ) {
     for (const call of calls) {
-      const safeTransactionData = createSafeTransactionData({ call });
-      const safeTransaction = await createSafeTransaction({
+      const safeTransactionData = createSafeTransactionData(call);
+      const safeTransaction = await createSafeTransaction(
         safeSdk,
         safeService,
-        safeAddress: this.safeAddress,
+        this.safeAddress,
         safeTransactionData,
-      });
+      );
       await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
     }
   }
@@ -97,14 +97,14 @@ export class SafeMultiSend extends MultiSend {
     safeService: any,
   ) {
     const safeTransactionData = calls.map((call) =>
-      createSafeTransactionData({ call }),
+      createSafeTransactionData(call),
     );
-    const safeTransaction = await createSafeTransaction({
+    const safeTransaction = await createSafeTransaction(
       safeSdk,
       safeService,
-      safeAddress: this.safeAddress,
+      this.safeAddress,
       safeTransactionData,
-    });
+    );
     await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
   }
 
@@ -115,13 +115,13 @@ export class SafeMultiSend extends MultiSend {
     safeTransaction: any,
   ) {
     const signer = this.multiProvider.getSigner(this.chain);
-    await proposeSafeTransaction({
-      chain: this.chain,
+    await proposeSafeTransaction(
+      this.chain,
       safeSdk,
       safeService,
       safeTransaction,
-      safeAddress: this.safeAddress,
+      this.safeAddress,
       signer,
-    });
+    );
   }
 }
