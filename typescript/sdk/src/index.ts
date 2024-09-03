@@ -513,9 +513,14 @@ export {
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';
 
-// prettier-ignore
-// @ts-ignore
-export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
+export {
+  canProposeSafeTransactions,
+  getSafe,
+  getSafeDelegates,
+  getSafeService,
+  DEFAULT_SAFE_VERSION,
+  // @ts-ignore
+} from './utils/gnosisSafe.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';

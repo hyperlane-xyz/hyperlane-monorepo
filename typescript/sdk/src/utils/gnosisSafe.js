@@ -18,7 +18,7 @@ export function getSafeService(chain, multiProvider) {
 }
 
 // Default safe version to use if not specified
-const DEFAULT_SAFE_VERSION = '1.3.0';
+export const DEFAULT_SAFE_VERSION = '1.3.0';
 const safeVersionOverrides = {
   ancient8: '1.1.1',
 };

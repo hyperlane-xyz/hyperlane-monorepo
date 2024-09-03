@@ -1,5 +1,9 @@
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
+import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { CallData, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
 import {
   createSafeTransaction,
@@ -50,7 +54,7 @@ export class SafeMultiSend extends MultiSend {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainName,
-    public readonly safeAddress: string,
+    public readonly safeAddress: Address,
   ) {
     super();
   }
@@ -77,8 +81,8 @@ export class SafeMultiSend extends MultiSend {
   // Helper function to propose individual transactions
   private async proposeIndividualTransactions(
     calls: CallData[],
-    safeSdk: any,
-    safeService: any,
+    safeSdk: Safe.default,
+    safeService: SafeApiKit.default,
   ) {
     for (const call of calls) {
       const safeTransactionData = createSafeTransactionData(call);
@@ -95,8 +99,8 @@ export class SafeMultiSend extends MultiSend {
   // Helper function to propose a multi-send transaction
   private async proposeMultiSendTransaction(
     calls: CallData[],
-    safeSdk: any,
-    safeService: any,
+    safeSdk: Safe.default,
+    safeService: SafeApiKit.default,
   ) {
     const safeTransactionData = calls.map((call) =>
       createSafeTransactionData(call),
@@ -112,9 +116,9 @@ export class SafeMultiSend extends MultiSend {
 
   // Helper function to propose a safe transaction
   private async proposeSafeTransaction(
-    safeSdk: any,
-    safeService: any,
-    safeTransaction: any,
+    safeSdk: Safe.default,
+    safeService: SafeApiKit.default,
+    safeTransaction: SafeTransaction,
   ) {
     const signer = this.multiProvider.getSigner(this.chain);
     await proposeSafeTransaction(

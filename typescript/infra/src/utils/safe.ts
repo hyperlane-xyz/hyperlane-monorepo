@@ -1,4 +1,5 @@
 import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
 import {
   MetaTransactionData,
   SafeTransaction,
@@ -32,7 +33,7 @@ export function createSafeTransactionData(call: CallData): MetaTransactionData {
 }
 
 export async function createSafeTransaction(
-  safeSdk: any,
+  safeSdk: Safe.default,
   safeService: SafeApiKit.default,
   safeAddress: Address,
   safeTransactionData: MetaTransactionData[],
@@ -46,7 +47,7 @@ export async function createSafeTransaction(
 
 export async function proposeSafeTransaction(
   chain: ChainNameOrId,
-  safeSdk: any,
+  safeSdk: Safe.default,
   safeService: SafeApiKit.default,
   safeTransaction: SafeTransaction,
   safeAddress: Address,
