@@ -51,10 +51,6 @@ describe('WarpApply e2e tests', async function () {
     writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
   });
 
-  after(async function () {
-    this.timeout(2500);
-  });
-
   beforeEach(async function () {
     await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
   });
