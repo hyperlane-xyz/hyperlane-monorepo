@@ -60,13 +60,13 @@ export function getSafe(chain, multiProvider, safeAddress) {
     released: true,
   });
 
-  // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
-  // if the contract is not deployed
   return Safe.default.create({
     ethAdapter,
     safeAddress,
     contractNetworks: {
       [domainId]: {
+        // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
+        // if the contract is not deployed
         multiSendAddress: multiSend?.defaultAddress || safeAddress,
         multiSendCallOnlyAddress:
           multiSendCallOnly?.defaultAddress || safeAddress,
