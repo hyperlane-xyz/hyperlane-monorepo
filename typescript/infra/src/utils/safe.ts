@@ -1,3 +1,8 @@
+import SafeApiKit from '@safe-global/api-kit';
+import {
+  MetaTransactionData,
+  SafeTransaction,
+} from '@safe-global/safe-core-sdk-types';
 import { ethers } from 'ethers';
 
 import {
@@ -18,7 +23,7 @@ export async function getSafeAndService(
   return { safeSdk, safeService };
 }
 
-export function createSafeTransactionData(call: CallData) {
+export function createSafeTransactionData(call: CallData): MetaTransactionData {
   return {
     to: call.to,
     data: call.data.toString(),
@@ -28,10 +33,10 @@ export function createSafeTransactionData(call: CallData) {
 
 export async function createSafeTransaction(
   safeSdk: any,
-  safeService: any,
+  safeService: SafeApiKit.default,
   safeAddress: Address,
-  safeTransactionData: any,
-) {
+  safeTransactionData: MetaTransactionData[],
+): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
@@ -42,11 +47,11 @@ export async function createSafeTransaction(
 export async function proposeSafeTransaction(
   chain: ChainNameOrId,
   safeSdk: any,
-  safeService: any,
-  safeTransaction: any,
+  safeService: SafeApiKit.default,
+  safeTransaction: SafeTransaction,
   safeAddress: Address,
   signer: ethers.Signer,
-) {
+): Promise<void> {
   const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
   const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
   const senderAddress = await signer.getAddress();
@@ -66,7 +71,7 @@ export async function deleteAllPendingSafeTxs(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
-) {
+): Promise<void> {
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
@@ -97,9 +102,9 @@ export async function deleteAllPendingSafeTxs(
 export async function deleteSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
-  safeAddress: string,
+  safeAddress: Address,
   safeTxHash: string,
-) {
+): Promise<void> {
   const signer = multiProvider.getSigner(chain);
   const domainId = multiProvider.getDomainId(chain);
   const txServiceUrl =

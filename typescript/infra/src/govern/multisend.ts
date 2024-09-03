@@ -1,5 +1,5 @@
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { CallData, isZeroishAddress } from '@hyperlane-xyz/utils';
+import { CallData, eqAddress } from '@hyperlane-xyz/utils';
 
 import {
   createSafeTransaction,
@@ -62,7 +62,9 @@ export class SafeMultiSend extends MultiSend {
       this.safeAddress,
     );
 
-    if (isZeroishAddress(safeSdk.getMultiSendAddress())) {
+    // If the multiSend address is the same as the safe address, we need to
+    // propose the transactions individually. See: gnosisSafe.js in the SDK.
+    if (eqAddress(safeSdk.getMultiSendAddress(), this.safeAddress)) {
       console.log(
         `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
       );
@@ -84,7 +86,7 @@ export class SafeMultiSend extends MultiSend {
         safeSdk,
         safeService,
         this.safeAddress,
-        safeTransactionData,
+        [safeTransactionData],
       );
       await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
     }
