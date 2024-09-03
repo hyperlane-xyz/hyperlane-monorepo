@@ -124,9 +124,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       });
       return TokenType.native;
     } catch (e) {
-      throw Error(
-        `Error accessing token specific method, implying this is not a supported token.`,
-      );
+      throw Error(`Error accessing token specific method ${e}`);
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
