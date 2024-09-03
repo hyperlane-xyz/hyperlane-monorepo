@@ -775,9 +775,9 @@
         "from": 1,
         "mode": "sequence"
       },
-      "interchainGasPaymaster": "AgjedtgQKTWGR77ULJ9j9AhLjNDk1D3BTtuxKmcZrJqE",
-      "mailbox": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
-      "merkleTreeHook": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
+      "interchainGasPaymaster": "ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK",
+      "mailbox": "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y",
+      "merkleTreeHook": "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y",
       "name": "eclipsemainnet",
       "nativeToken": {
         "decimals": 9,
@@ -790,7 +790,7 @@
           "http": "https://mainnetbeta-rpc.eclipse.xyz"
         }
       ],
-      "validatorAnnounce": "2ze9YMXcoHiuTCAhzDNvKK4E5zXoKpJtyD5iUdEP392Y"
+      "validatorAnnounce": "Hqnn593pqDZWLy6bKZ4NbY767wFhUNBShDrLktuQa3Q2"
     },
     "endurance": {
       "aggregationHook": "0x62c39B0500760c46Ae9Ae312A30f63445dc24C3a",
@@ -2748,9 +2748,9 @@
         "from": 1,
         "mode": "sequence"
       },
-      "interchainGasPaymaster": "HkqbGqRX7Fi5pwqi8HkDaUhHK6mGWsy7Rt17fpgBrbP5",
-      "mailbox": "4rRZgaC1DaCqtWYLzg14ftuXKPuHe1nGEM6ZtNpim3Wz",
-      "merkleTreeHook": "4rRZgaC1DaCqtWYLzg14ftuXKPuHe1nGEM6ZtNpim3Wz",
+      "interchainGasPaymaster": "JAvHW21tYXE9dtdG83DReqU2b4LUexFuCbtJT5tF8X6M",
+      "mailbox": "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi",
+      "merkleTreeHook": "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi",
       "name": "solanamainnet",
       "nativeToken": {
         "decimals": 9,
@@ -2763,7 +2763,7 @@
           "http": "https://api.mainnet-beta.solana.com"
         }
       ],
-      "validatorAnnounce": "bn63TQYrzzK9H3XQwZ1gzGdNS91xkt5YaTinFPWyahR"
+      "validatorAnnounce": "pRgs5vN4Pj7WvFbxf6QDHizo2njq2uksqEUbaSghVA8"
     },
     "taiko": {
       "aggregationHook": "0x1175A31f66C5e3d0ce0ca3B7F80Abe72c6FcE272",
