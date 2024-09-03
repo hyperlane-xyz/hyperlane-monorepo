@@ -49,38 +49,29 @@ export function getSafe(chain, multiProvider, safeAddress) {
   const safeVersion = safeVersionOverrides[chain] || DEFAULT_SAFE_VERSION;
   const { multiSendVersion, multiSendCallOnlyVersion } =
     safeDeploymentsVersions[safeVersion];
-  const { defaultAddress: multiSendAddress } = getMultiSendDeployment({
+  const multiSend = getMultiSendDeployment({
     version: multiSendVersion,
     network: domainId,
     released: true,
   });
-  const { defaultAddress: multiSendCallOnlyAddress } =
-    getMultiSendCallOnlyDeployment({
-      version: multiSendCallOnlyVersion,
-      network: domainId,
-      released: true,
-    });
+  const multiSendCallOnly = getMultiSendCallOnlyDeployment({
+    version: multiSendCallOnlyVersion,
+    network: domainId,
+    released: true,
+  });
 
-  // Only update contractNetworks if default multiSend addresses are missing
-  const contractNetworks = {
-    [domainId]: {
-      multiSendAddress,
-      multiSendCallOnlyAddress,
-    },
-  };
-
-  // If the default addresses are missing, set them to the zero address
-  if (!multiSendAddress || !multiSendCallOnlyAddress) {
-    contractNetworks[domainId] = {
-      multiSendAddress: ethers.constants.AddressZero,
-      multiSendCallOnlyAddress: ethers.constants.AddressZero,
-    };
-  }
-
+  // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
+  // if the contract is not deployed
   return Safe.default.create({
     ethAdapter,
     safeAddress,
-    contractNetworks,
+    contractNetworks: {
+      [domainId]: {
+        multiSendAddress: multiSend?.defaultAddress || safeAddress,
+        multiSendCallOnlyAddress:
+          multiSendCallOnly?.defaultAddress || safeAddress,
+      },
+    },
   });
 }
 
