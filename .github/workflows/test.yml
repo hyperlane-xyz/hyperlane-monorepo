@@ -114,7 +114,7 @@ jobs:
           fi
 
   yarn-test:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
     needs: [yarn-build]
     steps:
       - uses: actions/checkout@v4
