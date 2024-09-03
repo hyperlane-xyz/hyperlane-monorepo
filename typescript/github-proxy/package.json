@@ -13,6 +13,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.4.5",
     "@cloudflare/workers-types": "^4.20240821.1",
+    "@faker-js/faker": "^8.4.1",
     "chai": "4.5.0",
     "prettier": "^2.8.8",
     "typescript": "^5.5.2",

@@ -1,3 +1,4 @@
+import { faker } from '@faker-js/faker';
 import { SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
@@ -18,5 +19,16 @@ describe('Hello World worker', () => {
 
     expect(results.status).toBe(401);
     expect(await results.text()).toBe(DISALLOWED_URL_MSG);
+  });
+
+  it('returns empty response if origin is not on allowlist (with faker 200 tests)', async () => {
+    for (let i = 0; i < 200; i++) {
+      const results = await SELF.fetch(
+        `https://example.com/${faker.internet.url}`,
+      );
+
+      expect(results.status).toBe(401);
+      expect(await results.text()).toBe(DISALLOWED_URL_MSG);
+    }
   });
 });
