@@ -6,7 +6,7 @@ const GITHUB_API_ALLOWLIST = [
 ];
 
 export default {
-  async fetch(request, env: any, _ctx): Promise<Response> {
+  async fetch(request, env, _ctx): Promise<Response> {
     if (!canParseUrl(request.url)) {
       return new Response(DISALLOWED_URL_MSG, { status: 401 });
     }
