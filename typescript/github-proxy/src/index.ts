@@ -31,7 +31,7 @@ export default {
 
 /**
  * Checks if the provided URL can be parsed into a valid URL object.
- *
+ * Polyfill for: https://developer.mozilla.org/en-US/docs/Web/API/URL/canParse_static
  * Example usage: https//api.hyperlane.xyz/favicon.ico
  * @param url - The URL to be parsed.
  * @returns `true` if the URL can be parsed, `false` otherwise.
