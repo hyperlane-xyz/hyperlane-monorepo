@@ -1,0 +1,10 @@
+{
+  "eclipsemainnet": {
+    "hex": "0xe3f33280ca1f35cb45cc637993b90ce5c7ee8959da401b1763a9de81a7a8eddf",
+    "base58": "GLpdg3jt6w4eVYiCMhokVZ4mX6hmRvPhcL5RoCjzGr5k"
+  },
+  "solanamainnet": {
+    "hex": "0x3394c8f8213bfcd718f284ddfb65b13777287416b80c9a355bbfb2b1278fc7bd",
+    "base58": "4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg"
+  }
+}
