@@ -16,7 +16,7 @@ import {IERC20} from "contracts/token/interfaces/IXERC20.sol";
 // source .env.<CHAIN>
 // forge script ApproveLockbox.s.sol --broadcast --rpc-url localhost:XXXX
 contract UpgradeHypNative is Script {
-    address router = vm.envAddress("ROUTER_ADDRESS");
+    address payable router = payable(vm.envAddress("ROUTER_ADDRESS"));
     address admin = vm.envAddress("ADMIN_ADDRESS");
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
@@ -27,13 +27,20 @@ contract UpgradeHypNative is Script {
     function run() external {
         assert(proxyAdmin.getProxyAdmin(proxy) == admin);
 
-        vm.startBroadcast(deployerPrivateKey);
+        address owner = proxyAdmin.owner();
+        address mailbox = address(old.mailbox());
+
+        // vm.startBroadcast(deployerPrivateKey);
         HypNative logic = new HypNative(mailbox);
+
+        vm.startPrank(owner);
         proxyAdmin.upgrade(proxy, address(logic));
-        vm.stopBroadcast();
+        vm.stopPrank();
+
+        // vm.stopBroadcast();
 
         vm.expectRevert("Initializable: contract is already initialized");
-        HypNative(address(proxy)).initialize(
+        HypNative(payable(address(proxy))).initialize(
             address(0),
             address(0),
             address(0)
@@ -41,7 +48,7 @@ contract UpgradeHypNative is Script {
 
         uint256 amount = 100;
         vm.expectRevert("Native: amount exceeds msg.value");
-        HypNative(address(proxy)).transferRemote{value: amount - 1}(
+        HypNative(payable(address(proxy))).transferRemote{value: amount - 1}(
             uint32(0),
             bytes32(0),
             amount,
