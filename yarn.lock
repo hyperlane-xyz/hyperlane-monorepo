@@ -7670,6 +7670,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/github-proxy@workspace:typescript/github-proxy":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/github-proxy@workspace:typescript/github-proxy"
+  dependencies:
+    "@cloudflare/vitest-pool-workers": "npm:^0.4.5"
+    "@cloudflare/workers-types": "npm:^4.20240821.1"
+    "@faker-js/faker": "npm:^8.4.1"
+    chai: "npm:4.5.0"
+    prettier: "npm:^2.8.8"
+    typescript: "npm:^5.5.2"
+    vitest: "npm:1.4.0"
+    wrangler: "npm:^3.74.0"
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/helloworld@npm:5.1.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
@@ -20003,21 +20018,6 @@ __metadata:
   checksum: 2a091ba07fbce22205642543b4ea8aaf068397e1433c00ae0f9de36a3607baf5bcc14da97fbb798cfca6393b3c402031fca06d8b491a44206d6efef391c58537
   languageName: node
   linkType: hard
-
-"github-proxy@workspace:typescript/github-proxy":
-  version: 0.0.0-use.local
-  resolution: "github-proxy@workspace:typescript/github-proxy"
-  dependencies:
-    "@cloudflare/vitest-pool-workers": "npm:^0.4.5"
-    "@cloudflare/workers-types": "npm:^4.20240821.1"
-    "@faker-js/faker": "npm:^8.4.1"
-    chai: "npm:4.5.0"
-    prettier: "npm:^2.8.8"
-    typescript: "npm:^5.5.2"
-    vitest: "npm:1.4.0"
-    wrangler: "npm:^3.74.0"
-  languageName: unknown
-  linkType: soft
 
 "github-slugger@npm:^1.0.0":
   version: 1.5.0
