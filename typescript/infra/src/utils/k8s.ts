@@ -62,6 +62,8 @@ async function waitForK8sResources(
       : getRunningK8sPods;
 
   try {
+    const pollDelayMs = 2000;
+    const pollAttempts = 30;
     await pollAsync(
       async () => {
         const { missing } = await resourceGetter(resourceNames, namespace);
@@ -76,8 +78,8 @@ async function waitForK8sResources(
           );
         }
       },
-      2000,
-      30,
+      pollDelayMs,
+      pollAttempts,
     );
     console.log(`✅  All ${resourceNames.length} ${resourceType}s exist`);
   } catch (e) {
