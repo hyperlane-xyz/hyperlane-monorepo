@@ -76,6 +76,7 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
   if (!overridingEnabled) {
     return undefined;
   }
+  debugLog('GCP secret overrides enabled');
   const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
     .replaceAll('-', '_')
     .toUpperCase()}`;

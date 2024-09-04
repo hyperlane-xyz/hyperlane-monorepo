@@ -30,6 +30,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       },
       configFilePath: pathRelativeToMonorepoRoot,
       fullnameOverride: this.helmReleaseName,
+      environment: this.runEnv,
     };
   }
 
