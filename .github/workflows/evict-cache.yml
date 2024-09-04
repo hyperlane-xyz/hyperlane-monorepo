@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - pb/cache-evict
   workflow_dispatch:
 
 jobs:
