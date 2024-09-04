@@ -168,6 +168,10 @@ export function withChains<T>(args: Argv<T>) {
   );
 }
 
+export function withChainsRequired<T>(args: Argv<T>) {
+  return withChains(args).demandOption('chains');
+}
+
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
