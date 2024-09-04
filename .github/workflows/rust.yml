@@ -43,9 +43,10 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
+          cache-all-crates: true
+          cache-provider: buildjet
           prefix-key: "v3"
           shared-key: "rust-cache"
-          cache-all-crates: true
           workspaces: |
             ./rust
       - name: Free disk space
@@ -74,9 +75,10 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
+          cache-all-crates: true
+          cache-provider: buildjet
           prefix-key: "v3"
           shared-key: "rust-cache"
-          cache-all-crates: true
           workspaces: |
             ./rust
       - name: Free disk space
