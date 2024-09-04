@@ -49,7 +49,7 @@ abstract contract HypTokenTest is Test {
     uint256 internal constant TOTAL_SUPPLY = 1_000_000e18;
     uint256 internal REQUIRED_VALUE; // initialized in setUp
     uint256 internal constant GAS_LIMIT = 10_000;
-    uint256 internal constant TRANSFER_AMT = 100e18;
+    uint256 internal TRANSFER_AMT = 100e18;
     string internal constant NAME = "HyperlaneInu";
     string internal constant SYMBOL = "HYP";
     address internal constant ALICE = address(0x1);
@@ -640,7 +640,25 @@ contract HypNativeTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function testInitialize_revert_ifAlreadyInitialized() public {}
+    function testTransfer_withHookSpecified(
+        uint256 fee,
+        bytes calldata metadata
+    ) public override {
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        hook.setFee(fee);
+
+        uint256 value = REQUIRED_VALUE + TRANSFER_AMT;
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        bytes32 messageId = _performRemoteTransferWithHook(
+            value,
+            TRANSFER_AMT,
+            address(hook),
+            metadata
+        );
+        assertTrue(hook.messageDispatched(messageId));
+    }
 
     function testRemoteTransfer() public {
         _performRemoteTransferWithEmit(
