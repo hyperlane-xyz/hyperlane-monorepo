@@ -174,5 +174,14 @@ contract HypNativeScaledTest is Test {
             bRecipient,
             nativeValue + 1
         );
+
+        vm.expectRevert("Native: amount exceeds msg.value");
+        native.transferRemote{value: nativeValue}(
+            synthDomain,
+            bRecipient,
+            nativeValue + 1,
+            bytes(""),
+            address(0)
+        );
     }
 }
