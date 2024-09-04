@@ -44,6 +44,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v3-rust"
+          cache-all-crates: true
           workspaces: |
             ./rust
       - name: Free disk space
@@ -73,6 +74,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v3-rust"
+          cache-all-crates: true
           workspaces: |
             ./rust
       - name: Free disk space

@@ -212,8 +212,8 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
-          shared-key: ${{ matrix.e2e-type }}
+          prefix-key: "v3-rust"
+          cache-all-crates: true
           workspaces: |
             ./rust
 
@@ -300,8 +300,8 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
+          prefix-key: "v3-rust"
+          cache-all-crates: true
           workspaces: |
             ./rust
 
@@ -363,8 +363,8 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
+          prefix-key: "v3-rust"
+          cache-all-crates: true
           workspaces: |
             ./rust
 
