@@ -53,7 +53,7 @@ export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
   Config extends OwnableConfig,
 > {
-  readonly checker: HyperlaneAppChecker<App, Config>;
+  protected readonly checker: HyperlaneAppChecker<App, Config>;
   protected calls: ChainMap<AnnotatedCallData[]>;
   private canPropose: ChainMap<Map<string, boolean>>;
   readonly interchainAccount?: InterchainAccount;
@@ -68,6 +68,18 @@ export abstract class HyperlaneAppGovernor<
     if (ica) {
       this.interchainAccount = ica;
     }
+  }
+
+  async check() {
+    await this.checker.check();
+  }
+
+  async checkChain(chain: ChainName) {
+    await this.checker.checkChain(chain);
+  }
+
+  getCheckerViolations() {
+    return this.checker.violations;
   }
 
   async govern(confirm = true, chain?: ChainName) {

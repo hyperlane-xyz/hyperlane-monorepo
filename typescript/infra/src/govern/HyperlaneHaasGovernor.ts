@@ -36,19 +36,12 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<any, any> {
 
   // Handle ICA violations before Core violations
   protected async mapViolationsToCalls(): Promise<void> {
-    // Handle ICA and Core checker violations in parallel
-    const [icaCallObjs, coreCallObjs] = await Promise.all([
-      Promise.all(
-        this.icaChecker.violations.map((violation) =>
-          this.icaGovernor.mapViolationToCall(violation),
-        ),
+    // Handle ICA violations first
+    const icaCallObjs = await Promise.all(
+      this.icaChecker.violations.map((violation) =>
+        this.icaGovernor.mapViolationToCall(violation),
       ),
-      Promise.all(
-        this.coreChecker.violations.map((violation) =>
-          this.coreGovernor.mapViolationToCall(violation),
-        ),
-      ),
-    ]);
+    );
 
     // Process ICA call objects
     for (const callObj of icaCallObjs) {
@@ -57,12 +50,33 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<any, any> {
       }
     }
 
+    // Then handle Core violations
+    const coreCallObjs = await Promise.all(
+      this.coreChecker.violations.map((violation) =>
+        this.coreGovernor.mapViolationToCall(violation),
+      ),
+    );
+
     // Process Core call objects
     for (const callObj of coreCallObjs) {
       if (callObj) {
         this.pushCall(callObj.chain, callObj.call);
       }
     }
+  }
+
+  async check() {
+    await this.icaChecker.check();
+    await this.coreChecker.check();
+  }
+
+  async checkChain(chain: ChainName) {
+    await this.icaChecker.checkChain(chain);
+    await this.coreChecker.checkChain(chain);
+  }
+
+  getCheckerViolations() {
+    return [...this.icaChecker.violations, ...this.coreChecker.violations];
   }
 
   async govern(confirm = true, chain?: ChainName) {
