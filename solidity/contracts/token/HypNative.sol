@@ -50,7 +50,7 @@ contract HypNative is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as hook payment and `msg.sender` as refund address.
+     * @dev uses (`msg.value` - `_amount`) as hook payment.
      */
     function transferRemote(
         uint32 _destination,
