@@ -4,6 +4,9 @@ name: Cleanup Caches for Merged PRs
 on:
   pull_request:
     types: [closed, enqueued]
+  push:
+    branches:
+      - pb/cleanup-cache
   workflow_dispatch:
     inputs:
       pr_number:
