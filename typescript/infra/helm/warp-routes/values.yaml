@@ -6,3 +6,5 @@ hyperlane:
   context: hyperlane
 nameOverride: ''
 fullnameOverride: ''
+externalSecrets:
+  clusterSecretStore:

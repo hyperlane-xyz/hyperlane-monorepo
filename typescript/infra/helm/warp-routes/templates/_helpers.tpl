@@ -54,6 +54,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+The name of the ClusterSecretStore
+*/}}
+{{- define "hyperlane.cluster-secret-store.name" -}}
+{{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
+{{- end }}
+
+{{/*
 The warp-routes container
 */}}
 {{- define "hyperlane.warp-routes.container" }}
