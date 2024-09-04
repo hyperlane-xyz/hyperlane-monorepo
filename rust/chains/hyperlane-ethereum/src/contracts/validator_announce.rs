@@ -158,7 +158,10 @@ where
             return None;
         };
 
-        let Ok(balance) = self.provider.get_balance(eth_h160, None).await else {
+        // Use the chain_signer's address if available, otherwise use the validator's address
+        let signer_address = self.chain_signer.as_ref().map_or(eth_h160, |signer| signer.address().into());
+
+        let Ok(balance) = self.provider.get_balance(signer_address, None).await else {
             trace!("Unable to query balance");
             return None;
         };
@@ -187,4 +190,3 @@ impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
         crate::extract_fn_map(&IVALIDATORANNOUNCE_ABI)
     }
 }
-
