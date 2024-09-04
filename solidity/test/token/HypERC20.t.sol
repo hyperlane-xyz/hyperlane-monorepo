@@ -668,4 +668,28 @@ contract HypNativeTest is HypTokenTest {
             TRANSFER_AMT + GAS_LIMIT * igp.gasPrice()
         );
     }
+
+    function test_transferRemote_reverts_whenAmountExceedsValue(
+        uint256 nativeValue
+    ) public {
+        vm.assume(nativeValue < address(this).balance);
+
+        address recipient = address(0xdeadbeef);
+        bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
+        vm.expectRevert("Native: amount exceeds msg.value");
+        nativeToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            bRecipient,
+            nativeValue + 1
+        );
+
+        vm.expectRevert("Native: amount exceeds msg.value");
+        nativeToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            bRecipient,
+            nativeValue + 1,
+            bytes(""),
+            address(0)
+        );
+    }
 }
