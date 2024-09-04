@@ -21,11 +21,23 @@ export function getSafeService(chain, multiProvider) {
 // Copied the MVP fields from https://github.com/safe-global/safe-core-sdk/blob/4d1c0e14630f951c2498e1d4dd521403af91d6e1/packages/protocol-kit/src/contracts/config.ts#L19
 // because the SDK doesn't expose this value.
 const safeDeploymentsVersions = {
+  '1.4.1': {
+    multiSendVersion: '1.4.1',
+    multiSendCallOnlyVersion: '1.4.1',
+  },
   '1.3.0': {
     multiSendVersion: '1.3.0',
     multiSendCallOnlyVersion: '1.3.0',
   },
+  '1.2.0': {
+    multiSendVersion: '1.1.1',
+    multiSendCallOnlyVersion: '1.3.0',
+  },
   '1.1.1': {
+    multiSendVersion: '1.1.1',
+    multiSendCallOnlyVersion: '1.3.0',
+  },
+  '1.0.0': {
     multiSendVersion: '1.1.1',
     multiSendCallOnlyVersion: '1.3.0',
   },
