@@ -1,0 +1,60 @@
+name: Evict PR Cache
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  evict-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Evict cache for merged PRs
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            async function getAllCaches() {
+              let allCaches = [];
+              let page = 1;
+              while (true) {
+                const response = await github.rest.actions.getActionsCacheList({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  per_page: 100,
+                  page: page
+                });
+                allCaches = allCaches.concat(response.data.actions_caches);
+                if (response.data.actions_caches.length < 100) break;
+                page++;
+              }
+              return allCaches;
+            }
+
+            const caches = await getAllCaches();
+
+            const prPattern = /^refs\/pull\/\d+\/merge$/;
+
+            for (const cache of caches) {
+              if (prPattern.test(cache.key)) {
+                const prNumber = cache.key.split('/')[2];
+                const pr = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: parseInt(prNumber)
+                });
+
+                if (pr.data.merged) {
+                  await github.rest.actions.deleteActionsCacheByKey({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    key: cache.key
+                  });
+                  console.log(`Evicted cache for merged PR #${prNumber}: ${cache.key}`);
+                }
+              }
+            }
