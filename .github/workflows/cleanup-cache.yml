@@ -4,9 +4,6 @@ name: Cleanup Caches for Merged PRs
 on:
   pull_request:
     types: [closed, enqueued]
-  push:
-    branches:
-      - pb/cleanup-cache
   workflow_dispatch:
     inputs:
       pr_number:
@@ -32,12 +29,11 @@ jobs:
 
           REPO="${{ github.repository }}"
 
-          PR_NUMBER=4422
-          # if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          #   PR_NUMBER="${{ github.event.pull_request.number }}"
-          # else
-          #   PR_NUMBER="${{ github.event.inputs.pr_number }}"
-          # fi
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          else
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          fi
 
           BRANCH="refs/pull/$PR_NUMBER/merge"
 
