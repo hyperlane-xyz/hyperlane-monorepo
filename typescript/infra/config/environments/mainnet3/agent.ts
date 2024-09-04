@@ -70,7 +70,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     cyber: true,
     degenchain: true,
     dogechain: true,
-    eclipse: false,
+    eclipsemainnet: true,
     endurance: true,
     ethereum: true,
     flare: true,
@@ -103,7 +103,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     scroll: true,
     sei: true,
     shibarium: true,
-    solana: false,
+    solanamainnet: true,
     taiko: true,
     tangle: true,
     viction: true,
@@ -131,7 +131,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     cyber: true,
     degenchain: true,
     dogechain: true,
-    eclipse: false,
+    eclipsemainnet: true,
     endurance: true,
     ethereum: true,
     flare: true,
@@ -165,7 +165,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     scroll: true,
     sei: true,
     shibarium: true,
-    solana: false,
+    solanamainnet: true,
     taiko: true,
     tangle: true,
     viction: true,
@@ -194,7 +194,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     // Cannot scrape non-EVM chains
-    eclipse: false,
+    eclipsemainnet: false,
     endurance: true,
     ethereum: true,
     flare: true,
@@ -233,7 +233,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: false,
     shibarium: true,
     // Cannot scrape non-EVM chains
-    solana: false,
+    solanamainnet: false,
     taiko: true,
     tangle: true,
     // Has RPC non-compliance that breaks scraping.
@@ -372,7 +372,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '707db4a-20240828-164024',
+      tag: '1cb1916-20240902-171411',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -381,7 +381,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '707db4a-20240828-164024',
+      tag: '1cb1916-20240902-171411',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),

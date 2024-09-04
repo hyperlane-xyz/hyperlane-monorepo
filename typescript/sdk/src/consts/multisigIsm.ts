@@ -175,9 +175,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xe43f742c37858746e6d7e458bc591180d0cba440'],
   },
 
-  eclipse: {
+  eclipsemainnet: {
     threshold: 1,
-    validators: ['0x54c96aa1666596c043b07d694da552aa4b596306'],
+    validators: ['0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0'],
   },
 
   eclipsetestnet: {
@@ -522,11 +522,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xfa33391ee38597cbeef72ccde8c9e13e01e78521'],
   },
 
-  solana: {
-    threshold: 1,
-    validators: ['0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415'],
-  },
-
   solanadevnet: {
     threshold: 2,
     validators: [
@@ -534,6 +529,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x9c20a149dfa09ea9f77f5a7ca09ed44f9c025133',
       '0x967c5ecdf2625ae86580bd203b630abaaf85cd62',
     ],
+  },
+
+  solanamainnet: {
+    threshold: 1,
+    validators: ['0x28464752829b3ea59a497fca0bdff575c534c3ff'],
   },
 
   solanatestnet: {

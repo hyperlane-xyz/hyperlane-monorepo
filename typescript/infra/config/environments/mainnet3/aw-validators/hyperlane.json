@@ -67,6 +67,9 @@
   "dogechain": {
     "validators": ["0xe43f742c37858746e6d7e458bc591180d0cba440"]
   },
+  "eclipsemainnet": {
+    "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
+  },
   "endurance": {
     "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
   },
@@ -202,6 +205,9 @@
   },
   "shibarium": {
     "validators": ["0xfa33391ee38597cbeef72ccde8c9e13e01e78521"]
+  },
+  "solanamainnet": {
+    "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]

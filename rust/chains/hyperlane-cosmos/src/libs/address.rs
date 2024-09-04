@@ -35,7 +35,7 @@ impl CosmosAddress {
         Self::from_pubkey(pubkey, prefix)
     }
 
-    /// Returns a Bitcoin style address calculated from Bech32 enconding
+    /// Returns a Bitcoin style address calculated from Bech32 encoding
     /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
     pub fn from_account_id(account_id: AccountId) -> ChainResult<Self> {
         // Hex digest

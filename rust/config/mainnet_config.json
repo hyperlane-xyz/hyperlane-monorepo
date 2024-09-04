@@ -622,7 +622,8 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x047ba6c9949baB22d13C347B40819b7A20C4C53a",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x148CF67B8A242c1360bb2C93fCe203EC4d4f9B56",
-      "staticMessageIdWeightedMultisigIsmFactory": "0xcd849e612Aaa138f03698C3Edb42a34117BFF631"
+      "staticMessageIdWeightedMultisigIsmFactory": "0xcd849e612Aaa138f03698C3Edb42a34117BFF631",
+      "gnosisSafeTransactionServiceUrl": "https://prod.cheese.transaction.keypersafe.xyz/"
     },
     "cyber": {
       "aggregationHook": "0xF6C1769d5390Be0f77080eF7791fBbA7eF4D5659",
@@ -748,7 +749,7 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0x71388C9E25BE7b229B5d17Df7D4DB3F7DA7C962d",
       "staticMessageIdWeightedMultisigIsmFactory": "0x3E969bA938E6A993eeCD6F65b0dd8712B07dFe59"
     },
-    "eclipse": {
+    "eclipsemainnet": {
       "blockExplorers": [
         {
           "apiUrl": "https://mainnetbeta-rpc.eclipse.xyz",
@@ -774,10 +775,10 @@
         "from": 1,
         "mode": "sequence"
       },
-      "interchainGasPaymaster": "AgjedtgQKTWGR77ULJ9j9AhLjNDk1D3BTtuxKmcZrJqE",
-      "mailbox": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
-      "merkleTreeHook": "2bUk3zUFC6qBV3xigJiQrb2DzQJPC8aea6QUE7qqmpmZ",
-      "name": "eclipse",
+      "interchainGasPaymaster": "ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK",
+      "mailbox": "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y",
+      "merkleTreeHook": "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y",
+      "name": "eclipsemainnet",
       "nativeToken": {
         "decimals": 9,
         "name": "Ether",
@@ -789,7 +790,7 @@
           "http": "https://mainnetbeta-rpc.eclipse.xyz"
         }
       ],
-      "validatorAnnounce": "2ze9YMXcoHiuTCAhzDNvKK4E5zXoKpJtyD5iUdEP392Y"
+      "validatorAnnounce": "Hqnn593pqDZWLy6bKZ4NbY767wFhUNBShDrLktuQa3Q2"
     },
     "endurance": {
       "aggregationHook": "0x62c39B0500760c46Ae9Ae312A30f63445dc24C3a",
@@ -2720,7 +2721,7 @@
       "staticMerkleRootWeightedMultisigIsmFactory": "0xDf347f7602fFF536337c0B90cEC19CD6998427C4",
       "staticMessageIdWeightedMultisigIsmFactory": "0x816CF11aDFF6De498823F739eAfe350E82ee845D"
     },
-    "solana": {
+    "solanamainnet": {
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.solana.com?cluster=mainnet-beta",
@@ -2747,10 +2748,10 @@
         "from": 1,
         "mode": "sequence"
       },
-      "interchainGasPaymaster": "HkqbGqRX7Fi5pwqi8HkDaUhHK6mGWsy7Rt17fpgBrbP5",
-      "mailbox": "4rRZgaC1DaCqtWYLzg14ftuXKPuHe1nGEM6ZtNpim3Wz",
-      "merkleTreeHook": "4rRZgaC1DaCqtWYLzg14ftuXKPuHe1nGEM6ZtNpim3Wz",
-      "name": "solana",
+      "interchainGasPaymaster": "JAvHW21tYXE9dtdG83DReqU2b4LUexFuCbtJT5tF8X6M",
+      "mailbox": "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi",
+      "merkleTreeHook": "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi",
+      "name": "solanamainnet",
       "nativeToken": {
         "decimals": 9,
         "name": "Solana",
@@ -2762,7 +2763,7 @@
           "http": "https://api.mainnet-beta.solana.com"
         }
       ],
-      "validatorAnnounce": "bn63TQYrzzK9H3XQwZ1gzGdNS91xkt5YaTinFPWyahR"
+      "validatorAnnounce": "pRgs5vN4Pj7WvFbxf6QDHizo2njq2uksqEUbaSghVA8"
     },
     "taiko": {
       "aggregationHook": "0x1175A31f66C5e3d0ce0ca3B7F80Abe72c6FcE272",

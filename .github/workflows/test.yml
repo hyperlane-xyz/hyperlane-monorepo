@@ -187,6 +187,7 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
+      fail-fast: false
       matrix:
         e2e-type: [cosmwasm, non-cosmwasm]
     steps:
@@ -405,7 +406,11 @@ jobs:
 
   env-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    env:
+      MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+      MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+
+    timeout-minutes: 5
     needs: [yarn-build]
     strategy:
       fail-fast: false
