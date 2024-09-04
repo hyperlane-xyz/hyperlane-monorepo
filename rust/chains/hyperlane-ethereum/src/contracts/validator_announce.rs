@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::{collections::HashMap, sync::Arc};
-use ethers::signers::LocalWallet;
+use ethers::signers::{LocalWallet,Signer};
 
 use async_trait::async_trait;
 use ethers::providers::Middleware;
