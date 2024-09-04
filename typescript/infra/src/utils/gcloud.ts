@@ -29,6 +29,7 @@ export async function fetchGCPSecret(
   let output: string;
 
   const envVarOverride = tryGCPSecretFromEnvVariable(secretName);
+  debugLog(`Environment variable override: ${envVarOverride}`);
   if (envVarOverride !== undefined) {
     debugLog(
       `Using environment variable instead of GCP secret with name ${secretName}`,
@@ -82,6 +83,7 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
   const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
     .replaceAll('-', '_')
     .toUpperCase()}`;
+  debugLog(`Checking for environment variable ${overrideEnvVarName}`);
   return process.env[overrideEnvVarName];
 }
 

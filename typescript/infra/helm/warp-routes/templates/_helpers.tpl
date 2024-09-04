@@ -81,4 +81,7 @@ The warp-routes container
   - {{ .Values.configFilePath }}
   - -e
   - {{ .Values.environment}}
+  envFrom:
+  - secretRef:
+      name: warp-routes-env-var-secret
 {{- end }}
