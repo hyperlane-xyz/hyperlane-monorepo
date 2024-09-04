@@ -114,6 +114,13 @@ export function withContext<T>(args: Argv<T>) {
     .demandOption('context');
 }
 
+export function withPushMetrics<T>(args: Argv<T>) {
+  return args
+    .describe('pushMetrics', 'Push metrics to prometheus')
+    .boolean('pushMetrics')
+    .default('pushMetrics', false);
+}
+
 export function withAsDeployer<T>(args: Argv<T>) {
   return args
     .describe('asDeployer', 'Set signer to the deployer key')
@@ -159,6 +166,10 @@ export function withChains<T>(args: Argv<T>) {
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
   );
+}
+
+export function withChainsRequired<T>(args: Argv<T>) {
+  return withChains(args).demandOption('chains');
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {

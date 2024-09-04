@@ -38,5 +38,3 @@ hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["no-entryp
 [lib]
 crate-type = ["cdylib", "lib"]
 
-[profile.release]
-overflow-checks = true

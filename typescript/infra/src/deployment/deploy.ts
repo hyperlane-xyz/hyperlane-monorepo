@@ -97,9 +97,24 @@ export async function postDeploy<Config extends object>(
       console.error('Failed to load cached verification inputs');
     }
 
-    // cache verification inputs
-    const inputs =
+    // merge with existing cache of verification inputs
+    const mergedVerificationInputs =
       deployer.mergeWithExistingVerificationInputs(savedVerification);
-    writeJsonAtPath(cache.verification, inputs);
+
+    // deduplicate verification inputs for each chain
+    const deduplicatedVerificationInputs = Object.fromEntries(
+      Object.entries(mergedVerificationInputs).map(([chain, contracts]) => [
+        chain,
+        contracts.reduce((acc: any[], contract: any) => {
+          if (!acc.some((c) => c.address === contract.address)) {
+            acc.push(contract);
+          }
+          return acc;
+        }, []),
+      ]),
+    );
+
+    // write back deduplicated verification inputs
+    writeJsonAtPath(cache.verification, deduplicatedVerificationInputs);
   }
 }

@@ -44,7 +44,7 @@ async function getSubmitter<TProtocol extends ProtocolType>(
         ...submitterMetadata,
       });
     case TxSubmitterType.GNOSIS_SAFE:
-      return new EV5GnosisSafeTxSubmitter(multiProvider, {
+      return EV5GnosisSafeTxSubmitter.create(multiProvider, {
         ...submitterMetadata,
       });
     default:

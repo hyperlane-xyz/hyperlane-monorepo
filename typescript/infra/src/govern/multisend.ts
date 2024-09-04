@@ -1,7 +1,16 @@
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
+import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-// @ts-ignore
-import { getSafe, getSafeService } from '@hyperlane-xyz/sdk';
-import { CallData } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
+
+import {
+  createSafeTransaction,
+  createSafeTransactionData,
+  getSafeAndService,
+  proposeSafeTransaction,
+} from '../utils/safe.js';
 
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<void>;
@@ -45,41 +54,80 @@ export class SafeMultiSend extends MultiSend {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainName,
-    public readonly safeAddress: string,
+    public readonly safeAddress: Address,
   ) {
     super();
   }
 
   async sendTransactions(calls: CallData[]) {
-    const safeSdk = await getSafe(
+    const { safeSdk, safeService } = await getSafeAndService(
       this.chain,
       this.multiProvider,
       this.safeAddress,
     );
-    const safeService = getSafeService(this.chain, this.multiProvider);
 
-    const safeTransactionData = calls.map((call) => {
-      return {
-        to: call.to,
-        data: call.data.toString(),
-        value: call.value?.toString() || '0',
-      };
-    });
-    const nextNonce = await safeService.getNextNonce(this.safeAddress);
-    const safeTransaction = await safeSdk.createTransaction({
+    // If the multiSend address is the same as the safe address, we need to
+    // propose the transactions individually. See: gnosisSafe.js in the SDK.
+    if (eqAddress(safeSdk.getMultiSendAddress(), this.safeAddress)) {
+      console.log(
+        `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
+      );
+      await this.proposeIndividualTransactions(calls, safeSdk, safeService);
+    } else {
+      await this.proposeMultiSendTransaction(calls, safeSdk, safeService);
+    }
+  }
+
+  // Helper function to propose individual transactions
+  private async proposeIndividualTransactions(
+    calls: CallData[],
+    safeSdk: Safe.default,
+    safeService: SafeApiKit.default,
+  ) {
+    for (const call of calls) {
+      const safeTransactionData = createSafeTransactionData(call);
+      const safeTransaction = await createSafeTransaction(
+        safeSdk,
+        safeService,
+        this.safeAddress,
+        [safeTransactionData],
+      );
+      await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+    }
+  }
+
+  // Helper function to propose a multi-send transaction
+  private async proposeMultiSendTransaction(
+    calls: CallData[],
+    safeSdk: Safe.default,
+    safeService: SafeApiKit.default,
+  ) {
+    const safeTransactionData = calls.map((call) =>
+      createSafeTransactionData(call),
+    );
+    const safeTransaction = await createSafeTransaction(
+      safeSdk,
+      safeService,
+      this.safeAddress,
       safeTransactionData,
-      options: { nonce: nextNonce },
-    });
-    const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-    const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
+    );
+    await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
+  }
 
-    const senderAddress = await this.multiProvider.getSignerAddress(this.chain);
-    await safeService.proposeTransaction({
-      safeAddress: this.safeAddress,
-      safeTransactionData: safeTransaction.data,
-      safeTxHash,
-      senderAddress,
-      senderSignature: senderSignature.data,
-    });
+  // Helper function to propose a safe transaction
+  private async proposeSafeTransaction(
+    safeSdk: Safe.default,
+    safeService: SafeApiKit.default,
+    safeTransaction: SafeTransaction,
+  ) {
+    const signer = this.multiProvider.getSigner(this.chain);
+    await proposeSafeTransaction(
+      this.chain,
+      safeSdk,
+      safeService,
+      safeTransaction,
+      this.safeAddress,
+      signer,
+    );
   }
 }

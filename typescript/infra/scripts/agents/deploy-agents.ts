@@ -18,4 +18,9 @@ async function main() {
   await new AgentCli().runHelmCommand(HelmCommand.InstallOrUpgrade);
 }
 
-main().then(console.log).catch(console.error);
+main()
+  .then(console.log)
+  .catch((err) => {
+    console.error('Error deploying agents:', err);
+    process.exit(1);
+  });

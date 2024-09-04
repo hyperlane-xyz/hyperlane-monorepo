@@ -1,6 +1,7 @@
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
+  ChainTechnicalStack,
   HyperlaneCore,
   HyperlaneDeploymentArtifacts,
   MultiProvider,
@@ -52,9 +53,21 @@ export async function writeAgentConfig(
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
   const startBlocks = await promiseObjAll(
     objMap(addressesForEnv, async (chain: string, _) => {
+      const { index, technicalStack } = multiProvider.getChainMetadata(chain);
+      const indexFrom = index?.from;
+
+      // Arbitrum Nitro chains record the L1 block number they were deployed at,
+      // not the L2 block number.
+      // See: https://docs.arbitrum.io/build-decentralized-apps/arbitrum-vs-ethereum/block-numbers-and-time#ethereum-block-numbers-within-arbitrum
+      if (technicalStack === ChainTechnicalStack.ArbitrumNitro && !indexFrom) {
+        // Should never get here because registry should enforce this, but we're being defensive.
+        throw new Error(
+          `index.from is not set for Arbitrum Nitro chain ${chain}`,
+        );
+      }
+
       // If the index.from is specified in the chain metadata, use that.
-      const indexFrom = multiProvider.getChainMetadata(chain).index?.from;
-      if (indexFrom !== undefined) {
+      if (indexFrom) {
         return indexFrom;
       }
 

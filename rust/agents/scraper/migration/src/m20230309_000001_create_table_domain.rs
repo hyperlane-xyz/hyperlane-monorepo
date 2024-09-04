@@ -263,7 +263,7 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "solana",
+        name: "solanamainnet",
         token: "SOL",
         domain: 1399811149,
         chain_id: 1399811149,
@@ -271,7 +271,7 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "eclipse",
+        name: "eclipsemainnet",
         token: "ETH",
         domain: 1408864445,
         chain_id: 1408864445,

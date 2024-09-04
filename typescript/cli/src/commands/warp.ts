@@ -37,6 +37,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
+  strategyCommandOption,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -66,6 +67,7 @@ export const apply: CommandModuleWithWriteContext<{
   config: string;
   symbol?: string;
   warp: string;
+  strategy?: string;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -79,8 +81,9 @@ export const apply: CommandModuleWithWriteContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
+    strategy: { ...strategyCommandOption, demandOption: false },
   },
-  handler: async ({ context, config, symbol, warp }) => {
+  handler: async ({ context, config, symbol, warp, strategy: strategyUrl }) => {
     logGray(`Hyperlane Warp Apply`);
     logGray('--------------------'); // @TODO consider creating a helper function for these dashes
     let warpCoreConfig: WarpCoreConfig;
@@ -93,10 +96,12 @@ export const apply: CommandModuleWithWriteContext<{
       process.exit(0);
     }
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
+
     await runWarpRouteApply({
       context,
       warpDeployConfig,
       warpCoreConfig,
+      strategyUrl,
     });
     process.exit(0);
   },
