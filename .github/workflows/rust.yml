@@ -43,7 +43,8 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v3-rust"
+          prefix-key: "v3"
+          shared-key: "rust-cache"
           cache-all-crates: true
           workspaces: |
             ./rust
@@ -73,7 +74,8 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v3-rust"
+          prefix-key: "v3"
+          shared-key: "rust-cache"
           cache-all-crates: true
           workspaces: |
             ./rust
