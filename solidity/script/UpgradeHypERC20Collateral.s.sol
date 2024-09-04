@@ -10,46 +10,40 @@ import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transp
 
 import {ProxyAdmin} from "contracts/upgrade/ProxyAdmin.sol";
 
-import {HypNative} from "contracts/token/HypNative.sol";
+import {HypERC20Collateral} from "contracts/token/HypERC20Collateral.sol";
 
-contract UpgradeHypNative is Script {
+contract UpgradeHypERC20Collateral is Script {
     address payable router = payable(vm.envAddress("ROUTER_ADDRESS"));
+    address mailbox = vm.envAddress("MAILBOX_ADDRESS");
     address admin = vm.envAddress("ADMIN_ADDRESS");
-    uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+    // uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
     ITransparentUpgradeableProxy proxy = ITransparentUpgradeableProxy(router);
     ProxyAdmin proxyAdmin = ProxyAdmin(admin);
-    HypNative old = HypNative(router);
+    HypERC20Collateral old = HypERC20Collateral(router);
 
     function run() external {
         assert(proxyAdmin.getProxyAdmin(proxy) == admin);
+        assert(address(old.mailbox()) != mailbox);
+
+        HypERC20Collateral logic = new HypERC20Collateral(
+            address(old.wrappedToken()),
+            mailbox
+        );
 
         address owner = proxyAdmin.owner();
-        address mailbox = address(old.mailbox());
-
-        // vm.startBroadcast(deployerPrivateKey);
-        HypNative logic = new HypNative(mailbox);
-
         vm.startPrank(owner);
         proxyAdmin.upgrade(proxy, address(logic));
         vm.stopPrank();
 
         // vm.stopBroadcast();
 
-        vm.expectRevert("Initializable: contract is already initialized");
-        HypNative(payable(address(proxy))).initialize(
-            address(0),
-            address(0),
-            address(0)
-        );
+        assert(address(old.mailbox()) == mailbox);
 
-        uint256 amount = 100;
-        vm.expectRevert("Native: amount exceeds msg.value");
-        HypNative(payable(address(proxy))).transferRemote{value: amount - 1}(
-            uint32(0),
-            bytes32(0),
-            amount,
-            bytes(""),
+        vm.expectRevert("Initializable: contract is already initialized");
+        HypERC20Collateral(payable(address(proxy))).initialize(
+            address(0),
+            address(0),
             address(0)
         );
     }
