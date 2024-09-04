@@ -131,7 +131,7 @@ async function getRunningK8sPods(
         ? pod
         : undefined;
     })
-    // TS isn't smart enought to know that the filter removes undefineds
+    // TS isn't smart enough to know that the filter removes undefineds
     .filter((pod) => pod !== undefined) as string[];
   const missing = resourceNames.filter(
     (resource) => !running.includes(resource),
