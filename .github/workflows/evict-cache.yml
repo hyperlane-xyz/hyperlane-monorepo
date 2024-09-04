@@ -13,8 +13,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Evict cache for merged PRs
+      - name: Evict caches
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -37,11 +36,17 @@ jobs:
             }
 
             const caches = await getAllCaches();
-
             const prPattern = /^refs\/pull\/\d+\/merge$/;
 
             for (const cache of caches) {
-              if (prPattern.test(cache.key)) {
+              if (cache.key.includes('gh-readonly-queue')) {
+                await github.rest.actions.deleteActionsCacheByKey({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  key: cache.key
+                });
+                console.log(`Evicted cache with gh-readonly-queue: ${cache.key}`);
+              } else if (prPattern.test(cache.key)) {
                 const prNumber = cache.key.split('/')[2];
                 const pr = await github.rest.pulls.get({
                   owner: context.repo.owner,
