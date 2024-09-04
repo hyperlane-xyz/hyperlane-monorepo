@@ -18,6 +18,7 @@ import {
   overrideRegistryUriCommandOption,
   registryUriCommandOption,
   skipConfirmationOption,
+  useProxyCommandOption,
 } from './src/commands/options.js';
 import { registryCommand } from './src/commands/registry.js';
 import { relayerCommand } from './src/commands/relayer.js';
@@ -46,6 +47,7 @@ try {
     .option('registry', registryUriCommandOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
+    .option('use-proxy', useProxyCommandOption)
     .option('yes', skipConfirmationOption)
     .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([

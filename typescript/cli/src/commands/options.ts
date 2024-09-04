@@ -54,6 +54,12 @@ export const keyCommandOption: Options = {
   defaultDescription: 'process.env.HYP_KEY',
 };
 
+export const useProxyCommandOption: Options = {
+  type: 'boolean',
+  description: 'Should use proxy for Github API.',
+  default: true,
+};
+
 /* Command-specific options */
 
 export const coreTargetsCommandOption: Options = {

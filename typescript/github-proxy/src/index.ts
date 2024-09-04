@@ -1,4 +1,4 @@
-import { DISALLOWED_URL_MSG } from './errors';
+import { DISALLOWED_URL_MSG } from './errors.js';
 
 const GITHUB_API_ALLOWLIST = [
   'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main',

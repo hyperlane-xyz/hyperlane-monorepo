@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 
 import {
   GithubRegistry,
+  GithubRegistryOptions,
   IRegistry,
   MergedRegistry,
 } from '@hyperlane-xyz/registry';
@@ -16,6 +17,7 @@ import {
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
+import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -37,6 +39,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
+    useProxy: argv['use-proxy'],
     skipConfirmation: argv.yes,
   };
   if (!isDryRun && settings.fromAddress)
@@ -59,8 +62,13 @@ export async function getContext({
   key,
   requiresKey,
   skipConfirmation,
+  useProxy,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri);
+  const registry = getRegistry(
+    registryUri,
+    registryOverrideUri,
+    useProxy ? PROXY_DEPLOYED_URL : undefined,
+  );
 
   let signer: ethers.Wallet | undefined = undefined;
   if (key || requiresKey) {
@@ -88,11 +96,16 @@ export async function getDryRunContext(
     registryOverrideUri,
     key,
     fromAddress,
+    useProxy,
     skipConfirmation,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri);
+  const registry = getRegistry(
+    registryUri,
+    registryOverrideUri,
+    useProxy ? PROXY_DEPLOYED_URL : undefined,
+  );
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -106,7 +119,7 @@ export async function getDryRunContext(
   logBlue(`Dry-running against chain: ${chain}`);
   await verifyAnvil();
 
-  let multiProvider = await getMultiProvider(registry);
+  let multiProvider: any = await getMultiProvider(registry);
   multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
@@ -137,6 +150,7 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
+  proxyUri?: string,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = [primaryRegistryUri, overrideRegistryUri]
@@ -145,7 +159,12 @@ function getRegistry(
     .map((uri, index) => {
       const childLogger = logger.child({ uri, index });
       if (isHttpsUrl(uri)) {
-        return new GithubRegistry({ uri, logger: childLogger });
+        const options: GithubRegistryOptions = {
+          uri,
+          logger: childLogger,
+        };
+        options.proxy ??= proxyUri;
+        return new GithubRegistry(options);
       } else {
         return new FileSystemRegistry({
           uri,

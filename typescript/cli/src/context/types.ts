@@ -14,6 +14,7 @@ export interface ContextSettings {
   key?: string;
   fromAddress?: string;
   requiresKey?: boolean;
+  useProxy?: boolean;
   skipConfirmation?: boolean;
 }
 
