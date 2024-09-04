@@ -32,11 +32,12 @@ jobs:
 
           REPO="${{ github.repository }}"
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          else
-            PR_NUMBER="${{ github.event.inputs.pr_number }}"
-          fi
+          PR_NUMBER=4422
+          # if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          #   PR_NUMBER="${{ github.event.pull_request.number }}"
+          # else
+          #   PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          # fi
 
           BRANCH="refs/pull/$PR_NUMBER/merge"
 
