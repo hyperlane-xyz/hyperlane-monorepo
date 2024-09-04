@@ -212,10 +212,11 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          cache-all-crates: true
-          cache-provider: buildjet
-          prefix-key: "v3"
+          prefix-key: "v3-e2e"
           shared-key: "rust-cache"
+          cache-all-crates: "true"
+          cache-provider: "buildjet"
+          save-if: ${{ matrix.e2e-type == 'non-cosmwasm' }}
           workspaces: |
             ./rust
 
@@ -302,10 +303,10 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          cache-all-crates: true
-          cache-provider: buildjet
           prefix-key: "v3"
           shared-key: "rust-cache"
+          cache-all-crates: "true"
+          cache-provider: "buildjet"
           workspaces: |
             ./rust
 
@@ -367,10 +368,11 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          cache-all-crates: true
-          cache-provider: buildjet
           prefix-key: "v3"
           shared-key: "rust-cache"
+          cache-all-crates: "true"
+          cache-provider: "buildjet"
+          save-if: "false"
           workspaces: |
             ./rust
 
