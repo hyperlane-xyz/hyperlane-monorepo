@@ -2,6 +2,7 @@
 #![allow(missing_docs)]
 
 use std::{collections::HashMap, sync::Arc};
+use ethers::signers::LocalWallet;
 
 use async_trait::async_trait;
 use ethers::providers::Middleware;
@@ -10,7 +11,7 @@ use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use tracing::{instrument, log::trace};
+use tracing::{instrument, trace};
 
 use crate::{
     interfaces::i_validator_announce::{
@@ -34,6 +35,7 @@ pub struct ValidatorAnnounceBuilder {}
 #[async_trait]
 impl BuildableWithProvider for ValidatorAnnounceBuilder {
     type Output = Box<dyn ValidatorAnnounce>;
+
     const NEEDS_SIGNER: bool = true;
 
     async fn build_with_provider<M: Middleware + 'static>(
@@ -60,13 +62,14 @@ where
     domain: HyperlaneDomain,
     provider: Arc<M>,
     conn: ConnectionConf,
+    chain_signer: Option<LocalWallet>,
 }
 
 impl<M> EthereumValidatorAnnounce<M>
 where
     M: Middleware + 'static,
 {
-    /// Create a reference to a ValidatoAnnounce contract at a specific Ethereum
+    /// Create a reference to a ValidatorAnnounce contract at a specific Ethereum
     /// address on some chain
     pub fn new(provider: Arc<M>, conn: &ConnectionConf, locator: &ContractLocator) -> Self {
         Self {
@@ -77,7 +80,12 @@ where
             domain: locator.domain.clone(),
             provider,
             conn: conn.clone(),
+            chain_signer: None,
         }
+    }
+
+    pub fn set_chain_signer(&mut self, signer: LocalWallet) {
+        self.chain_signer = Some(signer);
     }
 
     /// Returns a ContractCall that processes the provided message.
@@ -179,3 +187,4 @@ impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
         crate::extract_fn_map(&IVALIDATORANNOUNCE_ABI)
     }
 }
+
