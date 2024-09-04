@@ -62,8 +62,7 @@ export const icaOwnerChain = 'ethereum';
 // yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChain <chain>
 export const icas: ChainMap<Address> = {
   viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
-  // inEVM ownership should be transferred to this ICA, and this should be uncommented
-  // inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
+  inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
 };
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';

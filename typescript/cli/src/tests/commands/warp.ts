@@ -48,6 +48,8 @@ export async function hyperlaneWarpRead(
         --overrides " " \
         --address ${warpAddress} \
         --chain ${chain} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
         --config ${warpDeployPath}`;
 }
 
