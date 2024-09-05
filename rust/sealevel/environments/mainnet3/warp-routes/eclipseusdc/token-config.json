@@ -9,9 +9,9 @@
   "eclipsemainnet": {
     "type": "synthetic",
     "decimals": 6,
-    "name": "USDC",
+    "name": "USD Coin",
     "symbol": "USDC",
-    "uri": "Pending the merge of https://github.com/hyperlane-xyz/hyperlane-registry/pull/177",
+    "uri": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/33a13d304d3f08be79aad29ed47e7baeeea97db0/deployments/warp_routes/USDC/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
   }
 }
