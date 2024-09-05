@@ -1,6 +1,7 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   addressToBytes32,
@@ -13,6 +14,8 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { ExplorerLicenseType } from '../../deploy/verify/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainName } from '../../types.js';
@@ -27,6 +30,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   constructor(
     contractsMap: HyperlaneContractsMap<InterchainAccountFactories>,
     multiProvider: MultiProvider,
+    protected readonly contractVerifier: ContractVerifier = new ContractVerifier(
+      multiProvider,
+      {},
+      coreBuildArtifact,
+      ExplorerLicenseType.MIT,
+    ),
   ) {
     super(contractsMap, multiProvider);
   }
@@ -40,13 +49,18 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
   ): InterchainAccount {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       interchainAccountFactories,
       multiProvider,
     );
-    return new InterchainAccount(helper.contractsMap, helper.multiProvider);
+    return new InterchainAccount(
+      helper.contractsMap,
+      helper.multiProvider,
+      contractVerifier,
+    );
   }
 
   async getAccount(
@@ -126,12 +140,75 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         ),
       );
       this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
+
+      await this.verifyAccount(
+        destinationChain,
+        destinationAccount,
+        destinationRouter.address,
+      );
     } else {
       this.logger.debug(
         `Interchain account recovered at ${destinationAccount}`,
       );
     }
     return destinationAccount;
+  }
+
+  private async verifyAccount(
+    destinationChain: ChainName,
+    destinationAccount: Address,
+    routerAddress: Address,
+  ): Promise<void> {
+    // Infer the implementation address from the deployed proxy bytecode
+    const proxyBytecode = await this.multiProvider
+      .getProvider(destinationChain)
+      .getCode(destinationAccount);
+
+    // The implementation address is stored at a fixed offset in the bytecode
+    // 10 bytes for the prefix, then 20 bytes for the implementation address.
+    // See EIP-1167 specification for details: https://eips.ethereum.org/EIPS/eip-1167
+    // Want to start at byte 10, ignore leading '0x' prefix: (2+10*2)=22
+    // And go for 20 bytes: 2*20=40, so slice 22-62
+    const implementationAddress = '0x' + proxyBytecode.slice(22, 62);
+    this.logger.debug(
+      {
+        implementationAddress,
+        proxyBytecode,
+      },
+      `Inferred address and bytecode for implementation`,
+    );
+
+    // Verify the implementation contract
+    try {
+      await this.contractVerifier.verifyContract(
+        destinationChain,
+        {
+          name: 'OwnableMulticall',
+          address: implementationAddress,
+          constructorArguments: routerAddress,
+        },
+        this.logger,
+      );
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to verify implementation contract');
+      return;
+    }
+
+    // Verify the proxy contract
+    try {
+      await this.contractVerifier.verifyContract(
+        destinationChain,
+        {
+          name: 'MinimalProxy',
+          address: destinationAccount,
+          isProxy: true,
+          expectedimplementation: implementationAddress,
+        },
+        this.logger,
+      );
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to verify proxy contract');
+    }
   }
 
   // meant for ICA governance to return the populatedTx

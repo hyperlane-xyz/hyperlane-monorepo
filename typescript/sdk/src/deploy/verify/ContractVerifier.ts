@@ -201,8 +201,10 @@ export class ContractVerifier {
       );
     }
 
-    if (responseJson.message !== 'OK') {
+    if (responseJson.message !== 'OK' && response.statusText !== 'OK') {
       let errorMessage;
+
+      this.logger.error({ responseJson, response }, 'Verification failed');
 
       switch (responseJson.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
@@ -271,7 +273,7 @@ export class ContractVerifier {
       : this.getImplementationData(chain, input, verificationLogger);
 
     try {
-      const guid: string = await this.submitForm(
+      const guid: string | undefined = await this.submitForm(
         chain,
         input.isProxy
           ? ExplorerApiActions.VERIFY_PROXY
@@ -279,6 +281,10 @@ export class ContractVerifier {
         verificationLogger,
         data,
       );
+
+      if (!guid) {
+        throw new Error(`GUID is undefined.`);
+      }
 
       verificationLogger.trace(
         { guid },
