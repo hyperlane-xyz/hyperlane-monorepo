@@ -4,16 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - 'rust/**'
+      - 'rust/main/**'
+      - 'rust/sealevel/**'
       - .github/workflows/rust.yml
   pull_request:
     branches: [main]
     paths:
-      - 'rust/**'
+      - 'rust/main/**'
+      - 'rust/sealevel/**'
       - .github/workflows/rust.yml
-  # Support for merge queues
   merge_group:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 concurrency:
@@ -23,10 +23,6 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-
-defaults:
-  run:
-    working-directory: ./rust
 
 jobs:
   test-rs:
@@ -45,16 +41,20 @@ jobs:
         with:
           prefix-key: "v3-rust"
           workspaces: |
-            ./rust
+            ./rust/main
+            ./rust/sealevel
       - name: Free disk space
         run: |
-          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-      - name: Run tests
+      - name: Run tests for main workspace
         run: cargo test
+        working-directory: ./rust/main
+      - name: Run tests for sealevel workspace
+        run: cargo test
+        working-directory: ./rust/sealevel
 
   lint-rs:
     runs-on: larger-runner
@@ -74,21 +74,37 @@ jobs:
         with:
           prefix-key: "v3-rust"
           workspaces: |
-            ./rust
+            ./rust/main
+            ./rust/sealevel
       - name: Free disk space
         run: |
-          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-      - name: Check
+      - name: Check for main workspace
         run: cargo check --release --all-features --all-targets
-      - name: Rustfmt
+        working-directory: ./rust/main
+      - name: Check for sealevel workspace
+        run: cargo check --release --all-features --all-targets
+        working-directory: ./rust/sealevel
+      - name: Rustfmt for main workspace
         run: cargo fmt --all -- --check
-      - name: Clippy
+        working-directory: ./rust/main
+      - name: Rustfmt for sealevel workspace
+        run: cargo fmt --all --check
+        working-directory: ./rust/sealevel
+      - name: Clippy for main workspace
         run: cargo clippy -- -D warnings
+        working-directory: ./rust/main
+      - name: Clippy for sealevel workspace
+        run: cargo clippy -- -D warnings
+        working-directory: ./rust/sealevel
       - name: Setup WASM
         run: rustup target add wasm32-unknown-unknown
-      - name: Check WASM
+      - name: Check WASM for main workspace
         run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
+        working-directory: ./rust/main
+      - name: Check WASM for sealevel workspace
+        run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
+        working-directory: ./rust/sealevel
