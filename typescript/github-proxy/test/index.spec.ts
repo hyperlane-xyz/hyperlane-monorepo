@@ -14,7 +14,7 @@ describe('Hello World worker', () => {
 
   it('returns empty response if origin is not on allowlist', async () => {
     const results = await SELF.fetch(
-      'https://example.com/https://api.hyperlane.xyz/repo/hyperlane-xyz/hyperlane-registry/git/trees/main',
+      'https://example.com/repos/custom-hyperlane-xyz/hyperlane-registry/git/trees/main?recursive=true',
     );
 
     expect(results.status).toBe(401);
