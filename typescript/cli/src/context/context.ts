@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 import {
   DEFAULT_GITHUB_REGISTRY,
   GithubRegistry,
-  GithubRegistryOptions,
   IRegistry,
   MergedRegistry,
 } from '@hyperlane-xyz/registry';
@@ -152,13 +151,14 @@ function getRegistry(
     .map((uri, index) => {
       const childLogger = logger.child({ uri, index });
       if (isHttpsUrl(uri)) {
-        const options: GithubRegistryOptions = {
+        return new GithubRegistry({
           uri,
           logger: childLogger,
-        };
-        if (enableProxy && isCanonicalRepoUrl(uri))
-          options.proxyUrl = PROXY_DEPLOYED_URL;
-        return new GithubRegistry(options);
+          proxyUrl:
+            enableProxy && isCanonicalRepoUrl(uri)
+              ? PROXY_DEPLOYED_URL
+              : undefined,
+        });
       } else {
         return new FileSystemRegistry({
           uri,
@@ -183,7 +183,7 @@ function isCanonicalRepoUrl(url: string) {
  */
 async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   const chainMetadata = await registry.getMetadata();
-  const multiProvider = new MultiProvider(chainMetadata as any);
+  const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
 }
