@@ -20,6 +20,7 @@ export const registryCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(addressesCommand)
+      .command(rpcCommand)
       .command(createAgentConfigCommand)
       .command(initCommand)
       .command(listCommand)
@@ -107,6 +108,34 @@ const addressesCommand: CommandModuleWithContext<{
       logBlue('Hyperlane contract addresses:');
       logGray('----------------------------------');
       log(JSON.stringify(result, null, 2));
+    }
+  },
+};
+
+const rpcCommand: CommandModuleWithContext<{
+  name: string;
+  index: number;
+}> = {
+  command: 'rpc',
+  describe: 'Display the public rpc of a Hyperlane chain',
+  builder: {
+    name: {
+      type: 'string',
+      description: 'Chain to display addresses for',
+      alias: 'chain',
+      demandOption: true,
+    },
+    index: {
+      type: 'number',
+      description: 'Index of the rpc to display',
+      demandOption: false,
+    },
+  },
+  handler: async ({ name, context, index = 0 }) => {
+    const result = await context.registry.getChainMetadata(name);
+    const rpcUrl = result?.rpcUrls[index]?.http;
+    if (rpcUrl) {
+      log(rpcUrl);
     }
   },
 };
