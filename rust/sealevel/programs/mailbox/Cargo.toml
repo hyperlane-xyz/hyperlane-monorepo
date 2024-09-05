@@ -1,4 +1,4 @@
-cargo-features = ["workspace-inheritance"]
+
 
 [package]
 name = "hyperlane-sealevel-mailbox"
@@ -22,11 +22,11 @@ spl-noop.workspace = true
 getrandom = { workspace = true, features = ["custom"] }
 
 proc-macro-crate = "~1.2.1" # TODO: remove this dependency once solana supports rust >=1.64
-blake3 = "=1.4.0" # TODO: update once solana supports rust >= 1.66
+blake3 = "=1.4.0"           # TODO: update once solana supports rust >= 1.66
 
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../libraries/interchain-security-module-interface" }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
@@ -39,4 +39,3 @@ log.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
-

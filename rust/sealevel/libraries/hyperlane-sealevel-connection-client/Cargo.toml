@@ -1,4 +1,4 @@
-cargo-features = ["workspace-inheritance"]
+
 
 [package]
 name = "hyperlane-sealevel-connection-client"
@@ -10,9 +10,13 @@ borsh.workspace = true
 solana-program.workspace = true
 
 access-control = { path = "../access-control" }
-hyperlane-core = { path = "../../../hyperlane-core" }
-hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
-hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
+hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = [
+    "no-entrypoint",
+] }
 
 [dev-dependencies]
 

@@ -1,4 +1,4 @@
-cargo-features = ["workspace-inheritance"]
+
 
 [package]
 name = "multisig-ism"
@@ -15,7 +15,7 @@ solana-program.workspace = true
 spl-type-length-value.workspace = true
 thiserror.workspace = true
 
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
 ecdsa-signature = { path = "../ecdsa-signature" }
 
 [dev-dependencies]
@@ -23,4 +23,3 @@ hex.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
-

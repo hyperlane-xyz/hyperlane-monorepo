@@ -1,4 +1,4 @@
-cargo-features = ["workspace-inheritance"]
+
 
 [package]
 name = "serializable-account-meta"
@@ -11,4 +11,3 @@ solana-program.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
-
