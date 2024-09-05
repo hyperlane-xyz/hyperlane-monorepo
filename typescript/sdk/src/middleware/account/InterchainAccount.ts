@@ -193,22 +193,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       this.logger.error({ error }, 'Failed to verify implementation contract');
       return;
     }
-
-    // Verify the proxy contract
-    try {
-      await this.contractVerifier.verifyContract(
-        destinationChain,
-        {
-          name: 'MinimalProxy',
-          address: destinationAccount,
-          isProxy: true,
-          expectedimplementation: implementationAddress,
-        },
-        this.logger,
-      );
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to verify proxy contract');
-    }
   }
 
   // meant for ICA governance to return the populatedTx
