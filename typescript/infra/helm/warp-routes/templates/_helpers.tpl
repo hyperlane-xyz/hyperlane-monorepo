@@ -68,8 +68,6 @@ The warp-routes container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   env:
-   - name: LOG_LEVEL
-     value: debug
    - name: LOG_FORMAT
      value: pretty
   command:
