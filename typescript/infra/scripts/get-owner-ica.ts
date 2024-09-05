@@ -1,11 +1,13 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import { getArgs as getEnvArgs, withChainsRequired } from './agent-utils.js';
+import { isEthereumProtocolChain } from '../src/utils/utils.js';
+
+import { getArgs as getEnvArgs, withChains } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 function getArgs() {
-  return withChainsRequired(getEnvArgs())
+  return withChains(getEnvArgs())
     .option('ownerChain', {
       type: 'string',
       description: 'Origin chain where the governing owner lives',
@@ -34,6 +36,7 @@ async function main() {
     owner: ownerOverride,
   } = await getArgs();
   const config = getEnvironmentConfig(environment);
+  const chainsToProcess = chains?.length ? chains : config.supportedChainNames;
   const multiProvider = await config.getMultiProvider();
 
   const originOwner = ownerOverride ?? config.owners[ownerChain]?.owner;
@@ -52,7 +55,7 @@ async function main() {
   };
 
   const results: Record<string, { ICA: Address; Deployed?: string }> = {};
-  for (const chain of chains) {
+  for (const chain of chainsToProcess.filter(isEthereumProtocolChain)) {
     const account = await ica.getAccount(chain, ownerConfig);
     results[chain] = { ICA: account };
 
