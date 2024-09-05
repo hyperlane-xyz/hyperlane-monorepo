@@ -49,7 +49,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY rust/config ./config
 COPY --from=builder /release/* .
 
 RUN chmod 777 /app &&  \
@@ -57,6 +56,9 @@ RUN chmod 777 /app &&  \
     chmod 1000 /usr/share/hyperlane && \
     mkdir /data/ && \
     chown -R 1000 /data/
+
+# Keep config changes in a separate layer to leverage Docker cache
+COPY rust/config ./config
 
 USER 1000
 ENTRYPOINT ["tini", "--"]
