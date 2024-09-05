@@ -103,6 +103,7 @@ export {
   isObjEmpty,
   isObject,
   normalizeConfig,
+  orderArraysInConfig,
   objFilter,
   objKeys,
   objLength,

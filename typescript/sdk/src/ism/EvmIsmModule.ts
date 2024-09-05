@@ -28,6 +28,7 @@ import {
   eqAddress,
   normalizeConfig,
   objFilter,
+  orderArraysInConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -150,6 +151,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // Update the config
     this.args.config = targetConfig;
     targetConfig = normalizeConfig(targetConfig);
+    targetConfig = orderArraysInConfig(targetConfig);
 
     assert(
       typeof targetConfig === 'object',

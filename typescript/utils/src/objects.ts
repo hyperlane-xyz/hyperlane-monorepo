@@ -175,3 +175,17 @@ export function normalizeConfig(obj: WithAddress<any>): any {
 
   return obj;
 }
+
+export function orderArraysInConfig(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(orderArraysInConfig);
+  } else if (obj !== null && typeof obj === 'object') {
+    const sortedObj: any = {};
+    Object.keys(obj).forEach((key) => {
+      sortedObj[key] = orderArraysInConfig(obj[key]);
+    });
+    return sortedObj;
+  }
+
+  return obj;
+}

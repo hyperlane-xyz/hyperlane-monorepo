@@ -158,6 +158,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         address,
       );
     }
+    // TODO: does order matter here?
 
     return {
       owner,
@@ -179,7 +180,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     const ismConfigs = await concurrentMap(
       this.concurrency,
-      modules,
+      modules.sort(), // always sort on read
       async (module) => this.deriveIsmConfig(module),
     );
 
@@ -214,7 +215,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: ismType,
-      validators,
+      validators: validators.sort(), // always sort on read
       threshold,
     };
   }
