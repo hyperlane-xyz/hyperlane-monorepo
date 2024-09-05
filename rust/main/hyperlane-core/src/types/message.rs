@@ -97,7 +97,7 @@ impl From<&RawHyperlaneMessage> for HyperlaneMessage {
         let sender: [u8; 32] = m[9..41].try_into().unwrap();
         let destination: [u8; 4] = m[41..45].try_into().unwrap();
         let recipient: [u8; 32] = m[45..77].try_into().unwrap();
-        let body = m[77..].try_into().unwrap();
+        let body = m[77..].into();
         Self {
             version,
             nonce: u32::from_be_bytes(nonce),

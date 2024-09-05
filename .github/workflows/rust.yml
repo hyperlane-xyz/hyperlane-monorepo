@@ -57,7 +57,7 @@ jobs:
         working-directory: ./rust/sealevel
 
   lint-rs:
-    runs-on: ubuntu-latest # TODO Change back to larger-runner when PRing to hyperlane
+    runs-on: larger-runner
 
     steps:
       - uses: actions/checkout@v4
