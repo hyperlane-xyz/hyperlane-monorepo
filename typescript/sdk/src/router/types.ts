@@ -56,10 +56,7 @@ export enum RouterViolationType {
 
 export interface RouterViolation extends CheckerViolation {
   type: RouterViolationType.EnrolledRouter;
-  remoteChain: string;
   contract: Router;
-  actual: string;
-  expected: string;
   description?: string;
 }
 

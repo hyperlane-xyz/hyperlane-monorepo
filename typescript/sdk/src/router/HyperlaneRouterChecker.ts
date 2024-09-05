@@ -1,6 +1,11 @@
 import { ethers } from 'ethers';
 
-import { addressToBytes32, assert, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  assert,
+  eqAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -29,6 +34,7 @@ export class HyperlaneRouterChecker<
     app: App,
     configMap: ChainMap<Config>,
     readonly ismFactory?: HyperlaneIsmFactory,
+    readonly logger = rootLogger.child({ module: 'HyperlaneRouterChecker' }),
   ) {
     super(multiProvider, app, configMap);
   }
@@ -120,24 +126,34 @@ export class HyperlaneRouterChecker<
   async checkEnrolledRouters(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
     const remoteChains = await this.app.remoteChains(chain);
+    const currentRouters: ChainMap<string> = {};
+    const expectedRouters: ChainMap<string> = {};
+    let hasViolation = false;
+
     await Promise.all(
       remoteChains.map(async (remoteChain) => {
         const remoteRouterAddress = this.app.routerAddress(remoteChain);
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
         const actualRouter = await router.routers(remoteDomainId);
         const expectedRouter = addressToBytes32(remoteRouterAddress);
+        currentRouters[remoteChain] = actualRouter;
+        expectedRouters[remoteChain] = expectedRouter;
         if (actualRouter !== expectedRouter) {
-          const violation: RouterViolation = {
-            chain,
-            remoteChain,
-            type: RouterViolationType.EnrolledRouter,
-            contract: router,
-            actual: actualRouter,
-            expected: expectedRouter,
-          };
-          this.addViolation(violation);
+          hasViolation = true;
         }
       }),
     );
+
+    if (hasViolation) {
+      const violation: RouterViolation = {
+        chain,
+        type: RouterViolationType.EnrolledRouter,
+        contract: router,
+        actual: currentRouters,
+        expected: expectedRouters,
+        description: `Some routers are not enrolled correctly`,
+      };
+      this.addViolation(violation);
+    }
   }
 }

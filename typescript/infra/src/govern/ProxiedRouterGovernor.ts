@@ -1,6 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import {
+  ChainName,
   CheckerViolation,
   ConnectionClientViolation,
   ConnectionClientViolationType,
@@ -12,6 +13,7 @@ import {
   RouterViolationType,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 
@@ -54,19 +56,29 @@ export class ProxiedRouterGovernor<
   }
 
   protected handleEnrolledRouterViolation(violation: RouterViolation) {
-    const remoteDomain = this.checker.multiProvider.getDomainId(
-      violation.remoteChain,
-    );
+    const domains: number[] = [];
+    const addresses: string[] = [];
+
+    for (const [remoteChain, expectedRouter] of Object.entries(
+      violation.expected,
+    ) as [ChainName, Address][]) {
+      const remoteDomain = this.checker.multiProvider.getDomainId(remoteChain);
+      domains.push(remoteDomain);
+      addresses.push(expectedRouter);
+    }
+
     return {
       chain: violation.chain,
       call: {
         to: violation.contract.address,
         data: violation.contract.interface.encodeFunctionData(
-          'enrollRemoteRouter',
-          [remoteDomain, violation.expected],
+          'enrollRemoteRouters',
+          [domains, addresses],
         ),
         value: BigNumber.from(0),
-        description: `Enroll router for remote chain ${violation.remoteChain} (${remoteDomain}) ${violation.expected} in ${violation.contract.address}`,
+        description: `Enroll routers for remote chains ${domains.join(
+          ', ',
+        )} in ${violation.contract.address}`,
       },
     };
   }
