@@ -73,4 +73,4 @@ jobs:
           cache-from: |
             type=registry,ref=gcr.io/abacus-labs-dev/hyperlane-agent:buildcache
           cache-to: |
-            type=registry,ref=gcr.io/abacus-labs-dev/hyperlane-agent:buildcache,mode=max
+            type=inline,ref=gcr.io/abacus-labs-dev/hyperlane-agent:buildcache,mode=min
