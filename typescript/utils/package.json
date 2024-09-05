@@ -17,7 +17,7 @@
     "chai": "4.5.0",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
-    "typescript": "5.3.3"
+    "typescript": "5.5.2"
   },
   "homepage": "https://www.hyperlane.xyz",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",

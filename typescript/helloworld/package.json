@@ -31,7 +31,7 @@
     "solidity-coverage": "^0.8.3",
     "ts-node": "^10.8.0",
     "typechain": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
-    "typescript": "5.3.3"
+    "typescript": "5.5.2"
   },
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [

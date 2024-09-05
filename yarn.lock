@@ -7578,7 +7578,7 @@ __metadata:
     ts-jest: "npm:^29.1.2"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.7.1"
-    typescript: "npm:5.3.3"
+    typescript: "npm:5.5.2"
   languageName: unknown
   linkType: soft
 
@@ -7611,7 +7611,7 @@ __metadata:
     prettier: "npm:^2.8.8"
     terminal-link: "npm:^3.0.0"
     tsx: "npm:^4.7.1"
-    typescript: "npm:^5.1.6"
+    typescript: "npm:5.5.2"
     yaml: "npm:^2.4.1"
     yargs: "npm:^17.7.2"
     zod: "npm:^3.21.2"
@@ -7655,7 +7655,7 @@ __metadata:
     ts-generator: "npm:^0.1.1"
     ts-node: "npm:^10.8.0"
     typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
-    typescript: "npm:5.3.3"
+    typescript: "npm:5.5.2"
   peerDependencies:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
@@ -7672,7 +7672,7 @@ __metadata:
     "@faker-js/faker": "npm:^8.4.1"
     chai: "npm:4.5.0"
     prettier: "npm:^2.8.8"
-    typescript: "npm:^5.5.2"
+    typescript: "npm:5.5.2"
     vitest: "npm:1.4.0"
     wrangler: "npm:^3.74.0"
   languageName: unknown
@@ -7708,7 +7708,7 @@ __metadata:
     solidity-coverage: "npm:^0.8.3"
     ts-node: "npm:^10.8.0"
     typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
-    typescript: "npm:5.3.3"
+    typescript: "npm:5.5.2"
   peerDependencies:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
@@ -7840,7 +7840,7 @@ __metadata:
     sinon: "npm:^13.0.2"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.7.1"
-    typescript: "npm:5.3.3"
+    typescript: "npm:5.5.2"
     viem: "npm:^1.20.0"
     yaml: "npm:^2.4.1"
     zod: "npm:^3.21.2"
@@ -7865,7 +7865,7 @@ __metadata:
     mocha: "npm:^10.2.0"
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
-    typescript: "npm:5.3.3"
+    typescript: "npm:5.5.2"
     yaml: "npm:^2.4.1"
   languageName: unknown
   linkType: soft
@@ -7901,7 +7901,7 @@ __metadata:
     storybook: "npm:^7.6.14"
     tailwindcss: "npm:^3.2.4"
     ts-node: "npm:^10.8.0"
-    typescript: "npm:5.3.3"
+    typescript: "npm:5.5.2"
     vite: "npm:^5.1.1"
   peerDependencies:
     react: ^18
@@ -30134,23 +30134,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^5.1.6":
-  version: 5.3.2
-  resolution: "typescript@npm:5.3.2"
+"typescript@npm:5.5.2":
+  version: 5.5.2
+  resolution: "typescript@npm:5.5.2"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 415e5fb6611f5713e460bad48039f00bcfdbde53a2f911727862d5aa9c5d5edd250059a419df382d8f031709e15a169c41eb62b6a401da5eec7ac0f4e359d6ac
-  languageName: node
-  linkType: hard
-
-"typescript@npm:^5.5.2":
-  version: 5.5.4
-  resolution: "typescript@npm:5.5.4"
-  bin:
-    tsc: bin/tsc
-    tsserver: bin/tsserver
-  checksum: 1689ccafef894825481fc3d856b4834ba3cc185a9c2878f3c76a9a1ef81af04194849840f3c69e7961e2312771471bb3b460ca92561e1d87599b26c37d0ffb6f
+  checksum: 9118b20f248e76b0dbff8737fef65dfa89d02668d4e633d2c5ceac99033a0ca5e8a1c1a53bc94da68e8f67677a88f318663dde859c9e9a09c1e116415daec2ba
   languageName: node
   linkType: hard
 
@@ -30164,23 +30154,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A^5.1.6#optional!builtin<compat/typescript>":
-  version: 5.3.2
-  resolution: "typescript@patch:typescript@npm%3A5.3.2#optional!builtin<compat/typescript>::version=5.3.2&hash=e012d7"
+"typescript@patch:typescript@npm%3A5.5.2#optional!builtin<compat/typescript>":
+  version: 5.5.2
+  resolution: "typescript@patch:typescript@npm%3A5.5.2#optional!builtin<compat/typescript>::version=5.5.2&hash=e012d7"
   bin:
     tsc: bin/tsc
     tsserver: bin/tsserver
-  checksum: 1b45cdfb577a78ae7a9a9d0b77a7b772142cb98ba05e4e5aefba7044a028ded885bcecef63166407a5986645cea816fe4986894336aacd5e791796ea79a6a7ed
-  languageName: node
-  linkType: hard
-
-"typescript@patch:typescript@npm%3A^5.5.2#optional!builtin<compat/typescript>":
-  version: 5.5.4
-  resolution: "typescript@patch:typescript@npm%3A5.5.4#optional!builtin<compat/typescript>::version=5.5.4&hash=e012d7"
-  bin:
-    tsc: bin/tsc
-    tsserver: bin/tsserver
-  checksum: 2c065f0ef81855eac25c9b658a3c9da65ffc005260c12854c2286f40f3667e1b1ecf8bdbdd37b59aa0397920378ce7900bff8cb32e0f1c7af6fd86efc676718c
+  checksum: 28b3de2ddaf63a7620e7ddbe5d377af71ce93ecc558c41bf0e3d88661d8e6e7aa6c7739164fef98055f69819e41faca49252938ef3633a3dff2734cca6a9042e
   languageName: node
   linkType: hard
 
@@ -31860,11 +31840,11 @@ __metadata:
   linkType: hard
 
 "yaml@npm:^2, yaml@npm:^2.4.1":
-  version: 2.4.1
-  resolution: "yaml@npm:2.4.1"
+  version: 2.5.1
+  resolution: "yaml@npm:2.5.1"
   bin:
     yaml: bin.mjs
-  checksum: 2c54fd69ef59126758ae710f9756405a7d41abcbb61aca894250d0e81e76057c14dc9bb00a9528f72f99b8f24077f694a6f7fd09cdd6711fcec2eebfbb5df409
+  checksum: 0eecb679db75ea6a989ad97715a9fa5d946972945aa6aa7d2175bca66c213b5564502ccb1cdd04b1bf816ee38b5c43e4e2fda3ff6f5e09da24dabb51ae92c57d
   languageName: node
   linkType: hard
 
