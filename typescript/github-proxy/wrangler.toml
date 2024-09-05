@@ -1,8 +1,12 @@
 #:schema node_modules/wrangler/config-schema.json
-name = "github-proxy"
+name = "github-proxy-prod"
 main = "src/index.ts"
 compatibility_date = "2024-08-21"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+routes = [
+  { pattern = "proxy.hyperlane.xyz", custom_domain = true }
+]
 
 # Automatically place your workloads in an optimal location to minimize latency.
 # If you are running back-end logic in a Worker, running it closer to your back-end infrastructure
@@ -10,3 +14,7 @@ compatibility_flags = ["nodejs_compat"]
 # Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
 [placement]
 mode = "smart"
+
+[env.staging]
+name = "github-proxy-staging"
+workers_dev = true

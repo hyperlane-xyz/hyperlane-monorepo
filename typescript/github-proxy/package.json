@@ -4,6 +4,8 @@
   "version": "5.1.0",
   "scripts": {
     "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:key": "wrangler secret put GITHUB_API_KEY",
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
