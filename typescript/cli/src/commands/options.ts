@@ -56,7 +56,8 @@ export const keyCommandOption: Options = {
 
 export const disableProxyCommandOption: Options = {
   type: 'boolean',
-  description: 'Disables proxy for Github API.',
+  description:
+    'Disable routing of Github API requests through the Hyperlane registry proxy.',
   default: false,
 };
 
