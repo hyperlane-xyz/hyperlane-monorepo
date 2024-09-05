@@ -76,9 +76,9 @@ export class ProxiedRouterGovernor<
           [domains, addresses],
         ),
         value: BigNumber.from(0),
-        description: `Enroll missing routers for remote chains ${domains.join(
-          ', ',
-        )} in ${violation.contract.address}`,
+        description: `Enroll missing routers for ${
+          domains.length
+        } remote chains ${domains.join(', ')} in ${violation.contract.address}`,
       },
     };
   }
