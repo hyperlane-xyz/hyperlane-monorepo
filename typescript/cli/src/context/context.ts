@@ -2,6 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
+  DEFAULT_GITHUB_REGISTRY,
   GithubRegistry,
   GithubRegistryOptions,
   IRegistry,
@@ -39,7 +40,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
-    useProxy: argv['use-proxy'],
+    disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
   };
   if (!isDryRun && settings.fromAddress)
@@ -62,13 +63,9 @@ export async function getContext({
   key,
   requiresKey,
   skipConfirmation,
-  useProxy,
+  disableProxy = false,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(
-    registryUri,
-    registryOverrideUri,
-    useProxy ? PROXY_DEPLOYED_URL : undefined,
-  );
+  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
   let signer: ethers.Wallet | undefined = undefined;
   if (key || requiresKey) {
@@ -96,16 +93,12 @@ export async function getDryRunContext(
     registryOverrideUri,
     key,
     fromAddress,
-    useProxy,
     skipConfirmation,
+    disableProxy = false,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(
-    registryUri,
-    registryOverrideUri,
-    useProxy ? PROXY_DEPLOYED_URL : undefined,
-  );
+  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -150,7 +143,7 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
-  proxyUrl?: string,
+  enableProxy: boolean,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = [primaryRegistryUri, overrideRegistryUri]
@@ -163,7 +156,8 @@ function getRegistry(
           uri,
           logger: childLogger,
         };
-        options.proxyUrl ??= proxyUrl;
+        if (enableProxy && isCanonicalRepoUrl(uri))
+          options.proxyUrl = PROXY_DEPLOYED_URL;
         return new GithubRegistry(options);
       } else {
         return new FileSystemRegistry({
@@ -176,6 +170,10 @@ function getRegistry(
     registries,
     logger,
   });
+}
+
+function isCanonicalRepoUrl(url: string) {
+  return url === DEFAULT_GITHUB_REGISTRY;
 }
 
 /**
