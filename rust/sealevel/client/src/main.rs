@@ -438,12 +438,15 @@ struct GasOracleConfigArgs {
 
 #[derive(Args)]
 struct SetGasOracleArgs {
+    // All optional params must specified if remove is false.
     #[arg(long)]
-    token_exchange_rate: u128,
+    token_exchange_rate: Option<u128>,
     #[arg(long)]
-    gas_price: u128,
+    gas_price: Option<u128>,
     #[arg(long)]
-    token_decimals: u8,
+    token_decimals: Option<u8>,
+    #[arg(long, default_value_t = false)]
+    remove: bool,
 }
 
 #[derive(Args)]
@@ -1394,14 +1397,25 @@ fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
                 read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
             match args.cmd {
                 GetSetCmd::Set(set_args) => {
-                    let remote_gas_data = RemoteGasData {
-                        token_exchange_rate: set_args.token_exchange_rate,
-                        gas_price: set_args.gas_price,
-                        token_decimals: set_args.token_decimals,
-                    };
-                    let gas_oracle_config = GasOracleConfig {
-                        domain: args.remote_domain,
-                        gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
+                    let gas_oracle_config = if set_args.remove {
+                        GasOracleConfig {
+                            domain: args.remote_domain,
+                            gas_oracle: None,
+                        }
+                    } else {
+                        let remote_gas_data = RemoteGasData {
+                            token_exchange_rate: set_args
+                                .token_exchange_rate
+                                .expect("Token exchange rate is required"),
+                            gas_price: set_args.gas_price.expect("Gas price is required"),
+                            token_decimals: set_args
+                                .token_decimals
+                                .expect("Token decimals is required"),
+                        };
+                        GasOracleConfig {
+                            domain: args.remote_domain,
+                            gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
+                        }
                     };
                     let instruction =
                         hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
