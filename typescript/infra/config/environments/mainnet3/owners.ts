@@ -83,6 +83,12 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
+          // Because of the logic above of setting the owner to the Safe or ICA address,
+          // the checker/governor tooling does not know what type of owner it is.
+          // So we need to keep the Safe and ICA addresses somewhere in the config
+          // to be able to track down which addresses are SAFEs, ICAs, or standard SIGNERS.
+          ...(safes[local] && { _safeAddress: safes[local] }),
+          ...(icas[local] && { _icaAddress: icas[local] }),
         },
       },
     ];

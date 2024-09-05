@@ -19,7 +19,7 @@ export class ProxiedRouterGovernor<
   App extends RouterApp<any>,
   Config extends RouterConfig,
 > extends HyperlaneAppGovernor<App, Config> {
-  protected async mapViolationToCall(violation: CheckerViolation) {
+  public async mapViolationToCall(violation: CheckerViolation) {
     switch (violation.type) {
       case ConnectionClientViolationType.InterchainSecurityModule:
         return this.handleIsmViolation(violation as ConnectionClientViolation);
