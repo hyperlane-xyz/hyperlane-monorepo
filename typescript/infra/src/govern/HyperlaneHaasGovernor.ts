@@ -1,6 +1,8 @@
 import {
   ChainName,
   CheckerViolation,
+  CoreConfig,
+  HyperlaneCore,
   HyperlaneCoreChecker,
   InterchainAccount,
   InterchainAccountChecker,
@@ -13,7 +15,10 @@ import {
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
 
-export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<any, any> {
+export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
+  HyperlaneCore,
+  CoreConfig
+> {
   protected readonly icaGovernor: ProxiedRouterGovernor<any, any>;
   protected readonly coreGovernor: HyperlaneCoreGovernor;
 

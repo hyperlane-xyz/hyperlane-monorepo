@@ -298,6 +298,7 @@ export abstract class HyperlaneAppGovernor<
               eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
             );
           },
+          true, // Flag this as an ICA call
         );
         if (subType !== SubmissionType.MANUAL) {
           return {
@@ -324,6 +325,7 @@ export abstract class HyperlaneAppGovernor<
       chain: ChainName,
       submitterAddress: Address,
     ) => boolean,
+    isICACall: boolean = false,
   ): Promise<InferredCall> {
     const multiProvider = this.checker.multiProvider;
     const signer = multiProvider.getSigner(chain);
@@ -427,10 +429,17 @@ export abstract class HyperlaneAppGovernor<
       }
     }
 
-    // If we're not able to make the call from a signer or Safe, we try
-    // to infer if it must be sent from an ICA controlled by a remote owner.
-    // This new inferred call will be unchanged if the call is not an ICA call after all.
-    return this.inferICAEncodedSubmissionType(chain, call);
+    // Only try ICA encoding if this isn't already an ICA call
+    if (!isICACall) {
+      return this.inferICAEncodedSubmissionType(chain, call);
+    }
+
+    // If it is an ICA call and we've reached this point, default to manual submission
+    return {
+      type: SubmissionType.MANUAL,
+      chain,
+      call,
+    };
   }
 
   handleOwnerViolation(violation: OwnerViolation) {
