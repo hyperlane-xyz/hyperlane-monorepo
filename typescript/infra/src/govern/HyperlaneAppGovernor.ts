@@ -167,16 +167,17 @@ export abstract class HyperlaneAppGovernor<
 
     const safeOwner = this.checker.configMap[chain].ownerOverrides?.safeAddress;
     if (!safeOwner) {
-      throw new Error(`No Safe owner found for chain ${chain}`);
+      console.warn(`No Safe owner found for chain ${chain}`);
+    } else {
+      await retryAsync(
+        () =>
+          sendCallsForType(
+            SubmissionType.SAFE,
+            new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+          ),
+        10,
+      );
     }
-    await retryAsync(
-      () =>
-        sendCallsForType(
-          SubmissionType.SAFE,
-          new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
-        ),
-      10,
-    );
 
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
