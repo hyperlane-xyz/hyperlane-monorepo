@@ -72,5 +72,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
             type=registry,ref=gcr.io/abacus-labs-dev/hyperlane-agent:buildcache
-          cache-to: type=inline |
+          cache-to: |
             type=registry,ref=gcr.io/abacus-labs-dev/hyperlane-agent:buildcache,mode=max
