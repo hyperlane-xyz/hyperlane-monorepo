@@ -52,3 +52,9 @@ impl_h256!(
     |v| fuels::prelude::ContractId::new(v.0),
     |v| H256::from(<[u8; 32]>::from(v))
 );
+
+impl_h256!(
+    fuels::types::Bytes32,
+    |v| fuels::types::Bytes32::new(v.0),
+    |v| H256::from(*v)
+);

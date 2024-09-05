@@ -101,7 +101,7 @@ impl ChainSigner for hyperlane_ethereum::Signers {
 impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::HexKey { key } = conf {
-            let key = fuels::signers::fuel_crypto::SecretKey::try_from(key.as_bytes())
+            let key = fuels::crypto::SecretKey::try_from(key.as_bytes())
                 .context("Invalid fuel signer key")?;
             Ok(fuels::prelude::WalletUnlocked::new_from_private_key(
                 key, None,

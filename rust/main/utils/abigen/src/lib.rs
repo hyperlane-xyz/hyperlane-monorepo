@@ -104,12 +104,14 @@ pub fn generate_bindings(
     }
     #[cfg(feature = "fuels")]
     if build_type == BuildType::Fuels {
+        let abi =
+            fuels_code_gen::Abi::load_from(contract_path.as_ref()).expect("could not load abi");
         let tokens = fuels_code_gen::Abigen::generate(
-            vec![fuels_code_gen::AbigenTarget {
-                name: contract_name.into(),
-                abi: abi_source.into(),
-                program_type: ProgramType::Contract,
-            }],
+            vec![fuels_code_gen::AbigenTarget::new(
+                contract_name.into(),
+                abi,
+                ProgramType::Contract,
+            )],
             false,
         )
         .expect("could not generate bindings")

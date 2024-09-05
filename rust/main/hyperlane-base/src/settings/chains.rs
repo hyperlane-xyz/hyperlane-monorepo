@@ -210,6 +210,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(conf) => {
                 let wallet = self.fuel_signer().await.context(ctx)?;
                 hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
+                    .await
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }

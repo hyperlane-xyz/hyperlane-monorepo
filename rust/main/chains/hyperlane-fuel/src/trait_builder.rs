@@ -30,11 +30,14 @@ impl From<FuelNewConnectionError> for ChainCommunicationError {
     }
 }
 
-fn make_client(conf: &ConnectionConf) -> ChainResult<FuelClient> {
+/// Create a new Fuel client
+pub fn make_client(conf: &ConnectionConf) -> ChainResult<FuelClient> {
     FuelClient::new(&conf.url).map_err(|e| FuelNewConnectionError(e).into())
 }
 
 /// Create a new fuel provider and connection
-pub fn make_provider(conf: &ConnectionConf) -> ChainResult<Provider> {
-    Ok(Provider::new(make_client(conf)?))
+pub async fn make_provider(conf: &ConnectionConf) -> ChainResult<Provider> {
+    Provider::connect(&conf.url)
+        .await
+        .map_err(|e| FuelNewConnectionError(e.into()).into())
 }
