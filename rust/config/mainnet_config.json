@@ -790,6 +790,7 @@
           "http": "https://mainnetbeta-rpc.eclipse.xyz"
         }
       ],
+      "technicalStack": "other",
       "validatorAnnounce": "Hqnn593pqDZWLy6bKZ4NbY767wFhUNBShDrLktuQa3Q2"
     },
     "endurance": {
@@ -2599,7 +2600,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": 1
+        "reorgPeriod": 30
       },
       "chainId": 534352,
       "deployer": {
