@@ -6,11 +6,6 @@ on:
     paths:
       - 'rust/**'
       - .github/workflows/rust.yml
-  pull_request:
-    branches: [main]
-    paths:
-      - 'rust/**'
-      - .github/workflows/rust.yml
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab
