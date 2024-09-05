@@ -80,6 +80,9 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
+          // Ensure we know keep the Safe and ICA addresses for each chain somewhere in the config
+          safeAddress: safes[local],
+          icaAddress: icas[local],
         },
       },
     ];

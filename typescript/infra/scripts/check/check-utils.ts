@@ -107,7 +107,7 @@ export async function getGovernor(
 
   const icaChainAddresses = objFilter(
     chainAddresses,
-    (chain, addresses): addresses is Record<string, string> =>
+    (chain, _): _ is Record<string, string> =>
       !!chainAddresses[chain]?.interchainAccountRouter,
   );
   const ica = InterchainAccount.fromAddressesMap(
