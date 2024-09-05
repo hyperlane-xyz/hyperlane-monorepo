@@ -150,7 +150,7 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
-  proxyUri?: string,
+  proxyUrl?: string,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = [primaryRegistryUri, overrideRegistryUri]
@@ -163,7 +163,7 @@ function getRegistry(
           uri,
           logger: childLogger,
         };
-        options.proxy ??= proxyUri;
+        options.proxyUrl ??= proxyUrl;
         return new GithubRegistry(options);
       } else {
         return new FileSystemRegistry({
