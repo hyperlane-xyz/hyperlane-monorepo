@@ -71,8 +71,12 @@ const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
 /**
  * Addresses command
  */
-const addressesCommand: CommandModuleWithContext<{ name: string }> = {
+const addressesCommand: CommandModuleWithContext<{
+  name: string;
+  contract: string;
+}> = {
   command: 'addresses',
+  aliases: ['address', 'addy'],
   describe: 'Display the addresses of core Hyperlane contracts',
   builder: {
     name: {
@@ -80,10 +84,21 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
       description: 'Chain to display addresses for',
       alias: 'chain',
     },
+    contract: {
+      type: 'string',
+      description: 'Specific contract to print addresses for',
+      demandOption: false,
+    },
   },
-  handler: async ({ name, context }) => {
+  handler: async ({ name, context, contract }) => {
     if (name) {
       const result = await context.registry.getChainAddresses(name);
+      if (contract && result?.[contract]) {
+        // log only contract address for machine readability
+        log(result[contract]);
+        return;
+      }
+
       logBlue('Hyperlane contract addresses for:', name);
       logGray('---------------------------------');
       log(JSON.stringify(result, null, 2));
