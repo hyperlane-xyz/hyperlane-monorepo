@@ -165,7 +165,8 @@ export abstract class HyperlaneAppGovernor<
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
 
-    const safeOwner = this.checker.configMap[chain].ownerOverrides?.safeAddress;
+    const safeOwner =
+      this.checker.configMap[chain].ownerOverrides?._safeAddress;
     if (!safeOwner) {
       console.warn(`No Safe owner found for chain ${chain}`);
     } else {
@@ -378,7 +379,7 @@ export abstract class HyperlaneAppGovernor<
 
     // 2. Check if the call will succeed via Gnosis Safe.
     const safeAddress =
-      this.checker.configMap[chain].ownerOverrides?.safeAddress;
+      this.checker.configMap[chain].ownerOverrides?._safeAddress;
 
     if (typeof safeAddress === 'string') {
       // 2a. Confirm that the signer is a Safe owner or delegate.
