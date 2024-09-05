@@ -163,6 +163,19 @@ contract OPL2ToL1IsmTest is Test {
         ism.verify(encodedWithdrawalTx, encodedMessage);
     }
 
+    function test_verify_revertWhen_arbitraryCall() public {
+        deployAll();
+
+        bytes memory incorrectMetadata = _encodeFinalizeWithdrawalTx(
+            address(portal),
+            0,
+            messageId
+        );
+
+        vm.expectRevert("OPL2ToL1Ism: message not verified");
+        ism.verify(incorrectMetadata, encodedMessage);
+    }
+
     function test_verify_statefulVerify() public {
         deployAll();
 
