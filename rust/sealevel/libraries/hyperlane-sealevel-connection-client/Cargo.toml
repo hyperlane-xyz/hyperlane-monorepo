@@ -18,6 +18,3 @@ hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", featu
 
 [lib]
 crate-type = ["cdylib", "lib"]
-
-[profile.release]
-overflow-checks = true

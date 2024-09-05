@@ -35,5 +35,3 @@ multisig-ism = { path = "../../../libraries/multisig-ism", features = ["test-dat
 [lib]
 crate-type = ["cdylib", "lib"]
 
-[profile.release]
-overflow-checks = true
