@@ -4,6 +4,7 @@ import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 import { getMainnetAddresses } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const timelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
@@ -59,11 +60,13 @@ export const safes: ChainMap<Address> = {
 export const icaOwnerChain = 'ethereum';
 
 // Found by running:
-// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChain <chain>
-export const icas: ChainMap<Address> = {
+// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+export const icas: Partial<
+  Record<(typeof supportedChainNames)[number], Address>
+> = {
   viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
   inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
-};
+} as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
