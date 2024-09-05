@@ -11,6 +11,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
+import { ChainMap } from '../types.js';
 
 import {
   GasRouterConfigSchema,
@@ -57,6 +58,7 @@ export enum RouterViolationType {
 export interface RouterViolation extends CheckerViolation {
   type: RouterViolationType.EnrolledRouter;
   contract: Router;
+  routerDiff: ChainMap<string>;
   description?: string;
 }
 

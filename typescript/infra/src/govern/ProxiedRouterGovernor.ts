@@ -60,7 +60,7 @@ export class ProxiedRouterGovernor<
     const addresses: string[] = [];
 
     for (const [remoteChain, expectedRouter] of Object.entries(
-      violation.expected,
+      violation.routerDiff,
     ) as [ChainName, Address][]) {
       const remoteDomain = this.checker.multiProvider.getDomainId(remoteChain);
       domains.push(remoteDomain);
@@ -76,7 +76,7 @@ export class ProxiedRouterGovernor<
           [domains, addresses],
         ),
         value: BigNumber.from(0),
-        description: `Enroll routers for remote chains ${domains.join(
+        description: `Enroll missing routers for remote chains ${domains.join(
           ', ',
         )} in ${violation.contract.address}`,
       },

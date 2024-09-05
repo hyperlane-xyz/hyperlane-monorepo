@@ -125,33 +125,40 @@ export class HyperlaneRouterChecker<
 
   async checkEnrolledRouters(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
-    const remoteChains = await this.app.remoteChains(chain);
+    const allRemoteChains = Object.keys(this.configMap);
     const currentRouters: ChainMap<string> = {};
     const expectedRouters: ChainMap<string> = {};
-    let hasViolation = false;
+    const routerDiff: ChainMap<string> = {};
 
     await Promise.all(
-      remoteChains.map(async (remoteChain) => {
+      allRemoteChains.map(async (remoteChain) => {
+        if (remoteChain === chain) {
+          return;
+        }
+
         const remoteRouterAddress = this.app.routerAddress(remoteChain);
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
         const actualRouter = await router.routers(remoteDomainId);
         const expectedRouter = addressToBytes32(remoteRouterAddress);
+
         currentRouters[remoteChain] = actualRouter;
         expectedRouters[remoteChain] = expectedRouter;
+
         if (actualRouter !== expectedRouter) {
-          hasViolation = true;
+          routerDiff[remoteChain] = expectedRouter;
         }
       }),
     );
 
-    if (hasViolation) {
+    if (Object.keys(routerDiff).length > 0) {
       const violation: RouterViolation = {
         chain,
         type: RouterViolationType.EnrolledRouter,
         contract: router,
         actual: currentRouters,
         expected: expectedRouters,
-        description: `Some routers are not enrolled correctly`,
+        routerDiff,
+        description: `Routers for some domains are missing or not enrolled correctly`,
       };
       this.addViolation(violation);
     }

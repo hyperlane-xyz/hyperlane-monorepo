@@ -113,7 +113,7 @@ export abstract class HyperlaneAppGovernor<
         );
         calls.map((c) =>
           console.log(
-            `> > ${c.description} (to: ${c.to} data: ${c.data}) value: ${c.value}`,
+            `> > ${c.description} (to: ${c.to} data: ${c.data} value: ${c.value})`,
           ),
         );
         if (!requestConfirmation) return true;
