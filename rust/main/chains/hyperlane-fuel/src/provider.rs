@@ -146,7 +146,7 @@ impl FuelProvider {
     }
 
     /// Get the finalized block number
-    /// XXX might be innacurate as we do not know the block finality
+    /// XXX might be inaccurate as we do not know the block finality
     pub async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.provider
             .latest_block_height()
