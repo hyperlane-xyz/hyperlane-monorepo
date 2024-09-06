@@ -6,6 +6,11 @@ on:
     paths:
       - 'rust/**'
       - .github/workflows/rust.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - 'rust/**'
+      - .github/workflows/rust.yml
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab
@@ -25,7 +30,7 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on: larger-runner
+    runs-on: buildjet-8vcpu-ubuntu-2204
 
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +57,7 @@ jobs:
         run: cargo test
 
   lint-rs:
-    runs-on: larger-runner
+    runs-on: buildjet-8vcpu-ubuntu-2204
 
     steps:
       - uses: actions/checkout@v4

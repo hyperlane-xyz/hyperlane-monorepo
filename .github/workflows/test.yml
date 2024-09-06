@@ -4,6 +4,10 @@ on:
   # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
+  # Triggers on pull requests ignoring md files
+  pull_request:
+    branches:
+      - '*' # run against all branches
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab
@@ -179,7 +183,7 @@ jobs:
           fi
 
   e2e-matrix:
-    runs-on: larger-runner
+    runs-on: buildjet-8vcpu-ubuntu-2204
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
@@ -279,7 +283,7 @@ jobs:
           # You can add additional commands here to report the result as needed
 
   prebuild-cli-e2e:
-    runs-on: larger-runner
+    runs-on: buildjet-8vcpu-ubuntu-2204
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     steps:
       - uses: actions/checkout@v4
@@ -328,7 +332,7 @@ jobs:
           RUST_BACKTRACE: 'full'
 
   cli-advanced-e2e:
-    runs-on: larger-runner
+    runs-on: buildjet-8vcpu-ubuntu-2204
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build, prebuild-cli-e2e]
     strategy:
