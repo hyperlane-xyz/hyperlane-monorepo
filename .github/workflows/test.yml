@@ -183,7 +183,7 @@ jobs:
           fi
 
   e2e-matrix:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest # TODO Back to larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
@@ -215,7 +215,7 @@ jobs:
           prefix-key: "v1-${{ runner.os }}-rust-cache"
           shared-key: ${{ matrix.e2e-type }}
           workspaces: |
-            ./rust
+            ./rust/main
 
       - name: Free disk space
         run: |
@@ -258,14 +258,14 @@ jobs:
       - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (EVM and Sealevel)
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
@@ -283,7 +283,7 @@ jobs:
           # You can add additional commands here to report the result as needed
 
   prebuild-cli-e2e:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest # TODO Back to larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     steps:
       - uses: actions/checkout@v4
@@ -303,7 +303,7 @@ jobs:
           prefix-key: "v1-${{ runner.os }}-rust-cache"
           shared-key: "cli-e2e"
           workspaces: |
-            ./rust
+            ./rust/main
 
       - name: Free disk space
         run: |
@@ -321,18 +321,18 @@ jobs:
 
       - name: Build validator
         run: cargo build --bin validator --features test-utils
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: Build relayer
         run: cargo build --bin relayer --features test-utils
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
   cli-advanced-e2e:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest # TODO Back to larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build, prebuild-cli-e2e]
     strategy:
@@ -366,7 +366,7 @@ jobs:
           prefix-key: "v1-${{ runner.os }}-rust-cache"
           shared-key: "cli-e2e"
           workspaces: |
-            ./rust
+            ./rust/main
 
       - name: Free disk space
         run: |
