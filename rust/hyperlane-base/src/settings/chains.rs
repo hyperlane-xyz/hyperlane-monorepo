@@ -677,9 +677,15 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::WeighedMultisigIsmBuilder {})
                     .await
             }
-            ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
-            ChainConnectionConf::Cosmos(_) => todo!(),
+            ChainConnectionConf::Fuel(_) => {
+                Err(eyre!("Fuel does not support weighted multisig ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support weighted multisig ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Cosmos(_) => {
+                Err(eyre!("Cosmos does not support weighted multisig ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
