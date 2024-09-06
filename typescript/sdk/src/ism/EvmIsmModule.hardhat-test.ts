@@ -4,7 +4,12 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  normalizeConfig,
+  sortValidatorsInConfig,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -170,9 +175,18 @@ describe('EvmIsmModule', async () => {
 
   // expect that the ISM matches the config after all tests
   afterEach(async () => {
-    const normalizedDerivedConfig = normalizeConfig(await testIsm.read());
+    const derivedConfiig = await testIsm.read();
+    const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
+    const sortedNormalizedDerivedConfig = sortValidatorsInConfig(
+      normalizedDerivedConfig,
+    );
     const normalizedConfig = normalizeConfig(testConfig);
-    assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
+    const sortedNormalizedConfig = sortValidatorsInConfig(normalizedConfig);
+
+    assert.deepStrictEqual(
+      sortedNormalizedDerivedConfig,
+      sortedNormalizedConfig,
+    );
   });
 
   // create a new ISM and verify that it matches the config
@@ -341,6 +355,68 @@ describe('EvmIsmModule', async () => {
           .true;
       });
 
+      it(`reordering validators in an existing ${type} should not trigger a redeployment`, async () => {
+        // create a new ISM
+        const routerConfig = {
+          type: IsmType.ROUTING,
+          owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+          domains: {
+            test1: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+              ],
+              threshold: 2,
+            },
+            test2: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+              ],
+              threshold: 2,
+            },
+          },
+        };
+
+        const { ism } = await createIsm(routerConfig as RoutingIsmConfig);
+
+        const updatedRouterConfig = {
+          type: IsmType.ROUTING,
+          owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+          domains: {
+            test1: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              ],
+              threshold: 2,
+            },
+            test2: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              ],
+              threshold: 2,
+            },
+          },
+        };
+
+        // expect 0 updates
+        await expectTxsAndUpdate(
+          ism,
+          updatedRouterConfig as RoutingIsmConfig,
+          0,
+        );
+      });
+
       it(`update owner in an existing ${type} not owned by deployer`, async () => {
         // ISM owner is not the deployer
         exampleRoutingConfig.owner = randomAddress();
@@ -429,5 +505,99 @@ describe('EvmIsmModule', async () => {
           .true;
       });
     }
+
+    it(`reordering modules in an existing staticAggregationIsm should not trigger a redeployment`, async () => {
+      // create a new ISM
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+              '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                ],
+                threshold: 2,
+              },
+              test2: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+        ],
+        threshold: 2,
+      };
+
+      const { ism, initialIsmAddress } = await createIsm(
+        config as AggregationIsmConfig,
+      );
+
+      const updatedConfig: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test2: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+              '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+            ],
+            threshold: 2,
+          },
+        ],
+        threshold: 2,
+      };
+
+      // expect 0 updates
+      await expectTxsAndUpdate(ism, updatedConfig, 0);
+
+      // expect the ISM address to be the same
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
+    });
   });
 });

@@ -180,7 +180,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     const ismConfigs = await concurrentMap(
       this.concurrency,
-      [...modules].sort(), // TODO: this may be unnecessary
+      modules,
       async (module) => this.deriveIsmConfig(module),
     );
 
@@ -215,7 +215,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: ismType,
-      validators: [...validators].sort(), // always sort on read
+      validators,
       threshold,
     };
   }

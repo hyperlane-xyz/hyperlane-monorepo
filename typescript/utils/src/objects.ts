@@ -176,16 +176,26 @@ export function normalizeConfig(obj: WithAddress<any>): any {
   return obj;
 }
 
-export function orderArraysInConfig(obj: any): any {
-  if (Array.isArray(obj)) {
-    return obj.sort().map(orderArraysInConfig);
-  } else if (obj !== null && typeof obj === 'object') {
-    const sortedObj: any = {};
-    Object.keys(obj).forEach((key) => {
-      sortedObj[key] = orderArraysInConfig(obj[key]);
-    });
-    return sortedObj;
+// write a function that will go through an object and sort any arrays it finds
+export function sortValidatorsInConfig(config: any): any {
+  // Check if the current object is an array
+  if (Array.isArray(config)) {
+    return config.map(sortValidatorsInConfig);
+  }
+  // Check if it's an object and not null
+  else if (typeof config === 'object' && config !== null) {
+    const sortedConfig: any = {};
+    for (const key in config) {
+      if (key === 'validators' && Array.isArray(config[key])) {
+        // Sort the validators array in lexicographical order (since they're already lowercase)
+        sortedConfig[key] = config[key].sort();
+      } else {
+        // Recursively apply sorting to other fields
+        sortedConfig[key] = sortValidatorsInConfig(config[key]);
+      }
+    }
+    return sortedConfig;
   }
 
-  return obj;
+  return config;
 }

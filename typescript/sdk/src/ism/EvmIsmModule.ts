@@ -28,8 +28,8 @@ import {
   eqAddress,
   normalizeConfig,
   objFilter,
-  orderArraysInConfig,
   rootLogger,
+  sortValidatorsInConfig,
 } from '@hyperlane-xyz/utils';
 
 import { attachAndConnectContracts } from '../contracts/contracts.js';
@@ -147,11 +147,14 @@ export class EvmIsmModule extends HyperlaneModule<
 
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
-    const currentConfig = normalizeConfig(await this.read());
+    const currentConfig = sortValidatorsInConfig(
+      normalizeConfig(await this.read()),
+    );
+
     // Update the config
     this.args.config = targetConfig;
     targetConfig = normalizeConfig(targetConfig);
-    targetConfig = orderArraysInConfig(targetConfig);
+    targetConfig = sortValidatorsInConfig(targetConfig);
 
     assert(
       typeof targetConfig === 'object',
@@ -447,7 +450,7 @@ export class EvmIsmModule extends HyperlaneModule<
     const address = await EvmModuleDeployer.deployStaticAddressSet({
       chain: this.chain,
       factory: this.factories[factoryName],
-      values: config.validators,
+      values: [...config.validators].sort(),
       logger,
       threshold: config.threshold,
       multiProvider: this.multiProvider,
