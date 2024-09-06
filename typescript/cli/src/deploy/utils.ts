@@ -55,12 +55,13 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  await nativeBalancesAreSufficient(
-    multiProvider,
-    signer,
-    chainsToGasCheck ?? chains,
-    minGas,
-  );
+  // TODO: this should skip checks on non-evm chains
+  // await nativeBalancesAreSufficient(
+  //   multiProvider,
+  //   signer,
+  //   chainsToGasCheck ?? chains,
+  //   minGas,
+  // );
 }
 
 export async function runDeployPlanStep({

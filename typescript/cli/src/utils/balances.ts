@@ -15,6 +15,7 @@ export async function nativeBalancesAreSufficient(
 
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
+    // TODO: skip if chain is not evm
     const provider = multiProvider.getProvider(chain);
     const gasPrice = await provider.getGasPrice();
     const minBalanceWei = gasPrice.mul(minGas).toString();
