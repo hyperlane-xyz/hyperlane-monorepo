@@ -183,7 +183,7 @@ jobs:
           fi
 
   e2e-matrix:
-    runs-on: ubuntu-latest # TODO Back to larger-runner
+    runs-on: larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
@@ -283,7 +283,7 @@ jobs:
           # You can add additional commands here to report the result as needed
 
   prebuild-cli-e2e:
-    runs-on: ubuntu-latest # TODO Back to larger-runner
+    runs-on: larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     steps:
       - uses: actions/checkout@v4
@@ -332,7 +332,7 @@ jobs:
           RUST_BACKTRACE: 'full'
 
   cli-advanced-e2e:
-    runs-on: ubuntu-latest # TODO Back to larger-runner
+    runs-on: larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build, prebuild-cli-e2e]
     strategy:
