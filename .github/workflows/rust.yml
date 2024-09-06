@@ -30,7 +30,7 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: larger-runner
 
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
         run: cargo test
 
   lint-rs:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: larger-runner
 
     steps:
       - uses: actions/checkout@v4
