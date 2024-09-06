@@ -40,9 +40,9 @@ async function main() {
         fork,
       );
 
-      await governor.checker.check();
+      await governor.check();
 
-      const violations: any = governor.checker.violations;
+      const violations: any = governor.getCheckerViolations();
       if (violations.length > 0) {
         logViolations(violations);
 
