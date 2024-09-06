@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 5.1.1
+
+### Patch Changes
+
+- 1ad2dac07: Patch HypNative
+  - @hyperlane-xyz/utils@5.1.1
+
 ## 5.1.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @hyperlane-xyz/infra
 
+## 5.1.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@5.1.1
+- @hyperlane-xyz/sdk@5.1.1
+- @hyperlane-xyz/utils@5.1.1
+
 ## 5.1.0
 
 ### Minor Changes
