@@ -1,3 +1,6 @@
+#![allow(clippy::blocks_in_conditions)]  // TODO: `rustc` 1.80.1 clippy issue
+#![allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
+
 use std::{
     collections::HashMap,
     fmt::Debug,

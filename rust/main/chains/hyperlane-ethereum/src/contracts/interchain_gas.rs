@@ -90,6 +90,7 @@ where
 {
     /// Note: This call may return duplicates depending on the provider used
     #[instrument(err, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -119,6 +120,7 @@ where
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider

@@ -338,7 +338,8 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
 
         Ok(result?)
     }
-
+    
+    #[allow(clippy::redundant_closure)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>, Self::Error> {
         let start = Instant::now();
         let result = self.inner.get_logs(filter).await;

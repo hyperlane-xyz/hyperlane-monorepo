@@ -1,4 +1,5 @@
 //! Metrics either related to the agents, or observed by them
+#![allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::sync::Arc;
 use std::time::Duration;

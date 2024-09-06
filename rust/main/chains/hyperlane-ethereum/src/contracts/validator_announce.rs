@@ -163,6 +163,7 @@ where
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let contract_call = self.announce_contract_call(announcement).await?;
         let receipt = report_tx(contract_call).await?;

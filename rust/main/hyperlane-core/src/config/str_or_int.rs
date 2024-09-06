@@ -91,6 +91,7 @@ impl TryFrom<&StrOrInt> for U256 {
             StrOrInt::Str(s) => s.parse().map_err(|_| {
                 StrOrIntParseError::Other(format!("Unable to parse U256 string ({s})"))
             })?,
+            #[allow(clippy::unnecessary_fallible_conversions)] // TODO: `rustc` 1.80.1 clippy issue
             StrOrInt::Int(i) => (*i).try_into().map_err(|_| {
                 StrOrIntParseError::Other(format!("Unable to parse integer as U256 ({i})"))
             })?,

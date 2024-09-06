@@ -116,6 +116,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn announce(&self, _announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         warn!(
             "Announcing validator storage locations within the agents is not supported on Sealevel"

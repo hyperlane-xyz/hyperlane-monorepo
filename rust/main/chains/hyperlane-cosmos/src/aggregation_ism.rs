@@ -63,6 +63,7 @@ impl HyperlaneChain for CosmosAggregationIsm {
 
 #[async_trait]
 impl AggregationIsm for CosmosAggregationIsm {
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     #[instrument(err)]
     async fn modules_and_threshold(
         &self,

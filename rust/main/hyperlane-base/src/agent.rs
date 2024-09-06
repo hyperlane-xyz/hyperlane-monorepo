@@ -60,6 +60,7 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// Call this from `main` to fully initialize and run the agent for its entire
 /// lifecycle. This assumes only a single agent is being run. This will
 /// initialize the metrics server and tracing as well.
+#[allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 clippy issue
 pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     if env::var("ONELINE_BACKTRACES")
         .map(|v| v.to_lowercase())

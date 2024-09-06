@@ -64,6 +64,7 @@ impl FuelProvider {
     /// Check if a transaction is from a contract
     /// @note: Only works for checking script transactions
     /// Assumes that the first input is the contract id
+    #[allow(clippy::get_first)] // TODO: `rustc` 1.80.1 clippy issue
     fn is_transaction_from_contract(
         res: &TransactionResponse,
         contract: &Bech32ContractId,
@@ -81,6 +82,8 @@ impl FuelProvider {
     }
 
     /// Check if a transaction is a call to the dispatch function of the Mailbox contract
+    #[allow(clippy::match_like_matches_macro)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::into_iter_on_ref)] // TODO: `rustc` 1.80.1 clippy issue
     fn is_dispatch_call(res: &TransactionResponse) -> bool {
         // let selector = encode_fn_selector("dispatch");
         // println!("selector: {:?}", selector); // XXX see if we can get the correct txn by selector
@@ -115,6 +118,7 @@ impl FuelProvider {
         }
     }
 
+    #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_block_data(
         &self,
         range: std::ops::RangeInclusive<u32>,
@@ -155,6 +159,10 @@ impl FuelProvider {
     }
 
     /// index logs in a range
+    #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::manual_map)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::into_iter_on_ref)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::needless_borrow)] // TODO: `rustc` 1.80.1 clippy issue
     pub async fn index_logs_in_range(
         &self,
         range: std::ops::RangeInclusive<u32>,
@@ -276,6 +284,7 @@ impl HyperlaneChain for FuelProvider {
 #[async_trait]
 impl HyperlaneProvider for FuelProvider {
     /// Used by scraper
+    #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         let block_res = self.provider.block(&hash.0.into()).await.map_err(|e| {
             ChainCommunicationError::CustomError(format!("Failed to get block: {}", e))
@@ -292,6 +301,8 @@ impl HyperlaneProvider for FuelProvider {
     }
 
     /// Used by scraper
+    #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
+    #[allow(clippy::match_like_matches_macro)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
         let transaction_res = self
             .provider

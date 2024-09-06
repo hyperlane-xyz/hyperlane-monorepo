@@ -438,6 +438,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     ///   This means that while gaps result in a rewind here, already known logs may be "fast forwarded" through,
     ///   and the cursor won't actually end up re-indexing already known logs.
     #[instrument(err, ret, skip(logs), fields(range=?range, logs=?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>()))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn update(
         &mut self,
         logs: Vec<(Indexed<T>, LogMeta)>,

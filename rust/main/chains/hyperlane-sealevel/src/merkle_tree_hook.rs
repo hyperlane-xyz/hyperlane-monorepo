@@ -16,6 +16,7 @@ use crate::{SealevelMailbox, SealevelMailboxIndexer};
 #[async_trait]
 impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
         assert!(
             lag.is_none(),
@@ -39,6 +40,7 @@ impl MerkleTreeHook for SealevelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         assert!(
             lag.is_none(),
@@ -67,6 +69,7 @@ impl MerkleTreeHook for SealevelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let tree = self.tree(_maybe_lag).await?;
 

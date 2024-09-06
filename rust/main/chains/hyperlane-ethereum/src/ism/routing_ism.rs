@@ -90,6 +90,7 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err)]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
         let ism = self
             .contract

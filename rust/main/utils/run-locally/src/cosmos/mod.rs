@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::thread::sleep;
@@ -309,6 +311,7 @@ fn launch_cosmos_relayer(
 }
 
 #[apply(as_task)]
+#[allow(clippy::let_and_return)] // TODO: `rustc` 1.80.1 clippy issue
 fn launch_cosmos_scraper(
     agent_config_path: String,
     chains: Vec<String>,

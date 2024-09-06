@@ -95,7 +95,7 @@ pub struct CosmosInterchainGasPaymasterIndexer {
 
 impl CosmosInterchainGasPaymasterIndexer {
     /// The interchain gas payment event type from the CW contract.
-    const INTERCHAIN_GAS_PAYMENT_EVENT_TYPE: &str = "igp-core-pay-for-gas";
+    const INTERCHAIN_GAS_PAYMENT_EVENT_TYPE: &'static str = "igp-core-pay-for-gas";
 
     /// create new Cosmos InterchainGasPaymasterIndexer agent
     pub fn new(

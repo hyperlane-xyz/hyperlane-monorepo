@@ -32,6 +32,7 @@ impl<C, B> Debug for EthereumFallbackProvider<C, B>
 where
     C: JsonRpcClient + PrometheusJsonRpcClientConfigExt,
 {
+    #[allow(clippy::get_first)] // TODO: `rustc` 1.80.1 clippy issue
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FallbackProvider")
             .field(

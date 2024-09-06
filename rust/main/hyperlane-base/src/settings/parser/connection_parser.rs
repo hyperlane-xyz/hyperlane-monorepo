@@ -9,6 +9,7 @@ use crate::settings::ChainConnectionConf;
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
+#[allow(clippy::question_mark)] // TODO: `rustc` 1.80.1 clippy issue
 pub fn build_ethereum_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,

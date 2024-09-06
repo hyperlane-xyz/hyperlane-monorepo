@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_fallible_conversions)] // TODO: `rustc` 1.80.1 clippy issue
+
 //! This module (and children) are responsible for scraping blockchain data and
 //! keeping things updated.
 

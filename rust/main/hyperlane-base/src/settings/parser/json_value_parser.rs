@@ -8,6 +8,7 @@ use itertools::Itertools;
 use serde::de::{DeserializeOwned, StdError};
 use serde_json::Value;
 
+#[allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
 pub use super::super::envs::*;
 
 /// A serde-json value config parsing utility.

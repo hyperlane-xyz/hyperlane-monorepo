@@ -73,6 +73,7 @@ impl Debug for FuelMailbox {
 #[async_trait]
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
         assert!(
             lag.is_none(),
@@ -88,6 +89,7 @@ impl Mailbox for FuelMailbox {
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         self.contract
             .methods()
@@ -99,6 +101,7 @@ impl Mailbox for FuelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn default_ism(&self) -> ChainResult<H256> {
         self.contract
             .methods()
@@ -110,6 +113,7 @@ impl Mailbox for FuelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         self.contract
             .methods()
@@ -121,6 +125,7 @@ impl Mailbox for FuelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -181,6 +186,7 @@ impl Mailbox for FuelMailbox {
 
     // Process cost of the `process` method
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -282,6 +288,7 @@ impl SequenceAwareIndexer<H256> for FuelMailboxIndexer {
 
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
+    #[allow(clippy::unnecessary_cast)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
@@ -296,6 +303,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
     }
 }
 
+#[allow(dead_code)] // TODO: Remove this once the FuelMailboxAbi is implemented
 struct FuelMailboxAbi;
 
 impl HyperlaneAbi for FuelMailboxAbi {

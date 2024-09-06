@@ -1,3 +1,5 @@
+#![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue
+
 //! Processor scans DB for new messages and wraps relevant messages as a
 //! `PendingOperation` and then sends it over a channel to a submitter for
 //! delivery.

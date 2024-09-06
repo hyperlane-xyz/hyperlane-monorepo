@@ -53,6 +53,7 @@ impl From<&EthersLogMeta> for LogMeta {
 }
 
 // note: this ordering assumes both logs are part of the same blockchain.
+#[allow(clippy::non_canonical_partial_ord_impl)] // TODO: `rustc` 1.80.1 clippy issue
 impl PartialOrd for LogMeta {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(match self.block_number.cmp(&other.block_number) {

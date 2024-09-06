@@ -48,6 +48,7 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         let block = get_with_retry_on_none(hash, |h| {
             let eth_h256: ethers_core_types::H256 = h.into();
@@ -65,6 +66,7 @@ where
     }
 
     #[instrument(err, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
         let txn = get_with_retry_on_none(hash, |h| self.provider.get_transaction(*h)).await?;
         let receipt = self
@@ -95,6 +97,7 @@ where
     }
 
     #[instrument(err, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         let code = self
             .provider
@@ -105,6 +108,7 @@ where
     }
 
     #[instrument(err, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         // Can't use the address directly as a string, because ethers interprets it
         // as an ENS name rather than an address.

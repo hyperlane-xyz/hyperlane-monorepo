@@ -82,12 +82,14 @@ impl HyperlaneChain for CosmosMailbox {
 #[async_trait]
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
         self.nonce_at_block(block_height).await
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         let id = hex::encode(id);
         let payload = payloads::mailbox::DeliveredRequest {
@@ -105,6 +107,7 @@ impl Mailbox for CosmosMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn default_ism(&self) -> ChainResult<H256> {
         let payload = payloads::mailbox::DefaultIsmRequest {
             default_ism: general::EmptyStruct {},
@@ -123,6 +126,7 @@ impl Mailbox for CosmosMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let address = CosmosAddress::from_h256(
             recipient,
@@ -150,6 +154,7 @@ impl Mailbox for CosmosMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -173,6 +178,7 @@ impl Mailbox for CosmosMailbox {
     }
 
     #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

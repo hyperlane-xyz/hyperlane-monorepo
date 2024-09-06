@@ -63,7 +63,7 @@ pub struct CosmosWasmIndexer {
 }
 
 impl CosmosWasmIndexer {
-    const WASM_TYPE: &str = "wasm";
+    const WASM_TYPE: &'static str = "wasm";
 
     /// create new Cosmwasm RPC Provider
     pub fn new(
@@ -214,6 +214,7 @@ impl CosmosWasmIndexer {
 #[async_trait]
 impl WasmIndexer for CosmosWasmIndexer {
     #[instrument(err, skip(self))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let latest_block = Self::get_latest_block(self.provider.rpc().clone()).await?;
         let latest_height: u32 = latest_block
@@ -227,6 +228,7 @@ impl WasmIndexer for CosmosWasmIndexer {
     }
 
     #[instrument(err, skip(self, parser))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_logs_in_block<T>(
         &self,
         block_number: u32,

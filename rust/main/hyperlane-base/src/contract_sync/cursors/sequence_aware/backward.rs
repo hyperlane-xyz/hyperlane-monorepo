@@ -358,6 +358,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
     /// The logs to ingest. If any logs are duplicated or their sequence is higher than the current indexing snapshot,
     /// they are filtered out.
     #[instrument(err, ret, skip(logs), fields(range=?range, logs=?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>()))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn update(
         &mut self,
         logs: Vec<(Indexed<T>, LogMeta)>,

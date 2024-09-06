@@ -10,6 +10,7 @@ pub struct NullMetadataBuilder {}
 
 #[async_trait]
 impl MetadataBuilder for NullMetadataBuilder {
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     #[instrument(err, skip(self))]
     async fn build(
         &self,

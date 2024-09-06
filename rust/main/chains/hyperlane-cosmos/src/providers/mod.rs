@@ -131,6 +131,7 @@ impl CosmosProvider {
             .map(|payer| self.search_payer_in_signer_infos(&tx.auth_info.signer_infos, payer))
             .map_or_else(
                 || {
+                    #[allow(clippy::get_first)] // TODO: `rustc` 1.80.1 clippy issue
                     let signer_info = tx.auth_info.signer_infos.get(0).ok_or_else(|| {
                         HyperlaneCosmosError::SignerInfoError(
                             "no signer info in default signer".to_owned(),

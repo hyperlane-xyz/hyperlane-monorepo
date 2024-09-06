@@ -1,3 +1,5 @@
+#![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue
+
 //! Run this from the hyperlane-monorepo/rust directory using `cargo run -r -p
 //! run-locally`.
 //!

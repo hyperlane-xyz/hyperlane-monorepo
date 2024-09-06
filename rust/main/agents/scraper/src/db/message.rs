@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
+
 use eyre::Result;
 use itertools::Itertools;
 use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect};
@@ -11,7 +13,6 @@ use crate::date_time;
 use crate::db::ScraperDb;
 
 use super::generated::{delivered_message, message};
-
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
     pub message_id: H256,

@@ -90,6 +90,7 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err)]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_offchain_verify_info(&self, message: Vec<u8>) -> ChainResult<()> {
         self.contract
             .get_offchain_verify_info(message.into())

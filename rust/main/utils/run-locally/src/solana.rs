@@ -282,6 +282,7 @@ pub fn start_solana_test_validator(
 }
 
 #[apply(as_task)]
+#[allow(clippy::get_first)] // TODO: `rustc` 1.80.1 clippy issue
 pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,

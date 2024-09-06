@@ -4,6 +4,7 @@
 #![warn(missing_docs)]
 // TODO: Remove once we start filling things in
 #![allow(unused_variables)]
+#![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue
 
 mod aggregation_ism;
 mod error;

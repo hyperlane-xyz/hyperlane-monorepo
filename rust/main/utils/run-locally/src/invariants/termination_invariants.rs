@@ -14,6 +14,7 @@ use crate::{fetch_metric, AGENT_LOGGING_DIR, ZERO_MERKLE_INSERTION_KATHY_MESSAGE
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
+#[allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
 pub fn termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,

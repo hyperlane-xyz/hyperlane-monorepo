@@ -15,6 +15,7 @@ pub struct RoutingIsmMetadataBuilder {
 #[async_trait]
 impl MetadataBuilder for RoutingIsmMetadataBuilder {
     #[instrument(err, skip(self), ret)]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn build(
         &self,
         ism_address: H256,

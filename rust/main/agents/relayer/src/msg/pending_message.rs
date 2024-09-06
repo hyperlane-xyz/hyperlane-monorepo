@@ -1,3 +1,5 @@
+#![allow(clippy::clone_on_ref_ptr)] // TODO: `rustc` 1.80.1 clippy issue
+
 use std::{
     fmt::{Debug, Formatter},
     sync::Arc,
@@ -510,9 +512,9 @@ impl PendingMessage {
     fn on_reconfirm<E: Debug>(&mut self, err: Option<E>, reason: &str) -> PendingOperationResult {
         self.inc_attempts();
         if let Some(e) = err {
-            warn!(error = ?e, id = ?self.id(), "Reconfirming message: {}", reason.clone());
+            warn!(error = ?e, id = ?self.id(), "Reconfirming message: {}", reason);
         } else {
-            warn!(id = ?self.id(), "Reconfirming message: {}", reason.clone());
+            warn!(id = ?self.id(), "Reconfirming message: {}", reason);
         }
         PendingOperationResult::NotReady
     }

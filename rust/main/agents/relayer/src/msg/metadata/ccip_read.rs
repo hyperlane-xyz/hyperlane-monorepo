@@ -1,3 +1,5 @@
+#![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+
 use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;

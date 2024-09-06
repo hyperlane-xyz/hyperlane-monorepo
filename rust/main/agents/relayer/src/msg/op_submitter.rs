@@ -1,3 +1,6 @@
+#![allow(clippy::doc_markdown)] // TODO: `rustc` 1.80.1 clippy issue
+#![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue
+
 use std::sync::Arc;
 use std::time::Duration;
 
