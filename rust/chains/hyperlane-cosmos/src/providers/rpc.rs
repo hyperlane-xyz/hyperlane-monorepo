@@ -108,8 +108,13 @@ impl CosmosWasmIndexer {
     }
 
     async fn get_latest_block(client: HttpClient) -> ChainResult<BlockResponse> {
+        let status = client
+            .status()
+            .await
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+
         Ok(client
-            .latest_block()
+            .block(status.sync_info.latest_block_height)
             .await
             .map_err(Into::<HyperlaneCosmosError>::into)?)
     }
