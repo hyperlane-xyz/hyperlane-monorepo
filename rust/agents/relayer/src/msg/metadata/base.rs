@@ -415,7 +415,7 @@ impl BaseMetadataBuilder {
             }
             if checkpoint_syncers.get(&validator.into()).is_none() {
                 if validator_storage_locations.is_empty() {
-                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
+                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operate/validators/run-validators#announcing-your-validator");
                 } else {
                     warn!(
                         ?validator,
