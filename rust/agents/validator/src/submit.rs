@@ -237,9 +237,18 @@ impl ValidatorSubmitter {
             .fetch_checkpoint(checkpoint.index)
             .await?;
         if existing.is_some() {
-            debug!(index = checkpoint.index, "Checkpoint already submitted");
-            return Ok(());
+            if existing.value == checkpoint {
+                debug!(index = checkpoint.index, "Checkpoint already submitted");
+                return Ok(());
+            }
+
+            error!(
+                existing = existing.value,
+                ?checkpoint,
+                "Existing checkpoint does not match new checkpoint"
+            );
         }
+
         let signed_checkpoint = self.signer.sign(checkpoint).await?;
         self.checkpoint_syncer
             .write_checkpoint(&signed_checkpoint)
