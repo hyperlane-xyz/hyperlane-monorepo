@@ -7,31 +7,33 @@ import {InterchainAccountRouter} from "./InterchainAccountRouter.sol";
 import {CallLib} from "./libs/Call.sol";
 import {InterchainAccountMirrorCalldata} from "./libs/InterchainAccountMirrorCalldata.sol";
 
+// ============ External Imports ============
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
 contract InterchainAccountMirror {
     using InterchainAccountMirrorCalldata for bytes;
-    using TypeCasts for address;
-
-    address immutable owner;
-
-    uint32 immutable destination;
-    address immutable target;
 
     InterchainAccountRouter immutable icaRouter;
 
+    uint32 immutable destination;
+    bytes32 immutable target;
+
+    address immutable owner;
+
     constructor(
-        address _owner,
+        InterchainAccountRouter _icaRouter,
         uint32 _destination,
-        address _target,
-        InterchainAccountRouter _icaRouter
+        bytes32 _target,
+        address _owner
     ) {
-        owner = _owner;
+        icaRouter = _icaRouter;
         destination = _destination;
         target = _target;
-        icaRouter = _icaRouter;
+        owner = _owner;
     }
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "sender not owner");
+        require(msg.sender == owner, "InterchainAccountMirror: only owner");
         _;
     }
 
@@ -39,14 +41,14 @@ contract InterchainAccountMirror {
     fallback() external payable onlyOwner {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({
-            to: target.addressToBytes32(),
+            to: target,
             value: msg.data.destinationValue(),
             data: msg.data.destinationCalldata()
         });
         icaRouter.callRemoteWithOverrides{value: msg.value}(
             destination,
-            msg.data.destinationIcaRouter().addressToBytes32(),
-            msg.data.destinationIsm().addressToBytes32(),
+            msg.data.destinationIcaRouter(),
+            msg.data.destinationIsm(),
             calls
         );
     }

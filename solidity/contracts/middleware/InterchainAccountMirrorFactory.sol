@@ -5,15 +5,16 @@ pragma solidity ^0.8.13;
 import {InterchainAccountMirror} from "./InterchainAccountMirror.sol";
 import {InterchainAccountRouter} from "./InterchainAccountRouter.sol";
 
+// ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
 contract InterchainAccountMirrorFactory {
     InterchainAccountRouter immutable icaRouter;
 
     event InterchainAccountMirrorDeployed(
-        address indexed owner,
         uint32 indexed destination,
-        address indexed target,
+        bytes32 indexed target,
+        address indexed owner,
         address mirror
     );
 
@@ -21,25 +22,24 @@ contract InterchainAccountMirrorFactory {
         icaRouter = InterchainAccountRouter(_icaRouter);
     }
 
-    function mirror(
+    function deployMirror(
+        address owner,
         uint32 destination,
-        address target
+        bytes32 target
     ) external returns (address mirror) {
-        bytes32 salt = keccak256(
-            abi.encodePacked(msg.sender, destination, target)
-        );
+        bytes32 salt = keccak256(abi.encodePacked(owner, destination, target));
         mirror = address(
             new InterchainAccountMirror{salt: salt}(
-                msg.sender,
+                icaRouter,
                 destination,
                 target,
-                icaRouter
+                owner
             )
         );
         emit InterchainAccountMirrorDeployed(
-            msg.sender,
             destination,
             target,
+            owner,
             mirror
         );
     }
