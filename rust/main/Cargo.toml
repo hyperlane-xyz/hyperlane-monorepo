@@ -290,7 +290,8 @@ version = "=1.0.9"
 
 [patch.crates-io.cargo-platform]
 git = "https://github.com/rust-lang/cargo"
-branch = "rust-1.75.0"
+# branch = "rust-1.75.0"
+tag = "0.76.0"
 version = "=0.1.6"
 
 [patch.crates-io.predicates-core]

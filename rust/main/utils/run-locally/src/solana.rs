@@ -159,7 +159,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     for &path in SOLANA_HYPERLANE_PROGRAMS {
         build_sbf
             .clone()
-            .working_dir(concat_path("sealevel/programs", path))
+            .working_dir(concat_path("../sealevel/programs", path))
             .run()
             .join();
     }

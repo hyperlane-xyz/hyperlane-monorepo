@@ -180,6 +180,8 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
         .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
 
+    println!("\nhello\n");
+
     let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
 
     let relayer_env = common_agent_env
@@ -326,11 +328,25 @@ fn main() -> ExitCode {
         .arg("bin", "validator")
         .arg("bin", "scraper")
         .arg("bin", "init-db");
-    let build_rust = if config.sealevel_enabled {
-        build_rust.arg("bin", "hyperlane-sealevel-client")
-    } else {
-        build_rust
-    };
+    // let build_rust = if config.sealevel_enabled {
+    // if config.sealevel_enabled {
+    //     Program::new("cargo")
+    //         .working_dir("../sealevel")
+    //         .cmd("build")
+    //         // .arg("features", "test-utils memory-profiling")
+    //         .arg("bin", "hyperlane-sealevel-client")
+    //         .filter_logs(|l| !l.contains("workspace-inheritance"))
+    //         .run()
+    //         .join();
+    //     // build_rust
+    //     //     .working_dir("../sealevel")
+    //     //     .arg("bin", "hyperlane-sealevel-relayer")
+    //     //     .working_dir("../main")
+    //     // build_rust.arg("bin", "hyperlane-sealevel-client") // TODO should cause error
+    // }
+    // // } else {
+    // //     build_rust
+    // // };
     let build_rust = build_rust
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
@@ -349,6 +365,21 @@ fn main() -> ExitCode {
     state.push_agent(postgres);
 
     build_rust.join();
+    if config.sealevel_enabled {
+        Program::new("cargo")
+            .working_dir("../sealevel")
+            .cmd("build")
+            // .arg("features", "test-utils memory-profiling")
+            .arg("bin", "hyperlane-sealevel-client")
+            .filter_logs(|l| !l.contains("workspace-inheritance"))
+            .run()
+            .join();
+        // build_rust
+        //     .working_dir("../sealevel")
+        //     .arg("bin", "hyperlane-sealevel-relayer")
+        //     .working_dir("../main")
+        // build_rust.arg("bin", "hyperlane-sealevel-client") // TODO should cause error
+    }
 
     let solana_ledger_dir = tempdir().unwrap();
     let solana_config_path = if let Some((solana_program_path, solana_path)) = solana_paths.clone()

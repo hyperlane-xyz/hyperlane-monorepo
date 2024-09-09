@@ -37,6 +37,12 @@ relayer = { path = "../../agents/relayer" }
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
 
+[patch.crates-io.cargo-platform]
+git = "https://github.com/rust-lang/cargo"
+# branch = "rust-1.75.0"
+tag = "0.76.0"
+version = "=0.1.6"
+
 [build-dependencies]
 anyhow = { workspace = true }
 vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }

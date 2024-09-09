@@ -265,21 +265,26 @@ git = "https://github.com/fitzgen/bumpalo"
 tag = "3.14.0"
 version = "=3.14.0"
 
-[patch.crates-io.clap]
-git = "https://github.com/clap-rs/clap"
-tag = "v4.4.17"
-version = "=4.4.17"
+# [patch.crates-io.cargo-platform]
+# git = "https://github.com/rust-lang/cargo"
+# # branch = "rust-1.75.0"
+# tag = "0.76.0"
+# version = "=0.1.6"
 
-[patch.crates-io.cargo-platform]
-git = "https://github.com/rust-lang/cargo"
-# tag = "0.1.6"
-branch = "rust-1.75.0"
-version = "=0.1.6"
+# [patch.crates-io.clap]
+# git = "https://github.com/clap-rs/clap"
+# tag = "v3.2.25"
+# version = "=3.2.25"
+
+# [patch.crates-io.clap_builder]
+# git = "https://github.com/clap-rs/clap"
+# tag = "v4.4.17"
+# version = "=4.4.17"
 
 # [patch.crates-io.clap_derive]
 # git = "https://github.com/clap-rs/clap"
-# tag = "v4.4.7"
-# version = "=4.4.7"
+# tag = "v3.2.25"
+# version = "=3.2.25"
 
 # [patch.crates-io.clap_lex]
 # git = "https://github.com/clap-rs/clap"
