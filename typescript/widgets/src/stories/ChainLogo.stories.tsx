@@ -3,7 +3,7 @@ import React from 'react';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
 
-import { ChainLogo } from '../icons/ChainLogo.js';
+import { ChainLogo } from '../chains/ChainLogo.js';
 
 export default {
   title: 'ChainLogo',

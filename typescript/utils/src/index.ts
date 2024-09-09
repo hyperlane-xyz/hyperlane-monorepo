@@ -49,6 +49,7 @@ export {
 export { chunk, exclude, randomElement } from './arrays.js';
 export {
   concurrentMap,
+  fetchWithTimeout,
   pollAsync,
   raceWithContext,
   retryAsync,

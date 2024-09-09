@@ -53,6 +53,28 @@ export async function runWithTimeout<T>(
 }
 
 /**
+ * Executes a fetch request that fails after a timeout via an AbortController.
+ * @param resource resource to fetch (e.g URL)
+ * @param options fetch call options object
+ * @param timeout timeout MS (default 10_000)
+ * @returns fetch response
+ */
+export async function fetchWithTimeout(
+  resource: RequestInfo,
+  options?: RequestInit,
+  timeout = 10_000,
+) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  const response = await fetch(resource, {
+    ...options,
+    signal: controller.signal,
+  });
+  clearTimeout(id);
+  return response;
+}
+
+/**
  * Retries an async function if it raises an exception,
  *   using exponential backoff.
  * @param runner callback to run

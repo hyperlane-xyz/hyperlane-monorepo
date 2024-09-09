@@ -1,6 +1,6 @@
+export { ChainLogo } from './chains/ChainLogo.js';
 export { ColorPalette, seedToBgColor } from './color.js';
 export * from './consts.js';
-export { ChainLogo } from './icons/ChainLogo.js';
 export { Circle } from './icons/Circle.js';
 export { WideChevron } from './icons/WideChevron.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';
