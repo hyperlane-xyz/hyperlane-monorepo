@@ -168,9 +168,7 @@ export abstract class HyperlaneAppGovernor<
 
     const safeOwner =
       this.checker.configMap[chain].ownerOverrides?._safeAddress;
-    if (!safeOwner) {
-      console.warn(`No Safe owner found for chain ${chain}`);
-    } else {
+    if (safeOwner) {
       await retryAsync(
         () =>
           sendCallsForType(
