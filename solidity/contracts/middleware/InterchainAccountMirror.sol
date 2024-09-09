@@ -52,31 +52,32 @@ contract InterchainAccountMirror {
     using InterchainAccountMirrorCalldata for bytes;
     using TypeCasts for address;
 
+    address immutable owner;
+
     uint32 immutable destination;
     address immutable target;
-
-    address immutable deployer;
 
     InterchainAccountRouter immutable icaRouter;
 
     constructor(
+        address _owner,
         uint32 _destination,
         address _target,
         InterchainAccountRouter _icaRouter
     ) {
-        deployer = msg.sender;
+        owner = _owner;
         destination = _destination;
         target = _target;
         icaRouter = _icaRouter;
     }
 
-    modifier onlyDeployer() {
-        require(msg.sender == deployer, "sender not deployer");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "sender not owner");
         _;
     }
 
     // solhint-disable-next-line no-complex-fallback
-    fallback() external payable onlyDeployer {
+    fallback() external payable onlyOwner {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({
             to: target.addressToBytes32(),
