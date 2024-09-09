@@ -7764,8 +7764,8 @@ __metadata:
     prom-client: "npm:^14.0.1"
     prompts: "npm:^2.4.2"
     tsx: "npm:^4.7.1"
-    typescript: "npm:5.5.2"
-    yaml: "npm:2.4.5"
+    typescript: "npm:5.3.3"
+    yaml: "npm:^2.4.5"
     yargs: "npm:^17.7.2"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -30134,6 +30134,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"typescript@npm:5.3.3":
+  version: 5.3.3
+  resolution: "typescript@npm:5.3.3"
+  bin:
+    tsc: bin/tsc
+    tsserver: bin/tsserver
+  checksum: 6e4e6a14a50c222b3d14d4ea2f729e79f972fa536ac1522b91202a9a65af3605c2928c4a790a4a50aa13694d461c479ba92cedaeb1e7b190aadaa4e4b96b8e18
+  languageName: node
+  linkType: hard
+
 "typescript@npm:5.5.2":
   version: 5.5.2
   resolution: "typescript@npm:5.5.2"
@@ -30141,6 +30151,16 @@ __metadata:
     tsc: bin/tsc
     tsserver: bin/tsserver
   checksum: 9118b20f248e76b0dbff8737fef65dfa89d02668d4e633d2c5ceac99033a0ca5e8a1c1a53bc94da68e8f67677a88f318663dde859c9e9a09c1e116415daec2ba
+  languageName: node
+  linkType: hard
+
+"typescript@patch:typescript@npm%3A5.3.3#optional!builtin<compat/typescript>":
+  version: 5.3.3
+  resolution: "typescript@patch:typescript@npm%3A5.3.3#optional!builtin<compat/typescript>::version=5.3.3&hash=e012d7"
+  bin:
+    tsc: bin/tsc
+    tsserver: bin/tsserver
+  checksum: c93786fcc9a70718ba1e3819bab56064ead5817004d1b8186f8ca66165f3a2d0100fee91fa64c840dcd45f994ca5d615d8e1f566d39a7470fc1e014dbb4cf15d
   languageName: node
   linkType: hard
 
@@ -31838,7 +31858,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yaml@npm:^2":
+"yaml@npm:^2, yaml@npm:^2.4.5":
   version: 2.5.1
   resolution: "yaml@npm:2.5.1"
   bin:
