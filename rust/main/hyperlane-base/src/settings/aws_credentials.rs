@@ -8,7 +8,6 @@ use rusoto_core::credential::{
 };
 use rusoto_sts::WebIdentityProvider;
 
-
 /// Provides AWS credentials from multiple possible sources using a priority order.
 /// The following sources are checked in order for credentials when calling credentials. More sources may be supported in future if a need be.
 /// 1) Environment variables: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.

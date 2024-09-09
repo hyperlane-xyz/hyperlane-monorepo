@@ -1,5 +1,5 @@
-#![allow(clippy::doc_lazy_continuation)] // TODO: `rustc` 1.80.1 clippy issue 
-
+// TODO: `rustc` 1.80.1 clippy issue
+#![allow(clippy::doc_lazy_continuation)]
 //! A server that serves EigenLayer specific routes
 //! compliant with the spec here https://eigen.nethermind.io/docs/spec/api/
 //!

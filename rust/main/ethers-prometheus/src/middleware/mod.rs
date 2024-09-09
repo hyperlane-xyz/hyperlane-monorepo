@@ -335,10 +335,8 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                     .inc_by((Instant::now() - start).as_secs_f64());
             }
         }
-
         Ok(result?)
     }
-    
     #[allow(clippy::redundant_closure)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>, Self::Error> {
         let start = Instant::now();
