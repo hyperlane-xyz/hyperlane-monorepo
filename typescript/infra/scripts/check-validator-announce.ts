@@ -31,6 +31,7 @@ async function main() {
         chain,
         status:
           missingValidators.length === 0 ? '✅' : missingValidators.join(', '),
+        count: validators.length,
       };
     }),
   );
