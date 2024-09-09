@@ -11,7 +11,7 @@ use tempfile::{tempdir, NamedTempFile};
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, AgentHandles, ArbitraryData, TaskHandle};
-use crate::AGENT_BIN_PATH;
+use crate::SOLANA_AGNET_BIN_PATH;
 
 /// The Solana CLI tool version to download and use.
 const SOLANA_CLI_VERSION: &str = "1.14.20";
@@ -362,11 +362,14 @@ pub fn solana_termination_invariants_met(
 }
 
 fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
-    Program::new(concat_path(AGENT_BIN_PATH, "hyperlane-sealevel-client"))
-        .env("PATH", updated_path(solana_cli_tools_path))
-        .env("RUST_BACKTRACE", "1")
-        .arg("config", solana_config_path.to_str().unwrap())
-        .arg("keypair", SOLANA_KEYPAIR)
+    Program::new(concat_path(
+        SOLANA_AGNET_BIN_PATH,
+        "hyperlane-sealevel-client",
+    ))
+    .env("PATH", updated_path(solana_cli_tools_path))
+    .env("RUST_BACKTRACE", "1")
+    .arg("config", solana_config_path.to_str().unwrap())
+    .arg("keypair", SOLANA_KEYPAIR)
 }
 
 fn updated_path(solana_cli_tools_path: &Path) -> String {

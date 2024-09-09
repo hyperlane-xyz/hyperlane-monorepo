@@ -88,6 +88,7 @@ const SEALEVEL_VALIDATOR_KEYS: &[&str] = &[
 ];
 
 const AGENT_BIN_PATH: &str = "target/debug";
+const SOLANA_AGNET_BIN_PATH: &str = "../sealevel/target/debug/";
 const INFRA_PATH: &str = "../typescript/infra";
 const MONOREPO_ROOT_PATH: &str = "../";
 
@@ -327,27 +328,7 @@ fn main() -> ExitCode {
         .arg("bin", "relayer")
         .arg("bin", "validator")
         .arg("bin", "scraper")
-        .arg("bin", "init-db");
-    // let build_rust = if config.sealevel_enabled {
-    // if config.sealevel_enabled {
-    //     Program::new("cargo")
-    //         .working_dir("../sealevel")
-    //         .cmd("build")
-    //         // .arg("features", "test-utils memory-profiling")
-    //         .arg("bin", "hyperlane-sealevel-client")
-    //         .filter_logs(|l| !l.contains("workspace-inheritance"))
-    //         .run()
-    //         .join();
-    //     // build_rust
-    //     //     .working_dir("../sealevel")
-    //     //     .arg("bin", "hyperlane-sealevel-relayer")
-    //     //     .working_dir("../main")
-    //     // build_rust.arg("bin", "hyperlane-sealevel-client") // TODO should cause error
-    // }
-    // // } else {
-    // //     build_rust
-    // // };
-    let build_rust = build_rust
+        .arg("bin", "init-db")
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
@@ -369,16 +350,10 @@ fn main() -> ExitCode {
         Program::new("cargo")
             .working_dir("../sealevel")
             .cmd("build")
-            // .arg("features", "test-utils memory-profiling")
             .arg("bin", "hyperlane-sealevel-client")
             .filter_logs(|l| !l.contains("workspace-inheritance"))
             .run()
             .join();
-        // build_rust
-        //     .working_dir("../sealevel")
-        //     .arg("bin", "hyperlane-sealevel-relayer")
-        //     .working_dir("../main")
-        // build_rust.arg("bin", "hyperlane-sealevel-client") // TODO should cause error
     }
 
     let solana_ledger_dir = tempdir().unwrap();
