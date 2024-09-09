@@ -704,6 +704,7 @@ fn main() {
     let client = RpcClient::new(url);
 
     let keypair_path = cli.keypair.unwrap_or(config.keypair_path);
+    println!("Passed in keypair: {}", keypair_path);
     let (payer_pubkey, payer_keypair) = if let Ok(payer_keypair) = read_keypair_file(&keypair_path)
     {
         (

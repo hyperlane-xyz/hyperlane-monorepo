@@ -28,6 +28,7 @@ use hyperlane_sealevel_token_lib::{
         set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
 };
+use std::env;
 
 use crate::{
     cmd_utils::account_exists,
@@ -294,6 +295,13 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     "--fee-payer",
                     ctx.payer_keypair_path(),
                 ]);
+
+                // Print the current working directory
+                match env::current_dir() {
+                    Ok(path) => println!("Current working directory: {}", path.display()),
+                    Err(e) => println!("Failed to get current working directory: {}", e),
+                }
+
                 println!("running command: {:?}", cmd);
                 let status = cmd
                     .stdout(Stdio::inherit())

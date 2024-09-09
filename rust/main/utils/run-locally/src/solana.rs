@@ -48,12 +48,13 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
     "hyperlane-sealevel-igp",
 ];
 
-const SOLANA_KEYPAIR: &str = "config/test-sealevel-keys/test_deployer-keypair.json";
-const SOLANA_DEPLOYER_ACCOUNT: &str = "config/test-sealevel-keys/test_deployer-account.json";
+const SOLANA_KEYPAIR: &str = "../main/config/test-sealevel-keys/test_deployer-keypair.json";
+const SOLANA_DEPLOYER_ACCOUNT: &str =
+    "../main/config/test-sealevel-keys/test_deployer-account.json";
 const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
-    "sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json";
-const SOLANA_CHAIN_CONFIG_FILE: &str = "sealevel/environments/local-e2e/chain-config.json";
-const SOLANA_ENVS_DIR: &str = "sealevel/environments";
+    "../sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json";
+const SOLANA_CHAIN_CONFIG_FILE: &str = "../sealevel/environments/local-e2e/chain-config.json";
+const SOLANA_ENVS_DIR: &str = "../sealevel/environments";
 
 const SOLANA_ENV_NAME: &str = "local-e2e";
 
@@ -66,7 +67,7 @@ const SOLANA_REMOTE_CHAIN_ID: &str = "13376";
 pub const SOLANA_CHECKPOINT_LOCATION: &str =
     "/tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
 
-const SOLANA_OVERHEAD_CONFIG_FILE: &str = "sealevel/environments/local-e2e/overheads.json";
+const SOLANA_OVERHEAD_CONFIG_FILE: &str = "../sealevel/environments/local-e2e/overheads.json";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
@@ -287,6 +288,8 @@ pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) -> String {
+    println!("\nsolana tools path: {:?}", solana_cli_tools_path);
+
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
         .arg("keypair", SOLANA_KEYPAIR)
@@ -360,8 +363,15 @@ pub fn solana_termination_invariants_met(
         .join("\n")
         .contains("Message delivered")
 }
-
+// <solana> Keypair Path: /Users/mantasm/.config/solana/id.json
+// program path: "../sealevel/target/debug/hyperlane-sealevel-client"
+// <hyperlane-sealevel-client> Using existing key at path ../sealevel/environments/local-e2e/sealeveltest1/core/keys/hyperlane_sealevel_multisig_ism_message_id-keypair.json
 fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
+    // program path: "../sealevel/target/debug/hyperlane-sealevel-client"
+    println!(
+        "\nprogram path: {:?}",
+        concat_path(SOLANA_AGNET_BIN_PATH, "hyperlane-sealevel-client")
+    );
     Program::new(concat_path(
         SOLANA_AGNET_BIN_PATH,
         "hyperlane-sealevel-client",
@@ -369,7 +379,10 @@ fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> P
     .env("PATH", updated_path(solana_cli_tools_path))
     .env("RUST_BACKTRACE", "1")
     .arg("config", solana_config_path.to_str().unwrap())
-    .arg("keypair", SOLANA_KEYPAIR)
+    .arg(
+        "keypair",
+        "config/test-sealevel-keys/test_deployer-keypair.json",
+    )
 }
 
 fn updated_path(solana_cli_tools_path: &Path) -> String {

@@ -89,8 +89,8 @@ const SEALEVEL_VALIDATOR_KEYS: &[&str] = &[
 
 const AGENT_BIN_PATH: &str = "target/debug";
 const SOLANA_AGNET_BIN_PATH: &str = "../sealevel/target/debug/";
-const INFRA_PATH: &str = "../typescript/infra";
-const MONOREPO_ROOT_PATH: &str = "../";
+const INFRA_PATH: &str = "../../typescript/infra";
+const MONOREPO_ROOT_PATH: &str = "../../";
 
 const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
 
