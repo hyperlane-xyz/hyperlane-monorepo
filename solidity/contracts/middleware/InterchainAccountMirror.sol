@@ -7,9 +7,6 @@ import {InterchainAccountRouter} from "./InterchainAccountRouter.sol";
 import {CallLib} from "./libs/Call.sol";
 import {InterchainAccountMirrorCalldata} from "./libs/InterchainAccountMirrorCalldata.sol";
 
-// ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
 contract InterchainAccountMirror {
     using InterchainAccountMirrorCalldata for bytes;
 

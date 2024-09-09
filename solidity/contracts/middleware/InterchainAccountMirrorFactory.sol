@@ -26,9 +26,9 @@ contract InterchainAccountMirrorFactory {
         address owner,
         uint32 destination,
         bytes32 target
-    ) external returns (address mirror) {
+    ) external returns (address payable mirror) {
         bytes32 salt = keccak256(abi.encodePacked(owner, destination, target));
-        mirror = address(
+        mirror = payable(
             new InterchainAccountMirror{salt: salt}(
                 icaRouter,
                 destination,
