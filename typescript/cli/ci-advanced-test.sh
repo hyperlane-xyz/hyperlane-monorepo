@@ -25,10 +25,10 @@ _main() {
 
     DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]');
 
-    run_hyperlane_deploy_core_dry_run;
-    run_hyperlane_deploy_warp_dry_run;
-
-    reset_anvil;
+    # TODO: fix `resetFork` after a dry-run. Related: https://github.com/foundry-rs/foundry/pull/8768
+    # run_hyperlane_deploy_core_dry_run;
+    # run_hyperlane_deploy_warp_dry_run;
+    # reset_anvil;
 
     run_hyperlane_deploy_core;
     run_hyperlane_deploy_warp;
