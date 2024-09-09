@@ -27,14 +27,15 @@ export async function fetchGCPSecret(
   parseJson = true,
 ): Promise<unknown> {
   let output: string;
-
   const envVarOverride = tryGCPSecretFromEnvVariable(secretName);
+
   if (envVarOverride !== undefined) {
     debugLog(
       `Using environment variable instead of GCP secret with name ${secretName}`,
     );
     output = envVarOverride;
   } else {
+    debugLog(`Fetching GCP secret with name ${secretName}`);
     output = await fetchLatestGCPSecret(secretName);
   }
 
@@ -79,6 +80,7 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
   const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
     .replaceAll('-', '_')
     .toUpperCase()}`;
+  debugLog(`Checking for environment variable ${overrideEnvVarName}`);
   return process.env[overrideEnvVarName];
 }
 
@@ -154,6 +156,7 @@ export async function setGCPSecret(
   labels: Record<string, string>,
 ) {
   const fileName = `/tmp/${secretName}.txt`;
+
   await writeFile(fileName, secret);
 
   const exists = await gcpSecretExists(secretName);
