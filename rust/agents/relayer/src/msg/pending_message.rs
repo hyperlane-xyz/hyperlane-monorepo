@@ -28,7 +28,7 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     Duration::from_secs(5)
 } else {
     // Wait 1 min after submitting the message before confirming in normal/production mode
-    Duration::from_secs(60)
+    Duration::from_secs(60 * 10)
 };
 
 /// The message context contains the links needed to submit a message. Each
