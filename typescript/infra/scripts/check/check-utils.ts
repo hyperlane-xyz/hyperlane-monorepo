@@ -26,6 +26,7 @@ import { getWarpConfig } from '../../config/warp.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
+import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
 import { Role } from '../../src/roles.js';
@@ -106,7 +107,7 @@ export async function getGovernor(
 
   const icaChainAddresses = objFilter(
     chainAddresses,
-    (chain, addresses): addresses is Record<string, string> =>
+    (chain, _): _ is Record<string, string> =>
       !!chainAddresses[chain]?.interchainAccountRouter,
   );
   const ica = InterchainAccount.fromAddressesMap(
@@ -137,6 +138,23 @@ export async function getGovernor(
       ),
     );
     governor = new ProxiedRouterGovernor(checker);
+  } else if (module === Modules.HAAS) {
+    const icaChecker = new InterchainAccountChecker(
+      multiProvider,
+      ica,
+      objFilter(
+        routerConfig,
+        (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
+      ),
+    );
+    const coreChecker = new HyperlaneCoreChecker(
+      multiProvider,
+      core,
+      envConfig.core,
+      ismFactory,
+      chainAddresses,
+    );
+    governor = new HyperlaneHaasGovernor(ica, icaChecker, coreChecker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new InterchainQueryChecker(

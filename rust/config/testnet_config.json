@@ -713,8 +713,8 @@
       "name": "polygonamoy",
       "nativeToken": {
         "decimals": 18,
-        "name": "Matic",
-        "symbol": "MATIC"
+        "name": "Polygon Ecosystem Token",
+        "symbol": "POL"
       },
       "pausableHook": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
       "pausableIsm": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
