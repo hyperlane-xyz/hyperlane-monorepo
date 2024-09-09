@@ -47,6 +47,10 @@ spec:
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}
+            - name: LOG_FORMAT
+              value: pretty
+            - name: LOG_LEVEL
+              value: debug
             envFrom:
             - secretRef:
                 name: key-funder-env-var-secret
