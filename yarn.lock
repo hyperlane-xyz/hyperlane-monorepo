@@ -7590,7 +7590,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:2.5.0"
+    "@hyperlane-xyz/registry": "npm:4.0.0"
     "@hyperlane-xyz/sdk": "npm:5.1.0"
     "@hyperlane-xyz/utils": "npm:5.1.0"
     "@inquirer/prompts": "npm:^3.0.0"
@@ -7797,6 +7797,16 @@ __metadata:
     yaml: "npm:^2"
     zod: "npm:^3.21.2"
   checksum: 24f433c0938dc31913b0f7a93b880a9aa15eabebf664eb11f319c51f6b38163929429405dd996b8964f8a2f43dfa4ba5424b157ad6fd39432653e46e128e0ffc
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/registry@npm:4.0.0":
+  version: 4.0.0
+  resolution: "@hyperlane-xyz/registry@npm:4.0.0"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 90dfe259343fa68315ea58a58e60d47261a6af33fab63f1d0708e2c19ff057977a878b1e0079811388634e08ddf40fd4f99d03ea519cb8ad96d2ce1063ebdff5
   languageName: node
   linkType: hard
 
