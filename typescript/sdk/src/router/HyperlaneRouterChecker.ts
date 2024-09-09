@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  AddressBytes32,
   addressToBytes32,
   assert,
   eqAddress,
@@ -128,7 +129,10 @@ export class HyperlaneRouterChecker<
     const remoteChains = await this.app.remoteChains(chain);
     const currentRouters: ChainMap<string> = {};
     const expectedRouters: ChainMap<string> = {};
-    const routerDiff: ChainMap<string> = {};
+    const routerDiff: ChainMap<{
+      actual: AddressBytes32;
+      expected: AddressBytes32;
+    }> = {};
 
     await Promise.all(
       remoteChains.map(async (remoteChain) => {
@@ -141,7 +145,10 @@ export class HyperlaneRouterChecker<
         expectedRouters[remoteChain] = expectedRouter;
 
         if (actualRouter !== expectedRouter) {
-          routerDiff[remoteChain] = expectedRouter;
+          routerDiff[remoteChain] = {
+            actual: actualRouter,
+            expected: expectedRouter,
+          };
         }
       }),
     );

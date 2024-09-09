@@ -6,7 +6,7 @@ import {
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, AddressBytes32 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
@@ -58,7 +58,10 @@ export enum RouterViolationType {
 export interface RouterViolation extends CheckerViolation {
   type: RouterViolationType.EnrolledRouter;
   contract: Router;
-  routerDiff: ChainMap<string>;
+  routerDiff: ChainMap<{
+    actual: AddressBytes32;
+    expected: AddressBytes32;
+  }>;
   description?: string;
 }
 
