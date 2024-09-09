@@ -166,6 +166,7 @@ export {
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
   WeightedMultisigIsmConfig,
+  RpcValidatorIsmConfig,
 } from './ism/types.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
 export {
@@ -530,3 +531,5 @@ export {
 } from './deploy/schemas.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { proxyAdmin } from './deploy/proxy.js';
+
+export { LocalRpcValidatorSignerService } from './ism/metadata/rpcValidator.js';

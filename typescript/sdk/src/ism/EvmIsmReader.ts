@@ -8,6 +8,7 @@ import {
   IOutbox__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
+  RpcMultisigIsm__factory,
   StaticAggregationIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -34,6 +35,7 @@ import {
   MultisigIsmConfig,
   NullIsmConfig,
   RoutingIsmConfig,
+  RpcValidatorIsmConfig,
 } from './types.js';
 
 export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
@@ -108,6 +110,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           throw new Error('CCIP_READ does not have a corresponding IsmType');
         case ModuleType.ARB_L2_TO_L1:
           return this.deriveArbL2ToL1Config(address);
+        case ModuleType.RPC_VALIDATOR:
+          return this.deriveRpcValidatorConfig(address);
         default:
           throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
       }
@@ -191,6 +195,23 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     };
   }
 
+  async deriveRpcValidatorConfig(
+    address: string,
+  ): Promise<WithAddress<RpcValidatorIsmConfig>> {
+    const multisigConfig = await this.deriveMultisigConfig(address);
+    const rpcValidatorIsm = await RpcMultisigIsm__factory.connect(
+      address,
+      this.provider,
+    );
+    // TOOD: parse rpc url
+    return {
+      ...multisigConfig,
+      type: IsmType.RPC_VALIDATOR,
+      rpcUrl: await rpcValidatorIsm.rpcUrl(),
+      originMerkleTreeHook: await rpcValidatorIsm.originMerkleTreeHook(),
+    };
+  }
+
   async deriveMultisigConfig(
     address: string,
   ): Promise<WithAddress<MultisigIsmConfig>> {
@@ -198,8 +219,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const moduleType = await ism.moduleType();
     assert(
       moduleType === ModuleType.MERKLE_ROOT_MULTISIG ||
-        moduleType === ModuleType.MESSAGE_ID_MULTISIG,
-      `expected module type to be ${ModuleType.MERKLE_ROOT_MULTISIG} or ${ModuleType.MESSAGE_ID_MULTISIG}, got ${moduleType}`,
+        moduleType === ModuleType.MESSAGE_ID_MULTISIG ||
+        moduleType === ModuleType.RPC_VALIDATOR,
+      `expected module type to be ${ModuleType.MERKLE_ROOT_MULTISIG} or ${ModuleType.MESSAGE_ID_MULTISIG} or ${ModuleType.RPC_VALIDATOR}, got ${moduleType}`,
     );
 
     const ismType =

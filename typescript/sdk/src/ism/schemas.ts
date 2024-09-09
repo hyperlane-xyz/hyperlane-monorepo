@@ -19,6 +19,12 @@ export const MultisigConfigSchema = z.object({
   threshold: z.number(),
 });
 
+export const RpcValidatorConfigSchema = MultisigConfigSchema.extend({
+  rpcUrl: z.string(),
+  originMerkleTreeHook: z.string(),
+  type: z.literal(IsmType.RPC_VALIDATOR),
+});
+
 export const WeightedMultisigConfigSchema = z.object({
   validators: z.array(ValidatorInfoSchema),
   thresholdWeight: z.number(),
@@ -98,4 +104,5 @@ export const IsmConfigSchema = z.union([
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
+  RpcValidatorConfigSchema,
 ]);

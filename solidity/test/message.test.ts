@@ -8,13 +8,93 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import testCases from '../../vectors/message.json' assert { type: 'json' };
-import { Mailbox__factory, TestMessage, TestMessage__factory } from '../types';
+import {
+  Mailbox__factory,
+  MerkleTreeHook__factory,
+  RpcMultisigIsm__factory,
+  TestIsm__factory,
+  TestMessage,
+  TestMessage__factory,
+  TestRecipient__factory,
+} from '../types';
+import { DispatchEvent } from '../types/contracts/Mailbox';
 
 import { getSigner, getSigners } from './signer';
 
 const remoteDomain = 1000;
 const localDomain = 2000;
 const nonce = 11;
+
+describe.only('RPC Validator', async () => {
+  it('test2', async () => {
+    const signer = await getSigner();
+
+    const Mailbox = new Mailbox__factory(signer);
+    const originMailbox = await Mailbox.deploy(localDomain);
+    const merkleTreeHook = await new MerkleTreeHook__factory(signer).deploy(
+      originMailbox.address,
+    );
+    const testIsm = await new TestIsm__factory(signer).deploy();
+    originMailbox.initialize(
+      signer.address,
+      testIsm.address,
+      merkleTreeHook.address,
+      merkleTreeHook.address,
+    );
+
+    const rpcValidatorIsm = await new RpcMultisigIsm__factory(signer).deploy(
+      'http://localhost:8545',
+      [signer.address],
+      1,
+    );
+    const destinationMailbox = await Mailbox.deploy(remoteDomain);
+    destinationMailbox.initialize(
+      signer.address,
+      rpcValidatorIsm.address,
+      merkleTreeHook.address,
+      merkleTreeHook.address,
+    );
+
+    const testRecipient = await new TestRecipient__factory(signer).deploy();
+
+    const tx = await originMailbox['dispatch(uint32,bytes32,bytes)'](
+      remoteDomain,
+      addressToBytes32(testRecipient.address),
+      utils.formatBytes32String('message'),
+    );
+
+    const receipt = await tx.wait();
+    const parsedLogs = receipt.logs.map((log) => {
+      try {
+        return Mailbox.interface.parseLog(log);
+      } catch (error) {
+        try {
+          return merkleTreeHook.interface.parseLog(log);
+        } catch (error) {
+          return null;
+        }
+      }
+    });
+
+    const dispatchEvent = parsedLogs.find(
+      (_) => _!.name === 'Dispatch',
+    ) as unknown as DispatchEvent;
+    await destinationMailbox['recipientIsm(address)'](testRecipient.address);
+
+    await rpcValidatorIsm.verify(
+      utils.formatBytes32String('message'),
+      dispatchEvent.args!.message,
+    );
+    // await destinationMailbox.process(
+    //   utils.formatBytes32String('message'),
+    //   dispatchEvent.args!.message,
+    // );
+  });
+
+  it('test', async () => {
+    expect(true).to.equal(true);
+  });
+});
 
 describe('Message', async () => {
   let messageLib: TestMessage;

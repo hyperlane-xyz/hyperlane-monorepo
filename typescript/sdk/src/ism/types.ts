@@ -9,6 +9,7 @@ import {
   IStaticWeightedMultisigIsm,
   OPStackIsm,
   PausableIsm,
+  RpcMultisigIsm,
   TestIsm,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
@@ -23,6 +24,7 @@ import {
   MultisigIsmConfigSchema,
   OpStackIsmConfigSchema,
   PausableIsmConfigSchema,
+  RpcValidatorConfigSchema,
   TestIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfigSchema,
@@ -42,6 +44,8 @@ export enum ModuleType {
   ARB_L2_TO_L1,
   WEIGHTED_MERKLE_ROOT_MULTISIG,
   WEIGHTED_MESSAGE_ID_MULTISIG,
+  OP_L2_TO_L1,
+  RPC_VALIDATOR,
 }
 
 // this enum can be adjusted as per deployments necessary
@@ -60,6 +64,7 @@ export enum IsmType {
   ARB_L2_TO_L1 = 'arbL2ToL1Ism',
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
+  RPC_VALIDATOR = 'rpcValidator',
 }
 
 // ISM types that can be updated in-place
@@ -94,6 +99,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MERKLE_ROOT_MULTISIG;
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
+    case IsmType.RPC_VALIDATOR:
+      return ModuleType.RPC_VALIDATOR;
   }
 }
 
@@ -102,6 +109,12 @@ export type MultisigConfig = {
   threshold: number;
 };
 
+export type RpcValidatorConfig = MultisigConfig & {
+  rpcUrl: string;
+  originMerkleTreeHook: string;
+};
+
+export type RpcValidatorIsmConfig = z.infer<typeof RpcValidatorConfigSchema>;
 export type MultisigIsmConfig = z.infer<typeof MultisigIsmConfigSchema>;
 export type WeightedMultisigIsmConfig = z.infer<
   typeof WeightedMultisigIsmConfigSchema
@@ -147,6 +160,7 @@ export type DeployedIsmType = {
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
+  [IsmType.RPC_VALIDATOR]: RpcMultisigIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;

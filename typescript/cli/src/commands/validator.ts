@@ -1,5 +1,6 @@
 import { CommandModule } from 'yargs';
 
+import { LocalRpcValidatorSignerService } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
@@ -31,8 +32,23 @@ export const validatorCommand: CommandModule = {
     yargs
       .command(addressCommand)
       .command(preFlightCheckCommand)
+      .command(rpcValidatorCommand)
       .demandCommand(),
   handler: () => log('Command required'),
+};
+
+const rpcValidatorCommand: CommandModuleWithContext<{ port: string }> = {
+  command: 'rpcValidator',
+  describe: 'start an rpc validator',
+  builder: {
+    port: {
+      type: 'number',
+    },
+  },
+  handler: async ({ context, port }) => {
+    const service = new LocalRpcValidatorSignerService(context.signer!, port);
+    console.log(service);
+  },
 };
 
 // If AWS access key needed for future validator commands, move to context
