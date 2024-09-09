@@ -245,6 +245,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91', // luganodes
     ],
   },
 
