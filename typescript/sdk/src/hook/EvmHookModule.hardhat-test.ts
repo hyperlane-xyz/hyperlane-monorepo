@@ -180,7 +180,7 @@ describe('EvmHookModule', async () => {
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
   let exampleRoutingConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
 
-  beforeEach(async () => {
+  before(async () => {
     [signer, funder] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
