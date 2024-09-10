@@ -288,8 +288,6 @@ pub fn initiate_solana_hyperlane_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) -> String {
-    println!("\nsolana tools path: {:?}", solana_cli_tools_path);
-
     let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_str().unwrap())
         .arg("keypair", SOLANA_KEYPAIR)
@@ -363,15 +361,7 @@ pub fn solana_termination_invariants_met(
         .join("\n")
         .contains("Message delivered")
 }
-// <solana> Keypair Path: /Users/mantasm/.config/solana/id.json
-// program path: "../sealevel/target/debug/hyperlane-sealevel-client"
-// <hyperlane-sealevel-client> Using existing key at path ../sealevel/environments/local-e2e/sealeveltest1/core/keys/hyperlane_sealevel_multisig_ism_message_id-keypair.json
 fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
-    // program path: "../sealevel/target/debug/hyperlane-sealevel-client"
-    println!(
-        "\nprogram path: {:?}",
-        concat_path(SOLANA_AGNET_BIN_PATH, "hyperlane-sealevel-client")
-    );
     Program::new(concat_path(
         SOLANA_AGNET_BIN_PATH,
         "hyperlane-sealevel-client",

@@ -181,8 +181,6 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
         .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
 
-    println!("\nhello\n");
-
     let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
 
     let relayer_env = common_agent_env
@@ -322,7 +320,7 @@ fn main() -> ExitCode {
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
-    let build_rust = Program::new("cargo")
+    let build_main = Program::new("cargo")
         .cmd("build")
         .arg("features", "test-utils memory-profiling")
         .arg("bin", "relayer")
@@ -345,7 +343,7 @@ fn main() -> ExitCode {
         .spawn("SQL", None);
     state.push_agent(postgres);
 
-    build_rust.join();
+    build_main.join();
     if config.sealevel_enabled {
         Program::new("cargo")
             .working_dir("../sealevel")

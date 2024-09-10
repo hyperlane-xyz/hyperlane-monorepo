@@ -264,9 +264,6 @@ features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2024-04-25"
 
-
-#  TODO maybe remove after rustc update
-
 [patch.crates-io.bumpalo]
 git = "https://github.com/fitzgen/bumpalo"
 tag = "3.14.0"
@@ -290,7 +287,6 @@ version = "=1.0.9"
 
 [patch.crates-io.cargo-platform]
 git = "https://github.com/rust-lang/cargo"
-# branch = "rust-1.75.0"
 tag = "0.76.0"
 version = "=0.1.6"
 
@@ -298,8 +294,6 @@ version = "=0.1.6"
 git = "https://github.com/assert-rs/predicates-rs"
 tag = "predicates-core-v1.0.6"
 version = "=1.0.6"
-
-# TODO
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"

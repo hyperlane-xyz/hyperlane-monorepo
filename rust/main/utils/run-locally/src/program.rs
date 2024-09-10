@@ -298,11 +298,7 @@ impl Program {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
 
-        println!("\n");
         log!("{:#}", &self);
-        log!("{:?}", &self);
-        println!("\n");
-
         let mut child = command
             .spawn()
             .unwrap_or_else(|e| panic!("Failed to start command `{}` with Error: {e}", &self));

@@ -259,37 +259,10 @@ features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2024-04-25"
 
-# PATCHES
 [patch.crates-io.bumpalo]
 git = "https://github.com/fitzgen/bumpalo"
 tag = "3.14.0"
 version = "=3.14.0"
-
-# [patch.crates-io.cargo-platform]
-# git = "https://github.com/rust-lang/cargo"
-# # branch = "rust-1.75.0"
-# tag = "0.76.0"
-# version = "=0.1.6"
-
-# [patch.crates-io.clap]
-# git = "https://github.com/clap-rs/clap"
-# tag = "v3.2.25"
-# version = "=3.2.25"
-
-# [patch.crates-io.clap_builder]
-# git = "https://github.com/clap-rs/clap"
-# tag = "v4.4.17"
-# version = "=4.4.17"
-
-# [patch.crates-io.clap_derive]
-# git = "https://github.com/clap-rs/clap"
-# tag = "v3.2.25"
-# version = "=3.2.25"
-
-# [patch.crates-io.clap_lex]
-# git = "https://github.com/clap-rs/clap"
-# tag = "v4.4.7"
-# version = "=0.6.0"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
@@ -395,13 +368,3 @@ version = "=0.5.0"
 version = "=0.1.0"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
 branch = "hyperlane"
-
-# [patch.crates-io.tendermint]
-# branch = "trevor/0.32.2-fork"
-# git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
-# version = "=0.32.2"
-
-# [patch.crates-io.tendermint-rpc]
-# branch = "trevor/0.32.2-fork"
-# git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
-# version = "=0.32.2"
