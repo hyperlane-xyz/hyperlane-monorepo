@@ -62,6 +62,7 @@ export const keyFunderConfig: KeyFunderConfig<
     mode: '0.2',
     molten: '3',
     moonbeam: '5',
+    oort: '2000',
     optimism: '0.5',
     polygon: '20',
     polygonzkevm: '0.5',
