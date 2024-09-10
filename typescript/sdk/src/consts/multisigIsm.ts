@@ -389,6 +389,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+      '0x7e29608c6e5792bbf9128599ca309be0728af7b4', // renzo
     ],
   },
 
