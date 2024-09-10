@@ -264,6 +264,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     threshold?: number;
     multiProvider: MultiProvider;
   }): Promise<Address> {
+    values = values.sort();
     const address = await factory['getAddress(address[],uint8)'](
       values,
       threshold,

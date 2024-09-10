@@ -4,12 +4,7 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import {
-  Address,
-  eqAddress,
-  normalizeConfig,
-  sortValidatorsInConfig,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -41,19 +36,27 @@ const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
   };
 };
 
+const ModuleTypes = [
+  ModuleType.AGGREGATION,
+  ModuleType.MERKLE_ROOT_MULTISIG,
+  ModuleType.ROUTING,
+  ModuleType.NULL,
+];
+
+const NonNestedModuleTypes = [ModuleType.MERKLE_ROOT_MULTISIG, ModuleType.NULL];
+
 function randomModuleType(): ModuleType {
-  const choices = [
-    ModuleType.AGGREGATION,
-    ModuleType.MERKLE_ROOT_MULTISIG,
-    ModuleType.ROUTING,
-    ModuleType.NULL,
-  ];
-  return choices[randomInt(choices.length)];
+  return ModuleTypes[randomInt(ModuleTypes.length)];
 }
 
-const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
+function randomNonNestedModuleType(): ModuleType {
+  return NonNestedModuleTypes[randomInt(NonNestedModuleTypes.length)];
+}
+
+const randomIsmConfig = (depth = 0, maxDepth = 2) => {
   const moduleType =
-    depth == maxDepth ? ModuleType.MERKLE_ROOT_MULTISIG : randomModuleType();
+    depth === maxDepth ? randomNonNestedModuleType() : randomModuleType();
+
   switch (moduleType) {
     case ModuleType.MERKLE_ROOT_MULTISIG: {
       const n = randomInt(5, 1);
@@ -70,10 +73,21 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
       return config;
     }
     case ModuleType.AGGREGATION: {
-      const n = randomInt(5, 1);
-      const modules = new Array<number>(n)
-        .fill(0)
-        .map(() => randomIsmConfig(depth + 1));
+      const n = randomInt(2, 1);
+      const moduleTypes = new Set();
+      const modules = new Array<number>(n).fill(0).map(() => {
+        let moduleConfig;
+        let moduleType;
+
+        // Ensure that we do not add the same module type more than once per level
+        do {
+          moduleConfig = randomIsmConfig(depth + 1, maxDepth);
+          moduleType = moduleConfig.type;
+        } while (moduleTypes.has(moduleType));
+
+        moduleTypes.add(moduleType);
+        return moduleConfig;
+      });
       const config: AggregationIsmConfig = {
         type: IsmType.AGGREGATION,
         threshold: randomInt(n, 1),
@@ -177,16 +191,9 @@ describe('EvmIsmModule', async () => {
   afterEach(async () => {
     const derivedConfiig = await testIsm.read();
     const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
-    const sortedNormalizedDerivedConfig = sortValidatorsInConfig(
-      normalizedDerivedConfig,
-    );
     const normalizedConfig = normalizeConfig(testConfig);
-    const sortedNormalizedConfig = sortValidatorsInConfig(normalizedConfig);
 
-    assert.deepStrictEqual(
-      sortedNormalizedDerivedConfig,
-      sortedNormalizedConfig,
-    );
+    assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
 
   // create a new ISM and verify that it matches the config
@@ -382,7 +389,9 @@ describe('EvmIsmModule', async () => {
           },
         };
 
-        const { ism } = await createIsm(routerConfig as RoutingIsmConfig);
+        const { ism, initialIsmAddress } = await createIsm(
+          routerConfig as RoutingIsmConfig,
+        );
 
         const updatedRouterConfig = {
           type: IsmType.ROUTING,
@@ -415,6 +424,10 @@ describe('EvmIsmModule', async () => {
           updatedRouterConfig as RoutingIsmConfig,
           0,
         );
+
+        // expect the ISM address to be the same
+        expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+          .true;
       });
 
       it(`update owner in an existing ${type} not owned by deployer`, async () => {

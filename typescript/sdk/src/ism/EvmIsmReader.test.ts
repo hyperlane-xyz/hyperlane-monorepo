@@ -16,7 +16,7 @@ import {
   TrustedRelayerIsm,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress, sortValidatorsInConfig } from '@hyperlane-xyz/utils';
+import { WithAddress, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -73,11 +73,11 @@ describe('EvmIsmReader', () => {
       threshold: mockThreshold,
     };
 
-    const sortedExpectedConfig = sortValidatorsInConfig(expectedConfig);
+    const normalizedExpectedConfig = normalizeConfig(expectedConfig);
 
     // top-level method infers ism type
     const ismConfig = await evmIsmReader.deriveIsmConfig(mockAddress);
-    expect(ismConfig).to.deep.equal(sortedExpectedConfig);
+    expect(ismConfig).to.deep.equal(normalizedExpectedConfig);
 
     // should get same result if we call the specific method for the ism type
     const config = await evmIsmReader.deriveMultisigConfig(mockAddress);
