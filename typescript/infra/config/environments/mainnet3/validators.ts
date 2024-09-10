@@ -884,5 +884,17 @@ export const validatorChainConfig = (
         'everclear',
       ),
     },
+    oort: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('oort'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xc46e239c6cae979467886c1c68c6db3f473b275a'],
+          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.Neutron]: [],
+        },
+        'oort',
+      ),
+    },
   };
 };
