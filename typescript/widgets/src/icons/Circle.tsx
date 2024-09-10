@@ -12,7 +12,7 @@ export function Circle({
   size: string | number;
   title?: string;
   bgColorSeed?: number;
-  classes?: string;
+  className?: string;
 }>) {
   const bgColor =
     bgColorSeed === null || bgColorSeed == undefined

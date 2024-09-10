@@ -9,21 +9,21 @@ interface Props {
   className?: string;
 }
 
-function _FilterIcon({ width, height, color, className }: Props) {
+function _FunnelIcon({ width, height, color, className }: Props) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width={width}
       height={height}
-      viewBox="0 0 22 16"
+      viewBox="0 0 16 16"
       className={className}
     >
       <path
-        d="M8.55556 16V13.3333H13.4444V16H8.55556ZM3.66667 9.33333V6.66667H18.3333V9.33333H3.66667ZM0 2.66667V0H22V2.66667H0Z"
+        d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5zm1 .5v1.308l4.372 4.858A.5.5 0 0 1 7 8.5v5.306l2-.666V8.5a.5.5 0 0 1 .128-.334L13.5 3.308V2z"
         fill={color || ColorPalette.Black}
       />
     </svg>
   );
 }
 
-export const FilterIcon = memo(_FilterIcon);
+export const FunnelIcon = memo(_FunnelIcon);

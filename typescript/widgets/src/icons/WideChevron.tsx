@@ -8,7 +8,7 @@ export interface WideChevronProps {
   direction: 'n' | 'e' | 's' | 'w';
   color?: string;
   rounded?: boolean;
-  classes?: string;
+  className?: string;
 }
 
 function _WideChevron({

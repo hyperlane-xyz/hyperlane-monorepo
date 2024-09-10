@@ -8,8 +8,9 @@ import React, {
 
 import { FilterIcon } from '../icons/Filter.js';
 import { GearIcon } from '../icons/Gear.js';
-import { IconButton } from '../icons/IconButton.js';
 import { SearchIcon } from '../icons/Search.js';
+
+import { IconButton } from './IconButton.js';
 
 export interface SearchMenuProps<
   ListItem extends { disabled?: boolean },
@@ -55,21 +56,26 @@ export function SearchMenu<
     <div className="htw-flex htw-flex-col">
       <div className="htw-relative">
         <SearchInput value={searchQuery} onChange={setSearchQuery} />
-        <div className="htw-flex htw-items-center htw-gap-4 htw-absolute htw-right-4">
+        <div className="htw-flex htw-items-center htw-gap-4 htw-absolute htw-right-4 htw-top-1/2 -htw-translate-y-1/2">
           <IconButton
             onClick={() => setShowFilterDropdown(!showFilterDropdown)}
           >
             <FilterIcon width={20} height={20} />
           </IconButton>
-          <IconButton onClick={() => setEditState(!isEditState)}>
+          <IconButton
+            onClick={() => setEditState(!isEditState)}
+            className="hover:htw-rotate-45"
+          >
             <GearIcon width={20} height={20} />
           </IconButton>
         </div>
-        {showFilterDropdown && (
-          <div className="htw-absolute htw-right-2-htw-top-16">
-            <FilterComponent value={filterState} onChange={setFilterState} />
-          </div>
-        )}
+      </div>
+      <div
+        className={`htw-px-4 ${
+          showFilterDropdown ? 'htw-max-h-0' : 'htw-max-h-28 htw-py-2'
+        } htw-overflow-hidden htw-transition-all htw-duration-300`}
+      >
+        <FilterComponent value={filterState} onChange={setFilterState} />
       </div>
 
       <div className="htw-flex htw-flex-col htw-items-stretch">
@@ -101,23 +107,33 @@ export function SearchMenu<
 
 type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> & {
   onChange: (v: string) => void;
-  classes?: string;
+  className?: string;
 };
 
-function SearchInput({ onChange, classes, ...props }: InputProps) {
+function SearchInput({ onChange, className, ...props }: InputProps) {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     onChange(e?.target?.value || '');
   };
 
   return (
-    <input
-      type="text"
-      autoComplete="off"
-      onChange={handleChange}
-      className={`htw-rounded-full htw-bg-gray-400 htw-px-10 htw-py-3 focus:htw-bg-gray-300 disabled:htw-bg-gray-600 htw-outline-none htw-transition-all htw-duration-300 ${classes}`}
-      {...props}
-    >
-      <SearchIcon width={18} height={18} />
-    </input>
+    <div className="htw-relative">
+      <SearchIcon
+        width={18}
+        height={18}
+        className="htw-absolute htw-left-4 htw-top-1/2 -htw-translate-y-1/2"
+      />
+      <input
+        type="text"
+        autoComplete="off"
+        onChange={handleChange}
+        className={`htw-w-full htw-rounded-full htw-bg-gray-200 htw-px-12 htw-py-3 focus:htw-bg-gray-300 disabled:htw-bg-gray-600 htw-outline-none htw-transition-all htw-duration-300 ${className}`}
+        {...props}
+      />
+    </div>
   );
+}
+
+export enum SortOrderOption {
+  Asc = 'asc',
+  Desc = 'desc',
 }

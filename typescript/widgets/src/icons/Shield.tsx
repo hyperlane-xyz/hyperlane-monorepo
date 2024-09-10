@@ -6,18 +6,18 @@ interface Props {
   width?: string | number;
   height?: string | number;
   color?: string;
-  classes?: string;
+  className?: string;
 }
 
 // Shield with checkmark
-function _ShieldIcon({ width, height, color, classes }: Props) {
+function _ShieldIcon({ width, height, color, className }: Props) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 16 16"
       width={width}
       height={height}
-      className={classes}
+      className={className}
     >
       <path
         fillRule="evenodd"
