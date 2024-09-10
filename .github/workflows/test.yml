@@ -43,6 +43,8 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-cache-
 
       - name: yarn-install
         run: |
@@ -71,6 +73,7 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          fail-on-cache-miss: true
 
       - name: lint
         run: yarn lint

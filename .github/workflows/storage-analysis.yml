@@ -30,6 +30,8 @@ jobs:
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-cache-
 
       - name: yarn-install
         run: yarn install
