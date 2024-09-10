@@ -72,7 +72,11 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "2",
+    "amount": "6.654595701",
+    "decimals": 9
+  },
+  "everclear": {
+    "amount": "0.1",
     "decimals": 9
   },
   "flare": {
@@ -188,7 +192,7 @@
     "decimals": 9
   },
   "sei": {
-    "amount": "100.0",
+    "amount": "120.0",
     "decimals": 9
   },
   "shibarium": {
