@@ -27,7 +27,7 @@ jobs:
         run: echo "defined=true" >> $GITHUB_OUTPUT
 
   build-and-push-to-gcr:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-8vcpu-ubuntu-2204
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
