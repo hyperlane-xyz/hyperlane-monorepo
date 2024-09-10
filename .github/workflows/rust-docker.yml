@@ -24,7 +24,7 @@ jobs:
           GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
         if: "${{ env.GCLOUD_SERVICE_KEY != '' }}"
         # runs if GCLOUD_SERVICE_KEY is defined, so we set the output to true
-        run: echo "::set-output name=defined::true"
+        run: echo "defined=true" >> $GITHUB_OUTPUT
 
   build-and-push-to-gcr:
     runs-on: ubuntu-latest
