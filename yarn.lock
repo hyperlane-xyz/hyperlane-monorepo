@@ -7683,7 +7683,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/core": "npm:5.1.0"
-    "@hyperlane-xyz/registry": "npm:2.5.0"
+    "@hyperlane-xyz/registry": "npm:4.0.0"
     "@hyperlane-xyz/sdk": "npm:5.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7732,7 +7732,7 @@ __metadata:
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:5.1.0"
-    "@hyperlane-xyz/registry": "npm:2.5.0"
+    "@hyperlane-xyz/registry": "npm:4.0.0"
     "@hyperlane-xyz/sdk": "npm:5.1.0"
     "@hyperlane-xyz/utils": "npm:5.1.0"
     "@inquirer/prompts": "npm:^5.3.8"
@@ -7789,16 +7789,6 @@ __metadata:
     tsx: "npm:^4.7.1"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/registry@npm:2.5.0":
-  version: 2.5.0
-  resolution: "@hyperlane-xyz/registry@npm:2.5.0"
-  dependencies:
-    yaml: "npm:^2"
-    zod: "npm:^3.21.2"
-  checksum: 24f433c0938dc31913b0f7a93b880a9aa15eabebf664eb11f319c51f6b38163929429405dd996b8964f8a2f43dfa4ba5424b157ad6fd39432653e46e128e0ffc
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/registry@npm:4.0.0":
   version: 4.0.0
@@ -7884,7 +7874,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/widgets@workspace:typescript/widgets"
   dependencies:
-    "@hyperlane-xyz/registry": "npm:2.5.0"
+    "@hyperlane-xyz/registry": "npm:4.0.0"
     "@hyperlane-xyz/sdk": "npm:5.1.0"
     "@storybook/addon-essentials": "npm:^7.6.14"
     "@storybook/addon-interactions": "npm:^7.6.14"
@@ -31835,15 +31825,6 @@ __metadata:
   version: 1.10.2
   resolution: "yaml@npm:1.10.2"
   checksum: e088b37b4d4885b70b50c9fa1b7e54bd2e27f5c87205f9deaffd1fb293ab263d9c964feadb9817a7b129a5bf30a06582cb08750f810568ecc14f3cdbabb79cb3
-  languageName: node
-  linkType: hard
-
-"yaml@npm:^2":
-  version: 2.5.1
-  resolution: "yaml@npm:2.5.1"
-  bin:
-    yaml: bin.mjs
-  checksum: 0eecb679db75ea6a989ad97715a9fa5d946972945aa6aa7d2175bca66c213b5564502ccb1cdd04b1bf816ee38b5c43e4e2fda3ff6f5e09da24dabb51ae92c57d
   languageName: node
   linkType: hard
 
