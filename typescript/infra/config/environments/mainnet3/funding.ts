@@ -44,6 +44,7 @@ export const keyFunderConfig: KeyFunderConfig<
     dogechain: '100',
     endurance: '20',
     ethereum: '0.5',
+    everclear: '0.05',
     flare: '500',
     fraxtal: '0.2',
     fusemainnet: '20',

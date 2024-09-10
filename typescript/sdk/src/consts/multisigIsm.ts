@@ -212,6 +212,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  everclear: {
+    threshold: 1,
+    validators: ['0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837'],
+  },
+
   flare: {
     threshold: 1,
     validators: ['0xb65e52be342dba3ab2c088ceeb4290c744809134'],

@@ -20,6 +20,7 @@ export const mainnet3SupportedChainNames = [
   'eclipsemainnet',
   'endurance',
   'ethereum',
+  'everclear',
   'flare',
   'fraxtal',
   'fusemainnet',

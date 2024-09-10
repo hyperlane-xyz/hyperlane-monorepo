@@ -872,5 +872,17 @@ export const validatorChainConfig = (
         'shibarium',
       ),
     },
+    everclear: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('everclear'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837'],
+          [Contexts.ReleaseCandidate]: [''],
+          [Contexts.Neutron]: [],
+        },
+        'everclear',
+      ),
+    },
   };
 };
