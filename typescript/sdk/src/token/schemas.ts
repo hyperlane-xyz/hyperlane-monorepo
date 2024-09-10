@@ -18,6 +18,7 @@ export const CollateralConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([
     TokenType.collateral,
     TokenType.collateralVault,
+    TokenType.collateralVaultRebase,
     TokenType.XERC20,
     TokenType.XERC20Lockbox,
     TokenType.collateralFiat,

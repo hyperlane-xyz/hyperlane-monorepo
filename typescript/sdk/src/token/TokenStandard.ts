@@ -148,6 +148,7 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.XERC20]: TokenStandard.EvmHypXERC20,
   [TokenType.XERC20Lockbox]: TokenStandard.EvmHypXERC20Lockbox,
   [TokenType.collateralVault]: TokenStandard.EvmHypOwnerCollateral,
+  [TokenType.collateralVaultRebase]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralUri]: TokenStandard.EvmHypCollateral,
   [TokenType.fastCollateral]: TokenStandard.EvmHypCollateral,
   [TokenType.synthetic]: TokenStandard.EvmHypSynthetic,

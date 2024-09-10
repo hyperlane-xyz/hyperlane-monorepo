@@ -33,7 +33,9 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:
-    'Extends an existing ERC4626 with remote transfer functionality',
+    'Extends an existing ERC4626 with remote transfer functionality. Yields are manually claimed by owner.',
+  [TokenType.collateralVaultRebase]:
+    'Extends an existing ERC4626 with remote transfer functionality. Rebases yields to token holders.',
   [TokenType.collateralFiat]:
     'Extends an existing FiatToken with remote transfer functionality',
   [TokenType.XERC20]:
@@ -163,6 +165,18 @@ export async function createWarpRouteDeployConfig({
           interchainSecurityModule,
           token: await input({
             message: `Enter the existing token address on chain ${chain}`,
+          }),
+        };
+        break;
+      case TokenType.collateralVaultRebase:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
         };
         break;
