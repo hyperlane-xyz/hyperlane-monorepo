@@ -71,6 +71,7 @@ export enum Modules {
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
+  HAAS = 'haas',
 }
 
 export const REGISTRY_MODULES = [
