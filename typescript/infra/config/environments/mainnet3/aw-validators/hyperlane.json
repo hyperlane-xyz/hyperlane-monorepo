@@ -160,6 +160,9 @@
       "0x7885fae56dbcf5176657f54adbbd881dc6714132"
     ]
   },
+  "oort": {
+    "validators": ["0xc46e239c6cae979467886c1c68c6db3f473b275a"]
+  },
   "optimism": {
     "validators": [
       "0x20349eadc6c72e94ce38268b96692b1a5c20de4f",
@@ -238,8 +241,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "oort": {
-    "validators": ["0xc46e239c6cae979467886c1c68c6db3f473b275a"]
   }
 }
