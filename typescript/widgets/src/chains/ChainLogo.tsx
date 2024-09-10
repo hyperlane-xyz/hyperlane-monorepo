@@ -55,7 +55,7 @@ export function ChainLogo({
 
   if (background) {
     return (
-      <Circle size={size} title={title} classes="htw-bg-gray-100">
+      <Circle size={size} title={title} className="htw-bg-gray-100">
         {Icon ? (
           <Icon width={iconSize} height={iconSize} title={title} />
         ) : (
