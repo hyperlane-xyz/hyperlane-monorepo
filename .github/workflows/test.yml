@@ -54,35 +54,6 @@ jobs:
             exit 1
           fi
 
-  yarn-build:
-    runs-on: ubuntu-latest
-    needs: [yarn-install]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: yarn-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: build
-        run: yarn build
-
   lint-prettier:
     runs-on: ubuntu-latest
     needs: [yarn-install]
@@ -113,9 +84,15 @@ jobs:
             exit 1
           fi
 
+  yarn-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instant pass
+        run: echo "yarn-build job passed"
+
   yarn-test:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-install]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -126,13 +103,10 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: build-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -142,7 +116,7 @@ jobs:
 
   agent-configs:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
@@ -153,21 +127,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -185,7 +148,7 @@ jobs:
   e2e-matrix:
     runs-on: larger-runner
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-build]
+    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
@@ -231,21 +194,10 @@ jobs:
           mold-version: 2.0.0
           make-default: true
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install system dependencies
         run: |
@@ -285,7 +237,7 @@ jobs:
   cli-advanced-e2e:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-build]
+    needs: [yarn-install]
     strategy:
       matrix:
         include:
@@ -305,21 +257,10 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -334,7 +275,7 @@ jobs:
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
 
     timeout-minutes: 10
-    needs: [yarn-build]
+    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
@@ -354,13 +295,10 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: build-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -378,21 +316,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
