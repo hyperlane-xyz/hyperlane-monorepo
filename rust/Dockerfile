@@ -9,24 +9,26 @@ RUN apt-get update && \
     apt-get install -y musl-tools clang && \
     rustup target add x86_64-unknown-linux-musl
 
-RUN mkdir rust
+RUN mkdir -p rust/main
+RUN mkdir -p rust/sealevel
 
 # Add workspace to workdir
-COPY rust/agents rust/agents
-COPY rust/chains rust/chains
-COPY rust/hyperlane-base rust/hyperlane-base
-COPY rust/hyperlane-core rust/hyperlane-core
-COPY rust/hyperlane-test rust/hyperlane-test
-COPY rust/ethers-prometheus rust/ethers-prometheus
-COPY rust/utils rust/utils
+COPY rust/main/agents rust/main/agents
+COPY rust/main/chains rust/main/chains
+COPY rust/main/hyperlane-base rust/main/hyperlane-base
+COPY rust/main/hyperlane-core rust/main/hyperlane-core
+COPY rust/main/hyperlane-test rust/main/hyperlane-test
+COPY rust/main/ethers-prometheus rust/main/ethers-prometheus
+COPY rust/main/utils rust/main/utils
 COPY rust/sealevel rust/sealevel
 
-COPY rust/Cargo.toml rust/.
-COPY rust/Cargo.lock rust/.
+COPY rust/main/Cargo.toml rust/main/.
+COPY rust/main/Cargo.toml rust/main/.
+COPY rust/sealevel/Cargo.lock rust/sealevel/.
+COPY rust/sealevel/Cargo.lock rust/sealevel/.
 
-COPY .git .git
 
-WORKDIR /usr/src/rust
+WORKDIR /usr/src/rust/main
 
 # Build binaries
 RUN \
@@ -35,9 +37,9 @@ RUN \
   --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
     RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
-    cp /usr/src/rust/target/release/validator /release && \
-    cp /usr/src/rust/target/release/relayer /release && \
-    cp /usr/src/rust/target/release/scraper /release
+    cp /usr/src/rust/main/target/release/validator /release && \
+    cp /usr/src/rust/main/target/release/relayer /release && \
+    cp /usr/src/rust/main/target/release/scraper /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:22.04
@@ -49,7 +51,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY rust/config ./config
+RUN mkdir -p /app/config
+COPY rust/main/config /app/config
 COPY --from=builder /release/* .
 
 RUN chmod 777 /app &&  \
