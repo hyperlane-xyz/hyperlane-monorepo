@@ -141,7 +141,7 @@ describe('HyperlaneIsmFactory', async () => {
   let newMailboxAddress: Address;
   let contractsMap: HyperlaneContractsMap<ProxyFactoryFactories> = {};
 
-  const chain = TestChainName.test4;
+  const chain = TestChainName.test1;
 
   before(async () => {
     const [signer] = await hre.ethers.getSigners();
