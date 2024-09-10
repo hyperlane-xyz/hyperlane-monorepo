@@ -9,13 +9,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ inputs.ref }}
-        submodules: recursive
-        fetch-depth: 0
-
     - name: Cache
       uses: actions/cache@v4
       with:
