@@ -85,9 +85,12 @@ abstract contract AbstractMultisigIsmTest is Test {
     function getMetadata(
         uint8 m,
         uint8 n,
+        uint8 d,
         bytes32 seed,
         bytes memory message
     ) internal virtual returns (bytes memory) {
+        // uint8 d = 0;
+
         bytes32 digest;
         {
             uint32 domain = mailbox.localDomain();
@@ -105,7 +108,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         }
 
         uint256[] memory signers = ThresholdTestUtils.choose(
-            m,
+            m - d,
             addValidators(m, n, seed),
             seed
         );
@@ -113,8 +116,15 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes memory metadata = metadataPrefix(message);
         fixtureInit();
 
+        console.log("signers", signers.length, m, d);
+
         for (uint256 i = 0; i < m; i++) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
+            uint256 signerIndex = i < (m - d) ? i : 0;
+            console.log("signerIndex", signerIndex);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+                signers[signerIndex],
+                digest
+            );
 
             metadata = abi.encodePacked(metadata, r, s, v);
             fixtureAppendSignature(i, v, r, s);
@@ -165,8 +175,10 @@ abstract contract AbstractMultisigIsmTest is Test {
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, seed, message);
+        bytes memory metadata = getMetadata(m, n, 0, seed, message);
         assertTrue(ism.verify(metadata, message));
+
+        assertFalse(true);
     }
 
     function testFailVerify(
@@ -179,13 +191,32 @@ abstract contract AbstractMultisigIsmTest is Test {
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, seed, message);
+        bytes memory metadata = getMetadata(m, n, 0, seed, message);
 
         // changing single byte in metadata should fail signature verification
         uint256 index = uint256(seed) % metadata.length;
         metadata[index] = ~metadata[index];
         assertFalse(ism.verify(metadata, message));
     }
+
+    // function testFailVerify()
+    //     // uint32 destination,
+    //     // bytes32 recipient,
+    //     // bytes calldata body,
+    //     // // uint8 m,
+    //     // // uint8 n,
+    //     // bytes32 seed
+    //     public
+    // {
+    //     // assertEq(true, false);
+    //     // vm.assume(0 < m && m <= n && n < 10);
+    //     // uint8 m = 3;
+    //     // uint8 n = 5;
+    //     // bytes memory message = getMessage(destination, recipient, body);
+    //     // bytes memory metadata = getMetadata(m, n, 1, seed, message);
+
+    //     // assertTrue(ism.verify(metadata, message));
+    // }
 }
 
 contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {

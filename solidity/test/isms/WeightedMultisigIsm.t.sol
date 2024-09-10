@@ -76,6 +76,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
     function getMetadata(
         uint8 m,
         uint8 n,
+        uint8 d,
         bytes32 seed,
         bytes memory message
     ) internal virtual override returns (bytes memory) {
@@ -146,7 +147,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, seed, message);
+        bytes memory metadata = getMetadata(m, n, 0, seed, message);
 
         uint256 signatureCount = weightedIsm.signatureCount(metadata);
         vm.assume(signatureCount >= 1);
@@ -179,6 +180,7 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
     function getMetadata(
         uint8 m,
         uint8 n,
+        uint8 d,
         bytes32 seed,
         bytes memory message
     )
@@ -190,6 +192,7 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
             AbstractStaticWeightedMultisigIsmTest.getMetadata(
                 m,
                 n,
+                d,
                 seed,
                 message
             );
@@ -212,6 +215,7 @@ contract StaticMessageIdWeightedMultisigIsmTest is
     function getMetadata(
         uint8 m,
         uint8 n,
+        uint8 d,
         bytes32 seed,
         bytes memory message
     )
@@ -223,6 +227,7 @@ contract StaticMessageIdWeightedMultisigIsmTest is
             AbstractStaticWeightedMultisigIsmTest.getMetadata(
                 m,
                 n,
+                d,
                 seed,
                 message
             );
