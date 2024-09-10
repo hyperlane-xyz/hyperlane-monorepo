@@ -13,5 +13,11 @@
     "symbol": "USDC",
     "uri": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/33a13d304d3f08be79aad29ed47e7baeeea97db0/deployments/warp_routes/USDC/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "foreignDeployment": "0xFc8F5272d690cf19732a7eD6f246aDF5fB8708dB"
   }
 }
