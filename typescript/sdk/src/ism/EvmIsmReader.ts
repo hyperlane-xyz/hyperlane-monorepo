@@ -158,7 +158,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         address,
       );
     }
-    // TODO: does order matter here?
 
     return {
       owner,
