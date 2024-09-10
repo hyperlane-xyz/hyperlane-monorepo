@@ -111,11 +111,12 @@ export abstract class HyperlaneAppGovernor<
         console.log(
           `> ${calls.length} calls will be submitted via ${SubmissionType[submissionType]}`,
         );
-        calls.map((c) =>
-          console.log(
-            `> > ${c.description} (to: ${c.to} data: ${c.data}) value: ${c.value}`,
-          ),
-        );
+        calls.map((c) => {
+          console.log(`> > ${c.description}`);
+          console.log(`> > > to: ${c.to}`);
+          console.log(`> > > data: ${c.data}`);
+          console.log(`> > > value: ${c.value}`);
+        });
         if (!requestConfirmation) return true;
 
         const { value: confirmed } = await prompts({
