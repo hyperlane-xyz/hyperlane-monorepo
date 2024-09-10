@@ -80,6 +80,9 @@
       "0x749d6e7ad949e522c92181dc77f7bbc1c5d71506"
     ]
   },
+  "everclear": {
+    "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
+  },
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
@@ -235,8 +238,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "everclear": {
-    "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
   }
 }
