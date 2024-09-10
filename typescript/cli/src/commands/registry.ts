@@ -87,14 +87,14 @@ const addressesCommand: CommandModuleWithContext<{
     },
     contract: {
       type: 'string',
-      description: 'Specific contract to print addresses for',
-      demandOption: false,
+      description: 'Specific contract name to print addresses for',
+      implies: 'name',
     },
   },
   handler: async ({ name, context, contract }) => {
     if (name) {
       const result = await context.registry.getChainAddresses(name);
-      if (contract && result?.[contract]) {
+      if (contract && result?.[contract.toLowerCase()]) {
         // log only contract address for machine readability
         log(result[contract]);
         return;
@@ -128,15 +128,19 @@ const rpcCommand: CommandModuleWithContext<{
     index: {
       type: 'number',
       description: 'Index of the rpc to display',
+      default: 0,
       demandOption: false,
     },
   },
-  handler: async ({ name, context, index = 0 }) => {
+  handler: async ({ name, context, index }) => {
     const result = await context.registry.getChainMetadata(name);
     const rpcUrl = result?.rpcUrls[index]?.http;
-    if (rpcUrl) {
-      log(rpcUrl);
+    if (!rpcUrl) {
+      errorRed(`❌ No rpc found for chain ${name}`);
+      process.exit(1);
     }
+
+    log(rpcUrl);
   },
 };
 
