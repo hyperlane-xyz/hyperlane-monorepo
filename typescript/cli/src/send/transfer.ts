@@ -60,12 +60,13 @@ export async function sendTestTransfer({
     );
   }
 
-  await runPreflightChecksForChains({
-    context,
-    chains: [origin, destination],
-    chainsToGasCheck: [origin],
-    minGas: MINIMUM_TEST_SEND_GAS,
-  });
+  // TODO: this should be skipped for non-evm chains
+  // await runPreflightChecksForChains({
+  //   context,
+  //   chains: [origin, destination],
+  //   chainsToGasCheck: [origin],
+  //   minGas: MINIMUM_TEST_SEND_GAS,
+  // });
 
   await timeout(
     executeDelivery({
