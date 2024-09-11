@@ -5,6 +5,10 @@ import { isCompliant } from '../utils/schemas.js';
 
 import { TokenType } from './config.js';
 
+export const WarpRouteDeployConfigSchemaErrors = {
+  ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,
+  NO_SYNTHETIC_ONLY: `Config must include Native or Collateral OR all synthetics must define token metadata`,
+};
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
@@ -34,6 +38,17 @@ export const NativeConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
 });
 
+export const CollateralRebaseConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.collateralVaultRebase),
+  });
+
+export const SyntheticRebaseConfigSchema = TokenMetadataSchema.partial().extend(
+  {
+    type: z.literal(TokenType.syntheticRebase),
+  },
+);
+
 export const SyntheticConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([
     TokenType.synthetic,
@@ -51,6 +66,7 @@ export const TokenConfigSchema = z.discriminatedUnion('type', [
   NativeConfigSchema,
   CollateralConfigSchema,
   SyntheticConfigSchema,
+  SyntheticRebaseConfigSchema,
 ]);
 
 export const TokenRouterConfigSchema = TokenConfigSchema.and(
@@ -62,6 +78,10 @@ export type NativeConfig = z.infer<typeof NativeConfigSchema>;
 export type CollateralConfig = z.infer<typeof CollateralConfigSchema>;
 
 export const isSyntheticConfig = isCompliant(SyntheticConfigSchema);
+export const isSyntheticRebaseConfig = isCompliant(SyntheticRebaseConfigSchema);
+export const isCollateralRebaseConfig = isCompliant(
+  CollateralRebaseConfigSchema,
+);
 export const isCollateralConfig = isCompliant(CollateralConfigSchema);
 export const isNativeConfig = isCompliant(NativeConfigSchema);
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
@@ -75,4 +95,18 @@ export const WarpRouteDeployConfigSchema = z
         ([_, config]) => isCollateralConfig(config) || isNativeConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
-  }, `Config must include Native or Collateral OR all synthetics must define token metadata`);
+  }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
+  .refine((configMap) => {
+    // If WarpConfig contains a collateralVaultRebase, then rest must be syntheticRebase
+    const entries = Object.entries(configMap);
+
+    const hasCollateralRebase = entries.some(([_, config]) =>
+      isCollateralRebaseConfig(config),
+    );
+
+    const allOthersSynthetic = entries
+      .filter(([_, config]) => !isCollateralRebaseConfig(config))
+      .every(([_, config]) => isSyntheticRebaseConfig(config));
+
+    return hasCollateralRebase ? allOthersSynthetic : true;
+  }, WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE);

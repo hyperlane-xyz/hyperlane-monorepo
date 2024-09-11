@@ -1,8 +1,13 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { assert } from '@hyperlane-xyz/utils';
+
 import { TokenType } from './config.js';
-import { WarpRouteDeployConfigSchema } from './schemas.js';
+import {
+  WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigSchemaErrors,
+} from './schemas.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [
@@ -18,7 +23,7 @@ const NON_COLLATERAL_TYPES = [
   TokenType.fastSynthetic,
 ];
 
-describe('WarpRouteDeployConfigSchema refine', () => {
+describe.only('WarpRouteDeployConfigSchema refine', () => {
   let config: any;
   beforeEach(() => {
     config = {
@@ -80,5 +85,38 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       config.arbitrum.symbol = 'symbol';
       expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
     }
+  });
+
+  it('should throw if deploying rebasing collateral with anything other than rebasing synthetic', async () => {
+    config = {
+      arbitrum: {
+        type: TokenType.collateralVaultRebase,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+      },
+      ethereum: {
+        type: TokenType.collateralVault,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+      },
+      optimism: {
+        type: TokenType.syntheticRebase,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+      },
+    };
+    let parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+    expect(parseResults.success).to.be.false;
+    assert(!parseResults.success, 'must be false'); // Need so message shows up because parseResults is a discriminate union
+    expect(parseResults.error.issues[0].message).to.equal(
+      WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
+    );
+
+    config.ethereum.type = TokenType.syntheticRebase;
+    parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+    expect(parseResults.success).to.be.true;
   });
 });
