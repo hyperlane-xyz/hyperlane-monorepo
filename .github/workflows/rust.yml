@@ -30,8 +30,7 @@ defaults:
 
 jobs:
   test-rs:
-    runs-on: larger-runner
-
+    runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +42,10 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v3-rust"
+          prefix-key: "v3"
+          shared-key: "rust"
+          cache-provider: "buildjet"
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust
       - name: Free disk space
@@ -57,8 +59,7 @@ jobs:
         run: cargo test
 
   lint-rs:
-    runs-on: larger-runner
-
+    runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,7 +73,10 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v3-rust"
+          prefix-key: "v3"
+          shared-key: "rust"
+          cache-provider: "buildjet"
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust
       - name: Free disk space

@@ -16,7 +16,7 @@ env:
 
 jobs:
   prepare:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
     outputs:
       tag_date: ${{ steps.taggen.outputs.TAG_DATE }}
       tag_sha: ${{ steps.taggen.outputs.TAG_SHA }}
