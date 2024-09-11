@@ -100,7 +100,7 @@ jobs:
       - name: Clippy for sealevel workspace
         run: cargo clippy -- -D warnings
         working-directory: ./rust/sealevel
-      - name: Setup WASM
+      - name: Setup WASM for main workspace
         run: rustup target add wasm32-unknown-unknown
         working-directory: ./rust/main
       - name: Check WASM for hyperlane-core

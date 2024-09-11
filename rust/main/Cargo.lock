@@ -955,8 +955,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.14.0"
-source = "git+https://github.com/fitzgen/bumpalo?tag=3.14.0#c610d5adc54b9428465d72c4666c305df04c792a"
+version = "3.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "bv"

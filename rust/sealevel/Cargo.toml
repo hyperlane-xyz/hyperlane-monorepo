@@ -56,10 +56,6 @@ crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
 derive-new = "0.5"
-derive_builder = "0.12"
-derive_more = "0.99"
-dhat = "0.3.3"
-ed25519-dalek = "~1.0"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
 futures = "0.3"
@@ -70,10 +66,6 @@ bech32 = "0.9.1"
 elliptic-curve = "0.12.3"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-http = "*"
-hyper = "0.14"
-hyper-tls = "0.5.0"
-hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 injective-protobuf = "0.2.2"
 injective-std = "0.1.5"
 itertools = "*"
@@ -243,11 +235,6 @@ tag = "2024-04-25"
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2024-04-25"
-
-# [workspace.dependencies.ethers-core]
-# features = []
-# git = "https://github.com/hyperlane-xyz/ethers-rs"
-# tag = "2024-04-25"
 
 [workspace.dependencies.ethers-providers]
 features = []
