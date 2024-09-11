@@ -14,6 +14,7 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
+import {Message} from "../../libs/Message.sol";
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 
@@ -22,7 +23,10 @@ import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
  * @notice Abstract post dispatch hook supporting the current global hook metadata variant.
  */
 abstract contract AbstractPostDispatchHook is IPostDispatchHook {
+    using Message for bytes;
     using StandardHookMetadata for bytes;
+
+    mapping(bytes32 => bool) private processedMessages;
 
     // ============ External functions ============
 
@@ -44,6 +48,15 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
             supportsMetadata(metadata),
             "AbstractPostDispatchHook: invalid metadata variant"
         );
+
+        // replay protection
+        bytes32 messageId = message.id();
+        require(
+            !processedMessages[messageId],
+            "AbstractPostDispatchHook: message already processed"
+        );
+        processedMessages[messageId] = true;
+
         _postDispatch(metadata, message);
     }
 

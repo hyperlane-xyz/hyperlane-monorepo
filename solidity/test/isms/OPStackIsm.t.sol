@@ -75,8 +75,8 @@ contract OPStackIsmTest is Test {
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 18_992_500);
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 114_696_811);
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 20_726_880);
+        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 125_226_936);
 
         testRecipient = new TestRecipient();
 
@@ -218,6 +218,19 @@ contract OPStackIsmTest is Test {
         opHook.postDispatch(testMetadata, encodedMessage);
     }
 
+    function testFork_postDispatch_revertsWhen_replayed() public {
+        deployAll();
+        vm.selectFork(mainnetFork);
+        l1Mailbox.updateLatestDispatchedId(messageId);
+
+        // first legitimate call
+        opHook.postDispatch(testMetadata, encodedMessage);
+
+        // attempt to replay the same message
+        vm.expectRevert("AbstractPostDispatchHook: message already processed");
+        opHook.postDispatch(testMetadata, encodedMessage);
+    }
+
     /* ============ ISM.verifyMessageId ============ */
 
     function testFork_verifyMessageId() public {
@@ -288,6 +301,45 @@ contract OPStackIsmTest is Test {
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
         opISM.verifyMessageId(messageId);
+    }
+
+    function testFork_verifyMessageId_revertsWhen_replayed() public {
+        deployAll();
+
+        vm.selectFork(optimismFork);
+
+        uint256 initialValue = 1 ether;
+
+        // first legitimate message
+        orchestrateRelayMessage(initialValue, messageId);
+
+        assertTrue(
+            opISM.verifiedMessages(messageId).isBitSet(
+                opISM.VERIFIED_MASK_INDEX()
+            )
+        );
+        assertEq(
+            opISM.verifiedMessages(messageId).clearBit(
+                opISM.VERIFIED_MASK_INDEX()
+            ),
+            initialValue
+        );
+
+        // attempt to replay the message with 0 value
+        // the op native bridge has try catch behavior that prevents us from checking for reverts
+        orchestrateRelayMessage(0, messageId);
+
+        assertTrue(
+            opISM.verifiedMessages(messageId).isBitSet(
+                opISM.VERIFIED_MASK_INDEX()
+            )
+        );
+        assertEq(
+            opISM.verifiedMessages(messageId).clearBit(
+                opISM.VERIFIED_MASK_INDEX()
+            ),
+            initialValue
+        );
     }
 
     /* ============ ISM.verify ============ */
