@@ -227,7 +227,7 @@ contract OPStackIsmTest is Test {
         opHook.postDispatch(testMetadata, encodedMessage);
 
         // attempt to replay the same message
-        vm.expectRevert("AbstractPostDispatchHook: message already processed");
+        vm.expectRevert("AbstractMessageIdAuthHook: message already processed");
         opHook.postDispatch(testMetadata, encodedMessage);
     }
 

@@ -26,8 +26,6 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
     using Message for bytes;
     using StandardHookMetadata for bytes;
 
-    mapping(bytes32 => bool) private processedMessages;
-
     // ============ External functions ============
 
     /// @inheritdoc IPostDispatchHook
@@ -48,14 +46,6 @@ abstract contract AbstractPostDispatchHook is IPostDispatchHook {
             supportsMetadata(metadata),
             "AbstractPostDispatchHook: invalid metadata variant"
         );
-
-        // replay protection
-        bytes32 messageId = message.id();
-        require(
-            !processedMessages[messageId],
-            "AbstractPostDispatchHook: message already processed"
-        );
-        processedMessages[messageId] = true;
 
         _postDispatch(metadata, message);
     }

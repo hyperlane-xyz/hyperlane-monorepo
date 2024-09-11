@@ -41,6 +41,10 @@ abstract contract AbstractMessageIdAuthHook is
     // Domain of chain on which the ISM is deployed
     uint32 public immutable destinationDomain;
 
+    // ============ Public Storage ============
+
+    mapping(bytes32 => bool) private processedMessages;
+
     // ============ Constructor ============
 
     constructor(
@@ -86,6 +90,12 @@ abstract contract AbstractMessageIdAuthHook is
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             id
         );
+        require(
+            !processedMessages[id],
+            "AbstractMessageIdAuthHook: message already processed"
+        );
+
+        processedMessages[id] = true;
         _sendMessageId(metadata, payload);
     }
 
