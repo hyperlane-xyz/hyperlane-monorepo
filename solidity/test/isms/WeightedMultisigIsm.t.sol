@@ -135,7 +135,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         return metadata;
     }
 
-    function testVerify_revertInsufficientWeight(
+    function test_verify_revertInsufficientWeight(
         uint32 destination,
         bytes32 recipient,
         bytes calldata body,
