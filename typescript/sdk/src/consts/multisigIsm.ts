@@ -332,7 +332,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xa5e953701dcddc5b958b5defb677a829d908df6d',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
-      '0x863d4bffb8db4b2b0300da4feb8d637b17583e8a', // blockhunters
+      '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
   },
 
@@ -391,7 +391,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
       '0x7e29608c6e5792bbf9128599ca309be0728af7b4', // renzo
-      '0x3926273a41a6B208FE2655286DFa3Bbf1c4164cF', // blockhunters
+      '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
   },
 
@@ -540,7 +540,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
-      '0x3c89af627dc8b8eca95b86ddf704aab8500710de', // blockhunters
+      '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
   },
 
@@ -661,7 +661,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
-      '0x3d0e0f82ddc4eed54735316f994837ef9fbbe04b', // blockhunters
+      '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
   },
 
