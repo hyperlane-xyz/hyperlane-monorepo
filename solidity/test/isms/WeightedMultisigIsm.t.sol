@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+import "forge-std/console.sol";
+
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {IStaticWeightedMultisigIsm} from "../../contracts/interfaces/isms/IWeightedMultisigIsm.sol";
@@ -49,6 +51,8 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
             );
 
         uint256 remainingWeight = TOTAL_WEIGHT;
+        uint256 maxWeight = threshold - 1;
+
         for (uint256 i = 0; i < n; i++) {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
@@ -60,12 +64,12 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
                 uint256 weight = (uint256(
                     keccak256(abi.encode(seed, "weight", i))
                 ) % (remainingWeight + 1));
+                weight = weight > maxWeight ? maxWeight : weight;
                 validators[i].weight = uint96(weight);
                 remainingWeight -= weight;
             }
         }
 
-        // ism = IInterchainSecurityModule(deployedIsm);
         ism = IInterchainSecurityModule(
             weightedFactory.deploy(validators, threshold)
         );
@@ -104,7 +108,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         (
             uint256[] memory keys,
             IStaticWeightedMultisigIsm.ValidatorInfo[] memory allValidators
-        ) = addValidators(threshold, n, seed);
+        ) = addValidators(threshold - d - 1, n, seed);
 
         (, uint96 thresholdWeight) = weightedIsm.validatorsAndThresholdWeight(
             message
@@ -116,13 +120,18 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         uint96 totalWeight = 0;
         uint256 signerCount = 0;
 
+        {
+            console.log("m", m, "n", n);
+            console.log("d", d, "thresholdWeight", thresholdWeight);
+        }
+
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
         while (
             totalWeight < thresholdWeight && signerCount < allValidators.length
         ) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-                keys[signerCount],
-                digest
-            );
+            (v, r, s) = vm.sign(keys[signerCount], digest);
 
             metadata = abi.encodePacked(metadata, r, s, v);
 
@@ -130,6 +139,31 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
 
             totalWeight += allValidators[signerCount].weight;
             signerCount++;
+
+            while (d > 0 && signerCount < allValidators.length) {
+                (v, r, s) = vm.sign(keys[signerCount], digest);
+
+                metadata = abi.encodePacked(metadata, r, s, v);
+
+                fixtureAppendSignature(signerCount, v, r, s);
+
+                totalWeight += allValidators[signerCount].weight;
+                d--;
+
+                console.log(
+                    "DUPLICATE signerCount",
+                    signerCount,
+                    " weight",
+                    totalWeight
+                );
+            }
+
+            console.log(
+                "OUTER signerCount",
+                signerCount,
+                " weight",
+                totalWeight
+            );
         }
 
         writeFixture(metadata, uint8(signerCount), n);
@@ -162,6 +196,10 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         vm.expectRevert("Insufficient validator weight");
         ism.verify(insufficientMetadata, message);
     }
+
+    // function _boundValidatorCountWithDuplicates(uint8, uint8, uint8) internal override returns (uint8, uint8, uint8) {
+    //     return (5, 3, 1);
+    // }
 }
 
 contract StaticMerkleRootWeightedMultisigIsmTest is
@@ -197,6 +235,15 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
                 message
             );
     }
+
+    // function _boundValidatorCountWithDuplicates(uint8, uint8, uint8)
+    //     internal
+    //     pure
+    //     override
+    //     returns (uint8, uint8, uint8)
+    // {
+    //     return (5, 3, 1);
+    // }
 }
 
 contract StaticMessageIdWeightedMultisigIsmTest is
@@ -232,4 +279,13 @@ contract StaticMessageIdWeightedMultisigIsmTest is
                 message
             );
     }
+
+    // function _boundValidatorCountWithDuplicates(uint8, uint8, uint8)
+    //     internal
+    //     pure
+    //     override
+    //     returns (uint8, uint8, uint8)
+    // {
+    //     return (5, 3, 1);
+    // }
 }

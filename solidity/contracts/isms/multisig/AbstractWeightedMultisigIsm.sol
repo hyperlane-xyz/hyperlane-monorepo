@@ -89,6 +89,7 @@ abstract contract AbstractStaticWeightedMultisigIsm is
             require(_validatorIndex < _validatorCount, "Invalid signer");
 
             // add the weight of the current validator
+            ++_validatorIndex;
             _totalWeight += _validators[_validatorIndex].weight;
         }
         require(

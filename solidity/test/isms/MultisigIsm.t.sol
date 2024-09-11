@@ -89,8 +89,6 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes32 seed,
         bytes memory message
     ) internal virtual returns (bytes memory) {
-        // uint8 d = 0;
-
         bytes32 digest;
         {
             uint32 domain = mailbox.localDomain();
@@ -116,11 +114,10 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes memory metadata = metadataPrefix(message);
         fixtureInit();
 
-        console.log("signers", signers.length, m, d);
-
         for (uint256 i = 0; i < m; i++) {
-            uint256 signerIndex = i < (m - d) ? i : 0;
-            console.log("signerIndex", signerIndex);
+            uint256 signerIndex = i < (m - d)
+                ? i
+                : uint256(keccak256(abi.encode(seed, i))) % (m - d);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(
                 signers[signerIndex],
                 digest
@@ -177,8 +174,6 @@ abstract contract AbstractMultisigIsmTest is Test {
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, 0, seed, message);
         assertTrue(ism.verify(metadata, message));
-
-        assertFalse(true);
     }
 
     function testFailVerify(
@@ -199,24 +194,34 @@ abstract contract AbstractMultisigIsmTest is Test {
         assertFalse(ism.verify(metadata, message));
     }
 
-    // function testFailVerify()
-    //     // uint32 destination,
-    //     // bytes32 recipient,
-    //     // bytes calldata body,
-    //     // // uint8 m,
-    //     // // uint8 n,
-    //     // bytes32 seed
-    //     public
-    // {
-    //     // assertEq(true, false);
-    //     // vm.assume(0 < m && m <= n && n < 10);
-    //     // uint8 m = 3;
-    //     // uint8 n = 5;
-    //     // bytes memory message = getMessage(destination, recipient, body);
-    //     // bytes memory metadata = getMetadata(m, n, 1, seed, message);
+    function test_verify_revertsWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        uint8 d,
+        bytes32 seed
+    ) public virtual {
+        (m, n, d) = _boundValidatorCountWithDuplicates(m, n, d);
+        vm.assume(0 < m && m <= n && n < 16);
+        vm.assume(1 < d && d < m);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, d, seed, message);
 
-    //     // assertTrue(ism.verify(metadata, message));
-    // }
+        vm.expectRevert(); // !threshold
+        ism.verify(metadata, message);
+    }
+
+    function _boundValidatorCountWithDuplicates(
+        uint8 m,
+        uint8 n,
+        uint8 d
+    ) internal virtual returns (uint8, uint8, uint8) {
+        vm.assume(0 < m && m <= n && n < 16);
+        vm.assume(1 < d && d < m);
+        return (m, n, d);
+    }
 }
 
 contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
