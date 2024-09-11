@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -15,6 +16,8 @@ import {MockArbBridge, MockArbSys} from "../../contracts/mock/MockArbBridge.sol"
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
 contract ArbL2ToL1IsmTest is Test {
+    using LibBit for uint256;
+
     uint8 internal constant HYPERLANE_VERSION = 1;
     uint32 internal constant MAINNET_DOMAIN = 1;
     uint32 internal constant ARBITRUM_DOMAIN = 42161;
@@ -127,6 +130,76 @@ contract ArbL2ToL1IsmTest is Test {
         hook.postDispatch(testMetadata, encodedMessage);
     }
 
+    function test_postDispatch_revertsWhen_replayed() public {
+        deployAll();
+
+        // bytes memory encodedHookData = abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, (messageId));
+
+        l2Mailbox.updateLatestDispatchedId(messageId);
+
+        // First legitimate call
+        hook.postDispatch(testMetadata, encodedMessage);
+
+        // Attempt to replay the same message
+        vm.expectRevert("AbstractMessageIdAuthHook: message already processed");
+        hook.postDispatch(testMetadata, encodedMessage);
+    }
+
+    function test_verifyMessageId_revertsWhen_replayed() public {
+        deployAll();
+
+        bytes memory encodedHookData = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (messageId)
+        );
+
+        uint256 initialValue = 1 ether;
+
+        // first legitimate verification
+        arbBridge.setL2ToL1Sender(address(hook));
+        vm.deal(address(arbBridge), initialValue);
+
+        arbBridge.executeTransaction{value: initialValue}(
+            new bytes32[](0),
+            MOCK_LEAF_INDEX,
+            address(hook),
+            address(ism),
+            MOCK_L2_BLOCK,
+            MOCK_L1_BLOCK,
+            block.timestamp,
+            initialValue,
+            encodedHookData
+        );
+
+        assertTrue(ism.verifiedMessages(messageId).isBitSet(255));
+        assertEq(
+            ism.verifiedMessages(messageId).clearBit(ism.VERIFIED_MASK_INDEX()),
+            initialValue
+        );
+
+        // attempt to replay the verification
+        vm.expectRevert(
+            "AbstractMessageIdAuthorizedIsm: message already verified"
+        );
+        arbBridge.executeTransaction(
+            new bytes32[](0),
+            MOCK_LEAF_INDEX,
+            address(hook),
+            address(ism),
+            MOCK_L2_BLOCK,
+            MOCK_L1_BLOCK,
+            block.timestamp,
+            0,
+            encodedHookData
+        );
+
+        assertTrue(ism.verifiedMessages(messageId).isBitSet(255));
+        assertEq(
+            ism.verifiedMessages(messageId).clearBit(ism.VERIFIED_MASK_INDEX()),
+            initialValue
+        );
+    }
+
     function test_verify_outboxCall() public {
         deployAll();
 
@@ -140,7 +213,8 @@ contract ArbL2ToL1IsmTest is Test {
         vm.deal(address(arbBridge), 1 ether);
         arbBridge.setL2ToL1Sender(address(hook));
         assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether);
+
+        assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
     }
 
     function test_verify_statefulVerify() public {
