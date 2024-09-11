@@ -10,7 +10,7 @@ import {Message} from "../../contracts/libs/Message.sol";
 
 import {ForkTestMailbox} from "../../contracts/test/ForkTestMailbox.sol";
 
-contract HyperlaneFoundryTest is Test {
+contract HyperlaneForkTest is Test {
     using Message for bytes;
 
     uint32 public inboundProcessedNonce;
