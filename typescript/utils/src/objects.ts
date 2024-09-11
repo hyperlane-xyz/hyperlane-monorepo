@@ -2,7 +2,6 @@ import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
-import { WithAddress } from './types.js';
 import { assert } from './validation.js';
 
 export function isObject(item: any) {
@@ -155,59 +154,4 @@ export function stringifyObject(
     return json;
   }
   return yamlStringify(JSON.parse(json), null, space);
-}
-
-// Function to recursively remove 'address' properties and lowercase string properties
-export function normalizeConfig(obj: WithAddress<any>): any {
-  return sortValidatorsAndModulesInConfig(loweCaseConfig(obj));
-}
-
-function loweCaseConfig(obj: any): any {
-  if (Array.isArray(obj)) {
-    return obj.map(normalizeConfig);
-  } else if (obj !== null && typeof obj === 'object') {
-    const newObj: any = {};
-    for (const key in obj) {
-      if (key !== 'address') {
-        newObj[key] = key === 'type' ? obj[key] : normalizeConfig(obj[key]);
-      }
-    }
-    return newObj;
-  } else if (typeof obj === 'string') {
-    return obj.toLowerCase();
-  }
-
-  return obj;
-}
-
-// write a function that will go through an object and sort any arrays it finds
-export function sortValidatorsAndModulesInConfig(config: any): any {
-  // Check if the current object is an array
-  if (Array.isArray(config)) {
-    return config.map(sortValidatorsAndModulesInConfig);
-  }
-  // Check if it's an object and not null
-  else if (typeof config === 'object' && config !== null) {
-    const sortedConfig: any = {};
-    for (const key in config) {
-      if (key === 'validators' && Array.isArray(config[key])) {
-        // Sort the validators array in lexicographical order (since they're already lowercase)
-        sortedConfig[key] = config[key].sort();
-      }
-      // if key is modules, sort the objects in the array by their 'type' property
-      else if (key === 'modules' && Array.isArray(config[key])) {
-        sortedConfig[key] = config[key].sort((a: any, b: any) => {
-          if (a.type < b.type) return -1;
-          if (a.type > b.type) return 1;
-          return 0;
-        });
-      } else {
-        // Recursively apply sorting to other fields
-        sortedConfig[key] = sortValidatorsAndModulesInConfig(config[key]);
-      }
-    }
-    return sortedConfig;
-  }
-
-  return config;
 }

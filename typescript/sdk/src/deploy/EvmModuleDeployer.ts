@@ -264,35 +264,40 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     threshold?: number;
     multiProvider: MultiProvider;
   }): Promise<Address> {
-    values = values.sort();
+    const sortedValues = [...values].sort();
+
     const address = await factory['getAddress(address[],uint8)'](
-      values,
+      sortedValues,
       threshold,
     );
     const code = await multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
-        `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
+        `Deploying new ${threshold} of ${sortedValues.length} address set to ${chain}`,
       );
       const overrides = multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
       const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
-        values,
+        sortedValues,
         threshold,
         overrides,
       );
 
       // add 10% buffer
-      const hash = await factory['deploy(address[],uint8)'](values, threshold, {
-        ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
-      });
+      const hash = await factory['deploy(address[],uint8)'](
+        sortedValues,
+        threshold,
+        {
+          ...overrides,
+          gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+        },
+      );
 
       await multiProvider.handleTx(chain, hash);
     } else {
       logger.debug(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
+        `Recovered ${threshold} of ${sortedValues.length} address set on ${chain}: ${address}`,
       );
     }
 
