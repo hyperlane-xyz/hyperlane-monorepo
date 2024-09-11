@@ -43,6 +43,7 @@ abstract contract AbstractMessageIdAuthHook is
 
     // ============ Public Storage ============
 
+    // for replay protection, each message id should be processed only once
     mapping(bytes32 => bool) private processedMessages;
 
     // ============ Constructor ============

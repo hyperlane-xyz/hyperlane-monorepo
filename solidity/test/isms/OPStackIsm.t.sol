@@ -305,9 +305,7 @@ contract OPStackIsmTest is Test {
 
     function testFork_verifyMessageId_revertsWhen_replayed() public {
         deployAll();
-
         vm.selectFork(optimismFork);
-
         uint256 initialValue = 1 ether;
 
         // first legitimate message

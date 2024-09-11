@@ -132,9 +132,6 @@ contract ArbL2ToL1IsmTest is Test {
 
     function test_postDispatch_revertsWhen_replayed() public {
         deployAll();
-
-        // bytes memory encodedHookData = abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, (messageId));
-
         l2Mailbox.updateLatestDispatchedId(messageId);
 
         // First legitimate call
@@ -152,7 +149,6 @@ contract ArbL2ToL1IsmTest is Test {
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             (messageId)
         );
-
         uint256 initialValue = 1 ether;
 
         // first legitimate verification
@@ -213,8 +209,7 @@ contract ArbL2ToL1IsmTest is Test {
         vm.deal(address(arbBridge), 1 ether);
         arbBridge.setL2ToL1Sender(address(hook));
         assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
-
-        assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
+        assertEq(address(testRecipient).balance, 1 ether);
     }
 
     function test_verify_statefulVerify() public {
