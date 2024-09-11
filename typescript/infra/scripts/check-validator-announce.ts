@@ -6,6 +6,8 @@ import { isEthereumProtocolChain } from '../src/utils/utils.js';
 import { getArgs, withChains } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
+const minimumValidatorCount = 3;
+
 async function main() {
   const { environment, chains } = await withChains(getArgs()).argv;
   const config = getEnvironmentConfig(environment);
@@ -27,16 +29,55 @@ async function main() {
           !announcedValidators.some((x) => eqAddress(x, validator)),
       );
 
+      const validatorCount = validators.length;
+      const threshold = defaultMultisigConfigs[chain].threshold;
+
       return {
         chain,
         status:
           missingValidators.length === 0 ? '✅' : missingValidators.join(', '),
-        count: validators.length,
+        count: validatorCount,
+        'threshold OK': threshold <= validatorCount / 2 ? '⚠️' : '✅',
+        'validator count OK':
+          validatorCount < minimumValidatorCount ? '⚠️' : '✅',
       };
     }),
   );
 
   console.table(results);
+
+  const lowThresholdChains = results
+    .filter((r) => r['threshold OK'] === '⚠️')
+    .map((r) => r.chain);
+
+  const lowValidatorCountChains = results
+    .filter((r) => r['validator count OK'] === '⚠️')
+    .map((r) => ({
+      chain: r.chain,
+      neededValidators: minimumValidatorCount - r.count,
+    }));
+
+  if (lowThresholdChains.length > 0) {
+    console.log('Chains with low thresholds:');
+    lowThresholdChains.forEach((chain) => {
+      const validatorCount = defaultMultisigConfigs[chain].validators.length;
+      const minimumThreshold = Math.floor(validatorCount / 2) + 1;
+      console.log(
+        ` - ${chain}: threshold should be at least ${minimumThreshold}`,
+      );
+    });
+  }
+
+  if (lowValidatorCountChains.length > 0) {
+    console.log('Chains with low validator counts:');
+    lowValidatorCountChains.forEach((c) => {
+      console.log(
+        ` - ${c.chain}: needs ${c.neededValidators} more validator${
+          c.neededValidators === 1 ? '' : 's'
+        }`,
+      );
+    });
+  }
 }
 
 main().catch(console.error);
