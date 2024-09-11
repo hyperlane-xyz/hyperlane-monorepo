@@ -1,4 +1,4 @@
-import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
+import { ChainMap, defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
@@ -17,6 +17,8 @@ async function main() {
     chains && chains.length > 0 ? chains : config.supportedChainNames
   ).filter(isEthereumProtocolChain);
 
+  const chainsWithUnannouncedValidators: ChainMap<string[]> = {};
+
   const results = await Promise.all(
     targetNetworks.map(async (chain) => {
       const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
@@ -24,22 +26,26 @@ async function main() {
         await validatorAnnounce.getAnnouncedValidators();
 
       const validators = defaultMultisigConfigs[chain].validators || [];
-      const missingValidators = validators.filter(
+      const unannouncedValidators = validators.filter(
         (validator) =>
           !announcedValidators.some((x) => eqAddress(x, validator)),
       );
+
+      if (unannouncedValidators.length > 0) {
+        chainsWithUnannouncedValidators[chain] = unannouncedValidators;
+      }
 
       const validatorCount = validators.length;
       const threshold = defaultMultisigConfigs[chain].threshold;
 
       return {
         chain,
-        status:
-          missingValidators.length === 0 ? '✅' : missingValidators.join(', '),
+        'unannounced validators':
+          unannouncedValidators.length > 0 ? '🚨' : '✅',
         count: validatorCount,
-        'threshold OK': threshold <= validatorCount / 2 ? '⚠️' : '✅',
+        'threshold OK': threshold <= validatorCount / 2 ? '🚨' : '✅',
         'validator count OK':
-          validatorCount < minimumValidatorCount ? '⚠️' : '✅',
+          validatorCount < minimumValidatorCount ? '🚨' : '✅',
       };
     }),
   );
@@ -47,11 +53,11 @@ async function main() {
   console.table(results);
 
   const lowThresholdChains = results
-    .filter((r) => r['threshold OK'] === '⚠️')
+    .filter((r) => r['threshold OK'] === '🚨')
     .map((r) => r.chain);
 
   const lowValidatorCountChains = results
-    .filter((r) => r['validator count OK'] === '⚠️')
+    .filter((r) => r['validator count OK'] === '🚨')
     .map((r) => ({
       chain: r.chain,
       neededValidators: minimumValidatorCount - r.count,
@@ -69,13 +75,21 @@ async function main() {
   }
 
   if (lowValidatorCountChains.length > 0) {
-    console.log('Chains with low validator counts:');
+    console.log('\nChains with low validator counts:');
     lowValidatorCountChains.forEach((c) => {
       console.log(
         ` - ${c.chain}: needs ${c.neededValidators} more validator${
           c.neededValidators === 1 ? '' : 's'
         }`,
       );
+    });
+  }
+
+  const unnanouncedChains = Object.keys(chainsWithUnannouncedValidators);
+  if (unnanouncedChains.length > 0) {
+    console.log('\nChains with unannounced validators:');
+    unnanouncedChains.forEach((chain) => {
+      console.log(` - ${chain}: ${chainsWithUnannouncedValidators[chain]}`);
     });
   }
 }
