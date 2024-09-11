@@ -16,10 +16,10 @@ export function multisigIsmVerificationCost(m: number, n: number): number {
 
 // Function to recursively remove 'address' properties and lowercase string properties
 export function normalizeConfig(obj: WithAddress<any>): any {
-  return sortValidatorsAndModulesInConfig(loweCaseConfig(obj));
+  return sortValidatorsAndModulesInConfig(lowerCaseConfig(obj));
 }
 
-function loweCaseConfig(obj: any): any {
+function lowerCaseConfig(obj: any): any {
   if (Array.isArray(obj)) {
     return obj.map(normalizeConfig);
   } else if (obj !== null && typeof obj === 'object') {
