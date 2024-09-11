@@ -1,0 +1,23 @@
+name: 'Yarn Build with Cache'
+description: 'Run yarn build using yarn cache'
+
+inputs:
+  ref:
+    description: 'The Git ref to checkout'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/node_modules
+          .yarn
+        key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+        fail-on-cache-miss: true
+
+    - name: Build
+      shell: bash
+      run: yarn build
