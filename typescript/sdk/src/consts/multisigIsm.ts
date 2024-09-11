@@ -434,8 +434,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   oortmainnet: {
-    threshold: 1,
-    validators: ['0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7'],
+    threshold: 2,
+    validators: [
+      '0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7',
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   optimism: {
