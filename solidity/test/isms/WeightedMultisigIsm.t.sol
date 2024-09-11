@@ -49,7 +49,6 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
             );
 
         uint256 remainingWeight = TOTAL_WEIGHT;
-        uint256 MAX_WEIGHT = threshold - 1;
         for (uint256 i = 0; i < n; i++) {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
@@ -61,7 +60,6 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
                 uint256 weight = (uint256(
                     keccak256(abi.encode(seed, "weight", i))
                 ) % (remainingWeight + 1));
-                weight = weight > MAX_WEIGHT ? MAX_WEIGHT : weight;
                 validators[i].weight = uint96(weight);
                 remainingWeight -= weight;
             }
@@ -117,8 +115,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         uint256 signerCount = 0;
 
         while (
-            signerCount < allValidators.length &&
-            (totalWeight < thresholdWeight || signerCount < 2)
+            totalWeight < thresholdWeight && signerCount < allValidators.length
         ) {
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(
                 keys[signerCount],
@@ -164,8 +161,32 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         ism.verify(insufficientMetadata, message);
     }
 
-    function duplicateSignaturesRevertReason() internal virtual override {
-        vm.expectRevert("Invalid signer");
+    function test_verify_revertWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public virtual override {
+        vm.assume(1 < m && m <= n && n < 10);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, seed, message);
+
+        bytes memory duplicateMetadata = new bytes(metadata.length);
+        for (uint256 i = 0; i < metadata.length - 65; i++) {
+            duplicateMetadata[i] = metadata[i];
+        }
+        for (uint256 i = 0; i < 65; i++) {
+            duplicateMetadata[metadata.length - 65 + i] = metadata[
+                metadata.length - 130 + i
+            ];
+        }
+
+        if (weightedIsm.signatureCount(metadata) >= 2) {
+            vm.expectRevert("Invalid signer");
+            ism.verify(duplicateMetadata, message);
+        }
     }
 }
 
@@ -201,11 +222,26 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
             );
     }
 
-    function duplicateSignaturesRevertReason()
-        internal
+    function test_verify_revertWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    )
+        public
         override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
     {
-        AbstractStaticWeightedMultisigIsmTest.duplicateSignaturesRevertReason();
+        AbstractStaticWeightedMultisigIsmTest
+            .test_verify_revertWhen_duplicateSignatures(
+                destination,
+                recipient,
+                body,
+                m,
+                n,
+                seed
+            );
     }
 }
 
@@ -241,10 +277,25 @@ contract StaticMessageIdWeightedMultisigIsmTest is
             );
     }
 
-    function duplicateSignaturesRevertReason()
-        internal
+    function test_verify_revertWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    )
+        public
         override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
     {
-        AbstractStaticWeightedMultisigIsmTest.duplicateSignaturesRevertReason();
+        AbstractStaticWeightedMultisigIsmTest
+            .test_verify_revertWhen_duplicateSignatures(
+                destination,
+                recipient,
+                body,
+                m,
+                n,
+                seed
+            );
     }
 }

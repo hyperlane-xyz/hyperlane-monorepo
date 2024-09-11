@@ -194,8 +194,8 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) public {
-        vm.assume(2 < m && m <= n && n < 10);
+    ) public virtual {
+        vm.assume(1 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
 
@@ -209,13 +209,8 @@ abstract contract AbstractMultisigIsmTest is Test {
             ];
         }
 
-        duplicateSignaturesRevertReason();
-        ism.verify(duplicateMetadata, message);
-    }
-
-    // unweighted and weighted ISMs have different error messages
-    function duplicateSignaturesRevertReason() internal virtual {
         vm.expectRevert("!threshold");
+        ism.verify(duplicateMetadata, message);
     }
 }
 
