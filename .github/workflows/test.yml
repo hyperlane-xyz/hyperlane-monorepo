@@ -187,6 +187,7 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
     needs: [yarn-build]
     strategy:
+      fail-fast: false
       matrix:
         e2e-type: [cosmwasm, non-cosmwasm]
     steps:
@@ -246,6 +247,11 @@ jobs:
             !./rust
           key: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
+
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
@@ -276,59 +282,10 @@ jobs:
           echo "All e2e-matrix jobs have completed."
           # You can add additional commands here to report the result as needed
 
-  prebuild-cli-e2e:
-    runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-
-      - name: setup rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
-          workspaces: |
-            ./rust
-
-      - name: Free disk space
-        run: |
-          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
-      - name: Install mold linker
-        uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
-
-      - name: Build validator
-        run: cargo build --bin validator --features test-utils
-        working-directory: ./rust
-        env:
-          RUST_BACKTRACE: 'full'
-
-      - name: Build relayer
-        run: cargo build --bin relayer --features test-utils
-        working-directory: ./rust
-        env:
-          RUST_BACKTRACE: 'full'
-
   cli-advanced-e2e:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-build, prebuild-cli-e2e]
+    needs: [yarn-build]
     strategy:
       matrix:
         include:
@@ -347,34 +304,6 @@ jobs:
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
-
-      - name: setup rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
-          workspaces: |
-            ./rust
-
-      - name: Free disk space
-        run: |
-          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
-      - name: Install mold linker
-        uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
 
       - name: yarn-cache
         uses: actions/cache@v4
@@ -400,7 +329,11 @@ jobs:
 
   env-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    env:
+      MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+      MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+
+    timeout-minutes: 10
     needs: [yarn-build]
     strategy:
       fail-fast: false

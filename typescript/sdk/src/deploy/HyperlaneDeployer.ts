@@ -16,6 +16,7 @@ import {
   Address,
   ProtocolType,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
@@ -414,8 +415,18 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
         );
+
+        // Estimate gas for the initialize transaction
+        const estimatedGas = await contract.estimateGas.initialize(
+          ...initializeArgs,
+        );
+
+        // deploy with 10% buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
-        const initTx = await contract.initialize(...initializeArgs, overrides);
+        const initTx = await contract.initialize(...initializeArgs, {
+          gasLimit: estimatedGas.add(estimatedGas.div(10)),
+          ...overrides,
+        });
         const receipt = await this.multiProvider.handleTx(chain, initTx);
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
@@ -637,19 +648,15 @@ export abstract class HyperlaneDeployer<
     contractName: string,
   ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
-    const hit =
-      !!cachedAddress && cachedAddress !== ethers.constants.AddressZero;
-    const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
-    const contract = factory
-      .attach(contractAddress)
-      .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
-      ReturnType<F['deploy']>
-    >;
-    if (hit) {
+    if (cachedAddress && !isZeroishAddress(cachedAddress)) {
       this.logger.debug(
-        `Recovered ${contractName.toString()} on ${chain} ${cachedAddress}`,
+        `Recovered ${contractName} on ${chain}: ${cachedAddress}`,
       );
-      return contract;
+      return factory
+        .attach(cachedAddress)
+        .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
+        ReturnType<F['deploy']>
+      >;
     }
     return undefined;
   }

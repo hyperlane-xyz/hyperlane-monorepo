@@ -23,7 +23,10 @@ import {
 import { ArbL2ToL1Metadata, ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadata, NullMetadataBuilder } from './null.js';
-import { RoutingMetadata, RoutingMetadataBuilder } from './routing.js';
+import {
+  DefaultFallbackRoutingMetadataBuilder,
+  RoutingMetadata,
+} from './routing.js';
 
 export type StructuredMetadata =
   | NullMetadata
@@ -50,7 +53,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public nullMetadataBuilder: NullMetadataBuilder;
   public multisigMetadataBuilder: MultisigMetadataBuilder;
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
-  public routingMetadataBuilder: RoutingMetadataBuilder;
+  public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
   public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
 
   public multiProvider: MultiProvider;
@@ -59,7 +62,9 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   constructor(core: HyperlaneCore) {
     this.multisigMetadataBuilder = new MultisigMetadataBuilder(core);
     this.aggregationMetadataBuilder = new AggregationMetadataBuilder(this);
-    this.routingMetadataBuilder = new RoutingMetadataBuilder(this);
+    this.routingMetadataBuilder = new DefaultFallbackRoutingMetadataBuilder(
+      this,
+    );
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
     this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
     this.multiProvider = core.multiProvider;
@@ -99,6 +104,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         });
 
       case IsmType.ROUTING:
+      case IsmType.FALLBACK_ROUTING:
         return this.routingMetadataBuilder.build(
           {
             ...context,
@@ -123,7 +129,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       }
 
       default:
-        throw new Error(`Unsupported ISM type: ${ism.type}`);
+        throw new Error(`Unsupported ISM: ${ism}`);
     }
   }
 
@@ -144,7 +150,10 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         return AggregationMetadataBuilder.decode(metadata, { ...context, ism });
 
       case IsmType.ROUTING:
-        return RoutingMetadataBuilder.decode(metadata, { ...context, ism });
+        return DefaultFallbackRoutingMetadataBuilder.decode(metadata, {
+          ...context,
+          ism,
+        });
 
       case IsmType.ARB_L2_TO_L1:
         return ArbL2ToL1MetadataBuilder.decode(metadata, {

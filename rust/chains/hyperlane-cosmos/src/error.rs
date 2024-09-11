@@ -47,6 +47,12 @@ pub enum HyperlaneCosmosError {
     /// Fallback providers failed
     #[error("Fallback providers failed. (Errors: {0:?})")]
     FallbackProvidersFailed(Vec<HyperlaneCosmosError>),
+    /// Public key error
+    #[error("{0}")]
+    PublicKeyError(String),
+    /// Signer info error
+    #[error("{0}")]
+    SignerInfoError(String),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

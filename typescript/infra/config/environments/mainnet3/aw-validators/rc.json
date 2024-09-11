@@ -49,7 +49,7 @@
   "degenchain": {
     "validators": ["0xac3734bb61e7ddda947b718b930c4067f0ccde7e"]
   },
-  "eclipse": {
+  "eclipsemainnet": {
     "validators": ["0xd188fbe099e2db077f4ebc1bf39bb22798500bfb"]
   },
   "ethereum": {
@@ -164,7 +164,7 @@
   "sei": {
     "validators": ["0x846e48a7e85e5403cc690a347e1ad3c3dca11b6e"]
   },
-  "solana": {
+  "solanamainnet": {
     "validators": ["0xca84b665ab3fed784baf120909c54497c14c93c8"]
   },
   "tangle": {

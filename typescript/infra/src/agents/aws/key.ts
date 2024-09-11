@@ -20,7 +20,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import { AgentSignerKeyType, ChainName } from '@hyperlane-xyz/sdk';
-import { rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { retryAsync, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { AgentContextConfig, AwsKeyConfig } from '../../config/agent/agent.js';
 import { Role } from '../../roles.js';
@@ -172,20 +172,23 @@ export class AgentAwsKey extends CloudAgentKey {
 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
-    try {
-      this.logger.debug('Attempting to describe key to get ID');
-      const keyDescription = await this.describeKey();
-      const keyId = keyDescription.KeyMetadata?.KeyId;
-      this.logger.debug(`Key ID retrieved: ${keyId}`);
-      return keyId;
-    } catch (err: any) {
-      if (err.name === 'NotFoundException') {
-        this.logger.debug('Key not found');
-        return undefined;
+    // Seeing intermittent errors with the AWS SDK, likely due to many concurrent requests
+    return retryAsync(async () => {
+      try {
+        this.logger.debug('Attempting to describe key to get ID');
+        const keyDescription = await this.describeKey();
+        const keyId = keyDescription.KeyMetadata?.KeyId;
+        this.logger.debug(`Key ID retrieved: ${keyId}`);
+        return keyId;
+      } catch (err: any) {
+        if (err.name === 'NotFoundException') {
+          this.logger.debug('Key not found');
+          return undefined;
+        }
+        this.logger.debug(`Error retrieving key ID: ${err}`);
+        throw err;
       }
-      this.logger.debug(`Error retrieving key ID: ${err}`);
-      throw err;
-    }
+    });
   }
 
   create() {

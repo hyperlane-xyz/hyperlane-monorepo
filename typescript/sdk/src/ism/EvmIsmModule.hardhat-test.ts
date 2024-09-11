@@ -98,7 +98,7 @@ describe('EvmIsmModule', async () => {
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
-  beforeEach(async () => {
+  before(async () => {
     const [signer, funder] = await hre.ethers.getSigners();
     fundingAccount = funder;
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -125,6 +125,12 @@ describe('EvmIsmModule', async () => {
     mailboxAddress = (
       await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
     ).getContracts(chain).mailbox.address;
+  });
+
+  beforeEach(async () => {
+    // Reset the MultiProvider for each test
+    const [signer] = await hre.ethers.getSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     // example routing config
     exampleRoutingConfig = {

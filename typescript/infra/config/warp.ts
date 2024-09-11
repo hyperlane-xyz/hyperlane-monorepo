@@ -13,19 +13,22 @@ import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumSolanaPzETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSolanaPzETHWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConifg.js';
 
 export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
-  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism',
+  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismZircuitEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
+  EthereumSolanaPzETH = 'pzETH/ethereum-solana',
   EthereumVictionETH = 'ETH/ethereum-viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
@@ -33,22 +36,29 @@ export enum WarpRouteIds {
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
 }
 
+type WarpConfigGetterWithConfig = (
+  routerConfig: ChainMap<RouterConfig>,
+) => Promise<ChainMap<TokenRouterConfig>>;
+
+type WarpConfigGetterWithoutConfig = () => Promise<ChainMap<TokenRouterConfig>>;
+
 export const warpConfigGetterMap: Record<
   string,
-  (routerConfig: ChainMap<RouterConfig>) => Promise<ChainMap<TokenRouterConfig>>
+  WarpConfigGetterWithConfig | WarpConfigGetterWithoutConfig
 > = {
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
   [WarpRouteIds.ArbitrumNeutronEclip]: getArbitrumNeutronEclipWarpConfig,
   [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
-  // [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismEZETH]:
-  //   getRenzoEZETHWarpConfig, // TODO
+  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismZircuitEZETH]:
+    getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
+  [WarpRouteIds.EthereumSolanaPzETH]: getEthereumSolanaPzETHWarpConfig,
 };
 
 export async function getWarpConfig(
@@ -64,5 +74,9 @@ export async function getWarpConfig(
     throw new Error(`Unknown warp route: ${warpRouteId}`);
   }
 
-  return warpConfigGetter(routerConfig);
+  if (warpConfigGetter.length === 1) {
+    return warpConfigGetter(routerConfig);
+  } else {
+    return (warpConfigGetter as WarpConfigGetterWithoutConfig)();
+  }
 }

@@ -67,7 +67,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
     }
   }
 
-  protected async mapViolationToCall(violation: CheckerViolation) {
+  public async mapViolationToCall(violation: CheckerViolation) {
     switch (violation.type) {
       case ViolationType.Owner: {
         return this.handleOwnerViolation(violation as OwnerViolation);

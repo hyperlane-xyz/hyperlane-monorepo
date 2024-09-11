@@ -12,6 +12,7 @@ import {
   RouterViolationType,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
+import { stringifyObject } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppGovernor } from './HyperlaneAppGovernor.js';
 
@@ -19,7 +20,7 @@ export class ProxiedRouterGovernor<
   App extends RouterApp<any>,
   Config extends RouterConfig,
 > extends HyperlaneAppGovernor<App, Config> {
-  protected async mapViolationToCall(violation: CheckerViolation) {
+  public async mapViolationToCall(violation: CheckerViolation) {
     switch (violation.type) {
       case ConnectionClientViolationType.InterchainSecurityModule:
         return this.handleIsmViolation(violation as ConnectionClientViolation);
@@ -54,19 +55,29 @@ export class ProxiedRouterGovernor<
   }
 
   protected handleEnrolledRouterViolation(violation: RouterViolation) {
-    const remoteDomain = this.checker.multiProvider.getDomainId(
-      violation.remoteChain,
-    );
+    const expectedDomains: number[] = [];
+    const expectedAddresses: string[] = [];
+
+    for (const [remoteChain, routerDiff] of Object.entries(
+      violation.routerDiff,
+    )) {
+      const remoteDomain = this.checker.multiProvider.getDomainId(remoteChain);
+      expectedDomains.push(remoteDomain);
+      expectedAddresses.push(routerDiff.expected);
+    }
+
     return {
       chain: violation.chain,
       call: {
         to: violation.contract.address,
         data: violation.contract.interface.encodeFunctionData(
-          'enrollRemoteRouter',
-          [remoteDomain, violation.expected],
+          'enrollRemoteRouters',
+          [expectedDomains, expectedAddresses],
         ),
         value: BigNumber.from(0),
-        description: `Enroll router for remote chain ${violation.remoteChain} (${remoteDomain}) ${violation.expected} in ${violation.contract.address}`,
+        description: `Updating routers in ${violation.contract.address} for ${
+          expectedDomains.length
+        } remote chains:\n${stringifyObject(violation.routerDiff, 'yaml')}`,
       },
     };
   }

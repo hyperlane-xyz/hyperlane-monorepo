@@ -31,6 +31,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     super(contractsMap, multiProvider);
   }
 
+  override async remoteChains(chainName: string): Promise<ChainName[]> {
+    return Object.keys(this.contractsMap).filter(
+      (chain) => chain !== chainName,
+    );
+  }
+
   router(
     contracts: HyperlaneContracts<InterchainAccountFactories>,
   ): InterchainAccountRouter {

@@ -66,7 +66,9 @@
       "testRecipient": "0x6489d13AcAd3B8dce4c5B31f375DE4f9451E7b38",
       "testTokenRecipient": "0x92dC0a76452a9D9358D2d2dEd8CddA209DF67c45",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x3726EE36a2A9e11a40d1ffD7D9A1A16e0154cDA0"
+      "validatorAnnounce": "0x3726EE36a2A9e11a40d1ffD7D9A1A16e0154cDA0",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x374961678da5911083599314974B94094513F95c",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x1Fa22d908f5a5E7F5429D9146E5a3740D8AC10d7"
     },
     "arbitrumsepolia": {
       "aggregationHook": "0xD2670EedcD21116c6F0B331Ce391eA4B3Bf1aB19",
@@ -128,7 +130,9 @@
       "storageGasOracle": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
       "technicalStack": "arbitrumnitro",
       "testRecipient": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
-      "validatorAnnounce": "0x1b33611fCc073aB0737011d5512EF673Bff74962"
+      "validatorAnnounce": "0x1b33611fCc073aB0737011d5512EF673Bff74962",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x1aFD5191738d365C8079e955E4cEdDfe7e01C62d",
+      "staticMessageIdWeightedMultisigIsmFactory": "0xC81e6D1070aFA48DA4e4f35E744CC1aE43532a10"
     },
     "basesepolia": {
       "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
@@ -189,7 +193,9 @@
       "staticMessageIdMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
       "storageGasOracle": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
       "testRecipient": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
-      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9"
+      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xB057Fb841027a8554521DcCdeC3c3474CaC99AB5",
+      "staticMessageIdWeightedMultisigIsmFactory": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F"
     },
     "bsctestnet": {
       "aggregationHook": "0x3d675bB93250Ab7603F40cbb9194bae210784627",
@@ -258,7 +264,9 @@
       "transactionOverrides": {
         "gasPrice": 8000000000
       },
-      "validatorAnnounce": "0xf09701B0a93210113D175461b6135a96773B5465"
+      "validatorAnnounce": "0xf09701B0a93210113D175461b6135a96773B5465",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xCa152b249791Adf7A09C6c1bdbAb05e4A594966e",
+      "staticMessageIdWeightedMultisigIsmFactory": "0xaa80d23299861b7D7ab1bE665579029Ed9137BD1"
     },
     "connextsepolia": {
       "aggregationHook": "0x331eb40963dc11F5BB271308c42d97ac6e41F124",
@@ -317,7 +325,9 @@
       "storageGasOracle": "0xF7561c34f17A32D5620583A3397C304e7038a7F6",
       "technicalStack": "arbitrumnitro",
       "testRecipient": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
-      "validatorAnnounce": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C"
+      "validatorAnnounce": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x8584590ad637C61C7cDF72eFF3381Ee1c3D1bC8E",
+      "staticMessageIdWeightedMultisigIsmFactory": "0xcCB305B1f21e5FbC85D1DD7Be5cd8d5bf5B7f863"
     },
     "eclipsetestnet": {
       "blocks": {
@@ -410,7 +420,9 @@
       "staticMessageIdMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
       "storageGasOracle": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
       "testRecipient": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
-      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9"
+      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x628BC518ED1e0E8C6cbcD574EbA0ee29e7F6943E"
     },
     "fuji": {
       "aggregationHook": "0x8E9b4006171c6B75111823e7545Ee5400CEce0B3",
@@ -475,7 +487,9 @@
       "testRecipient": "0x44a7e1d76fD8AfA244AdE7278336E3D5C658D398",
       "testTokenRecipient": "0x9CC10c844B3Bbae2444E39991aB027C4A05D1F2e",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x4f7179A691F8a684f56cF7Fed65171877d30739a"
+      "validatorAnnounce": "0x4f7179A691F8a684f56cF7Fed65171877d30739a",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xff93F32997Ac5450995121385aCE96b184efe89E",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x8eAB8cBb9037e818C321f675c0bc2EA4649003CF"
     },
     "holesky": {
       "aggregationHook": "0xb1FfD51f03c69A0a3e5AFEBDE639752DB1d56bc9",
@@ -533,7 +547,9 @@
       "staticMessageIdMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
       "storageGasOracle": "0x2b2a158B4059C840c7aC67399B153bb567D06303",
       "testRecipient": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
-      "validatorAnnounce": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2"
+      "validatorAnnounce": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0E18b28D98C2efDb59252c021320F203305b1B66"
     },
     "optimismsepolia": {
       "aggregationHook": "0xccA408a6A9A6dc405C3278647421eb4317466943",
@@ -592,7 +608,9 @@
       "staticMessageIdMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
       "storageGasOracle": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
       "testRecipient": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
-      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9"
+      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x7c5B5bdA7F1d1F70A6678ABb4d894612Fc76498F"
     },
     "plumetestnet": {
       "aggregationHook": "0x31dF0EEE7Dc7565665468698a0da221225619a1B",
@@ -655,7 +673,9 @@
       "technicalStack": "arbitrumnitro",
       "testRecipient": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9"
+      "validatorAnnounce": "0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x7924A1569fE0b860F1eA3c7b4Ed97b5528946f83",
+      "staticMessageIdWeightedMultisigIsmFactory": "0xb04961F492f447A8bA10f6694Bd888C7619CD2D5"
     },
     "polygonamoy": {
       "aggregationHook": "0x06a54A2db82D37410C1383c51F96Bd7b3ABD243E",
@@ -693,8 +713,8 @@
       "name": "polygonamoy",
       "nativeToken": {
         "decimals": 18,
-        "name": "Matic",
-        "symbol": "MATIC"
+        "name": "Polygon Ecosystem Token",
+        "symbol": "POL"
       },
       "pausableHook": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
       "pausableIsm": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
@@ -722,7 +742,9 @@
       "staticMessageIdMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
       "storageGasOracle": "0xD0680F80F4f947968206806C2598Cbc5b6FE5b03",
       "testRecipient": "0x04438ef7622f5412f82915F59caD4f704C61eA48",
-      "validatorAnnounce": "0x11918DC33E067C5DA83EEF58E50F856398b8Df4C"
+      "validatorAnnounce": "0x11918DC33E067C5DA83EEF58E50F856398b8Df4C",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x7c5B5bdA7F1d1F70A6678ABb4d894612Fc76498F"
     },
     "scrollsepolia": {
       "aggregationHook": "0x7b63Aa270335F8896717c2A809205F4b650E4268",
@@ -799,7 +821,9 @@
       "transactionOverrides": {
         "gasPrice": 500000000
       },
-      "validatorAnnounce": "0x527768930D889662Fe7ACF64294871e86e4C2381"
+      "validatorAnnounce": "0x527768930D889662Fe7ACF64294871e86e4C2381",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x63dFf524F1c7361f4F1bf07D658Bf7f2d5Dd5B20"
     },
     "sepolia": {
       "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
@@ -868,7 +892,9 @@
       "testRecipient": "0xeDc1A3EDf87187085A3ABb7A9a65E1e7aE370C07",
       "testTokenRecipient": "0x031AD9c560D37baC7d6Bd2d27A2443bAfd10101A",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9"
+      "validatorAnnounce": "0xE6105C59480a1B7DD3E4f28153aFdbE12F4CfCD9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x4afB48e864d308409d0D80E98fB7d5d6aA5b245f",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x196Ce28ED1Afdf015849ddEE82F03a903Bee9E94"
     },
     "solanatestnet": {
       "blockExplorers": [
@@ -967,7 +993,9 @@
       "storageGasOracle": "0xF7561c34f17A32D5620583A3397C304e7038a7F6",
       "technicalStack": "arbitrumnitro",
       "testRecipient": "0xAb9B273366D794B7F80B4378bc8Aaca75C6178E2",
-      "validatorAnnounce": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C"
+      "validatorAnnounce": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xE67CfA164cDa449Ae38a0a09391eF6bCDf8e4e2c",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x867f2089D09903f208AeCac84E599B90E5a4A821"
     }
   },
   "defaultRpcConsensusType": "fallback"

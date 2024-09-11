@@ -17,8 +17,11 @@
     "@hyperlane-xyz/registry": "2.5.0",
     "@hyperlane-xyz/sdk": "5.1.0",
     "@hyperlane-xyz/utils": "5.1.0",
+    "@inquirer/prompts": "^5.3.8",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
-    "@safe-global/protocol-kit": "^4.0.2",
+    "@safe-global/api-kit": "1.3.0",
+    "@safe-global/protocol-kit": "1.3.0",
+    "@safe-global/safe-core-sdk-types": "2.3.0",
     "@solana/web3.js": "^1.78.0",
     "asn1.js": "5.4.1",
     "aws-kms-ethers-signer": "^0.1.3",
@@ -75,7 +78,10 @@
     "test": "yarn test:unit && yarn test:hardhat",
     "test:unit": "mocha --config ../sdk/.mocharc.json test/**/*.test.ts",
     "test:hardhat": "yarn hardhat-esm test test/govern.hardhat-test.ts",
-    "test:ci": "yarn test"
+    "test:ci": "yarn test",
+    "update-agent-config:mainnet3": "tsx scripts/agents/update-agent-config.ts -e mainnet3",
+    "update-agent-config:test": "tsx scripts/agents/update-agent-config.ts -e test",
+    "update-agent-config:testnet4": "tsx scripts/agents/update-agent-config.ts -e testnet4"
   },
   "peerDependencies": {
     "@ethersproject/abi": "*"

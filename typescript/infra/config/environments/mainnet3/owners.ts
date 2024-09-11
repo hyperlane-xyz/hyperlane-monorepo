@@ -4,6 +4,7 @@ import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 import { getMainnetAddresses } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const timelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
@@ -59,12 +60,13 @@ export const safes: ChainMap<Address> = {
 export const icaOwnerChain = 'ethereum';
 
 // Found by running:
-// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChain <chain>
-export const icas: ChainMap<Address> = {
+// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+export const icas: Partial<
+  Record<(typeof supportedChainNames)[number], Address>
+> = {
   viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
-  // inEVM ownership should be transferred to this ICA, and this should be uncommented
-  // inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
-};
+  inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
+} as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
@@ -81,6 +83,12 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
+          // Because of the logic above of setting the owner to the Safe or ICA address,
+          // the checker/governor tooling does not know what type of owner it is.
+          // So we need to keep the Safe and ICA addresses somewhere in the config
+          // to be able to track down which addresses are SAFEs, ICAs, or standard SIGNERS.
+          ...(safes[local] && { _safeAddress: safes[local] }),
+          ...(icas[local] && { _icaAddress: icas[local] }),
         },
       },
     ];
