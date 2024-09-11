@@ -36,16 +36,18 @@ async function main() {
       }
 
       const validatorCount = validators.length;
+      const unannouncedValidatorCount = unannouncedValidators.length;
       const threshold = defaultMultisigConfigs[chain].threshold;
 
       return {
         chain,
-        'unannounced validators':
-          unannouncedValidators.length > 0 ? '🚨' : '✅',
-        count: validatorCount,
+        threshold,
         'threshold OK': threshold <= validatorCount / 2 ? '🚨' : '✅',
+        total: validatorCount,
         'validator count OK':
           validatorCount < minimumValidatorCount ? '🚨' : '✅',
+        unannounced:
+          unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
       };
     }),
   );
@@ -60,7 +62,7 @@ async function main() {
     .filter((r) => r['validator count OK'] === '🚨')
     .map((r) => ({
       chain: r.chain,
-      neededValidators: minimumValidatorCount - r.count,
+      neededValidators: minimumValidatorCount - r.total,
     }));
 
   if (lowThresholdChains.length > 0) {
@@ -87,7 +89,7 @@ async function main() {
 
   const unnanouncedChains = Object.keys(chainsWithUnannouncedValidators);
   if (unnanouncedChains.length > 0) {
-    console.log('\nChains with unannounced validators:');
+    console.log('\nChains with unannounced:');
     unnanouncedChains.forEach((chain) => {
       console.log(` - ${chain}: ${chainsWithUnannouncedValidators[chain]}`);
     });
