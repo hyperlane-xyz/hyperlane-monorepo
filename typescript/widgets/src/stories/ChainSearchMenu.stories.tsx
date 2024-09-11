@@ -1,7 +1,6 @@
 import { Meta, StoryObj } from '@storybook/react';
 
 import { chainMetadata } from '@hyperlane-xyz/registry';
-import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 
 import { ChainSearchMenu } from '../chains/ChainSearchMenu.js';
 
@@ -12,10 +11,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const multiProvider = new MultiProtocolProvider(chainMetadata);
-
 export const Example = {
   args: {
-    multiProvider,
+    chainMetadata,
   },
 } satisfies Story;

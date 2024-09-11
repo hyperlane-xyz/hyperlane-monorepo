@@ -13,7 +13,8 @@ type SvgIcon = (props: {
 
 export interface ChainLogoProps {
   chainName: string;
-  registry: IRegistry;
+  logoUri?: string;
+  registry?: IRegistry;
   size?: number;
   background?: boolean;
   Icon?: SvgIcon; // Optional override for the logo in the registry
@@ -21,6 +22,7 @@ export interface ChainLogoProps {
 
 export function ChainLogo({
   chainName,
+  logoUri,
   registry,
   size = 32,
   background = false,
@@ -31,17 +33,18 @@ export function ChainLogo({
   const iconSize = Math.floor(size / 1.9);
 
   const [svgLogos, setSvgLogos] = useState({});
-  const logoUri = svgLogos[chainName];
+  const uri = logoUri || svgLogos[chainName];
 
   useEffect(() => {
-    if (!chainName || svgLogos[chainName] || Icon) return;
+    if (!chainName || svgLogos[chainName] || logoUri || Icon || !registry)
+      return;
     registry
       .getChainLogoUri(chainName)
       .then((uri) => uri && setSvgLogos({ ...svgLogos, [chainName]: uri }))
       .catch((err) => console.error(err));
   }, [chainName, registry, svgLogos, Icon]);
 
-  if (!logoUri && !Icon) {
+  if (!uri && !Icon) {
     return (
       <Circle size={size} title={title} bgColorSeed={bgColorSeed}>
         {chainName ? (
@@ -59,7 +62,7 @@ export function ChainLogo({
         {Icon ? (
           <Icon width={iconSize} height={iconSize} title={title} />
         ) : (
-          <img src={logoUri} alt={title} width={iconSize} height={iconSize} />
+          <img src={uri} alt={title} width={iconSize} height={iconSize} />
         )}
       </Circle>
     );
@@ -67,7 +70,7 @@ export function ChainLogo({
     return Icon ? (
       <Icon width={size} height={size} title={title} />
     ) : (
-      <img src={logoUri} alt={title} width={size} height={size} />
+      <img src={uri} alt={title} width={size} height={size} />
     );
   }
 }

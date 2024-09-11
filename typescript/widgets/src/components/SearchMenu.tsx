@@ -6,8 +6,11 @@ import React, {
   useState,
 } from 'react';
 
+import { ColorPalette } from '../color.js';
+import { ChevronIcon } from '../icons/Chevron.js';
 import { FilterIcon } from '../icons/Filter.js';
 import { GearIcon } from '../icons/Gear.js';
+import { PencilIcon } from '../icons/Pencil.js';
 import { SearchIcon } from '../icons/Search.js';
 
 import { IconButton } from './IconButton.js';
@@ -17,7 +20,11 @@ export interface SearchMenuProps<
   SortAndFilterState,
 > {
   data: ListItem[];
-  searchFn: (data: ListItem[], query: string) => ListItem[];
+  searchFn: (
+    data: ListItem[],
+    query: string,
+    filter: SortAndFilterState,
+  ) => ListItem[];
   onClickItem: (item: ListItem) => void;
   onClickEditItem: (item: ListItem) => void;
   ListComponent: ComponentType<{ data: ListItem }>;
@@ -41,15 +48,15 @@ export function SearchMenu<
   FilterComponent,
 }: SearchMenuProps<ListItem, SortAndFilterState>) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isEditState, setEditState] = useState(false);
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [isEditMode, setEditMode] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterState, setFilterState] = useState<SortAndFilterState>(
     defaultSortAndFilterState,
   );
 
   const results = useMemo(
-    () => searchFn(data, searchQuery),
-    [data, searchQuery, searchFn],
+    () => searchFn(data, searchQuery, filterState),
+    [data, searchQuery, filterState, searchFn],
   );
 
   return (
@@ -57,42 +64,62 @@ export function SearchMenu<
       <div className="htw-relative">
         <SearchInput value={searchQuery} onChange={setSearchQuery} />
         <div className="htw-flex htw-items-center htw-gap-4 htw-absolute htw-right-4 htw-top-1/2 -htw-translate-y-1/2">
-          <IconButton
-            onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-          >
-            <FilterIcon width={20} height={20} />
+          <IconButton onClick={() => setIsFilterOpen(!isFilterOpen)}>
+            <FilterIcon
+              width={20}
+              height={20}
+              color={isFilterOpen ? ColorPalette.Blue : undefined}
+            />
           </IconButton>
           <IconButton
-            onClick={() => setEditState(!isEditState)}
+            onClick={() => setEditMode(!isEditMode)}
             className="hover:htw-rotate-45"
           >
-            <GearIcon width={20} height={20} />
+            <GearIcon
+              width={20}
+              height={20}
+              color={isEditMode ? ColorPalette.Blue : undefined}
+            />
           </IconButton>
         </div>
       </div>
       <div
         className={`htw-px-4 ${
-          showFilterDropdown ? 'htw-max-h-0' : 'htw-max-h-28 htw-py-2'
+          isFilterOpen ? 'htw-max-h-28 htw-pt-2 htw-pb-1' : 'htw-max-h-0'
         } htw-overflow-hidden htw-transition-all htw-duration-300`}
       >
         <FilterComponent value={filterState} onChange={setFilterState} />
       </div>
 
-      <div className="htw-flex htw-flex-col htw-items-stretch">
+      <div className="htw-mt-2.5 htw-flex htw-flex-col htw-divide-y htw-divide-gray-100">
         {results.length ? (
           results.map((data, i) => (
             <button
-              className={`-htw-mx-2 htw-px-2 htw-rounded htw-flex htw-items-center ${
-                data.disabled ? 'htw-opacity-50' : 'hover:htw-bg-gray-200'
-              } htw-transition-all htw-duration-250 htw-border-b htw-border-gray-100 last:htw-border-b-0`}
+              className={`-htw-mx-2 htw-px-2.5 htw-py-2.5 htw-rounded htw-grid htw-grid-cols-[1fr,1fr,auto] htw-items-center ${
+                data.disabled
+                  ? 'htw-opacity-50'
+                  : 'hover:htw-bg-gray-100 active:htw-scale-95'
+              } htw-transition-all htw-duration-250`}
               key={i}
               type="button"
               disabled={data.disabled}
               onClick={() =>
-                isEditState ? onClickEditItem(data) : onClickItem(data)
+                isEditMode ? onClickEditItem(data) : onClickItem(data)
               }
             >
               <ListComponent data={data} />
+              <div className="htw-justify-self-end">
+                {isEditMode ? (
+                  <PencilIcon width={16} height={16} className="" />
+                ) : (
+                  <ChevronIcon
+                    direction="e"
+                    width={15}
+                    height={20}
+                    className="htw-opacity-60"
+                  />
+                )}
+              </div>
             </button>
           ))
         ) : (
@@ -120,13 +147,14 @@ function SearchInput({ onChange, className, ...props }: InputProps) {
       <SearchIcon
         width={18}
         height={18}
-        className="htw-absolute htw-left-4 htw-top-1/2 -htw-translate-y-1/2"
+        className="htw-absolute htw-left-4 htw-top-1/2 -htw-translate-y-1/2 htw-opacity-50"
       />
       <input
         type="text"
         autoComplete="off"
         onChange={handleChange}
-        className={`htw-w-full htw-rounded-full htw-bg-gray-200 htw-px-12 htw-py-3 focus:htw-bg-gray-300 disabled:htw-bg-gray-600 htw-outline-none htw-transition-all htw-duration-300 ${className}`}
+        className={`htw-w-full htw-rounded-full htw-bg-gray-100 htw-px-11 htw-py-3 focus:htw-bg-gray-200 disabled:htw-bg-gray-500 htw-outline-none htw-transition-all htw-duration-300 ${className}`}
+        placeholder="Search for chain"
         {...props}
       />
     </div>
