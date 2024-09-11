@@ -16,7 +16,7 @@ export function multisigIsmVerificationCost(m: number, n: number): number {
 
 // Function to recursively remove 'address' properties and lowercase string properties
 export function normalizeConfig(obj: WithAddress<any>): any {
-  return sortValidatorsAndModulesInConfig(lowerCaseConfig(obj));
+  return sortArraysInConfig(lowerCaseConfig(obj));
 }
 
 function lowerCaseConfig(obj: any): any {
@@ -38,10 +38,10 @@ function lowerCaseConfig(obj: any): any {
 }
 
 // write a function that will go through an object and sort any arrays it finds
-export function sortValidatorsAndModulesInConfig(config: any): any {
+export function sortArraysInConfig(config: any): any {
   // Check if the current object is an array
   if (Array.isArray(config)) {
-    return config.map(sortValidatorsAndModulesInConfig);
+    return config.map(sortArraysInConfig);
   }
   // Check if it's an object and not null
   else if (typeof config === 'object' && config !== null) {
@@ -63,7 +63,7 @@ export function sortValidatorsAndModulesInConfig(config: any): any {
         });
       } else {
         // Recursively apply sorting to other fields
-        sortedConfig[key] = sortValidatorsAndModulesInConfig(config[key]);
+        sortedConfig[key] = sortArraysInConfig(config[key]);
       }
     }
     return sortedConfig;

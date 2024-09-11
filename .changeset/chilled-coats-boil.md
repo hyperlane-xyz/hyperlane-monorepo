@@ -2,4 +2,4 @@
 '@hyperlane-xyz/utils': minor
 ---
 
-Add sortValidatorsAndModulesInConfig method, normalizeConfig implementation to call sortValidatorsAndModulesInConfig after current behavior
+Add sortArraysInConfig method, normalizeConfig implementation to call sortArraysInConfig after current behavior
