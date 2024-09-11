@@ -195,7 +195,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public virtual {
-        vm.assume(2 < m && m <= n && n < 10);
+        vm.assume(1 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
 
