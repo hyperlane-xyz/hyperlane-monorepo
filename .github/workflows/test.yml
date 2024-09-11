@@ -4,10 +4,14 @@ on:
   # Triggers the workflow on pushes to main branch
   push:
     branches: [main]
-  # Triggers on pull requests ignoring md files
+    paths-ignore:
+      - '**/*.md'
+  # Triggers on pull requests
   pull_request:
     branches:
       - '*' # run against all branches
+    paths-ignore:
+      - '**/*.md'
   # Support for merge queues
   merge_group:
   # Allows you to run this workflow manually from the Actions tab
