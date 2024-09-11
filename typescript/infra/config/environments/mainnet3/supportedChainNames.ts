@@ -40,7 +40,7 @@ export const mainnet3SupportedChainNames = [
   'molten',
   'moonbeam',
   'neutron',
-  'oort',
+  'oortmainnet',
   'optimism',
   'osmosis',
   'polygon',

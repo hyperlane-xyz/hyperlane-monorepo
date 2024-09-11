@@ -1160,7 +1160,7 @@
       "expectedimplementation": "0x58556AaeB2e3829d52EE5E711D44735412efA43B"
     }
   ],
-  "oort": [
+  "oortmainnet": [
     {
       "name": "InterchainAccountIsm",
       "address": "0x92cdbF0Ccdf8E93467FA858fb986fa650A02f2A8",

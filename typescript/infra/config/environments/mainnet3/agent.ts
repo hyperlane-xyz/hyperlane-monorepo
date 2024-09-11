@@ -93,7 +93,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     molten: true,
     moonbeam: true,
     neutron: true,
-    oort: true,
+    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -157,7 +157,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
-    oort: true,
+    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -223,7 +223,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     // Cannot scrape non-EVM chains
     neutron: false,
-    oort: true,
+    oortmainnet: true,
     optimism: true,
     // Cannot scrape non-EVM chains
     osmosis: false,
