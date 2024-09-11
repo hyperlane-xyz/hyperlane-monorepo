@@ -39,7 +39,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v3-rust"
+          prefix-key: 'v3-rust'
           workspaces: |
             ./rust/main
             ./rust/sealevel
@@ -72,7 +72,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v3-rust"
+          prefix-key: 'v3-rust'
           workspaces: |
             ./rust/main
             ./rust/sealevel
@@ -102,9 +102,6 @@ jobs:
         working-directory: ./rust/sealevel
       - name: Setup WASM
         run: rustup target add wasm32-unknown-unknown
-      - name: Check WASM for main workspace
+      - name: Check WASM for hyperlane-core
         run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
         working-directory: ./rust/main
-      - name: Check WASM for sealevel workspace
-        run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
-        working-directory: ./rust/sealevel
