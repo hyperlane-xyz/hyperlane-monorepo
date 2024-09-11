@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {IStaticWeightedMultisigIsm} from "../../contracts/interfaces/isms/IWeightedMultisigIsm.sol";
@@ -51,8 +49,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
             );
 
         uint256 remainingWeight = TOTAL_WEIGHT;
-        uint256 maxWeight = threshold - 1;
-
+        uint256 MAX_WEIGHT = threshold - 1;
         for (uint256 i = 0; i < n; i++) {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
@@ -64,7 +61,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
                 uint256 weight = (uint256(
                     keccak256(abi.encode(seed, "weight", i))
                 ) % (remainingWeight + 1));
-                weight = weight > maxWeight ? maxWeight : weight;
+                weight = weight > MAX_WEIGHT ? MAX_WEIGHT : weight;
                 validators[i].weight = uint96(weight);
                 remainingWeight -= weight;
             }
@@ -80,7 +77,6 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
     function getMetadata(
         uint8 m,
         uint8 n,
-        uint8 d,
         bytes32 seed,
         bytes memory message
     ) internal virtual override returns (bytes memory) {
@@ -108,7 +104,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         (
             uint256[] memory keys,
             IStaticWeightedMultisigIsm.ValidatorInfo[] memory allValidators
-        ) = addValidators(threshold - d - 1, n, seed);
+        ) = addValidators(threshold, n, seed);
 
         (, uint96 thresholdWeight) = weightedIsm.validatorsAndThresholdWeight(
             message
@@ -120,18 +116,14 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         uint96 totalWeight = 0;
         uint256 signerCount = 0;
 
-        {
-            console.log("m", m, "n", n);
-            console.log("d", d, "thresholdWeight", thresholdWeight);
-        }
-
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
         while (
-            totalWeight < thresholdWeight && signerCount < allValidators.length
+            signerCount < allValidators.length &&
+            (totalWeight < thresholdWeight || signerCount < 2)
         ) {
-            (v, r, s) = vm.sign(keys[signerCount], digest);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+                keys[signerCount],
+                digest
+            );
 
             metadata = abi.encodePacked(metadata, r, s, v);
 
@@ -139,31 +131,6 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
 
             totalWeight += allValidators[signerCount].weight;
             signerCount++;
-
-            while (d > 0 && signerCount < allValidators.length) {
-                (v, r, s) = vm.sign(keys[signerCount], digest);
-
-                metadata = abi.encodePacked(metadata, r, s, v);
-
-                fixtureAppendSignature(signerCount, v, r, s);
-
-                totalWeight += allValidators[signerCount].weight;
-                d--;
-
-                console.log(
-                    "DUPLICATE signerCount",
-                    signerCount,
-                    " weight",
-                    totalWeight
-                );
-            }
-
-            console.log(
-                "OUTER signerCount",
-                signerCount,
-                " weight",
-                totalWeight
-            );
         }
 
         writeFixture(metadata, uint8(signerCount), n);
@@ -181,7 +148,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, 0, seed, message);
+        bytes memory metadata = getMetadata(m, n, seed, message);
 
         uint256 signatureCount = weightedIsm.signatureCount(metadata);
         vm.assume(signatureCount >= 1);
@@ -197,9 +164,9 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         ism.verify(insufficientMetadata, message);
     }
 
-    // function _boundValidatorCountWithDuplicates(uint8, uint8, uint8) internal override returns (uint8, uint8, uint8) {
-    //     return (5, 3, 1);
-    // }
+    function duplicateSignaturesRevertReason() internal virtual override {
+        vm.expectRevert("Invalid signer");
+    }
 }
 
 contract StaticMerkleRootWeightedMultisigIsmTest is
@@ -218,7 +185,6 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
     function getMetadata(
         uint8 m,
         uint8 n,
-        uint8 d,
         bytes32 seed,
         bytes memory message
     )
@@ -230,20 +196,17 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
             AbstractStaticWeightedMultisigIsmTest.getMetadata(
                 m,
                 n,
-                d,
                 seed,
                 message
             );
     }
 
-    // function _boundValidatorCountWithDuplicates(uint8, uint8, uint8)
-    //     internal
-    //     pure
-    //     override
-    //     returns (uint8, uint8, uint8)
-    // {
-    //     return (5, 3, 1);
-    // }
+    function duplicateSignaturesRevertReason()
+        internal
+        override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
+    {
+        AbstractStaticWeightedMultisigIsmTest.duplicateSignaturesRevertReason();
+    }
 }
 
 contract StaticMessageIdWeightedMultisigIsmTest is
@@ -262,7 +225,6 @@ contract StaticMessageIdWeightedMultisigIsmTest is
     function getMetadata(
         uint8 m,
         uint8 n,
-        uint8 d,
         bytes32 seed,
         bytes memory message
     )
@@ -274,18 +236,15 @@ contract StaticMessageIdWeightedMultisigIsmTest is
             AbstractStaticWeightedMultisigIsmTest.getMetadata(
                 m,
                 n,
-                d,
                 seed,
                 message
             );
     }
 
-    // function _boundValidatorCountWithDuplicates(uint8, uint8, uint8)
-    //     internal
-    //     pure
-    //     override
-    //     returns (uint8, uint8, uint8)
-    // {
-    //     return (5, 3, 1);
-    // }
+    function duplicateSignaturesRevertReason()
+        internal
+        override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
+    {
+        AbstractStaticWeightedMultisigIsmTest.duplicateSignaturesRevertReason();
+    }
 }

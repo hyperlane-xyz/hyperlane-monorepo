@@ -85,7 +85,6 @@ abstract contract AbstractMultisigIsmTest is Test {
     function getMetadata(
         uint8 m,
         uint8 n,
-        uint8 d,
         bytes32 seed,
         bytes memory message
     ) internal virtual returns (bytes memory) {
@@ -106,7 +105,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         }
 
         uint256[] memory signers = ThresholdTestUtils.choose(
-            m - d,
+            m,
             addValidators(m, n, seed),
             seed
         );
@@ -115,13 +114,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         fixtureInit();
 
         for (uint256 i = 0; i < m; i++) {
-            uint256 signerIndex = i < (m - d)
-                ? i
-                : uint256(keccak256(abi.encode(seed, i))) % (m - d);
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-                signers[signerIndex],
-                digest
-            );
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signers[i], digest);
 
             metadata = abi.encodePacked(metadata, r, s, v);
             fixtureAppendSignature(i, v, r, s);
@@ -172,7 +165,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, 0, seed, message);
+        bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));
     }
 
@@ -186,7 +179,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, 0, seed, message);
+        bytes memory metadata = getMetadata(m, n, seed, message);
 
         // changing single byte in metadata should fail signature verification
         uint256 index = uint256(seed) % metadata.length;
@@ -194,33 +187,35 @@ abstract contract AbstractMultisigIsmTest is Test {
         assertFalse(ism.verify(metadata, message));
     }
 
-    function test_verify_revertsWhen_duplicateSignatures(
+    function test_verify_revertWhen_duplicateSignatures(
         uint32 destination,
         bytes32 recipient,
         bytes calldata body,
         uint8 m,
         uint8 n,
-        uint8 d,
         bytes32 seed
-    ) public virtual {
-        (m, n, d) = _boundValidatorCountWithDuplicates(m, n, d);
-        vm.assume(0 < m && m <= n && n < 16);
-        vm.assume(1 < d && d < m);
+    ) public {
+        vm.assume(2 < m && m <= n && n < 10);
         bytes memory message = getMessage(destination, recipient, body);
-        bytes memory metadata = getMetadata(m, n, d, seed, message);
+        bytes memory metadata = getMetadata(m, n, seed, message);
 
-        vm.expectRevert(); // !threshold
-        ism.verify(metadata, message);
+        bytes memory duplicateMetadata = new bytes(metadata.length);
+        for (uint256 i = 0; i < metadata.length - 65; i++) {
+            duplicateMetadata[i] = metadata[i];
+        }
+        for (uint256 i = 0; i < 65; i++) {
+            duplicateMetadata[metadata.length - 65 + i] = metadata[
+                metadata.length - 130 + i
+            ];
+        }
+
+        duplicateSignaturesRevertReason();
+        ism.verify(duplicateMetadata, message);
     }
 
-    function _boundValidatorCountWithDuplicates(
-        uint8 m,
-        uint8 n,
-        uint8 d
-    ) internal virtual returns (uint8, uint8, uint8) {
-        vm.assume(0 < m && m <= n && n < 16);
-        vm.assume(1 < d && d < m);
-        return (m, n, d);
+    // unweighted and weighted ISMs have different error messages
+    function duplicateSignaturesRevertReason() internal virtual {
+        vm.expectRevert("!threshold");
     }
 }
 
