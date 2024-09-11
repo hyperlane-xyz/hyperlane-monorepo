@@ -42,6 +42,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x4d1b2cade01ee3493f44304653d8e352c66ec3e7',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -50,6 +51,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x89ecdd6caf138934bf3a2fb7b323984d72fd66de',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -83,6 +85,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x1d9b0f4ea80dbfc71cb7d64d8005eccf7c41e75f',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -161,6 +164,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xbd6e158a3f5830d99d7d2bce192695bc4a148de2',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -187,6 +191,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xe43f742c37858746e6d7e458bc591180d0cba440',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -237,6 +242,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xb65e52be342dba3ab2c088ceeb4290c744809134',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -400,6 +406,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -504,6 +511,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -536,11 +544,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   sei: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -558,6 +567,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xfa33391ee38597cbeef72ccde8c9e13e01e78521',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
@@ -657,11 +667,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zetachain: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
 
