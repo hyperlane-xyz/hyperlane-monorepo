@@ -93,6 +93,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     molten: true,
     moonbeam: true,
     neutron: true,
+    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -156,6 +157,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
+    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -221,6 +223,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     // Cannot scrape non-EVM chains
     neutron: false,
+    oortmainnet: true,
     optimism: true,
     // Cannot scrape non-EVM chains
     osmosis: false,
@@ -375,7 +378,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd71dd4e-20240910-140936',
+      tag: '9c056c7-20240911-154357',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -384,7 +387,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd71dd4e-20240910-140936',
+      tag: '9c056c7-20240911-154357',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -394,7 +397,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd71dd4e-20240910-140936',
+      tag: '9c056c7-20240911-154357',
     },
     resources: scraperResources,
   },
@@ -409,7 +412,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd71dd4e-20240910-140936',
+      tag: '9c056c7-20240911-154357',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -421,7 +424,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd71dd4e-20240910-140936',
+      tag: '9c056c7-20240911-154357',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

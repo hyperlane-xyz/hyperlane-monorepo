@@ -401,6 +401,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  oortmainnet: {
+    threshold: 1,
+    validators: ['0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7'],
+  },
+
   optimism: {
     threshold: 3,
     validators: [

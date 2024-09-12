@@ -160,6 +160,9 @@
       "0x7885fae56dbcf5176657f54adbbd881dc6714132"
     ]
   },
+  "oortmainnet": {
+    "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
+  },
   "optimism": {
     "validators": [
       "0x20349eadc6c72e94ce38268b96692b1a5c20de4f",
