@@ -23,9 +23,7 @@ COPY rust/main/utils rust/main/utils
 COPY rust/sealevel rust/sealevel
 
 COPY rust/main/Cargo.toml rust/main/.
-COPY rust/main/Cargo.toml rust/main/.
-COPY rust/sealevel/Cargo.lock rust/sealevel/.
-COPY rust/sealevel/Cargo.lock rust/sealevel/.
+COPY rust/main/Cargo.lock rust/main/.
 
 
 WORKDIR /usr/src/rust/main
