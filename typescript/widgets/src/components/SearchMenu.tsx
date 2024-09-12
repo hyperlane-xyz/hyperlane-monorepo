@@ -1,4 +1,10 @@
-import React, { ChangeEvent, ComponentType, useMemo, useState } from 'react';
+import React, {
+  ChangeEvent,
+  ComponentType,
+  Key,
+  useMemo,
+  useState,
+} from 'react';
 
 import { ColorPalette } from '../color.js';
 import { ChevronIcon } from '../icons/Chevron.js';
@@ -158,7 +164,7 @@ function SearchBarButtons({
 }
 
 interface ListItemProps<ListItemData extends { disabled?: boolean }> {
-  key: string | number;
+  key: Key;
   data: ListItemData;
   isEditMode: boolean;
   onClickItem: (item: ListItemData) => void;
