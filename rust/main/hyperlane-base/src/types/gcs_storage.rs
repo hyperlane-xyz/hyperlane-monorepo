@@ -4,7 +4,13 @@ use derive_new::new;
 use eyre::{bail, Result};
 use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
 use std::fmt;
-use ya_gcp::{storage::StorageClient, AuthFlow, ClientBuilder, ClientBuilderConfig};
+use ya_gcp::{
+    storage::{
+        api::{error::HttpStatusError, http::StatusCode, Error},
+        ObjectError, StorageClient,
+    },
+    AuthFlow, ClientBuilder, ClientBuilderConfig,
+};
 
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
@@ -127,7 +133,10 @@ impl CheckpointSyncer for GcsStorageClient {
             Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
             Err(e) => match e {
                 // never written before to this bucket
-                ya_gcp::storage::ObjectError::InvalidName(_) => Ok(None),
+                ObjectError::InvalidName(_) => Ok(None),
+                ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
+                    Ok(None)
+                }
                 _ => bail!(e),
             },
         }
@@ -153,11 +162,19 @@ impl CheckpointSyncer for GcsStorageClient {
 
     /// Attempt to fetch the signed (checkpoint, messageId) tuple at this index
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        let res = self
+        match self
             .inner
             .get_object(&self.bucket, GcsStorageClient::get_checkpoint_key(index))
-            .await?;
-        Ok(Some(serde_json::from_slice(res.as_ref())?))
+            .await
+        {
+            Ok(data) => Ok(Some(serde_json::from_slice(data.as_ref())?)),
+            Err(e) => match e {
+                ObjectError::Failure(Error::HttpStatus(HttpStatusError(StatusCode::NOT_FOUND))) => {
+                    Ok(None)
+                }
+                _ => bail!(e),
+            },
+        }
     }
 
     /// Write the signed (checkpoint, messageId) tuple to this syncer
