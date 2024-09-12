@@ -77,7 +77,7 @@ hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 injective-protobuf = "0.2.2"
 injective-std = "=0.1.5"
-itertools = "0.12.0"
+itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
 k256 = { version = "0.13.1", features = ["std", "ecdsa"] }
@@ -96,7 +96,7 @@ paste = "1.0"
 pretty_env_logger = "0.5.0"
 primitive-types = "=0.12.1"
 prometheus = "0.13"
-protobuf = "2.28.0"
+protobuf = "*"
 rand = "0.8.5"
 regex = "1.5"
 reqwest = "0.11"
@@ -263,22 +263,6 @@ tag = "2024-04-25"
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2024-04-25"
-
-[patch.crates-io.derive_more]
-git = "https://github.com/JelteF/derive_more"
-tag = "v1.0.0-beta.6"
-version = "=1.0.0-beta.6"
-
-[patch.crates-io.derive_more-impl]
-git = "https://github.com/JelteF/derive_more"
-tag = "v1.0.0-beta.6"
-version = "=1.0.0-beta.6"
-
-[patch.crates-io.predicates-tree]
-git = "https://github.com/assert-rs/predicates-rs"
-tag = "predicates-tree-v1.0.9"
-version = "=1.0.9"
-
 
 [patch.crates-io.cargo-platform]
 git = "https://github.com/rust-lang/cargo"
