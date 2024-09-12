@@ -1,3 +1,4 @@
+import '@matterlabs/hardhat-zksync-solc';
 import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
@@ -9,6 +10,19 @@ import 'solidity-coverage';
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
+  zksolc: {
+    version: '1.5.3',
+    compilerSource: 'binary',
+    enableEraVMExtensions: true,
+  },
+  defaultNetwork: 'zkSyncNetwork',
+  networks: {
+    zkSyncNetwork: {
+      url: 'http://127.0.0.1:3050',
+      ethNetwork: 'goerli',
+      zksync: true,
+    },
+  },
   solidity: {
     version: '0.8.19',
     settings: {
