@@ -73,11 +73,14 @@ abstract contract AbstractStaticWeightedMultisigIsm is
 
         // assumes that signatures are ordered by validator
         for (
-            uint256 i = 0;
-            _totalWeight < _thresholdWeight && i < _validatorCount;
-            ++i
+            uint256 signatureIndex = 0;
+            _totalWeight < _thresholdWeight && signatureIndex < _validatorCount;
+            ++signatureIndex
         ) {
-            address _signer = ECDSA.recover(_digest, signatureAt(_metadata, i));
+            address _signer = ECDSA.recover(
+                _digest,
+                signatureAt(_metadata, signatureIndex)
+            );
             // loop through remaining validators until we find a match
             while (
                 _validatorIndex < _validatorCount &&
