@@ -5,13 +5,15 @@ use derive_more::{AsRef, Deref};
 use derive_new::new;
 
 use eyre::{Context, Result};
-use hyperlane_base::MultisigCheckpointSyncer;
+use hyperlane_base::{MultisigCheckpointSyncer, ValidatorWithWeight, Weight};
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::debug;
 
 use crate::msg::metadata::MessageMetadataBuilder;
 
-use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
+use super::base::{
+    fetch_unit_validator_requirements, MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata,
+};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
@@ -30,8 +32,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
 
     async fn fetch_metadata(
         &self,
-        validators: &[H256],
-        threshold: u8,
+        validators: &[ValidatorWithWeight],
+        threshold_weight: Weight,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
@@ -53,7 +55,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             checkpoint_syncer
                 .fetch_checkpoint_in_range(
                     validators,
-                    threshold as usize,
+                    threshold_weight,
                     leaf_index,
                     highest_leaf_index,
                     self.origin_domain(),
@@ -75,5 +77,14 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             leaf_index,
             Some(proof),
         )))
+    }
+
+    // fetches the validators and threshold for the unit variant - each validator has a weight of 1
+    async fn ism_validator_requirements(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> Result<(Vec<ValidatorWithWeight>, Weight)> {
+        fetch_unit_validator_requirements(self, ism_address, message).await
     }
 }

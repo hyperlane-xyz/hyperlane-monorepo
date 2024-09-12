@@ -11,7 +11,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
-    ValidatorAnnounce, H256,
+    ValidatorAnnounce, WeightedMultisigIsm, H256,
 };
 use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
@@ -658,6 +658,33 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(_) => {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
+            }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into a Multisig Ism contract
+    pub async fn build_weighted_multisig_ism(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn WeightedMultisigIsm>> {
+        let ctx = "Building weighted multisig ISM";
+        let locator = self.locator(address);
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::WeighedMultisigIsmBuilder {})
+                    .await
+            }
+            ChainConnectionConf::Fuel(_) => {
+                Err(eyre!("Fuel does not support weighted multisig ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Sealevel(_) => {
+                Err(eyre!("Sealevel does not support weighted multisig ISM yet")).context(ctx)
+            }
+            ChainConnectionConf::Cosmos(_) => {
+                Err(eyre!("Cosmos does not support weighted multisig ISM yet")).context(ctx)
             }
         }
         .context(ctx)
