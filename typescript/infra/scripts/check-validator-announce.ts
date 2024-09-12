@@ -42,7 +42,10 @@ async function main() {
       return {
         chain,
         threshold,
-        'threshold OK': threshold <= validatorCount / 2 ? '🚨' : '✅',
+        'threshold OK':
+          threshold <= validatorCount / 2 || threshold > validatorCount
+            ? '🚨'
+            : '✅',
         total: validatorCount,
         'total OK': validatorCount < minimumValidatorCount ? '🚨' : '✅',
         unannounced:
@@ -53,7 +56,7 @@ async function main() {
 
   console.table(results);
 
-  const lowThresholdChains = results
+  const invalidThresholdChains = results
     .filter((r) => r['threshold OK'] === '🚨')
     .map((r) => r.chain);
 
@@ -64,13 +67,14 @@ async function main() {
       neededValidators: minimumValidatorCount - r.total,
     }));
 
-  if (lowThresholdChains.length > 0) {
-    console.log('\n⚠️ Chains with low thresholds:');
-    lowThresholdChains.forEach((chain) => {
+  if (invalidThresholdChains.length > 0) {
+    console.log('\n⚠️ Chains with invalid thresholds:');
+    invalidThresholdChains.forEach((chain) => {
       const validatorCount = defaultMultisigConfigs[chain].validators.length;
       const minimumThreshold = Math.floor(validatorCount / 2) + 1;
       console.log(
-        ` - ${chain}: threshold should be at least ${minimumThreshold}`,
+        ` - ${chain}:`,
+        `threshold should be ${minimumThreshold} ≤ t ≤ ${validatorCount}`,
       );
     });
   } else {
