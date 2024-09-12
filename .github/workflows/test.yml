@@ -172,7 +172,7 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v2-rust'
+          prefix-key: 'v2-rust-e2e'
           shared-key: ${{ matrix.e2e-type }}
           cache-provider: 'buildjet'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
