@@ -181,12 +181,6 @@ overflow-checks = true
 [profile.release.package.ecdsa-signature]
 overflow-checks = true
 
-[profile.release.package.hyperlane-sealevel-connection-client]
-overflow-checks = true
-
-[profile.release.package.hyperlane-sealevel-token-lib]
-overflow-checks = true
-
 [profile.release.package.hyperlane-sealevel-interchain-security-module-interface]
 overflow-checks = true
 
@@ -199,40 +193,13 @@ overflow-checks = true
 [profile.release.package.serializable-account-meta]
 overflow-checks = true
 
-[profile.release.package.hyperlane-test-transaction-utils]
-overflow-checks = true
-
-[profile.release.package.hyperlane-test-utils]
-overflow-checks = true
-
 [profile.release.package.hyperlane-sealevel-mailbox]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-igp]
 overflow-checks = true
 
-[profile.release.package.hyperlane-sealevel-igp-test]
-overflow-checks = true
-
-[profile.release.package.hyperlane-sealevel-token]
-overflow-checks = true
-
-[profile.release.package.hyperlane-sealevel-token-collateral]
-overflow-checks = true
-
-[profile.release.package.hyperlane-sealevel-token-native]
-overflow-checks = true
-
 [profile.release.package.hyperlane-sealevel-multisig-ism-message-id]
-overflow-checks = true
-
-[profile.release.package.hyperlane-sealevel-test-ism]
-overflow-checks = true
-
-[profile.release.package.hyperlane-sealevel-mailbox-test]
-overflow-checks = true
-
-[profile.release.package.hyperlane-sealevel-test-send-receiver]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-validator-announce]
@@ -299,21 +266,6 @@ git = "https://github.com/hyperlane-xyz/solana.git"
 tag = "hyperlane-1.14.13-2023-07-04"
 version = "=1.14.13"
 
-[patch.crates-io.solana-banks-client]
-git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
-version = "=1.14.13"
-
-[patch.crates-io.solana-banks-interface]
-git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
-version = "=1.14.13"
-
-[patch.crates-io.solana-banks-server]
-git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
-version = "=1.14.13"
-
 [patch.crates-io.solana-clap-utils]
 git = "https://github.com/hyperlane-xyz/solana.git"
 tag = "hyperlane-1.14.13-2023-07-04"
@@ -330,11 +282,6 @@ tag = "hyperlane-1.14.13-2023-07-04"
 version = "=1.14.13"
 
 [patch.crates-io.solana-program]
-git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
-version = "=1.14.13"
-
-[patch.crates-io.solana-program-test]
 git = "https://github.com/hyperlane-xyz/solana.git"
 tag = "hyperlane-1.14.13-2023-07-04"
 version = "=1.14.13"
