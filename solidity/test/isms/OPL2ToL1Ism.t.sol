@@ -97,6 +97,7 @@ contract OPL2ToL1IsmTest is Test {
 
         vm.expectCall(
             L2_MESSENGER_ADDRESS,
+            0,
             abi.encodeCall(
                 ICrossDomainMessenger.sendMessage,
                 (address(ism), encodedHookData, GAS_QUOTE)
@@ -104,6 +105,38 @@ contract OPL2ToL1IsmTest is Test {
         );
 
         hook.postDispatch{value: GAS_QUOTE}(testMetadata, encodedMessage);
+    }
+
+    function test_postDispatch_excessMsgValue() public {
+        deployAll();
+        uint256 msgValue = 1 ether;
+        uint256 excess = 0.5 ether;
+        bytes memory excessValueMetadata = StandardHookMetadata.formatMetadata(
+            msgValue,
+            GAS_QUOTE,
+            address(this),
+            new bytes(0)
+        );
+
+        bytes memory encodedHookData = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (messageId)
+        );
+        l2Mailbox.updateLatestDispatchedId(messageId);
+
+        vm.expectCall(
+            L2_MESSENGER_ADDRESS,
+            msgValue + excess,
+            abi.encodeCall(
+                ICrossDomainMessenger.sendMessage,
+                (address(ism), encodedHookData, GAS_QUOTE)
+            )
+        );
+
+        hook.postDispatch{value: msgValue + excess + GAS_QUOTE}(
+            excessValueMetadata,
+            encodedMessage
+        );
     }
 
     function testFork_postDispatch_revertWhen_chainIDNotSupported() public {

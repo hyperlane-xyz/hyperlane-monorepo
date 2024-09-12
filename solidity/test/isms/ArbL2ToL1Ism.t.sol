@@ -95,6 +95,47 @@ contract ArbL2ToL1IsmTest is Test {
                 (address(ism), encodedHookData)
             )
         );
+        hook.postDispatch{value: GAS_QUOTE}(testMetadata, encodedMessage);
+    }
+
+    function test_postDispatch_excessMsgValue() public {
+        deployAll();
+        uint256 msgValue = 1 ether;
+        uint256 excess = 0.5 ether;
+        bytes memory excessValueMetadata = StandardHookMetadata.formatMetadata(
+            msgValue,
+            GAS_QUOTE,
+            address(this),
+            new bytes(0)
+        );
+
+        bytes memory encodedHookData = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (messageId)
+        );
+
+        l2Mailbox.updateLatestDispatchedId(messageId);
+
+        vm.expectCall(
+            L2_ARBSYS_ADDRESS,
+            msgValue + excess,
+            abi.encodeCall(
+                MockArbSys.sendTxToL1,
+                (address(ism), encodedHookData)
+            )
+        );
+        hook.postDispatch{value: msgValue + excess + GAS_QUOTE}(
+            excessValueMetadata,
+            encodedMessage
+        );
+    }
+
+    function test_postDispatch_revertsWhen_insufficientMsgValue() public {
+        deployAll();
+
+        l2Mailbox.updateLatestDispatchedId(messageId);
+
+        vm.expectRevert(); // arithmetic underflow
         hook.postDispatch(testMetadata, encodedMessage);
     }
 

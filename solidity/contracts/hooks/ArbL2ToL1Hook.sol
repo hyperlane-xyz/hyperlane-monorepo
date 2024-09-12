@@ -74,7 +74,8 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes calldata metadata,
         bytes memory payload
     ) internal override {
-        arbSys.sendTxToL1{value: metadata.msgValue(0)}(
+        uint256 excess = msg.value - (metadata.msgValue(0) + GAS_QUOTE);
+        arbSys.sendTxToL1{value: metadata.msgValue(0) + excess}(
             TypeCasts.bytes32ToAddress(ism),
             payload
         );
