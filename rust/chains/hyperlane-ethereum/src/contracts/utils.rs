@@ -7,9 +7,8 @@ use ethers::{
 };
 use ethers_contract::{ContractError, EthEvent, LogMeta as EthersLogMeta};
 use hyperlane_core::{ChainResult, LogMeta, H512};
-use tracing::warn;
 
-pub async fn fetch_raw_logs_and_log_meta<T: EthEvent, M>(
+pub async fn fetch_raw_logs_and_meta<T: EthEvent, M>(
     tx_hash: H512,
     provider: Arc<M>,
     contract_address: EthersH160,
@@ -23,8 +22,7 @@ where
         .await
         .map_err(|err| ContractError::<M>::MiddlewareError(err))?;
     let Some(receipt) = receipt else {
-        warn!(%tx_hash, "No receipt found for tx hash");
-        return Ok(vec![]);
+        return Err(eyre::eyre!("No receipt found for tx hash {:?}", tx_hash).into());
     };
 
     let logs: Vec<(T, LogMeta)> = receipt

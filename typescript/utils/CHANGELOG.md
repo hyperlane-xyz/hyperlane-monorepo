@@ -1,5 +1,24 @@
 # @hyperlane-xyz/utils
 
+## 5.1.0
+
+## 5.0.0
+
+### Major Changes
+
+- 488f949ef: Upgrade CosmJS libs to 0.32.4
+
+### Minor Changes
+
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+- dfa908796: set the errorMessage argument as required for assert util function
+
+### Patch Changes
+
+- 1474865ae: Replace `configDeepEquals` with improve `deepEquals`
+
+## 4.1.0
+
 ## 4.0.0
 
 ## 3.16.0

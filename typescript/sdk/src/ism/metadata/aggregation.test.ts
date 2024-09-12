@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-imports */
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { existsSync, readFileSync, readdirSync } from 'fs';
@@ -20,7 +21,9 @@ const fixtures: Fixture<AggregationMetadata>[] = files
       encoded,
       decoded: {
         type: IsmType.AGGREGATION,
-        submoduleMetadata: Object.values(values),
+        submoduleMetadata: Object.values(values).map((value) =>
+          value === null || value === 'null' ? null : String(value),
+        ),
       },
     };
   });

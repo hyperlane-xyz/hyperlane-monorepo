@@ -10,6 +10,11 @@ export const PopulatedTransactionSchema = z.object({
   chainId: z.number(),
 });
 
+export const PopulatedTransactionsSchema =
+  PopulatedTransactionSchema.array().refine((txs) => txs.length > 0, {
+    message: 'Populated Transactions cannot be empty',
+  });
+
 export const CallDataSchema = z.object({
   to: ZHash,
   data: z.string(),

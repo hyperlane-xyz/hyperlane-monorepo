@@ -26,7 +26,13 @@ To read more about interchain applications, how the protocol works, and how to i
 
 ## Working on Hyperlane
 
-### Foundry
+### Prerequisites
+
+#### Install `jq`
+
+You need `jq` installed on your machine. You can download it from [official page](https://jqlang.github.io/jq/download/) or use a package manager of your choice.
+
+#### Foundry
 
 First ensure you have Foundry installed on your machine.
 
@@ -44,7 +50,7 @@ foundryup
 
 Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
 
-### Node
+#### Node
 
 This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
 

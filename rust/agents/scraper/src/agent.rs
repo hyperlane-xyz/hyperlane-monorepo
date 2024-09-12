@@ -4,14 +4,12 @@ use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_base::{
-    metrics::AgentMetrics, settings::IndexSettings, BaseAgent, ChainMetrics, ContractSyncMetrics,
-    ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetricsUpdater, SyncOptions,
+    broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
+    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
+    MetricsUpdater, SyncOptions,
 };
 use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
-use tokio::{
-    sync::broadcast::{Receiver, Sender},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
 use crate::{chain_scraper::HyperlaneSqlDb, db::ScraperDb, settings::ScraperSettings};
@@ -43,6 +41,7 @@ impl BaseAgent for Scraper {
     type Settings = ScraperSettings;
 
     async fn from_settings(
+        _agent_metadata: AgentMetadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -155,7 +154,6 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db.clone(),
                 index_settings.clone(),
-                maybe_broadcaster.clone().map(|b| b.subscribe()),
             )
             .await,
         );
@@ -166,7 +164,7 @@ impl Scraper {
                 self.contract_sync_metrics.clone(),
                 db,
                 index_settings.clone(),
-                maybe_broadcaster.map(|b| b.subscribe()),
+                BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_ref()).await,
             )
             .await,
         );
@@ -187,7 +185,10 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         db: HyperlaneSqlDb,
         index_settings: IndexSettings,
-    ) -> (Instrumented<JoinHandle<()>>, Option<Sender<H512>>) {
+    ) -> (
+        Instrumented<JoinHandle<()>>,
+        Option<BroadcastMpscSender<H512>>,
+    ) {
         let sync = self
             .as_ref()
             .settings
@@ -199,7 +200,10 @@ impl Scraper {
             )
             .await
             .unwrap();
-        let cursor = sync.cursor(index_settings.clone()).await;
+        let cursor = sync
+            .cursor(index_settings.clone())
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for domain {domain}: {err}"));
         let maybe_broadcaser = sync.get_broadcaster();
         let task = tokio::spawn(async move { sync.sync("message_dispatch", cursor.into()).await })
             .instrument(
@@ -215,7 +219,6 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         db: HyperlaneSqlDb,
         index_settings: IndexSettings,
-        tx_id_receiver: Option<Receiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
         let sync = self
             .as_ref()
@@ -230,12 +233,14 @@ impl Scraper {
             .unwrap();
 
         let label = "message_delivery";
-        let cursor = sync.cursor(index_settings.clone()).await;
-        tokio::spawn(async move {
-            sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
-                .await
-        })
-        .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
+        let cursor = sync
+            .cursor(index_settings.clone())
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for domain {domain}: {err}"));
+        // there is no txid receiver for delivery indexing, since delivery txs aren't batched with
+        // other types of indexed txs / events
+        tokio::spawn(async move { sync.sync(label, SyncOptions::new(Some(cursor), None)).await })
+            .instrument(info_span!("ChainContractSync", chain=%domain.name(), event=label))
     }
 
     async fn build_interchain_gas_payment_indexer(
@@ -245,7 +250,7 @@ impl Scraper {
         contract_sync_metrics: Arc<ContractSyncMetrics>,
         db: HyperlaneSqlDb,
         index_settings: IndexSettings,
-        tx_id_receiver: Option<Receiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
         let sync = self
             .as_ref()
@@ -260,7 +265,10 @@ impl Scraper {
             .unwrap();
 
         let label = "gas_payment";
-        let cursor = sync.cursor(index_settings.clone()).await;
+        let cursor = sync
+            .cursor(index_settings.clone())
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for domain {domain}: {err}"));
         tokio::spawn(async move {
             sync.sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
                 .await

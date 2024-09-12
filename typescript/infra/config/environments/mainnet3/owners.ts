@@ -4,6 +4,7 @@ import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 import { getMainnetAddresses } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
 export const timelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
@@ -13,16 +14,16 @@ export function localAccountRouters(): ChainMap<Address> {
   const coreAddresses: ChainMap<AddressesMap> = getMainnetAddresses();
   const filteredAddresses = objFilter(
     coreAddresses,
-    (local, addressMap): addressMap is AddressesMap =>
+    (_, addressMap): addressMap is AddressesMap =>
       addressMap.interchainAccountRouter !== undefined,
   );
   return objMap(
     filteredAddresses,
-    (local, addressMap) => addressMap.interchainAccountRouter,
+    (_, addressMap) => addressMap.interchainAccountRouter,
   );
 }
 
-export const safes: ChainMap<Address | undefined> = {
+export const safes: ChainMap<Address> = {
   mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI
   celo: '0x879038d6Fc9F6D5e2BA73188bd078486d77e1156',
   ethereum: '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
@@ -42,24 +43,54 @@ export const safes: ChainMap<Address | undefined> = {
   blast: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   mode: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
+  ancient8: '0xD2BFA0F0654E3f2139b8cDC56c32eeC54D32b133',
+  taiko: '0xa4864301d3fa2a3e68256309F9F0F570270a1BD0',
+  fraxtal: '0x66e9f52800E9F89F0569fddc594Acd5EE609f762',
+  sei: '0xCed197FBc360C26C19889745Cf73511b71D03d5D',
+  redstone: '0xa1a50ff5FD859558E1899fEC5C3064483177FA23',
+  mantle: '0x8aFE6EECc6CcB02aA20DA8Fff7d29aadEBbc2DCd',
+  bob: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
+  zetachain: '0x9d399876522Fc5C044D048594de399A2349d6026',
+  zoramainnet: '0xF87018025575552889062De4b05bBC3DAe35Cd96',
+  fusemainnet: '0x29a526227CB864C90Cf078d03872da913B473139',
+  endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
+  zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
 };
+
+export const icaOwnerChain = 'ethereum';
+
+// Found by running:
+// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+export const icas: Partial<
+  Record<(typeof supportedChainNames)[number], Address>
+> = {
+  viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
+  inevm: '0xFDF9EDcb2243D51f5f317b9CEcA8edD2bEEE036e',
+} as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
-// NOTE: if you wanna use ICA governance, you can do the following:
-// const localRouters = localAccountRouters();
-// owner: {origin: <HUB_CHAIN>, owner: <SAFE_ADDRESS>, localRouter: localRouters[chain]}
-export const owners: ChainMap<OwnableConfig> = Object.fromEntries(
-  ethereumChainNames.map((local) => [
-    local,
-    {
-      owner: safes[local] ?? DEPLOYER,
-      ownerOverrides: {
-        proxyAdmin: timelocks[local] ?? safes[local] ?? DEPLOYER,
-        validatorAnnounce: DEPLOYER, // unused
-        testRecipient: DEPLOYER,
-        fallbackRoutingHook: DEPLOYER,
+export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
+  ethereumChainNames.map((local) => {
+    const owner = icas[local] ?? safes[local] ?? DEPLOYER;
+
+    return [
+      local,
+      {
+        owner,
+        ownerOverrides: {
+          proxyAdmin: timelocks[local] ?? owner,
+          validatorAnnounce: DEPLOYER, // unused
+          testRecipient: DEPLOYER,
+          fallbackRoutingHook: DEPLOYER,
+          // Because of the logic above of setting the owner to the Safe or ICA address,
+          // the checker/governor tooling does not know what type of owner it is.
+          // So we need to keep the Safe and ICA addresses somewhere in the config
+          // to be able to track down which addresses are SAFEs, ICAs, or standard SIGNERS.
+          ...(safes[local] && { _safeAddress: safes[local] }),
+          ...(icas[local] && { _icaAddress: icas[local] }),
+        },
       },
-    },
-  ]),
+    ];
+  }),
 );

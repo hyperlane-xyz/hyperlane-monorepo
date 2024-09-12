@@ -23,6 +23,7 @@ pub struct CcipReadIsmBuilder {}
 #[async_trait]
 impl BuildableWithProvider for CcipReadIsmBuilder {
     type Output = Box<dyn CcipReadIsm>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

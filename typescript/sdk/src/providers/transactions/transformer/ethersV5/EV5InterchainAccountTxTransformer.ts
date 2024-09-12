@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { assert, objKeys, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
@@ -9,7 +9,11 @@ import {
 } from '../../../../middleware/account/InterchainAccount.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { CallData, PopulatedTransaction } from '../../types.js';
+import {
+  CallData,
+  PopulatedTransaction,
+  PopulatedTransactions,
+} from '../../types.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
@@ -35,7 +39,7 @@ export class EV5InterchainAccountTxTransformer
   }
 
   public async transform(
-    ...txs: PopulatedTransaction[]
+    ...txs: PopulatedTransactions
   ): Promise<ethers.PopulatedTransaction[]> {
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
       (
@@ -57,17 +61,17 @@ export class EV5InterchainAccountTxTransformer
     );
 
     const transformedTxs: ethers.PopulatedTransaction[] = [];
-    for (const txChain of objKeys(txChainsToInnerCalls)) {
+    objMap(txChainsToInnerCalls, async (destination, innerCalls) => {
       transformedTxs.push(
         await interchainAccountApp.getCallRemote({
           chain: this.props.chain,
-          destination: txChain,
-          innerCalls: txChainsToInnerCalls[txChain],
+          destination,
+          innerCalls,
           config: this.props.config,
           hookMetadata: this.props.hookMetadata,
         }),
       );
-    }
+    });
 
     return transformedTxs;
   }

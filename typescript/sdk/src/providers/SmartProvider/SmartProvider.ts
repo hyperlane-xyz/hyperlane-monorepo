@@ -1,4 +1,4 @@
-import { BigNumber, providers, utils } from 'ethers';
+import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import pino, { Logger } from 'pino';
 
 import {
@@ -27,6 +27,28 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
+export function getSmartProviderErrorMessage(errorMsg: string): string {
+  return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+}
+
+// This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
+const RPC_SERVER_ERRORS = [
+  EthersError.NETWORK_ERROR,
+  EthersError.NOT_IMPLEMENTED,
+  EthersError.SERVER_ERROR,
+  EthersError.TIMEOUT,
+  EthersError.UNKNOWN_ERROR,
+  EthersError.UNSUPPORTED_OPERATION,
+];
+
+const RPC_BLOCKCHAIN_ERRORS = [
+  EthersError.CALL_EXCEPTION,
+  EthersError.INSUFFICIENT_FUNDS,
+  EthersError.NONCE_EXPIRED,
+  EthersError.REPLACEMENT_UNDERPRICED,
+  EthersError.TRANSACTION_REPLACED,
+  EthersError.UNPREDICTABLE_GAS_LIMIT,
+];
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
@@ -97,7 +119,7 @@ export class HyperlaneSmartProvider
     this.supportedMethods = [...supportedMethods.values()];
   }
 
-  setLogLevel(level: pino.LevelWithSilentOrString) {
+  setLogLevel(level: pino.LevelWithSilentOrString): void {
     this.logger.level = level;
   }
 
@@ -264,26 +286,40 @@ export class HyperlaneSmartProvider
         );
         const result = await Promise.race([resultPromise, timeoutPromise]);
 
+        const providerMetadata = {
+          providerIndex: pIndex,
+          rpcUrl: provider.getBaseUrl(),
+          method: `${method}(${JSON.stringify(params)})`,
+          chainId: this.network.chainId,
+        };
+
         if (result.status === ProviderStatus.Success) {
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.logger.debug(
-            `Slow response from provider #${pIndex}.${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+            { ...providerMetadata },
+            `Slow response from provider:`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultPromises.push(resultPromise);
           pIndex += 1;
         } else if (result.status === ProviderStatus.Error) {
           this.logger.debug(
-            `Error from provider #${pIndex}: ${result.error} - ${
-              !isLastProvider ? ' Triggering next provider.' : ''
-            }`,
+            {
+              error: result.error,
+              ...providerMetadata,
+            },
+            `Error from provider.`,
+            isLastProvider ? '' : 'Triggering next provider.',
           );
           providerResultErrors.push(result.error);
           pIndex += 1;
         } else {
-          throw new Error('Unexpected result from provider');
+          throw new Error(
+            `Unexpected result from provider: ${JSON.stringify(
+              providerMetadata,
+            )}`,
+          );
         }
 
         // All providers already triggered, wait for one to complete or all to fail/timeout
@@ -301,13 +337,15 @@ export class HyperlaneSmartProvider
           return result.value;
         } else if (result.status === ProviderStatus.Timeout) {
           this.throwCombinedProviderErrors(
-            providerResultErrors,
-            `All providers timed out for method ${method}`,
+            [result, ...providerResultErrors],
+            `All providers timed out on chain ${this._network.name} for method ${method}`,
           );
         } else if (result.status === ProviderStatus.Error) {
           this.throwCombinedProviderErrors(
             [result.error, ...providerResultErrors],
-            `All providers failed for method ${method} and params ${JSON.stringify(
+            `All providers failed on chain ${
+              this._network.name
+            } for method ${method} and params ${JSON.stringify(
               params,
               null,
               2,
@@ -321,11 +359,9 @@ export class HyperlaneSmartProvider
       } else {
         this.throwCombinedProviderErrors(
           providerResultErrors,
-          `All providers failed for method ${method} and params ${JSON.stringify(
-            params,
-            null,
-            2,
-          )}`,
+          `All providers failed on chain ${
+            this._network.name
+          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
       }
     }
@@ -391,13 +427,39 @@ export class HyperlaneSmartProvider
   }
 
   protected throwCombinedProviderErrors(
-    errors: unknown[],
+    errors: any[],
     fallbackMsg: string,
   ): void {
-    this.logger.error(fallbackMsg);
-    // TODO inspect the errors in some clever way to choose which to throw
-    if (errors.length > 0) throw errors[0];
-    else throw new Error(fallbackMsg);
+    this.logger.debug(fallbackMsg);
+    if (errors.length === 0) throw new Error(fallbackMsg);
+
+    const rpcServerError = errors.find((e) =>
+      RPC_SERVER_ERRORS.includes(e.code),
+    );
+
+    const timedOutError = errors.find(
+      (e) => e.status === ProviderStatus.Timeout,
+    );
+
+    const rpcBlockchainError = errors.find((e) =>
+      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
+    );
+
+    if (rpcServerError) {
+      throw Error(
+        rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
+          getSmartProviderErrorMessage(rpcServerError.code),
+      );
+    } else if (timedOutError) {
+      throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
+    } else if (rpcBlockchainError) {
+      throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code);
+    } else {
+      this.logger.error(
+        'Unhandled error case in combined provider error handler',
+      );
+      throw Error(fallbackMsg);
+    }
   }
 }
 

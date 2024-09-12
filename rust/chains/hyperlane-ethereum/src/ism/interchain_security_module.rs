@@ -27,6 +27,7 @@ pub struct InterchainSecurityModuleBuilder {}
 #[async_trait]
 impl BuildableWithProvider for InterchainSecurityModuleBuilder {
     type Output = Box<dyn InterchainSecurityModule>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

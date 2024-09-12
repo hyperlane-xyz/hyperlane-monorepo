@@ -58,7 +58,7 @@ abstract contract AbstractMessageIdAuthHook is
     }
 
     /// @inheritdoc IPostDispatchHook
-    function hookType() external pure returns (uint8) {
+    function hookType() external pure virtual returns (uint8) {
         return uint8(IPostDispatchHook.Types.ID_AUTH_ISM);
     }
 

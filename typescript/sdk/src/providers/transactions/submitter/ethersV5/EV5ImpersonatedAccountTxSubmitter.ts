@@ -1,5 +1,4 @@
 import { TransactionReceipt } from '@ethersproject/providers';
-import { PopulatedTransaction } from 'ethers';
 import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -9,6 +8,7 @@ import {
   stopImpersonatingAccount,
 } from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
+import { PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5JsonRpcTxSubmitter } from './EV5JsonRpcTxSubmitter.js';
@@ -30,7 +30,7 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   }
 
   public async submit(
-    ...txs: PopulatedTransaction[]
+    ...txs: PopulatedTransactions
   ): Promise<TransactionReceipt[]> {
     const impersonatedAccount = await impersonateAccount(
       this.props.userAddress,

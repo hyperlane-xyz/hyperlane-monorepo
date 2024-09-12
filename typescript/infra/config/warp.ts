@@ -1,73 +1,79 @@
-import { ethers } from 'ethers';
-
 import {
   ChainMap,
-  HyperlaneIsmFactory,
   MultiProvider,
+  RouterConfig,
   TokenRouterConfig,
-  TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { Modules, getAddresses } from '../scripts/agent-utils.js';
 import { getHyperlaneCore } from '../scripts/core-utils.js';
 import { EnvironmentConfig } from '../src/config/environment.js';
-import { tokens } from '../src/config/warp.js';
 
-import { DEPLOYER } from './environments/mainnet3/owners.js';
+import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
+import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
+import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
+import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
+import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
+import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
+import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
+import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConifg.js';
+
+export enum WarpRouteIds {
+  Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
+  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismZircuitEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-zircuit',
+  ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
+  ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
+  EthereumInevmUSDC = 'USDC/ethereum-inevm',
+  EthereumInevmUSDT = 'USDT/ethereum-inevm',
+  EthereumVictionETH = 'ETH/ethereum-viction',
+  EthereumVictionUSDC = 'USDC/ethereum-viction',
+  EthereumVictionUSDT = 'USDT/ethereum-viction',
+  InevmInjectiveINJ = 'INJ/inevm-injective',
+  MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
+}
+
+type WarpConfigGetterWithConfig = (
+  routerConfig: ChainMap<RouterConfig>,
+) => Promise<ChainMap<TokenRouterConfig>>;
+
+type WarpConfigGetterWithoutConfig = () => Promise<ChainMap<TokenRouterConfig>>;
+
+export const warpConfigGetterMap: Record<
+  string,
+  WarpConfigGetterWithConfig | WarpConfigGetterWithoutConfig
+> = {
+  [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
+  [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
+  [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
+  [WarpRouteIds.ArbitrumNeutronEclip]: getArbitrumNeutronEclipWarpConfig,
+  [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
+  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismZircuitEZETH]:
+    getRenzoEZETHWarpConfig,
+  [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
+  [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
+  [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
+  [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
+  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
+};
 
 export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
+  warpRouteId: string,
 ): Promise<ChainMap<TokenRouterConfig>> {
   const { core } = await getHyperlaneCore(envConfig.environment, multiProvider);
-  const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
-    multiProvider,
-  );
-
-  const owner = DEPLOYER;
-
-  // "Manually" deploying an ISM because the warp deployer doesn't support
-  // ISM objects at the moment, and the deploy involves strictly recoverable ISMs.
-  const ism = await ismFactory.deploy({
-    destination: 'ethereum',
-    config: buildAggregationIsmConfigs(
-      'ethereum',
-      ['ancient8'],
-      defaultMultisigConfigs,
-    ).ancient8,
-  });
-
   const routerConfig = core.getRouterConfig(envConfig.owners);
 
-  const ethereum: TokenRouterConfig = {
-    ...routerConfig.ethereum,
-    type: TokenType.collateral,
-    token: tokens.ethereum.USDC,
-    interchainSecurityModule: ism.address,
-    // This hook was recovered from running the deploy script
-    // for the hook module. The hook configuration is the Ethereum
-    // default hook for the Ancient8 remote (no routing).
-    hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
-    owner,
-  };
+  const warpConfigGetter = warpConfigGetterMap[warpRouteId];
+  if (!warpConfigGetter) {
+    throw new Error(`Unknown warp route: ${warpRouteId}`);
+  }
 
-  // @ts-ignore - The types as they stand require a synthetic to specify
-  // TokenMetadata, but in practice these are actually inferred from a
-  // collateral config. To avoid needing to specify the TokenMetadata, just
-  // ts-ignore for synthetic tokens.
-  const ancient8: TokenRouterConfig = {
-    ...routerConfig.ancient8,
-    type: TokenType.synthetic,
-    // Uses the default ISM
-    interchainSecurityModule: ethers.constants.AddressZero,
-    owner,
-  };
-
-  return {
-    ethereum,
-    ancient8,
-  };
+  if (warpConfigGetter.length === 1) {
+    return warpConfigGetter(routerConfig);
+  } else {
+    return (warpConfigGetter as WarpConfigGetterWithoutConfig)();
+  }
 }

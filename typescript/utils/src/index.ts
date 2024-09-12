@@ -111,8 +111,6 @@ export {
   pick,
   promiseObjAll,
   stringifyObject,
-  normalizeConfig,
-  configDeepEquals,
 } from './objects.js';
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {

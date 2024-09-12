@@ -1,6 +1,10 @@
 import { utils } from 'ethers';
 
-import { Ownable, TimelockController__factory } from '@hyperlane-xyz/core';
+import {
+  Ownable,
+  ProxyAdmin__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -75,29 +79,64 @@ export abstract class HyperlaneAppChecker<
     this.violations.push(violation);
   }
 
-  async checkProxiedContracts(chain: ChainName): Promise<void> {
-    const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
-    if (!expectedAdmin) {
-      throw new Error(
-        `Checking proxied contracts for ${chain} with no admin provided`,
-      );
-    }
+  async checkProxiedContracts(
+    chain: ChainName,
+    owner: Address,
+    ownableOverrides?: Record<string, Address>,
+  ): Promise<void> {
+    // expectedProxyAdminAddress may be undefined, this means that proxyAdmin is not set in the config/not known at deployment time
+    const expectedProxyAdminAddress =
+      this.app.getContracts(chain).proxyAdmin?.address;
     const provider = this.multiProvider.getProvider(chain);
-    const contracts = this.app.getContracts(chain);
 
+    const contracts = this.app.getContracts(chain);
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
-          // Check the ProxiedContract's admin matches expectation
-          const actualAdmin = await proxyAdmin(provider, contract.address);
-          if (!eqAddress(actualAdmin, expectedAdmin)) {
-            this.addViolation({
-              type: ViolationType.ProxyAdmin,
-              chain,
-              name,
-              expected: expectedAdmin,
-              actual: actualAdmin,
-            } as ProxyAdminViolation);
+          const actualProxyAdminAddress = await proxyAdmin(
+            provider,
+            contract.address,
+          );
+
+          if (expectedProxyAdminAddress) {
+            // config defines an expected ProxyAdmin address, we therefore check if the actual ProxyAdmin address matches the expected one
+            if (
+              !eqAddress(actualProxyAdminAddress, expectedProxyAdminAddress)
+            ) {
+              this.addViolation({
+                type: ViolationType.ProxyAdmin,
+                chain,
+                name,
+                expected: expectedProxyAdminAddress,
+                actual: actualProxyAdminAddress,
+                proxyAddress: contract.address,
+              } as ProxyAdminViolation);
+            }
+          } else {
+            // config does not define an expected ProxyAdmin address, this means that checkOwnership will not be able to check the ownership of the ProxyAdmin contract
+            // as it is not explicitly defined in the config. We therefore check the ownership of the ProxyAdmin contract here.
+            const actualProxyAdminContract = ProxyAdmin__factory.connect(
+              actualProxyAdminAddress,
+              provider,
+            );
+            const actualProxyAdminOwner =
+              await actualProxyAdminContract.owner();
+            const expectedOwner = this.getOwner(
+              actualProxyAdminOwner,
+              'proxyAdmin',
+              ownableOverrides,
+            );
+            if (!eqAddress(actualProxyAdminOwner, expectedOwner)) {
+              const violation: OwnerViolation = {
+                chain,
+                name: 'proxyAdmin',
+                type: ViolationType.Owner,
+                actual: actualProxyAdminOwner,
+                expected: expectedOwner,
+                contract,
+              };
+              this.addViolation(violation);
+            }
           }
         }
       }),
@@ -163,6 +202,14 @@ export abstract class HyperlaneAppChecker<
     return bytecode.substring(0, bytecode.length - 90);
   }
 
+  private getOwner(
+    owner: Address,
+    contractName: string,
+    ownableOverrides?: Record<string, Address>,
+  ): Address {
+    return ownableOverrides?.[contractName] ?? owner;
+  }
+
   // This method checks whether the bytecode of a contract matches the expected bytecode. It forces the deployer to explicitly acknowledge a change in bytecode. The violations can be remediated by updating the expected bytecode hash.
   async checkBytecode(
     chain: ChainName,
@@ -211,7 +258,7 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
-      const expectedOwner = ownableOverrides?.[name] ?? owner;
+      const expectedOwner = this.getOwner(owner, name, ownableOverrides);
       const actual = await contract.owner();
       if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {

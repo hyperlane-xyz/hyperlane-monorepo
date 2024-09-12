@@ -9,18 +9,24 @@ RUN apt-get update && \
     apt-get install -y musl-tools clang && \
     rustup target add x86_64-unknown-linux-musl
 
-# Add workspace to workdir 
-COPY agents ./agents
-COPY chains ./chains
-COPY hyperlane-base ./hyperlane-base 
-COPY hyperlane-core ./hyperlane-core
-COPY hyperlane-test ./hyperlane-test
-COPY ethers-prometheus ./ethers-prometheus
-COPY utils ./utils
-COPY sealevel ./sealevel
+RUN mkdir rust
 
-COPY Cargo.toml .
-COPY Cargo.lock .
+# Add workspace to workdir
+COPY rust/agents rust/agents
+COPY rust/chains rust/chains
+COPY rust/hyperlane-base rust/hyperlane-base
+COPY rust/hyperlane-core rust/hyperlane-core
+COPY rust/hyperlane-test rust/hyperlane-test
+COPY rust/ethers-prometheus rust/ethers-prometheus
+COPY rust/utils rust/utils
+COPY rust/sealevel rust/sealevel
+
+COPY rust/Cargo.toml rust/.
+COPY rust/Cargo.lock rust/.
+
+COPY .git .git
+
+WORKDIR /usr/src/rust
 
 # Build binaries
 RUN \
@@ -29,9 +35,9 @@ RUN \
   --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
     RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
-    cp /usr/src/target/release/validator /release && \
-    cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/scraper /release
+    cp /usr/src/rust/target/release/validator /release && \
+    cp /usr/src/rust/target/release/relayer /release && \
+    cp /usr/src/rust/target/release/scraper /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:22.04
@@ -43,7 +49,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY config ./config
+COPY rust/config ./config
 COPY --from=builder /release/* .
 
 RUN chmod 777 /app &&  \

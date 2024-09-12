@@ -2,7 +2,6 @@ import {
   AgentChainMetadata,
   AgentSignerAwsKey,
   AgentSignerKeyType,
-  ChainMap,
   ChainName,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -220,12 +219,15 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
   }
 }
 
-export type AgentChainConfig = Record<AgentRole, ChainMap<boolean>>;
+export type AgentChainConfig<SupportedChains extends readonly ChainName[]> =
+  Record<AgentRole, Record<SupportedChains[number], boolean>>;
 
 /// Converts an AgentChainConfig to an AgentChainNames object.
-export function getAgentChainNamesFromConfig(
-  config: AgentChainConfig,
-  supportedChainNames: ChainName[],
+export function getAgentChainNamesFromConfig<
+  SupportedChains extends readonly ChainName[],
+>(
+  config: AgentChainConfig<SupportedChains>,
+  supportedChainNames: SupportedChains,
 ): AgentChainNames {
   ensureAgentChainConfigIncludesAllChainNames(config, supportedChainNames);
 
@@ -237,9 +239,11 @@ export function getAgentChainNamesFromConfig(
 }
 
 // Throws if any of the roles in the config do not have all the expected chain names.
-export function ensureAgentChainConfigIncludesAllChainNames(
-  config: AgentChainConfig,
-  expectedChainNames: ChainName[],
+export function ensureAgentChainConfigIncludesAllChainNames<
+  SupportedChains extends readonly ChainName[],
+>(
+  config: AgentChainConfig<SupportedChains>,
+  expectedChainNames: SupportedChains,
 ) {
   for (const [role, roleConfig] of Object.entries(config)) {
     const chainNames = Object.keys(roleConfig);

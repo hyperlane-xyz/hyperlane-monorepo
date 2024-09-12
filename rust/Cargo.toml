@@ -80,6 +80,7 @@ curve25519-dalek = { version = "~3.2", features = ["serde"] }
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"
+dhat = "0.3.3"
 ed25519-dalek = "~1.0"
 eyre = "=0.6.8"
 fixed-hash = "0.8.0"
@@ -172,7 +173,7 @@ tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"] }
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
-tokio = { version = "1", features = ["parking_lot", "tracing"] }
+tokio = { version = "1.37", features = ["parking_lot", "tracing"] }
 tokio-metrics = { version = "0.3.1", default-features = false }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
@@ -182,16 +183,84 @@ tracing-error = "0.2"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", default-features = false }
 tracing-test = "0.2.2"
+typetag = "0.2"
 uint = "0.9.5"
 ureq = { version = "2.4", default-features = false }
 url = "2.3"
 walkdir = "2"
 warp = "0.3"
 which = "4.3"
-ya-gcp = { version = "0.11.1", features = ["storage"] }
+ya-gcp = { version = "0.11.3", features = ["storage"] }
 
 ## TODO: remove this
 cosmwasm-schema = "1.2.7"
+
+[profile.release.package.access-control]
+overflow-checks = true
+
+[profile.release.package.account-utils]
+overflow-checks = true
+
+[profile.release.package.ecdsa-signature]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-connection-client]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token-lib]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-interchain-security-module-interface]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-message-recipient-interface]
+overflow-checks = true
+
+[profile.release.package.multisig-ism]
+overflow-checks = true
+
+[profile.release.package.serializable-account-meta]
+overflow-checks = true
+
+[profile.release.package.hyperlane-test-transaction-utils]
+overflow-checks = true
+
+[profile.release.package.hyperlane-test-utils]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-mailbox]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-igp]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-igp-test]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token-collateral]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-token-native]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-multisig-ism-message-id]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-test-ism]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-mailbox-test]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-test-send-receiver]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-validator-announce]
+overflow-checks = true
+
 
 [workspace.dependencies.ethers]
 features = []

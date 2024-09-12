@@ -1,10 +1,11 @@
-import { confirm, input } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMetadata,
   ChainMetadataSchema,
+  ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -80,6 +81,11 @@ export async function createChainConfig({
     10,
   );
 
+  const isTestnet = await confirm({
+    message:
+      'Is this chain a testnet (a chain used for testing & development)?',
+  });
+
   const metadata: ChainMetadata = {
     name,
     displayName,
@@ -87,7 +93,10 @@ export async function createChainConfig({
     domainId: chainId,
     protocol: ProtocolType.Ethereum,
     rpcUrls: [{ http: rpcUrl }],
+    isTestnet,
   };
+
+  await addBlockExplorerConfig(metadata);
 
   await addBlockOrGasConfig(metadata);
 
@@ -95,8 +104,11 @@ export async function createChainConfig({
 
   const parseResult = ChainMetadataSchema.safeParse(metadata);
   if (parseResult.success) {
-    logGreen(`Chain config is valid, writing to registry:`);
-    const metadataYaml = yamlStringify(metadata, null, 2);
+    logGreen(`Chain config is valid, writing unsorted to registry:`);
+    const metadataYaml = yamlStringify(metadata, {
+      indent: 2,
+      sortMapEntries: true,
+    });
     log(indentYamlOrJson(metadataYaml, 4));
     await context.registry.updateChain({ chainName: metadata.name, metadata });
   } else {
@@ -105,6 +117,42 @@ export async function createChainConfig({
     );
     errorRed(JSON.stringify(parseResult.error.errors));
     throw new Error('Invalid chain config');
+  }
+}
+
+async function addBlockExplorerConfig(metadata: ChainMetadata): Promise<void> {
+  const wantBlockExplorerConfig = await confirm({
+    default: false,
+    message: 'Do you want to add a block explorer config for this chain',
+  });
+  if (wantBlockExplorerConfig) {
+    const name = await input({
+      message: 'Enter a human readable name for the explorer:',
+    });
+    const url = await input({
+      message: 'Enter the base URL for the explorer:',
+    });
+    const apiUrl = await input({
+      message: 'Enter the base URL for requests to the explorer API:',
+    });
+    const family = (await select({
+      message: 'Select the type (family) of block explorer:',
+      choices: Object.entries(ExplorerFamily).map(([_, value]) => ({ value })),
+      pageSize: 10,
+    })) as ExplorerFamily;
+    const apiKey =
+      (await input({
+        message:
+          "Optional: Provide an API key for the explorer, or press 'enter' to skip. Please be sure to remove this field if you intend to add your config to the Hyperlane registry:",
+      })) ?? undefined;
+    metadata.blockExplorers = [];
+    metadata.blockExplorers[0] = {
+      name,
+      url,
+      apiUrl,
+      family,
+    };
+    if (apiKey) metadata.blockExplorers[0].apiKey = apiKey;
   }
 }
 

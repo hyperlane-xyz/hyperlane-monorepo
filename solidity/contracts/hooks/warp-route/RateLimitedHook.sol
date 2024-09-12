@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
+
 import {MailboxClient} from "contracts/client/MailboxClient.sol";
 import {IPostDispatchHook} from "contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {Message} from "contracts/libs/Message.sol";
@@ -26,7 +27,7 @@ contract RateLimitedHook is IPostDispatchHook, MailboxClient, RateLimited {
 
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure returns (uint8) {
-        return uint8(IPostDispatchHook.Types.Rate_Limited_Hook);
+        return uint8(IPostDispatchHook.Types.RATE_LIMITED);
     }
 
     /// @inheritdoc IPostDispatchHook

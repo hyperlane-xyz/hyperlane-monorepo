@@ -4,8 +4,7 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { FallbackDomainRoutingHook__factory } from '@hyperlane-xyz/core';
-import { Address, eqAddress, normalizeConfig } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -14,6 +13,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../test/testUtils.js';
+import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
@@ -37,19 +37,27 @@ const randomMultisigIsmConfig = (m: number, n: number): MultisigIsmConfig => {
   };
 };
 
+const ModuleTypes = [
+  ModuleType.AGGREGATION,
+  ModuleType.MERKLE_ROOT_MULTISIG,
+  ModuleType.ROUTING,
+  ModuleType.NULL,
+];
+
+const NonNestedModuleTypes = [ModuleType.MERKLE_ROOT_MULTISIG, ModuleType.NULL];
+
 function randomModuleType(): ModuleType {
-  const choices = [
-    ModuleType.AGGREGATION,
-    ModuleType.MERKLE_ROOT_MULTISIG,
-    ModuleType.ROUTING,
-    ModuleType.NULL,
-  ];
-  return choices[randomInt(choices.length)];
+  return ModuleTypes[randomInt(ModuleTypes.length)];
 }
 
-const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
+function randomNonNestedModuleType(): ModuleType {
+  return NonNestedModuleTypes[randomInt(NonNestedModuleTypes.length)];
+}
+
+const randomIsmConfig = (depth = 0, maxDepth = 2) => {
   const moduleType =
-    depth == maxDepth ? ModuleType.MERKLE_ROOT_MULTISIG : randomModuleType();
+    depth === maxDepth ? randomNonNestedModuleType() : randomModuleType();
+
   switch (moduleType) {
     case ModuleType.MERKLE_ROOT_MULTISIG: {
       const n = randomInt(5, 1);
@@ -66,10 +74,21 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): IsmConfig => {
       return config;
     }
     case ModuleType.AGGREGATION: {
-      const n = randomInt(5, 1);
-      const modules = new Array<number>(n)
-        .fill(0)
-        .map(() => randomIsmConfig(depth + 1));
+      const n = randomInt(2, 1);
+      const moduleTypes = new Set();
+      const modules = new Array<number>(n).fill(0).map(() => {
+        let moduleConfig;
+        let moduleType;
+
+        // Ensure that we do not add the same module type more than once per level
+        do {
+          moduleConfig = randomIsmConfig(depth + 1, maxDepth);
+          moduleType = moduleConfig.type;
+        } while (moduleTypes.has(moduleType));
+
+        moduleTypes.add(moduleType);
+        return moduleConfig;
+      });
       const config: AggregationIsmConfig = {
         type: IsmType.AGGREGATION,
         threshold: randomInt(n, 1),
@@ -93,14 +112,13 @@ describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address;
-  let newMailboxAddress: Address;
   let fundingAccount: Signer;
 
   const chain = TestChainName.test4;
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
-  beforeEach(async () => {
+  before(async () => {
     const [signer, funder] = await hre.ethers.getSigners();
     fundingAccount = funder;
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -127,16 +145,17 @@ describe('EvmIsmModule', async () => {
     mailboxAddress = (
       await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
     ).getContracts(chain).mailbox.address;
+  });
 
-    // new mailbox
-    newMailboxAddress = (
-      await new TestCoreDeployer(multiProvider, legacyIsmFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
+  beforeEach(async () => {
+    // Reset the MultiProvider for each test
+    const [signer] = await hre.ethers.getSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     // example routing config
     exampleRoutingConfig = {
       type: IsmType.ROUTING,
-      owner: await multiProvider.getSignerAddress(chain),
+      owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
       domains: Object.fromEntries(
         testChains
           .filter((c) => c !== TestChainName.test4)
@@ -177,8 +196,10 @@ describe('EvmIsmModule', async () => {
 
   // expect that the ISM matches the config after all tests
   afterEach(async () => {
-    const normalizedDerivedConfig = normalizeConfig(await testIsm.read());
+    const derivedConfiig = await testIsm.read();
+    const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
     const normalizedConfig = normalizeConfig(testConfig);
+
     assert.deepStrictEqual(normalizedDerivedConfig, normalizedConfig);
   });
 
@@ -242,15 +263,17 @@ describe('EvmIsmModule', async () => {
         // create a new ISM
         const { ism } = await createIsm(exampleRoutingConfig);
 
-        // add config for a domain the multiprovider doesn't have
-        exampleRoutingConfig.domains['test5'] = {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          threshold: 1,
-          validators: [randomAddress()],
+        // create an updated config with a domain the multiprovider doesn't have
+        const updatedRoutingConfig: IsmConfig = {
+          ...exampleRoutingConfig,
+          domains: {
+            ...exampleRoutingConfig.domains,
+            test5: randomMultisigIsmConfig(3, 5),
+          },
         };
 
         // expect 0 txs, as adding test5 domain is no-op
-        await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
+        await expectTxsAndUpdate(ism, updatedRoutingConfig, 0);
       });
 
       it(`update route in an existing ${type}`, async () => {
@@ -312,7 +335,6 @@ describe('EvmIsmModule', async () => {
         const numDomainsAfter = Object.keys(
           ((await ism.read()) as RoutingIsmConfig).domains,
         ).length;
-        console.log(numDomainsBefore, numDomainsAfter);
         expect(numDomainsBefore - 1).to.equal(numDomainsAfter);
       });
 
@@ -341,6 +363,74 @@ describe('EvmIsmModule', async () => {
 
         // expect 0 updates
         await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
+
+        // expect the ISM address to be the same
+        expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+          .true;
+      });
+
+      it(`reordering validators in an existing ${type} should not trigger a redeployment`, async () => {
+        // create a new ISM
+        const routerConfig = {
+          type: IsmType.ROUTING,
+          owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+          domains: {
+            test1: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+              ],
+              threshold: 2,
+            },
+            test2: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+              ],
+              threshold: 2,
+            },
+          },
+        };
+
+        const { ism, initialIsmAddress } = await createIsm(
+          routerConfig as RoutingIsmConfig,
+        );
+
+        const updatedRouterConfig = {
+          type: IsmType.ROUTING,
+          owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+          domains: {
+            test1: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              ],
+              threshold: 2,
+            },
+            test2: {
+              type: IsmType.MERKLE_ROOT_MULTISIG,
+              validators: [
+                '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              ],
+              threshold: 2,
+            },
+          },
+        };
+
+        // expect 0 updates
+        await expectTxsAndUpdate(
+          ism,
+          updatedRouterConfig as RoutingIsmConfig,
+          0,
+        );
 
         // expect the ISM address to be the same
         expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
@@ -406,31 +496,128 @@ describe('EvmIsmModule', async () => {
         expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
           .true;
       });
+
+      it(`update threshold in an existing ${type} with Module creating using constructor`, async () => {
+        // create a an initial ISM
+        const { initialIsmAddress } = await createIsm(exampleRoutingConfig);
+
+        // update the threshold for a domain
+        (
+          exampleRoutingConfig.domains[TestChainName.test2] as MultisigIsmConfig
+        ).threshold = 2;
+
+        // create a new IsmModule using it's constructor. Set it's deployedIsm address to the initialIsmAddr
+        const ism = new EvmIsmModule(multiProvider, {
+          chain,
+          config: exampleRoutingConfig,
+          addresses: {
+            ...factoryAddresses,
+            mailbox: mailboxAddress,
+            deployedIsm: initialIsmAddress,
+          },
+        });
+
+        // expect 1 tx to update threshold for test2 domain
+        await expectTxsAndUpdate(ism, exampleRoutingConfig, 1);
+
+        // expect the ISM address to be the same
+        expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+          .true;
+      });
     }
 
-    it(`redeploy same config if the mailbox address changes for defaultFallbackRoutingIsm`, async () => {
-      exampleRoutingConfig.type = IsmType.FALLBACK_ROUTING;
-
+    it(`reordering modules in an existing staticAggregationIsm should not trigger a redeployment`, async () => {
       // create a new ISM
-      const { ism, initialIsmAddress } = await createIsm(exampleRoutingConfig);
+      const config: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+              '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+            ],
+            threshold: 2,
+          },
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                ],
+                threshold: 2,
+              },
+              test2: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+        ],
+        threshold: 2,
+      };
 
-      // point to new mailbox
-      ism.setNewMailbox(newMailboxAddress);
-
-      // expect a new ISM to be deployed, so no in-place updates to return
-      await expectTxsAndUpdate(ism, exampleRoutingConfig, 0);
-
-      // expect the ISM address to be different
-      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
-        .false;
-
-      // expect that the ISM is configured with the new mailbox
-      const onchainIsm = FallbackDomainRoutingHook__factory.connect(
-        ism.serialize().deployedIsm,
-        multiProvider.getSigner(chain),
+      const { ism, initialIsmAddress } = await createIsm(
+        config as AggregationIsmConfig,
       );
-      const onchainMailbox = await onchainIsm['mailbox()']();
-      expect(eqAddress(onchainMailbox, newMailboxAddress)).to.be.true;
+
+      const updatedConfig: AggregationIsmConfig = {
+        type: IsmType.AGGREGATION,
+        modules: [
+          {
+            type: IsmType.ROUTING,
+            owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
+            domains: {
+              test2: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                ],
+                threshold: 2,
+              },
+              test1: {
+                type: IsmType.MERKLE_ROOT_MULTISIG,
+                validators: [
+                  '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+                  '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+                  '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+                ],
+                threshold: 2,
+              },
+            },
+          },
+          {
+            type: IsmType.MERKLE_ROOT_MULTISIG,
+            validators: [
+              '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+              '0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2',
+              '0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db',
+            ],
+            threshold: 2,
+          },
+        ],
+        threshold: 2,
+      };
+
+      // expect 0 updates
+      await expectTxsAndUpdate(ism, updatedConfig, 0);
+
+      // expect the ISM address to be the same
+      expect(eqAddress(initialIsmAddress, ism.serialize().deployedIsm)).to.be
+        .true;
     });
   });
 });

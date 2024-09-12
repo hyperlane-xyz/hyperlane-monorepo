@@ -302,7 +302,10 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
     metadata.signatures.forEach((signature) => {
       const encodedSignature = joinSignature(signature);
-      assert(fromHexString(encodedSignature).byteLength === SIGNATURE_LENGTH);
+      assert(
+        fromHexString(encodedSignature).byteLength === SIGNATURE_LENGTH,
+        'Invalid signature length',
+      );
       encoded += strip0x(encodedSignature);
     });
 

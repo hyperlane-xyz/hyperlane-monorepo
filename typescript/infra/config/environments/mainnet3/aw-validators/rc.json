@@ -40,6 +40,18 @@
       "0xd796c1d4fcfb3c63acfa6e4113aa6ae1399b337c"
     ]
   },
+  "cheesechain": {
+    "validators": ["0xa481835355309ed46540c742a1c04b58380aa7b4"]
+  },
+  "cyber": {
+    "validators": ["0x84976d5012da6b180462742f2edfae2f9d740c82"]
+  },
+  "degenchain": {
+    "validators": ["0xac3734bb61e7ddda947b718b930c4067f0ccde7e"]
+  },
+  "eclipsemainnet": {
+    "validators": ["0xd188fbe099e2db077f4ebc1bf39bb22798500bfb"]
+  },
   "ethereum": {
     "validators": [
       "0x0580884289890805802012b9872afa5ae41a5fa6",
@@ -64,8 +76,17 @@
       "0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee"
     ]
   },
+  "kroma": {
+    "validators": ["0x9b3142f04dd67585c9287f1aee42ff9754a955d3"]
+  },
   "linea": {
     "validators": ["0xad4886b6f5f5088c7ae53b69d1ff5cfc2a17bec4"]
+  },
+  "lisk": {
+    "validators": ["0xa38e875985174ed2db358a2dea143e9df825880e"]
+  },
+  "lukso": {
+    "validators": ["0x0815a98af4285d82a65d4c006a8f100ea58f80cb"]
   },
   "mantapacific": {
     "validators": [
@@ -73,6 +94,15 @@
       "0x45f3e2655a08feda821ee7b495cf2595401e1569",
       "0x4cfccfd66dbb702b643b56f6986a928ed1b50c7e"
     ]
+  },
+  "merlin": {
+    "validators": ["0x93b08ce35b7676270b4aefda5e01c668cc61cb5c"]
+  },
+  "metis": {
+    "validators": ["0xa01a62b1a6663e888399788ff15e784b5d223661"]
+  },
+  "mint": {
+    "validators": ["0xbd8808980b59459cea0435d1d0c72a05e7660ff3"]
   },
   "mode": {
     "validators": ["0x2f04ed30b1c27ef8e9e6acd360728d9bd5c3a9e2"]
@@ -112,8 +142,17 @@
       "0x1cd73544c000fd519784f56e59bc380a5fef53d6"
     ]
   },
+  "proofofplay": {
+    "validators": ["0xc18b802596b5d939c35c8e58afa5ef0872d3f792"]
+  },
+  "real": {
+    "validators": ["0x005c82fe794ef230153d22584f295d43dfc89438"]
+  },
   "redstone": {
     "validators": ["0x51ed7127c0afc0513a0f141e910c5e02b2a9a4b5"]
+  },
+  "sanko": {
+    "validators": ["0xe12dcb5cab4a2979ac46c045fe7da3c93cf62808"]
   },
   "scroll": {
     "validators": [
@@ -125,12 +164,27 @@
   "sei": {
     "validators": ["0x846e48a7e85e5403cc690a347e1ad3c3dca11b6e"]
   },
+  "solanamainnet": {
+    "validators": ["0xca84b665ab3fed784baf120909c54497c14c93c8"]
+  },
+  "tangle": {
+    "validators": ["0xd778d113975b2fe45eda424bf93c28f32a90b076"]
+  },
   "viction": {
     "validators": [
       "0xe858971cd865b11d3e8fb6b6af72db0d85881baf",
       "0xad94659e2383214e4a1c4e8d3c17caffb75bc31b",
       "0x0f9e5775ac4d3b73dd28e5a3f8394443186cb70c"
     ]
+  },
+  "worldchain": {
+    "validators": ["0x385a2452930a0681d3ea4e40fb7722095142afcc"]
+  },
+  "xai": {
+    "validators": ["0x5c38bb0d73220755b5884978c9e7602552c30929"]
+  },
+  "xlayer": {
+    "validators": ["0xa68e98cb98190485847581c8004b40ee81cbc723"]
   },
   "zetachain": {
     "validators": ["0xa13d146b47242671466e4041f5fe68d22a2ffe09"]

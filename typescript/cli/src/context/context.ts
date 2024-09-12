@@ -1,3 +1,4 @@
+import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
@@ -6,13 +7,19 @@ import {
   MergedRegistry,
 } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainMetadata,
+  ChainName,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
 import {
@@ -162,4 +169,36 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
+}
+
+export async function getOrRequestApiKeys(
+  chains: ChainName[],
+  chainMetadata: ChainMap<ChainMetadata>,
+): Promise<ChainMap<string>> {
+  const apiKeys: ChainMap<string> = {};
+
+  for (const chain of chains) {
+    const wantApiKey = await confirm({
+      default: false,
+      message: `Do you want to use an API key to verify on this (${chain}) chain's block explorer`,
+    });
+    if (wantApiKey) {
+      apiKeys[chain] = await detectAndConfirmOrPrompt(
+        async () => {
+          const blockExplorers = chainMetadata[chain].blockExplorers;
+          if (!(blockExplorers && blockExplorers.length > 0)) return;
+          for (const blockExplorer of blockExplorers) {
+            /* The current apiKeys mapping only accepts one key, even if there are multiple explorer options present. */
+            if (blockExplorer.apiKey) return blockExplorer.apiKey;
+          }
+          return undefined;
+        },
+        `Enter an API key for the ${chain} explorer`,
+        `${chain} api key`,
+        `${chain} metadata blockExplorers config`,
+      );
+    }
+  }
+
+  return apiKeys;
 }

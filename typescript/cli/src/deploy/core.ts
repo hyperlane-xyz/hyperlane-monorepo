@@ -1,10 +1,20 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { ChainName, CoreConfig, EvmCoreModule } from '@hyperlane-xyz/sdk';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  ContractVerifier,
+  CoreConfig,
+  EvmCoreModule,
+  ExplorerLicenseType,
+} from '@hyperlane-xyz/sdk';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
+import { getOrRequestApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGreen } from '../logger.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
@@ -20,18 +30,17 @@ interface DeployParams {
   chain: ChainName;
   config: CoreConfig;
 }
+
+interface ApplyParams extends DeployParams {
+  deployedCoreAddresses: DeployedCoreAddresses;
+}
 /**
  * Executes the core deploy command.
  */
-export async function runCoreDeploy({
-  context,
-  chain,
-  config,
-}: {
-  context: WriteCommandContext;
-  chain: ChainName;
-  config: CoreConfig;
-}) {
+export async function runCoreDeploy(params: DeployParams) {
+  const { context, config } = params;
+  let chain = params.chain;
+
   const {
     signer,
     isDryRun,
@@ -39,6 +48,7 @@ export async function runCoreDeploy({
     dryRunChain,
     registry,
     skipConfirmation,
+    multiProvider,
   } = context;
 
   // Select a dry-run chain if it's not supplied
@@ -51,6 +61,11 @@ export async function runCoreDeploy({
       'Select chain to connect:',
     );
   }
+
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await getOrRequestApiKeys([chain], chainMetadata);
+
   const deploymentParams: DeployParams = {
     context,
     chain,
@@ -68,11 +83,19 @@ export async function runCoreDeploy({
 
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);
 
-  logBlue('All systems ready, captain! Beginning deployment...');
+  const contractVerifier = new ContractVerifier(
+    multiProvider,
+    apiKeys,
+    coreBuildArtifact,
+    ExplorerLicenseType.MIT,
+  );
+
+  logBlue('🚀 All systems ready, captain! Beginning deployment...');
   const evmCoreModule = await EvmCoreModule.create({
     chain,
     config,
-    multiProvider: context.multiProvider,
+    multiProvider,
+    contractVerifier,
   });
 
   await completeDeploy(context, 'core', initialBalances, userAddress, [chain]);
@@ -87,4 +110,29 @@ export async function runCoreDeploy({
 
   logGreen('✅ Core contract deployments complete:\n');
   log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));
+}
+
+export async function runCoreApply(params: ApplyParams) {
+  const { context, chain, deployedCoreAddresses, config } = params;
+  const { multiProvider } = context;
+  const evmCoreModule = new EvmCoreModule(multiProvider, {
+    chain,
+    config,
+    addresses: deployedCoreAddresses,
+  });
+
+  const transactions = await evmCoreModule.update(config);
+
+  if (transactions.length) {
+    logGray('Updating deployed core contracts');
+    for (const transaction of transactions) {
+      await multiProvider.sendTransaction(chain, transaction);
+    }
+
+    logGreen(`Core config updated on ${chain}.`);
+  } else {
+    logGreen(
+      `Core config on ${chain} is the same as target. No updates needed.`,
+    );
+  }
 }

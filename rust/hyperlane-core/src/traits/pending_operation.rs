@@ -3,12 +3,13 @@ use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
     io::Write,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use crate::{
     ChainResult, Decode, Encode, FixedPointNumber, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProtocolError, TryBatchAs, TxOutcome, H256, U256,
+    HyperlaneProtocolError, Mailbox, TryBatchAs, TxOutcome, H256, U256,
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
@@ -38,6 +39,7 @@ pub type QueueOperation = Box<dyn PendingOperation>;
 /// responsible for checking if the operation has reached a point at which we
 /// consider it safe from reorgs.
 #[async_trait]
+#[typetag::serialize(tag = "type")]
 pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Get the unique identifier for this operation.
     fn id(&self) -> H256;
@@ -117,6 +119,11 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the number of times this operation has been retried.
     #[cfg(any(test, feature = "test-utils"))]
     fn set_retries(&mut self, retries: u32);
+
+    /// If this operation points to a mailbox contract, return it
+    fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+        None
+    }
 }
 
 #[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq)]
@@ -196,6 +203,8 @@ pub enum ReprepareReason {
     #[strum(to_string = "Gas payment requirement not met")]
     /// Gas payment requirement not met
     GasPaymentRequirementNotMet,
+    /// Gas payment not found
+    GasPaymentNotFound,
     #[strum(to_string = "Message delivery estimated gas exceeds max gas limit")]
     /// Message delivery estimated gas exceeds max gas limit
     ExceedsMaxGasLimit,

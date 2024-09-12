@@ -3,7 +3,7 @@ import { CommandModule } from 'yargs';
 import { createAgentConfig } from '../config/agent.js';
 import { createChainConfig } from '../config/chain.js';
 import { CommandContext, CommandModuleWithContext } from '../context/types.js';
-import { log, logBlue, logGray, logRed, logTable } from '../logger.js';
+import { errorRed, log, logBlue, logGray, logTable } from '../logger.js';
 
 import {
   chainTargetsCommandOption,
@@ -20,6 +20,7 @@ export const registryCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(addressesCommand)
+      .command(rpcCommand)
       .command(createAgentConfigCommand)
       .command(initCommand)
       .command(listCommand)
@@ -71,8 +72,12 @@ const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
 /**
  * Addresses command
  */
-const addressesCommand: CommandModuleWithContext<{ name: string }> = {
+const addressesCommand: CommandModuleWithContext<{
+  name: string;
+  contract: string;
+}> = {
   command: 'addresses',
+  aliases: ['address', 'addy'],
   describe: 'Display the addresses of core Hyperlane contracts',
   builder: {
     name: {
@@ -80,10 +85,21 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
       description: 'Chain to display addresses for',
       alias: 'chain',
     },
+    contract: {
+      type: 'string',
+      description: 'Specific contract name to print addresses for',
+      implies: 'name',
+    },
   },
-  handler: async ({ name, context }) => {
+  handler: async ({ name, context, contract }) => {
     if (name) {
       const result = await context.registry.getChainAddresses(name);
+      if (contract && result?.[contract.toLowerCase()]) {
+        // log only contract address for machine readability
+        log(result[contract]);
+        return;
+      }
+
       logBlue('Hyperlane contract addresses for:', name);
       logGray('---------------------------------');
       log(JSON.stringify(result, null, 2));
@@ -96,16 +112,48 @@ const addressesCommand: CommandModuleWithContext<{ name: string }> = {
   },
 };
 
+const rpcCommand: CommandModuleWithContext<{
+  name: string;
+  index: number;
+}> = {
+  command: 'rpc',
+  describe: 'Display the public rpc of a Hyperlane chain',
+  builder: {
+    name: {
+      type: 'string',
+      description: 'Chain to display addresses for',
+      alias: 'chain',
+      demandOption: true,
+    },
+    index: {
+      type: 'number',
+      description: 'Index of the rpc to display',
+      default: 0,
+      demandOption: false,
+    },
+  },
+  handler: async ({ name, context, index }) => {
+    const result = await context.registry.getChainMetadata(name);
+    const rpcUrl = result?.rpcUrls[index]?.http;
+    if (!rpcUrl) {
+      errorRed(`❌ No rpc found for chain ${name}`);
+      process.exit(1);
+    }
+
+    log(rpcUrl);
+  },
+};
+
 /**
  * agent-config command
  */
 const createAgentConfigCommand: CommandModuleWithContext<{
-  chains: string;
+  chains?: string;
   out: string;
+  skipPrompts: boolean;
 }> = {
   command: 'agent-config',
   describe: 'Create a new agent config',
-
   builder: {
     chains: chainTargetsCommandOption,
     out: outputFileCommandOption(
@@ -120,25 +168,33 @@ const createAgentConfigCommand: CommandModuleWithContext<{
     out,
   }: {
     context: CommandContext;
-    chains: string;
+    chains?: string;
     out: string;
+    skipPrompts: boolean;
   }) => {
     const { multiProvider } = context;
 
-    const chainNames = chains.split(',');
-    const invalidChainNames = chainNames.filter(
-      (chainName) => !multiProvider.hasChain(chainName),
-    );
-    if (invalidChainNames.length > 0) {
-      logRed(
-        `Invalid chain names: ${invalidChainNames
-          .join(', ')
-          .replace(/, $/, '')}`,
+    let chainNames: string[] | undefined;
+    if (chains) {
+      chainNames = chains.split(',');
+      const invalidChainNames = chainNames.filter(
+        (chainName) => !multiProvider.hasChain(chainName),
       );
-      process.exit(1);
+      if (invalidChainNames.length > 0) {
+        errorRed(
+          `❌ Invalid chain names: ${invalidChainNames
+            .join(', ')
+            .replace(/, $/, '')}`,
+        );
+        process.exit(1);
+      }
     }
 
-    await createAgentConfig({ context, chains: chainNames, out });
+    await createAgentConfig({
+      context,
+      chains: chainNames,
+      out,
+    });
     process.exit(0);
   },
 };

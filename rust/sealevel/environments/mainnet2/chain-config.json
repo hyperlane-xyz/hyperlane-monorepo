@@ -329,9 +329,9 @@
     "gasCurrencyCoinGeckoId": "xdai",
     "gnosisSafeTransactionServiceUrl": "https://safe-transaction-gnosis-chain.safe.global/"
   },
-  "solana": {
+  "solanamainnet": {
     "chainId": 1399811149,
-    "name": "solana",
+    "name": "solanamainnet",
     "rpcUrls": [
       {
         "http": "https://api.mainnet-beta.solana.com"

@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
   DomainRoutingIsmFactory__factory,
@@ -12,7 +13,6 @@ import {
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
-  MailboxClient__factory,
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
@@ -21,15 +21,14 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  Domain,
   ProtocolType,
   assert,
-  configDeepEquals,
+  deepEquals,
   eqAddress,
-  normalizeConfig,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
-import { Domain } from '@hyperlane-xyz/utils';
 
 import { attachAndConnectContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -46,9 +45,11 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
+import { IsmConfigSchema } from './schemas.js';
 import {
   AggregationIsmConfig,
   DeployedIsm,
@@ -81,14 +82,15 @@ export class EvmIsmModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
 
-  protected constructor(
+  constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
-    contractVerifier?: ContractVerifier,
+    protected readonly contractVerifier?: ContractVerifier,
   ) {
+    params.config = IsmConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
@@ -110,6 +112,10 @@ export class EvmIsmModule extends HyperlaneModule<
         staticAggregationHookFactory:
           params.addresses.staticAggregationHookFactory,
         domainRoutingIsmFactory: params.addresses.domainRoutingIsmFactory,
+        staticMerkleRootWeightedMultisigIsmFactory:
+          params.addresses.staticMerkleRootWeightedMultisigIsmFactory,
+        staticMessageIdWeightedMultisigIsmFactory:
+          params.addresses.staticMessageIdWeightedMultisigIsmFactory,
       },
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
@@ -129,47 +135,40 @@ export class EvmIsmModule extends HyperlaneModule<
   public async update(
     targetConfig: IsmConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
+    targetConfig = IsmConfigSchema.parse(targetConfig);
+
+    // Do not support updating to a custom ISM address
+    if (typeof targetConfig === 'string') {
+      throw new Error(
+        'Invalid targetConfig: Updating to a custom ISM address is not supported. Please provide a valid ISM configuration.',
+      );
+    }
+
     // save current config for comparison
     // normalize the config to ensure it's in a consistent format for comparison
     const currentConfig = normalizeConfig(await this.read());
-
     // Update the config
     this.args.config = targetConfig;
+    targetConfig = normalizeConfig(targetConfig);
 
-    // moduleMatchesConfig expects any domain filtering to have been done already
-    if (
-      typeof targetConfig !== 'string' &&
-      (targetConfig.type === IsmType.ROUTING ||
-        targetConfig.type === IsmType.FALLBACK_ROUTING)
-    ) {
-      // filter for known domains
-      const { availableDomains } = this.filterRoutingIsmDomains({
-        config: targetConfig,
-      });
-      targetConfig.domains = availableDomains;
-    }
+    assert(
+      typeof targetConfig === 'object',
+      'normalized targetConfig should be an object',
+    );
+
+    // if it's a fallback routing ISM, do a mailbox diff check
 
     // If configs match, no updates needed
-    if (configDeepEquals(currentConfig, targetConfig)) {
+    if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
 
     // Else, we have to figure out what an update for this ISM entails
-
-    // If target config is an address ISM, just update the address
-    // if config -> address ISM, update address
-    // if address ISM -> address ISM, update address
-    if (typeof targetConfig === 'string') {
-      // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
-      this.args.addresses.deployedIsm = targetConfig;
-      return [];
-    }
-
     // Check if we need to deploy a new ISM
     if (
-      // if address ISM -> config, do a new deploy
+      // if updating from an address/custom config to a proper ISM config, do a new deploy
       typeof currentConfig === 'string' ||
-      // if config -> config, AND types are different, do a new deploy
+      // if updating a proper ISM config whose types are different, do a new deploy
       currentConfig.type !== targetConfig.type ||
       // if it is not a mutable ISM, do a new deploy
       !MUTABLE_ISM_TYPE.includes(targetConfig.type)
@@ -195,32 +194,7 @@ export class EvmIsmModule extends HyperlaneModule<
       destination: this.chain,
       ismType: targetConfig.type,
     });
-    const provider = this.multiProvider.getProvider(this.chain);
-
     logger.debug(`Updating ${targetConfig.type} on ${this.chain}`);
-
-    // if it's a fallback routing ISM, do a mailbox diff check and deploy a new ISM if needed
-    if (targetConfig.type === IsmType.FALLBACK_ROUTING) {
-      // can only retrieve mailbox address if current ISM type is also Fallback Routing
-      const mailboxAddress =
-        currentConfig.type === IsmType.FALLBACK_ROUTING
-          ? await MailboxClient__factory.connect(
-              this.args.addresses.deployedIsm,
-              provider,
-            ).mailbox()
-          : ''; // empty string to force a mailbox diff
-
-      // if mailbox delta, deploy new routing ISM before updating
-      // this will always be the case if the current ISM is not a fallback routing ISM
-      if (!eqAddress(mailboxAddress, this.args.addresses.mailbox)) {
-        const newIsm = await this.deployRoutingIsm({
-          config: targetConfig,
-          logger,
-        });
-
-        this.args.addresses.deployedIsm = newIsm.address;
-      }
-    }
 
     // if it's either of the routing ISMs, update their submodules
     let updateTxs: AnnotatedEV5Transaction[] = [];
@@ -236,6 +210,7 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // Lastly, check if the resolved owner is different from the current owner
+    const provider = this.multiProvider.getProvider(this.chain);
     const owner = await Ownable__factory.connect(
       this.args.addresses.deployedIsm,
       provider,
@@ -264,25 +239,29 @@ export class EvmIsmModule extends HyperlaneModule<
     proxyFactoryFactories,
     mailbox,
     multiProvider,
+    contractVerifier,
   }: {
     chain: ChainNameOrId;
     config: IsmConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;
     multiProvider: MultiProvider;
+    contractVerifier?: ContractVerifier;
   }): Promise<EvmIsmModule> {
-    // instantiate new EvmIsmModule
-    const module = new EvmIsmModule(multiProvider, {
-      addresses: {
-        ...proxyFactoryFactories,
-        mailbox,
-        deployedIsm: ethers.constants.AddressZero,
+    const module = new EvmIsmModule(
+      multiProvider,
+      {
+        addresses: {
+          ...proxyFactoryFactories,
+          mailbox,
+          deployedIsm: ethers.constants.AddressZero,
+        },
+        chain,
+        config,
       },
-      chain,
-      config,
-    });
+      contractVerifier,
+    );
 
-    // deploy ISM and assign address to module
     const deployedIsm = await module.deploy({ config });
     module.args.addresses.deployedIsm = deployedIsm.address;
 
@@ -300,6 +279,20 @@ export class EvmIsmModule extends HyperlaneModule<
   }): Promise<AnnotatedEV5Transaction[]> {
     const routingIsmInterface = DomainRoutingIsm__factory.createInterface();
     const updateTxs = [];
+
+    // filter out domains which are not part of the multiprovider
+    current = {
+      ...current,
+      domains: this.filterRoutingIsmDomains({
+        config: current,
+      }).availableDomains,
+    };
+    target = {
+      ...target,
+      domains: this.filterRoutingIsmDomains({
+        config: target,
+      }).availableDomains,
+    };
 
     const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
       current,
@@ -343,11 +336,13 @@ export class EvmIsmModule extends HyperlaneModule<
     return updateTxs;
   }
 
-  protected async deploy<C extends IsmConfig>({
+  protected async deploy({
     config,
   }: {
-    config: C;
+    config: IsmConfig;
   }): Promise<DeployedIsm> {
+    config = IsmConfigSchema.parse(config);
+
     // If it's an address ISM, just return a base ISM
     if (typeof config === 'string') {
       // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3773
@@ -391,6 +386,14 @@ export class EvmIsmModule extends HyperlaneModule<
           factory: new OPStackIsm__factory(),
           contractName: IsmType.OP_STACK,
           constructorArgs: [config.nativeBridge],
+        });
+
+      case IsmType.ARB_L2_TO_L1:
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new ArbL2ToL1Ism__factory(),
+          contractName: IsmType.ARB_L2_TO_L1,
+          constructorArgs: [config.bridge],
         });
 
       case IsmType.PAUSABLE:
@@ -463,11 +466,13 @@ export class EvmIsmModule extends HyperlaneModule<
       this.filterRoutingIsmDomains({
         config,
       });
-    config.domains = availableDomains;
+    config = {
+      ...config,
+      domains: availableDomains,
+    };
 
     // deploy the submodules first
     const submoduleAddresses: Address[] = [];
-
     for (const origin of Object.keys(config.domains)) {
       const { address } = await this.deploy({
         config: config.domains[origin],
@@ -585,26 +590,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
     const signer = this.multiProvider.getSigner(this.args.chain);
     return IAggregationIsm__factory.connect(address, signer);
-  }
-
-  // Updates the mailbox address if it is different from the current one.
-  // Logs changes and updates the internal state of the module.
-  public setNewMailbox(newMailboxAddress: Address): void {
-    const currentMailboxAddress = this.args.addresses.mailbox;
-
-    if (currentMailboxAddress === newMailboxAddress) {
-      this.logger.debug(
-        `Mailbox address is already set to ${newMailboxAddress}`,
-      );
-      return;
-    }
-
-    this.logger.debug(
-      `Setting new mailbox address from ${currentMailboxAddress} to ${newMailboxAddress}`,
-    );
-
-    // Update the mailbox address in the arguments
-    this.args.addresses.mailbox = newMailboxAddress;
   }
 
   // filtering out domains which are not part of the multiprovider

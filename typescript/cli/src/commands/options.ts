@@ -89,13 +89,13 @@ export const warpDeploymentConfigCommandOption: Options = {
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
   default: './configs/warp-route-deployment.yaml',
-  alias: 'w',
+  alias: 'wd',
 };
 
 export const warpCoreConfigCommandOption: Options = {
   type: 'string',
   description: 'File path to Warp Route config',
-  alias: 'w',
+  alias: 'wc',
 };
 
 export const agentConfigCommandOption = (
@@ -113,7 +113,6 @@ export const chainTargetsCommandOption: Options = {
   type: 'string',
   description: 'Comma-separated list of chain names',
   alias: 'c',
-  demandOption: true,
 };
 
 export const outputFileCommandOption = (
@@ -161,6 +160,20 @@ export const symbolCommandOption: Options = {
 export const validatorCommandOption: Options = {
   type: 'string',
   description: 'Comma separated list of validator addresses',
+  demandOption: true,
+};
+
+export const transactionsCommandOption: Options = {
+  type: 'string',
+  description: 'The transaction input file path.',
+  alias: ['t', 'txs', 'txns'],
+  demandOption: true,
+};
+
+export const strategyCommandOption: Options = {
+  type: 'string',
+  description: 'The submission strategy input file path.',
+  alias: 's',
   demandOption: true,
 };
 

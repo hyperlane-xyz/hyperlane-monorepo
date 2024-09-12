@@ -90,12 +90,13 @@ contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
         bytes calldata message
     ) internal view virtual returns (IPostDispatchHook hook) {
         hook = hooks[message.destination()];
-        require(
-            address(hook) != address(0),
-            string.concat(
-                "No hook configured for destination: ",
-                message.destination().toString()
-            )
-        );
+        if (address(hook) == address(0)) {
+            revert(
+                string.concat(
+                    "No hook configured for destination: ",
+                    message.destination().toString()
+                )
+            );
+        }
     }
 }

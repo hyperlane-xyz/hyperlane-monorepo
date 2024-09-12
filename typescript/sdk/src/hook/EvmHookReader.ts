@@ -1,6 +1,7 @@
-import { ethers, providers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
+  ArbL2ToL1Hook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -27,9 +28,11 @@ import {
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
+import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationHookConfig,
+  ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -60,6 +63,9 @@ export interface HookReader {
   deriveOpStackConfig(
     address: Address,
   ): Promise<WithAddress<OpStackHookConfig>>;
+  deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1HookConfig>>;
   deriveDomainRoutingConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>>;
@@ -69,10 +75,13 @@ export interface HookReader {
   derivePausableConfig(
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>>;
+  assertHookType(
+    hookType: OnchainHookType,
+    expectedType: OnchainHookType,
+  ): void;
 }
 
-export class EvmHookReader implements HookReader {
-  protected readonly provider: providers.Provider;
+export class EvmHookReader extends HyperlaneReader implements HookReader {
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
 
   constructor(
@@ -82,15 +91,15 @@ export class EvmHookReader implements HookReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
-    this.provider = multiProvider.getProvider(chain);
+    super(multiProvider, chain);
   }
 
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
-    let onchainHookType = undefined;
+    let onchainHookType: OnchainHookType | undefined = undefined;
     let derivedHookConfig: DerivedHookConfig;
     try {
       const hook = IPostDispatchHook__factory.connect(address, this.provider);
-      this.logger.debug('Deriving HookConfig', { address });
+      this.logger.debug('Deriving HookConfig:', { address });
 
       // Temporarily turn off SmartProvider logging
       // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
@@ -124,6 +133,9 @@ export class EvmHookReader implements HookReader {
         case OnchainHookType.ID_AUTH_ISM:
           derivedHookConfig = await this.deriveOpStackConfig(address);
           break;
+        case OnchainHookType.ARB_L2_TO_L1:
+          derivedHookConfig = await this.deriveArbL2ToL1Config(address);
+          break;
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
@@ -138,12 +150,14 @@ export class EvmHookReader implements HookReader {
         customMessage = customMessage.concat(
           ` [The provided hook contract might be outdated and not support hookType()]`,
         );
+        this.logger.info(`${customMessage}:\n\t${e}`);
+      } else {
+        this.logger.debug(`${customMessage}:\n\t${e}`);
       }
-      this.logger.trace(`${customMessage}:\n\t${e}`);
       throw new Error(`${customMessage}:\n\t${e}`);
+    } finally {
+      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
-
-    this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
 
     return derivedHookConfig;
   }
@@ -152,7 +166,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.MERKLE_TREE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
 
     return {
       address,
@@ -164,7 +178,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.AGGREGATION);
+    this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
@@ -185,8 +199,9 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    assert(
-      (await hook.hookType()) === OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
     );
 
     const owner = await hook.owner();
@@ -259,7 +274,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
     const hook = ProtocolFee__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.PROTOCOL_FEE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.PROTOCOL_FEE);
 
     const owner = await hook.owner();
     const maxProtocolFee = await hook.MAX_PROTOCOL_FEE();
@@ -281,7 +296,7 @@ export class EvmHookReader implements HookReader {
   ): Promise<WithAddress<OpStackHookConfig>> {
     const hook = OPStackHook__factory.connect(address, this.provider);
     const owner = await hook.owner();
-    assert((await hook.hookType()) === OnchainHookType.ID_AUTH_ISM);
+    this.assertHookType(await hook.hookType(), OnchainHookType.ID_AUTH_ISM);
 
     const messengerContract = await hook.l1Messenger();
     const destinationDomain = await hook.destinationDomain();
@@ -297,11 +312,28 @@ export class EvmHookReader implements HookReader {
     };
   }
 
+  async deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
+    const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
+    const arbSys = await hook.arbSys();
+
+    const destinationDomain = await hook.destinationDomain();
+    const destinationChainName =
+      this.multiProvider.getChainName(destinationDomain);
+    return {
+      address,
+      type: HookType.ARB_L2_TO_L1,
+      destinationChain: destinationChainName,
+      arbSys,
+    };
+  }
+
   async deriveDomainRoutingConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.ROUTING);
+    this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
@@ -321,7 +353,10 @@ export class EvmHookReader implements HookReader {
       address,
       this.provider,
     );
-    assert((await hook.hookType()) === OnchainHookType.FALLBACK_ROUTING);
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.FALLBACK_ROUTING,
+    );
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
@@ -367,7 +402,7 @@ export class EvmHookReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>> {
     const hook = PausableHook__factory.connect(address, this.provider);
-    assert((await hook.hookType()) === OnchainHookType.PAUSABLE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.PAUSABLE);
 
     const owner = await hook.owner();
     const paused = await hook.paused();
@@ -379,15 +414,13 @@ export class EvmHookReader implements HookReader {
     };
   }
 
-  /**
-   * Conditionally sets the log level for a smart provider.
-   *
-   * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
-   */
-  protected setSmartProviderLogLevel(level: string): void {
-    if ('setLogLevel' in this.provider) {
-      //@ts-ignore
-      this.provider.setLogLevel(level);
-    }
+  assertHookType(
+    hookType: OnchainHookType,
+    expectedType: OnchainHookType,
+  ): void {
+    assert(
+      hookType === expectedType,
+      `expected hook type to be ${expectedType}, got ${hookType}`,
+    );
   }
 }

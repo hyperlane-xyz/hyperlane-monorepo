@@ -12,6 +12,7 @@ import {
   AccountConfig,
   ChainMap,
   ChainName,
+  CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
   HyperlaneContractsMap,
@@ -54,8 +55,8 @@ export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
   TestApp,
   OwnableConfig
 > {
-  protected async mapViolationsToCalls() {
-    return;
+  protected async mapViolationToCall(_violation: CheckerViolation) {
+    return undefined;
   }
 
   mockPushCall(chain: string, call: AnnotatedCallData): void {
@@ -165,7 +166,7 @@ describe('ICA governance', async () => {
 
     // arrange
     const newIsm = randomAddress();
-    await governor.checker.checkChain(TestChainName.test2);
+    await governor.checkChain(TestChainName.test2);
     const call = {
       to: recipient.address,
       data: recipient.interface.encodeFunctionData(

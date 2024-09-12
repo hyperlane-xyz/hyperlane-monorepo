@@ -1,5 +1,4 @@
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
-import Long from 'long';
 
 import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
@@ -128,9 +127,8 @@ export class CosmIbcTokenAdapter
       sender: transferParams.fromAccountOwner,
       receiver: transferParams.recipient,
       // Represented as nano-seconds
-      timeoutTimestamp: Long.fromNumber(
-        new Date().getTime() + COSMOS_IBC_TRANSFER_TIMEOUT,
-      ).multiply(1_000_000),
+      timeoutTimestamp:
+        BigInt(new Date().getTime() + COSMOS_IBC_TRANSFER_TIMEOUT) * 1000000n,
       memo,
     };
     return {

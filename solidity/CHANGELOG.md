@@ -1,5 +1,37 @@
 # @hyperlane-xyz/core
 
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Added hook/ism for using the Optimism native bridge for L2->L1 calls
+- 013f19c64: Added yield route with yield going to message recipient.
+- 013f19c64: feat: attributable fraud for signers
+- 013f19c64: Implement checkpoint fraud proofs for use in slashing
+
+### Patch Changes
+
+- 013f19c64: fix: only evaluate dynamic revert reasons in reverting branch
+  - @hyperlane-xyz/utils@5.1.0
+
+## 5.0.0
+
+### Patch Changes
+
+- 90598ad44: Removed outbox as param for ArbL2ToL1Ism
+- Updated dependencies [388d25517]
+- Updated dependencies [488f949ef]
+- Updated dependencies [dfa908796]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/utils@5.0.0
+
+## 4.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.1.0
+
 ## 4.0.0
 
 ### Minor Changes

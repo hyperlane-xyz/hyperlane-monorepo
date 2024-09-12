@@ -24,9 +24,11 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy?: boolean,
   ) {
     super(multiProvider, interchainAccountFactories, {
       contractVerifier,
+      concurrentDeploy,
     });
   }
   routerContractName(): string {

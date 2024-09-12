@@ -225,9 +225,15 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
-    public readonly desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
-    public readonly desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
-    public readonly igpClaimThresholdPerChain: KeyFunderConfig['igpClaimThresholdPerChain'],
+    public readonly desiredBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredBalancePerChain'],
+    public readonly desiredKathyBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredKathyBalancePerChain'],
+    public readonly igpClaimThresholdPerChain: KeyFunderConfig<
+      ChainName[]
+    >['igpClaimThresholdPerChain'],
   ) {
     // At the moment, only blessed EVM chains are supported
     roleKeysPerChain = objFilter(
@@ -266,9 +272,15 @@ class ContextFunder {
     multiProvider: MultiProvider,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
-    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
-    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
-    igpClaimThresholdPerChain: KeyFunderConfig['igpClaimThresholdPerChain'],
+    desiredBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredKathyBalancePerChain'],
+    igpClaimThresholdPerChain: KeyFunderConfig<
+      ChainName[]
+    >['igpClaimThresholdPerChain'],
     filePath: string,
   ) {
     logger.info({ filePath }, 'Reading identifiers and addresses from file');
@@ -348,9 +360,15 @@ class ContextFunder {
     context: Contexts,
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
-    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
-    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
-    igpClaimThresholdPerChain: KeyFunderConfig['igpClaimThresholdPerChain'],
+    desiredBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredKathyBalancePerChain'],
+    igpClaimThresholdPerChain: KeyFunderConfig<
+      ChainName[]
+    >['igpClaimThresholdPerChain'],
   ) {
     // only roles that are fundable keys ie. relayer and kathy
     const fundableRoleKeys: Record<FundableRole, Address> = {

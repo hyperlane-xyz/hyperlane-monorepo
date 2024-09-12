@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
+use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
@@ -14,7 +15,7 @@ use hyperlane_core::{
 };
 use tracing::instrument;
 
-use super::utils::fetch_raw_logs_and_log_meta;
+use super::utils::fetch_raw_logs_and_meta;
 use crate::interfaces::i_interchain_gas_paymaster::{
     GasPaymentFilter, IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal,
     IINTERCHAINGASPAYMASTER_ABI,
@@ -38,6 +39,7 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<InterchainGasPayment>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -131,25 +133,29 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let logs = fetch_raw_logs_and_log_meta::<GasPaymentFilter, M>(
-            tx_hash,
-            self.provider.clone(),
-            self.contract.address(),
-        )
-        .await?
-        .into_iter()
-        .map(|(log, log_meta)| {
-            (
-                Indexed::new(InterchainGasPayment {
-                    message_id: H256::from(log.message_id),
-                    destination: log.destination_domain,
-                    payment: log.payment.into(),
-                    gas_amount: log.gas_amount.into(),
-                }),
-                log_meta,
-            )
+        let raw_logs_and_meta = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract = self.contract.address();
+            Box::pin(async move {
+                fetch_raw_logs_and_meta::<GasPaymentFilter, M>(tx_hash, provider, contract).await
+            })
         })
-        .collect();
+        .await;
+
+        let logs = raw_logs_and_meta
+            .into_iter()
+            .map(|(log, log_meta)| {
+                (
+                    Indexed::new(InterchainGasPayment {
+                        message_id: H256::from(log.message_id),
+                        destination: log.destination_domain,
+                        payment: log.payment.into(),
+                        gas_amount: log.gas_amount.into(),
+                    }),
+                    log_meta,
+                )
+            })
+            .collect();
         Ok(logs)
     }
 }
@@ -176,6 +182,7 @@ pub struct InterchainGasPaymasterBuilder {}
 #[async_trait]
 impl BuildableWithProvider for InterchainGasPaymasterBuilder {
     type Output = Box<dyn InterchainGasPaymaster>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,

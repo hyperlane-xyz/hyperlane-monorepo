@@ -9,11 +9,12 @@ use derive_more::AsRef;
 use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
+    broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
-    BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
-    SyncOptions,
+    AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
+    HyperlaneAgentCore, SyncOptions,
 };
 use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
@@ -21,8 +22,8 @@ use hyperlane_core::{
 };
 use tokio::{
     sync::{
-        broadcast::{Receiver, Sender},
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        broadcast::Sender as BroadcastSender,
+        mpsc::{self, Receiver as MpscReceiver, UnboundedSender},
         RwLock,
     },
     task::JoinHandle,
@@ -112,6 +113,7 @@ impl BaseAgent for Relayer {
     type Settings = RelayerSettings;
 
     async fn from_settings(
+        _agent_metadata: AgentMetadata,
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -309,41 +311,33 @@ impl BaseAgent for Relayer {
                 }));
             tasks.push(console_server.instrument(info_span!("Tokio console server")));
         }
-
-        // run server
-        let sender = Sender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let custom_routes = relayer_server::routes(sender.clone());
-
-        let server = self
-            .core
-            .settings
-            .server(self.core_metrics.clone())
-            .expect("Failed to create server");
-        let server_task = server
-            .run_with_custom_routes(custom_routes)
-            .instrument(info_span!("Relayer server"));
-        tasks.push(server_task);
-
+        let sender = BroadcastSender::<MessageRetryRequest>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
+        let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
         for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
-
-            tasks.push(
-                self.run_destination_submitter(
-                    dest_domain,
-                    receive_channel,
-                    sender.clone(),
-                    // Default to submitting one message at a time if there is no batch config
-                    self.core.settings.chains[dest_domain.name()]
-                        .connection
-                        .operation_batch_config()
-                        .map(|c| c.max_batch_size)
-                        .unwrap_or(1),
-                    task_monitor.clone(),
-                ),
+            let serial_submitter = SerialSubmitter::new(
+                dest_domain.clone(),
+                receive_channel,
+                sender.clone(),
+                SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
+                // Default to submitting one message at a time if there is no batch config
+                self.core.settings.chains[dest_domain.name()]
+                    .connection
+                    .operation_batch_config()
+                    .map(|c| c.max_batch_size)
+                    .unwrap_or(1),
+                task_monitor.clone(),
             );
+            prep_queues.insert(dest_domain.id(), serial_submitter.prepare_queue().await);
+
+            tasks.push(self.run_destination_submitter(
+                dest_domain,
+                serial_submitter,
+                task_monitor.clone(),
+            ));
 
             let metrics_updater = MetricsUpdater::new(
                 dest_conf,
@@ -353,7 +347,9 @@ impl BaseAgent for Relayer {
                 Self::AGENT_NAME.to_string(),
             )
             .await
-            .unwrap();
+            .unwrap_or_else(|_| {
+                panic!("Error creating metrics updater for destination {dest_domain}")
+            });
             tasks.push(metrics_updater.spawn());
         }
 
@@ -366,7 +362,7 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_interchain_gas_payment_sync(
                     origin,
-                    maybe_broadcaster.clone().map(|b| b.subscribe()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,
@@ -374,12 +370,27 @@ impl BaseAgent for Relayer {
             tasks.push(
                 self.run_merkle_tree_hook_syncs(
                     origin,
-                    maybe_broadcaster.map(|b| b.subscribe()),
+                    BroadcastMpscSender::map_get_receiver(maybe_broadcaster.as_ref()).await,
                     task_monitor.clone(),
                 )
                 .await,
             );
         }
+        // run server
+        let custom_routes = relayer_server::Server::new()
+            .with_op_retry(sender.clone())
+            .with_message_queue(prep_queues)
+            .routes();
+
+        let server = self
+            .core
+            .settings
+            .server(self.core_metrics.clone())
+            .expect("Failed to create server");
+        let server_task = server
+            .run_with_custom_routes(custom_routes)
+            .instrument(info_span!("Relayer server"));
+        tasks.push(server_task);
 
         // each message process attempts to send messages from a chain
         for origin in &self.origin_chains {
@@ -408,7 +419,10 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -421,7 +435,7 @@ impl Relayer {
     async fn run_interchain_gas_payment_sync(
         &self,
         origin: &HyperlaneDomain,
-        tx_id_receiver: Option<Receiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
@@ -430,7 +444,10 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -446,12 +463,15 @@ impl Relayer {
     async fn run_merkle_tree_hook_syncs(
         &self,
         origin: &HyperlaneDomain,
-        tx_id_receiver: Option<Receiver<H512>>,
+        tx_id_receiver: Option<MpscReceiver<H512>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync.cursor(index_settings).await;
+        let cursor = contract_sync
+            .cursor(index_settings)
+            .await
+            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -526,23 +546,13 @@ impl Relayer {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip(self, receiver))]
+    #[tracing::instrument(skip(self, serial_submitter))]
     fn run_destination_submitter(
         &self,
         destination: &HyperlaneDomain,
-        receiver: UnboundedReceiver<QueueOperation>,
-        retry_receiver_channel: Sender<MessageRetryRequest>,
-        batch_size: u32,
+        serial_submitter: SerialSubmitter,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        let serial_submitter = SerialSubmitter::new(
-            destination.clone(),
-            receiver,
-            retry_receiver_channel,
-            SerialSubmitterMetrics::new(&self.core.metrics, destination),
-            batch_size,
-            task_monitor.clone(),
-        );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {

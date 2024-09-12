@@ -14,7 +14,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  configDeepEquals,
+  deepEquals,
   eqAddress,
   formatMessage,
   normalizeAddress,
@@ -49,7 +49,7 @@ export function calculateDomainRoutingDelta(
     if (!current.domains[origin]) {
       domainsToEnroll.push(origin);
     } else {
-      const subModuleMatches = configDeepEquals(
+      const subModuleMatches = deepEquals(
         current.domains[origin],
         target.domains[origin],
       );
@@ -267,7 +267,13 @@ export async function moduleMatchesConfig(
       // check if the mailbox matches the config for fallback routing
       if (config.type === IsmType.FALLBACK_ROUTING) {
         const client = MailboxClient__factory.connect(moduleAddress, provider);
-        const mailboxAddress = await client.mailbox();
+        let mailboxAddress;
+        try {
+          mailboxAddress = await client.mailbox();
+        } catch (error) {
+          matches = false;
+          break;
+        }
         matches =
           matches &&
           mailbox !== undefined &&
@@ -307,7 +313,14 @@ export async function moduleMatchesConfig(
       for (const subModule of subModules) {
         const subModuleMatchesConfig = await Promise.all(
           config.modules.map((c) =>
-            moduleMatchesConfig(chain, subModule, c, multiProvider, contracts),
+            moduleMatchesConfig(
+              chain,
+              subModule,
+              c,
+              multiProvider,
+              contracts,
+              mailbox,
+            ),
           ),
         );
         // The submodule returned by the ISM must match exactly one
@@ -357,6 +370,24 @@ export async function moduleMatchesConfig(
         const isPaused = await pausableIsm.paused();
         matches &&= config.paused === isPaused;
       }
+      break;
+    }
+    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG: {
+      const expectedAddress =
+        await contracts.staticMerkleRootWeightedMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.thresholdWeight,
+        );
+      matches = eqAddress(expectedAddress, module.address);
+      break;
+    }
+    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG: {
+      const expectedAddress =
+        await contracts.staticMessageIdWeightedMultisigIsmFactory.getAddress(
+          config.validators.sort(),
+          config.thresholdWeight,
+        );
+      matches = eqAddress(expectedAddress, module.address);
       break;
     }
     default: {
@@ -421,7 +452,9 @@ export async function routingModuleDelta(
         contracts,
         mailbox,
       );
-      if (!subModuleMatches) delta.domainsToEnroll.push(originDomain);
+      if (!subModuleMatches) {
+        delta.domainsToEnroll.push(originDomain);
+      }
     }
   }
   return delta;

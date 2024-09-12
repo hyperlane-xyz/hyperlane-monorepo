@@ -18,13 +18,14 @@ import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 import {
   createWarpRouteDeployConfig,
   readWarpCoreConfig,
+  readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { runWarpRouteDeploy } from '../deploy/warp.js';
+import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
@@ -36,6 +37,7 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
+  strategyCommandOption,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -50,6 +52,7 @@ export const warpCommand: CommandModule = {
   describe: 'Manage Hyperlane warp routes',
   builder: (yargs) =>
     yargs
+      .command(apply)
       .command(deploy)
       .command(init)
       .command(read)
@@ -58,6 +61,50 @@ export const warpCommand: CommandModule = {
       .demandCommand(),
 
   handler: () => log('Command required'),
+};
+
+export const apply: CommandModuleWithWriteContext<{
+  config: string;
+  symbol?: string;
+  warp: string;
+  strategy?: string;
+}> = {
+  command: 'apply',
+  describe: 'Update Warp Route contracts',
+  builder: {
+    config: warpDeploymentConfigCommandOption,
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+    strategy: { ...strategyCommandOption, demandOption: false },
+  },
+  handler: async ({ context, config, symbol, warp, strategy: strategyUrl }) => {
+    logGray(`Hyperlane Warp Apply`);
+    logGray('--------------------'); // @TODO consider creating a helper function for these dashes
+    let warpCoreConfig: WarpCoreConfig;
+    if (symbol) {
+      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
+    } else if (warp) {
+      warpCoreConfig = readWarpCoreConfig(warp);
+    } else {
+      logRed(`Please specify either a symbol or warp config`);
+      process.exit(0);
+    }
+    const warpDeployConfig = await readWarpRouteDeployConfig(config);
+
+    await runWarpRouteApply({
+      context,
+      warpDeployConfig,
+      warpCoreConfig,
+      strategyUrl,
+    });
+    process.exit(0);
+  },
 };
 
 export const deploy: CommandModuleWithWriteContext<{
@@ -73,7 +120,7 @@ export const deploy: CommandModuleWithWriteContext<{
     'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {
-    logGray(`Hyperlane warp route deployment${dryRun ? ' dry-run' : ''}`);
+    logGray(`Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`);
     logGray('------------------------------------------------');
 
     try {
@@ -119,7 +166,7 @@ export const init: CommandModuleWithContext<{
 export const read: CommandModuleWithContext<{
   chain?: string;
   address?: string;
-  out?: string;
+  config?: string;
   symbol?: string;
 }> = {
   command: 'read',
@@ -137,9 +184,19 @@ export const read: CommandModuleWithContext<{
       'Address of the router contract to read.',
       false,
     ),
-    out: outputFileCommandOption(),
+    config: outputFileCommandOption(
+      './configs/warp-route-deployment.yaml',
+      false,
+      'The path to output a Warp Config JSON or YAML file.',
+    ),
   },
-  handler: async ({ context, chain, address, out, symbol }) => {
+  handler: async ({
+    context,
+    chain,
+    address,
+    config: configFilePath,
+    symbol,
+  }) => {
     logGray('Hyperlane Warp Reader');
     logGray('---------------------');
 
@@ -210,9 +267,11 @@ export const read: CommandModuleWithContext<{
       ),
     );
 
-    if (out) {
-      writeYamlOrJson(out, config, 'yaml');
-      logGreen(`✅ Warp route config written successfully to ${out}:\n`);
+    if (configFilePath) {
+      writeYamlOrJson(configFilePath, config, 'yaml');
+      logGreen(
+        `✅ Warp route config written successfully to ${configFilePath}:\n`,
+      );
     } else {
       logGreen(`✅ Warp route config read successfully:\n`);
     }

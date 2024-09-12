@@ -5,6 +5,7 @@ import {
   ERC20__factory,
   ERC721Enumerable__factory,
   GasRouter,
+  IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
 import { TokenType } from '@hyperlane-xyz/sdk';
@@ -45,11 +46,13 @@ abstract class TokenDeployer<
     loggerName: string,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(multiProvider, factories, {
       logger: rootLogger.child({ module: loggerName }),
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     }); // factories not used in deploy
   }
 
@@ -59,7 +62,7 @@ abstract class TokenDeployer<
     } else if (isNativeConfig(config)) {
       return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
     } else if (isSyntheticConfig(config)) {
-      assert(config.decimals); // decimals must be defined by this point
+      assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, config.mailbox];
     } else {
       throw new Error('Unknown token type when constructing arguments');
@@ -124,13 +127,24 @@ abstract class TokenDeployer<
           };
         }
 
-        const token =
-          config.type === TokenType.XERC20Lockbox
-            ? await IXERC20Lockbox__factory.connect(
-                config.token,
-                provider,
-              ).callStatic.ERC20()
-            : config.token;
+        let token: string;
+        switch (config.type) {
+          case TokenType.XERC20Lockbox:
+            token = await IXERC20Lockbox__factory.connect(
+              config.token,
+              provider,
+            ).callStatic.ERC20();
+            break;
+          case TokenType.collateralVault:
+            token = await IERC4626__factory.connect(
+              config.token,
+              provider,
+            ).callStatic.asset();
+            break;
+          default:
+            token = config.token;
+            break;
+        }
 
         const erc20 = ERC20__factory.connect(token, provider);
         const [name, symbol, decimals] = await Promise.all([
@@ -172,6 +186,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(
       multiProvider,
@@ -179,6 +194,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       'HypERC20Deployer',
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   }
 

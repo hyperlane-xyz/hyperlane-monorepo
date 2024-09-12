@@ -30,13 +30,15 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     protected readonly logger = rootLogger.child({
       module: 'EvmModuleDeployer',
     }),
-    protected readonly contractVerifier = new ContractVerifier(
+    protected readonly contractVerifier?: ContractVerifier,
+  ) {
+    this.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
       coreBuildArtifact,
       ExplorerLicenseType.MIT,
-    ),
-  ) {}
+    );
+  }
 
   // Deploys a contract from a factory
   public async deployContractFromFactory<F extends ethers.ContractFactory>({
@@ -45,17 +47,19 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     contractName,
     constructorArgs,
     initializeArgs,
+    implementationAddress,
   }: {
     chain: ChainName;
     factory: F;
     contractName: string;
     constructorArgs: Parameters<F['deploy']>;
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>;
+    implementationAddress?: Address;
   }): Promise<ReturnType<F['deploy']>> {
     this.logger.info(
-      `Deploy ${contractName} on ${chain} with constructor args (${constructorArgs.join(
+      `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
-      )})`,
+      )})...`,
     );
     const contract = await this.multiProvider.handleDeploy(
       chain,
@@ -65,16 +69,27 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
 
     if (initializeArgs) {
       this.logger.debug(`Initialize ${contractName} on ${chain}`);
+      // Estimate gas for the initialize transaction
+      const estimatedGas = await contract.estimateGas.initialize(
+        ...initializeArgs,
+      );
+
+      // deploy with 10% buffer on gas limit
       const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const initTx = await contract.initialize(...initializeArgs, overrides);
+      const initTx = await contract.initialize(...initializeArgs, {
+        gasLimit: estimatedGas.add(estimatedGas.div(10)),
+        ...overrides,
+      });
+
       await this.multiProvider.handleTx(chain, initTx);
     }
 
-    const verificationInput = getContractVerificationInput(
-      contractName,
+    const verificationInput = getContractVerificationInput({
+      name: contractName,
       contract,
-      factory.bytecode,
-    );
+      bytecode: factory.bytecode,
+      expectedimplementation: implementationAddress,
+    });
     this.addVerificationArtifacts({ chain, artifacts: [verificationInput] });
 
     // try verifying contract
@@ -213,6 +228,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       factory: new TransparentUpgradeableProxy__factory(),
       contractName: 'TransparentUpgradeableProxy',
       constructorArgs,
+      implementationAddress: implementation.address,
     });
 
     return implementation.attach(proxy.address) as C;
@@ -248,34 +264,40 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     threshold?: number;
     multiProvider: MultiProvider;
   }): Promise<Address> {
+    const sortedValues = [...values].sort();
+
     const address = await factory['getAddress(address[],uint8)'](
-      values,
+      sortedValues,
       threshold,
     );
     const code = await multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
-        `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
+        `Deploying new ${threshold} of ${sortedValues.length} address set to ${chain}`,
       );
       const overrides = multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
       const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
-        values,
+        sortedValues,
         threshold,
         overrides,
       );
 
       // add 10% buffer
-      const hash = await factory['deploy(address[],uint8)'](values, threshold, {
-        ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
-      });
+      const hash = await factory['deploy(address[],uint8)'](
+        sortedValues,
+        threshold,
+        {
+          ...overrides,
+          gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+        },
+      );
 
       await multiProvider.handleTx(chain, hash);
     } else {
       logger.debug(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
+        `Recovered ${threshold} of ${sortedValues.length} address set on ${chain}: ${address}`,
       );
     }
 

@@ -288,7 +288,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
+                let indexer = Box::new(h_cosmos::CosmosMailboxDispatchIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
@@ -327,7 +327,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let indexer = Box::new(h_cosmos::CosmosMailboxIndexer::new(
+                let indexer = Box::new(h_cosmos::CosmosMailboxDeliveryIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
@@ -782,7 +782,10 @@ impl ChainConf {
     where
         B: BuildableWithProvider + Sync,
     {
-        let signer = self.ethereum_signer().await?;
+        let mut signer = None;
+        if B::NEEDS_SIGNER {
+            signer = self.ethereum_signer().await?;
+        }
         let metrics_conf = self.metrics_conf();
         let rpc_metrics = Some(metrics.json_rpc_client_metrics());
         let middleware_metrics = Some((metrics.provider_metrics(), metrics_conf));

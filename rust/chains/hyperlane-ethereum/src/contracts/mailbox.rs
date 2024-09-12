@@ -7,11 +7,15 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use derive_new::new;
 use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
+use ethers_contract::{Multicall, MulticallResult};
 use futures_util::future::join_all;
-use hyperlane_core::H512;
+use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
+use hyperlane_core::{BatchResult, QueueOperation, H512};
+use itertools::Itertools;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -31,7 +35,7 @@ use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
 
 use super::multicall::{self, build_multicall};
-use super::utils::fetch_raw_logs_and_log_meta;
+use super::utils::fetch_raw_logs_and_meta;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -49,6 +53,7 @@ pub struct SequenceIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for SequenceIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<HyperlaneMessage>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -71,6 +76,7 @@ pub struct DeliveryIndexerBuilder {
 #[async_trait]
 impl BuildableWithProvider for DeliveryIndexerBuilder {
     type Output = Box<dyn SequenceAwareIndexer<H256>>;
+    const NEEDS_SIGNER: bool = false;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -165,20 +171,23 @@ where
         &self,
         tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let logs = fetch_raw_logs_and_log_meta::<DispatchFilter, M>(
-            tx_hash,
-            self.provider.clone(),
-            self.contract.address(),
-        )
-        .await?
-        .into_iter()
-        .map(|(log, log_meta)| {
-            (
-                HyperlaneMessage::from(log.message.to_vec()).into(),
-                log_meta,
-            )
+        let raw_logs_and_meta = call_and_retry_indefinitely(|| {
+            let provider = self.provider.clone();
+            let contract = self.contract.address();
+            Box::pin(async move {
+                fetch_raw_logs_and_meta::<DispatchFilter, M>(tx_hash, provider, contract).await
+            })
         })
-        .collect();
+        .await;
+        let logs = raw_logs_and_meta
+            .into_iter()
+            .map(|(log, log_meta)| {
+                (
+                    HyperlaneMessage::from(log.message.to_vec()).into(),
+                    log_meta,
+                )
+            })
+            .collect();
         Ok(logs)
     }
 }
@@ -242,6 +251,7 @@ pub struct MailboxBuilder {}
 #[async_trait]
 impl BuildableWithProvider for MailboxBuilder {
     type Output = Box<dyn Mailbox>;
+    const NEEDS_SIGNER: bool = true;
 
     async fn build_with_provider<M: Middleware + 'static>(
         &self,
@@ -297,36 +307,122 @@ where
     }
 
     /// Returns a ContractCall that processes the provided message.
-    /// If the provided tx_gas_limit is None, gas estimation occurs.
     async fn process_contract_call(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, ()>> {
-        let tx = self.contract.process(
+        let mut tx = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-        self.add_gas_overrides(tx, tx_gas_estimate).await
+        if let Some(gas_estimate) = tx_gas_estimate {
+            tx = tx.gas(gas_estimate);
+        }
+        self.add_gas_overrides(tx).await
     }
 
     async fn add_gas_overrides<D: Detokenize>(
         &self,
         tx: ContractCall<M, D>,
-        tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, D>> {
-        let tx_overrides = TransactionOverrides {
-            // If a gas limit is provided as a transaction override, use it instead
-            // of the estimate.
-            gas_limit: self
-                .conn
-                .transaction_overrides
-                .gas_limit
-                .or(tx_gas_estimate),
-            ..self.conn.transaction_overrides.clone()
-        };
-        fill_tx_gas_params(tx, self.provider.clone(), &tx_overrides).await
+        fill_tx_gas_params(
+            tx,
+            self.provider.clone(),
+            &self.conn.transaction_overrides.clone(),
+        )
+        .await
+    }
+
+    async fn simulate_batch(
+        &self,
+        multicall: &mut Multicall<M>,
+        contract_calls: Vec<ContractCall<M, ()>>,
+    ) -> ChainResult<BatchSimulation<M>> {
+        let batch = multicall::batch::<_, ()>(multicall, contract_calls.clone()).await?;
+        let call_results = batch.call().await?;
+
+        let failed_calls = contract_calls
+            .iter()
+            .zip(call_results.iter())
+            .enumerate()
+            .filter_map(
+                |(index, (_, result))| {
+                    if !result.success {
+                        Some(index)
+                    } else {
+                        None
+                    }
+                },
+            )
+            .collect_vec();
+
+        // only send a batch if there are at least two successful calls
+        let call_count = contract_calls.len();
+        let successful_calls = call_count - failed_calls.len();
+        if successful_calls >= 2 {
+            Ok(BatchSimulation::new(
+                Some(self.submittable_batch(batch)),
+                failed_calls,
+            ))
+        } else {
+            Ok(BatchSimulation::failed(call_count))
+        }
+    }
+
+    fn submittable_batch(
+        &self,
+        call: ContractCall<M, Vec<MulticallResult>>,
+    ) -> SubmittableBatch<M> {
+        SubmittableBatch {
+            call,
+            provider: self.provider.clone(),
+            transaction_overrides: self.conn.transaction_overrides.clone(),
+        }
+    }
+}
+
+#[derive(new)]
+pub struct BatchSimulation<M> {
+    pub call: Option<SubmittableBatch<M>>,
+    /// Indexes of excluded calls in the batch (because they either failed the simulation
+    /// or they were the only successful call)
+    pub excluded_call_indexes: Vec<usize>,
+}
+
+impl<M> BatchSimulation<M> {
+    pub fn failed(ops_count: usize) -> Self {
+        Self::new(None, (0..ops_count).collect())
+    }
+}
+
+impl<M: Middleware + 'static> BatchSimulation<M> {
+    pub async fn try_submit(self) -> ChainResult<BatchResult> {
+        if let Some(submittable_batch) = self.call {
+            let batch_outcome = submittable_batch.submit().await?;
+            Ok(BatchResult::new(
+                Some(batch_outcome),
+                self.excluded_call_indexes,
+            ))
+        } else {
+            Ok(BatchResult::failed(self.excluded_call_indexes.len()))
+        }
+    }
+}
+
+pub struct SubmittableBatch<M> {
+    pub call: ContractCall<M, Vec<MulticallResult>>,
+    provider: Arc<M>,
+    transaction_overrides: TransactionOverrides,
+}
+
+impl<M: Middleware + 'static> SubmittableBatch<M> {
+    pub async fn submit(self) -> ChainResult<TxOutcome> {
+        let call_with_gas_overrides =
+            fill_tx_gas_params(self.call, self.provider, &self.transaction_overrides).await?;
+        let outcome = report_tx(call_with_gas_overrides).await?;
+        Ok(outcome.into())
     }
 }
 
@@ -401,11 +497,15 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(skip(self, messages), fields(size=%messages.len()))]
-    async fn process_batch(
+    #[instrument(skip(self, ops), fields(size=%ops.len()))]
+    async fn try_process_batch<'a>(
         &self,
-        messages: &[BatchItem<HyperlaneMessage>],
-    ) -> ChainResult<TxOutcome> {
+        ops: Vec<&'a QueueOperation>,
+    ) -> ChainResult<BatchResult> {
+        let messages = ops
+            .iter()
+            .map(|op| op.try_batch())
+            .collect::<ChainResult<Vec<BatchItem<HyperlaneMessage>>>>()?;
         let mut multicall = build_multicall(self.provider.clone(), &self.conn, self.domain.clone())
             .await
             .map_err(|e| HyperlaneEthereumError::MulticallError(e.to_string()))?;
@@ -425,11 +525,8 @@ where
             .into_iter()
             .collect::<ChainResult<Vec<_>>>()?;
 
-        let batch_call = multicall::batch::<_, ()>(&mut multicall, contract_calls);
-        let call = self.add_gas_overrides(batch_call, None).await?;
-
-        let receipt = report_tx(call).await?;
-        Ok(receipt.into())
+        let batch_simulation = self.simulate_batch(&mut multicall, contract_calls).await?;
+        batch_simulation.try_submit().await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]

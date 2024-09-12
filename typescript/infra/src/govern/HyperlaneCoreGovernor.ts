@@ -1,14 +1,17 @@
 import { BigNumber } from 'ethers';
 
 import {
+  CheckerViolation,
   CoreConfig,
   CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneCoreDeployer,
+  InterchainAccount,
   MailboxViolation,
   MailboxViolationType,
   OwnerViolation,
+  ProxyAdminViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
 
@@ -18,8 +21,11 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
 > {
-  constructor(readonly checker: HyperlaneCoreChecker) {
-    super(checker);
+  constructor(
+    readonly checker: HyperlaneCoreChecker,
+    readonly ica?: InterchainAccount,
+  ) {
+    super(checker, ica);
   }
 
   protected async handleMailboxViolation(violation: MailboxViolation) {
@@ -43,40 +49,41 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
           throw new Error('Invalid mailbox violation expected value');
         }
 
-        this.pushCall(violation.chain, {
-          to: violation.contract.address,
-          data: violation.contract.interface.encodeFunctionData(
-            'setDefaultIsm',
-            [ismAddress],
-          ),
-          value: BigNumber.from(0),
-          description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
-        });
-        break;
+        return {
+          chain: violation.chain,
+          call: {
+            to: violation.contract.address,
+            data: violation.contract.interface.encodeFunctionData(
+              'setDefaultIsm',
+              [ismAddress],
+            ),
+            value: BigNumber.from(0),
+            description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
+          },
+        };
       }
       default:
         throw new Error(`Unsupported mailbox violation type ${violation.type}`);
     }
   }
 
-  protected async mapViolationsToCalls() {
-    for (const violation of this.checker.violations) {
-      switch (violation.type) {
-        case ViolationType.Owner: {
-          this.handleOwnerViolation(violation as OwnerViolation);
-          break;
-        }
-        case CoreViolationType.Mailbox: {
-          await this.handleMailboxViolation(violation as MailboxViolation);
-          break;
-        }
-        case CoreViolationType.ValidatorAnnounce: {
-          console.warn('Ignoring ValidatorAnnounce violation');
-          break;
-        }
-        default:
-          throw new Error(`Unsupported violation type ${violation.type}`);
+  public async mapViolationToCall(violation: CheckerViolation) {
+    switch (violation.type) {
+      case ViolationType.Owner: {
+        return this.handleOwnerViolation(violation as OwnerViolation);
       }
+      case CoreViolationType.Mailbox: {
+        return this.handleMailboxViolation(violation as MailboxViolation);
+      }
+      case CoreViolationType.ValidatorAnnounce: {
+        console.warn('Ignoring ValidatorAnnounce violation');
+        return undefined;
+      }
+      case ViolationType.ProxyAdmin: {
+        return this.handleProxyAdminViolation(violation as ProxyAdminViolation);
+      }
+      default:
+        throw new Error(`Unsupported violation type ${violation.type}`);
     }
   }
 }

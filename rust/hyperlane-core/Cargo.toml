@@ -41,6 +41,7 @@ strum_macros = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, optional = true, features = ["rt", "time"] }
 tracing.workspace = true
+typetag.workspace = true
 primitive-types = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"]}

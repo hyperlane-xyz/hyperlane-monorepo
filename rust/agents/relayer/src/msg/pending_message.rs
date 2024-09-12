@@ -15,10 +15,11 @@ use hyperlane_core::{
     TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
+use serde::Serialize;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use super::{
-    gas_payment::GasPaymentEnforcer,
+    gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
     metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
 };
 
@@ -27,7 +28,7 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     Duration::from_secs(5)
 } else {
     // Wait 1 min after submitting the message before confirming in normal/production mode
-    Duration::from_secs(60)
+    Duration::from_secs(60 * 10)
 };
 
 /// The message context contains the links needed to submit a message. Each
@@ -50,23 +51,28 @@ pub struct MessageContext {
 }
 
 /// A message that the submitter can and should try to submit.
-#[derive(new)]
+#[derive(new, Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
+    #[serde(skip_serializing)]
     ctx: Arc<MessageContext>,
     status: PendingOperationStatus,
     app_context: Option<String>,
     #[new(default)]
     submitted: bool,
     #[new(default)]
+    #[serde(skip_serializing)]
     submission_data: Option<Box<MessageSubmissionData>>,
     #[new(default)]
     num_retries: u32,
     #[new(value = "Instant::now()")]
+    #[serde(skip_serializing)]
     last_attempted_at: Instant,
     #[new(default)]
+    #[serde(skip_serializing)]
     next_attempt_after: Option<Instant>,
     #[new(default)]
+    #[serde(skip_serializing)]
     submission_outcome: Option<TxOutcome>,
 }
 
@@ -85,8 +91,8 @@ impl Debug for PendingMessage {
                 }
             })
             .unwrap_or(0);
-        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?} }}",
-               self.num_retries, self.message)
+        write!(f, "PendingMessage {{ num_retries: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?}, status: {:?}, app_context: {:?} }}",
+               self.num_retries, self.message, self.status, self.app_context)
     }
 }
 
@@ -117,6 +123,7 @@ impl TryBatchAs<HyperlaneMessage> for PendingMessage {
 }
 
 #[async_trait]
+#[typetag::serialize]
 impl PendingOperation for PendingMessage {
     fn id(&self) -> H256 {
         self.message.id()
@@ -163,7 +170,7 @@ impl PendingOperation for PendingMessage {
         self.app_context.clone()
     }
 
-    #[instrument(skip(self), ret, fields(id=?self.id()), level = "debug")]
+    #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
@@ -279,8 +286,15 @@ impl PendingOperation for PendingMessage {
             }
         };
 
-        let Some(gas_limit) = gas_limit else {
-            return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet);
+        let gas_limit = match gas_limit {
+            GasPolicyStatus::NoPaymentFound => {
+                return self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound)
+            }
+            GasPolicyStatus::PolicyNotMet => {
+                return self
+                    .on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet)
+            }
+            GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
         };
 
         // Go ahead and attempt processing of message to destination chain.
@@ -438,6 +452,10 @@ impl PendingOperation for PendingMessage {
 
     fn set_retries(&mut self, retries: u32) {
         self.set_retries(retries);
+    }
+
+    fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
+        Some(self.ctx.destination_mailbox.clone())
     }
 }
 

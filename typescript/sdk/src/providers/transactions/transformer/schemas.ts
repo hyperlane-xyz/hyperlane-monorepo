@@ -6,6 +6,6 @@ import { EV5InterchainAccountTxTransformerPropsSchema } from './ethersV5/schemas
 export const TransformerMetadataSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal(TxTransformerType.INTERCHAIN_ACCOUNT),
-    props: EV5InterchainAccountTxTransformerPropsSchema,
+    ...EV5InterchainAccountTxTransformerPropsSchema.shape,
   }),
 ]);

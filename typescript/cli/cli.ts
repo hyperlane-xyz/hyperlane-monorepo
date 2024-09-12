@@ -20,8 +20,10 @@ import {
   skipConfirmationOption,
 } from './src/commands/options.js';
 import { registryCommand } from './src/commands/registry.js';
+import { relayerCommand } from './src/commands/relayer.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
+import { submitCommand } from './src/commands/submit.js';
 import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
 import { contextMiddleware } from './src/context/context.js';
@@ -59,8 +61,10 @@ try {
     .command(hookCommand)
     .command(ismCommand)
     .command(registryCommand)
+    .command(relayerCommand)
     .command(sendCommand)
     .command(statusCommand)
+    .command(submitCommand)
     .command(validatorCommand)
     .command(warpCommand)
     .version(VERSION)

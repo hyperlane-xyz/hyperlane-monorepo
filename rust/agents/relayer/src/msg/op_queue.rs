@@ -8,6 +8,8 @@ use tracing::{debug, info, instrument};
 
 use crate::server::MessageRetryRequest;
 
+pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
+
 /// Queue of generic operations that can be submitted to a destination chain.
 /// Includes logic for maintaining queue metrics by the destination and `app_context` of an operation
 #[derive(Debug, Clone, new)]
@@ -16,7 +18,7 @@ pub struct OpQueue {
     queue_metrics_label: String,
     retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
-    queue: Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>,
+    pub queue: OperationPriorityQueue,
 }
 
 impl OpQueue {
@@ -25,7 +27,7 @@ impl OpQueue {
     /// - `op`: the operation to push onto the queue
     /// - `new_status`: optional new status to set for the operation. When an operation is added to a queue,
     /// it's very likely that its status has just changed, so this forces the caller to consider the new status
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
         if let Some(new_status) = new_status {
             op.set_status(new_status);
@@ -37,7 +39,7 @@ impl OpQueue {
     }
 
     /// Pop an element from the queue and update metrics
-    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "debug")]
+    #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn pop(&mut self) -> Option<QueueOperation> {
         let pop_attempt = self.pop_many(1).await;
         pop_attempt.into_iter().next()
@@ -115,27 +117,28 @@ impl OpQueue {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
         TryBatchAs, TxOutcome, H256, U256,
     };
+    use serde::Serialize;
     use std::{
         collections::VecDeque,
         time::{Duration, Instant},
     };
     use tokio::sync;
 
-    #[derive(Debug, Clone)]
-    struct MockPendingOperation {
+    #[derive(Debug, Clone, Serialize)]
+    pub struct MockPendingOperation {
         id: H256,
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
     }
 
     impl MockPendingOperation {
-        fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
+        pub fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
             Self {
                 id: H256::random(),
                 seconds_to_next_attempt,
@@ -147,6 +150,7 @@ mod test {
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
 
     #[async_trait::async_trait]
+    #[typetag::serialize]
     impl PendingOperation for MockPendingOperation {
         fn id(&self) -> H256 {
             self.id
@@ -236,7 +240,7 @@ mod test {
         }
     }
 
-    fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
+    pub fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
         (
             IntGaugeVec::new(
                 prometheus::Opts::new("op_queue", "OpQueue metrics"),

@@ -16,6 +16,7 @@ import {
   Address,
   ProtocolType,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
@@ -37,6 +38,7 @@ import { ChainMap, ChainName } from '../types.js';
 
 import {
   UpgradeConfig,
+  isInitialized,
   isProxy,
   proxyAdmin,
   proxyConstructorArgs,
@@ -369,6 +371,7 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
     shouldRecover = true,
+    implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
     if (shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
@@ -388,9 +391,9 @@ export abstract class HyperlaneDeployer<
     }
 
     this.logger.info(
-      `Deploy ${contractName} on ${chain} with constructor args (${constructorArgs.join(
+      `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
-      )})`,
+      )})...`,
     );
     const contract = await this.multiProvider.handleDeploy(
       chain,
@@ -399,17 +402,44 @@ export abstract class HyperlaneDeployer<
     );
 
     if (initializeArgs) {
-      this.logger.debug(`Initialize ${contractName} on ${chain}`);
-      const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const initTx = await contract.initialize(...initializeArgs, overrides);
-      await this.multiProvider.handleTx(chain, initTx);
+      if (
+        await isInitialized(
+          this.multiProvider.getProvider(chain),
+          contract.address,
+        )
+      ) {
+        this.logger.debug(
+          `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
+        );
+      } else {
+        this.logger.debug(
+          `Initializing ${contractName} (${contract.address}) on ${chain}...`,
+        );
+
+        // Estimate gas for the initialize transaction
+        const estimatedGas = await contract.estimateGas.initialize(
+          ...initializeArgs,
+        );
+
+        // deploy with 10% buffer on gas limit
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
+        const initTx = await contract.initialize(...initializeArgs, {
+          gasLimit: estimatedGas.add(estimatedGas.div(10)),
+          ...overrides,
+        });
+        const receipt = await this.multiProvider.handleTx(chain, initTx);
+        this.logger.debug(
+          `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
+        );
+      }
     }
 
-    const verificationInput = getContractVerificationInput(
-      contractName,
+    const verificationInput = getContractVerificationInput({
+      name: contractName,
       contract,
-      factory.bytecode,
-    );
+      bytecode: factory.bytecode,
+      expectedimplementation: implementationAddress,
+    });
     this.addVerificationArtifacts(chain, [verificationInput]);
 
     // try verifying contract
@@ -576,6 +606,9 @@ export abstract class HyperlaneDeployer<
       new TransparentUpgradeableProxy__factory(),
       'TransparentUpgradeableProxy',
       constructorArgs,
+      undefined,
+      true,
+      implementation.address,
     );
 
     return implementation.attach(proxy.address) as C;
@@ -615,19 +648,15 @@ export abstract class HyperlaneDeployer<
     contractName: string,
   ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
-    const hit =
-      !!cachedAddress && cachedAddress !== ethers.constants.AddressZero;
-    const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
-    const contract = factory
-      .attach(contractAddress)
-      .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
-      ReturnType<F['deploy']>
-    >;
-    if (hit) {
+    if (cachedAddress && !isZeroishAddress(cachedAddress)) {
       this.logger.debug(
-        `Recovered ${contractName.toString()} on ${chain} ${cachedAddress}`,
+        `Recovered ${contractName} on ${chain}: ${cachedAddress}`,
       );
-      return contract;
+      return factory
+        .attach(cachedAddress)
+        .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
+        ReturnType<F['deploy']>
+      >;
     }
     return undefined;
   }

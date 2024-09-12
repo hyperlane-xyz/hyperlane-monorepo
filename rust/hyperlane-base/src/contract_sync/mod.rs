@@ -3,8 +3,10 @@ use std::{
 };
 
 use axum::async_trait;
+use broadcast::BroadcastMpscSender;
 use cursors::*;
 use derive_new::new;
+use eyre::Result;
 use hyperlane_core::{
     utils::fmt_sync_time, ContractSyncCursor, CursorAction, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneSequenceAwareIndexerStore, HyperlaneWatermarkedLogStore, Indexer,
@@ -13,13 +15,14 @@ use hyperlane_core::{
 use hyperlane_core::{Indexed, LogMeta, H512};
 pub use metrics::ContractSyncMetrics;
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
-use tokio::sync::broadcast::error::TryRecvError;
-use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
+use tokio::sync::mpsc::{error::TryRecvError, Receiver as MpscReceiver};
 use tokio::time::sleep;
 use tracing::{debug, info, instrument, trace, warn};
 
 use crate::settings::IndexSettings;
 
+/// Broadcast channel utility, with async interface for `send`
+pub mod broadcast;
 pub(crate) mod cursors;
 mod eta_calculator;
 mod metrics;
@@ -37,7 +40,7 @@ pub struct ContractSync<T: Indexable, D: HyperlaneLogStore<T>, I: Indexer<T>> {
     db: D,
     indexer: I,
     metrics: ContractSyncMetrics,
-    broadcast_sender: Option<BroadcastSender<H512>>,
+    broadcast_sender: Option<BroadcastMpscSender<H512>>,
     _phantom: PhantomData<T>,
 }
 
@@ -49,7 +52,7 @@ impl<T: Indexable, D: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, D, I>
             db,
             indexer,
             metrics,
-            broadcast_sender: T::broadcast_channel_size().map(BroadcastSender::new),
+            broadcast_sender: T::broadcast_channel_size().map(BroadcastMpscSender::new),
             _phantom: PhantomData,
         }
     }
@@ -66,7 +69,7 @@ where
         &self.domain
     }
 
-    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
         self.broadcast_sender.clone()
     }
 
@@ -97,7 +100,7 @@ where
     #[instrument(fields(domain=self.domain().name()), skip(self, recv, stored_logs_metric))]
     async fn fetch_logs_from_receiver(
         &self,
-        recv: &mut BroadcastReceiver<H512>,
+        recv: &mut MpscReceiver<H512>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
     ) {
         loop {
@@ -116,15 +119,16 @@ where
                         num_logs,
                         ?tx_id,
                         sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                        pending_ids = ?recv.len(),
                         "Found log(s) for tx id"
                     );
                 }
                 Err(TryRecvError::Empty) => {
-                    trace!("No txid received");
+                    trace!("No tx id received");
                     break;
                 }
                 Err(err) => {
-                    warn!(?err, "Error receiving txid from channel");
+                    warn!(?err, "Error receiving tx id from channel");
                     break;
                 }
             }
@@ -174,11 +178,11 @@ where
                 );
 
                 if let Some(tx) = self.broadcast_sender.as_ref() {
-                    logs.iter().for_each(|(_, meta)| {
-                        if let Err(err) = tx.send(meta.transaction_id) {
+                    for (_, meta) in &logs {
+                        if let Err(err) = tx.send(meta.transaction_id).await {
                             trace!(?err, "Error sending txid to receiver");
                         }
-                    });
+                    }
                 }
 
                 // Update cursor
@@ -237,7 +241,8 @@ pub type WatermarkContractSync<T> =
 #[async_trait]
 pub trait ContractSyncer<T>: Send + Sync {
     /// Returns a new cursor to be used for syncing events from the indexer
-    async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>>;
+    async fn cursor(&self, index_settings: IndexSettings)
+        -> Result<Box<dyn ContractSyncCursor<T>>>;
 
     /// Syncs events from the indexer using the provided cursor
     async fn sync(&self, label: &'static str, opts: SyncOptions<T>);
@@ -246,7 +251,7 @@ pub trait ContractSyncer<T>: Send + Sync {
     fn domain(&self) -> &HyperlaneDomain;
 
     /// If this syncer is also a broadcaster, return the channel to receive txids
-    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>>;
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>>;
 }
 
 #[derive(new)]
@@ -256,7 +261,7 @@ pub struct SyncOptions<T> {
     // Might want to refactor into an enum later, where we either index with a cursor or rely on receiving
     // txids from a channel to other indexing tasks
     cursor: Option<Box<dyn ContractSyncCursor<T>>>,
-    tx_id_receiver: Option<BroadcastReceiver<H512>>,
+    tx_id_receiver: Option<MpscReceiver<H512>>,
 }
 
 impl<T> From<Box<dyn ContractSyncCursor<T>>> for SyncOptions<T> {
@@ -274,23 +279,25 @@ where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing events from the indexer based on time
-    async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
+    async fn cursor(
+        &self,
+        index_settings: IndexSettings,
+    ) -> Result<Box<dyn ContractSyncCursor<T>>> {
         let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
             mode: index_settings.mode,
         };
-        Box::new(
+        Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
                 self.db.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
             )
-            .await
-            .unwrap(),
-        )
+            .await?,
+        ))
     }
 
     async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
@@ -301,7 +308,7 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
         ContractSync::get_broadcaster(self)
     }
 }
@@ -319,17 +326,19 @@ where
     T: Indexable + Send + Sync + Debug + Clone + Eq + Hash + 'static,
 {
     /// Returns a new cursor to be used for syncing dispatched messages from the indexer
-    async fn cursor(&self, index_settings: IndexSettings) -> Box<dyn ContractSyncCursor<T>> {
-        Box::new(
+    async fn cursor(
+        &self,
+        index_settings: IndexSettings,
+    ) -> Result<Box<dyn ContractSyncCursor<T>>> {
+        Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
                 self.indexer.clone(),
                 Arc::new(self.db.clone()),
                 index_settings.chunk_size,
                 index_settings.mode,
             )
-            .await
-            .unwrap(),
-        )
+            .await?,
+        ))
     }
 
     async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
@@ -340,7 +349,7 @@ where
         ContractSync::domain(self)
     }
 
-    fn get_broadcaster(&self) -> Option<BroadcastSender<H512>> {
+    fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
         ContractSync::get_broadcaster(self)
     }
 }
