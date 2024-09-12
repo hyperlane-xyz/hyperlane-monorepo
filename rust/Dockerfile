@@ -32,9 +32,6 @@ WORKDIR /usr/src/rust/main
 
 # Build binaries
 RUN \
-  --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
-  --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
-  --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
     RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
     cp /usr/src/rust/main/target/release/validator /release && \
