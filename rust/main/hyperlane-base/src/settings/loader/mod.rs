@@ -27,7 +27,7 @@ where
     let mut base_config_sources = vec![];
     let mut builder = Config::builder();
 
-    // Always load the default config files (`rust/config/*.json`)
+    // Always load the default config files (`rust/main/config/*.json`)
     for entry in PathBuf::from("./config")
         .read_dir()
         .context("Failed to open config directory")
