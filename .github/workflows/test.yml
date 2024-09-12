@@ -1,16 +1,20 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main branch
+  # Triggers the workflow on pushes to main branch, ignoring md files
   push:
     branches: [main]
-  # Triggers on pull requests ignoring md files
+    paths:
+      - '**/*'
+      - '!**/*.md'
+  # Triggers on pull requests, ignoring md files
   pull_request:
     branches:
-      - '*' # run against all branches
-  # Support for merge queues
+      - '*'
+    paths:
+      - '**/*'
+      - '!**/*.md'
   merge_group:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 concurrency:
