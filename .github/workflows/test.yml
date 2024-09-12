@@ -172,12 +172,23 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
+          prefix-key: 'v2-rust-main'
           shared-key: ${{ matrix.e2e-type }}
-          cache-provider: "buildjet"
+          cache-provider: 'buildjet'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
-            ./rust
+            ./rust/main
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        if: matrix.e2e-type == 'non-cosmwasm'
+        with:
+          prefix-key: 'v2-rust-sealevel'
+          shared-key: ${{ matrix.e2e-type }}
+          cache-provider: 'buildjet'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          workspaces: |
+            ./rust/sealevel
 
       - name: Free disk space
         run: |
@@ -209,14 +220,14 @@ jobs:
       - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (EVM and Sealevel)
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'

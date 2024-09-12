@@ -530,7 +530,7 @@ export function writeAddresses(
 }
 
 export function getAgentConfigDirectory() {
-  return path.join('../../', 'rust', 'config');
+  return path.join('../../', 'rust', 'main', 'config');
 }
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {
