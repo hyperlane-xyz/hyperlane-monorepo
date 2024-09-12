@@ -502,7 +502,9 @@ export function getWarpAddresses(warpRouteId: string) {
   const warpRouteConfig = registry.getWarpRoute(warpRouteId);
 
   if (!warpRouteConfig) {
-    throw new Error(`Warp route config for ${warpRouteId} not found`);
+    throw new Error(
+      `Warp route config for ${warpRouteId} not found in registry`,
+    );
   }
 
   return warpConfigToWarpAddresses(warpRouteConfig);
