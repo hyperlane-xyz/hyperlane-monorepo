@@ -172,12 +172,23 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: 'v1-${{ runner.os }}-rust-cache'
+          prefix-key: 'v2-rust-main'
           shared-key: ${{ matrix.e2e-type }}
-          cache-provider: "buildjet"
+          cache-provider: 'buildjet'
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
+        if: matrix.e2e-type == 'non-cosmwasm'
+        with:
+          prefix-key: 'v2-rust-sealevel'
+          shared-key: ${{ matrix.e2e-type }}
+          cache-provider: 'buildjet'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
+          workspaces: |
+            ./rust/sealevel
 
       - name: Free disk space
         run: |
