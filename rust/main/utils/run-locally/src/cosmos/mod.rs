@@ -581,7 +581,7 @@ fn run_locally() {
         postgres,
     };
 
-    // Mostly copy-pasta from `rust/utils/run-locally/src/main.rs`
+    // Mostly copy-pasta from `rust/main/utils/run-locally/src/main.rs`
     // TODO: refactor to share code
     let loop_start = Instant::now();
     let mut failure_occurred = false;

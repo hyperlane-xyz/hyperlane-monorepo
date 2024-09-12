@@ -6,7 +6,7 @@ use hyperlane_base::settings::{parser::RawAgentConf, Settings};
 use hyperlane_core::{config::*, KnownHyperlaneDomain};
 use walkdir::WalkDir;
 
-/// Relative path to the `hyperlane-monorepo/rust/config/`
+/// Relative path to the `hyperlane-monorepo/rust/main/config/`
 /// directory, which is where the agent's config files
 /// currently live.
 const AGENT_CONFIG_PATH_ROOT: &str = "../config";

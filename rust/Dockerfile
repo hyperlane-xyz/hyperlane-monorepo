@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.72.1 as builder
+FROM rust:1.80.1 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
@@ -23,18 +23,13 @@ COPY rust/main/utils rust/main/utils
 COPY rust/sealevel rust/sealevel
 
 COPY rust/main/Cargo.toml rust/main/.
-COPY rust/main/Cargo.toml rust/main/.
-COPY rust/sealevel/Cargo.lock rust/sealevel/.
-COPY rust/sealevel/Cargo.lock rust/sealevel/.
+COPY rust/main/Cargo.lock rust/main/.
 
 
 WORKDIR /usr/src/rust/main
 
 # Build binaries
 RUN \
-  --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
-  --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
-  --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
     RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
     cp /usr/src/rust/main/target/release/validator /release && \
