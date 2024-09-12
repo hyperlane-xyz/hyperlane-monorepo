@@ -62,9 +62,6 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
-  "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
-  },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
   }
