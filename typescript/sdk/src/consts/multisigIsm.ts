@@ -237,6 +237,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0xD79DFbF56ee2268f061cc613027a44A880f61Ba2', // everclear
     ],
   },
 
