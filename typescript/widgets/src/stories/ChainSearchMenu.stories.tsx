@@ -11,8 +11,21 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Example = {
+export const DefaultChainSearch = {
   args: {
     chainMetadata,
+  },
+} satisfies Story;
+
+export const WithCustomField = {
+  args: {
+    chainMetadata,
+    customListItemField: {
+      header: 'Custom Field',
+      data: {
+        alfajores: 'Custom Data',
+        arbitrum: 'Custom Data',
+      },
+    },
   },
 } satisfies Story;

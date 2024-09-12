@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { SearchMenu, SortOrderOption } from '../components/SearchMenu.js';
@@ -9,10 +9,6 @@ import { FunnelIcon } from '../icons/Funnel.js';
 import { UpDownArrowsIcon } from '../icons/UpDownArrows.js';
 
 import { ChainLogo } from './ChainLogo.js';
-
-export interface ChainSearchMenuProps {
-  chainMetadata: ChainMap<ChainMetadata>;
-}
 
 enum ChainSortByOption {
   Name = 'name',
@@ -39,8 +35,35 @@ const defaultSortAndFilterState: ChainSortAndFilterState = {
   filterProtocol: undefined,
 };
 
-export function ChainSearchMenu({ chainMetadata }: ChainSearchMenuProps) {
+interface CustomListItemField {
+  header: string;
+  data: ChainMap<string>;
+}
+
+export interface ChainSearchMenuProps {
+  chainMetadata: ChainMap<ChainMetadata>;
+  // To replace the default 2nd column (deployer) with custom data
+  customListItemField?: CustomListItemField;
+  // To auto-navigate to a chain details menu
+  defaultChainDrilldown?: ChainName;
+}
+
+export function ChainSearchMenu({
+  chainMetadata,
+  customListItemField,
+  defaultChainDrilldown,
+}: ChainSearchMenuProps) {
   const data = useMemo(() => Object.values(chainMetadata), [chainMetadata]);
+
+  // Create closure of ChainListItem but with the custom field bound on already.
+  // This is needed because the SearchMenu component will do the rendering but the
+  // custom data is more specific to this ChainSearchMenu.
+  const ChainListItemWithCustom = useCallback(
+    ({ data }: { data: ChainMetadata<{ disabled?: boolean }> }) => (
+      <ChainListItem data={data} customField={customListItemField} />
+    ),
+    [ChainListItem, customListItemField],
+  );
 
   return (
     <SearchMenu<ChainMetadata<{ disabled?: boolean }>, ChainSortAndFilterState>
@@ -49,13 +72,19 @@ export function ChainSearchMenu({ chainMetadata }: ChainSearchMenuProps) {
       onClickItem={(item) => console.log(item)}
       onClickEditItem={(item) => console.log(item)}
       defaultSortAndFilterState={defaultSortAndFilterState}
-      ListComponent={ChainListItem}
+      ListComponent={ChainListItemWithCustom}
       FilterComponent={ChainFilters}
     />
   );
 }
 
-function ChainListItem({ data: chain }: { data: ChainMetadata }) {
+function ChainListItem({
+  data: chain,
+  customField,
+}: {
+  data: ChainMetadata;
+  customField?: CustomListItemField;
+}) {
   return (
     <>
       <div className="htw-flex htw-items-center">
@@ -71,9 +100,13 @@ function ChainListItem({ data: chain }: { data: ChainMetadata }) {
       </div>
       <div className="htw-text-left">
         <div className="htw-text-sm">
-          {chain.deployer?.name || 'Unknown deployer'}
+          {customField
+            ? customField.data[chain.name] || 'Unknown'
+            : chain.deployer?.name || 'Unknown deployer'}
         </div>
-        <div className="htw-text-[0.7rem] htw-text-gray-500">Deployer</div>
+        <div className="htw-text-[0.7rem] htw-text-gray-500">
+          {customField ? customField.header : 'Deployer'}
+        </div>
       </div>
     </>
   );
