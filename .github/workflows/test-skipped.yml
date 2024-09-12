@@ -2,13 +2,13 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main branch, if only md files are changed
+  # Auto-pass tests if only md files are changed
   push:
     branches: [main]
     paths:
       - '!**/*'
       - '**/*.md'
-  # Triggers on pull requests, if only md files are changed
+  # Auto-pass tests if only md files are changed
   pull_request:
     branches:
       - '*'
