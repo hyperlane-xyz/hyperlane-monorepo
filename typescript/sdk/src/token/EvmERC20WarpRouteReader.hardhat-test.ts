@@ -49,7 +49,7 @@ describe('ERC20WarpRouterReader', async () => {
   let mailbox: Mailbox;
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
   let vault: ERC4626;
-  beforeEach(async () => {
+  before(async () => {
     [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
@@ -75,6 +75,12 @@ describe('ERC20WarpRouterReader', async () => {
 
     const vaultFactory = new ERC4626Test__factory(signer);
     vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
+  });
+
+  beforeEach(async () => {
+    // Reset the MultiProvider and create a new deployer for each test
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    deployer = new HypERC20Deployer(multiProvider);
   });
 
   it('should derive a token type from contract', async () => {

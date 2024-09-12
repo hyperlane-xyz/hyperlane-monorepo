@@ -102,7 +102,6 @@ export {
   invertKeysAndValues,
   isObjEmpty,
   isObject,
-  normalizeConfig,
   objFilter,
   objKeys,
   objLength,
