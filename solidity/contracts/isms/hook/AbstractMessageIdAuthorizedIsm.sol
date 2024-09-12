@@ -123,9 +123,8 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             msg.value < 2 ** VERIFIED_MASK_INDEX,
             "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
         );
-        uint256 currentValue = verifiedMessages[messageId];
         require(
-            !currentValue.isBitSet(VERIFIED_MASK_INDEX),
+            !isVerified(messageId),
             "AbstractMessageIdAuthorizedIsm: message already verified"
         );
 
