@@ -44,8 +44,7 @@ async function main() {
         threshold,
         'threshold OK': threshold <= validatorCount / 2 ? '🚨' : '✅',
         total: validatorCount,
-        'validator count OK':
-          validatorCount < minimumValidatorCount ? '🚨' : '✅',
+        'total OK': validatorCount < minimumValidatorCount ? '🚨' : '✅',
         unannounced:
           unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
       };
@@ -59,14 +58,14 @@ async function main() {
     .map((r) => r.chain);
 
   const lowValidatorCountChains = results
-    .filter((r) => r['validator count OK'] === '🚨')
+    .filter((r) => r['total OK'] === '🚨')
     .map((r) => ({
       chain: r.chain,
       neededValidators: minimumValidatorCount - r.total,
     }));
 
   if (lowThresholdChains.length > 0) {
-    console.log('Chains with low thresholds:');
+    console.log('\n⚠️ Chains with low thresholds:');
     lowThresholdChains.forEach((chain) => {
       const validatorCount = defaultMultisigConfigs[chain].validators.length;
       const minimumThreshold = Math.floor(validatorCount / 2) + 1;
@@ -74,10 +73,12 @@ async function main() {
         ` - ${chain}: threshold should be at least ${minimumThreshold}`,
       );
     });
+  } else {
+    console.log('\n✅ Thresholds look good!');
   }
 
   if (lowValidatorCountChains.length > 0) {
-    console.log('\nChains with low validator counts:');
+    console.log('\n⚠️ Chains with low validator counts:');
     lowValidatorCountChains.forEach((c) => {
       console.log(
         ` - ${c.chain}: needs ${c.neededValidators} more validator${
@@ -85,14 +86,18 @@ async function main() {
         }`,
       );
     });
+  } else {
+    console.log('\n✅ Validator counts look good!');
   }
 
   const unnanouncedChains = Object.keys(chainsWithUnannouncedValidators);
   if (unnanouncedChains.length > 0) {
-    console.log('\nChains with unannounced:');
+    console.log('\n⚠️ Chains with unannounced validators:');
     unnanouncedChains.forEach((chain) => {
       console.log(` - ${chain}: ${chainsWithUnannouncedValidators[chain]}`);
     });
+  } else {
+    console.log('\n✅ All validators announced!');
   }
 }
 
