@@ -39,6 +39,7 @@ export {
   strip0x,
 } from './addresses.js';
 export {
+  addBufferToGasLimit,
   convertDecimals,
   eqAmountApproximate,
   fromWei,
