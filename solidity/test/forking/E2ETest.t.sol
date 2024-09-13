@@ -54,7 +54,7 @@ contract E2ETest is HyperlaneForkTest {
             address(polygonPosRecipient).addressToBytes32(),
             bytes(_message)
         );
-        processNextInboundMessage();
+        processNextInboundMessage(mainnetDomain, polygonPosDomain);
         assertEq(string(polygonPosRecipient.lastData()), _message);
     }
 
@@ -66,7 +66,7 @@ contract E2ETest is HyperlaneForkTest {
             address(mainnetRecipient).addressToBytes32(),
             bytes(_message)
         );
-        processNextInboundMessage();
+        processNextInboundMessage(polygonPosDomain, mainnetDomain);
         assertEq(string(mainnetRecipient.lastData()), _message);
     }
 
@@ -81,7 +81,7 @@ contract E2ETest is HyperlaneForkTest {
             bytes(_message)
         );
         vm.expectRevert("Mailbox: ISM verification failed");
-        processNextInboundMessage();
+        processNextInboundMessage(polygonPosDomain, mainnetDomain);
     }
 
     function testRecipientIsmMocking() public {
@@ -97,6 +97,6 @@ contract E2ETest is HyperlaneForkTest {
             bytes(_message)
         );
         vm.expectRevert("Mailbox: ISM verification failed");
-        processNextInboundMessage();
+        processNextInboundMessage(polygonPosDomain, mainnetDomain);
     }
 }

@@ -20,9 +20,10 @@ contract HyperlaneForkTest is Test {
 
     using Message for bytes;
 
-    uint32 public inboundProcessedNonce;
-
-    bytes[] public messages;
+    mapping(uint32 originDomain => mapping(uint32 destinationDomain => uint32 inboundProcessedNonce))
+        public inboundProcessedNonces;
+    mapping(uint32 originDomain => mapping(uint32 destinationDomain => bytes[] messages))
+        public messages;
 
     mapping(uint32 domain => uint256 forkId) public domain2fork;
     mapping(uint32 domain => address mailbox) public domain2mailbox;
@@ -100,11 +101,16 @@ contract HyperlaneForkTest is Test {
     }
 
     function addInboundMessage(bytes calldata message) external {
-        messages.push(message);
+        messages[message.origin()][message.destination()].push(message);
     }
 
-    function processNextInboundMessage() public {
-        this._process(messages[inboundProcessedNonce++]);
+    function processNextInboundMessage(
+        uint32 origin,
+        uint32 destination
+    ) public {
+        uint256 nonce = inboundProcessedNonces[origin][destination];
+        inboundProcessedNonces[origin][destination]++;
+        this._process(messages[origin][destination][nonce]);
     }
 
     function _process(bytes calldata message) public {
