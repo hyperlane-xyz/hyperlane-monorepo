@@ -112,7 +112,7 @@ export abstract class HyperlaneAppGovernor<
           `> ${calls.length} calls will be submitted via ${SubmissionType[submissionType]}`,
         );
         calls.map((c) => {
-          console.log(`> > ${c.description}`);
+          console.log(`> > ${c.description.trim()}`);
           console.log(`> > > to: ${c.to}`);
           console.log(`> > > data: ${c.data}`);
           console.log(`> > > value: ${c.value}`);
@@ -411,7 +411,7 @@ export abstract class HyperlaneAppGovernor<
             };
           } else {
             console.error(
-              `Failed to determine if signer can propose safe transactions: ${error}`,
+              `Failed to determine if signer can propose safe transactions on ${chain}: ${error}`,
             );
           }
         }
