@@ -2,6 +2,10 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {stdJson} from "forge-std/StdJson.sol";
+
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
@@ -11,6 +15,9 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {ForkTestMailbox} from "../../contracts/test/ForkTestMailbox.sol";
 
 contract HyperlaneForkTest is Test {
+    using stdJson for string;
+    using Strings for string;
+
     using Message for bytes;
 
     uint32 public inboundProcessedNonce;
@@ -20,15 +27,64 @@ contract HyperlaneForkTest is Test {
     mapping(uint32 domain => uint256 forkId) public domain2fork;
     mapping(uint32 domain => address mailbox) public domain2mailbox;
     mapping(uint32 domain => address defaultIsm) public domain2ism;
+    mapping(uint256 chainId => uint32 domain) public chain2domain;
+
+    constructor() {
+        string memory root = _registryUri();
+        Vm.DirEntry[] memory entries = vm.readDir(
+            string.concat(root, "/dist/chains")
+        );
+        for (uint256 i; i < entries.length; i++) {
+            if (!entries[i].isDir) continue;
+
+            string memory path = entries[i].path;
+            string memory metadata = vm.readFile(
+                string.concat(path, "/metadata.json")
+            );
+            if (!(metadata.readString(".protocol").equal("ethereum"))) {
+                continue;
+            }
+
+            string memory addressesPath = string.concat(
+                path,
+                "/addresses.json"
+            );
+            if (!vm.isFile(addressesPath)) {
+                continue;
+            }
+            string memory addresses = vm.readFile(addressesPath);
+
+            uint32 domainId = uint32(metadata.readUint(".domainId"));
+            address mailbox = addresses.readAddress(".mailbox");
+            uint256 chainId = metadata.readUint(".chainId");
+
+            domain2mailbox[domainId] = mailbox;
+            chain2domain[chainId] = domainId;
+        }
+    }
+
+    /// @notice This is the most likely location for the registry package, but inheriting contracts
+    ///         may override if needed.
+    function _registryUri() internal view virtual returns (string memory) {
+        return
+            string.concat(
+                vm.projectRoot(),
+                "/node_modules/@hyperlane-xyz/registry"
+            );
+    }
+
+    function setUpMailbox(uint256 forkId) internal {
+        vm.selectFork(forkId);
+        address mailbox = domain2mailbox[chain2domain[block.chainid]];
+        setUpMailbox(forkId, mailbox);
+    }
 
     function setUpMailbox(uint256 forkId, address mailbox) internal {
-        vm.selectFork(forkId);
         IMailbox _mailbox = IMailbox(mailbox);
         uint32 domain = _mailbox.localDomain();
         address defaultIsm = address(_mailbox.defaultIsm());
 
         domain2fork[domain] = forkId;
-        domain2mailbox[domain] = mailbox;
         domain2ism[domain] = defaultIsm;
 
         ForkTestMailbox _testMailbox = new ForkTestMailbox(

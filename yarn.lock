@@ -7628,6 +7628,7 @@ __metadata:
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@eth-optimism/contracts": "npm:^0.6.0"
+    "@hyperlane-xyz/registry": "npm:2.5.0"
     "@hyperlane-xyz/utils": "npm:5.1.0"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
@@ -7642,6 +7643,7 @@ __metadata:
     chai: "npm:4.5.0"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
+    forge-std: "github:foundry-rs/forge-std#v1.9.2"
     fx-portal: "npm:^1.0.3"
     hardhat: "npm:^2.22.2"
     hardhat-gas-reporter: "npm:^1.0.9"
@@ -19528,6 +19530,13 @@ __metadata:
   version: 0.6.1
   resolution: "forever-agent@npm:0.6.1"
   checksum: c1e1644d5e074ac063ecbc3fb8582013ef91fff0e3fa41e76db23d2f62bc6d9677aac86db950917deed4fe1fdd772df780cfaa352075f23deec9c015313afb97
+  languageName: node
+  linkType: hard
+
+"forge-std@github:foundry-rs/forge-std#v1.9.2":
+  version: 1.9.2
+  resolution: "forge-std@https://github.com/foundry-rs/forge-std.git#commit=1714bee72e286e73f76e320d110e0eaf5c4e649d"
+  checksum: e80f468eadf2a0801f33bbe64d5d3395d7b0d46325de0823a22ad8947493ee50de50cef9b141a354b0ba645f7c58086deb110b7260a9b6087d34a2a32ac1e932
   languageName: node
   linkType: hard
 

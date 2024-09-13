@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import {HyperlaneFoundryTest} from "../../contracts/test/HyperlaneFoundryTest.sol";
+import {HyperlaneForkTest} from "../../contracts/test/HyperlaneForkTest.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {TestIsm} from "../../contracts/test/TestIsm.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {IMailbox} from "../../contracts/interfaces/IMailbox.sol";
 
-contract E2ETest is HyperlaneFoundryTest {
+contract E2ETest is HyperlaneForkTest {
     using TypeCasts for address;
 
     uint32 mainnetDomain = 1;
@@ -29,11 +29,21 @@ contract E2ETest is HyperlaneFoundryTest {
         mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 18_718_401);
         polygonPosFork = vm.createFork(vm.rpcUrl("polygon"), 50_760_479);
 
-        setUpMailbox(mainnetFork, address(mainnetMailbox));
+        setUpMailbox(mainnetFork);
         mainnetRecipient = new TestRecipient();
 
-        setUpMailbox(polygonPosFork, address(polygonPosMailbox));
+        setUpMailbox(polygonPosFork);
         polygonPosRecipient = new TestRecipient();
+    }
+
+    /// @notice Workspace dependencies are hoisted to the monorepo node_modules so we need to
+    ///         override the registry location. Most projects will just use the default.
+    function _registryUri() internal view override returns (string memory) {
+        return
+            string.concat(
+                vm.projectRoot(),
+                "/../node_modules/@hyperlane-xyz/registry"
+            );
     }
 
     function testSendMessageL1ToL2() public {
