@@ -58,6 +58,15 @@ export function getAddressProtocolType(address: Address) {
   }
 }
 
+export function isAddressAndMatchesProtocol(
+  maybeAddress: Address,
+  expectedProtocolType: ProtocolType,
+): boolean {
+  {
+    return getAddressProtocolType(maybeAddress) === expectedProtocolType;
+  }
+}
+
 export function isAddress(address: Address) {
   return !!getAddressProtocolType(address);
 }
