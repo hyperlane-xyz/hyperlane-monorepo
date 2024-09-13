@@ -8,6 +8,7 @@ import { SegmentedControl } from '../components/SegmentedControlButton.js';
 import { FunnelIcon } from '../icons/Funnel.js';
 import { UpDownArrowsIcon } from '../icons/UpDownArrows.js';
 
+import { ChainDetailsMenu } from './ChainDetailsMenu.js';
 import { ChainLogo } from './ChainLogo.js';
 
 enum ChainSortByOption {
@@ -42,17 +43,23 @@ interface CustomListItemField {
 
 export interface ChainSearchMenuProps {
   chainMetadata: ChainMap<ChainMetadata>;
+  onClickChain: (chain: ChainMetadata) => void;
   // To replace the default 2nd column (deployer) with custom data
   customListItemField?: CustomListItemField;
   // To auto-navigate to a chain details menu
-  defaultChainDrilldown?: ChainName;
+  defaultDrilldownChain?: ChainName;
 }
 
 export function ChainSearchMenu({
   chainMetadata,
+  onClickChain,
   customListItemField,
-  defaultChainDrilldown,
+  defaultDrilldownChain,
 }: ChainSearchMenuProps) {
+  const [drilldownChain, setDrilldownChain] = React.useState<
+    ChainName | undefined
+  >(defaultDrilldownChain);
+
   const data = useMemo(() => Object.values(chainMetadata), [chainMetadata]);
 
   // Create closure of ChainListItem but with the custom field bound on already.
@@ -65,17 +72,29 @@ export function ChainSearchMenu({
     [ChainListItem, customListItemField],
   );
 
-  return (
-    <SearchMenu<ChainMetadata<{ disabled?: boolean }>, ChainSortAndFilterState>
-      data={data}
-      searchFn={chainSearch}
-      onClickItem={(item) => console.log(item)}
-      onClickEditItem={(item) => console.log(item)}
-      defaultSortAndFilterState={defaultSortAndFilterState}
-      ListComponent={ChainListItemWithCustom}
-      FilterComponent={ChainFilters}
-    />
-  );
+  if (drilldownChain && chainMetadata[drilldownChain]) {
+    return (
+      <ChainDetailsMenu
+        chainMetadata={chainMetadata[drilldownChain]}
+        onClickBack={() => setDrilldownChain(undefined)}
+      />
+    );
+  } else {
+    return (
+      <SearchMenu<
+        ChainMetadata<{ disabled?: boolean }>,
+        ChainSortAndFilterState
+      >
+        data={data}
+        searchFn={chainSearch}
+        onClickItem={onClickChain}
+        onClickEditItem={(chain) => setDrilldownChain(chain.name)}
+        defaultSortAndFilterState={defaultSortAndFilterState}
+        ListComponent={ChainListItemWithCustom}
+        FilterComponent={ChainFilters}
+      />
+    );
+  }
 }
 
 function ChainListItem({

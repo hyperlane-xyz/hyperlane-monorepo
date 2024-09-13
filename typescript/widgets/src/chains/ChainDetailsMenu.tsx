@@ -1,24 +1,33 @@
-import React, { Key, PropsWithChildren, useMemo } from 'react';
+import React, { PropsWithChildren, useMemo } from 'react';
 
 import { ChainMetadata } from '@hyperlane-xyz/sdk';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import { ColorPalette } from '../color.js';
 import { CopyButton } from '../components/CopyButton.js';
+import { LinkButton } from '../components/LinkButton.js';
 import { Tooltip } from '../components/Tooltip.js';
 import { BoxArrowIcon } from '../icons/BoxArrow.js';
+import { ChevronIcon } from '../icons/Chevron.js';
 import { Circle } from '../icons/Circle.js';
 import { PlusCircleIcon } from '../icons/PlusCircle.js';
+import { Spinner } from '../icons/Spinner.js';
+import { useConnectionHealthTest } from '../utils/useChainConnectionTest.js';
 
 import { ChainLogo } from './ChainLogo.js';
 
 export interface ChainDetailsMenuProps {
   chainMetadata: ChainMetadata;
+  onClickBack?: () => void;
 }
 
-export function ChainDetailsMenu({ chainMetadata }: ChainDetailsMenuProps) {
+export function ChainDetailsMenu({
+  chainMetadata,
+  onClickBack,
+}: ChainDetailsMenuProps) {
   return (
     <div className="htw-space-y-4">
-      <ChainHeader chainMetadata={chainMetadata} />
+      <ChainHeader chainMetadata={chainMetadata} onClickBack={onClickBack} />
       <ChainRpcs chainMetadata={chainMetadata} />
       <ChainExplorers chainMetadata={chainMetadata} />
       <ChainInfoSection chainMetadata={chainMetadata} />
@@ -26,21 +35,36 @@ export function ChainDetailsMenu({ chainMetadata }: ChainDetailsMenuProps) {
   );
 }
 
-function ChainHeader({ chainMetadata }: { chainMetadata: ChainMetadata }) {
+function ChainHeader({ chainMetadata, onClickBack }: ChainDetailsMenuProps) {
   return (
-    <div className="htw-flex htw-items-center htw-justify-between">
-      <div className="htw-flex htw-items-center htw-gap-4">
-        <ChainLogo
-          chainName={chainMetadata.name}
-          logoUri={chainMetadata.logoURI}
-          size={36}
+    <div>
+      {!!onClickBack && (
+        <LinkButton onClick={onClickBack} className="htw-py-1 htw-mb-1.5">
+          <div className="htw-flex htw-items-center htw-gap-1.5">
+            <ChevronIcon
+              width={12}
+              height={12}
+              direction="w"
+              className="htw-opacity-70"
+            />
+            <span className="htw-text-xs htw-text-gray-500">Back</span>
+          </div>
+        </LinkButton>
+      )}
+      <div className="htw-flex htw-items-center htw-justify-between">
+        <div className="htw-flex htw-items-center htw-gap-3">
+          <ChainLogo
+            chainName={chainMetadata.name}
+            logoUri={chainMetadata.logoURI}
+            size={32}
+          />
+          <div className="htw-text-lg htw-font-medium">{`${chainMetadata.displayName} Metadata`}</div>
+        </div>
+        <Tooltip
+          id="metadata-help"
+          content="Hyperlane tools require chain metadata<br/>with at least one healthy RPC connection."
         />
-        <div className="htw-text-lg htw-font-medium">{`${chainMetadata.displayName} Metadata`}</div>
       </div>
-      <Tooltip
-        id="metadata-help"
-        content="Hyperlane tools require chain metadata<br/>with at least one healthy RPC connection."
-      />
     </div>
   );
 }
@@ -48,9 +72,9 @@ function ChainHeader({ chainMetadata }: { chainMetadata: ChainMetadata }) {
 function ChainRpcs({ chainMetadata }: { chainMetadata: ChainMetadata }) {
   return (
     <ConnectionsSection
+      chainMetadata={chainMetadata}
       header="Connections"
-      label="RPC"
-      values={chainMetadata.rpcUrls?.map((r) => r.http) || []}
+      type="rpc"
       onAddNew={() => {}}
     />
   );
@@ -59,30 +83,34 @@ function ChainRpcs({ chainMetadata }: { chainMetadata: ChainMetadata }) {
 function ChainExplorers({ chainMetadata }: { chainMetadata: ChainMetadata }) {
   return (
     <ConnectionsSection
+      chainMetadata={chainMetadata}
       header="Block Explorers"
-      label="explorer"
-      values={chainMetadata.blockExplorers?.map((b) => b.url) || []}
+      type="explorer"
       onAddNew={() => {}}
     />
   );
 }
 
 function ConnectionsSection({
+  chainMetadata,
   header,
-  label,
-  values,
+  type,
   onAddNew,
 }: {
+  chainMetadata: ChainMetadata;
   header: string;
-  label: string;
-  values: string[];
+  type: 'explorer' | 'rpc';
   onAddNew: () => void;
 }) {
+  const values =
+    (type === 'rpc' ? chainMetadata.rpcUrls : chainMetadata.blockExplorers) ||
+    [];
+
   return (
     <div className="htw-space-y-1.5">
       <SectionHeader>{header}</SectionHeader>
-      {values.map((v, i) => (
-        <ConnectionRow key={i} value={v} />
+      {values.map((_, i) => (
+        <ConnectionRow chainMetadata={chainMetadata} index={i} type={type} />
       ))}
       <button
         type="button"
@@ -90,7 +118,7 @@ function ConnectionsSection({
         onClick={onAddNew}
       >
         <PlusCircleIcon width={15} height={15} color={ColorPalette.LightGray} />
-        <div className="htw-text-sm ">{`Add new ${label}`}</div>
+        <div className="htw-text-sm ">{`Add new ${type}`}</div>
       </button>
     </div>
   );
@@ -174,12 +202,33 @@ function SectionHeader({
 }
 
 function ConnectionRow({
-  key,
-  value,
-}: PropsWithChildren<{ key: Key; value: string }>) {
+  chainMetadata,
+  index,
+  type,
+}: {
+  chainMetadata: ChainMetadata;
+  index: number;
+  type: 'rpc' | 'explorer';
+}) {
+  const isHealthy = useConnectionHealthTest(chainMetadata, index, type);
+  const value =
+    type === 'rpc'
+      ? chainMetadata.rpcUrls?.[index].http
+      : chainMetadata.blockExplorers?.[index].url;
+
   return (
-    <div key={key} className="htw-flex htw-items-center htw-gap-3">
-      <Circle size={14} className="htw-bg-red-500" />
+    <div
+      key={`${type}-${index}`}
+      className="htw-flex htw-items-center htw-gap-3"
+    >
+      {isNullish(isHealthy) ? (
+        <Spinner width={14} height={14} />
+      ) : (
+        <Circle
+          size={14}
+          className={isHealthy ? 'htw-bg-green-500' : 'htw-bg-red-500'}
+        />
+      )}
       <div className="htw-text-sm htw-truncate">{value}</div>
     </div>
   );

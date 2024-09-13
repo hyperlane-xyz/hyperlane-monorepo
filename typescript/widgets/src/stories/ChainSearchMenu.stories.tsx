@@ -14,6 +14,7 @@ type Story = StoryObj<typeof meta>;
 export const DefaultChainSearch = {
   args: {
     chainMetadata,
+    onClickChain: (chain) => console.log('Clicked', chain),
   },
 } satisfies Story;
 

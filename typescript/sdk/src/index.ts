@@ -27,10 +27,10 @@ export {
   testSealevelChain,
 } from './consts/testChains.js';
 export {
+  attachAndConnectContracts,
   attachContracts,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
-  attachAndConnectContracts,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
@@ -69,8 +69,8 @@ export {
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export {
   CoreConfigSchema,
-  DeployedCoreAddressesSchema,
   DeployedCoreAddresses,
+  DeployedCoreAddressesSchema,
 } from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
@@ -254,6 +254,7 @@ export {
   InterchainQueryConfig,
   InterchainQueryDeployer,
 } from './middleware/query/InterchainQueryDeployer.js';
+export { isBlockExplorerHealthy } from './providers/explorerHealthTest.js';
 export {
   MultiProtocolProvider,
   MultiProtocolProviderOptions,
@@ -302,7 +303,12 @@ export {
   ViemTransaction,
   ViemTransactionReceipt,
 } from './providers/ProviderType.js';
-export { ProviderRetryOptions } from './providers/SmartProvider/types.js';
+export {
+  isCosmJsProviderHealthy,
+  isEthersV5ProviderHealthy,
+  isRpcHealthy,
+  isSolanaWeb3ProviderHealthy,
+} from './providers/rpcHealthTest.js';
 export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider.js';
 export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 export {
@@ -312,6 +318,7 @@ export {
   excludeProviderMethods,
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
+export { ProviderRetryOptions } from './providers/SmartProvider/types.js';
 export {
   PopulatedTransactionSchema,
   PopulatedTransactionsSchema,
@@ -337,13 +344,13 @@ export {
 } from './providers/transactions/submitter/ethersV5/types.js';
 
 export {
-  SubmissionStrategySchema,
   ChainSubmissionStrategySchema,
+  SubmissionStrategySchema,
 } from './providers/transactions/submitter/builder/schemas.js';
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
 export {
-  SubmissionStrategy,
   ChainSubmissionStrategy,
+  SubmissionStrategy,
 } from './providers/transactions/submitter/builder/types.js';
 
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
@@ -386,11 +393,11 @@ export {
   MailboxClientConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
+  RemoteRouters,
   RouterAddress,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
-  RemoteRouters,
   proxiedFactories,
 } from './router/types.js';
 export {
@@ -469,6 +476,7 @@ export {
   TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
 } from './token/TokenStandard.js';
+export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { filterByChains } from './utils/filter.js';
@@ -480,9 +488,8 @@ export {
   setFork,
   stopImpersonatingAccount,
 } from './utils/fork.js';
-export { MultiGeneric } from './utils/MultiGeneric.js';
-export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { multisigIsmVerificationCost } from './utils/ism.js';
+export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
@@ -522,11 +529,11 @@ export {
 } from './utils/gnosisSafe.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
-export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-export {
-  ProxyFactoryFactoriesSchema,
-  ProxyFactoryFactoriesAddresses,
-} from './deploy/schemas.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { proxyAdmin } from './deploy/proxy.js';
+export {
+  ProxyFactoryFactoriesAddresses,
+  ProxyFactoryFactoriesSchema,
+} from './deploy/schemas.js';
+export { EvmIsmModule } from './ism/EvmIsmModule.js';
+export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
