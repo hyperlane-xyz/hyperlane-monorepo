@@ -7628,7 +7628,7 @@ __metadata:
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/registry": "npm:2.5.0"
+    "@hyperlane-xyz/registry": "npm:4.0.0"
     "@hyperlane-xyz/utils": "npm:5.1.0"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"

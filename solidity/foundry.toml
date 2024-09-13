@@ -29,6 +29,7 @@ verbosity = 4
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
 polygon = "https://rpc.ankr.com/polygon"
+blast = "https://rpc.ankr.com/blast"
 
 [fuzz]
 runs = 50
