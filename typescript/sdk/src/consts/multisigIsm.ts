@@ -200,6 +200,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0',
       '0x3571223e745dc0fcbdefa164c9b826b90c0d2dac', // luganodes
+      '0xea83086a62617a7228ce4206fae2ea8b0ab23513', // imperator
     ],
   },
 
@@ -592,10 +593,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   solanamainnet: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x28464752829b3ea59a497fca0bdff575c534c3ff',
       '0x2b7514a2f77bd86bbf093fe6bb67d8611f51c659', // luganodes
+      '0xd90ea26ff731d967c5ea660851f7d63cb04ab820', // dsrv
+      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
     ],
   },
 
